@@ -567,12 +567,19 @@ class CFGBase(Analysis):
             except SimError:
                 all_bytes = None
 
+        size = end - start + 1
+
         if all_bytes is None:
             # load from the binary
-            all_bytes = self._fast_memory_load_bytes(start, end - start + 1)
+            all_bytes = self._fast_memory_load_bytes(start, size)
 
         if all_bytes is None:
             return True
+
+        if len(all_bytes) < size:
+            l.warning("_is_region_extremely_sparse: The given region %#x-%#x is not a continuous memory region in the "
+                      "memory space. Only the first %d bytes (%#x-%#x) are processed.", start, end, len(all_bytes),
+                      start, start + len(all_bytes) - 1)
 
         the_byte_value = None
         for b in all_bytes:
@@ -681,27 +688,6 @@ class CFGBase(Analysis):
                 return True
         return False
 
-    def _addr_belongs_to_section(self, addr):
-        """
-        Return the section object that the address belongs to.
-
-        :param int addr: The address to test
-        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
-                section information is not available.
-        :rtype: cle.Section
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a special CLE section
-            return None
-
-        return obj.find_section_containing(addr)
-
     def _addrs_belong_to_same_section(self, addr_a, addr_b):
         """
         Test if two addresses belong to the same section.
@@ -732,54 +718,6 @@ class CFGBase(Analysis):
 
         return src_section.contains_addr(addr_b)
 
-    def _addr_next_section(self, addr):
-        """
-        Return the next section object after the given address.
-
-        :param int addr: The address to test
-        :return: The next section that goes after the given address, or None if there is no section after the address,
-                 or if section information is not available.
-        :rtype: cle.Section
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a special CLE section
-            return None
-
-        for section in obj.sections:
-            start = section.vaddr
-
-            if addr < start:
-                return section
-
-        return None
-
-    def _addr_belongs_to_segment(self, addr):
-        """
-        Return the section object that the address belongs to.
-
-        :param int addr: The address to test
-        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
-                section information is not available.
-        :rtype: cle.Segment
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a section allocated by angr.
-            return None
-
-        return obj.find_segment_containing(addr)
-
     def _addr_hooked_or_syscall(self, addr):
         """
         Check whether the address belongs to a hook or a syscall.
@@ -797,16 +735,17 @@ class CFGBase(Analysis):
         memory by the loader.
 
         :param int addr: Address to read from.
-        :return: The data, or None if the address does not exist.
-        :rtype: cffi.CData
+        :return: A tuple of the data (cffi.CData) and the max size in the current continuous block, or (None, None) if
+                 the address does not exist.
+        :rtype: tuple
         """
 
         try:
-            buff, _ = self.project.loader.memory.read_bytes_c(addr)
-            return buff
+            buff, size = self.project.loader.memory.read_bytes_c(addr)
+            return buff, size
 
         except KeyError:
-            return None
+            return None, None
 
     def _fast_memory_load_byte(self, addr):
         """
@@ -829,9 +768,14 @@ class CFGBase(Analysis):
         :rtype:          str or None
         """
 
-        buf = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr)
         if buf is None:
             return None
+        if size == 0:
+            return None
+
+        # Make sure it does not go over-bound
+        length = min(length, size)
 
         char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
         return char_str
@@ -846,7 +790,7 @@ class CFGBase(Analysis):
         """
 
         pointer_size = self.project.arch.bits / 8
-        buf = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr)
         if buf is None:
             return None
 
@@ -854,10 +798,19 @@ class CFGBase(Analysis):
             fmt = "<"
         else:
             fmt = ">"
+
         if pointer_size == 8:
-            fmt += "Q"
+            if size >= 8:
+                fmt += "Q"
+            else:
+                # Insufficient bytes left in the current block for making an 8-byte pointer
+                return None
         elif pointer_size == 4:
-            fmt += "I"
+            if size >= 4:
+                fmt += "I"
+            else:
+                # Insufficient bytes left in the current block for making a 4-byte pointer.
+                return None
         else:
             raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
@@ -920,6 +873,7 @@ class CFGBase(Analysis):
             if func.has_return:
                 changes['functions_return'].append(func)
                 func.returning = True
+                self._add_returning_function(func.addr)
                 continue
 
             # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
@@ -940,6 +894,7 @@ class CFGBase(Analysis):
                     changes['functions_do_not_return'].append(func)
                 else:
                     func.returning = True
+                    self._add_returning_function(func.addr)
                     changes['functions_return'].append(func)
                 continue
 
@@ -953,6 +908,7 @@ class CFGBase(Analysis):
                 # the error will be corrected during post-processing. In fact at this moment we cannot say anything
                 # about whether this function returns or not. We always assume it returns.
                 func.returning = True
+                self._add_returning_function(func.addr)
                 changes['functions_return'].append(func)
                 continue
 
@@ -1000,6 +956,7 @@ class CFGBase(Analysis):
                 target_func = self.kb.functions[goout_target.addr]
                 if target_func.returning is True:
                     func.returning = True
+                    self._add_returning_function(func.addr)
                     changes['functions_return'].append(func)
                     bail_out = True
                 elif target_func.returning is None:
@@ -1154,7 +1111,8 @@ class CFGBase(Analysis):
                                    function_address=n.function_address, block_id=n.block_id,
                                    instruction_addrs=[i for i in n.instruction_addrs
                                                       if n.addr <= i <= n.addr + new_size
-                                                      ]
+                                                      ],
+                                   thumb=n.thumb
                                    )
 
                 # Copy instruction addresses
@@ -1292,12 +1250,19 @@ class CFGBase(Analysis):
     # Function identification and such
     #
 
+    def _add_returning_function(self, func_addr):
+        pass
+
     def remove_function_alignments(self):
         """
         Remove all function alignments.
 
         :return: None
         """
+
+        # This function requires Capstone engine support
+        if not self.project.arch.capstone_support:
+            return
 
         for func_addr in self.kb.functions.keys():
             function = self.kb.functions[func_addr]
@@ -1513,7 +1478,7 @@ class CFGBase(Analysis):
             # sanity check: startpoint of the function should be greater than its endpoint
             if startpoint_addr >= endpoint_addr:
                 continue
-            if max_unresolved_jump_addr >= endpoint_addr:
+            if max_unresolved_jump_addr <= startpoint_addr or max_unresolved_jump_addr >= endpoint_addr:
                 continue
 
             # scan forward from the endpoint to include any function tail jumps
@@ -1582,7 +1547,6 @@ class CFGBase(Analysis):
 
             for f_addr in functions_to_merge:
                 functions_to_remove[f_addr] = func_addr
-                continue
 
         # merge all functions
         for to_remove, merge_with in functions_to_remove.iteritems():

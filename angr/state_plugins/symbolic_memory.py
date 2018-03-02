@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from collections import defaultdict
 
 import logging
@@ -433,8 +432,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _fill_missing(self, addr, num_bytes, inspect=True, events=True):
         name = "%s_%x" % (self.id, addr)
         all_missing = [
-            self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*self.state.arch.byte_width, source=i, inspect=inspect,
-                                         events=events)
+            self.get_unconstrained_bytes(
+                name,
+                min(self.mem._page_size, num_bytes)*self.state.arch.byte_width,
+                source=i,
+                inspect=inspect,
+                events=events,
+                key=self.variable_key_prefix + (addr,),
+                eternal=False) # :(
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
@@ -464,9 +469,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if not mo.includes(last_missing):
                 # add missing bytes
                 start_addr = mo.last_addr + 1
-                end_addr = last_missing - mo.last_addr
-                fill_mo = self._fill_missing(start_addr, end_addr, inspect=inspect, events=events)
-                segments.append(fill_mo.bytes_at(start_addr, end_addr).reversed)
+                length = last_missing - mo.last_addr
+                fill_mo = self._fill_missing(start_addr, length, inspect=inspect, events=events)
+                segments.append(fill_mo.bytes_at(start_addr, length).reversed)
                 last_missing = mo.last_addr
 
             # add the normal segment
@@ -800,7 +805,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             conditional_value = original_value
 
             for opt in segment['options']:
-                data_slice = data[((opt['idx']+segment['size'])*self.state.arch.byte_width)-1:opt['idx']*self.state.arch.byte_width]
+
+                if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+                    high = ((opt['idx']+segment['size']) * self.state.arch.byte_width)-1
+                    low = opt['idx']*self.state.arch.byte_width
+                else:
+                    high = len(data) - 1 - (opt['idx']*self.state.arch.byte_width)
+                    low = len(data) - ((opt['idx']+segment['size']) *self.state.arch.byte_width)
+
+                data_slice = data[high:low]
                 conditional_value = self.state.solver.If(self.state.solver.And(address == segment['start']-opt['idx'], condition), data_slice, conditional_value)
 
             stored_values.append(dict(value=conditional_value, addr=segment['start'], size=segment['size']))
@@ -966,9 +979,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return req
 
-    def get_unconstrained_bytes(self, name, bits, source=None, inspect=True, events=True):
+    def get_unconstrained_bytes(self, name, bits, source=None, key=None, inspect=True, events=True, **kwargs):
         """
         Get some consecutive unconstrained bytes.
+
         :param name: Name of the unconstrained variable
         :param bits: Size of the unconstrained variable
         :param source: Where those bytes are read from. Currently it is only used in under-constrained symbolic
@@ -984,18 +998,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
             return self.state._special_memory_filler(name, bits, self.state)
         else:
-            kwargs = { }
             if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
                 if source is not None and type(source) in (int, long):
                     alloc_depth = self.state.uc_manager.get_alloc_depth(source)
                     kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
-            r = self.state.se.Unconstrained(name, bits, inspect=inspect, events=events, **kwargs)
+            r = self.state.se.Unconstrained(name, bits, key=key, inspect=inspect, events=events, **kwargs)
             return r
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr, inspect=True, events=True):
-        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_0x%x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
-                                                          events=events)
+        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_%#x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
+                                                          events=events, key=('manual_unconstrain', addr))
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.
@@ -1043,17 +1056,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 merged_val = self.state.se.If(fv, tm, merged_val)
 
         return merged_val
-
-    def concrete_parts(self):
-        """
-        Return a dict containing the concrete values in memory.
-        """
-        d = { }
-        for k,v in self.mem.iteritems():
-            if not self.state.se.symbolic(v):
-                d[k] = self.state.se.simplify(v)
-
-        return d
 
     def dbg_print(self, indent=0):
         """

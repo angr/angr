@@ -30,7 +30,7 @@ class SimEngineVEX(SimEngine):
 
     def __init__(self, stop_points=None,
             use_cache=True,
-            cache_size=10000,
+            cache_size=50000,
             default_opt_level=1,
             support_selfmodifying_code=False,
             single_step=False):
@@ -44,17 +44,18 @@ class SimEngineVEX(SimEngine):
         self._single_step = single_step
         self._cache_size = cache_size
 
+        # block cache
         self._block_cache = None
-        self._cache_hit_count = 0
-        self._cache_miss_count = 0
+        self._block_cache_hits = 0
+        self._block_cache_misses = 0
 
         self._initialize_block_cache()
 
 
     def _initialize_block_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
-        self._cache_hit_count = 0
-        self._cache_miss_count = 0
+        self._block_cache_hits = 0
+        self._block_cache_misses = 0
 
     def process(self, state,
             irsb=None,
@@ -227,7 +228,7 @@ class SimEngineVEX(SimEngine):
                     raise
                 if stmt.tmp not in (0xffffffff, -1):
                     retval_size = state.scratch.tyenv.sizeof(stmt.tmp)
-                    retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
+                    retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size, key=('dirty', stmt.cee.name))
                     state.scratch.store_tmp(stmt.tmp, retval, None, None)
                 state.history.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name,
                                     message='unsupported Dirty call')
@@ -434,7 +435,7 @@ class SimEngineVEX(SimEngine):
         # phase 3: check cache
         cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
         if self._use_cache and cache_key in self._block_cache:
-            self._cache_hit_count += 1
+            self._block_cache_hits += 1
             irsb = self._block_cache[cache_key]
             stop_point = self._first_stoppoint(irsb)
             if stop_point is None:
@@ -444,12 +445,20 @@ class SimEngineVEX(SimEngine):
                 # check the cache again
                 cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
                 if cache_key in self._block_cache:
-                    self._cache_hit_count += 1
+                    self._block_cache_hits += 1
                     return self._block_cache[cache_key]
                 else:
-                    self._cache_miss_count += 1
+                    self._block_cache_misses += 1
         else:
-            self._cache_miss_count += 1
+            # a special case: `size` is used as the maximum allowed size
+            tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level)
+            try:
+                irsb = self._block_cache[tmp_cache_key]
+                if irsb.size <= size:
+                    self._block_cache_hits += 1
+                    return self._block_cache[tmp_cache_key]
+            except KeyError:
+                self._block_cache_misses += 1
 
         # phase 4: get bytes
         if insn_bytes is not None:
@@ -564,8 +573,8 @@ class SimEngineVEX(SimEngine):
     def clear_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
 
-        self._cache_hit_count = 0
-        self._cache_miss_count = 0
+        self._block_cache_hits = 0
+        self._block_cache_misses = 0
 
     #
     # Pickling

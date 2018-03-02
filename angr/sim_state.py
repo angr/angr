@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import functools
 import itertools
 import contextlib
@@ -37,7 +35,7 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
     :ivar registers:    The state's register file as a flat memory region
     :ivar memory:       The state's memory as a flat memory region
-    :ivar se:           The solver engine for this state
+    :ivar solver:       The symbolic solver and variable manager for this state
     :ivar inspect:      The breakpoint manager, a :class:`angr.state_plugins.inspect.SimInspector`
     :ivar log:          Information about the state's history
     :ivar scratch:      Information about the current execution step
@@ -219,12 +217,6 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
     #
     # Plugin accessors
     #
-
-    def __getattr__(self, v):
-        try:
-            return self.get_plugin(v)
-        except NoPlugin:
-            raise AttributeError(v)
 
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
@@ -430,16 +422,23 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
 
         :param states: the states to merge
         :param merge_conditions: a tuple of the conditions under which each state holds
-        :param common_ancestor: a state that represents the common history between the states being merged
+        :param common_ancestor:  a state that represents the common history between the states being merged. Usually it
+                                 is only available when EFFICIENT_STATE_MERGING is enabled, otherwise weak-refed states
+                                 might be dropped from state history instances.
         :param plugin_whitelist: a list of plugin names that will be merged. If this option is given and is not None,
                                  any plugin that is not inside this list will not be merged, and will be created as a
                                  fresh instance in the new state.
+        :param common_ancestor_history:
+                                 a SimStateHistory instance that represents the common history between the states being
+                                 merged. This is to allow optimal state merging when EFFICIENT_STATE_MERGING is
+                                 disabled.
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
 
         merge_conditions = kwargs.pop('merge_conditions', None)
         common_ancestor = kwargs.pop('common_ancestor', None)
         plugin_whitelist = kwargs.pop('plugin_whitelist', None)
+        common_ancestor_history = kwargs.pop('common_ancestor_history', None)
 
         if len(kwargs) != 0:
             raise ValueError("invalid arguments: %s" % kwargs.keys())
@@ -490,15 +489,21 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
                 for t,tp in zip(others, their_plugins)
             ]
 
+            plugin_common_ancestor = (
+                common_ancestor.plugins[p] if
+                (common_ancestor is not None and p in common_ancestor.plugins) else
+                None
+            )
+            if plugin_common_ancestor is None and \
+                    plugin_class is SimStateHistory and \
+                    common_ancestor_history is not None:
+                plugin_common_ancestor = common_ancestor_history
+
             plugin_state_merged = our_filled_plugin.merge(
-                their_filled_plugins, merge_conditions, common_ancestor=(
-                    common_ancestor.plugins[p] if
-                    (common_ancestor is not None and p in common_ancestor.plugins) else
-                    None
-                )
+                their_filled_plugins, merge_conditions, common_ancestor=plugin_common_ancestor,
             )
             if plugin_state_merged:
-                l.debug('Merging occured in %s', p)
+                l.debug('Merging occurred in %s', p)
                 merging_occurred = True
 
         merged.add_constraints(merged.se.Or(*merge_conditions))
@@ -806,7 +811,8 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
 from .state_plugins.symbolic_memory import SimSymbolicMemory
 from .state_plugins.fast_memory import SimFastMemory
 from .state_plugins.abstract_memory import SimAbstractMemory
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, NoPlugin
+from .state_plugins.history import SimStateHistory
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
 from .state_plugins import DefaultPluginPreset

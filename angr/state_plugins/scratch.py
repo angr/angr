@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import logging
 l = logging.getLogger("angr.state_plugins.scratch")
 

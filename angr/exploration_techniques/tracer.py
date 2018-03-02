@@ -1,13 +1,18 @@
+import os
+import tempfile
 import logging
 
-from . import ExplorationTechnique
+import claripy
 
+from . import ExplorationTechnique, Cacher
 from .. import BP_BEFORE
-
 from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrTracerError, SimMemoryError, SimEngineError
+from ..storage.file import SimFile
+
 
 l = logging.getLogger("angr.exploration_techniques.tracer")
+
 
 class Tracer(ExplorationTechnique):
     """
@@ -20,13 +25,14 @@ class Tracer(ExplorationTechnique):
     state can be found with CrashMonitor exploration technique.
     """
 
-    def __init__(self, trace=None, resiliency=True, dump_syscall=False, keep_predecessors=1):
+    def __init__(self, trace=None, resiliency=True, use_cache=True, dump_syscall=False, keep_predecessors=1):
         """
-        :param trace            : The basic block trace.
-        :param resiliency       : Should we continue to step forward even if qemu and angr disagree?
-        :param dump_syscall     : True if we want to dump the syscall information.
-        :param keep_predecessors: Number of states before the final state we should preserve.
-                                  Default 1, must be greater than 0.
+        :param trace:               The basic block trace.
+        :param resiliency:          Should we continue to step forward even if qemu and angr disagree?
+        :param use_cache:           True if we want to use caching system.
+        :param dump_syscall:        True if we want to dump the syscall information.
+        :param keep_predecessors:   Number of states before the final state we should preserve.
+                                    Default 1, must be greater than 0.
         """
 
         super(Tracer, self).__init__()
@@ -46,6 +52,8 @@ class Tracer(ExplorationTechnique):
         if self._dump_syscall:
             self._syscalls = []
 
+        self._use_cache = use_cache
+
     def setup(self, simgr):
         self.project = simgr._project
         s = simgr.active[0]
@@ -63,6 +71,28 @@ class Tracer(ExplorationTechnique):
                 simgr = simgr.drop(stash="unsat")
                 simgr = simgr.unstash(from_stash="found",to_stash="active")
 
+        if self.project.loader.main_object.os == 'cgc':
+            if self._use_cache:
+                tmp_dir = tempfile.mkdtemp(prefix="tracer_cache")
+                cache_file = os.path.join(tmp_dir, "%(name)s-%(binhash)s.tcache")
+                cacher = Cacher(when=self._tracer_cache_cond,
+                                container=cache_file,
+                                dump_func=self._tracer_dump,
+                                load_func=self._tracer_load)
+
+                simgr.use_technique(cacher)
+
+                # If we're restoring from a cache, we preconstrain. If we're not restoring from a cache,
+                # the cacher will preconstrain.
+                # If we're restoring from a cache, we can safely remove the cacher
+                # right after.
+                if os.path.exists(cacher.container):
+                    simgr.one_active.preconstrainer.preconstrain_state()
+                    simgr.remove_tech(cacher)
+
+            else:
+                simgr.one_active.preconstrainer.preconstrain_state()
+
     def complete(self, simgr):
         all_paths = simgr.active + simgr.deadended
 
@@ -79,6 +109,9 @@ class Tracer(ExplorationTechnique):
         return False
 
     def step(self, simgr, stash, **kwargs):
+        if stash != 'active':
+            raise Exception("TODO: tracer doesn't work with stashes other than active")
+
         if len(simgr.active) == 1:
             current = simgr.active[0]
 
@@ -90,8 +123,7 @@ class Tracer(ExplorationTechnique):
                 # termination condition: we exhausted the dynamic trace log
                 if current.globals['bb_cnt'] >= len(self._trace):
                     return simgr
-
-                # now, we switch through several ways that the dynamic and symbolic traces can interact
+# now, we switch through several ways that the dynamic and symbolic traces can interact
 
                 # basic, convenient case: the two traces match
                 if current.addr == self._trace[current.globals['bb_cnt']]:
@@ -134,7 +166,7 @@ class Tracer(ExplorationTechnique):
                             self._trace[current.globals['bb_cnt']],
                             current.addr)
 
-                    l.error("inputs was %r", current.preconstrainer._input_content)
+                    l.error("inputs was %r", current.preconstrainer.input_content)
                     if self._resiliency:
                         l.error("TracerMisfollowError encountered")
                         l.warning("entering no follow mode")
@@ -175,7 +207,7 @@ class Tracer(ExplorationTechnique):
             # drop the missed stash before stepping, since driller needs missed paths later.
             simgr.drop(stash='missed')
 
-            simgr.step(size=bbl_max_bytes)
+            simgr._one_step(stash, size=bbl_max_bytes)
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths.
             if current.preconstrainer._preconstrain_input:
@@ -259,8 +291,8 @@ class Tracer(ExplorationTechnique):
     def _address_in_binary(self, addr):
         """
         Determine if address @addr is in the binary being traced.
-        :param addr: the address to test
 
+        :param addr: the address to test
         :return: True if the address is in between the binary's min and max addresses.
         """
 
@@ -271,5 +303,78 @@ class Tracer(ExplorationTechnique):
         """
         Check if an address is inside the plt section
         """
-        plt = self.project.loader.main_object.sections_map['.plt']
-        return addr >= plt.min_addr and addr <= plt.max_addr
+        plt = self.project.loader.main_object.sections_map.get('.plt', None)
+        return False if plt is None else addr >= plt.min_addr and addr <= plt.max_addr
+
+    @staticmethod
+    def _tracer_cache_cond(state):
+        if  state.history.jumpkind.startswith('Ijk_Sys'):
+            sys_procedure = state.project.simos.syscall(state)
+            if sys_procedure.display_name == 'receive' and state.se.eval(state.posix.files[0].pos) == 0:
+                return True
+        return False
+
+    @staticmethod
+    def _tracer_load(container, simgr):
+        preconstrainer = simgr.one_active.preconstrainer
+
+        if type(preconstrainer.input_content) == str:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(preconstrainer.input_content))}
+        else:
+            fs = preconstrainer.input_content.stdin
+
+        project = simgr._project
+        cached_project = project.load_function(container)
+
+        if cached_project is not None:
+            cached_project.analyses = project.analyses
+            cached_project.surveyors = project.surveyors
+            cached_project.store_function = project.store_function
+            cached_project.load_function = project.load_function
+
+            state = cached_project.storage['cached_states'][0]
+            state.globals['bb_cnt'] = cached_project.storage['bb_cnt']
+            claripy.ast.base.var_counter = cached_project.storage['var_cnt']
+            cached_project.storage = None
+
+            # Setting up the cached state
+            state.project = cached_project
+            simgr._project = cached_project
+
+            # Hookup the new files
+            for name in fs:
+                fs[name].set_state(state)
+                for fd in state.posix.files:
+                    if state.posix.files[fd].name == name:
+                        state.posix.files[fd] = fs[name]
+                        break
+
+            state.register_plugin('preconstrainer', preconstrainer)
+            state.history.recent_block_count = 0
+
+            # Setting the cached state to the simgr
+            simgr.stashes['active'] = [state]
+
+        else:
+            l.error("Something went wrong during Project unpickling for Tracer...")
+
+    @staticmethod
+    def _tracer_dump(container, simgr, stash):
+        if stash != 'active':
+            raise Exception("TODO: tracer doesn't work with stashes other than active")
+
+        s = simgr.stashes[stash][0]
+        project = s.project
+        s.project = None
+        s.history.trim()
+
+        project.storage['cached_states'] = [s]
+        project.storage['bb_cnt'] = s.globals['bb_cnt']
+        project.storage['var_cnt'] = claripy.ast.base.var_counter
+
+        project.store_function(container)
+
+        s.project = project
+
+        # Add preconstraints to state
+        s.preconstrainer.preconstrain_state()

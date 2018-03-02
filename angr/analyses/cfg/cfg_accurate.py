@@ -212,6 +212,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
 
+        # add the track_memory_option if the enable function hint flag is set
+        if self._enable_function_hints and o.TRACK_MEMORY_ACTIONS not in self._state_add_options:
+            self._state_add_options.add(o.TRACK_MEMORY_ACTIONS)
+
         # more initialization
 
         self._symbolic_function_initial_state = {}
@@ -1194,7 +1198,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
         # any duplication with existing jumping targets
         if self._enable_function_hints:
-            if sim_successors.sort == 'IRSB':
+            if sim_successors.sort == 'IRSB' and sim_successors.all_successors:
                 function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
                 for f in function_hints:
                     self._pending_function_hints.add(f)
@@ -1642,7 +1646,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            target_addr = self.project.simos.syscall(new_state).addr
+            syscall_proc = self.project.simos.syscall(new_state)
+            if syscall_proc is not None:
+                target_addr = syscall_proc.addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
@@ -2930,6 +2936,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                block_id=block_id,
                                depth=depth,
                                creation_failure_info=exception_info,
+                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
                                )
 
         else:
@@ -2945,6 +2952,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                depth=depth,
                                irsb=sim_successors.artifacts['irsb'],
                                creation_failure_info=exception_info,
+                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
                                )
 
         return cfg_node

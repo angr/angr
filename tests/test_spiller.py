@@ -17,7 +17,7 @@ def pickle_callback(state):
 def unpickle_callback(state):
     state.globals['unpickled'] = True
 def priority_key(state):
-    return hash(tuple(state.history.bbl_addrs)) # to help ensure determinism
+    return state.addr * state.history.depth # to help ensure determinism
 
 @nose.with_setup(setup, teardown)
 def test_basic():

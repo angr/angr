@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import logging
 
 l = logging.getLogger("angr.storage.memory")
@@ -330,6 +328,13 @@ class SimMemory(SimStatePlugin):
 
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
+
+    @property
+    def variable_key_prefix(self):
+        s = self.category
+        if s == 'file':
+            return (s, self.id)
+        return (s,)
 
     def set_state(self, state):
         """

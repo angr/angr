@@ -21,6 +21,7 @@ from .callstack import *
 from .globals import *
 from .preconstrainer import *
 from .view import *
+from .loop_data import *
 
 # Plugin presets
 from ..misc.plugins import PluginPreset

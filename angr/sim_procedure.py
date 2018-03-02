@@ -48,6 +48,7 @@ class SimProcedure(object):
         self.display_name = type(self).__name__ if display_name is None else display_name
         self.library_name = library_name
         self.syscall_number = None
+        self.abi = None
         self.symbolic_return = symbolic_return
 
         # types
@@ -159,7 +160,7 @@ class SimProcedure(object):
             l.debug("Executing %s%s%s%s with %s, %s",
                     inst.display_name,
                     ' (syscall)' if inst.is_syscall else '',
-                    ' (inline)' if inst.use_state_arguments else '',
+                    ' (inline)' if not inst.use_state_arguments else '',
                     ' (stub)' if inst.is_stub else '',
                     sim_args,
                     inst.kwargs)
@@ -289,7 +290,10 @@ class SimProcedure(object):
 
             if self.symbolic_return:
                 size = len(expr)
-                new_expr = self.state.se.Unconstrained("symbolic_return_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
+                new_expr = self.state.solver.Unconstrained(
+                        "symbolic_return_" + self.display_name,
+                        size,
+                        key=('symbolic_return', self.display_name)) #pylint:disable=maybe-no-member
                 self.state.add_constraints(new_expr == expr)
                 expr = new_expr
 

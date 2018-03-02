@@ -13,5 +13,5 @@ class system(angr.SimProcedure):
         self.argument_types = {0: self.ty_ptr(SimTypeTop())}
         self.return_type = SimTypeInt(self.state.arch.bits, True)
 
-        retcode = self.state.se.Unconstrained('system_returncode', 8)
+        retcode = self.state.se.Unconstrained('system_returncode', 8, key=('api', 'system'))
         return retcode.zero_extend(self.state.arch.bits - 8)

@@ -181,6 +181,17 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 jump_table = []
 
+                min_jump_target = state.se.min(jump_addr)
+                max_jump_target = state.se.max(jump_addr)
+
+                # Both the min jump target and the max jump target should be within a mapped memory region
+                # i.e., we shouldn't be jumping to the stack or somewhere unmapped
+                if not project.loader.find_segment_containing(min_jump_target) or \
+                        not project.loader.find_segment_containing(max_jump_target):
+                    l.debug("Jump table %#x might have jump targets outside mapped memory regions. "
+                            "Continue to resolve it from the next data source.", addr)
+                    continue
+
                 for idx, a in enumerate(state.se.eval_upto(jump_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
@@ -189,7 +200,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     all_targets.append(target)
                     jump_table.append(target)
 
-                l.info("Jump table resolution: resolved %d targets from %#x.", len(all_targets), addr)
+                l.info("Resolved %d targets from %#x.", len(all_targets), addr)
 
                 # write to the IndirectJump object in CFG
                 ij = cfg.indirect_jumps[addr]
