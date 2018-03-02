@@ -216,12 +216,12 @@ class SimulationManager(ana.Storable):
         l.debug("... returning %d matches and %d non-matches", len(match), len(nomatch))
         return match, nomatch
 
-    def _one_state_step(self, a, successor_func=None, resilience=None, **kwargs):
+    def _one_state_step(self, state, successor_func=None, resilience=None, **kwargs):
         """
         Internal function to step a single state forward.
 
-        :param a:               The state.
-        :param successor_func:  A function to run on the state instead of doing a.step().
+        :param state:           The state.
+        :param successor_func:  A function to run on the state instead of doing state.step().
         :param resilience:      Quash all errors (and put the offending state in the errored stash).
 
         :returns:               A dict mapping stash names to state lists
@@ -238,49 +238,50 @@ class SimulationManager(ana.Storable):
         try:
             # if we have a hook, use it. If we succeed at using the hook, we will break out of this loop
             # otherwise we execute the else-clause, which does the normal step procedure
-            for hook in self._hooks_step_state:
+            for tech_hook in self._hooks_step_state:
                 # FIXME hack to handle some hooks not expecting strong_reference
-                argspec = inspect.getargspec(hook)
+                argspec = inspect.getargspec(tech_hook)
                 if argspec.keywords is None and "strong_reference" not in argspec.args:
                     del kwargs["strong_reference"]
 
-                out = hook(a, **kwargs)
-                if out is not None:
-                    if isinstance(out, tuple):
+                # The technique hook should return a dictionary (stash: [states]) to be merged
+                tech_states_dict = tech_hook(state, **kwargs)
+                if tech_states_dict is not None:
+                    if isinstance(tech_states_dict, tuple):
                         l.warning('step_state returning a tuple has been deprecated! Please return a dict of stashes instead.')
-                        a, unconst, unsat, p, e = out
-                        out = {'active': a, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
+                        active, unconst, unsat, p, e = tech_states_dict
+                        tech_states_dict = {'active': active, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
 
-                    # errored is not anymore a stash
-                    if 'errored' in out:
-                        self.errored += out['errored']
-                        del out['errored']
+                    # errored is not a stash anymore
+                    if 'errored' in tech_states_dict:
+                        self.errored += tech_states_dict['errored']
+                        del tech_states_dict['errored']
 
-                    new_stashes = self._make_stashes_dict(**out)
+                    new_stashes = self._make_stashes_dict(**tech_states_dict)
                     break
             else:
                 if successor_func is not None:
-                    ss = successor_func(a)
+                    ss = successor_func(state)
                 else:
-                    ss = self._project.factory.successors(a, **kwargs)
+                    ss = self._project.factory.successors(state, **kwargs)
 
                 new_stashes = self._make_stashes_dict(
                     active=ss.flat_successors,
                     unconstrained=ss.unconstrained_successors,
                     unsat=ss.unsat_successors,
-                    orig=a
+                    orig=state
                 )
         except (SimUnsatError, claripy.UnsatError) as e:
-            new_stashes = self._make_stashes_dict(pruned=[a])
+            new_stashes = self._make_stashes_dict(pruned=[state])
             if self._hierarchy:
-                self._hierarchy.unreachable_state(a)
+                self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
         except (AngrError, SimError, claripy.ClaripyError) as e:
-            self.errored.append(ErrorRecord(a, e, sys.exc_info()[2]))
+            self.errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
         except (KeyError, IndexError, TypeError, ValueError, ArithmeticError, MemoryError) as e:
             if resilience is False or not self._resilience:
                 raise
-            self.errored.append(ErrorRecord(a, e, sys.exc_info()[2]))
+            self.errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
 
         return new_stashes
 
@@ -352,15 +353,17 @@ class SimulationManager(ana.Storable):
         # at which point it calls the next hook, and so on, until we fall through to the
         # basic stepping operation.
         if len(self._hooks_step) != 0:
-            hook = self._hooks_step.pop()
-            pg = self.copy() if self._immutable else self
-            pg._immutable = False       # this is a performance consideration
-            out = hook(pg, stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
-            out._immutable = self._immutable
-            self._hooks_step.append(hook)
-            if out is not self:
-                out._hooks_step.append(hook)
-            return out
+            tech_hook = self._hooks_step.pop()
+            simgr = self.copy() if self._immutable else self
+            simgr._immutable = False       # this is a performance consideration
+
+            tech_simgr = tech_hook(simgr, stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
+            tech_simgr._immutable = self._immutable
+            self._hooks_step.append(tech_hook)
+
+            if tech_simgr is not self:
+                tech_simgr._hooks_step.append(tech_hook)
+            return tech_simgr
 
         # this is going to be the new stashes dictionary when we're done.
         # We will construct it incrementally.
@@ -369,22 +372,22 @@ class SimulationManager(ana.Storable):
         # Pick which states to tick, putting them in the new_active list
         new_active = []
         if selector_func is None:
-            to_tick = list(self.stashes[stash])
+            states_to_tick = list(self.stashes[stash])
         else:
-            to_tick = []
-            for a in self.stashes[stash]:
-                if selector_func(a):
-                    to_tick.append(a)
+            states_to_tick = []
+            for state in self.stashes[stash]:
+                if selector_func(state):
+                    states_to_tick.append(state)
                 else:
-                    new_active.append(a)
+                    new_active.append(state)
 
         # wipe out the stash we're drawing from. we will replenish it.
         new_stashes[stash] = []
 
         # for each state we want to tick, tick it!
         # each tick produces a dict of stashes. use _record_step_results to dump them into the result pool.
-        for a in to_tick:
-            result_stashes = self._one_state_step(a, successor_func=successor_func, **kwargs)
+        for state in states_to_tick:
+            result_stashes = self._one_state_step(state, successor_func=successor_func, **kwargs)
             self._record_step_results(new_stashes, new_active, result_stashes)
 
         # finish up and return our result! this may just be the same as self because of mutability optimizations
@@ -597,33 +600,33 @@ class SimulationManager(ana.Storable):
         stash = 'active' if stash is None else stash
         if until is None and n is None:
             n = 1
-        pg = self
+        simgr = self
 
         # Check for found state in first block
         new_active = []
-        for state in pg.stashes[stash]:
-            self._apply_filter_hooks(state,pg.stashes,new_active)
-        pg.stashes[stash] = new_active
+        for state in simgr.stashes[stash]:
+            self._apply_filter_hooks(state,simgr.stashes,new_active)
+        simgr.stashes[stash] = new_active
 
         i = 0
         while n is None or i < n:
             i += 1
-            l.debug("Round %d: stepping %s", i, pg)
+            l.debug("Round %d: stepping %s", i, simgr)
 
-            pg = pg._one_step(stash=stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
+            simgr = simgr._one_step(stash=stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
             if step_func is not None:
-                pg = step_func(pg)
+                simgr = step_func(simgr)
 
-            if until is not None and until(pg):
+            if until is not None and until(simgr):
                 l.debug("Until function returned true")
                 break
 
-            if len(pg.stashes[stash]) == 0:
+            if len(simgr.stashes[stash]) == 0:
                 l.debug("Out of states in stash %s", stash)
                 break
 
 
-        return pg
+        return simgr
 
     def prune(self, filter_func=None, from_stash=None, to_stash=None):
         """
@@ -703,7 +706,7 @@ class SimulationManager(ana.Storable):
         stash = 'active' if stash is None else stash
         return self.move(stash, self.DROP, filter_func=filter_func)
 
-    def unstash(self, filter_func=None, to_stash=None, from_stash=None):
+    def unstash(self, filter_func=None, from_stash=None, to_stash=None):
         """
         Unstash some states. This is an alias for move(), with defaults for the stashes.
 
