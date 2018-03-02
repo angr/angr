@@ -249,8 +249,8 @@ class SimulationManager(ana.Storable):
                 if tech_states_dict is not None:
                     if isinstance(tech_states_dict, tuple):
                         l.warning('step_state returning a tuple has been deprecated! Please return a dict of stashes instead.')
-                        state, unconst, unsat, p, e = tech_states_dict
-                        tech_states_dict = {'active': state, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
+                        active, unconst, unsat, p, e = tech_states_dict
+                        tech_states_dict = {'active': active, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
 
                     # errored is not a stash anymore
                     if 'errored' in tech_states_dict:
