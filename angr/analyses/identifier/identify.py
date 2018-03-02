@@ -12,7 +12,7 @@ from .runner import Runner
 from ... import options
 from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
-l = logging.getLogger("identifier.identify")
+l = logging.getLogger(name=__name__)
 
 
 NUM_TESTS = 5

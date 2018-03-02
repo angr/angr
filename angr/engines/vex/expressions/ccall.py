@@ -4,7 +4,7 @@ from .. import ccall
 from ....errors import SimCCallError, UnsupportedCCallError
 
 import logging
-l = logging.getLogger("angr.engines.vex.expressions.ccall")
+l = logging.getLogger(name=__name__)
 
 class SimIRExpr_CCall(SimIRExpr):
     def _execute(self):

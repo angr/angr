@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("angr.state_plugins.log")
+l = logging.getLogger(name=__name__)
 
 import sys
 import itertools

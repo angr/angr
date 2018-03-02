@@ -1,6 +1,6 @@
 import claripy
 import logging
-l = logging.getLogger("angr.engines.vex.ccall")
+l = logging.getLogger(name=__name__)
 #l.setLevel(logging.DEBUG)
 
 # pylint: disable=R0911

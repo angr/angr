@@ -5,7 +5,7 @@ import logging
 import time
 import sys
 
-l = logging.getLogger("angr.tests.test_ddg")
+l = logging.getLogger(name=__name__)
 
 import nose
 import angr

@@ -3,7 +3,7 @@ import angr
 import os
 
 import logging
-l = logging.getLogger('angr.tests.test_multi_open_file')
+l = logging.getLogger(name=__name__)
 
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 

@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeFd, SimTypeLength
 
 import logging
-l = logging.getLogger("angr.procedures.libc.fflush")
+l = logging.getLogger(name=__name__)
 
 class fflush(angr.SimProcedure):
     #pylint:disable=arguments-differ

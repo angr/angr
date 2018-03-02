@@ -9,7 +9,7 @@ from ..stubs.syscall_stub import syscall as stub_syscall
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
 
-l = logging.getLogger("angr.procedures.definitions")
+l = logging.getLogger(name=__name__)
 SIM_LIBRARIES = {}
 
 class SimLibrary(object):

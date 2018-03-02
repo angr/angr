@@ -5,7 +5,7 @@ import angr
 # getrlimit
 ######################################
 
-l = logging.getLogger("angr.SimProcedures")
+l = logging.getLogger(name=__name__)
 #pylint:disable=redefined-builtin,arguments-differ
 class getrlimit(angr.SimProcedure):
 

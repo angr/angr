@@ -5,7 +5,7 @@ from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeI
 from angr.errors import AngrCallableMultistateError
 
 import logging
-l = logging.getLogger("angr_tests")
+l = logging.getLogger(name=__name__)
 
 import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))

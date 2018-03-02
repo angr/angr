@@ -5,7 +5,7 @@ import networkx
 from ..utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
 from . import Analysis, register_analysis
 
-_l = logging.getLogger("angr.analyses.cdg")
+_l = logging.getLogger(name=__name__)
 
 
 class CDG(Analysis):

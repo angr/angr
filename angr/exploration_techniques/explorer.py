@@ -2,7 +2,7 @@ from . import ExplorationTechnique
 from .. import sim_options
 
 import logging
-l = logging.getLogger("angr.exploration_techniques.explorer")
+l = logging.getLogger(name=__name__)
 
 class Explorer(ExplorationTechnique):
     """

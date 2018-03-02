@@ -10,7 +10,7 @@ from .. import SIM_PROCEDURES
 from ..codenode import HookNode
 from ..sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 
-l = logging.getLogger("angr.analyses.binary_optimizer")
+l = logging.getLogger(name=__name__)
 
 
 class ConstantPropagation(object):

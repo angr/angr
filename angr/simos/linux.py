@@ -12,7 +12,7 @@ from ..state_plugins import SimStateSystem
 from ..errors import AngrSyscallError
 from .userland import SimUserland
 
-_l = logging.getLogger('angr.simos.linux')
+_l = logging.getLogger(name=__name__)
 
 
 class SimLinux(SimUserland):

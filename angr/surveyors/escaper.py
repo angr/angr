@@ -3,7 +3,7 @@ from . import Explorer
 
 import logging
 
-l = logging.getLogger("angr.surveyors.escaper")
+l = logging.getLogger(name=__name__)
 
 
 class Escaper(Surveyor):

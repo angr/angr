@@ -1,7 +1,7 @@
 
 import logging
 
-l = logging.getLogger('angr.analyses.disassembly_utils')
+l = logging.getLogger(name=__name__)
 
 import capstone as cs
 

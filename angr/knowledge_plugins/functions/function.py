@@ -9,7 +9,7 @@ from collections import defaultdict
 import claripy
 from ...errors import SimEngineError, SimMemoryError
 
-l = logging.getLogger("angr.knowledge.function")
+l = logging.getLogger(name=__name__)
 
 
 class Function(object):

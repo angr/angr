@@ -8,7 +8,7 @@ import os
 import claripy
 
 import logging
-l = logging.getLogger("angr.sim_type")
+l = logging.getLogger(name=__name__)
 
 try:
     import pycparser

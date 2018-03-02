@@ -4,7 +4,7 @@ import logging
 
 from angr import SimState
 
-l = logging.getLogger('angr.tests.syscalls.mmap')
+l = logging.getLogger(name=__name__)
 
 
 def test_mmap_base_copy():

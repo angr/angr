@@ -5,7 +5,7 @@ from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrap
 from .callable import Callable
 
 
-l = logging.getLogger("angr.factory")
+l = logging.getLogger(name=__name__)
 
 
 _deprecation_cache = set()

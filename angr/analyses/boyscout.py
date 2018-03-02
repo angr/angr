@@ -5,7 +5,7 @@ from collections import defaultdict
 from . import Analysis, register_analysis
 from archinfo import all_arches
 
-l = logging.getLogger("angr.analyses.boyscout")
+l = logging.getLogger(name=__name__)
 
 class BoyScout(Analysis):
     """

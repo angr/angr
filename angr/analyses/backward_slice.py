@@ -11,7 +11,7 @@ from ..annocfg import AnnotatedCFG
 from ..errors import AngrBackwardSlicingError
 from ..state_plugins.sim_action import SimActionExit
 
-l = logging.getLogger("angr.analyses.backward_slice")
+l = logging.getLogger(name=__name__)
 
 class BackwardSlice(Analysis):
     """

@@ -5,7 +5,7 @@ import logging
 from ...errors import SimValueError, SimSolverModeError
 from ...state_plugins.callstack import CallStack
 
-l = logging.getLogger("angr.analyses.cfg.cfg_job_base")
+l = logging.getLogger(name=__name__)
 
 # TODO: Make callsite an object and use it in BlockID and FunctionKey
 

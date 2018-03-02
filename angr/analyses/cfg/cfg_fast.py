@@ -25,7 +25,7 @@ from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslati
 
 VEX_IRSB_MAX_SIZE = 400
 
-l = logging.getLogger("angr.analyses.cfg.cfg_fast")
+l = logging.getLogger(name=__name__)
 
 
 class Segment(object):

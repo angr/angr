@@ -3,7 +3,7 @@ import claripy
 import string
 import logging
 
-l = logging.getLogger("angr.state_plugins.trace_additions")
+l = logging.getLogger(name=__name__)
 
 
 #pylint:disable=pointless-string-statement

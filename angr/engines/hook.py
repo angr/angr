@@ -2,7 +2,7 @@ import logging
 
 from .engine import SimEngine
 
-l = logging.getLogger("angr.engines.hook")
+l = logging.getLogger(name=__name__)
 
 
 # pylint: disable=abstract-method,unused-argument

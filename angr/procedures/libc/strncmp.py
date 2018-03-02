@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeString, SimTypeLength, SimTypeInt
 
 import logging
-l = logging.getLogger("angr.procedures.libc.strncmp")
+l = logging.getLogger(name=__name__)
 
 class strncmp(angr.SimProcedure):
     #pylint:disable=arguments-differ

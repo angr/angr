@@ -9,7 +9,7 @@ import angr
 from nose.plugins.attrib import attr
 from angr.state_plugins.history import HistoryIter
 
-l = logging.getLogger("angr.tests")
+l = logging.getLogger(name=__name__)
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 target_addrs = {

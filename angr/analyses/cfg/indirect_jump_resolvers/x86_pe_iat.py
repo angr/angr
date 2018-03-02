@@ -3,7 +3,7 @@ import logging
 from ....simos import SimWindows
 from .resolver import IndirectJumpResolver
 
-l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.x86_pe_iat")
+l = logging.getLogger(name=__name__)
 
 
 class X86PeIatResolver(IndirectJumpResolver):

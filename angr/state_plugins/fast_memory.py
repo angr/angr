@@ -5,7 +5,7 @@ import claripy
 from ..storage.memory import SimMemory
 from ..errors import SimFastMemoryError
 
-l = logging.getLogger("angr.state_plugins.fast_memory")
+l = logging.getLogger(name=__name__)
 l.setLevel(logging.DEBUG)
 
 class SimFastMemory(SimMemory):

@@ -8,7 +8,7 @@ from .plugin import SimStatePlugin
 from .. import sim_options
 from ..state_plugins.sim_action import SimActionObject
 
-l = logging.getLogger("angr.state_plugins.history")
+l = logging.getLogger(name=__name__)
 
 
 class SimStateHistory(SimStatePlugin):

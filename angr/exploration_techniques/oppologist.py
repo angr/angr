@@ -4,7 +4,7 @@ import claripy
 import functools
 
 import logging
-l = logging.getLogger("angr.exploration_techniques.oppologist")
+l = logging.getLogger(name=__name__)
 
 from ..errors import AngrError, SimError, SimUnsupportedError, SimCCallError
 from .. import sim_options

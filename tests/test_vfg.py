@@ -8,7 +8,7 @@ import nose
 import angr
 import claripy
 
-l = logging.getLogger("angr_tests")
+l = logging.getLogger(name=__name__)
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 

@@ -2,7 +2,7 @@ import nose
 import angr
 
 import logging
-l = logging.getLogger('angr.tests.test_file_struct_funcs')
+l = logging.getLogger(name=__name__)
 
 import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))

@@ -5,7 +5,7 @@ This is the first of many syscall tests
 """
 
 import logging
-l = logging.getLogger("angr.tests")
+l = logging.getLogger(name=__name__)
 
 import angr
 import nose

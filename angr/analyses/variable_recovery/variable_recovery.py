@@ -11,7 +11,7 @@ from ... import BP, BP_AFTER
 from ...keyed_region import KeyedRegion
 from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
 
-l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery")
+l = logging.getLogger(name=__name__)
 
 
 class VariableRecoveryState(object):

@@ -4,7 +4,7 @@ import contextlib
 import weakref
 
 import logging
-l = logging.getLogger("angr.sim_state")
+l = logging.getLogger(name=__name__)
 
 import claripy
 import ana

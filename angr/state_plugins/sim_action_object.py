@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("angr.state_plugins.sim_action_object")
+l = logging.getLogger(name=__name__)
 
 import claripy
 import functools

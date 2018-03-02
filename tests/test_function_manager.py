@@ -3,7 +3,7 @@ import angr
 from archinfo import ArchAMD64
 
 import logging
-l = logging.getLogger("angr.tests")
+l = logging.getLogger(name=__name__)
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))

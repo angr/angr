@@ -5,7 +5,7 @@ from ..func import Func, TestData
 from ....errors import SimMemoryError
 
 
-l = logging.getLogger("angr.analyses.identifier.functions.free")
+l = logging.getLogger(name=__name__)
 
 class realloc(Func):
     def __init__(self):

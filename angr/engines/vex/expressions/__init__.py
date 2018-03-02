@@ -18,7 +18,7 @@ from ....errors import UnsupportedIRExprError
 from .... import sim_options as o
 
 import logging
-l = logging.getLogger("angr.engines.vex.expressions.")
+l = logging.getLogger(name=__name__)
 
 from .base import SimIRExpr
 

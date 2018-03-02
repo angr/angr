@@ -6,7 +6,7 @@ from ..storage.file import Flags
 
 import os
 import logging
-l = logging.getLogger("angr.state_plugins.posix")
+l = logging.getLogger(name=__name__)
 
 max_fds = 8192
 

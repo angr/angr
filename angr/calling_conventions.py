@@ -15,7 +15,7 @@ from .sim_type import SimStruct
 
 from .state_plugins.sim_action_object import SimActionObject
 
-l = logging.getLogger("angr.calling_conventions")
+l = logging.getLogger(name=__name__)
 
 # TODO: This file contains explicit and implicit byte size assumptions all over. A good attempt to fix them was made.
 # If your architecture hails from the astral plane, and you're reading this, start fixing here.

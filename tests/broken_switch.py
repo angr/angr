@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("angr_tests")
+l = logging.getLogger(name=__name__)
 
 import nose
 import angr

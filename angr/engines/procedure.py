@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("angr.engines.procedure")
+l = logging.getLogger(name=__name__)
 
 from .engine import SimEngine
 

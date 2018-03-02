@@ -4,7 +4,7 @@ from .... import sim_options as o
 from ....errors import UnsupportedDirtyError
 
 import logging
-l = logging.getLogger("angr.engines.vex.statements.dirty")
+l = logging.getLogger(name=__name__)
 
 class SimIRStmt_Dirty(SimIRStmt):
     # Example:

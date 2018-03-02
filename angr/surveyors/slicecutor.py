@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("angr.surveyors.slicecutor")
+l = logging.getLogger(name=__name__)
 
 from .surveyor import Surveyor
 from ..errors import AngrExitError

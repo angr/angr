@@ -7,7 +7,7 @@ from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
 from ..misc.ux import deprecated
 
-l = logging.getLogger("angr.state_plugins.solver")
+l = logging.getLogger(name=__name__)
 
 #pylint:disable=unidiomatic-typecheck
 

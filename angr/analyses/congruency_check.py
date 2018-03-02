@@ -4,7 +4,7 @@ import claripy
 
 from . import Analysis, register_analysis
 
-l = logging.getLogger("angr.analyses.congruency_check")
+l = logging.getLogger(name=__name__)
 #l.setLevel(logging.DEBUG)
 
 

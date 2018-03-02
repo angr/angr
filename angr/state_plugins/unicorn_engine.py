@@ -16,7 +16,7 @@ from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMe
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
 
-l = logging.getLogger("angr.state_plugins.unicorn_engine")
+l = logging.getLogger(name=__name__)
 
 try:
     import unicorn

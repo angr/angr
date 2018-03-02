@@ -27,7 +27,7 @@ getchar = make_func('getchar')
 scanf = make_func('scanf')
 
 import logging
-l = logging.getLogger('angr.tests.string')
+l = logging.getLogger(name=__name__)
 
 #@nose.tools.timed(10)
 def test_inline_strlen():

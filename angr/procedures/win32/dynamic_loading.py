@@ -2,7 +2,7 @@ import angr
 import claripy
 import logging
 
-l = logging.getLogger('angr.procedures.win32.dynamic_loading')
+l = logging.getLogger(name=__name__)
 
 class LoadLibraryA(angr.SimProcedure):
     def run(self, lib_ptr):

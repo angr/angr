@@ -1,7 +1,7 @@
 from .base import SimIRExpr
 
 import logging
-l = logging.getLogger("angr.engines.vex.expressions.unsupported")
+l = logging.getLogger(name=__name__)
 
 class SimIRExpr_Unsupported(SimIRExpr):
     def _execute(self):

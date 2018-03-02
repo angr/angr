@@ -9,7 +9,7 @@ from angr.sim_variable import SimStackVariable
 from angr.knowledge_plugins.variables import VariableType
 
 
-l = logging.getLogger('test_variablerecovery')
+l = logging.getLogger(name=__name__)
 
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),

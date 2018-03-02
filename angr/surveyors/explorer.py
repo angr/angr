@@ -7,7 +7,7 @@ from ..errors import SimMemoryError, SimEngineError
 
 from .surveyor import Surveyor
 
-l = logging.getLogger("angr.surveyors.explorer")
+l = logging.getLogger(name=__name__)
 
 class Explorer(Surveyor):
     """

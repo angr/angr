@@ -3,7 +3,7 @@ import logging
 import angr
 from angr.sim_type import SimTypeInt
 
-l = logging.getLogger("angr.procedures.msvcr._initterm")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # __initterm

@@ -4,7 +4,7 @@ from .. import sim_options
 
 import claripy
 import logging
-l = logging.getLogger("angr.storage.file")
+l = logging.getLogger(name=__name__)
 
 # TODO: symbolic file positions
 import itertools

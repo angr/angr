@@ -11,7 +11,7 @@ from ..errors import AngrTracerError, SimMemoryError, SimEngineError
 from ..storage.file import SimFile
 
 
-l = logging.getLogger("angr.exploration_techniques.tracer")
+l = logging.getLogger(name=__name__)
 
 
 class Tracer(ExplorationTechnique):

@@ -2,7 +2,7 @@ import angr
 from collections import namedtuple
 
 import logging
-l = logging.getLogger('angr.procedures.posix.readdir')
+l = logging.getLogger(name=__name__)
 
 Dirent = namedtuple('dirent', ('d_ino', 'd_off', 'd_reclen', 'd_type', 'd_name'))
 

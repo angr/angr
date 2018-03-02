@@ -5,7 +5,7 @@ from ...errors import AngrCallableError, AngrCallableMultistateError
 from ...calling_conventions import DEFAULT_CC
 
 
-l = logging.getLogger("identifier.custom_callable")
+l = logging.getLogger(name=__name__)
 # l.setLevel("DEBUG")
 
 

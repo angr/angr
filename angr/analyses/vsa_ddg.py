@@ -8,7 +8,7 @@ from .code_location import CodeLocation
 from ..errors import AngrDDGError
 from ..sim_variable import SimRegisterVariable, SimMemoryVariable
 
-l = logging.getLogger("angr.analyses.vsa_ddg")
+l = logging.getLogger(name=__name__)
 
 class DefUseChain(object):
     """

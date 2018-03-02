@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeInt
 
 import logging
-l = logging.getLogger("angr.procedures.libc.tolower")
+l = logging.getLogger(name=__name__)
 
 
 class tolower(angr.SimProcedure):

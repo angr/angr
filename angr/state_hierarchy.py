@@ -5,7 +5,7 @@ import itertools
 
 import claripy
 
-l = logging.getLogger("angr.state_hierarchy")
+l = logging.getLogger(name=__name__)
 
 
 class StateHierarchy(object):

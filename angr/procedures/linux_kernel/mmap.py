@@ -1,7 +1,7 @@
 import angr
 
 import logging
-l = logging.getLogger("angr.procedures.syscalls.mmap")
+l = logging.getLogger(name=__name__)
 
 
 PROT_READ       = 0x1  #    /* Page can be read.  */

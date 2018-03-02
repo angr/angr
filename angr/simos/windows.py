@@ -16,7 +16,7 @@ from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
 from .simos import SimOS
 
-_l = logging.getLogger('angr.simos.windows')
+_l = logging.getLogger(name=__name__)
 
 
 class SimWindows(SimOS):

@@ -1,7 +1,7 @@
 import angr
 import logging
 
-l = logging.getLogger('angr.procedures.linux_kernel.mprotect')
+l = logging.getLogger(name=__name__)
 
 class mprotect(angr.SimProcedure):
 

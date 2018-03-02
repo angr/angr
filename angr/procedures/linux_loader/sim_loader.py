@@ -2,7 +2,7 @@ import angr
 import claripy
 import logging
 
-l = logging.getLogger('angr.procedures.linux_loader.sim_loader')
+l = logging.getLogger(name=__name__)
 
 class LinuxLoader(angr.SimProcedure):
     NO_RET = True

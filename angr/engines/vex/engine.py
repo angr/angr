@@ -16,7 +16,7 @@ from .statements import translate_stmt
 from .expressions import translate_expr
 
 import logging
-l = logging.getLogger("angr.engines.vex.engine")
+l = logging.getLogger(name=__name__)
 
 #pylint: disable=arguments-differ
 

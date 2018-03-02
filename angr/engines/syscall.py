@@ -1,6 +1,6 @@
 import angr
 import logging
-l = logging.getLogger("angr.engines.syscall")
+l = logging.getLogger(name=__name__)
 
 from .engine import SimEngine
 

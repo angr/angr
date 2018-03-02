@@ -3,7 +3,7 @@ import logging
 from ..cgc.receive import receive as orig_receive
 
 
-l = logging.getLogger("angr.procedures.tracer.receive")
+l = logging.getLogger(name=__name__)
 
 
 class receive(orig_receive):

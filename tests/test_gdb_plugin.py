@@ -3,7 +3,7 @@ import logging
 import nose
 import angr
 
-l = logging.getLogger("angr_tests")
+l = logging.getLogger(name=__name__)
 
 this_file = str(os.path.dirname(os.path.realpath(__file__)))
 test_location = os.path.join(this_file, '../../binaries/tests')

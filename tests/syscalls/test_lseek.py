@@ -2,7 +2,7 @@ import nose
 import archinfo
 
 import logging
-l = logging.getLogger('angr.tests.syscalls.lseek')
+l = logging.getLogger(name=__name__)
 
 from angr import SIM_PROCEDURES
 from angr import SimState, SimPosixError

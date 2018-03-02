@@ -12,7 +12,7 @@ from claripy.ast.bv import BV
 _ffi = cffi.FFI()
 
 import logging
-l = logging.getLogger("angr.storage.paged_memory")
+l = logging.getLogger(name=__name__)
 
 class BasePage(object):
     """

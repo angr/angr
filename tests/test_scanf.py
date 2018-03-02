@@ -6,7 +6,7 @@ import logging
 
 from nose.plugins.attrib import attr
 
-l = logging.getLogger('angr.tests.scanf')
+l = logging.getLogger(name=__name__)
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 class Checker(object):

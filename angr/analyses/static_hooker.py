@@ -6,7 +6,7 @@ from . import Analysis, register_analysis
 from .. import SIM_LIBRARIES
 from ..errors import AngrValueError
 
-l = logging.getLogger("angr.analyses.static_hooker")
+l = logging.getLogger(name=__name__)
 
 class StaticHooker(Analysis):
     """

@@ -15,7 +15,7 @@ from .custom_callable import IdentifierCallable
 from ...procedures import SIM_LIBRARIES
 
 
-l = logging.getLogger("identifier.runner")
+l = logging.getLogger(name=__name__)
 
 flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../example_flag_page'))
 try:

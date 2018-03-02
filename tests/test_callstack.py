@@ -5,7 +5,7 @@ import nose
 
 from angr.state_plugins.callstack import CallStack
 
-l = logging.getLogger('angr.tests.test_callstack')
+l = logging.getLogger(name=__name__)
 
 def test_empty_stack():
     cs = CallStack()

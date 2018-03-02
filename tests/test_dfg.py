@@ -6,7 +6,7 @@ import sys
 
 from os.path import join, dirname, realpath
 
-l = logging.getLogger("angr.tests.test_dfg")
+l = logging.getLogger(name=__name__)
 l.setLevel(logging.DEBUG)
 
 import nose

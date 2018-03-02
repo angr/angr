@@ -5,7 +5,7 @@ from ..func import Func, TestData
 from ..errors import IdentifierException
 
 
-l = logging.getLogger("angr.analyses.identifier.functions.free")
+l = logging.getLogger(name=__name__)
 
 
 class free(Func):

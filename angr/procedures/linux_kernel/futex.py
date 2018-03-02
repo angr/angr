@@ -5,7 +5,7 @@ import angr
 # futex
 ######################################
 
-l = logging.getLogger("simuvex.SimProcedures")
+l = logging.getLogger(name=__name__)
 #pylint:disable=redefined-builtin,arguments-differ
 class futex(angr.SimProcedure):
 

@@ -23,7 +23,7 @@ from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
 
-l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
+l = logging.getLogger(name=__name__)
 
 
 class CFGJob(CFGJobBase):

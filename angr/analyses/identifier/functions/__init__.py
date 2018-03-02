@@ -3,7 +3,7 @@ from collections import defaultdict
 import importlib
 
 import logging
-l = logging.getLogger('angr.procedures')
+l = logging.getLogger(name=__name__)
 
 from ..func import Func
 

@@ -19,7 +19,7 @@ from ..storage.file import SimFile
 from ..misc import IRange
 
 
-_l = logging.getLogger("angr.simos.simos")
+_l = logging.getLogger(name=__name__)
 
 
 class SimOS(object):

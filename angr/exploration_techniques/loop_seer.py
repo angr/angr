@@ -6,7 +6,7 @@ from ..knowledge_base import KnowledgeBase
 from ..knowledge_plugins.functions import Function
 
 
-l = logging.getLogger("angr.exploration_techniques.loop_seer")
+l = logging.getLogger(name=__name__)
 
 
 class LoopSeer(ExplorationTechnique):

@@ -5,7 +5,7 @@ import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 import logging
-l = logging.getLogger('angr.test_boyscout')
+l = logging.getLogger(name=__name__)
 
 entries = [
     ("i386/all", "X86", "Iend_LE"),

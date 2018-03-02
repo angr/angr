@@ -5,7 +5,7 @@ import logging
 
 from angr import sim_type
 
-l = logging.getLogger("angr.procedures.stubs.format_parser")
+l = logging.getLogger(name=__name__)
 
 class FormatString(object):
     """

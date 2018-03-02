@@ -7,7 +7,7 @@ import claripy
 from angr import SimState, SimEngineVEX
 import angr.engines.vex.ccall as s_ccall
 
-l = logging.getLogger('angr.tests.test_vex')
+l = logging.getLogger(name=__name__)
 
 #@nose.tools.timed(10)
 def test_ccall():

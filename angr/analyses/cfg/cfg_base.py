@@ -19,7 +19,7 @@ from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
 from .cfg_node import CFGNode
 
-l = logging.getLogger("angr.analyses.cfg.cfg_base")
+l = logging.getLogger(name=__name__)
 
 
 class IndirectJump(object):

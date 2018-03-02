@@ -10,7 +10,7 @@ import mulpyplexer
 
 from .errors import SimError, SimMergeError
 
-l = logging.getLogger("angr.manager")
+l = logging.getLogger(name=__name__)
 
 
 class SimulationManager(ana.Storable):

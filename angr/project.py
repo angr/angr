@@ -13,7 +13,7 @@ from cle.address_translator import AT
 
 from .misc.ux import once, deprecated
 
-l = logging.getLogger("angr.project")
+l = logging.getLogger(name=__name__)
 
 # This holds the default execution engine for a given CLE loader backend.
 # All the builtins right now use SimEngineVEX.  This may not hold for long.

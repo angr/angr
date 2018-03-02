@@ -2,7 +2,7 @@ import logging
 
 from .surveyor import Surveyor
 
-l = logging.getLogger("angr.surveyors.executor")
+l = logging.getLogger(name=__name__)
 
 class Executor(Surveyor):
     """

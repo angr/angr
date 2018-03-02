@@ -3,7 +3,7 @@ from collections import defaultdict
 import logging
 import itertools
 
-l = logging.getLogger("angr.state_plugins.symbolic_memory")
+l = logging.getLogger(name=__name__)
 
 import claripy
 from ..storage.memory import SimMemory

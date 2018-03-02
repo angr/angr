@@ -20,7 +20,7 @@ from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, S
 from ..state_plugins.sim_action import SimActionData
 from ..surveyors import Explorer, Slicecutor
 
-l = logging.getLogger("angr.analyses.girlscout")
+l = logging.getLogger(name=__name__)
 
 class GirlScout(Analysis):
     """

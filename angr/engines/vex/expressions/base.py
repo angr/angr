@@ -1,7 +1,7 @@
 """This module handles constraint generation."""
 
 import logging
-l = logging.getLogger("angr.engines.vex.expressions.base")
+l = logging.getLogger(name=__name__)
 from pyvex.const import get_type_size
 _nonset = frozenset()
 

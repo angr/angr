@@ -7,7 +7,7 @@ import logging
 import claripy
 import binascii
 
-l = logging.getLogger("angr.state_plugins.gdb")
+l = logging.getLogger(name=__name__)
 
 #global heap_location
 

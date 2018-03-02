@@ -7,7 +7,7 @@ import logging
 from ..errors import AngrAnalysisError
 from . import registered_analyses
 
-l = logging.getLogger("angr.analysis")
+l = logging.getLogger(name=__name__)
 
 
 class AnalysisLogEntry(object):

@@ -2,7 +2,7 @@ from . import Analysis, register_analysis
 from .. import SIM_PROCEDURES
 
 import logging
-l = logging.getLogger('angr.analyses.callee_cleanup_finder')
+l = logging.getLogger(name=__name__)
 
 class CalleeCleanupFinder(Analysis):
     def __init__(self, starts=None, hook_all=False):

@@ -6,7 +6,7 @@ import networkx
 from .errors import AngrAnnotatedCFGError, AngrExitError
 from .analyses.cfg.cfg_node import CFGNode
 
-l = logging.getLogger("angr.annocfg")
+l = logging.getLogger(name=__name__)
 
 class AnnotatedCFG(object):
     """

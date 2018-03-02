@@ -3,7 +3,7 @@ import copy
 import itertools
 
 import logging
-l = logging.getLogger("angr.sim_procedure")
+l = logging.getLogger(name=__name__)
 
 symbolic_count = itertools.count()
 

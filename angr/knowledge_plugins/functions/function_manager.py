@@ -9,7 +9,7 @@ from ..plugin import KnowledgeBasePlugin
 
 from .function import Function
 
-l = logging.getLogger("angr.knowledge.function_manager")
+l = logging.getLogger(name=__name__)
 
 
 class FunctionDict(dict):

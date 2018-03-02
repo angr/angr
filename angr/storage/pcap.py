@@ -1,7 +1,7 @@
 import dpkt
 import socket
 import logging
-l = logging.getLogger("angr.storage.pcap")
+l = logging.getLogger(name=__name__)
 
 
 class PCAP(object):

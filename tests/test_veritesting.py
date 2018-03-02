@@ -4,7 +4,7 @@ import nose
 import angr
 
 import logging
-l = logging.getLogger('angr_tests.veritesting')
+l = logging.getLogger(name=__name__)
 
 import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))

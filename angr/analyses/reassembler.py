@@ -16,7 +16,7 @@ from . import Analysis, register_analysis
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 
-l = logging.getLogger("angr.analyses.reassembler")
+l = logging.getLogger(name=__name__)
 
 #
 # Exceptions

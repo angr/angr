@@ -11,7 +11,7 @@ from ..manager import SimulationManager
 from ..utils.graph import shallow_reverse
 from . import Analysis, register_analysis
 
-l = logging.getLogger("angr.analyses.veritesting")
+l = logging.getLogger(name=__name__)
 
 
 class VeritestingError(Exception):

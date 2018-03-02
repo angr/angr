@@ -3,7 +3,7 @@ import logging
 
 from .plugin import SimStatePlugin
 
-l = logging.getLogger('angr.state_plugins.globals')
+l = logging.getLogger(name=__name__)
 
 
 class SimStateGlobals(SimStatePlugin):

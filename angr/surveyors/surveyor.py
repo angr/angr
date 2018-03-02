@@ -8,7 +8,7 @@ import sys
 
 from ..sim_state import SimState
 
-l = logging.getLogger("angr.surveyor")
+l = logging.getLogger(name=__name__)
 
 #
 # Surveyor debugging

@@ -1,7 +1,7 @@
 import angr
 import logging
 
-l = logging.getLogger('angr.procedures.stubs.CallReturn')
+l = logging.getLogger(name=__name__)
 
 class CallReturn(angr.SimProcedure):
     NO_RET = True

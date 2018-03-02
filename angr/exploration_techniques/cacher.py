@@ -7,7 +7,7 @@ import logging
 from . import ExplorationTechnique
 
 
-l = logging.getLogger("angr.exploration_techniques.cacher")
+l = logging.getLogger(name=__name__)
 
 
 class Cacher(ExplorationTechnique):

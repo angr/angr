@@ -3,7 +3,7 @@ from angr.sim_type import SimTypeString, SimTypeInt
 from angr.errors import SimProcedureError
 
 import logging
-l = logging.getLogger("angr.procedures.libc.strtol")
+l = logging.getLogger(name=__name__)
 
 
 # note: this does not handle skipping white space

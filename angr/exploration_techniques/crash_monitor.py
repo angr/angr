@@ -6,7 +6,7 @@ from . import ExplorationTechnique
 from .. import BP_AFTER, BP_BEFORE
 
 
-l = logging.getLogger("angr.exploration_techniques.crash_monitor")
+l = logging.getLogger(name=__name__)
 
 
 EXEC_STACK = 'EXEC_STACK'

@@ -4,7 +4,7 @@ import logging
 from angr.procedures.stubs.format_parser import FormatParser
 from angr.sim_type import SimTypeInt, SimTypeString
 
-l = logging.getLogger("angr.procedures.libc.sscanf")
+l = logging.getLogger(name=__name__)
 
 class sscanf(FormatParser):
     #pylint:disable=arguments-differ

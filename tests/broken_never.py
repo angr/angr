@@ -2,7 +2,7 @@
 
 import nose
 import logging
-l = logging.getLogger("angr_tests")
+l = logging.getLogger(name=__name__)
 
 
 import angr

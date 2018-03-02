@@ -1,6 +1,6 @@
 import logging
 
-l = logging.getLogger("angr.storage.memory")
+l = logging.getLogger(name=__name__)
 
 import claripy
 from ..state_plugins.plugin import SimStatePlugin

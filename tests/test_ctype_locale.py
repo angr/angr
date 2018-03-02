@@ -5,7 +5,7 @@ import angr
 import subprocess
 
 import logging
-l = logging.getLogger('angr.tests.test_ctype_locale')
+l = logging.getLogger(name=__name__)
 
 test_location = os.path.dirname(os.path.abspath(__file__))
 

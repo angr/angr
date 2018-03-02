@@ -7,7 +7,7 @@ from . import Analysis, register_analysis
 from .disassembly_utils import decode_instruction
 from ..block import CapstoneInsn
 
-l = logging.getLogger("angr.analyses.disassembly")
+l = logging.getLogger(name=__name__)
 
 
 class DisassemblyPiece(object):

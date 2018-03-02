@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("angr.tests.slicing")
+l = logging.getLogger(name=__name__)
 
 import time
 import nose

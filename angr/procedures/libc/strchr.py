@@ -3,7 +3,7 @@ from angr.state_plugins.symbolic_memory import MultiwriteAnnotation
 from angr.sim_type import SimTypeString, SimTypeInt, SimTypeChar
 
 import logging
-l = logging.getLogger("angr.procedures.libc.strchr")
+l = logging.getLogger(name=__name__)
 
 class strchr(angr.SimProcedure):
     #pylint:disable=arguments-differ

@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 import logging
-l = logging.getLogger('angr.tests.test_signed_div')
+l = logging.getLogger(name=__name__)
 
 import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
