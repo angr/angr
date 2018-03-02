@@ -49,7 +49,7 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
     """
 
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
+                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugins_preset=None):
         super(SimState, self).__init__()
         self.project = project
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
@@ -74,7 +74,8 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
 
         # plugins
         # 8<----------------- Compatibility layer -----------------
-        self.use_preset(DefaultPluginPreset())
+        plugins_preset = plugins_preset or DefaultPluginPreset()
+        self.use_preset(plugins_preset)
         # ------------------- Compatibility layer --------------->8
         if plugins is not None:
             for n,p in plugins.iteritems():

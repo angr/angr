@@ -43,7 +43,7 @@ class DefaultPluginsPreset(PluginPreset):
         analyses.register_default('Identifier', Identifier)
 
         # Variable recovery
-        analyses.register_default('VariableRecover', VariableRecovery)
+        analyses.register_default('VariableRecovery', VariableRecovery)
         analyses.register_default('VariableRecoveryFast', VariableRecoveryFast)
 
         # Other analyses

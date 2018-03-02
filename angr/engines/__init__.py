@@ -59,11 +59,9 @@ class DefaultPluginPreset(PluginPreset):
         self._use_cache = use_cache
 
     def register_plugins(self, engines):
-        """
+        """register_plugins
 
         :param engines:
-        :param project:
-        :param use_cache:
         :return:
         """
         # Shorthands.

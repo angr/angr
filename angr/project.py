@@ -164,7 +164,8 @@ class Project(object):
         engines = EngineHub()
         engines_preset = engines_preset or DefaultEnginesPreset(self, translation_cache)
         engines.use_preset(engines_preset)
-        self.factory = AngrObjectFactory(self, engines)
+        self.engines = engines
+        self.factory = AngrObjectFactory(self, self.engines)
 
         analyses = Analyses(self)
         analyses_preset = analyses_preset or DefaultAnalysesPreset()
@@ -568,5 +569,9 @@ from .knowledge_base import KnowledgeBase
 from .engines import default_engines, register_default_engine, get_default_engine
 from .engines import EngineHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
+from .analyses import DefaultPluginsPreset as DefaultAnalysesPreset
+from .engines import DefaultPluginPreset as DefaultEnginesPreset
+
+# Default plugins presets
 from .analyses import DefaultPluginsPreset as DefaultAnalysesPreset
 from .engines import DefaultPluginPreset as DefaultEnginesPreset

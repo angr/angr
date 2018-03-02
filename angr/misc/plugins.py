@@ -30,8 +30,11 @@ class PluginHub(object):
             if name not in self._active_plugins:
                 self.register_plugin(name, plugin_cls)
 
-    def __getattr__(self, name):
-        return self.get_plugin(name)
+    def __getattr__(self, item):
+        try:
+            return self.get_plugin(item)
+        except NoPlugin:
+            raise AttributeError
 
     #
     #   ...
@@ -46,12 +49,12 @@ class PluginHub(object):
 
     def use_preset(self, preset):
         if self._active_preset:
-            self._active_preset.release_plugins()
+            self._active_preset.release_plugins(self)
         preset.register_plugins(self)
         self._active_preset = preset
 
     def discard_preset(self):
-        self._active_preset.release_plugins()
+        self._active_preset.release_plugins(self)
         self._active_preset = None
 
     #
@@ -80,6 +83,10 @@ class PluginHub(object):
     def release_plugin(self, name):
         del self._active_plugins[name]
         del self.__dict__[name]
+
+    def release_all_plugins(self):
+        for name in self._plugins:
+            self.release_plugin(name)
 
     #
     #   ...
