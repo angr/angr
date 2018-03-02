@@ -8,7 +8,7 @@ def test_hookset():
         def run(self):
             return self.blah()
 
-        def blah(self):
+        def blah(self): #pylint:disable=no-self-use
             return ['foo']
 
         def install_hooks(self, tech):
@@ -18,15 +18,15 @@ def test_hookset():
             angr.misc.HookSet.remove_hooks(self, blah=tech.blah)
 
     class Bar(object):
-        def blah(self, foo):
+        def blah(self, foo): #pylint:disable=no-self-use
             return ['bar'] + foo.blah()
 
     class Baz(object):
-        def blah(self, foo):
+        def blah(self, foo): # pylint:disable=no-self-use
             return ['baz'] + foo.blah()
 
     class Coward(object):
-        def blah(self, foo):
+        def blah(self, foo): #pylint:disable=no-self-use,unused-argument
             return ['coward']
 
     foo = Foo()

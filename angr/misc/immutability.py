@@ -20,7 +20,7 @@ class ImmutabilityMixin(object):
         :return:
         """
         def _wrapper(self, *args, **kwargs):
-            with cls.context(self) as self:
+            with cls.context(self) as self: #pylint:disable=redefined-argument-from-local
                 if method(self, *args, **kwargs) is not self:
                     raise ImmutabilityMixinMisused
                 return self
