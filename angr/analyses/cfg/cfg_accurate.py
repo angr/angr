@@ -22,6 +22,7 @@ from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimV
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
+from ...misc.graph import shallow_reverse
 
 l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
 
@@ -211,6 +212,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._max_steps = max_steps
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
+        if self._advanced_backward_slicing:
+            self._state_add_options |= o.refs
 
         # add the track_memory_option if the enable function hint flag is set
         if self._enable_function_hints and o.TRACK_MEMORY_ACTIONS not in self._state_add_options:
@@ -1263,7 +1266,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         successors = self._resolve_indirect_jumps(sim_successors,
                                                   job.cfg_node,
                                                   job.func_addr,
-                                                  successors,
+                                                  all_successors,
                                                   job.exception_info,
                                                   self._block_artifacts
                                                   )
@@ -2130,10 +2133,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 legit_successors = [suc for suc in successors if suc.history.jumpkind in ('Ijk_Boring', 'Ijk_Call')]
                 if legit_successors:
                     legit_successor = legit_successors[0]
-                    if legit_successor.ip.symbolic:
-                        if not legit_successor.history.jumpkind == 'Ijk_Call':
-                            should_resolve = False
-                    else:
+                    if not legit_successor.ip.symbolic:
                         if legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                         else:
@@ -2274,9 +2274,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
+        cdg = self.project.analyses.CDG(cfg=self, start=current_function_addr, fail_fast=self._fail_fast)
         ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
-
         bc = self.project.analyses.BackwardSlice(self,
                                                  cdg,
                                                  ddg,
@@ -2313,11 +2312,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             node = self.get_any_node(start)
             if node is None:
                 # Well, we have to live with an empty state
-                p = self.project.factory.path(self.project.factory.blank_state(addr=start))
+                state = self.project.factory.blank_state(addr=start)
             else:
-                base_state = node.input_state.copy()
-                base_state.set_mode('symbolic')
-                base_state.ip = start
+                state = node.input_state.copy()
+                state.set_mode('symbolic')
+                state.ip = start
 
                 # Clear all initial taints (register values, memory values, etc.)
                 initial_nodes = [n for n in bc.taint_graph.nodes() if bc.taint_graph.in_degree(n) == 0]
@@ -2337,30 +2336,29 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                 continue
                             if ac.action == 'read':
                                 if ac.type == 'mem':
-                                    unconstrained_value = base_state.se.Unconstrained('unconstrained',
+                                    unconstrained_value = state.se.Unconstrained('unconstrained',
                                                                                       ac.size.ast * 8)
-                                    base_state.memory.store(ac.addr,
+                                    state.memory.store(ac.addr,
                                                             unconstrained_value,
                                                             endness=self.project.arch.memory_endness)
                                 elif ac.type == 'reg':
-                                    unconstrained_value = base_state.se.Unconstrained('unconstrained',
+                                    unconstrained_value = state.se.Unconstrained('unconstrained',
                                                                                       ac.size.ast * 8)
-                                    base_state.registers.store(ac.offset,
+                                    state.registers.store(ac.offset,
                                                                unconstrained_value,
                                                                endness=self.project.arch.register_endness)
 
                 # Clear the constraints!
-                base_state.release_plugin('solver_engine')
-                p = self.project.factory.path(base_state)
+                state.release_plugin('solver_engine')
 
             # For speed concerns, we are limiting the timeout for z3 solver to 5 seconds. It will be restored afterwards
-            old_timeout = p.state.se._solver.timeout
-            p.state.se._solver.timeout = 5000
+            old_timeout = state.se._solver.timeout
+            state.se._solver.timeout = 5000
 
-            sc = self.project.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
+            sc = self.project.surveyors.Slicecutor(annotated_cfg, start=state).run()
 
             # Restore the timeout!
-            p.state.se._solver.timeout = old_timeout
+            state.se._solver.timeout = old_timeout
 
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
@@ -2423,10 +2421,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         l.debug("Start back traversal from %s", current_block)
 
-        # Create a partial CFG first
-        temp_cfg = networkx.DiGraph(self.graph)
-        # Reverse it
-        temp_cfg.reverse(copy=False)
+        # Create a reverse partial CFG
+        temp_cfg = shallow_reverse(self.graph)
 
         path_length = 0
         concrete_exits = []
@@ -2448,7 +2444,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         if jk != 'Ijk_Ret':
                             # We don't want to trace into libraries
                             predecessors = list(temp_cfg.predecessors(suc))
-                            avoid |= set([p.addr for p in predecessors if p is not n])
+                            if jk != 'Ijk_FakeRet':
+                                avoid |= set([p.addr for p in predecessors if p is not n])
                             new_queue.append(suc)
                 queue = new_queue
 
@@ -2459,11 +2456,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Start symbolic exploration from each block
                 state = self.project.factory.blank_state(addr=n.addr,
                                                          mode='symbolic',
-                                                         add_options={
-                                                                         o.DO_RET_EMULATION,
-                                                                         o.CONSERVATIVE_READ_STRATEGY,
-                                                                     } | o.resilience
-                                                         )
+                                                         add_options={o.DO_RET_EMULATION,
+                                                                      o.CONSERVATIVE_READ_STRATEGY,
+                                                         } | o.resilience
+                )
                 # Avoid concretization of any symbolic read address that is over a certain limit
                 # TODO: test case is needed for this option
 
@@ -2474,25 +2470,20 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, block_artifacts)
                     state.inspect.add_breakpoint('reg_write',
-                                                 BP(
-                                                     BP_AFTER,
-                                                     reg_write_offset=state.arch.registers[reg][0],
-                                                     action=reg_protector.write_persistent_register
+                                                 BP(BP_AFTER,
+                                                    reg_write_offset=state.arch.registers[reg][0],
+                                                    action=reg_protector.write_persistent_register
                                                  )
-                                                 )
-                result = self.project.surveyors.Explorer(
-                    start=self.project.factory.path(state),
-                    find=(current_block.addr,),
-                    avoid=avoid,
-                    max_repeats=10,
-                    max_depth=path_length
-                ).run()
-                if result.found:
-                    if not result.found[0].errored and result.found[0].step():
-                        # Make sure we don't throw any exception here by checking the path.errored attribute first
-                        keep_running = False
-                        concrete_exits.extend([s for s in result.found[0].next_run.flat_successors])
-                        concrete_exits.extend([s for s in result.found[0].next_run.unsat_successors])
+                    )
+
+                simgr = self.project.factory.simgr(state)
+                simgr.explore(find=(current_block.addr), avoid=avoid)
+                if 'found' in simgr.stashes and simgr.found:
+                    successors = self.project.factory.successors(simgr.one_found)
+                    keep_running = False
+                    concrete_exits.extend([s for s in successors.flat_successors])
+                    concrete_exits.extend([s for s in successors.unsat_successors])
+
                 if keep_running:
                     l.debug('Step back for one more run...')
 
@@ -2501,7 +2492,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # TODO: It works for jumptables, but not for calls. We should also handle changes in sp
         new_concrete_successors = []
         for c in concrete_exits:
-            unsat_state = current_block.unsat_successors[0].copy()
+            unsat_state = current_block.all_successors[0].copy()
             unsat_state.history.jumpkind = c.history.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
                 unsat_state.registers.store(reg, c.registers.load(reg))

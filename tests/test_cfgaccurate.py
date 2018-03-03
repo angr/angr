@@ -1,16 +1,20 @@
-import nose
+import os
+import sys
 import time
 import pickle
-import networkx
-
 import logging
-l = logging.getLogger("angr.tests.test_cfg")
 
-import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 import angr
 from angr import options as o
+import nose
+import networkx
+
+
+l = logging.getLogger("angr.tests.test_cfg")
+
+
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 
 def compare_cfg(standard, g, function_list):
@@ -80,6 +84,7 @@ def compare_cfg(standard, g, function_list):
             # Edge doesn't exist in our CFG
             l.error("Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.", get_function_name(src), src, get_function_name(dst), dst)
 
+
 def perform_single(binary_path, cfg_path=None):
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
@@ -105,30 +110,36 @@ def perform_single(binary_path, cfg_path=None):
     else:
         l.warning("No standard CFG specified.")
 
+
 def disabled_cfg_0():
     binary_path = test_location + "/x86_64/cfg_0"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
+
 
 def disabled_cfg_1():
     binary_path = test_location + "/x86_64/cfg_1"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
+
 def disabled_cfg_2():
     binary_path = test_location + "/armel/test_division"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
+
 
 def disabled_cfg_3():
     binary_path = test_location + "/mips/test_arrays"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
+
 def disabled_cfg_4():
     binary_path = test_location + "/mipsel/darpa_ping"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
+
 
 def test_additional_edges():
     # Test the `additional_edges` parameter for CFG generation
@@ -147,6 +158,7 @@ def test_additional_edges():
     nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
     nose.tools.assert_not_equal(cfg.get_any_node(0x40059e), None)
     nose.tools.assert_equal(cfg.get_any_node(0x4005ad), None)
+
 
 def test_not_returning():
     # Make sure we are properly labeling functions that do not return in function manager
@@ -177,11 +189,13 @@ def test_not_returning():
     # function_d should not be reachable
     nose.tools.assert_equal(proj.kb.functions.function(name='function_d'), None)
 
+
 def disabled_cfg_5():
     binary_path = test_location + "/mipsel/busybox"
     cfg_path = binary_path + ".cfg"
 
     perform_single(binary_path, cfg_path)
+
 
 def test_cfg_6():
     function_addresses = [0xfa630, 0xfa683, 0xfa6d4, 0xfa707, 0xfa754, 0xfa779, 0xfa7a9, 0xfa7d6, 0xfa844, 0xfa857,
@@ -200,11 +214,13 @@ def test_cfg_6():
     nose.tools.assert_greater_equal(set(f for f in proj.kb.functions), set(function_addresses))
     o.modes['fastpath'] ^= {o.DO_CCALLS}
 
+
 def test_fauxware():
     binary_path = test_location + "/x86_64/fauxware"
     cfg_path = binary_path + ".cfg"
 
     perform_single(binary_path, cfg_path)
+
 
 def disabled_loop_unrolling():
     binary_path = test_location + "/x86_64/cfg_loop_unrolling"
@@ -216,6 +232,7 @@ def disabled_loop_unrolling():
     cfg.unroll_loops(5)
 
     nose.tools.assert_equal(len(cfg.get_all_nodes(0x400636)), 7)
+
 
 def test_thumb_mode():
     # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
@@ -243,6 +260,7 @@ def test_thumb_mode():
         check_addr(f_addr)
         if f.startpoint is not None:
             check_addr(f.startpoint.addr)
+
 
 def test_fakeret_edges_0():
 
@@ -293,6 +311,7 @@ def test_fakeret_edges_0():
     jumpkinds = set([ jumpkind for _, jumpkind in edges_1 ])
     nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
 
+
 def test_string_references():
 
     # Test AttributeError on 'addr' which occurs when searching for string
@@ -308,6 +327,7 @@ def test_string_references():
 
     # test passes if hasn't thrown an exception
 
+
 def test_arrays():
 
     binary_path = os.path.join(test_location, "armhf", "test_arrays")
@@ -319,6 +339,7 @@ def test_arrays():
 
     successors = cfg.get_successors(node)
     nose.tools.assert_equal(len(successors), 2)
+
 
 def test_max_steps():
 
@@ -412,6 +433,21 @@ def test_armel_incorrect_function_detection_caused_by_branch():
     nose.tools.assert_equal(block_addrs, [0x8009, 0x8011, 0x801f, 0x8027])
 
 
+def test_indirect_jump_resolving():
+    b = os.path.join(test_location, 'x86_64', 'convert_accent')
+    p = angr.Project(b, auto_load_libs=False)
+
+    cfg = p.analyses.CFGAccurate(enable_advanced_backward_slicing=True, keep_state=True, normalize=True)
+    node = cfg.get_any_node(0x4005d7)
+
+    nose.tools.assert_equal(len(node.successors), 8)
+
+    cfg = p.analyses.CFGAccurate(enable_symbolic_back_traversal=True, normalize=True)
+    node = cfg.get_any_node(0x4005d7)
+
+    nose.tools.assert_equal(len(node.successors), 8)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
@@ -419,6 +455,7 @@ def run_all():
         if hasattr(all_functions[f], '__call__'):
             print f
             all_functions[f]()
+
 
 if __name__ == "__main__":
     logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
@@ -430,7 +467,6 @@ if __name__ == "__main__":
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
-    import sys
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
