@@ -1,11 +1,12 @@
 import logging
 
 from .engine import SimEngine
+from .successors import SimSuccessors
 
 l = logging.getLogger("angr.engines.hook")
 
 
-# pylint: disable=abstract-method,unused-argument
+# pylint: disable=abstract-method,unused-argument,arguments-differ
 class SimEngineHook(SimEngine):
     def _check(self, state, procedure=None, **kwargs):
         # we have not yet entered the next step - we should check the "current" jumpkind
@@ -37,7 +38,7 @@ class SimEngineHook(SimEngine):
 
         if procedure is None:
             if addr not in self.project._sim_procedures:
-                return
+                return SimSuccessors.failure()
             else:
                 procedure = self.project._sim_procedures[addr]
 

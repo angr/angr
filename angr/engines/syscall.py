@@ -4,7 +4,8 @@ l = logging.getLogger("angr.engines.syscall")
 
 from .engine import SimEngine
 
-class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method,arguments-differ
+#pylint:disable=abstract-method,arguments-differ
+class SimEngineSyscall(SimEngine):
     def _check(self, state, **kwargs):
         return state.history.jumpkind.startswith('Ijk_Sys')
 

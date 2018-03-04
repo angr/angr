@@ -69,10 +69,19 @@ class PluginHub(object):
 
     def __dir__(self):
         out = set(self._active_plugins)
-        out.update(super(PluginHub, self).__dir__())
+        out.update(self.__dict__)
         if self._active_preset is not None:
             out.update(self._active_preset.list_default_plugins())
-        return list(out)
+
+        q = [type(self)]
+        while q:
+            cls = q.pop(0)
+            out.update(cls.__dict__)
+            for base in cls.__bases__:
+                if base is not object:
+                    q.append(base)
+
+        return sorted(out)
 
     #
     #   Methods for managing the current plugin preset

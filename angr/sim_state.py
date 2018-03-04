@@ -349,8 +349,8 @@ class SimState(PluginHub, ana.Storable):
         Clean up after the solver engine. Calling this when a state no longer needs to be solved on will reduce memory
         usage.
         """
-        if 'solver_engine' in self.plugins:
-            self.se.downsize()
+        if 'solver' in self.plugins:
+            self.solver.downsize()
 
     #
     # State branching operations
@@ -516,7 +516,7 @@ class SimState(PluginHub, ana.Storable):
 
         # plugins
         for p in self.plugins:
-            if p in ('solver_engine', 'unicorn'):
+            if p in ('solver', 'unicorn'):
                 continue
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
             if plugin_state_widened:

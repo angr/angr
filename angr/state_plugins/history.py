@@ -59,9 +59,6 @@ class SimStateHistory(SimStatePlugin):
 
         self.strongref_state = None if clone is None else clone.strongref_state
 
-    def set_state(self, state):
-        super(SimStateHistory, self).set_state(state)
-
     def init_state(self):
         self.successor_ip = self.state._ip
 
@@ -197,18 +194,16 @@ class SimStateHistory(SimStatePlugin):
                 write_type = 'mem'
                 write_offset = write_to
 
-        """
-        def addr_of_stmt(bbl_addr, stmt_idx):
-            if stmt_idx is None:
-                return None
-            stmts = self.state.project.factory.block(bbl_addr).vex.statements
-            if stmt_idx >= len(stmts):
-                return None
-            for i in reversed(xrange(stmt_idx + 1)):
-                if stmts[i].tag == 'Ist_IMark':
-                    return stmts[i].addr + stmts[i].delta
-            return None
-        """
+        #def addr_of_stmt(bbl_addr, stmt_idx):
+        #    if stmt_idx is None:
+        #        return None
+        #    stmts = self.state.project.factory.block(bbl_addr).vex.statements
+        #    if stmt_idx >= len(stmts):
+        #        return None
+        #    for i in reversed(xrange(stmt_idx + 1)):
+        #        if stmts[i].tag == 'Ist_IMark':
+        #            return stmts[i].addr + stmts[i].delta
+        #    return None
 
         def action_reads(action):
             if action.type != read_type:
