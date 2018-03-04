@@ -4,7 +4,7 @@ from collections import defaultdict
 import progressbar
 import logging
 
-from ..misc import PluginHub
+from ..misc.plugins import PluginVendor, VendorPreset, Plugin
 from ..misc.ux import deprecated
 from ..errors import AngrAnalysisError
 
@@ -51,42 +51,37 @@ class AnalysisLogEntry(object):
             return '<AnalysisLogEntry %s with %s: %s>' % (msg_str, self.exc_type.__name__, self.exc_value)
 
 
-class Analyses(PluginHub):
+class AnalysesHub(PluginVendor):
     """
     This class contains functions for all the registered and runnable analyses,
     """
-    def __init__(self, p):
-        """
-        Creates an Analyses object
+    def __init__(self, project):
+        super(AnalysesHub, self).__init__()
+        self.project = project
 
-        :ivar p:                A project
-        :type p:                angr.Project
-        """
-        super(Analyses, self).__init__()
-        self.project = p
-
-    @deprecated
-    def reload_analyses(self):
+    @deprecated()
+    def reload_analyses(self): # pylint: disable=no-self-use
         return
 
-    def _init_plugin(self, plugin_cls):
-        return AnalysisFactory(self.project, plugin_cls)
+    def _init_plugin(self, plugin):
+        return AnalysisFactory(self.project, plugin)
 
     def __getstate__(self):
-        s = super(Analyses, self).__getstate__()
-        s['project'] = self.project
-        return s
+        s = super(AnalysesHub, self).__getstate__()
+        return (s, self.project)
 
-    def __setstate__(self, s):
-        super(Analyses, self).__setstate__(s)
-        self.project = s['project']
+    def __setstate__(self, sd):
+        s, self.project = sd
+        super(AnalysesHub, self).__setstate__(s)
 
 
 class AnalysisFactory(object):
-
     def __init__(self, project, analysis_cls):
         self._project = project
         self._analysis_cls = analysis_cls
+        self.__doc__ = ''
+        self.__doc__ += analysis_cls.__doc__ or ''
+        self.__doc__ += analysis_cls.__init__.__doc__ or ''
 
     def __call__(self, *args, **kwargs):
         fail_fast = kwargs.pop('fail_fast', False)
@@ -114,10 +109,9 @@ class AnalysisFactory(object):
         return oself
 
 
-class Analysis(object):
+class Analysis(Plugin):
     """
     This class represents an analysis on the program.
-
 
     :ivar project:  The project for this analysis.
     :type project:  angr.Project
@@ -129,6 +123,9 @@ class Analysis(object):
                                     _progress_callback.
     :ivar progressbar.ProgressBar _progressbar: The progress bar object.
     """
+
+    _hub_type = AnalysesHub
+
     project = None
     kb = None
     _fail_fast = None
@@ -207,3 +204,12 @@ class Analysis(object):
 
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))
+
+    @classmethod
+    def register_default(cls, name=None, preset='default'):
+        if name is None:
+            name = cls.__name__
+        super(Analysis, cls).register_default(name, preset)
+
+default_analyses = VendorPreset()
+AnalysesHub.register_preset('default', default_analyses)

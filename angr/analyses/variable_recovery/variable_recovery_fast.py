@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 
 import pyvex
-from .. import Analysis, register_analysis
+from .. import Analysis
 
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
@@ -608,4 +608,4 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         return phi_node
 
 
-register_analysis(VariableRecoveryFast, 'VariableRecoveryFast')
+VariableRecoveryFast.register_default()

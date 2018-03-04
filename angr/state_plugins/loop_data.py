@@ -41,4 +41,4 @@ class SimStateLoopData(SimStatePlugin):
                                 current_loop=list(self.current_loop))
 
 
-SimStateLoopData.register_default("loop_data", SimStateLoopData)
+SimStateLoopData.register_default("loop_data")

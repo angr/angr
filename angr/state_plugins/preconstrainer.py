@@ -143,7 +143,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             self.state.options.discard(o.REPLACEMENT_SOLVER)
             self.state.options.add(o.COMPOSITE_SOLVER)
 
-        self.state.release_plugin('solver_engine')
+        self.state.release_plugin('solver')
         self.state.add_constraints(*new_constraints)
 
         l.debug("downsizing unpreconstrained state")
@@ -175,4 +175,4 @@ class SimStatePreconstrainer(SimStatePlugin):
                         l.warning("var %s not found in self.variable_map", var)
 
 
-SimStatePlugin.register_default('preconstrainer', SimStatePreconstrainer)
+SimStatePreconstrainer.register_default('preconstrainer')

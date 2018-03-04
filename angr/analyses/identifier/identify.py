@@ -2,7 +2,7 @@
 import logging
 from collections import defaultdict
 
-from .. import Analysis, register_analysis
+from .. import Analysis
 from cle.backends.cgc import CGC
 from networkx import NetworkXError
 
@@ -793,4 +793,4 @@ class Identifier(Analysis):
                 return True
             return False
 
-register_analysis(Identifier, 'Identifier')
+Identifier.register_default()

@@ -14,13 +14,7 @@ from cle.address_translator import AT
 from .misc.ux import once, deprecated
 
 l = logging.getLogger("angr.project")
-
-# This holds the default execution engine for a given CLE loader backend.
-# All the builtins right now use SimEngineVEX.  This may not hold for long.
-
-
 projects = weakref.WeakValueDictionary()
-
 
 def fake_project_unpickler(name):
     if name not in projects:
@@ -133,6 +127,9 @@ class Project(object):
             self.filename = thing
             self.loader = cle.Loader(self.filename, **load_options)
 
+        if self.filename is not None:
+            projects[self.filename] = self
+
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
         if isinstance(arch, str):
             self.arch = archinfo.arch_from_id(arch)  # may raise ArchError, let the user see this
@@ -157,37 +154,50 @@ class Project(object):
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
         self._should_use_sim_procedures = use_sim_procedures
-        self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
+        self._support_selfmodifying_code = support_selfmodifying_code
+        self._translation_cache = translation_cache
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
 
-        if self._support_selfmodifying_code:
+        if support_selfmodifying_code:
             if translation_cache is True:
                 translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry
-
-        engines = EngineHub()
-        engines_preset = engines_preset or DefaultEnginesPreset(self, translation_cache)
-        engines.use_preset(engines_preset)
-        self.factory = AngrObjectFactory(self, engines)
-
-        analyses = Analyses(self)
-        analyses_preset = analyses_preset or DefaultAnalysesPreset()
-        analyses.use_preset(analyses_preset)
-        self.analyses = analyses
-
-        self.surveyors = Surveyors(self)
-        self.kb = KnowledgeBase(self, self.loader.main_object)
         self.storage = defaultdict(list)
         self.store_function = store_function or self._store
         self.load_function = load_function or self._load
 
-        if self.filename is not None:
-            projects[self.filename] = self
+        # Step 4: Set up the project's plugin hubs
+        # Step 4.1: Engines. Get the preset from the loader, from the arch, or use the default.
+        engines = EngineHub(self)
+        if engines_preset is not None:
+            engines.use_plugin_preset(engines_preset)
+        elif self.loader.main_object.engine_preset is not None:
+            try:
+                engines.use_plugin_preset(self.loader.main_object.engine_preset)
+            except NoPlugin:
+                raise ValueError("The CLE loader asked to use a engine preset: %s" % \
+                        self.loader.main_object.engine_preset)
+        else:
+            try:
+                engines.use_plugin_preset(self.arch.name)
+            except NoPlugin:
+                engines.use_plugin_preset('default')
 
-        # Step 4: determine the guest OS
+        self.engines = engines
+        self.factory = AngrObjectFactory(self)
+
+        # Step 4.2: Analyses
+        self.analyses = AnalysesHub(self)
+        self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
+
+        # Step 4.3: ...etc
+        self.surveyors = Surveyors(self)
+        self.kb = KnowledgeBase(self, self.loader.main_object)
+
+        # Step 5: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self.simos = simos(self) #pylint:disable=invalid-name
         elif simos is None:
@@ -195,11 +205,11 @@ class Project(object):
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
-        # Step 5: Register simprocedures as appropriate for library functions
+        # Step 6: Register simprocedures as appropriate for library functions
         for obj in self.loader.initial_load_objects:
             self._register_object(obj)
 
-        # Step 6: Run OS-specific configuration
+        # Step 7: Run OS-specific configuration
         self.simos.configure_project()
 
     def _register_object(self, obj):
@@ -311,6 +321,7 @@ class Project(object):
     # They're all related to hooking!
     #
 
+    # pylint: disable=inconsistent-return-statements
     def hook(self, addr, hook=None, length=0, kwargs=None, replace=False):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
@@ -484,6 +495,7 @@ class Project(object):
 
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         self.unhook(hook_addr)
+        return True
 
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
@@ -557,7 +569,7 @@ class Project(object):
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.analyses = Analyses(self)
+        self.analyses = AnalysesHub(self)
         self.surveyors = Surveyors(self)
 
     def _store(self, container):
@@ -617,14 +629,11 @@ class Project(object):
         return self.simos
 
 
-from .errors import AngrError
+from .errors import AngrError, NoPlugin
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
-from .analyses.analysis import Analyses
+from .analyses.analysis import AnalysesHub
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
-from .engines import default_engines, register_default_engine, get_default_engine
 from .engines import EngineHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
-from .analyses import DefaultPluginsPreset as DefaultAnalysesPreset
-from .engines import DefaultPluginPreset as DefaultEnginesPreset

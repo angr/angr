@@ -1,14 +1,19 @@
-default_plugins = { }
+import logging
 
+from ..misc.plugins import Plugin
+from ..misc.ux import once
+from ..sim_state import SimState
 
-class SimStatePlugin(object):
+l = logging.getLogger(name=__name__)
+
+class SimStatePlugin(Plugin):
     """
     This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is
     branched. They are intended to be used for things such as tracking open files, tracking heap details, and providing
     storage and persistence for SimProcedures.
     """
 
-    #__slots__ = [ 'state' ]
+    _hub_type = SimState
 
     STRONGREF_STATE = False
 
@@ -57,11 +62,19 @@ class SimStatePlugin(object):
         """
         raise Exception('widen() not implemented for %s', self.__class__.__name__)
 
-    @staticmethod
-    def register_default(name, cls):
-        if name in default_plugins:
-            raise Exception("%s is already set as the default for %s" % (default_plugins[name], name))
-        default_plugins[name] = cls
+    @classmethod
+    def register_default(cls, name, xtr=None): # pylint: disable=arguments-differ
+        if cls is SimStatePlugin:
+            if once('simstateplugin_register_default deprecation'):
+                l.critical("SimStatePlugin.register_default(name, cls) is deprecated, please use cls.register_default(name)")
+
+            cls._hub_type._register_default(name, xtr, 'default')
+        else:
+            if xtr is cls:
+                if once('simstateplugin_register_default deprecation case 2'):
+                    l.critical("SimStatePlugin.register_default(name, cls) is deprecated, please use cls.register_default(name)")
+                xtr = None
+            cls._hub_type._register_default(name, cls, xtr if xtr is not None else 'default')
 
     def init_state(self):
         pass

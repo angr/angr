@@ -17,7 +17,6 @@ from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase, IndirectJump
 from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
-from .. import register_analysis
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
 from ...engines import SimEngineVEX
@@ -2485,7 +2484,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return False
 
         # try to resolve the jump target
-        simsucc = SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
+        simsucc = self.project.engines.default_engine.process(self._initial_state, irsb, force_addr=addr)
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
             if ip._model_concrete is not ip:
@@ -3609,4 +3608,4 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         lst = sorted(lst, key=lambda x: x[0])
         return lst
 
-register_analysis(CFGFast, 'CFGFast')
+CFGFast.register_default()

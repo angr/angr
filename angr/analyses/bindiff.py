@@ -5,7 +5,7 @@ import types
 from collections import deque
 
 import networkx
-from . import Analysis, register_analysis
+from . import Analysis
 
 from ..errors import SimEngineError, SimMemoryError
 
@@ -1204,4 +1204,4 @@ class BinDiff(Analysis):
 
         return matches
 
-register_analysis(BinDiff, 'BinDiff')
+BinDiff.register_default()

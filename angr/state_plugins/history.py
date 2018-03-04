@@ -62,6 +62,7 @@ class SimStateHistory(SimStatePlugin):
     def set_state(self, state):
         super(SimStateHistory, self).set_state(state)
 
+    def init_state(self):
         self.successor_ip = self.state._ip
 
     def __getstate__(self):
@@ -522,6 +523,6 @@ class LambdaIterIter(LambdaAttrIter):
             for a in reversed(self._f(hist)) if self._reverse else self._f(hist):
                 yield a
 
-SimStateHistory.register_default('history', SimStateHistory)
+SimStateHistory.register_default('history')
 from .sim_action import SimAction, SimActionConstraint
 from .sim_event import SimEvent

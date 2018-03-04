@@ -5,7 +5,7 @@ import pyvex
 from archinfo import ArchARM
 from .engines import SimEngineVEX
 
-DEFAULT_VEX_ENGINE = SimEngineVEX()  # this is only used when Block is not initialized with a project
+DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
 
 
 class Block(object):

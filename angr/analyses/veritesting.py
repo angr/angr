@@ -9,7 +9,7 @@ from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
 from ..manager import SimulationManager
 from ..utils.graph import shallow_reverse
-from . import Analysis, register_analysis
+from . import Analysis
 
 l = logging.getLogger("angr.analyses.veritesting")
 
@@ -617,7 +617,7 @@ class Veritesting(Analysis):
 
         return [ (n.addr, n.looping_times) for n in nodes ]
 
-register_analysis(Veritesting, 'Veritesting')
+Veritesting.register_default()
 
 from ..errors import SimValueError, SimSolverModeError, SimError
 from ..sim_options import BYPASS_VERITESTING_EXCEPTIONS

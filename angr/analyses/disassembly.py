@@ -2,7 +2,7 @@
 import logging
 from collections import defaultdict
 
-from . import Analysis, register_analysis
+from . import Analysis
 
 from .disassembly_utils import decode_instruction
 from ..block import CapstoneInsn
@@ -631,4 +631,4 @@ class Disassembly(Analysis):
         return '\n'.join(sum((x.render(formatting) for x in self.raw_result), []))
 
 
-register_analysis(Disassembly, 'Disassembly')
+Disassembly.register_default()

@@ -4,12 +4,7 @@ import logging
 l = logging.getLogger("angr.engines.failure")
 
 class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
-    def __init__(self, project):
-        super(SimEngineFailure, self).__init__()
-        self.project = project
-
     def _check(self, state, *args, **kwargs):
-
         jumpkind = state.history.jumpkind
 
         if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):
@@ -32,19 +27,6 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
 
         else:
             return SimSuccessors.failure()
-
-    #
-    # Pickling
-    #
-
-    def __setstate__(self, state):
-        super(SimEngineFailure, self).__setstate__(state)
-        self.project = state['project']
-
-    def __getstate__(self):
-        s = super(SimEngineFailure, self).__getstate__()
-        s['project'] = self.project
-        return s
 
 from ..errors import AngrExitError
 from .successors import SimSuccessors

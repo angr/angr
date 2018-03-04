@@ -6,7 +6,6 @@ from collections import defaultdict, OrderedDict
 import claripy
 import networkx
 import pyvex
-from .. import register_analysis
 from archinfo import ArchARM
 
 from .cfg_base import CFGBase
@@ -2350,7 +2349,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                                endness=self.project.arch.register_endness)
 
                 # Clear the constraints!
-                base_state.release_plugin('solver_engine')
+                base_state.release_plugin('solver')
                 p = self.project.factory.path(base_state)
 
             # For speed concerns, we are limiting the timeout for z3 solver to 5 seconds. It will be restored afterwards
@@ -2688,7 +2687,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # instantiate the stub
                     new_stub_inst = new_stub(display_name=old_name)
 
-                    sim_successors = SimEngineProcedure().process(
+                    sim_successors = self.project.engines.procedure_engine.process(
                         state,
                         new_stub_inst,
                         force_addr=addr,
@@ -3310,4 +3309,4 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
-register_analysis(CFGAccurate, 'CFGAccurate')
+CFGAccurate.register_default()

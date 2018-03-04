@@ -390,4 +390,4 @@ class CallStackAction(object):
         else: # pop
             return "<CallStackAction pop, ret site %#x>" % self.ret_site_addr
 
-SimStatePlugin.register_default('callstack', CallStack)
+CallStack.register_default('callstack')

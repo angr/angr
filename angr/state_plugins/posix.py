@@ -512,7 +512,7 @@ class SimStateSystem(SimStatePlugin):
         return os.path.join(self.chroot, normalized)
 
 
-SimStatePlugin.register_default('posix', SimStateSystem)
+SimStateSystem.register_default('posix')
 
 from ..state_plugins.symbolic_memory import SimSymbolicMemory
 from ..errors import SimPosixError, SimError

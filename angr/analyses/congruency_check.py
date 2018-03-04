@@ -2,7 +2,7 @@ import logging
 
 import claripy
 
-from . import Analysis, register_analysis
+from . import Analysis
 
 l = logging.getLogger("angr.analyses.congruency_check")
 #l.setLevel(logging.DEBUG)
@@ -353,4 +353,4 @@ class CongruencyCheck(Analysis):
         return True
 
 from ..errors import AngrIncongruencyError
-register_analysis(CongruencyCheck, 'CongruencyCheck')
+CongruencyCheck.register_default()

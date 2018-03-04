@@ -28,14 +28,15 @@ class SimEngineVEX(SimEngine):
     Execution engine based on VEX, Valgrind's IR.
     """
 
-    def __init__(self, stop_points=None,
-            use_cache=True,
+    def __init__(self, project=None,
+            stop_points=None,
+            use_cache=None,
             cache_size=50000,
             default_opt_level=1,
-            support_selfmodifying_code=False,
+            support_selfmodifying_code=None,
             single_step=False):
 
-        super(SimEngineVEX, self).__init__()
+        super(SimEngineVEX, self).__init__(project)
 
         self._stop_points = stop_points
         self._use_cache = use_cache
@@ -44,6 +45,17 @@ class SimEngineVEX(SimEngine):
         self._single_step = single_step
         self._cache_size = cache_size
 
+        if self._use_cache is None:
+            if project is not None:
+                self._use_cache = project._translation_cache
+            else:
+                self._use_cache = False
+        if self._support_selfmodifying_code is None:
+            if project is not None:
+                self._support_selfmodifying_code = project._support_selfmodifying_code
+            else:
+                self._support_selfmodifying_code = False
+
         # block cache
         self._block_cache = None
         self._block_cache_hits = 0
@@ -51,6 +63,12 @@ class SimEngineVEX(SimEngine):
 
         self._initialize_block_cache()
 
+    def is_stop_point(self, addr):
+        if self.project is not None and addr in self.project._sim_procedures:
+            return True
+        elif self._stop_points is not None and addr in self._stop_points:
+            return True
+        return False
 
     def _initialize_block_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
@@ -495,9 +513,9 @@ class SimEngineVEX(SimEngine):
         except pyvex.PyVEXError:
             l.debug("VEX translation error at %#x", addr)
             if isinstance(buff, str):
-                l.debug('Using bytes: ' + buff)
+                l.debug('Using bytes: %r', buff)
             else:
-                l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))
+                l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
             e_type, value, traceback = sys.exc_info()
             raise SimTranslationError, ("Translation error", e_type, value), traceback
 
@@ -556,14 +574,14 @@ class SimEngineVEX(SimEngine):
         Enumerate the imarks in the block. If any of them (after the first one) are at a stop point, returns the address
         of the stop point. None is returned otherwise.
         """
-        if self._stop_points is None:
+        if self._stop_points is None and self.project is None:
             return None
 
         first_imark = True
         for stmt in irsb.statements:
             if isinstance(stmt, pyvex.stmt.IMark):
                 addr = stmt.addr + stmt.delta
-                if not first_imark and addr in self._stop_points:
+                if not first_imark and self.is_stop_point(addr):
                     # could this part be moved by pyvex?
                     return addr
 
@@ -581,8 +599,7 @@ class SimEngineVEX(SimEngine):
     #
 
     def __setstate__(self, state):
-        super(SimEngineVEX, self).__setstate__(state)
-
+        self.project = state['project']
         self._stop_points = state['_stop_points']
         self._use_cache = state['_use_cache']
         self._default_opt_level = state['_default_opt_level']
@@ -594,8 +611,8 @@ class SimEngineVEX(SimEngine):
         self._initialize_block_cache()
 
     def __getstate__(self):
-        s = super(SimEngineVEX, self).__getstate__()
-
+        s = {}
+        s['project'] = self.project
         s['_stop_points'] = self._stop_points
         s['_use_cache'] = self._use_cache
         s['_default_opt_level'] = self._default_opt_level

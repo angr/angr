@@ -1,7 +1,4 @@
-
 import sys
-
-from .. import register_analysis
 
 from .cfg_fast import CFGFast
 
@@ -57,4 +54,4 @@ class CFG(CFGFast):     # pylint: disable=abstract-method
         # Now initializes CFGFast :-)
         CFGFast.__init__(self, **kwargs)
 
-register_analysis(CFG, 'CFG')
+CFG.register_default()

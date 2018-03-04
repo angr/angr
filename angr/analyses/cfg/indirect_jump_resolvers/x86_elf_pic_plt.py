@@ -4,7 +4,6 @@ import logging
 import archinfo
 import cle
 
-from ....engines import SimEngineVEX
 from .resolver import IndirectJumpResolver
 
 
@@ -80,7 +79,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         state = cfg._initial_state.copy()
         state.regs.ebx = got_addr
 
-        successors = SimEngineVEX().process(state, block, force_addr=addr)
+        successors = self.project.engines.default_engine.process(state, block, force_addr=addr)
 
         if len(successors.flat_successors) != 1:
             return False, [ ]

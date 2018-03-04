@@ -1,35 +1,67 @@
-from ..misc.plugins import PluginHub
-from ..errors import NoPlugin
-
+from ..misc.plugins import PluginHub, PluginPreset
+from ..errors import AngrExitError, SimEngineError
 
 class EngineHub(PluginHub):
-
-    def __init__(self):
+    def __init__(self, project):
         super(EngineHub, self).__init__()
-        self.processing_order = []
+        self.project = project
 
-    def __iter__(self):
-        return (self.get_plugin(name) for name in self.processing_order)
+    def _init_plugin(self, plugin):
+        return plugin(self.project)
 
-    def __getstate__(self):
-        s = super(EngineHub, self).__getstate__()
-        s['processing_order'] = self.processing_order
-        return s
+    def successors(self, state, addr=None, jumpkind=None, **kwargs):
+        """
+        Perform execution using any applicable engine. Enumerate the current engines and use the
+        first one that works. Return a SimSuccessors object classifying the results of the run.
 
-    def __setstate__(self, s):
-        super(EngineHub, self).__setstate__(s)
-        self.processing_order = s['processing_order']
+        :param state:           The state to analyze
+        :param addr:            optional, an address to execute at instead of the state's ip
+        :param jumpkind:        optional, the jumpkind of the previous exit
+        :param inline:          This is an inline execution. Do not bother copying the state.
 
-    @property
-    def default_engine(self):
-        try:
-            return self.get_plugin('default')
-        except NoPlugin:
-            return None
+        Additional keyword arguments will be passed directly into each engine's process method.
+        """
+        if addr is not None or jumpkind is not None:
+            state = state.copy()
+            if addr is not None:
+                state.ip = addr
+            if jumpkind is not None:
+                state.history.jumpkind = jumpkind
 
-    @property
-    def procedure_engine(self):
-        try:
-            return self.get_plugin('procedure')
-        except NoPlugin:
-            return None
+        if not self.has_plugin_preset:
+            raise SimEngineError("EngineHub preset must be present to choose execution...")
+
+        for engine in self._choose_engine(state, **kwargs):
+            r = engine.process(state, **kwargs)
+            if r.processed:
+                return r
+
+        raise AngrExitError("All engines failed to execute!")
+
+    def _choose_engine(self, state, **kwargs):
+        if self.failure.check(state, **kwargs): yield self.failure
+        if self.syscall.check(state, **kwargs): yield self.syscall
+        if self.hook.check(state, **kwargs): yield self.hook
+        for engine in self._active_preset.choose_engine(self, state, **kwargs):
+            yield engine
+
+class EnginePreset(PluginPreset):
+    def __init__(self):
+        super(EnginePreset, self).__init__()
+
+        self._order = []
+
+    def choose_engine(self, hub, state, **kwargs):
+        for engine_name in self._order:
+            engine = hub.get_plugin(engine_name)
+            if engine.check(state, **kwargs):
+                yield engine
+
+    def set_order(self, order):
+        self._order = list(order)
+
+    def copy(self):
+        out = EnginePreset()
+        out.default_plugins = dict(self.default_plugins)
+        out._order = list(self._order)
+        return out

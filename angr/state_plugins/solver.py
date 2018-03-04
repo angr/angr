@@ -782,7 +782,7 @@ class SimSolver(SimStatePlugin):
     def variables(self, e): #pylint:disable=no-self-use
         return e.variables
 
-SimStatePlugin.register_default('solver_engine', SimSolver)
+SimSolver.register_default('solver')
 from .. import sim_options as o
 from .inspect import BP_AFTER
 from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

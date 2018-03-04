@@ -11,7 +11,7 @@ import cffi
 import cle
 import networkx
 import pyvex
-from . import Analysis, register_analysis
+from . import Analysis
 
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
@@ -2807,4 +2807,4 @@ class Reassembler(Analysis):
         else:
             return data
 
-register_analysis(Reassembler, 'Reassembler')
+Reassembler.register_default()

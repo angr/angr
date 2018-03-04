@@ -147,4 +147,4 @@ from .sim_action import SimActionObject, SimActionData
 from ..errors import SimValueError
 from .. import sim_options as o
 from .inspect import BP_AFTER, BP_BEFORE
-SimStateScratch.register_default('scratch', SimStateScratch)
+SimStateScratch.register_default('scratch')
