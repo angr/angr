@@ -209,6 +209,7 @@ class Project(object):
         failure_engine = SimEngineFailure(self)
         syscall_engine = SimEngineSyscall(self)
         unicorn_engine = SimEngineUnicorn(self._sim_procedures)
+        concrete_engine = SimEngineConcrete(self.loader._concrete_target)
 
         self.entry = self.loader.main_object.entry
         self.factory = AngrObjectFactory(
@@ -662,5 +663,5 @@ from angr.simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
-from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
+from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook, SimEngineConcrete
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
