@@ -625,7 +625,6 @@ class SimulationManager(ana.Storable):
                 l.debug("Out of states in stash %s", stash)
                 break
 
-
         return simgr
 
     def prune(self, filter_func=None, from_stash=None, to_stash=None):

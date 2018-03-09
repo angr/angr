@@ -65,7 +65,6 @@ class SimEngineConcrete(SimEngine):
             extra_stop_points=None,
             inline=False,
             force_addr=None,
-            break_address = None,
             **kwargs):
         """
         :param state:               The state with which to execute
@@ -84,14 +83,14 @@ class SimEngineConcrete(SimEngine):
                 force_addr=force_addr)
 
     def _check(self, state, **kwargs):
-        print "Checking SimEngineConcrete"
-        pc = state.se.eval(state.regs.pc)
-        print hex(pc)
-
-        return False
+        # Whatever checks before turning on this engine
+        # TODO
+        return True
 
     def _process(self, state, successors, step, extra_stop_points):
-        pass
+        self.to_engine(extra_stop_points)
+        self.from_engine()
+        return
 
     def from_engine(self):
         """
