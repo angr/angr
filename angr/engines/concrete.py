@@ -122,7 +122,7 @@ class SimEngineConcrete(SimEngine):
         self._state.mem.flush_pages()
         '''
 
-    def to_engine(self,state, extra_stop_points):
+    def to_engine(self, state, extra_stop_points):
         """
         Handling the switch between the execution in Angr and the concrete target.
         This method takes care of:
@@ -132,19 +132,42 @@ class SimEngineConcrete(SimEngine):
         :return:
         """
 
-        to_concretize_address = None
+        l.warning(self, "Concretize everything before entering inside the SimEngineConcrete | "
+                        "Be patient this could take a while.")
+
+        # TODO what if we have multiple solutions?
+        # TODO what if we concretize also registers? If not, we are going to refuse to step the State?
+        # TODO what if we concretize file sym vars?
+
+        # get all the registered symbolic variables inside this state
+        # succ.se.get_variables('mem')  only for the memory
+        # succ.se.get_variables('reg')  only for register
+        # succ.se.get_variables('file') only for file
+        #
+        # symbolic_vars is f.i:
+        # ('mem', 576460752303357952L, 1), <BV64 mem_7ffffffffff0000_5_64{UNINITIALIZED}>)
+        #
+        symbolic_vars = list(state.se.get_variables('mem'))
+
+        # dictionary of memory address to concretize
+        # f.i. to_concretize_memory[0x7ffffffffff0000] = 0xdeadbeef
+        #      ...
+        to_concretize_memory = {}
+
+        for sym_var in symbolic_vars:
+            sym_var_address = sym_var[0][1]
+            sym_var_name = sym_var[1]
+            sym_var_sol = state.se.eval(sym_var_name)
+            self.target.write_memory(sym_var_address,sym_var_sol)
 
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
-            self._target.set_breakpoint(stop_point)
-
-        # Concretize everything inside the state! # TODO-BIG absolutely don't know how!
-        # concretize_stuff = state.concretize_everything()
+            self.target.set_breakpoint(stop_point)
 
         # Continue the execution of the binary
-        stop_point = self._target.run()
+        stop_point = self.target.run()
 
-        if stop_point.reason == "BREAKPOINT_HIT":  # if we have a breakpoint hit this mean the execution inside the concrete engine must be stopped.
+        if stop_point.reason == "BREAKPOINT_HIT":
             return True
         elif stop_point.reason == "OTHER_REASONS":
             return False
