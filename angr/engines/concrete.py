@@ -88,7 +88,7 @@ class SimEngineConcrete(SimEngine):
         return True
 
     def _process(self, state, successors, step, extra_stop_points):
-        self.to_engine(extra_stop_points)
+        self.to_engine(state, extra_stop_points)
         self.from_engine()
         return
 
@@ -122,7 +122,7 @@ class SimEngineConcrete(SimEngine):
         self._state.mem.flush_pages()
         '''
 
-    def to_engine(self):
+    def to_engine(self,state, extra_stop_points):
         """
         Handling the switch between the execution in Angr and the concrete target.
         This method takes care of:
@@ -132,33 +132,22 @@ class SimEngineConcrete(SimEngine):
         :return:
         """
 
-        '''
         to_concretize_address = None
 
         # Set breakpoint on remote target
-        self._target.SetBreakpoint(break_address)
+        for stop_point in extra_stop_points:
+            self._target.SetBreakpoint(stop_point)
 
-        while True:
-            # Concretize required symbolic vars and set watchpoints on remote target over the
-            # not yet concretized symbolic variables
-            if to_concretize_address != None:
-                concrete_value = self._getSolutions(to_concretize_address)
-                self._target.WriteMemory(to_concretize_address, concrete_value)
+        # Concretize everything inside the state! # TODO-BIG absolutely don't know how!
+        # concretize_stuff = state.concretize_everything()
 
-            # we set/update watchpoints to all the addresses containing symbolic variables now
-            self._target.UpdateWatchPoints(self.state.GetSymVarAddresses())
+        # Continue the execution of the binary
+        stop_point = self._target.Run()
 
-            # Continue the execution of the binary
-            stop_point = self._target.Run()
+        if stop_point.reason == "BREAKPOINT_HIT":  # if we have a breakpoint hit this mean the execution inside the concrete engine must be stopped.
+            return True
+        elif stop_point.reason == "OTHER_REASONS":
+            return False
 
-            if stop_point.reason == "BREAKPOINT_HIT":  # if we have a breakpoint hit this mean the execution inside the concrete engine must be stopped.
-                break
 
-            elif stop_point.reason == "WATCHPOINT_HIT":  # if we hit a watchpoint we need to concretize the sym_var hit and restart the execution.
-                to_concretize_address = stop_point.address
 
-            elif stop_point.reason == "OTHER_REASONS":
-                ...  # handle reason
-
-        return
-        '''
