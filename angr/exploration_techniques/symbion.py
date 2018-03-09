@@ -18,6 +18,7 @@ class Symbion(ExplorationTechnique):
         self.find_stash = find_stash
 
     def setup(self, simgr):
+        # TODO is this find stash filled correctly?
         if not self.find_stash in simgr.stashes:
             simgr.stashes[self.find_stash] = []
 
@@ -34,6 +35,7 @@ class Symbion(ExplorationTechnique):
             l.warning(self, "You are trying to use the Symbion exploration technique on multiple state,"
                             "this is not supported now.")
 
+        # TODO is it ok to extract the first state in the stash in this way?
         return simgr._one_step(stash=simgr.stashes[stash][0], **kwargs)
 
     def step_state(self, state, **kwargs):
@@ -50,5 +52,6 @@ class Symbion(ExplorationTechnique):
         return ss
 
     def complete(self, simgr):
+        # TODO anything here?
         return
 

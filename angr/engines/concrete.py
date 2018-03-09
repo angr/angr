@@ -89,10 +89,10 @@ class SimEngineConcrete(SimEngine):
 
     def _process(self, state, successors, step, extra_stop_points):
         self.to_engine(state, extra_stop_points)
-        self.from_engine()
+        self.from_engine(state)
         return
 
-    def from_engine(self):
+    def from_engine(self,state):
         """
         Handling the switch between the concrete execution and Angr.
         This method takes care of:
@@ -103,14 +103,15 @@ class SimEngineConcrete(SimEngine):
 
         :return:
         """
-        '''
+
         # sync Angr registers with the one getting from
         # the concrete target
         regs = []
-        for reg in registers:
-            regs.append(self._target.read_register(reg))
+        regs_blacklist = ['ip_at_syscall','']
 
-        self.state.sync_regs(regs)
+        for reg in state.arch.registers:
+            reg_value = regs.append(self._target.read_register(reg))
+            state.memory.store(state.regs[reg], reg_value, endness=state.arch.register_endness)
 
         # Fix the memory of the newly created state
         # 1) fix the memory backers of this state, this is accomplished
@@ -120,7 +121,7 @@ class SimEngineConcrete(SimEngine):
 
         self.project.loader.backers = ConcreteCLEMemory(self._target)
         self._state.mem.flush_pages()
-        '''
+
 
     def to_engine(self, state, extra_stop_points):
         """
