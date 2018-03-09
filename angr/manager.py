@@ -575,7 +575,7 @@ class SimulationManager(ana.Storable):
         :param until:           If provided, should be a function that takes a SimulationManager and returns True or False.
                                 Stepping will terminate when it is True.
 
-        Additionally, you can pass in any of the following keyword args for project.factory.sim_run:
+        Additionally, you can pass in any of the following keyword args for project.factory.successor:
 
         :param jumpkind:        The jumpkind of the previous exit
         :param addr:            An address to execute at instead of the state's ip.
@@ -585,8 +585,9 @@ class SimulationManager(ana.Storable):
         :param backup_state:    A state to read bytes from instead of using project memory.
         :param opt_level:       The VEX optimization level to use.
         :param insn_bytes:      A string of bytes to use for the block instead of the project.
+        :param insn_text:       A string of assembly instruction to use for the block instead of the project.
         :param size:            The maximum size of the block, in bytes.
-        :param num_inst:        The maximum number of instructions.
+        :param tum_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. Default: 0
 
         The following parameters are specific to the unicorn-engine.

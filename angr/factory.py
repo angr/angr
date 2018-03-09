@@ -57,6 +57,15 @@ class AngrObjectFactory(object):
         Additional keyword arguments will be passed directly into each engine's process method.
         """
 
+        if kwargs.get('insn_bytes', None) is not None and kwargs.get('insn_text', None) is not None:
+            raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
+        insn_text = kwargs.get('insn_text', None)
+        if insn_text is not None:
+            kwargs['insn_bytes'] = self._project.arch.asm(insn_text,
+                                                          addr=kwargs.get('addr', 0),
+                                                          as_bytes=True,
+                                                          thumb=kwargs.get('thumb', False))
+
         return self.project.engines.successors(*args, **kwargs)
 
     def blank_state(self, **kwargs):
@@ -283,11 +292,17 @@ class AngrObjectFactory(object):
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None  # backward compatibility
+              insn_bytes=None, insn_text=None  # backward compatibility
               ):
+
+        if insn_bytes is not None and insn_text is not None:
+            raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
 
         if insn_bytes is not None:
             byte_string = insn_bytes
+
+        if insn_text is not None:
+            byte_string = self._project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
 
         if max_size is not None:
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
