@@ -16,38 +16,37 @@ class ConcreteTarget(object):
     def _init_(self):
         return
 
-    def read_memory(self,address, length):
+    def read_memory(self, address, length, **kwargs):
         raise NotImplementedError()
 
-    def write_memory(self,address, data):
+    def write_memory(self, address, data, **kwargs):
         raise NotImplementedError()
 
-    def is_valid_address(self,address):
+    def is_valid_address(self, address, **kwargs):
         raise NotImplementedError()
 
-    def read_register(self,register):
+    def read_register(self, register, **kwargs):
         raise NotImplementedError()
 
-    def write_register(self,register):
+    def write_register(self, register, value, **kwargs):
         raise NotImplementedError()
 
-    def set_breakpoint(self,address):
+    def set_breakpoint(self, address, **kwargs):
         raise NotImplementedError()
 
-    def remove_breakpoint(self,address):
+    def remove_breakpoint(self, address, **kwargs):
         raise NotImplementedError()
 
-    def set_watchpoint(self,address):
+    def set_watchpoint(self, address, **kwargs):
         raise NotImplementedError()
 
-    def remove_watchpoint(self,address):
+    def remove_watchpoint(self, address, **kwargs):
         raise NotImplementedError()
 
-    def cont(self):
+    def run(self):
         raise NotImplementedError()
 
-    def wait(self):
-        raise NotImplementedError()
+
 
 
 class SimEngineConcrete(SimEngine):
