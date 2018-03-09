@@ -216,6 +216,7 @@ class Project(object):
                 self,
                 engine,
                 procedure_engine,
+                concrete_engine,
                 [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)

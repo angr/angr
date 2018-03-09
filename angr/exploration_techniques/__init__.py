@@ -6,6 +6,7 @@ class ExplorationTechnique(object):
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
     symbolic exploration.
 
+
     TODO: choose actual name for the functionality (techniques? strategies?)
 
     Any number of these methods may be overridden by a subclass.

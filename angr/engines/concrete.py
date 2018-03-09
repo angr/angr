@@ -58,7 +58,6 @@ class SimEngineConcrete(SimEngine):
     def __init__(self, concrete_target=None):
 
         super(SimEngineConcrete, self).__init__()
-
         self.target = concrete_target
 
     def process(self, state,
@@ -66,6 +65,7 @@ class SimEngineConcrete(SimEngine):
             extra_stop_points=None,
             inline=False,
             force_addr=None,
+            break_address = None,
             **kwargs):
         """
         :param state:               The state with which to execute
@@ -84,7 +84,11 @@ class SimEngineConcrete(SimEngine):
                 force_addr=force_addr)
 
     def _check(self, state, **kwargs):
-        return True
+        print "Checking SimEngineConcrete"
+        pc = state.se.eval(state.regs.pc)
+        print hex(pc)
+
+        return False
 
     def _process(self, state, successors, step, extra_stop_points):
         pass
