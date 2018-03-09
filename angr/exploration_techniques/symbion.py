@@ -18,7 +18,8 @@ class Symbion(ExplorationTechnique):
         self.find_stash = find_stash
 
     def setup(self, simgr):
-        if not self.find_stash in simgr.stashes: simgr.stashes[self.find_stash] = []
+        if not self.find_stash in simgr.stashes:
+            simgr.stashes[self.find_stash] = []
 
     def filter(self, state):
         # check possible conditions on the state that we need to step inside the SimEngineConcrete
@@ -30,10 +31,10 @@ class Symbion(ExplorationTechnique):
         # This because for now we support only one concrete execution, in future we can think about a snapshot
         # engine and give to each SimState an instance of a concrete process.
         if len(simgr.stashes[stash]):
-            l.warning(self, "You are trying to use the Symbion exploration technique on multiple state, "
+            l.warning(self, "You are trying to use the Symbion exploration technique on multiple state,"
                             "this is not supported now.")
 
-        return simgr._one_step(stash=self.simgr.stashes[stash][0], **kwargs)
+        return simgr._one_step(stash=simgr.stashes[stash][0], **kwargs)
 
     def step_state(self, state, **kwargs):
         """
@@ -44,7 +45,8 @@ class Symbion(ExplorationTechnique):
         :param kwargs:
         :return:
         """
-        ss = self.project.factory.successors(state, engine=self.project.concrete_engine, extra_stop_points=self.find)
+        ss = self.project.factory.successors(state, engine=self.project.factory.concrete_engine,
+                                             extra_stop_points=self.find)
         return ss
 
     def complete(self, simgr):

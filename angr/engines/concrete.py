@@ -136,7 +136,7 @@ class SimEngineConcrete(SimEngine):
                         "Be patient this could take a while.")
 
         # TODO what if we have multiple solutions?
-        # TODO what if we concretize also registers? If not, we are going to refuse to step the State?
+        # TODO what if we concretize also registers? If not, we are going to refuse to step the SimState?
         # TODO what if we concretize file sym vars?
 
         # get all the registered symbolic variables inside this state
