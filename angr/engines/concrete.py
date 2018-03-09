@@ -108,7 +108,7 @@ class SimEngineConcrete(SimEngine):
         # the concrete target
         regs = []
         for reg in registers:
-            regs.append(self._target.ReadRegister(reg))
+            regs.append(self._target.read_register(reg))
 
         self.state.sync_regs(regs)
 
@@ -136,13 +136,13 @@ class SimEngineConcrete(SimEngine):
 
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
-            self._target.SetBreakpoint(stop_point)
+            self._target.set_breakpoint(stop_point)
 
         # Concretize everything inside the state! # TODO-BIG absolutely don't know how!
         # concretize_stuff = state.concretize_everything()
 
         # Continue the execution of the binary
-        stop_point = self._target.Run()
+        stop_point = self._target.run()
 
         if stop_point.reason == "BREAKPOINT_HIT":  # if we have a breakpoint hit this mean the execution inside the concrete engine must be stopped.
             return True
