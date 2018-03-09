@@ -24,7 +24,7 @@ class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project, default_engine, procedure_engine, engines):
+    def __init__(self, project, default_engine, procedure_engine, concrete_engine, engines):
         # currently the default engine MUST be a vex engine... this assumption is hardcoded
         # but this can totally be changed with some interface generalization
         self._project = project
@@ -32,6 +32,7 @@ class AngrObjectFactory(object):
 
         self.default_engine = default_engine
         self.procedure_engine = procedure_engine
+        self.concrete_engine = concrete_engine
         self.engines = engines
 
     def snippet(self, addr, jumpkind=None, **block_opts):

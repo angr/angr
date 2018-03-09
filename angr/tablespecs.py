@@ -46,6 +46,7 @@ class StringTableSpec(object):
             self._str_len += len(string) + 1
         elif isinstance(string, claripy.ast.Bits):
             self._contents.append(('string', string.concat(claripy.BVV(0, self._byte_width))))
+            print self._contents
             self._str_len += len(string) // self._byte_width + 1
         else:
             raise ValueError('String must be either string literal or claripy AST')

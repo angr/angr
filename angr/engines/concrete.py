@@ -57,7 +57,6 @@ class SimEngineConcrete(SimEngine):
     def __init__(self, concrete_target=None):
 
         super(SimEngineConcrete, self).__init__()
-
         self.target = concrete_target
 
     def process(self, state,
@@ -83,12 +82,16 @@ class SimEngineConcrete(SimEngine):
                 force_addr=force_addr)
 
     def _check(self, state, **kwargs):
+        # Whatever checks before turning on this engine
+        # TODO
         return True
 
     def _process(self, state, successors, step, extra_stop_points):
-        pass
+        self.to_engine(state, extra_stop_points)
+        self.from_engine(state)
+        return
 
-    def from_engine(self):
+    def from_engine(self,state):
         """
         Handling the switch between the concrete execution and Angr.
         This method takes care of:
@@ -99,14 +102,15 @@ class SimEngineConcrete(SimEngine):
 
         :return:
         """
-        '''
+
         # sync Angr registers with the one getting from
         # the concrete target
         regs = []
-        for reg in registers:
-            regs.append(self._target.ReadRegister(reg))
+        regs_blacklist = ['ip_at_syscall','']
 
-        self.state.sync_regs(regs)
+        for reg in state.arch.registers:
+            reg_value = regs.append(self._target.read_register(reg))
+            state.memory.store(state.regs[reg], reg_value, endness=state.arch.register_endness)
 
         # Fix the memory of the newly created state
         # 1) fix the memory backers of this state, this is accomplished
@@ -116,9 +120,9 @@ class SimEngineConcrete(SimEngine):
 
         self.project.loader.backers = ConcreteCLEMemory(self._target)
         self._state.mem.flush_pages()
-        '''
 
-    def to_engine(self):
+
+    def to_engine(self, state, extra_stop_points):
         """
         Handling the switch between the execution in Angr and the concrete target.
         This method takes care of:
@@ -128,33 +132,45 @@ class SimEngineConcrete(SimEngine):
         :return:
         """
 
-        '''
-        to_concretize_address = None
+        l.warning(self, "Concretize everything before entering inside the SimEngineConcrete | "
+                        "Be patient this could take a while.")
+
+        # TODO what if we have multiple solutions?
+        # TODO what if we concretize also registers? If not, we are going to refuse to step the SimState?
+        # TODO what if we concretize file sym vars?
+
+        # get all the registered symbolic variables inside this state
+        # succ.se.get_variables('mem')  only for the memory
+        # succ.se.get_variables('reg')  only for register
+        # succ.se.get_variables('file') only for file
+        #
+        # symbolic_vars is f.i:
+        # ('mem', 576460752303357952L, 1), <BV64 mem_7ffffffffff0000_5_64{UNINITIALIZED}>)
+        #
+        symbolic_vars = list(state.se.get_variables('mem'))
+
+        # dictionary of memory address to concretize
+        # f.i. to_concretize_memory[0x7ffffffffff0000] = 0xdeadbeef
+        #      ...
+        to_concretize_memory = {}
+
+        for sym_var in symbolic_vars:
+            sym_var_address = sym_var[0][1]
+            sym_var_name = sym_var[1]
+            sym_var_sol = state.se.eval(sym_var_name)
+            self.target.write_memory(sym_var_address,sym_var_sol)
 
         # Set breakpoint on remote target
-        self._target.SetBreakpoint(break_address)
+        for stop_point in extra_stop_points:
+            self.target.set_breakpoint(stop_point)
 
-        while True:
-            # Concretize required symbolic vars and set watchpoints on remote target over the
-            # not yet concretized symbolic variables
-            if to_concretize_address != None:
-                concrete_value = self._getSolutions(to_concretize_address)
-                self._target.WriteMemory(to_concretize_address, concrete_value)
+        # Continue the execution of the binary
+        stop_point = self.target.run()
 
-            # we set/update watchpoints to all the addresses containing symbolic variables now
-            self._target.UpdateWatchPoints(self.state.GetSymVarAddresses())
+        if stop_point.reason == "BREAKPOINT_HIT":
+            return True
+        elif stop_point.reason == "OTHER_REASONS":
+            return False
 
-            # Continue the execution of the binary
-            stop_point = self._target.Run()
 
-            if stop_point.reason == "BREAKPOINT_HIT":  # if we have a breakpoint hit this mean the execution inside the concrete engine must be stopped.
-                break
 
-            elif stop_point.reason == "WATCHPOINT_HIT":  # if we hit a watchpoint we need to concretize the sym_var hit and restart the execution.
-                to_concretize_address = stop_point.address
-
-            elif stop_point.reason == "OTHER_REASONS":
-                ...  # handle reason
-
-        return
-        '''
