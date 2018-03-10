@@ -69,7 +69,6 @@ class PluginHub(object):
 
     def __dir__(self):
         out = set(self._active_plugins)
-        out.update(self.__dict__)
         if self._active_preset is not None:
             out.update(self._active_preset.list_default_plugins())
 
@@ -168,6 +167,7 @@ class PluginHub(object):
         if self.has_plugin(name):
             self.release_plugin(name)
         self._active_plugins[name] = plugin
+        setattr(self, name, plugin)
         return plugin
 
     def release_plugin(self, name):
@@ -175,6 +175,7 @@ class PluginHub(object):
         Deactivate and remove the plugin with name ``name``.
         """
         del self._active_plugins[name]
+        delattr(self, name)
 
 
 class Plugin(object):
