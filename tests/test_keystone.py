@@ -24,8 +24,7 @@ def run_keystone(arch):
     else:
         sm.one_active.regs.r1 = 3
 
-    block = p.factory.block(addr, insn_text=insn_texts[arch])
-    vex = block.vex
+    block = p.factory.block(addr, insn_text=insn_texts[arch]).vex
 
     nose.tools.assert_equal(block.instructions, 1)
 

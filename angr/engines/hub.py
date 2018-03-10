@@ -22,7 +22,7 @@ class EngineHub(PluginHub):
         Additional keyword arguments will be passed directly into each engine's process method.
         """
         if kwargs.get('insn_bytes', None) is not None and kwargs.get('insn_text', None) is not None:
-            raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
+            raise SimEngineError("You cannot provide both 'insn_bytes' and 'insn_text'!")
         insn_text = kwargs.get('insn_text', None)
         if insn_text is not None:
             kwargs['insn_bytes'] = self.project.arch.asm(insn_text,
