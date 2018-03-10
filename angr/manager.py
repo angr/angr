@@ -587,7 +587,7 @@ class SimulationManager(ana.Storable):
         :param insn_bytes:      A string of bytes to use for the block instead of the project.
         :param insn_text:       A string of assembly instruction to use for the block instead of the project.
         :param size:            The maximum size of the block, in bytes.
-        :param tum_inst:        The maximum number of instructions.
+        :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. Default: 0
 
         The following parameters are specific to the unicorn-engine.

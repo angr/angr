@@ -83,7 +83,6 @@ class SimEngineVEX(SimEngine):
             inline=False,
             force_addr=None,
             insn_bytes=None,
-            insn_text=None,
             size=None,
             num_inst=None,
             traceflags=0,

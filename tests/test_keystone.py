@@ -31,5 +31,5 @@ def run_keystone(arch):
     nose.tools.assert_true('active' in sm.stashes)
 
 if __name__ == "__main__":
-    for arch in target_addrs:
-        run_keystone(arch)
+    for arch_name in target_addrs:
+        run_keystone(arch_name)
