@@ -6,30 +6,36 @@ import angr
 l = logging.getLogger("angr.tests")
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
-target_addrs = {
-    'i386': [ 0x080485C9 ],
-    'x86_64': [ 0x4006ed ],
-    'armel': [ 0x85F0 ],
+insn_texts = {
+    'i386': b"add eax, 15",
+    'x86_64': b"add rax, 15",
+    'ppc': b"addi %r1, %r1, 15",
+    'armel': b"add r1, r1, 15",
+    'mips': b"addi $1, $1, 15"
 }
 
 def run_keystone(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    addr = p.loader.main_object.get_symbol('authenticate').rebased_addr
 
-    block = p.factory.block(target_addrs[arch][0])
-    sm = p.factory.simgr()
+    sm = p.factory.simulation_manager()
+    if arch in ['i386', 'x86_64']:
+        sm.one_active.regs.eax = 3
+    else:
+        sm.one_active.regs.r1 = 3
 
-    insn_text = ''
-    for i in block.capstone.insns:
-        insn_text += i.mnemonic + ' ' + i.op_str + ';'
+    block = p.factory.block(addr, insn_text=insn_texts[arch])
+    vex = block.vex
 
-    new_block = p.factory.block(block.addr, insn_text=insn_text[:-1], size=block.size)
+    nose.tools.assert_equal(block.instructions, 1)
 
-    nose.tools.assert_equal(block.bytes, new_block.bytes)
+    sm.step(addr=addr, insn_text=insn_texts[arch])
 
-    sm.step(addr=block.addr, insn_text=insn_text)
-
-    nose.tools.assert_true('active' in sm.stashes)
+    if arch in ['i386', 'x86_64']:
+        nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.eax), 0x12)
+    else:
+        nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.r1), 0x12)
 
 if __name__ == "__main__":
-    for arch_name in target_addrs:
+    for arch_name in insn_texts:
         run_keystone(arch_name)
