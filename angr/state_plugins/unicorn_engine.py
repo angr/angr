@@ -811,7 +811,7 @@ class Unicorn(SimStatePlugin):
 
         def _taint(pos, chunk_size):
             if not taint:
-                taint.append(ctypes.create_string_buffer(length))
+                taint.append(ctypes.create_string_buffer(int(length)))
             offset = ctypes.cast(ctypes.addressof(taint[0]) + pos - start, ctypes.POINTER(ctypes.c_char))
             ctypes.memset(offset, 0x2, chunk_size) # mark them as TAINT_SYMBOLIC
 
@@ -967,7 +967,7 @@ class Unicorn(SimStatePlugin):
             if 0x1000 <= address < 0x2000:
                 l.warning("Emulation touched fake GDT at 0x1000, discarding changes")
             else:
-                s = str(self.uc.mem_read(address, length))
+                s = str(self.uc.mem_read(address, int(length)))
                 l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, s.encode('hex'))
                 self.state.memory.store(address, s)
 
