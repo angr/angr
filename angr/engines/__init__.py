@@ -7,4 +7,4 @@ from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
 from .hook import SimEngineHook
-from .concrete import SimEngineConcrete
+from .concrete import SimEngineConcrete, ConcreteTarget

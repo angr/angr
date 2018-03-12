@@ -55,9 +55,14 @@ class SimEngineConcrete(SimEngine):
     :param target: receive and wraps a ConcreteTarget inside this SimConcreteEngine
     """
     def __init__(self, concrete_target=None):
-
+        print "Initializing SimEngineConcrete with ConcreteTarget provided."
         super(SimEngineConcrete, self).__init__()
-        self.target = concrete_target
+        if isinstance(concrete_target,ConcreteTarget):
+            self.target = concrete_target
+        else:
+            print "Error, you must provide an instance of a ConcreteTarget to initialize" \
+                  "a SimEngineConcrete."
+            self.target = None
 
     def process(self, state,
             step=None,
@@ -86,8 +91,8 @@ class SimEngineConcrete(SimEngine):
         # TODO
         return True
 
-    def _process(self, state, successors, step, extra_stop_points):
-        self.to_engine(state, extra_stop_points)
+    def _process(self, state, successors, step, extra_stop_points = None, concretize = None ):
+        self.to_engine(state, extra_stop_points, concretize)
         self.from_engine(state)
         return
 
@@ -106,11 +111,14 @@ class SimEngineConcrete(SimEngine):
         # sync Angr registers with the one getting from
         # the concrete target
         regs = []
+
+        # registers that we don't want to concretize.
         regs_blacklist = ['ip_at_syscall','']
 
         for reg in state.arch.registers:
-            reg_value = regs.append(self._target.read_register(reg))
-            state.memory.store(state.regs[reg], reg_value, endness=state.arch.register_endness)
+            if reg not in regs_blacklist:
+                reg_value = regs.append(self.target.read_register(reg))
+                state.memory.store(state.regs[reg], reg_value, endness=state.arch.register_endness)
 
         # Fix the memory of the newly created state
         # 1) fix the memory backers of this state, this is accomplished
@@ -118,11 +126,11 @@ class SimEngineConcrete(SimEngine):
         # 2) flush the pages so they will be initialized by the backers content when
         # 	Angr access it.
 
-        self.project.loader.backers = ConcreteCLEMemory(self._target)
-        self._state.mem.flush_pages()
+        #self.project.loader.backers = ConcreteCLEMemory(self._target)
+        #self._state.mem.flush_pages()
 
 
-    def to_engine(self, state, extra_stop_points):
+    def to_engine(self, state, extra_stop_points, concretize):
         """
         Handling the switch between the execution in Angr and the concrete target.
         This method takes care of:
@@ -135,6 +143,9 @@ class SimEngineConcrete(SimEngine):
         l.warning(self, "Concretize everything before entering inside the SimEngineConcrete | "
                         "Be patient this could take a while.")
 
+        '''
+        # Getting rid of this later 
+        #-------------------------------------------------------------------------------------------------
         # TODO what if we have multiple solutions?
         # TODO what if we concretize also registers? If not, we are going to refuse to step the SimState?
         # TODO what if we concretize file sym vars?
@@ -159,6 +170,10 @@ class SimEngineConcrete(SimEngine):
             sym_var_name = sym_var[1]
             sym_var_sol = state.se.eval(sym_var_name)
             self.target.write_memory(sym_var_address,sym_var_sol)
+        '''
+        for sym_var in concretize:
+            sym_var_sol = state.se.eval(sym_var)
+
 
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
