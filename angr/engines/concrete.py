@@ -108,28 +108,34 @@ class SimEngineConcrete(SimEngine):
         :return:
         """
 
+        #blank_state = state.project.factory.blank_state()
+
         # sync Angr registers with the one getting from
         # the concrete target
         regs = []
 
         # registers that we don't want to concretize.
-        regs_blacklist = ['ip_at_syscall','']
+        regs_whitelist = ['rax', 'rbx', 'rcx', 'rdx',
+                          'rsp', 'rip', 'rbp', 'rdi',
+                          'rsi']
 
         for reg in state.arch.registers:
-            if reg not in regs_blacklist:
+            if reg in regs_whitelist:
                 try:
                     reg_value = self.target.read_register(reg)
-                    state.registers.store(reg, reg_value, state.project.arch.bits)
-                except Exception:
+                    print "Storing " + str(reg_value) + " inside reg " + reg
+                    state.registers.store(reg, state.se.BVV(reg_value, state.arch.bits))
+                except Exception, e:
+                    print e
                     # TODO need to decide how to handle this
-                    print l.debug(self, "Can't set register " + reg)
-                    continue
 
         # Fix the memory of the newly created state
         # 1) fix the memory backers of this state, this is accomplished
-        #    by plugging the ConcreteCLEMemory to the backers
+        #    by substituting the CLEMemory object with a ConcreteCLEMemory object
+        #    that will redirect the read to the remote target.
+
         # 2) flush the pages so they will be initialized by the backers content when
-        # 	Angr access it.
+        # 	 Angr will access it.
 
         #self.project.loader.backers = ConcreteCLEMemory(self._target)
         #self._state.mem.flush_pages()
