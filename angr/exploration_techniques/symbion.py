@@ -60,9 +60,6 @@ class Symbion(ExplorationTechnique):
         :param kwargs:
         :return:
         """
-        print "Calling step_state of Symbion"
-        import ipdb
-        ipdb.set_trace()
         ss = self.project.factory.successors(state, engines=[self.project.factory.concrete_engine],
                                              extra_stop_points=self.find, concretize=self.concretize)
         return ss
