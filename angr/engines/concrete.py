@@ -117,8 +117,13 @@ class SimEngineConcrete(SimEngine):
 
         for reg in state.arch.registers:
             if reg not in regs_blacklist:
-                reg_value = regs.append(self.target.read_register(reg))
-                state.memory.store(state.regs[reg], reg_value, endness=state.arch.register_endness)
+                try:
+                    reg_value = self.target.read_register(reg)
+                    state.registers.store(reg, reg_value, state.project.arch.bits)
+                except Exception:
+                    # TODO need to decide how to handle this
+                    print l.debug(self, "Can't set register " + reg)
+                    continue
 
         # Fix the memory of the newly created state
         # 1) fix the memory backers of this state, this is accomplished
@@ -171,8 +176,9 @@ class SimEngineConcrete(SimEngine):
             sym_var_sol = state.se.eval(sym_var_name)
             self.target.write_memory(sym_var_address,sym_var_sol)
         '''
-        for sym_var in concretize:
-            sym_var_sol = state.se.eval(sym_var)
+        if concretize is not None:
+            for sym_var in concretize:
+                sym_var_sol = state.se.eval(sym_var)
 
 
         # Set breakpoint on remote target
@@ -180,12 +186,15 @@ class SimEngineConcrete(SimEngine):
             self.target.set_breakpoint(stop_point)
 
         # Continue the execution of the binary
-        stop_point = self.target.run()
+        #stop_point = self.target.run()
 
+        self.target.run()
+
+        '''
         if stop_point.reason == "BREAKPOINT_HIT":
             return True
         elif stop_point.reason == "OTHER_REASONS":
             return False
-
+        '''
 
 

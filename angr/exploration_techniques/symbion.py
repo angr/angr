@@ -14,7 +14,7 @@ class Symbion(ExplorationTechnique):
      :param concretize: list of symbolic variables to concretize and write inside
                         the concrete process.
     """
-    def __init__(self, find=None, concretize=None, find_stash='found'):
+    def __init__(self, find=[], concretize=[], find_stash='found'):
         super(Symbion, self).__init__()
         self.find = find
         self.concretize = concretize
