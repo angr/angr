@@ -479,6 +479,15 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def solution(self, e, v, extra_constraints=(), exact=None):
+        """
+        Return True if `v` is a solution of `expr` with the extra constraints, False otherwise.
+
+        :param e:                   An expression (an AST) to evaluate
+        :param v:                   The proposed solution (an AST)
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :param exact:               If False, return approximate solutions.
+        :return:                    True if `v` is a solution of `expr`, False otherwise
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -492,6 +501,16 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def is_true(self, e, extra_constraints=(), exact=None):
+        """
+        If the expression provided is absolutely, definitely a true boolean, return True.
+        Note that returning False doesn't necessarily mean that the expression can be false, just that we couldn't
+        figure that out easily.
+
+        :param e:                   An expression (an AST) to evaluate
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :param exact:               If False, return approximate solutions.
+        :return:                    True if `v` is definitely true, False otherwise
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -505,6 +524,16 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def is_false(self, e, extra_constraints=(), exact=None):
+        """
+        If the expression provided is absolutely, definitely a false boolean, return True.
+        Note that returning False doesn't necessarily mean that the expression can be true, just that we couldn't
+        figure that out easily.
+
+        :param e:                   An expression (an AST) to evaluate
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :param exact:               If False, return approximate solutions.
+        :return:                    True if `v` is definitely false, False otherwise
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -543,6 +572,11 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def add(self, *constraints):
+        """
+        Add some constraints to the solver.
+
+        :param constraints:     Pass any constraints that you want to add (ASTs) as varargs.
+        """
         cc = self._adjust_constraint_list(constraints)
         return self._solver.add(cc)
 
