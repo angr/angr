@@ -879,6 +879,7 @@ class SimMemory(SimStatePlugin):
                       disable_actions=False):
         raise NotImplementedError()
 
+
 from bintrees import AVLTree
 from .. import sim_options as o
 from ..state_plugins.sim_action import SimActionData

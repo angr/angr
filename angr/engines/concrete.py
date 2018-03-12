@@ -115,18 +115,16 @@ class SimEngineConcrete(SimEngine):
         regs = []
 
         # registers that we don't want to concretize.
-        regs_whitelist = ['rax', 'rbx', 'rcx', 'rdx',
-                          'rsp', 'rip', 'rbp', 'rdi',
-                          'rsi']
+        regs_blacklist = []
 
         for reg in state.arch.registers:
-            if reg in regs_whitelist:
+            if reg not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg)
                     print "Storing " + str(reg_value) + " inside reg " + reg
                     state.registers.store(reg, state.se.BVV(reg_value, state.arch.bits))
                 except Exception, e:
-                    print e
+                    l.warning(self, "Can't set register " + reg)
                     # TODO need to decide how to handle this
 
         # Fix the memory of the newly created state
@@ -138,7 +136,7 @@ class SimEngineConcrete(SimEngine):
         # 	 Angr will access it.
 
         #self.project.loader.backers = ConcreteCLEMemory(self._target)
-        #self._state.mem.flush_pages()
+        state.mem.flush_pages()
 
 
     def to_engine(self, state, extra_stop_points, concretize):
