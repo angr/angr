@@ -112,8 +112,7 @@ class SimEngineConcrete(SimEngine):
 
         # sync Angr registers with the one getting from
         # the concrete target
-        regs = []
-
+        
         # registers that we don't want to concretize.
         regs_blacklist = []
 
