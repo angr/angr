@@ -1062,6 +1062,6 @@ class SimPagedMemory(object):
             del self._symbolic_addrs[base_page_num + page]
 
     def flush_pages(self):
-        self._pages = []
+        self._pages = {}
 
 from .. import sim_options as o
