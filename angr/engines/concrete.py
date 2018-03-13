@@ -1,7 +1,9 @@
 import logging
+import cle as cle
 
 from ..engines import SimEngine
 from ..state_plugins.inspect import BP_AFTER
+
 
 #pylint: disable=arguments-differ
 
@@ -55,7 +57,7 @@ class SimEngineConcrete(SimEngine):
     :param target: receive and wraps a ConcreteTarget inside this SimConcreteEngine
     """
     def __init__(self, concrete_target=None):
-        print "Initializing SimEngineConcrete with ConcreteTarget provided."
+        l.warning("Initializing SimEngineConcrete with ConcreteTarget provided.")
         super(SimEngineConcrete, self).__init__()
         if isinstance(concrete_target,ConcreteTarget):
             self.target = concrete_target
@@ -94,7 +96,13 @@ class SimEngineConcrete(SimEngine):
     def _process(self, state, successors, step, extra_stop_points = None, concretize = None ):
         self.to_engine(state, extra_stop_points, concretize)
         self.from_engine(state)
-        return
+
+        successors.engine = "SimEngineConcrete"
+        successors.sort = "SimEngineConcrete"
+        successors.add_successor(state, state.ip, state.se.true, state.unicorn.jumpkind)
+        successors.description = "Concrete Successors "
+        successors.processed = True
+
 
     def from_engine(self,state):
         """
@@ -112,7 +120,7 @@ class SimEngineConcrete(SimEngine):
 
         # sync Angr registers with the one getting from
         # the concrete target
-        
+
         # registers that we don't want to concretize.
         regs_blacklist = []
 
@@ -120,10 +128,11 @@ class SimEngineConcrete(SimEngine):
             if reg not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg)
-                    print "Storing " + str(reg_value) + " inside reg " + reg
+                    #print "Storing " + str(reg_value) + " inside reg " + reg
                     state.registers.store(reg, state.se.BVV(reg_value, state.arch.bits))
                 except Exception, e:
-                    l.warning(self, "Can't set register " + reg)
+                    #l.warning("Can't set register " + reg)
+                    pass
                     # TODO need to decide how to handle this
 
         # Fix the memory of the newly created state
@@ -134,9 +143,8 @@ class SimEngineConcrete(SimEngine):
         # 2) flush the pages so they will be initialized by the backers content when
         # 	 Angr will access it.
 
-        #self.project.loader.backers = ConcreteCLEMemory(self._target)
-        state.mem.flush_pages()
-
+        state.project.loader.backers = cle.ConcreteClemory(self.target)
+        state.memory.flush_pages()
 
     def to_engine(self, state, extra_stop_points, concretize):
         """
@@ -148,8 +156,9 @@ class SimEngineConcrete(SimEngine):
         :return:
         """
 
-        l.warning(self, "Concretize everything before entering inside the SimEngineConcrete | "
-                        "Be patient this could take a while.")
+        if concretize != []:
+            l.warning("Concretize variables before entering inside the SimEngineConcrete | "
+                      "Be patient this could take a while.")
 
         '''
         # Getting rid of this later 
@@ -179,6 +188,8 @@ class SimEngineConcrete(SimEngine):
             sym_var_sol = state.se.eval(sym_var_name)
             self.target.write_memory(sym_var_address,sym_var_sol)
         '''
+
+        #TODO
         if concretize is not None:
             for sym_var in concretize:
                 sym_var_sol = state.se.eval(sym_var)

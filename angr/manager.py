@@ -246,6 +246,7 @@ class SimulationManager(ana.Storable):
 
                 # The technique hook should return a dictionary (stash: [states]) to be merged
                 tech_states_dict = tech_hook(state, **kwargs)
+
                 if tech_states_dict is not None:
                     if isinstance(tech_states_dict, tuple):
                         l.warning('step_state returning a tuple has been deprecated! Please return a dict of stashes instead.')
