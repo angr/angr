@@ -820,7 +820,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return stored_values
 
-    def _flush_pages(self):
+    def flush_pages(self):
         self.mem.flush_pages()
 
     @staticmethod

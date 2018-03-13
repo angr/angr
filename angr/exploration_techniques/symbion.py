@@ -37,7 +37,7 @@ class Symbion(ExplorationTechnique):
     def step(self, simgr, stash, **kwargs):
 
         if not len(simgr.stashes[stash]):
-            l.warning(self, "No stashes to step, aborting.")
+            l.warning("No stashes to step, aborting.")
             return
 
         # check if the stash contains only one SimState and if not warn the user that only the first state
@@ -45,10 +45,10 @@ class Symbion(ExplorationTechnique):
         # This because for now we support only one concrete execution, in future we can think about a snapshot
         # engine and give to each SimState an instance of a concrete process.
         if len(simgr.stashes[stash]) > 1:
-            l.warning(self, "You are trying to use the Symbion exploration technique on multiple state,"
-                            "this is not supported now.")
+            l.warning("You are trying to use the Symbion exploration technique on multiple state, "
+                      "this is not supported now.")
 
-        # TODO is it ok to extract the first state in the stash in this way?
+        # TODO do we need to extract a state from the stash if we have multiple states here?
         return simgr._one_step(stash=stash, **kwargs)
 
     def step_state(self, state, **kwargs):
@@ -62,9 +62,9 @@ class Symbion(ExplorationTechnique):
         """
         ss = self.project.factory.successors(state, engines=[self.project.factory.concrete_engine],
                                              extra_stop_points=self.find, concretize=self.concretize)
-        return ss
+
+        return {'found': ss.successors}
 
     def complete(self, simgr):
-        # TODO anything here?
-        return
+        return len(simgr.stashes[self.find_stash]) >= 1
 
