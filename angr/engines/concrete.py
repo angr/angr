@@ -86,16 +86,18 @@ class SimEngineConcrete(SimEngine):
                 step=step,
                 extra_stop_points=extra_stop_points,
                 inline=inline,
-                force_addr=force_addr)
+                force_addr=force_addr,
+                **kwargs
+                )
 
     def _check(self, state, **kwargs):
         # Whatever checks before turning on this engine
         # TODO
         return True
 
-    def _process(self, state, successors, step, extra_stop_points = None, concretize = None ):
-        self.to_engine(state, extra_stop_points, concretize)
-        self.from_engine(state)
+    def _process(self, state, successors, step, extra_stop_points = None, concretize = None, **kwargs ):
+        self.to_engine(state, extra_stop_points, concretize, **kwargs)
+        self.from_engine(state, **kwargs)
 
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
@@ -104,7 +106,7 @@ class SimEngineConcrete(SimEngine):
         successors.processed = True
 
 
-    def from_engine(self,state):
+    def from_engine(self,state,**kwargs):
         """
         Handling the switch between the concrete execution and Angr.
         This method takes care of:
@@ -146,7 +148,7 @@ class SimEngineConcrete(SimEngine):
         state.project.loader.backers = cle.ConcreteClemory(self.target)
         state.memory.flush_pages()
 
-    def to_engine(self, state, extra_stop_points, concretize):
+    def to_engine(self, state, extra_stop_points, concretize, **kwargs):
         """
         Handling the switch between the execution in Angr and the concrete target.
         This method takes care of:
@@ -159,6 +161,11 @@ class SimEngineConcrete(SimEngine):
         if concretize != []:
             l.warning("Concretize variables before entering inside the SimEngineConcrete | "
                       "Be patient this could take a while.")
+            for sym_var in concretize:
+                sym_var_address = state.se.eval(sym_var[0])
+                sym_var_value = state.se.eval(sym_var[1], cast_to=str)
+                l.info("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
+                self.target.write_memory(sym_var_address, sym_var_value)
 
         '''
         # Getting rid of this later 
@@ -189,14 +196,9 @@ class SimEngineConcrete(SimEngine):
             self.target.write_memory(sym_var_address,sym_var_sol)
         '''
 
-        #TODO
-        if concretize is not None:
-            for sym_var in concretize:
-                sym_var_sol = state.se.eval(sym_var)
-
-
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
+            l.info("Setting breakpoints at " + hex(stop_point))
             self.target.set_breakpoint(stop_point)
 
         # Continue the execution of the binary
