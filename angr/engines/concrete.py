@@ -106,6 +106,7 @@ class SimEngineConcrete(SimEngine):
         successors.processed = True
 
 
+
     def from_engine(self,state,**kwargs):
         """
         Handling the switch between the concrete execution and Angr.
@@ -145,7 +146,7 @@ class SimEngineConcrete(SimEngine):
         # 2) flush the pages so they will be initialized by the backers content when
         # 	 Angr will access it.
 
-        state.project.loader.backers = cle.ConcreteClemory(self.target)
+        state.memory.mem._memory_backer = cle.ConcreteClemory(self.target, state.arch)
         state.memory.flush_pages()
 
     def to_engine(self, state, extra_stop_points, concretize, **kwargs):

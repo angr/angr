@@ -472,6 +472,7 @@ class SimMemory(SimStatePlugin):
         :param bool disable_actions: Whether this store should avoid creating SimActions or not. When set to False,
                                      state options are respected.
         """
+
         if priv is not None: self.state.scratch.push_priv(priv)
 
         addr_e = _raw_ast(addr)
@@ -538,7 +539,7 @@ class SimMemory(SimStatePlugin):
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         try:
-            self._store(request)
+            self._store(request) #will use state_plugins/symbolic_memory.py
         except SimSegfaultError as e:
             e.original_addr = addr_e
             raise

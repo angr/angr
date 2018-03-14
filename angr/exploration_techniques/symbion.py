@@ -24,7 +24,6 @@ class Symbion(ExplorationTechnique):
         #print("Initialized Symbion with args: find = " + addresses + " concretize = " + str(concretize))
 
     def setup(self, simgr):
-        # TODO is this find stash filled correctly?
         if not self.find_stash in simgr.stashes:
             simgr.stashes[self.find_stash] = []
 
@@ -61,7 +60,8 @@ class Symbion(ExplorationTechnique):
         :return:
         """
         ss = self.project.factory.successors(state, engines=[self.project.factory.concrete_engine],
-                                             extra_stop_points=self.find, concretize=self.concretize)
+                                                extra_stop_points=self.find, concretize=self.concretize)
+
 
         return {'found': ss.successors}
 
