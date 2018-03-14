@@ -57,6 +57,7 @@ class SimEngine(object):
                 raise
             old_state.project.simos.handle_exception(successors, self, *sys.exc_info())
 
+
         new_state._inspect('engine_process', when=BP_AFTER, sim_successors=successors, address=addr)
         successors = new_state._inspect_getattr('sim_successors', successors)
 

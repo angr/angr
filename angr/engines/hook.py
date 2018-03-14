@@ -12,9 +12,6 @@ class SimEngineHook(SimEngine):
         self.project = project
 
     def _check(self, state, procedure=None, **kwargs):
-
-        print "check SimEngineHook: pc: " + str(state.regs.pc)
-
         # we have not yet entered the next step - we should check the "current" jumpkind
         if state.history.jumpkind == 'Ijk_NoHook':
             return False
