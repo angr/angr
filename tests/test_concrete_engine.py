@@ -16,6 +16,7 @@ DROPPING_MALWARE_ADDRESS = 0x400734
 
 
 def setup():
+    print("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary))
     subprocess.Popen("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary),stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, shell=True)
 
@@ -27,6 +28,10 @@ def test_concrete_engine():
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[DROPPING_MALWARE_ADDRESS], concretize = []))
     exploration = simgr.run()
     ipdb.set_trace()
+
+    new_state = exploration.found[0]
+    username = new_state.mem[0x400915]
+
 
 setup()
 test_concrete_engine()
