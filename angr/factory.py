@@ -283,11 +283,17 @@ class AngrObjectFactory(object):
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None  # backward compatibility
+              insn_bytes=None, insn_text=None  # backward compatibility
               ):
+
+        if insn_bytes is not None and insn_text is not None:
+            raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
 
         if insn_bytes is not None:
             byte_string = insn_bytes
+
+        if insn_text is not None:
+            byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
 
         if max_size is not None:
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
