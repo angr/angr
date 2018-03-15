@@ -35,6 +35,11 @@ def run_keystone(arch):
     else:
         nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.r1), 0x12)
 
+def test_keystone():
+    for arch_name in insn_texts:
+        yield run_keystone, arch_name
+
 if __name__ == "__main__":
     for arch_name in insn_texts:
+        print arch_name
         run_keystone(arch_name)
