@@ -858,23 +858,23 @@ class SimSolver(SimStatePlugin):
             # All symbolic expressions are not single-valued
             return not self.symbolic(e)
 
-    def simplify(self, *args):
+    def simplify(self, e=None):
         """
         Simplifies `e`. If `e` is None, simplifies the constraints of this
         state.
         """
-        if len(args) == 0:
+        if e is None:
             return self._solver.simplify()
-        elif isinstance(args[0], (int, long, float, bool)):
-            return args[0]
-        elif isinstance(args[0], claripy.ast.Base) and args[0].op in claripy.operations.leaf_operations_concrete:
-            return args[0]
-        elif isinstance(args[0], SimActionObject) and args[0].op in claripy.operations.leaf_operations_concrete:
-            return args[0].ast
-        elif not isinstance(args[0], (SimActionObject, claripy.ast.Base)):
-            return args[0]
+        elif isinstance(e, (int, long, float, bool)):
+            return e
+        elif isinstance(e, claripy.ast.Base) and e.op in claripy.operations.leaf_operations_concrete:
+            return e
+        elif isinstance(e, SimActionObject) and e.op in claripy.operations.leaf_operations_concrete:
+            return e.ast
+        elif not isinstance(e, (SimActionObject, claripy.ast.Base)):
+            return e
         else:
-            return self._claripy_simplify(*args)
+            return self._claripy_simplify(e)
 
     @timed_function
     @ast_stripping_decorator
