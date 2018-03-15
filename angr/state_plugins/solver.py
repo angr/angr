@@ -416,10 +416,17 @@ class SimSolver(SimStatePlugin):
     #
 
     def downsize(self):
+        """
+        Frees memory associated with the constraint solver by clearing all of
+        its internal caches.
+        """
         return self._solver.downsize()
 
     @property
     def constraints(self):
+        """
+        Returns the constraints of the state stored by the solver.
+        """
         return self._solver.constraints
 
     def _adjust_constraint(self, c):
@@ -812,6 +819,11 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     def unique(self, e, **kwargs):
+        """
+        Returns True if the expression `e` has only one solution by querying
+        the constraint solver. It does also add that unique solution to the
+        solver's constraints.
+        """
         if not isinstance(e, claripy.ast.Base):
             return True
 
@@ -829,11 +841,19 @@ class SimSolver(SimStatePlugin):
             return False
 
     def symbolic(self, e): # pylint:disable=R0201
+        """
+        Returns True if the expression `e` is symbolic.
+        """
         if type(e) in (int, str, float, bool, long):
             return False
         return e.symbolic
 
     def single_valued(self, e):
+        """
+        Returns True whether `e` is a concrete value or is a value set with
+        only 1 possible value. This differs from `unique` in that this *does*
+        not query the constraint solver.
+        """
         if self.state.mode == 'static':
             if type(e) in (int, str, float, bool, long):
                 return True
@@ -845,6 +865,10 @@ class SimSolver(SimStatePlugin):
             return not self.symbolic(e)
 
     def simplify(self, *args):
+        """
+        Simplifies `e`. If `e` is None, simplifies the constraints of this
+        state.
+        """
         if len(args) == 0:
             return self._solver.simplify()
         elif isinstance(args[0], (int, long, float, bool)):
@@ -865,6 +889,9 @@ class SimSolver(SimStatePlugin):
         return claripy.simplify(args[0])
 
     def variables(self, e): #pylint:disable=no-self-use
+        """
+        Returns the symbolic variables present in the AST of `e`.
+        """
         return e.variables
 
 SimSolver.register_default('solver')
