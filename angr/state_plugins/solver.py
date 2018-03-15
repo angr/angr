@@ -257,6 +257,9 @@ class SimSolver(SimStatePlugin):
 
     @property
     def _solver(self):
+        """
+        Creates or gets a Claripy solver, based on the state options.
+        """
         if self._stored_solver is not None:
             return self._stored_solver
 
@@ -283,6 +286,24 @@ class SimSolver(SimStatePlugin):
     # Get unconstrained stuff
     #
     def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, key=None, eternal=False, **kwargs):
+        """
+        Creates an unconstrained symbol or a default concrete value (0), based on the state options.
+
+        :param name:            The name of the symbol.
+        :param bits:            The size (in bits) of the symbol.
+        :param uninitialized:   Whether this value should be counted as an "uninitialized" value in the course of an
+                                analysis.
+        :param inspect:         Set to False to avoid firing SimInspect breakpoints
+        :param events:          Set to False to avoid generating a SimEvent for the occasion
+        :param key:             Set this to a tuple of increasingly specific identifiers (for example,
+                                ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
+                                accessable through ``solver.get_variables``.
+        :param eternal:         Set to True in conjunction with setting a key to cause all states with the same
+                                ancestry to retrieve the same symbol when trying to create the value. If False, a
+                                counter will be appended to the key.
+
+        :returns:               an unconstrained symbol (or a concrete value of 0).
+        """
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
@@ -395,10 +416,17 @@ class SimSolver(SimStatePlugin):
     #
 
     def downsize(self):
-        return self._solver.downsize()
+        """
+        Frees memory associated with the constraint solver by clearing all of
+        its internal caches.
+        """
+        self._solver.downsize()
 
     @property
     def constraints(self):
+        """
+        Returns the constraints of the state stored by the solver.
+        """
         return self._solver.constraints
 
     def _adjust_constraint(self, c):
@@ -456,6 +484,14 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def max(self, e, extra_constraints=(), exact=None):
+        """
+        Return the maximum value of expression `e`.
+
+        :param e                : expression (an AST) to evaluate
+        :param extra_constraints: extra constraints (as ASTs) to add to the solver for this solve
+        :param exact            : if False, return approximate solutions.
+        :return: the maximum possible value of e (backend object)
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -468,6 +504,14 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def min(self, e, extra_constraints=(), exact=None):
+        """
+        Return the minimum value of expression `e`.
+
+        :param e                : expression (an AST) to evaluate
+        :param extra_constraints: extra constraints (as ASTs) to add to the solver for this solve
+        :param exact            : if False, return approximate solutions.
+        :return: the minimum possible value of e (backend object)
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -546,6 +590,12 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def unsat_core(self, extra_constraints=()):
+        """
+        This function returns the unsat core from the backend solver.
+
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :return: The unsat core.
+        """
         if o.CONSTRAINT_TRACKING_IN_SOLVER not in self.state.options:
             raise SimSolverOptionError('CONSTRAINT_TRACKING_IN_SOLVER must be enabled before calling unsat_core().')
         return self._solver.unsat_core(extra_constraints=extra_constraints)
@@ -553,13 +603,15 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def solve(self, extra_constraints=(), exact=None):
-        return self._solver.solve(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
-
-    @timed_function
-    @ast_stripping_decorator
-    @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
+        """
+        This function does a constraint check and checks if the solver is in a sat state.
+
+        :param extra_constraints:   Extra constraints (as ASTs) to add to s for this solve
+        :param exact:               If False, return approximate solutions.
+
+        :return:                    True if sat, otherwise false
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
             ar = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
@@ -761,6 +813,11 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     def unique(self, e, **kwargs):
+        """
+        Returns True if the expression `e` has only one solution by querying
+        the constraint solver. It does also add that unique solution to the
+        solver's constraints.
+        """
         if not isinstance(e, claripy.ast.Base):
             return True
 
@@ -778,11 +835,19 @@ class SimSolver(SimStatePlugin):
             return False
 
     def symbolic(self, e): # pylint:disable=R0201
+        """
+        Returns True if the expression `e` is symbolic.
+        """
         if type(e) in (int, str, float, bool, long):
             return False
         return e.symbolic
 
     def single_valued(self, e):
+        """
+        Returns True whether `e` is a concrete value or is a value set with
+        only 1 possible value. This differs from `unique` in that this *does*
+        not query the constraint solver.
+        """
         if self.state.mode == 'static':
             if type(e) in (int, str, float, bool, long):
                 return True
@@ -793,19 +858,23 @@ class SimSolver(SimStatePlugin):
             # All symbolic expressions are not single-valued
             return not self.symbolic(e)
 
-    def simplify(self, *args):
-        if len(args) == 0:
+    def simplify(self, e=None):
+        """
+        Simplifies `e`. If `e` is None, simplifies the constraints of this
+        state.
+        """
+        if e is None:
             return self._solver.simplify()
-        elif isinstance(args[0], (int, long, float, bool)):
-            return args[0]
-        elif isinstance(args[0], claripy.ast.Base) and args[0].op in claripy.operations.leaf_operations_concrete:
-            return args[0]
-        elif isinstance(args[0], SimActionObject) and args[0].op in claripy.operations.leaf_operations_concrete:
-            return args[0].ast
-        elif not isinstance(args[0], (SimActionObject, claripy.ast.Base)):
-            return args[0]
+        elif isinstance(e, (int, long, float, bool)):
+            return e
+        elif isinstance(e, claripy.ast.Base) and e.op in claripy.operations.leaf_operations_concrete:
+            return e
+        elif isinstance(e, SimActionObject) and e.op in claripy.operations.leaf_operations_concrete:
+            return e.ast
+        elif not isinstance(e, (SimActionObject, claripy.ast.Base)):
+            return e
         else:
-            return self._claripy_simplify(*args)
+            return self._claripy_simplify(e)
 
     @timed_function
     @ast_stripping_decorator
@@ -814,6 +883,9 @@ class SimSolver(SimStatePlugin):
         return claripy.simplify(args[0])
 
     def variables(self, e): #pylint:disable=no-self-use
+        """
+        Returns the symbolic variables present in the AST of `e`.
+        """
         return e.variables
 
 SimSolver.register_default('solver')
