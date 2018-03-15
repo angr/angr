@@ -420,7 +420,7 @@ class SimSolver(SimStatePlugin):
         Frees memory associated with the constraint solver by clearing all of
         its internal caches.
         """
-        return self._solver.downsize()
+        self._solver.downsize()
 
     @property
     def constraints(self):
