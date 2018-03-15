@@ -603,12 +603,6 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def solve(self, extra_constraints=(), exact=None):
-        return self._solver.solve(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
-
-    @timed_function
-    @ast_stripping_decorator
-    @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
         """
         This function does a constraint check and checks if the solver is in a sat state.
