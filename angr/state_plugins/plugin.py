@@ -1,19 +1,16 @@
 import logging
+import weakref
 
-from ..misc.plugins import Plugin
 from ..misc.ux import once
-from ..sim_state import SimState
 
 l = logging.getLogger(name=__name__)
 
-class SimStatePlugin(Plugin):
+class SimStatePlugin(object):
     """
     This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is
     branched. They are intended to be used for things such as tracking open files, tracking heap details, and providing
     storage and persistence for SimProcedures.
     """
-
-    _hub_type = SimState
 
     STRONGREF_STATE = False
 
@@ -22,7 +19,7 @@ class SimStatePlugin(Plugin):
 
     # Sets a new state (for example, if the state has been branched)
     def set_state(self, state):
-        self.state = state
+        self.state = state._get_weakref()
 
     def set_strongref_state(self, state):
         pass
@@ -63,18 +60,22 @@ class SimStatePlugin(Plugin):
         raise Exception('widen() not implemented for %s', self.__class__.__name__)
 
     @classmethod
-    def register_default(cls, name, xtr=None): # pylint: disable=arguments-differ
+    def register_default(cls, name, xtr=None):
         if cls is SimStatePlugin:
             if once('simstateplugin_register_default deprecation'):
-                l.critical("SimStatePlugin.register_default(name, cls) is deprecated, please use cls.register_default(name)")
+                l.critical("SimStatePlugin.register_default(name, cls) is deprecated, please use SimState.register_default(name)")
 
-            cls._hub_type._register_default(name, xtr, 'default')
+            from angr.sim_state import SimState
+            SimState.register_default(name, xtr)
+
         else:
             if xtr is cls:
                 if once('simstateplugin_register_default deprecation case 2'):
                     l.critical("SimStatePlugin.register_default(name, cls) is deprecated, please use cls.register_default(name)")
                 xtr = None
-            cls._hub_type._register_default(name, cls, xtr if xtr is not None else 'default')
+
+            from angr.sim_state import SimState
+            SimState.register_default(name, cls, xtr if xtr is not None else 'default')
 
     def init_state(self):
         pass

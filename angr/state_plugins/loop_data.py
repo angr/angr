@@ -37,4 +37,5 @@ class SimStateLoopData(SimStatePlugin):
                                 current_loop=list(self.current_loop))
 
 
-SimStateLoopData.register_default("loop_data")
+from angr.sim_state import SimState
+SimState.register_default('loop_data', SimStateLoopData)

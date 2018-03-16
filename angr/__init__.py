@@ -40,10 +40,9 @@ from . import type_backend
 from . import sim_type as types
 from .state_hierarchy import StateHierarchy
 
-from .sim_state import SimState, _finish_imports
+from .sim_state import SimState
 from .engines import SimEngineVEX, SimEngine
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
-_finish_imports()
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()

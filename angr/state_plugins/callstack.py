@@ -390,4 +390,6 @@ class CallStackAction(object):
         else: # pop
             return "<CallStackAction pop, ret site %#x>" % self.ret_site_addr
 
-CallStack.register_default('callstack')
+
+from angr.sim_state import SimState
+SimState.register_default('callstack', CallStack)

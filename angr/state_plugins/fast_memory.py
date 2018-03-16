@@ -226,4 +226,7 @@ class SimFastMemory(SimMemory):
 
         return changes
 
+from angr.sim_state import SimState
+SimState.register_default('fast_memory', SimFastMemory)
+
 from .. import sim_options as options

@@ -57,4 +57,6 @@ class SimStateGlobals(SimStatePlugin):
     def copy(self):
         return SimStateGlobals(dict(self._backer))
 
-SimStateGlobals.register_default('globals')
+
+from angr.sim_state import SimState
+SimState.register_default('globals', SimStateGlobals)

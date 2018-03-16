@@ -79,26 +79,49 @@ class SimState(PluginHub, ana.Storable):
                 p.init_state()
 
         if not self.has_plugin('memory'):
-            # we don't set the memory endness because, unlike registers, it's hard to understand
-            # which endness the data should be read
+            # We don't set the memory endness because, unlike registers, it's hard to understand
+            # which endness the data should be read.
+
+            # If they didn't provide us with either a memory plugin or a plugin preset to use,
+            # we have no choice but to use the 'default' plugin preset.
+            if self.plugin_preset is None:
+                self.use_plugin_preset('default')
 
             if o.ABSTRACT_MEMORY in self.options:
-                # We use SimAbstractMemory in static mode
-                # Convert memory_backer into 'global' region
+                # We use SimAbstractMemory in static mode.
+                # Convert memory_backer into 'global' region.
                 if memory_backer is not None:
                     memory_backer = {'global': memory_backer}
 
                 # TODO: support permissions backer in SimAbstractMemory
-                self.register_plugin('memory', SimAbstractMemory(memory_backer=memory_backer, memory_id="mem"))
+                sim_memory_cls = self.plugin_preset.request_plugin('abs_memory')
+                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+
             elif o.FAST_MEMORY in self.options:
-                self.register_plugin('memory', SimFastMemory(memory_backer=memory_backer, memory_id="mem"))
+                sim_memory_cls = self.plugin_preset.request_plugin('fast_memory')
+                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+
             else:
-                self.register_plugin('memory', SimSymbolicMemory(memory_backer=memory_backer, permissions_backer=permissions_backer, memory_id="mem"))
+                sim_memory_cls = self.plugin_preset.request_plugin('sym_memory')
+                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem',
+                                            permissions_backer=permissions_backer)
+
+            self.register_plugin('memory', sim_memory)
+
         if not self.has_plugin('registers'):
+
+            # Same as for 'memory' plugin.
+            if self.plugin_preset is None:
+                self.use_plugin_preset('default')
+
             if o.FAST_REGISTERS in self.options:
-                self.register_plugin('registers', SimFastMemory(memory_id="reg", endness=self.arch.register_endness))
+                sim_registers_cls = self.plugin_preset.request_plugin('fast_memory')
+                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
             else:
-                self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
+                sim_registers_cls = self.plugin_preset.request_plugin('sym_memory')
+                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
+
+            self.register_plugin('registers', sim_registers)
 
         # OS name
         self.os_name = os_name
@@ -126,7 +149,7 @@ class SimState(PluginHub, ana.Storable):
     def _ana_setstate(self, s):
         ana.Storable._ana_setstate(self, s)
         for p in self.plugins.values():
-            p.set_state(self._get_weakref() if not isinstance(p, SimAbstractMemory) else self)
+            p.set_state(self)
             if p.STRONGREF_STATE:
                 p.set_strongref_state(self)
 
@@ -227,13 +250,13 @@ class SimState(PluginHub, ana.Storable):
         self._set_plugin_state(plugin, inhibit_init=inhibit_init)
         return super(SimState, self).register_plugin(name, plugin)
 
-    def _init_plugin(self, plugin):
-        plugin = plugin()
+    def _init_plugin(self, plugin_cls):
+        plugin = plugin_cls()
         self._set_plugin_state(plugin)
         return plugin
 
     def _set_plugin_state(self, plugin, inhibit_init=False):
-        plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
+        plugin.set_state(self)
         if plugin.STRONGREF_STATE:
             plugin.set_strongref_state(self)
         if not inhibit_init:
@@ -801,24 +824,9 @@ class SimState(PluginHub, ana.Storable):
 default_state_plugin_preset = PluginPreset()
 SimState.register_preset('default', default_state_plugin_preset)
 
-# this is to resolve a really really really nasty import loop - SimState requres these plugins,
-# but the plugin base class requres SimState in order to know what its hub is
-_has_late_imports = False
-# pylint: disable=unused-variable,used-before-assignment,redefined-outer-name
-def _finish_imports():
-    from .state_plugins.symbolic_memory import SimSymbolicMemory
-    from .state_plugins.fast_memory import SimFastMemory
-    from .state_plugins.abstract_memory import SimAbstractMemory
-    from .state_plugins.history import SimStateHistory
-    from .state_plugins.inspect import BP_AFTER, BP_BEFORE
-    from .state_plugins.sim_action import SimActionConstraint
-    globals().update(locals())
+from .state_plugins.history import SimStateHistory
+from .state_plugins.inspect import BP_AFTER, BP_BEFORE
+from .state_plugins.sim_action import SimActionConstraint
 
 from . import sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, NoPlugin
-SimSymbolicMemory = None
-SimFastMemory = None
-SimAbstractMemory = None
-SimStateHistory = None
-BP_AFTER, BP_BEFORE = None, None
-SimActionConstraint = None

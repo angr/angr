@@ -1361,4 +1361,6 @@ class Unicorn(SimStatePlugin):
 
 from ..engines.vex import ccall
 from .. import sim_options as options
-Unicorn.register_default('unicorn')
+
+from angr.sim_state import SimState
+SimState.register_default('unicorn', Unicorn)

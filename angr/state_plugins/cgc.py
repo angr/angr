@@ -147,4 +147,6 @@ class SimStateCGC(SimStatePlugin):
 
         self.sinkholes.add((address, length))
 
-SimStateCGC.register_default('cgc')
+
+from angr.sim_state import SimState
+SimState.register_default('cgc', SimStateCGC)

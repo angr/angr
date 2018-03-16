@@ -1190,8 +1190,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         return self.mem.unmap_region(addr, length)
 
-SimSymbolicMemory.register_default('memory')
-SimSymbolicMemory.register_default('registers')
+
+from angr.sim_state import SimState
+SimState.register_default('sym_memory', SimSymbolicMemory)
+
 from ..errors import SimUnsatError, SimMemoryError, SimMemoryLimitError, SimMemoryAddressError, SimMergeError
 from .. import sim_options as options
 from .inspect import BP_AFTER, BP_BEFORE

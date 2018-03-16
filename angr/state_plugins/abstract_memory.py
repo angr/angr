@@ -671,3 +671,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for region_id, region in self.regions.items():
             print "Region [%s]:" % region_id
             region.dbg_print(indent=2)
+
+
+from angr.sim_state import SimState
+SimState.register_default('abs_memory', SimAbstractMemory)

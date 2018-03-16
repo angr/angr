@@ -266,7 +266,8 @@ class SimStateLibc(SimStatePlugin):
             self.state.memory.map_region(HEAP_LOCATION, 4096*64, 3)
 
 
-SimStateLibc.register_default('libc')
+from angr.sim_state import SimState
+SimState.register_default('libc', SimStateLibc)
 
 from ..errors import SimMemoryError
 from .. import sim_options as o

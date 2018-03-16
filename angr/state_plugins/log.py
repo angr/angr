@@ -76,4 +76,6 @@ from ..errors import SimEventError
 from .sim_event import SimEvent
 from .sim_action import SimAction, SimActionConstraint
 
-SimStateLog.register_default('log')
+
+from angr.sim_state import SimState
+SimState.register_default('log', SimStateLog)

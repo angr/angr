@@ -79,4 +79,6 @@ class SimUCManager(SimStatePlugin):
         SimStatePlugin.set_state(self, s)
         self._region_base = 0xd0 << (self.state.arch.bits - 8)
 
-SimUCManager.register_default('uc_manager')
+
+from angr.sim_state import SimState
+SimState.register_default('uc_manager', SimUCManager)
