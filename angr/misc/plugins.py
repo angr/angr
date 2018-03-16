@@ -198,20 +198,6 @@ class PluginHub(object):
         delattr(self, name)
 
 
-class Plugin(object):
-    """
-    This is the base class for all plugin objects.
-    It defines nothing but the ability to register itself with a hub.
-
-    Subclasses of this should at the very least set the class variable ``_hub_type`` to the type of the PluginHub they apply to.
-    """
-    _hub_type = None
-
-    @classmethod
-    def register_default(cls, name, preset='default'):
-        cls._hub_type.register_default(name, cls, preset)
-
-
 class PluginPreset(object):
     """
     A plugin preset object contains a mapping from name to a plugin class.

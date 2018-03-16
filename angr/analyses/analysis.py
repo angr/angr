@@ -4,7 +4,7 @@ from collections import defaultdict
 import progressbar
 import logging
 
-from ..misc.plugins import PluginVendor, VendorPreset, Plugin
+from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
 from ..errors import AngrAnalysisError
 
