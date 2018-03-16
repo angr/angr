@@ -54,4 +54,5 @@ class CFG(CFGFast):     # pylint: disable=abstract-method
         # Now initializes CFGFast :-)
         CFGFast.__init__(self, **kwargs)
 
-CFG.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CFG', CFG)

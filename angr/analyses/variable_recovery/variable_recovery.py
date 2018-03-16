@@ -503,4 +503,5 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
                                                                          )
 
 
-VariableRecovery.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('VariableRecovery', VariableRecovery)

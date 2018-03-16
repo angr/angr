@@ -608,4 +608,5 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         return phi_node
 
 
-VariableRecoveryFast.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('VariableRecoveryFast', VariableRecoveryFast)

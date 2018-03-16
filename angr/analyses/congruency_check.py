@@ -353,4 +353,5 @@ class CongruencyCheck(Analysis):
         return True
 
 from ..errors import AngrIncongruencyError
-CongruencyCheck.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CongruencyCheck', CongruencyCheck)

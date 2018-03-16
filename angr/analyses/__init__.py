@@ -1,9 +1,9 @@
-from .analysis import Analysis
+from .analysis import Analysis, AnalysesHub
 from ..misc.ux import deprecated
 
 @deprecated('cls.register_default(name)')
 def register_analysis(cls, name):
-    cls.register_default(name)
+    AnalysesHub.register_default(name, cls)
 
 from .cfg import CFGFast, CFGAccurate, CFG, CFGArchOptions
 from .cdg import CDG

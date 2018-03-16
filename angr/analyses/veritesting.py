@@ -617,7 +617,8 @@ class Veritesting(Analysis):
 
         return [ (n.addr, n.looping_times) for n in nodes ]
 
-Veritesting.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('Veritesting', Veritesting)
 
 from ..errors import SimValueError, SimSolverModeError, SimError
 from ..sim_options import BYPASS_VERITESTING_EXCEPTIONS

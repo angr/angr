@@ -188,4 +188,5 @@ class CDG(Analysis):
                     _l.debug("%s is not in post dominator dict.", b2)
 
 
-CDG.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CDG', CDG)

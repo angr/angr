@@ -169,4 +169,5 @@ class LoopFinder(Analysis):
                 outtop.append(thisloop)
         return outtop, outall
 
-LoopFinder.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('LoopFinder', LoopFinder)

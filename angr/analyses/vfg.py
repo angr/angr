@@ -1822,4 +1822,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return self._function_node_addrs[function_address]
 
-VFG.register_default()
+
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('VFG', VFG)

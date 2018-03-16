@@ -631,4 +631,5 @@ class Disassembly(Analysis):
         return '\n'.join(sum((x.render(formatting) for x in self.raw_result), []))
 
 
-Disassembly.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('Disassembly', Disassembly)
