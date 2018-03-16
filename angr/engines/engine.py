@@ -1,18 +1,14 @@
 import sys
 import logging
 
-from ..misc.plugins import Plugin
-from .hub import EngineHub
 
 l = logging.getLogger("angr.engines.engine")
 
 
-class SimEngine(Plugin):
+class SimEngine(object):
     """
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.
     """
-
-    _hub_type = EngineHub
 
     def __init__(self, project=None):
         self.project = project

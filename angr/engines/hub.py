@@ -1,25 +1,104 @@
 from ..misc.plugins import PluginHub, PluginPreset
 from ..errors import AngrExitError, AngrAssemblyError, SimEngineError
 
+
 class EngineHub(PluginHub):
+
     def __init__(self, project):
         super(EngineHub, self).__init__()
         self.project = project
 
-    def _init_plugin(self, plugin):
-        return plugin(self.project)
+        self._order = None
+        self._default_engine = None
+        self._procedure_engine = None
 
-    def successors(self, state, addr=None, jumpkind=None, **kwargs):
+    def __getstate__(self):
+        s = super(EngineHub, self).__getstate__()
+        return s, self._order, self._default_engine, self._procedure_engine
+
+    def __setstate__(self, s):
+        super(EngineHub, self).__setstate__(s[0])
+        self._order, self._default_engine, self._procedure_engine = s[1:]
+
+    #
+    #   ...
+    #
+
+    def _init_plugin(self, plugin_cls):
+        return plugin_cls(self.project)
+
+    def use_plugin_preset(self, preset, adjust_order=True):
+        super(EngineHub, self).use_plugin_preset(preset)
+
+        if adjust_order and self.plugin_preset.has_order():
+            self.order = self.plugin_preset.order
+
+        if self.plugin_preset.has_default_engine():
+            self.default_engine = self.plugin_preset.default_engine
+
+        if self.plugin_preset.has_procedure_engine():
+            self.procedure_engine = self.plugin_preset.procedure_engine
+
+    #
+    #   ...
+    #
+
+    @property
+    def order(self):
+        if self._order is None:
+            if self.has_plugin_preset:
+                self._order = self.plugin_preset.list_default_plugins()
+            else:
+                self._order = self._active_plugins.keys()
+        return self._order
+
+    @order.setter
+    def order(self, value):
+        self._order = list(value)
+
+    @property
+    def default_engine(self):
+        return self.get_plugin(self._default_engine)
+
+    @default_engine.setter
+    def default_engine(self, value):
+        self._default_engine = value
+
+    def has_default_engine(self):
+        return self._default_engine is not None
+
+    @property
+    def procedure_engine(self):
+        return self.get_plugin(self._procedure_engine)
+    
+    @procedure_engine.setter
+    def procedure_engine(self, value):
+        self._procedure_engine = value
+            
+    def has_procedure_engine(self):
+        return self._procedure_engine is not None
+
+    #
+    #   ...
+    #
+
+    def successors(self, state, addr=None, jumpkind=None, default_engine=False, procedure_engine=False,
+                   engines=None, **kwargs):
         """
         Perform execution using any applicable engine. Enumerate the current engines and use the
-        first one that works. Return a SimSuccessors object classifying the results of the run.
+        first one that works. Engines are enumerated in order, specified by the ``order`` attribute.
 
-        :param state:           The state to analyze
-        :param addr:            optional, an address to execute at instead of the state's ip
-        :param jumpkind:        optional, the jumpkind of the previous exit
-        :param inline:          This is an inline execution. Do not bother copying the state.
+        :param state:               The state to analyze
+        :param addr:                optional, an address to execute at instead of the state's ip
+        :param jumpkind:            optional, the jumpkind of the previous exit
+        :param default_engine:      Whether we should only attempt to use the default engine (usually VEX)
+        :param procedure_engine:    Whether we should only attempt to use the procedure engine
+        :param engines:             A list of engines to try to use, instead of the default.
+                                    This list is expected to contain engine names or engine instances.
 
         Additional keyword arguments will be passed directly into each engine's process method.
+
+        :return SimSuccessors:      A SimSuccessors object classifying the results of the run.
         """
         if kwargs.get('insn_bytes', None) is not None and kwargs.get('insn_text', None) is not None:
             raise SimEngineError("You cannot provide both 'insn_bytes' and 'insn_text'!")
@@ -41,40 +120,72 @@ class EngineHub(PluginHub):
             if jumpkind is not None:
                 state.history.jumpkind = jumpkind
 
-        if not self.has_plugin_preset:
-            raise SimEngineError("EngineHub preset must be present to choose execution...")
+        if default_engine and self.has_default_engine():
+            engines = [self.default_engine]
+        elif procedure_engine and self.has_procedure_engine():
+            engines = [self.procedure_engine]
+        elif engines is None:
+            engines = (self.get_plugin(name) for name in self.order)
+        else:
+            engines = (self.get_plugin(e) if isinstance(e, str) else e for e in engines)
 
-        for engine in self._choose_engine(state, **kwargs):
-            r = engine.process(state, **kwargs)
-            if r.processed:
-                return r
+        for engine in engines:
+            if engine.check(state, **kwargs):
+                r = engine.process(state, **kwargs)
+                if r.processed:
+                    return r
 
         raise AngrExitError("All engines failed to execute!")
 
-    def _choose_engine(self, state, **kwargs):
-        if self.failure.check(state, **kwargs): yield self.failure
-        if self.syscall.check(state, **kwargs): yield self.syscall
-        if self.hook.check(state, **kwargs): yield self.hook
-        for engine in self._active_preset.choose_engine(self, state, **kwargs):
-            yield engine
 
 class EnginePreset(PluginPreset):
+
     def __init__(self):
         super(EnginePreset, self).__init__()
 
-        self._order = []
+        self._order = None
+        self._default_engine = None
+        self._procedure_engine = None
 
-    def choose_engine(self, hub, state, **kwargs):
-        for engine_name in self._order:
-            engine = hub.get_plugin(engine_name)
-            if engine.check(state, **kwargs):
-                yield engine
+    #
+    #   ...
+    #
 
-    def set_order(self, order):
-        self._order = list(order)
+    @property
+    def order(self):
+        if self._order is None:
+            return self.list_default_plugins()
+        return self._order
 
-    def copy(self):
-        out = EnginePreset()
-        out.default_plugins = dict(self.default_plugins)
-        out._order = list(self._order)
-        return out
+    @order.setter
+    def order(self, value):
+        self._order = list(value)
+
+    def has_order(self):
+        return self._order is not None
+
+    @property
+    def default_engine(self):
+        return self._default_engine
+
+    @default_engine.setter
+    def default_engine(self, value):
+        if value not in self.list_default_plugins():
+            raise ValueError("%s not in list of default plugins")
+        self._default_engine = value
+
+    def has_default_engine(self):
+        return self._default_engine is not None
+
+    @property
+    def procedure_engine(self):
+        return self._procedure_engine
+
+    @procedure_engine.setter
+    def procedure_engine(self, value):
+        if value not in self.list_default_plugins():
+            raise ValueError("%s not in list of default plugins")
+        self._procedure_engine = value
+
+    def has_procedure_engine(self):
+        return self._procedure_engine is not None
