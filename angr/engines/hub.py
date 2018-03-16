@@ -1,5 +1,5 @@
 from ..misc.plugins import PluginHub, PluginPreset
-from ..errors import AngrExitError, AngrAssemblyError, SimEngineError
+from ..errors import AngrExitError
 
 
 class EngineHub(PluginHub):
@@ -100,19 +100,6 @@ class EngineHub(PluginHub):
 
         :return SimSuccessors:      A SimSuccessors object classifying the results of the run.
         """
-        if kwargs.get('insn_bytes', None) is not None and kwargs.get('insn_text', None) is not None:
-            raise SimEngineError("You cannot provide both 'insn_bytes' and 'insn_text'!")
-        insn_text = kwargs.get('insn_text', None)
-        if insn_text is not None:
-            insn_bytes = self.project.arch.asm(insn_text,
-                                               addr=kwargs.get('addr', 0),
-                                               as_bytes=True,
-                                               thumb=kwargs.get('thumb', False))
-            if insn_bytes is None:
-                raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
-                                        " string is correct.")
-            kwargs['insn_bytes'] = insn_bytes
-
         if addr is not None or jumpkind is not None:
             state = state.copy()
             if addr is not None:
