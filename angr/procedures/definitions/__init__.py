@@ -215,6 +215,7 @@ class SimSyscallLibrary(SimLibrary):
     def __init__(self):
         super(SimSyscallLibrary, self).__init__()
         self.syscall_number_mapping = defaultdict(dict)
+        self.syscall_name_mapping = defaultdict(dict)
         self.default_cc_mapping = {}
         self.fallback_proc = stub_syscall
 
@@ -226,12 +227,14 @@ class SimSyscallLibrary(SimLibrary):
         o.default_ccs = dict(self.default_ccs)
         o.names = list(self.names)
         o.syscall_number_mapping = defaultdict(dict, self.syscall_number_mapping) # {abi: {number: name}}
+        o.syscall_name_mapping = defaultdict(dict, self.syscall_name_mapping) # {abi: {name: number}}
         o.default_cc_mapping = dict(self.default_cc_mapping) # {abi: cc}
         return o
 
     def update(self, other):
         super(SimSyscallLibrary, self).update(other)
         self.syscall_number_mapping.update(other.syscall_number_mapping)
+        self.syscall_name_mapping.update(other.syscall_name_mapping)
         self.default_cc_mapping.update(other.default_cc_mapping)
 
     def minimum_syscall_number(self, abi):
@@ -272,6 +275,25 @@ class SimSyscallLibrary(SimLibrary):
         :param mapping: A dict mapping syscall numbers to function names
         """
         self.syscall_number_mapping[abi].update(mapping)
+
+    def add_name_mapping(self, abi, name, number):
+        """
+        Associate a function name present in the underlying SimLibrary with the syscall number
+
+        :param abi:     The abi for which this mapping applies
+        :param name:    The name of the function
+        :param number:  The syscall number
+        """
+        self.syscall_name_mapping[abi][name] = number
+
+    def add_name_mapping_from_dict(self, abi, mapping):
+        """
+        Batch-associate function names present in the underlying SimLibrary with syscall numbers
+
+        :param abi:     The abi for which this mapping applies
+        :param mapping: A dict mapping function names to syscall numbers
+        """
+        self.syscall_name_mapping[abi].update(mapping)
 
     def set_abi_cc(self, abi, cc_cls):
         """

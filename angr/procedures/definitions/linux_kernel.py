@@ -8,7 +8,7 @@ lib.add_alias('exit', 'exit_group')
 
 # python parse_syscalls_from_gdb.py >> linux_kernel.py
 
-lib.add_number_mapping_from_dict("aarch64", {
+number_mapping_dict = {
     0: "io_setup",
     1: "io_destroy",
     2: "io_submit",
@@ -268,9 +268,12 @@ lib.add_number_mapping_from_dict("aarch64", {
     271: "process_vm_writev",
     272: "kcmp",
     273: "syscalls",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("aarch64", number_mapping_dict)
+lib.add_name_mapping_from_dict("aarch64", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("amd64", {
+number_mapping_dict = {
     0: "read",
     1: "write",
     2: "open",
@@ -568,9 +571,12 @@ lib.add_number_mapping_from_dict("amd64", {
     294: "inotify_init1",
     295: "preadv",
     296: "pwritev",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("amd64", number_mapping_dict)
+lib.add_name_mapping_from_dict("amd64", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("arm", {
+number_mapping_dict = {
     0: "restart_syscall",
     1: "exit",
     2: "fork",
@@ -945,9 +951,12 @@ lib.add_number_mapping_from_dict("arm", {
     377: "process_vm_writev",
     378: "kcmp",
     379: "finit_module",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("arm", number_mapping_dict)
+lib.add_name_mapping_from_dict("arm", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("armhf", {
+number_mapping_dict = {
     9437184: "restart_syscall",
     9437185: "exit",
     9437186: "fork",
@@ -1322,9 +1331,12 @@ lib.add_number_mapping_from_dict("armhf", {
     9437561: "process_vm_writev",
     9437562: "kcmp",
     9437563: "finit_module",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("armhf", number_mapping_dict)
+lib.add_name_mapping_from_dict("armhf", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("i386", {
+number_mapping_dict = {
     0: "restart_syscall",
     1: "exit",
     2: "fork",
@@ -1648,9 +1660,12 @@ lib.add_number_mapping_from_dict("i386", {
     323: "eventfd",
     324: "fallocate",
     325: "timerfd_settime",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("i386", number_mapping_dict)
+lib.add_name_mapping_from_dict("i386", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("mips-n32", {
+number_mapping_dict = {
     6000: "read",
     6001: "write",
     6002: "open",
@@ -1953,9 +1968,12 @@ lib.add_number_mapping_from_dict("mips-n32", {
     6300: "fanotify_init",
     6301: "fanotify_mark",
     6302: "prlimit64",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("mips-n32", number_mapping_dict)
+lib.add_name_mapping_from_dict("mips-n32", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("mips-n64", {
+number_mapping_dict = {
     5000: "read",
     5001: "write",
     5002: "open",
@@ -2251,9 +2269,12 @@ lib.add_number_mapping_from_dict("mips-n64", {
     5295: "fanotify_init",
     5296: "fanotify_mark",
     5297: "prlimit64",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("mips-n64", number_mapping_dict)
+lib.add_name_mapping_from_dict("mips-n64", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("mips-o32", {
+number_mapping_dict = {
     4000: "syscall",
     4001: "exit",
     4002: "fork",
@@ -2584,9 +2605,12 @@ lib.add_number_mapping_from_dict("mips-o32", {
     4336: "fanotify_init",
     4337: "fanotify_mark",
     4338: "prlimit64",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("mips-o32", number_mapping_dict)
+lib.add_name_mapping_from_dict("mips-o32", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("ppc", {
+number_mapping_dict = {
     0: "restart_syscall",
     1: "exit",
     2: "fork",
@@ -2880,9 +2904,12 @@ lib.add_number_mapping_from_dict("ppc", {
     296: "readlinkat",
     297: "fchmodat",
     298: "faccessat",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("ppc", number_mapping_dict)
+lib.add_name_mapping_from_dict("ppc", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("ppc64", {
+number_mapping_dict = {
     0: "restart_syscall",
     1: "exit",
     2: "fork",
@@ -3161,9 +3188,12 @@ lib.add_number_mapping_from_dict("ppc64", {
     290: "readlinkat",
     291: "fchmodat",
     292: "faccessat",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("ppc64", number_mapping_dict)
+lib.add_name_mapping_from_dict("ppc64", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("s390", {
+number_mapping_dict = {
     1: "exit",
     2: "fork",
     3: "read",
@@ -3514,9 +3544,12 @@ lib.add_number_mapping_from_dict("s390", {
     372: "recvmsg",
     373: "shutdown",
     374: "mlock2",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("s390", number_mapping_dict)
+lib.add_name_mapping_from_dict("s390", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("s390x", {
+number_mapping_dict = {
     1: "exit",
     2: "fork",
     3: "read",
@@ -3834,9 +3867,12 @@ lib.add_number_mapping_from_dict("s390x", {
     372: "recvmsg",
     373: "shutdown",
     374: "mlock2",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("s390x", number_mapping_dict)
+lib.add_name_mapping_from_dict("s390x", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("sparc", {
+number_mapping_dict = {
     0: "restart_syscall",
     1: "exit",
     2: "fork",
@@ -4164,9 +4200,12 @@ lib.add_number_mapping_from_dict("sparc", {
     326: "rt_tgsigqueueinfo",
     327: "perf_event_open",
     328: "recvmmsg",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("sparc", number_mapping_dict)
+lib.add_name_mapping_from_dict("sparc", name_mapping_dict)
 
-lib.add_number_mapping_from_dict("sparc64", {
+number_mapping_dict = {
     0: "restart_syscall",
     1: "exit",
     2: "fork",
@@ -4476,4 +4515,7 @@ lib.add_number_mapping_from_dict("sparc64", {
     326: "rt_tgsigqueueinfo",
     327: "perf_event_open",
     328: "recvmmsg",
-})
+}
+name_mapping_dict = dict(reversed(i) for i in number_mapping_dict.items())
+lib.add_number_mapping_from_dict("sparc64", number_mapping_dict)
+lib.add_name_mapping_from_dict("sparc64", name_mapping_dict)
