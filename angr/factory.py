@@ -3,6 +3,7 @@ import logging
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
+from .errors import AngrAssemblyError
 
 
 l = logging.getLogger("angr.factory")
@@ -294,6 +295,10 @@ class AngrObjectFactory(object):
 
         if insn_text is not None:
             byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
+            if byte_string is None:
+                # assembly failed
+                raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
+                                        " string is correct.")
 
         if max_size is not None:
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')

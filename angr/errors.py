@@ -55,6 +55,9 @@ class AngrSyscallError(AngrError):
 class AngrSimOSError(AngrError):
     pass
 
+class AngrAssemblyError(AngrError):
+    pass
+
 # Congruency check failure
 class AngrIncongruencyError(AngrAnalysisError):
     pass
