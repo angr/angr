@@ -210,13 +210,13 @@ class PluginPreset(object):
     def __init__(self):
         self._default_plugins = {}
 
-    def activate(self, hub):
+    def activate(self, hub):  # pylint:disable=no-self-use,unused-argument
         """
         This method is called when the preset becomes active on a hub.
         """
         return
 
-    def deactivate(self, hub):
+    def deactivate(self, hub):  # pylint:disable=no-self-use,unused-argument
         """
         This method is called when the preset is discarded from the hub.
         """

@@ -63,8 +63,8 @@ class AnalysesHub(PluginVendor):
     def reload_analyses(self): # pylint: disable=no-self-use
         return
 
-    def _init_plugin(self, plugin):
-        return AnalysisFactory(self.project, plugin)
+    def _init_plugin(self, plugin_cls):
+        return AnalysisFactory(self.project, plugin_cls)
 
     def __getstate__(self):
         s = super(AnalysesHub, self).__getstate__()

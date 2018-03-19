@@ -1,5 +1,4 @@
 import logging
-import weakref
 
 from ..misc.ux import once
 
@@ -57,7 +56,7 @@ class SimStatePlugin(object):
         :returns: True if the state plugin is actually widened.
         :rtype: bool
         """
-        raise Exception('widen() not implemented for %s', self.__class__.__name__)
+        raise Exception('widen() not implemented for %s' % self.__class__.__name__)
 
     @classmethod
     def register_default(cls, name, xtr=None):

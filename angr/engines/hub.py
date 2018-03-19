@@ -27,7 +27,7 @@ class EngineHub(PluginHub):
     def _init_plugin(self, plugin_cls):
         return plugin_cls(self.project)
 
-    def use_plugin_preset(self, preset, adjust_order=True):
+    def use_plugin_preset(self, preset, adjust_order=True):  # pylint:disable=arguments-differ
         super(EngineHub, self).use_plugin_preset(preset)
 
         if adjust_order and self.plugin_preset.has_order():
@@ -70,11 +70,11 @@ class EngineHub(PluginHub):
     @property
     def procedure_engine(self):
         return self.get_plugin(self._procedure_engine)
-    
+
     @procedure_engine.setter
     def procedure_engine(self, value):
         self._procedure_engine = value
-            
+
     def has_procedure_engine(self):
         return self._procedure_engine is not None
 
