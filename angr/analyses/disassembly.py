@@ -314,13 +314,14 @@ class SootExpressionInvoke(SootExpression):
 
     Virtual = "virtual"
     Static = "static"
+    Special = "special"
 
     def __init__(self, invoke_type, expr):
 
         super(SootExpressionInvoke, self).__init__(str(expr))
 
         self.invoke_type = invoke_type
-        self.base = str(expr.base) if self.invoke_type == self.Virtual else ""
+        self.base = str(expr.base) if self.invoke_type in (self.Virtual, self.Special) else ""
         self.method_name = expr.method_name
         self.arg_str = expr.list_to_arg_str(expr.args)
 
@@ -356,7 +357,7 @@ class SootStatement(DisassemblyPiece):
             getattr(self, func)()
         else:
             # print func
-            self.components += ["NotImplemented"]
+            self.components += ["NotImplemented: %s" % func]
 
     def _expr(self, expr):
 
@@ -438,6 +439,10 @@ class SootStatement(DisassemblyPiece):
     def _handle_SootStaticInvokeExpr(self, expr):
 
         return SootExpressionInvoke(SootExpressionInvoke.Static, expr)
+
+    def _handle_SootSpecialInvokeExpr(self, expr):
+
+        return SootExpressionInvoke(SootExpressionInvoke.Special, expr)
 
 
 class Opcode(DisassemblyPiece):
