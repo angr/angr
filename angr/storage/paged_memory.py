@@ -488,6 +488,13 @@ class SimPagedMemory(object):
         if self._memory_backer is None:
             pass
 
+        elif isinstance(self._memory_backer, cle.Clemory) and self._memory_backer.is_concrete_target_set():
+            backer = claripy.BVV(''.join(self._memory_backer.read_bytes(new_page_addr, self._page_size)))
+            mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
+            self._apply_object_to_page(n * self._page_size, mo, page=new_page)
+            initialized = True
+
+
         elif isinstance(self._memory_backer, cle.Clemory):
             # first, find the right clemory backer
             for addr, backer in self._memory_backer.cbackers if self.byte_width == 8 else ((x, y) for x, _, y in self._memory_backer.stride_repr):
@@ -523,12 +530,6 @@ class SimPagedMemory(object):
                 new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
 
-        elif isinstance(self._memory_backer, cle.ConcreteClemory):
-            print "Reading at address: " + str(new_page_addr)
-            backer = claripy.BVV(''.join(self._memory_backer.read_bytes(new_page_addr,self._page_size)))
-            mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
-            self._apply_object_to_page(n * self._page_size, mo, page=new_page)
-            initialized = True
 
         elif len(self._memory_backer) <= self._page_size:
             for i in self._memory_backer:

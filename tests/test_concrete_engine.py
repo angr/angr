@@ -27,7 +27,6 @@ def test_concrete_engine():
     simgr = p.factory.simgr(p.factory.entry_state())
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[DROPPING_MALWARE_ADDRESS], concretize = []))
     exploration = simgr.run()
-    ipdb.set_trace()
 
     new_state = exploration.found[0]
     username = new_state.mem[0x400915]

@@ -125,7 +125,8 @@ class SimEngineConcrete(SimEngine):
         # the concrete target
 
         # registers that we don't want to concretize.
-        regs_blacklist = []
+        regs_blacklist = ('cs', 'ds', 'es', 'fs', 'gs', 'ss', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7')
+
 
         for reg in state.arch.registers:
             if reg not in regs_blacklist:
@@ -146,7 +147,8 @@ class SimEngineConcrete(SimEngine):
         # 2) flush the pages so they will be initialized by the backers content when
         # 	 Angr will access it.
 
-        state.memory.mem._memory_backer = cle.ConcreteClemory(self.target, state.arch)
+        state.memory.mem._memory_backer = cle.Clemory(state.arch)
+        state.memory.mem._memory_backer.set_concrete_target(self.target)
         state.memory.flush_pages()
 
     def to_engine(self, state, extra_stop_points, concretize, **kwargs):
