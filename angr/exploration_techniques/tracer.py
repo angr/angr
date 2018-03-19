@@ -233,7 +233,7 @@ class Tracer(ExplorationTechnique):
             else:
                 l.debug("bb %d / %d", current.globals['bb_cnt'], len(self._trace))
                 if current.globals['bb_cnt'] < len(self._trace):
-                    simgr.stash_not_addr(self._trace[current.globals['bb_cnt']], to_stash='missed')
+                    simgr.stash(lambda s: s.addr != self._trace[current.globals['bb_cnt']], to_stash='missed')
             if len(simgr.active) > 1: # rarely we get two active paths
                 simgr.prune(to_stash='missed')
 

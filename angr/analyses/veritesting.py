@@ -334,8 +334,8 @@ class Veritesting(Analysis):
 
             # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                manager.stash_addr(
-                    merge_point_addr,
+                manager.stash(
+                    lambda s: s.addr == merge_point_addr,
                     to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                 )
 
