@@ -17,6 +17,7 @@ l = logging.getLogger("identifier.identify")
 
 NUM_TESTS = 5
 
+
 class FuncInfo(object):
     def __init__(self):
         self.stack_vars = None
@@ -38,8 +39,6 @@ class Identifier(Analysis):
     _special_case_funcs = ["free"]
 
     def __init__(self, cfg=None, require_predecessors=True, only_find=None):
-        from angrop import rop_utils
-
         # self.project = project
         if not isinstance(self.project.loader.main_object, CGC):
             l.critical("The identifier currently works only on CGC binaries. Results may be completely unexpected.")
@@ -75,7 +74,7 @@ class Identifier(Analysis):
             l.warning("Too large")
             return
 
-        self.base_symbolic_state = rop_utils.make_symbolic_state(self.project, self._reg_list)
+        self.base_symbolic_state = self.make_symbolic_state(self.project, self._reg_list)
         self.base_symbolic_state.options.discard(options.SUPPORT_FLOATING_POINT)
         self.base_symbolic_state.regs.bp = self.base_symbolic_state.se.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
 
@@ -298,9 +297,8 @@ class Identifier(Analysis):
 
     def do_trace(self, addr_trace, reverse_accesses, func_info): #pylint disable=unused-argument
         # get to the callsite
-        from angrop import rop_utils
 
-        s = rop_utils.make_symbolic_state(self.project, self._reg_list, stack_length=200)
+        s = self.make_symbolic_state(self.project, self._reg_list, stack_length=200)
         s.options.discard(options.AVOID_MULTIVALUED_WRITES)
         s.options.discard(options.AVOID_MULTIVALUED_READS)
         s.options.add(options.UNDER_CONSTRAINED_SYMEXEC)
@@ -792,5 +790,43 @@ class Identifier(Analysis):
             if arg != i*4:
                 return True
             return False
+
+    @staticmethod
+    def make_initial_state(project, stack_length):
+        """
+        :return: an initial state with a symbolic stack and good options for rop
+        """
+        initial_state = project.factory.blank_state(
+            add_options={options.AVOID_MULTIVALUED_READS, options.AVOID_MULTIVALUED_WRITES,
+                         options.NO_SYMBOLIC_JUMP_RESOLUTION, options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH,
+                         options.NO_SYMBOLIC_SYSCALL_RESOLUTION, options.TRACK_ACTION_HISTORY},
+            remove_options=options.resilience | options.simplification)
+        initial_state.options.discard(options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+        initial_state.options.update({options.TRACK_REGISTER_ACTIONS, options.TRACK_MEMORY_ACTIONS,
+                                      options.TRACK_JMP_ACTIONS, options.TRACK_CONSTRAINT_ACTIONS})
+        symbolic_stack = initial_state.se.BVS("symbolic_stack", project.arch.bits * stack_length)
+        initial_state.memory.store(initial_state.regs.sp, symbolic_stack)
+        if initial_state.arch.bp_offset != initial_state.arch.sp_offset:
+            initial_state.regs.bp = initial_state.regs.sp + 20 * initial_state.arch.bytes
+        initial_state.se._solver.timeout = 500  # only solve for half a second at most
+        return initial_state
+
+    @staticmethod
+    def make_symbolic_state(project, reg_list, stack_length=80):
+        """
+        converts an input state into a state with symbolic registers
+        :return: the symbolic state
+        """
+        input_state = Identifier.make_initial_state(project, stack_length)
+        symbolic_state = input_state.copy()
+        # overwrite all registers
+        for reg in reg_list:
+            symbolic_state.registers.store(reg, symbolic_state.se.BVS("sreg_" + reg + "-", project.arch.bits))
+        # restore sp
+        symbolic_state.regs.sp = input_state.regs.sp
+        # restore bp
+        symbolic_state.regs.bp = input_state.regs.bp
+        return symbolic_state
+
 
 Identifier.register_default()
