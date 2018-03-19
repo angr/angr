@@ -1,6 +1,6 @@
 #gdbserver 127.0.0.1:9999 /home/degrigis/Projects/Symbion/angr_tests/MalwareTest/dummy_malware
 import angr
-import nose
+import claripy
 import avatar2 as avatar2
 from angr_targets import AvatarGDBConcreteTarget
 import os
@@ -12,7 +12,9 @@ binary = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 
 GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
-DROPPING_MALWARE_ADDRESS = 0x400734
+AFTER_USERNAME_PRINT = 0x400739
+AFTER_PWD_READ = 0x4007A4
+WIN = 0x4007BD
 
 
 def setup():
@@ -25,11 +27,27 @@ def test_concrete_engine():
 
     p = angr.Project(binary ,load_options={'auto_load_libs': False, 'concrete_target': avatar_gdb})
     simgr = p.factory.simgr(p.factory.entry_state())
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[DROPPING_MALWARE_ADDRESS], concretize = []))
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[AFTER_USERNAME_PRINT], concretize = []))
     exploration = simgr.run()
+    state = exploration.found[0]
 
-    new_state = exploration.found[0]
-    username = new_state.mem[0x400915]
+
+
+    # explore_simulated
+    simgr = p.factory.simulation_manager(state)
+    pwd = claripy.BVS('pwd', 8 * 12)
+
+    exploration = simgr.explore(find=AFTER_PWD_READ)
+    state = exploration.found[0]
+    state.memory.store(state.regs.rbp - 0x20, pwd)
+
+    win_exploration = simgr.explore(find=WIN)
+    win_state = win_exploration.found[0]
+    value_1 = win_state.se.eval(pwd,cast_to=str)
+    print("----------- %s"%(value_1))
+
+
+
 
 
 setup()
