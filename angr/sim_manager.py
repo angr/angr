@@ -253,7 +253,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
     #   ...
     #
 
-    @deprecated()
+    @ImmutabilityMixin.immutable
     def explore(self, stash=None, n=None, find=None, avoid=None, find_stash=None, avoid_stash=None, cfg=None,
                 num_find=1, step_func=None):
         """
