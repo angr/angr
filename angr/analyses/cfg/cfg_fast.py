@@ -1709,7 +1709,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._changed_functions.add(current_function_addr)
 
         # If we have traced it before, don't trace it anymore
-        aligned_addr = ((addr >> 1) << 1) if self.project.arch.name in ('ARMLE', 'ARMHF') else addr
+        aligned_addr = ((addr >> 1) << 1) if self.project.arch.name in ('ARMEL', 'ARMHF') else addr
         if aligned_addr in self._traced_addresses:
             # the address has been traced before
             return [ ]
