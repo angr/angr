@@ -105,9 +105,7 @@ class SimEngineConcrete(SimEngine):
         successors.description = "Concrete Successors "
         successors.processed = True
 
-
-
-    def from_engine(self,state,**kwargs):
+    def from_engine(self, state, **kwargs):
         """
         Handling the switch between the concrete execution and Angr.
         This method takes care of:
@@ -125,8 +123,7 @@ class SimEngineConcrete(SimEngine):
         # the concrete target
 
         # registers that we don't want to concretize.
-        regs_blacklist = ('cs', 'ds', 'es', 'fs', 'gs', 'ss', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7')
-
+        regs_blacklist = ['fs', 'gs']
 
         for reg in state.arch.registers:
             if reg not in regs_blacklist:
@@ -147,9 +144,22 @@ class SimEngineConcrete(SimEngine):
         # 2) flush the pages so they will be initialized by the backers content when
         # 	 Angr will access it.
 
-        state.memory.mem._memory_backer = cle.Clemory(state.arch)
         state.memory.mem._memory_backer.set_concrete_target(self.target)
-        state.memory.flush_pages()
+
+        # For now the memory mapped because of fs/gs access
+        # is in the whitelist of addresses read from Angr memory
+        # page_addr = page_num * _page_size
+        # page_num = page_addr / page_size
+        fs_page_address = state.se.eval(state.regs.fs)
+        #gs_page_number = state.regs.gs / 0x1000
+
+        white_list = [(fs_page_address, fs_page_address + 0x1000)]
+        state.memory.mem._memory_backer.set_simulated_addresses(white_list)
+
+        # this flush need to take care of pages that must not be flushed
+        # f.i. pages mapped because of the fs/gs registers must not be flushed
+        # since we want to keep reading them from the Angr memory.
+        state.memory.flush_pages(white_list)
 
     def to_engine(self, state, extra_stop_points, concretize, **kwargs):
         """
