@@ -243,6 +243,10 @@ def test_crash_addr_detection():
 
 
 def test_fauxware():
+
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     b = os.path.join(bin_location, "tests/x86_64/fauxware")
     p = angr.Project(b)
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_fauxware', 'A')

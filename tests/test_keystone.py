@@ -1,6 +1,9 @@
 import os
 import logging
+import sys
+
 import nose
+
 import angr
 
 l = logging.getLogger("angr.tests")
@@ -36,6 +39,12 @@ def run_keystone(arch):
         nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.r1), 0x12)
 
 def test_keystone():
+
+    # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+    # re-enabling this test on Windows.
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     for arch_name in insn_texts:
         yield run_keystone, arch_name
 
