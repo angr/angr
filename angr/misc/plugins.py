@@ -1,4 +1,4 @@
-from angr.errors import NoPlugin
+from angr.errors import AngrNoPluginError
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -68,7 +68,7 @@ class PluginHub(object):
     def __getattr__(self, name):
         try:
             return self.get_plugin(name)
-        except NoPlugin:
+        except AngrNoPluginError:
             raise AttributeError(name)
 
     def __dir__(self):
@@ -114,7 +114,7 @@ class PluginHub(object):
             try:
                 preset = self._presets[preset]
             except (AttributeError, KeyError):
-                raise NoPlugin("There is no preset named %s" % preset)
+                raise AngrNoPluginError("There is no preset named %s" % preset)
 
         elif not isinstance(preset, PluginPreset):
             raise ValueError("Argument must be an instance of PluginPreset: %s" % preset)
@@ -160,7 +160,7 @@ class PluginHub(object):
             return plugin
 
         else:
-            raise NoPlugin("No such plugin: %s" % name)
+            raise AngrNoPluginError("No such plugin: %s" % name)
 
     def _init_plugin(self, plugin_cls):  # pylint: disable=no-self-use
         """
@@ -242,7 +242,7 @@ class PluginPreset(object):
         try:
             return self._default_plugins[name]
         except KeyError:
-            raise NoPlugin("There is no plugin named %s" % name)
+            raise AngrNoPluginError("There is no plugin named %s" % name)
 
     def copy(self):
         """

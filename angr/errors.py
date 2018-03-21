@@ -380,5 +380,5 @@ class SimZeroDivisionException(SimException, SimOperationError):
     pass
 
 
-class NoPlugin(AngrError):
+class AngrNoPluginError(AngrError):
     pass

@@ -829,4 +829,4 @@ from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
 
 from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, NoPlugin
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, AngrNoPluginError
