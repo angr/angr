@@ -1,6 +1,9 @@
 from ..misc.plugins import PluginHub, PluginPreset
 from ..errors import AngrExitError
 
+import logging
+l = logging.getLogger(name=__name__)
+
 
 class EngineHub(PluginHub):
 
@@ -126,13 +129,34 @@ class EngineHub(PluginHub):
 
 
 class EnginePreset(PluginPreset):
+    """
+    This represents a preset of engines for an engine hub.
 
-    def __init__(self):
+    As was pointed out by @rhlemot (see https://github.com/angr/angr/pull/897), there's a lot of
+    behavior in angr which very very specifically assumes that failure/syscall/hook will happen
+    exactly the way we want them to.  This plugin preset addresses the issue by allowing a user to
+    specify a list of plugins that should be executed first using the ``predefined_order``
+    parameter. In that case, any other adjustment to order will be made with respect to the
+    specified predefined order.
+
+    If you want to use your custom preset with the angr's original analyses, you should
+    specify the following predefined order: _failure, syscall, hook_.
+    """
+
+    def __init__(self, predefined_order=None):
         super(EnginePreset, self).__init__()
 
-        self._order = None
+        self._order = predefined_order
+        self._predefined_order = predefined_order or []
+
         self._default_engine = None
         self._procedure_engine = None
+
+    def activate(self, hub):
+        for plugin_name in self._order:
+            if plugin_name not in self._default_plugins:
+                l.warn("%s doesn't provide a plugin for %s. Expect execution to fail.",
+                       self, plugin_name)
 
     #
     #   ...
@@ -146,7 +170,7 @@ class EnginePreset(PluginPreset):
 
     @order.setter
     def order(self, value):
-        self._order = list(value)
+        self._order = self._predefined_order + list(value)
 
     def has_order(self):
         return self._order is not None
