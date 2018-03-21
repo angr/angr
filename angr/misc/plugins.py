@@ -244,6 +244,15 @@ class PluginPreset(object):
         except KeyError:
             raise NoPlugin("There is no plugin named %s" % name)
 
+    def copy(self):
+        """
+        Return a copy of self.
+        """
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result._default_plugins = dict(self._default_plugins)  # pylint:disable=protected-access
+        return result
+
 
 class PluginVendor(PluginHub):
     """
