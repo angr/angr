@@ -200,3 +200,11 @@ class EnginePreset(PluginPreset):
 
     def has_procedure_engine(self):
         return self._procedure_engine is not None
+
+    def copy(self):
+        result = super(EnginePreset, self).copy()
+        result._predefined_order = list(self._predefined_order)  # pylint:disable=protected-access
+        result._order = list(self._order)  # pylint:disable=protected-access
+        result._default_engine = self._default_engine  # pylint:disable=protected-access
+        result._procedure_engine = self._procedure_engine  # pylint:disable=protected-access
+        return result
