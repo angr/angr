@@ -1363,8 +1363,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._insert_job(job)
                 return
 
-            self._clean_pending_exits()
-
         # did we finish analyzing any function?
         # fill in self._completed_functions
         self._make_completed_functions()
@@ -1376,6 +1374,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._changed_functions = set()
 
         if self._pending_jobs:
+            self._clean_pending_exits()
+
             job = self._pop_pending_job(returning=True)
             if job is not None:
                 self._insert_job(job)
