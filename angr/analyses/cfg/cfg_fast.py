@@ -1956,6 +1956,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if current_function_addr != -1:
                 self._function_exits[current_function_addr].add(addr)
                 self._function_add_return_site(addr, current_function_addr)
+                self.functions[current_function_addr].returning = True
 
             cfg_node.has_return = True
 
