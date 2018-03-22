@@ -200,10 +200,22 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     # Dict methods
     #
 
+    def __contains__(self, item):
+
+        if type(item) in (int, long):
+            # this is an address
+            return item in self._function_map
+
+        try:
+            _ = self[item]
+            return True
+        except KeyError:
+            return False
+
     def __getitem__(self, k):
-        if isinstance(k, (int, long)):
+        if type(k) in (int, long):
             f = self.function(addr=k)
-        elif isinstance(k, str):
+        elif type(k) is str:
             f = self.function(name=k)
         else:
             raise ValueError("FunctionManager.__getitem__ deos not support keys of type %s" % type(k))
