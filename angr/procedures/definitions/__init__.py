@@ -266,6 +266,7 @@ class SimSyscallLibrary(SimLibrary):
         :param name:    The name of the function
         """
         self.syscall_number_mapping[abi][number] = name
+        self.syscall_name_mapping[abi][name] = number
 
     def add_number_mapping_from_dict(self, abi, mapping):
         """
@@ -275,25 +276,7 @@ class SimSyscallLibrary(SimLibrary):
         :param mapping: A dict mapping syscall numbers to function names
         """
         self.syscall_number_mapping[abi].update(mapping)
-
-    def add_name_mapping(self, abi, name, number):
-        """
-        Associate a function name present in the underlying SimLibrary with the syscall number
-
-        :param abi:     The abi for which this mapping applies
-        :param name:    The name of the function
-        :param number:  The syscall number
-        """
-        self.syscall_name_mapping[abi][name] = number
-
-    def add_name_mapping_from_dict(self, abi, mapping):
-        """
-        Batch-associate function names present in the underlying SimLibrary with syscall numbers
-
-        :param abi:     The abi for which this mapping applies
-        :param mapping: A dict mapping function names to syscall numbers
-        """
-        self.syscall_name_mapping[abi].update(mapping)
+        self.syscall_name_mapping[abi].update(dict(reversed(i) for i in mapping.items()))
 
     def set_abi_cc(self, abi, cc_cls):
         """
