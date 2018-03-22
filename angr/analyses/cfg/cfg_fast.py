@@ -1185,7 +1185,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if zeros_length:
                 self._seg_list.occupy(start_addr, zeros_length, "alignment")
                 start_addr += zeros_length
-            start_addr += zeros_length
 
             if string_length == 0 and cc_length == 0 and zeros_length == 0:
                 # umm now it's probably code
