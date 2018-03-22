@@ -21,12 +21,8 @@ class SimStateLoopData(SimStatePlugin):
 
         SimStatePlugin.__init__(self)
 
-        if trip_counts is None:
-            trip_counts = defaultdict(list)
-        self.trip_counts = trip_counts
-        if current_loop is None:
-            current_loop = []
-        self.current_loop = current_loop
+        self.trip_counts = defaultdict(list) if trip_counts is None else trip_counts
+        self.current_loop = [] if current_loop is None else current_loop
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         l.warning("Merging is not implemented for loop data!")
