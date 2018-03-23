@@ -278,7 +278,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
             if not self.complete() and self._stashes[stash]:
                 self.step(stash=stash, **kwargs)
                 if not (until and until(self)):
-                continue
+                    continue
             break
         return self
 
@@ -800,6 +800,11 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()
+
+    # 8<----------------- Compatibility layer -----------------
+    def _one_step(self, stash, selector_func=None, successor_func=None, **kwargs):
+        return self.step(stash=stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
+    # ------------------- Compatibility layer --------------->8
 
 
 class ErrorRecord(object):

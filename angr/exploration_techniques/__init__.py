@@ -1,5 +1,46 @@
 from ..errors import SimError
 
+
+# 8<----------------- Compatibility layer -----------------
+class ExplorationTechniqueMeta(type):
+
+    def __new__(mcs, name, bases, attrs):
+        import inspect
+        if name != 'ExplorationTechniqueCompat':
+            if 'step' in attrs and not inspect.getargspec(attrs['step'])[3]:
+                attrs['step'] = mcs._step_factory(attrs['step'])
+            if 'filter' in attrs and inspect.getargspec(attrs['filter'])[0][1] != 'simgr':
+                attrs['filter'] = mcs._filter_factory(attrs['filter'])
+            if 'step_state' in attrs and inspect.getargspec(attrs['step_state'])[0][1] != 'simgr':
+                attrs['step_state'] = mcs._step_state_factory(attrs['step_state'])
+        return type.__new__(mcs, name, bases, attrs)
+
+    @staticmethod
+    def _step_factory(step):
+        def step_wrapped(self, simgr, stash=None, **kwargs):
+            return step(self, simgr, stash, **kwargs)
+        return step_wrapped
+
+    @staticmethod
+    def _filter_factory(filter):
+        def filter_wrapped(self, simgr, state, filter_func=None):
+            result = filter(self, state)
+            if result is None:
+                result = simgr.filter(state, filter_func=filter_func)
+            return result
+        return filter_wrapped
+
+    @staticmethod
+    def _step_state_factory(step_state):
+        def step_state_wrapped(self, simgr, state, successor_func=None, **kwargs):
+            result = step_state(self, state, **kwargs)
+            if result is None:
+                result = simgr.step_state(state, successor_func=successor_func, **kwargs)
+            return result
+        return step_state_wrapped
+# ------------------- Compatibility layer --------------->8
+
+
 class ExplorationTechnique(object):
     """
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
@@ -10,6 +51,10 @@ class ExplorationTechnique(object):
     Any number of these methods may be overridden by a subclass.
     To use an exploration technique, call ``simgr.use_technique`` with an *instance* of the technique.
     """
+    # 8<----------------- Compatibility layer -----------------
+    __metaclass__ = ExplorationTechniqueMeta
+    # ------------------- Compatibility layer --------------->8
+
     def __init__(self):
         # this attribute will be set from above by the manager
         if not hasattr(self, 'project'):
