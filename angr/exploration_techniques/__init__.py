@@ -10,7 +10,6 @@ class ExplorationTechnique(object):
     Any number of these methods may be overridden by a subclass.
     To use an exploration technique, call ``simgr.use_technique`` with an *instance* of the technique.
     """
-    # pylint: disable=unused-argument, no-self-use
     def __init__(self):
         # this attribute will be set from above by the manager
         if not hasattr(self, 'project'):

@@ -54,7 +54,7 @@ def test_stops():
     # this is an address inside main that is not the beginning of a basic block. we should stop here
     stop_in_bb = 0x08048511
     stop_bb = 0x0804850c # basic block of the above address
-    pg_stoppoints = p.factory.simgr(s_stoppoints).step(n=1, extra_stop_points=stop_fake + [stop_in_bb])
+    pg_stoppoints = p.factory.simgr(s_stoppoints).run(n=1, extra_stop_points=stop_fake + [stop_in_bb])
     nose.tools.assert_equal(len(pg_stoppoints.active), 1) # path should not branch
     p_stoppoints = pg_stoppoints.one_active
     nose.tools.assert_equal(p_stoppoints.addr, stop_bb) # should stop at bb before stop_in_bb
@@ -181,7 +181,7 @@ def test_unicorn_pickle():
 
     pg = p.factory.simgr(_uni_state())
     pg.one_active.options.update(so.unicorn)
-    pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history.recent_description)
+    pg.run(until=lambda lpg: "Unicorn" in lpg.one_active.history.recent_description)
     assert len(pg.active) > 0
 
     pgp = pickle.dumps(pg, -1)
@@ -200,7 +200,7 @@ def test_unicorn_pickle():
     # test the pickling of SimUnicorn itself
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     pg = p.factory.simgr(_uni_state())
-    pg.step(n=2)
+    pg.run(n=2)
     assert p.factory.successors(pg.one_active).sort == 'Unicorn'
 
     pgp = pickle.dumps(pg, -1)
@@ -226,7 +226,7 @@ def test_concrete_transmits():
     stdin.seek(0)
     stdin.size = len(inp)
 
-    pg_unicorn.step(n=10)
+    pg_unicorn.run(n=10)
 
     nose.tools.assert_equal(pg_unicorn.one_active.posix.dumps(1), '1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
 

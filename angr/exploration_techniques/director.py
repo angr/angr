@@ -392,7 +392,7 @@ class Director(ExplorationTechnique):
         self._cfg = None
         self._cfg_kb = None
 
-    def step(self, simgr, stash, **kwargs):
+    def step(self, simgr, stash=None, **kwargs):
         """
 
         :param simgr:
