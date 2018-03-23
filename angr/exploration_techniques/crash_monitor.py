@@ -59,7 +59,7 @@ class CrashMonitor(ExplorationTechnique):
 
         return False
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash=None, successor_func=None, **kwargs):
         if len(simgr.active) == 1:
             self.last_state = simgr.active[0]
 
@@ -67,14 +67,14 @@ class CrashMonitor(ExplorationTechnique):
             if self._trim_history and not self._crash_mode:
                 self.last_state.history.trim()
 
-            simgr = simgr.step(stash=stash, **kwargs)
+            simgr = simgr.step(stash=stash, successor_func=successor_func, **kwargs)
 
             if self._crash_type == EXEC_STACK:
                 return simgr
 
             # check to see if we reached a deadend
             if self.last_state.globals['bb_cnt'] >= len(self._trace) and self._crash_mode:
-                simgr.step(stash=stash)
+                simgr.step(stash=stash, successor_func=successor_func)
                 self._crash_type = QEMU_CRASH
                 return simgr
 

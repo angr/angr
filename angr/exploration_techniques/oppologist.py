@@ -72,7 +72,7 @@ class Oppologist(ExplorationTechnique):
         results += map(functools.partial(self._oppologize, state, **kwargs), need_oppologizing)
         return self._combine_results(*results)
 
-    def step_state(self, simgr, state, **kwargs):
+    def step_state(self, simgr, state, successor_func=None, **kwargs):
         try:
             kwargs.pop('throw', None)
             ss = self.project.factory.successors(state, **kwargs)

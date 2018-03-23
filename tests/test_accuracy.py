@@ -19,7 +19,7 @@ def emulate(p, steps, hit_addrs, finished):
     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.ENABLE_NX, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, angr.options.USE_SYSTEM_TIMES})
 
     pg = p.factory.simulation_manager(state, resilience=True)
-    pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1)
+    pg2 = pg.run(until=lambda lpg: len(lpg.active) != 1)
 
     is_finished = False
     if len(pg2.active) > 0:
@@ -63,7 +63,7 @@ def test_locale():
     p = angr.Project(test_location + 'i386/isalnum', use_sim_procedures=False)
     state = p.factory.full_init_state(args=['./isalnum'], add_options={angr.options.STRICT_PAGE_ACCESS})
     pg = p.factory.simgr(state)
-    pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
+    pg2 = pg.run(until=lambda lpg: len(lpg.active) != 1,
                   step_func=lambda lpg: lpg if len(lpg.active) == 1 else lpg.prune()
                  )
     nose.tools.assert_equal(len(pg2.active), 0)

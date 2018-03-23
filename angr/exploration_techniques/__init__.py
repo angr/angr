@@ -31,7 +31,7 @@ class ExplorationTechnique(object):
         """
         return simgr.step(stash=stash, **kwargs)
 
-    def filter(self, simgr, state):
+    def filter(self, simgr, state, filter_func=None):
         """
         Perform filtering on a state.
 
@@ -40,18 +40,15 @@ class ExplorationTechnique(object):
         If you want to modify the state before filtering it, return a tuple of the stash to move the state to and the
         modified state.
         """
-        return simgr.filter(state)
+        return simgr.filter(state, filter_func=filter_func)
 
-    def selector(self, simgr, state):
+    def selector(self, simgr, state, selector_func=None):
         """
-
-        :param simgr:
-        :param state:
-        :return:
+        Return True, the state should be selected for stepping during the step() process.
         """
-        return simgr.selector(state)
+        return simgr.selector(state, selector_func=selector_func)
 
-    def step_state(self, simgr, state, **kwargs):
+    def step_state(self, simgr, state, successor_func=None, **kwargs):
         """
         Perform the process of stepping a state forward.
 
@@ -59,16 +56,13 @@ class ExplorationTechnique(object):
         Otherwise, return a dict of stashes to merge into the simulation manager. All the states
         will be added to the PathGroup's stashes based on the mapping in the returned dict.
         """
-        return simgr.step_state(state, **kwargs)
+        return simgr.step_state(state, successor_func=successor_func, **kwargs)
 
-    def successors(self, simgr, state, **run_args):
+    def successors(self, simgr, state, successor_func=None, **run_args):
         """
-
-        :param simgr:
-        :param state:
-        :return:
+        Return successors of the given state.
         """
-        return simgr.successors(state, **run_args)
+        return simgr.successors(state, successor_func=successor_func, **run_args)
 
     def complete(self, simgr):
         """

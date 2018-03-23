@@ -58,7 +58,7 @@ def run_counter(path):
     p = angr.Project(path)
 
     sm = p.factory.simgr()
-    sm.step(n=500)
+    sm.run(n=500)
 
 
 def run_cfg_analysis(path):

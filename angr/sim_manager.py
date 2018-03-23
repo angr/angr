@@ -10,7 +10,7 @@ import mulpyplexer
 
 from .misc.hookset import HookSet
 from .misc.immutability import ImmutabilityMixin
-from .misc.ux import deprecated
+from .misc.ux import once
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -225,37 +225,13 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         self._techniques.remove(tech)
         return tech
 
-    @contextlib.contextmanager
-    def adhoc_technique(self, tech=None, **more_hooks):
-        """Add a new ad-hoc technique to this manager.
-
-        The newly added technique will be removed from the simulation manager
-        upon exiting from the context.
-
-        :param tech:        A technique to add to this manager.
-        :param more_hooks:  A set of temporarly hooks to add using the TechniqueBuilder.
-        :return:            A SimulationManager instance with those techniques enabled.
-        """
-        with ImmutabilityMixin.context(self) as simgr:
-            if tech:
-                simgr.use_technique(tech)
-            other_tech = None
-            if more_hooks:
-                other_tech = TechniqueBuilder(**more_hooks)
-                simgr.use_technique(other_tech)
-            yield simgr
-            if tech:
-                simgr.remove_technique(tech)
-            if other_tech:
-                simgr.remove_technique(other_tech)
-
     #
     #   ...
     #
 
     @ImmutabilityMixin.immutable
     def explore(self, stash=None, n=None, find=None, avoid=None, find_stash=None, avoid_stash=None, cfg=None,
-                num_find=1, step_func=None):
+                num_find=1, **kwargs):
         """
         Tick stash "stash" forward (up to "n" times or until "num_find" states are found), looking for condition "find",
         avoiding condition "avoid". Stores found states into "find_stash' and avoided states into "avoid_stash".
@@ -275,30 +251,32 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         avoid_stash = avoid_stash or 'avoid'
 
         num_find += len(self._stashes[find_stash]) if find_stash in self._stashes else 0
-        tech = Explorer(find, avoid, find_stash, avoid_stash, cfg, num_find)
+        tech = self.use_technique(Explorer(find, avoid, find_stash, avoid_stash, cfg, num_find))
 
-        with self.adhoc_technique(tech) as simgr:
-            simgr.run(stash=stash, step_func=step_func, n=n)
+        try:
+            self.run(stash=stash, n=n, **kwargs)
+        finally:
+            self.remove_technique(tech)
 
-        return simgr
+        return self
 
     @ImmutabilityMixin.immutable
-    def run(self, stash=None, n=None, step_func=None, **run_args):
+    def run(self, stash=None, n=None, until=None, **kwargs):
         """Run until the SimulationManager has reached a completed state, according to
         the current exploration techniques.
 
         :param stash:       Operate on this stash
         :param n:           Step at most this many times
-        :param step_func:   If provided, should be a function that takes a SimulationManager
-                            and returns a new SimulationManager. Will be called with the
-                            current SimulationManager at every step.
+        :param until:       If provided, should be a function that takes a SimulationManager and
+                            returns True or False. Stepping will terminate when it is True.
+
         :return:            The resulting SimulationManager.
         :rtype:             SimulationManager
         """
         stash = stash or 'active'
         for _ in (itertools.count() if n is None else xrange(0, n)):
-            if not self.complete() and self._stashes[stash]:
-                self.step(stash=stash, step_func=step_func, **run_args)
+            if not (until and until(self)) and not self.complete() and self._stashes[stash]:
+                self.step(stash=stash, **kwargs)
                 continue
             break
         return self
@@ -312,14 +290,14 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def step(self, n=None, selector_func=None, step_func=None, stash=None,
-             successor_func=None, until=None, **run_args):
+             successor_func=None, until=None, filter_func=None, **run_args):
         """Step a stash of states forward and categorize the successors appropriately.
 
-        The parameters to this function allow you to control everything about the
-        stepping and categorization process.
+        The parameters to this function allow you to control everything about the stepping and
+        categorization process.
 
         :param stash:           The name of the stash to step (default: 'active')
-        :param n:               The number of times to step (default: 1 if "until" is not provided)
+        :param n:               (DEPRECATED) The number of times to step (default: 1 if "until" is not provided)
         :param selector_func:   If provided, should be a function that takes a state and returns a
                                 boolean. If True, the state will be stepped. Otherwise, it will be
                                 kept as-is.
@@ -329,8 +307,10 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                                 stepping - it is meant to be a maintenance function called after each step.
         :param successor_func:  If provided, should be a function that takes a state and return its successors.
                                 Otherwise, project.factory.successors will be used.
-        :param until:           If provided, should be a function that takes a SimulationManager and
+        :param until:           (DEPRECATED) If provided, should be a function that takes a SimulationManager and
                                 returns True or False. Stepping will terminate when it is True.
+        :param filter_func:     If provided, should be a function that takes a state and return the name
+                                of the stash, to which the state should be moved.
 
         Additionally, you can pass in any of the following keyword args for project.factory.sim_run:
 
@@ -351,14 +331,19 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         """
         stash = stash or 'active'
         # 8<----------------- Compatibility layer -----------------
-        if any(_ is not None for _ in (n, selector_func, step_func, successor_func, until)):
-            return self._step_compat(n, selector_func, step_func, stash, successor_func, until, **run_args)
+        if n is not None or until is not None:
+            if once('simgr_step_n_until'):
+                print "\x1b[31;1mDeprecation warning: the use of `n` and `until` arguments is deprecated. " \
+                      "Consider using simgr.run() with the same arguments if you want to specify " \
+                      "a number of steps or an additional condition on when to stop the execution.\x1b[0m"
+            return self.run(stash, n, until, selector_func=selector_func, step_func=step_func,
+                            successor_func=successor_func, filter_func=filter_func, **run_args)
         # ------------------ Compatibility layer ---------------->8
         bucket = defaultdict(list)
 
         for state in self._fetch_states(stash=stash):
 
-            goto = self.filter(state)
+            goto = self.filter(state, filter_func)
             if isinstance(goto, tuple):
                 goto, state = goto
 
@@ -366,11 +351,11 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                 bucket[goto].append(state)
                 continue
 
-            if not self.selector(state):
+            if not self.selector(state, selector_func):
                 bucket[stash].append(state)
                 continue
 
-            successors = self.step_state(state, **run_args)
+            successors = self.step_state(state, successor_func, **run_args)
             if not any(successors.itervalues()):
                 bucket['deadended'].append(state)
                 continue
@@ -382,19 +367,23 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         for to_stash, states in bucket.iteritems():
             self._store_states(to_stash or stash, states)
 
+        if step_func is not None:
+            return step_func(self)
         return self
 
-    def step_state(self, state, **run_args):
+    def step_state(self, state, successor_func=None, **run_args):
         """Step a single state forward.
 
-        :param state:   The state.
-        :return:        A dict mapping stash names to state lists
+        :param state:           The state.
+        :param successor_func:  If provided, should be a function that takes a state and return its successors.
+                                Otherwise, project.factory.successors will be used.
+        :return:                A dict mapping stash names to state lists
         """
         try:
-            sucessors = self.successors(state, **run_args)
-            stashes = {None: sucessors.flat_successors,
-                       'unsat': sucessors.unsat_successors,
-                       'unconstrained': sucessors.unconstrained_successors}
+            successors = self.successors(state, successor_func, **run_args)
+            stashes = {None: successors.flat_successors,
+                       'unsat': successors.unsat_successors,
+                       'unconstrained': successors.unconstrained_successors}
 
         except (SimUnsatError, claripy.UnsatError) as e:
             if self._hierarchy:
@@ -408,7 +397,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
         return stashes
 
-    def filter(self, state): #pylint:disable=no-self-use,unused-argument
+    def filter(self, state, filter_func=None):  # pylint:disable=no-self-use,unused-argument
         """Perform filtering on a state.
 
         If the state should not be filtered, return None.
@@ -417,20 +406,32 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         move the state to and the modified state.
 
         :param state:
+        :param filter_func:     If provided, should be a function that takes a state and return the name
+                                of the stash, to which the state should be moved.
         :return:
         """
+        if filter_func is not None:
+            return filter_func(self)
         return None
 
-    def selector(self, state): #pylint:disable=no-self-use,unused-argument
+    def selector(self, state, selector_func=None):
         """Return True a state should be stepped.
 
-        :param state:   A state to work with.
-        :return:        True, if the state should be steeped, False otherwise.
+        :param state:           A state to work with.
+        :param selector_func:   If provided, should be a function that takes a state and returns a
+                                boolean. If True, the state will be stepped. Otherwise, it will be
+                                kept as-is.
+        :return:                True, if the state should be steeped, False otherwise.
         """
+        if selector_func is not None:
+            return selector_func(state)
         return True
 
-    def successors(self, state, **run_args):
+    def successors(self, state, successor_func=None, **run_args):
         """Return successors for a given state.
+
+        :param successor_func:  If provided, should be a function that takes a state and return its successors.
+                                Otherwise, project.factory.successors will be used.
 
         Additionally, you can pass in any of the following keyword args for project.factory.successors:
 
@@ -450,6 +451,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :param state:       A state to work with.
         :return:            A SimSuccessors object.
         """
+        if successor_func is not None:
+            return successor_func(state, **run_args)
         return self._project.factory.successors(state, **run_args)
 
     #
@@ -796,31 +799,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()
-
-    # 8<----------------- Compatibility layer -----------------
-    def _step_compat(self, n, selector_func, step_func, stash, successor_func, until, **run_args):
-        adhoc_hooks = {}
-
-        if selector_func is not None:
-            adhoc_hooks['selector'] = \
-                lambda simgr, *args: selector_func(*args)
-
-        if step_func is not None:
-            adhoc_hooks['step'] = \
-                lambda simgr, *args, **kwargs: step_func(simgr.step(*args, **kwargs))
-
-        if successor_func is not None:
-            adhoc_hooks['successors'] = \
-                lambda simgr, *args, **kwargs: successor_func(*args, **kwargs)
-
-        with self.adhoc_technique(**adhoc_hooks) as simgr:
-            for _ in (xrange(0, n or 1) if not until else itertools.count()):
-                simgr = simgr.step(stash=stash, **run_args)
-                if (until and until(simgr)) or not self._fetch_states(stash=stash):
-                    break
-
-        return simgr
-    # ------------------- Compatibility layer --------------->8
 
 
 class ErrorRecord(object):

@@ -68,10 +68,10 @@ class CongruencyCheck(Analysis):
             return simgr
         if len(simgr.left) == 0 and len(simgr.right) != 0:
             l.debug("... left is deadended; stepping right %s times", max_steps)
-            npg = simgr.step(stash='right', n=max_steps)
+            npg = simgr.run(stash='right', n=max_steps)
         elif len(simgr.right) == 0 and len(simgr.left) != 0:
             l.debug("... right is deadended; stepping left %s times", max_steps)
-            npg = simgr.step(stash='left', n=max_steps)
+            npg = simgr.run(stash='left', n=max_steps)
         elif len(simgr.right) == 0 and len(simgr.left) == 0:
             l.debug("... both deadended.")
             return simgr

@@ -99,7 +99,7 @@ class Explorer(ExplorationTechnique):
         base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
         return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
-    def filter(self, simgr, state):
+    def filter(self, simgr, state, filter_func=None):
         if sim_options.UNICORN in state.options and self._warn_unicorn:
             self._warn_unicorn = False # show warning only once
             l.warning("Using unicorn with find or avoid conditions that are a lambda (not a number, set, tuple or list).")
