@@ -63,6 +63,7 @@ class EngineHub(PluginHub):
     def default_engine(self):
         if self.has_default_engine():
             return self.get_plugin(self._default_engine)
+        return None
 
     @default_engine.setter
     def default_engine(self, value):
@@ -75,6 +76,7 @@ class EngineHub(PluginHub):
     def procedure_engine(self):
         if self.has_procedure_engine():
             return self.get_plugin(self._procedure_engine)
+        return None
 
     @procedure_engine.setter
     def procedure_engine(self, value):
