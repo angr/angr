@@ -275,8 +275,9 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         """
         stash = stash or 'active'
         for _ in (itertools.count() if n is None else xrange(0, n)):
-            if not (until and until(self)) and not self.complete() and self._stashes[stash]:
+            if not self.complete() and self._stashes[stash]:
                 self.step(stash=stash, **kwargs)
+                if not (until and until(self)):
                 continue
             break
         return self
