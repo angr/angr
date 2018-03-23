@@ -74,7 +74,7 @@ class PluginHub(object):
     def __dir__(self):
         out = set(self._active_plugins)
         if self.has_plugin_preset:
-            out.update(self._active_preset.list_plugins())
+            out.update(self._active_preset.list_default_plugins())
 
         q = [type(self)]
         while q:
