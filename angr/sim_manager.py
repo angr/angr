@@ -1,7 +1,6 @@
 import sys
 import itertools
 import types
-import contextlib
 from collections import defaultdict
 
 import ana
@@ -398,7 +397,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
         return stashes
 
-    def filter(self, state, filter_func=None):  # pylint:disable=no-self-use,unused-argument
+    def filter(self, state, filter_func=None):  # pylint:disable=no-self-use
         """Perform filtering on a state.
 
         If the state should not be filtered, return None.
@@ -415,7 +414,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
             return filter_func(state)
         return None
 
-    def selector(self, state, selector_func=None):
+    def selector(self, state, selector_func=None):  # pylint:disable=no-self-use
         """Return True a state should be stepped.
 
         :param state:           A state to work with.
@@ -846,4 +845,4 @@ from .errors import SimError, SimMergeError
 from .sim_state import SimState
 from .state_hierarchy import StateHierarchy
 from .errors import AngrError, SimUnsatError, SimulationManagerError
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, TechniqueBuilder
+from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer

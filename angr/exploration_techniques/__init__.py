@@ -22,9 +22,9 @@ class ExplorationTechniqueMeta(type):
         return step_wrapped
 
     @staticmethod
-    def _filter_factory(filter):
+    def _filter_factory(filter):  # pylint:disable=redefined-builtin
         def filter_wrapped(self, simgr, state, filter_func=None):
-            result = filter(self, state)
+            result = filter(self, state)  # pylint:disable=no-value-for-parameter
             if result is None:
                 result = simgr.filter(state, filter_func=filter_func)
             return result
@@ -66,7 +66,7 @@ class ExplorationTechnique(object):
         """
         pass
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash=None, **kwargs):  # pylint:disable=no-self-use
         """
         Step this stash of this manager forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the actual
         processing.
@@ -75,7 +75,7 @@ class ExplorationTechnique(object):
         """
         return simgr.step(stash=stash, **kwargs)
 
-    def filter(self, simgr, state, filter_func=None):
+    def filter(self, simgr, state, filter_func=None):  # pylint:disable=no-self-use
         """
         Perform filtering on a state.
 
@@ -86,13 +86,13 @@ class ExplorationTechnique(object):
         """
         return simgr.filter(state, filter_func=filter_func)
 
-    def selector(self, simgr, state, selector_func=None):
+    def selector(self, simgr, state, selector_func=None):  # pylint:disable=no-self-use
         """
         Return True, the state should be selected for stepping during the step() process.
         """
         return simgr.selector(state, selector_func=selector_func)
 
-    def step_state(self, simgr, state, successor_func=None, **kwargs):
+    def step_state(self, simgr, state, successor_func=None, **kwargs):  # pylint:disable=no-self-use
         """
         Perform the process of stepping a state forward.
 
@@ -102,13 +102,13 @@ class ExplorationTechnique(object):
         """
         return simgr.step_state(state, successor_func=successor_func, **kwargs)
 
-    def successors(self, simgr, state, successor_func=None, **run_args):
+    def successors(self, simgr, state, successor_func=None, **run_args):  # pylint:disable=no-self-use
         """
         Return successors of the given state.
         """
         return simgr.successors(state, successor_func=successor_func, **run_args)
 
-    def complete(self, simgr):
+    def complete(self, simgr):  # pylint:disable=no-self-use,unused-argument
         """
         Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should halt.
         """
