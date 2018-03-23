@@ -695,9 +695,9 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                 self._stashes[stash] = list()
             self._stashes[stash].extend(states)
 
-    def _clear_states(self, stash): #pylint:disable=redefined-argument-from-local
-        for stash in (list(self._stashes) if stash == self.ALL else [stash]):
-            del self._stashes[stash][:]
+    def _clear_states(self, stash):
+        for _stash in (list(self._stashes) if stash == self.ALL else [stash]):
+            del self._stashes[_stash][:]
 
     def _fetch_states(self, stash):
         if stash in self._stashes:
