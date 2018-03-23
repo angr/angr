@@ -412,7 +412,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :return:
         """
         if filter_func is not None:
-            return filter_func(self)
+            return filter_func(state)
         return None
 
     def selector(self, state, selector_func=None):
