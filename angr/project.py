@@ -444,8 +444,21 @@ class Project(object):
         if type(symbol_name) not in (int, long):
             sym = self.loader.find_symbol(symbol_name)
             if sym is None:
-                l.error("Could not find symbol %s", symbol_name)
-                return None
+                # it could be a previously unresolved weak symbol..?
+                new_sym = None
+                for reloc in self.loader.find_relevant_relocations(symbol_name):
+                    if not reloc.symbol.is_weak:
+                        raise Exception("Symbol is strong but we couldn't find its resolution? Report to @rhelmot.")
+                    if new_sym is None:
+                        new_sym = self.loader.extern_object.make_extern(symbol_name)
+                    reloc.resolve(new_sym)
+                    reloc.relocate([])
+
+                if new_sym is None:
+                    l.error("Could not find symbol %s", symbol_name)
+                    return None
+                sym = new_sym
+
             basic_addr = sym.rebased_addr
         else:
             basic_addr = symbol_name
