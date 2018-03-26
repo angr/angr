@@ -335,7 +335,7 @@ class Veritesting(Analysis):
             # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
                 manager.stash(
-                    lambda s: s.addr == merge_point_addr,
+                    lambda s: s.addr == merge_point_addr,  # pylint:disable=cell-var-from-loop
                     to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                 )
 
