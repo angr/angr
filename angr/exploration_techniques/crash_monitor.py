@@ -1,7 +1,5 @@
 import logging
 
-import claripy
-
 from . import ExplorationTechnique
 from .. import BP_AFTER, BP_BEFORE
 
@@ -147,14 +145,13 @@ class CrashMonitor(ExplorationTechnique):
         successors = succs.flat_successors + succs.unconstrained_successors
         return successors[0]
 
-    @staticmethod
-    def _grab_concretization_results(state):
+    def _grab_concretization_results(self, state):
         """
         Grabs the concretized result so we can add the constraint ourselves.
         """
 
         # only grab ones that match the constrained addrs
-        if CrashMonitor._add_constraints(state):
+        if self._add_constraints(state):
             addr = state.inspect.address_concretization_expr
             result = state.inspect.address_concretization_result
             if result is None:
@@ -162,18 +159,16 @@ class CrashMonitor(ExplorationTechnique):
                 return
             self.address_concretization.append((addr, result))
 
-    @staticmethod
-    def _dont_add_constraints(state):
+    def _dont_add_constraints(self, state):
         """
         Obnoxious way to handle this, should ONLY be called from tracer.
         """
 
         # for each constrained addrs check to see if the variables match,
         # if so keep the constraints
-        state.inspect.address_concretization_add_constraints = CrashMonitor._add_constraints(state)
+        state.inspect.address_concretization_add_constraints = self._add_constraints(state)
 
-    @staticmethod
-    def _add_constraints(state):
+    def _add_constraints(self, state):
         variables = state.inspect.address_concretization_expr.variables
         hit_indices = CrashMonitor._to_indices(variables)
 
