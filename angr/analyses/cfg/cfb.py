@@ -7,7 +7,6 @@ import cffi
 import cle
 
 from ..analysis import Analysis
-from .. import register_analysis
 
 _l = logging.getLogger('angr.analyses.cfg.cfb')
 
@@ -293,4 +292,5 @@ class CFBlanket(Analysis):
                 addr = max_addr
 
 
-register_analysis(CFBlanket, 'CFB')
+CFBlanket.register_default()
+CFBlanket.register_default(name="CFB")
