@@ -116,7 +116,7 @@ class Analysis(object):
     :ivar project:  The project for this analysis.
     :type project:  angr.Project
     :ivar KnowledgeBase kb: The knowledgebase object.
-    :ivar callable _progress_callback: A callback function for receiving the progress of this analysis. It only takes
+    :ivar _progress_callback: A callback function for receiving the progress of this analysis. It only takes
                                         one argument, which is a float number from 0.0 to 100.0 indicating the current
                                         progress.
     :ivar bool _show_progressbar: If a progressbar should be shown during the analysis. It's independent from

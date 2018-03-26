@@ -144,7 +144,7 @@ class EnginePreset(PluginPreset):
     specified predefined order.
 
     If you want to use your custom preset with the angr's original analyses, you should
-    specify the following predefined order: _failure, syscall, hook_.
+    specify the following predefined order: ``failure``, ``syscall``, and then ``hook``.
     """
 
     def __init__(self, predefined_order=None):
