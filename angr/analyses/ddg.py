@@ -1636,4 +1636,5 @@ class DDG(Analysis):
 
         return sources
 
-DDG.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('DDG', DDG)

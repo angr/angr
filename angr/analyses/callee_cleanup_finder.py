@@ -61,4 +61,5 @@ class CalleeCleanupFinder(Analysis):
 
         return None
 
-CalleeCleanupFinder.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CalleeCleanupFinder', CalleeCleanupFinder)

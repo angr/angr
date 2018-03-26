@@ -175,4 +175,5 @@ class SimStatePreconstrainer(SimStatePlugin):
                         l.warning("var %s not found in self.variable_map", var)
 
 
-SimStatePreconstrainer.register_default('preconstrainer')
+from angr.sim_state import SimState
+SimState.register_default('preconstrainer', SimStatePreconstrainer)

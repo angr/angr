@@ -1204,4 +1204,5 @@ class BinDiff(Analysis):
 
         return matches
 
-BinDiff.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('BinDiff', BinDiff)

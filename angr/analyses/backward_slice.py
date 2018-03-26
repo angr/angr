@@ -684,4 +684,5 @@ class BackwardSlice(Analysis):
 
         return cmp_stmt_id, cmp_tmp_id
 
-BackwardSlice.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('BackwardSlice', BackwardSlice)
