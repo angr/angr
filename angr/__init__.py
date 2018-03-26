@@ -19,7 +19,6 @@ options = sim_options  # alias
 from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPYTHON
 
 # other stuff
-
 from .state_plugins.inspect import BP
 from .state_plugins import SimStatePlugin
 
@@ -44,6 +43,9 @@ from .sim_state import SimState, _finish_imports
 from .engines import SimEngineVEX, SimEngine
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
 _finish_imports()
+
+# for compatibility reasons
+import sim_manager as manager
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
