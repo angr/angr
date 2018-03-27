@@ -13,6 +13,7 @@ binary = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
 AFTER_USERNAME_PRINT = 0x400739
+#AFTER_USERNAME_PRINT = 0x40073E
 AFTER_PWD_READ = 0x4007A4
 WIN = 0x4007BD
 

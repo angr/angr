@@ -483,16 +483,23 @@ class SimPagedMemory(object):
         if self.state is not None:
             self.state.scratch.push_priv(True)
 
-        print self._memory_backer
-
         if self._memory_backer is None:
             pass
 
         elif isinstance(self._memory_backer, cle.Clemory) and self._memory_backer.is_concrete_target_set():
-            backer = claripy.BVV(''.join(self._memory_backer.read_bytes(new_page_addr, self._page_size)))
-            mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
-            self._apply_object_to_page(n * self._page_size, mo, page=new_page)
-            initialized = True
+            try:
+                concrete_memory = self._memory_backer.read_bytes(new_page_addr, self._page_size)
+                backer = claripy.BVV(''.join(concrete_memory))
+                mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
+                self._apply_object_to_page(n * self._page_size, mo, page=new_page)
+                initialized = True
+            except SimMemoryError:
+                '''
+                the address requested is not mapped in the concrete process memory
+                this can happen when a memory allocation function/syscall is invoked in the simulated execution
+                and the map_region function is called 
+                '''
+                return
 
 
         elif isinstance(self._memory_backer, cle.Clemory):
