@@ -1,4 +1,3 @@
-
 import logging
 
 import claripy
@@ -16,8 +15,9 @@ from ..state_plugins import SimStatePreconstrainer
 from ..calling_conventions import DEFAULT_CC
 from ..procedures import SIM_PROCEDURES as P
 from .. import sim_options as o
-from ..storage.file import SimFile, SimDialogue
+from ..storage.file import SimFile
 from ..misc import IRange
+
 
 _l = logging.getLogger("angr.simos.simos")
 
@@ -125,9 +125,12 @@ class SimOS(object):
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
-                state.registers.store(reg, claripy.BVS(initial_prefix + "_" + reg,
-                                                       state.arch.bits,
-                                                       explicit_name=True))
+                state.registers.store(reg, state.solver.BVS(
+                    initial_prefix + "_" + reg,
+                    state.arch.bits,
+                    explicit_name=True,
+                    key=('reg', reg),
+                    eternal=True))
 
         for reg, val, is_addr, mem_region in state.arch.default_register_values:
 
@@ -193,9 +196,11 @@ class SimOS(object):
         if input_content is None:
             return self.state_full_init(**kwargs)
 
-        if type(input_content) == str:
+        if type(input_content) is str:
             fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
-        elif type(input_content) != SimDialogue:
+        elif input_content.getattr('stdin', None) is not None:
+            fs = input_content.stdin
+        else:
             raise TracerEnvironmentError("Input for tracer should be either a string or a TracerPoV for CGC binaries.")
 
         kwargs['fs'] = kwargs.get('fs', fs)
@@ -216,11 +221,6 @@ class SimOS(object):
                                                      preconstrain_input=preconstrain_input,
                                                      preconstrain_flag=preconstrain_flag,
                                                      constrained_addrs=constrained_addrs))
-
-        # Preconstrain
-        state.preconstrainer.preconstrain_state()
-
-        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
 
         return state
 
@@ -285,11 +285,14 @@ class SimOS(object):
     def syscall(self, state, allow_unsupported=True):
         return None
 
+    def syscall_abi(self, state):
+        return None
+
     def is_syscall_addr(self, addr):
         return False
 
     def syscall_from_addr(self, addr, allow_unsupported=True):
         return None
 
-    def syscall_from_number(self, number, allow_unsupported=True):
+    def syscall_from_number(self, number, allow_unsupported=True, abi=None):
         return None

@@ -19,7 +19,11 @@ class SimCGC(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super(SimCGC, self).__init__(project, syscall_library=L['cgcabi'], name="CGC", **kwargs)
+        super(SimCGC, self).__init__(project,
+                syscall_library=L['cgcabi'],
+                syscall_addr_alignment=1,
+                name="CGC",
+                **kwargs)
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, **kwargs):
@@ -162,11 +166,13 @@ class SimCGC(SimUserland):
                                                  constrained_addrs=constrained_addrs,
                                                  **kwargs)
 
+        state.cgc.flag_bytes = [state.solver.BVS("cgc-flag-byte-%d" % i, 8, key=('flag', i), eternal=True) for i in xrange(0x1000)]
+
         csr = state.unicorn.cooldown_symbolic_registers
         state.unicorn.concretization_threshold_registers = 25000 / csr
         state.unicorn.concretization_threshold_memory = 25000 / csr
 
-        if type(input_content) == str:
+        if type(input_content) is str:
             state.cgc.input_size = len(input_content)
 
         self._set_simproc_limits(state)

@@ -1,9 +1,13 @@
+import logging
+
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
+from .errors import AngrAssemblyError
 
-import logging
+
 l = logging.getLogger("angr.factory")
+
 
 _deprecation_cache = set()
 def deprecate(name, replacement):
@@ -16,35 +20,32 @@ def deprecate(name, replacement):
         return inner
     return wrapper
 
+
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project, default_engine, procedure_engine, engines):
-        # currently the default engine MUST be a vex engine... this assumption is hardcoded
-        # but this can totally be changed with some interface generalization
-        self._project = project
+    def __init__(self, project):
+        self.project = project
         self._default_cc = DEFAULT_CC[project.arch.name]
 
-        self.default_engine = default_engine
-        self.procedure_engine = procedure_engine
-        self.engines = engines
+    @property
+    def default_engine(self):
+        return self.project.engines.default_engine
+
+    @property
+    def procedure_engine(self):
+        return self.project.engines.procedure_engine
 
     def snippet(self, addr, jumpkind=None, **block_opts):
-        if self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            hook = self._project._sim_procedures[addr]
+        if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
+            hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get('length', 0)
-            return HookNode(addr, size, self._project.hooked_by(addr))
+            return HookNode(addr, size, self.project.hooked_by(addr))
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def successors(self, state,
-            addr=None,
-            jumpkind=None,
-            inline=False,
-            default_engine=False,
-            engines=None,
-            **kwargs):
+    def successors(self, *args, **kwargs):
         """
         Perform execution using any applicable engine. Enumerate the current engines and use the
         first one that works. Return a SimSuccessors object classifying the results of the run.
@@ -53,43 +54,11 @@ class AngrObjectFactory(object):
         :param addr:            optional, an address to execute at instead of the state's ip
         :param jumpkind:        optional, the jumpkind of the previous exit
         :param inline:          This is an inline execution. Do not bother copying the state.
-        :param default_engine:  Whether we should only attempt to use the default engine (usually VEX)
-        :param engines:         A list of engines to try to use, instead of the default.
 
         Additional keyword arguments will be passed directly into each engine's process method.
         """
 
-        if default_engine:
-            engines = [self.default_engine]
-        if engines is None:
-            engines = self.engines
-
-        if addr is not None or jumpkind is not None:
-            state = state.copy()
-            if addr is not None:
-                state.ip = addr
-            if jumpkind is not None:
-                state.history.jumpkind = jumpkind
-
-        r = None
-        for engine in engines:
-            if engine.check(state, inline=inline, **kwargs):
-                r = engine.process(state, inline=inline,**kwargs)
-                if r.processed:
-                    break
-
-        if r is None or not r.processed:
-            raise AngrExitError("All engines failed to execute!")
-
-        # fix up the descriptions... TODO do something better than this
-        description = str(r)
-        l.info("Ticked state: %s", description)
-        for succ in r.all_successors:
-            succ.history.recent_description = description
-        for succ in r.flat_successors:
-            succ.history.recent_description = description
-
-        return r
+        return self.project.engines.successors(*args, **kwargs)
 
     def blank_state(self, **kwargs):
         """
@@ -106,7 +75,7 @@ class AngrObjectFactory(object):
         :return:                The blank state.
         :rtype:                 SimState
         """
-        return self._project.simos.state_blank(**kwargs)
+        return self.project.simos.state_blank(**kwargs)
 
     def entry_state(self, **kwargs):
         """
@@ -128,7 +97,7 @@ class AngrObjectFactory(object):
         :rtype:                 SimState
         """
 
-        return self._project.simos.state_entry(**kwargs)
+        return self.project.simos.state_entry(**kwargs)
 
     def full_init_state(self, **kwargs):
         """
@@ -151,7 +120,7 @@ class AngrObjectFactory(object):
         :return:                The fully initialized state.
         :rtype:                 SimState
         """
-        return self._project.simos.state_full_init(**kwargs)
+        return self.project.simos.state_full_init(**kwargs)
 
     def call_state(self, addr, *args, **kwargs):
         """
@@ -195,10 +164,10 @@ class AngrObjectFactory(object):
         set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
         allocations happen at increasing addresses.
         """
-        return self._project.simos.state_call(addr, *args, **kwargs)
+        return self.project.simos.state_call(addr, *args, **kwargs)
 
     def tracer_state(self, input_content=None, magic_content=None, preconstrain_input=True,
-                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+                     preconstrain_flag=True, **kwargs):
         """
         Returns a new SimState object correctly configured for tracing.
 
@@ -212,7 +181,7 @@ class AngrObjectFactory(object):
         :returns : The new SimState for tracing.
         :rtype   : angr.sim_state.SimState
         """
-        return self._project.simos.state_tracer(input_content=input_content,
+        return self.project.simos.state_tracer(input_content=input_content,
                                                 magic_content=magic_content,
                                                 preconstrain_input=preconstrain_input,
                                                 preconstrain_flag=preconstrain_flag,
@@ -247,7 +216,7 @@ class AngrObjectFactory(object):
         else:
             raise AngrError("BadType to initialze SimulationManager: %s" % repr(thing))
 
-        return SimulationManager(self._project, active_states=thing, **kwargs)
+        return SimulationManager(self.project, active_states=thing, **kwargs)
 
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
@@ -264,7 +233,7 @@ class AngrObjectFactory(object):
                                 python function.
         :rtype:                 angr.surveyors.caller.Callable
         """
-        return Callable(self._project,
+        return Callable(self.project,
                         addr=addr,
                         concrete_only=concrete_only,
                         perform_merge=perform_merge,
@@ -287,7 +256,7 @@ class AngrObjectFactory(object):
 
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
-        return self._default_cc(arch=self._project.arch,
+        return self._default_cc(arch=self.project.arch,
                                   args=args,
                                   ret_val=ret_val,
                                   sp_delta=sp_delta,
@@ -306,7 +275,7 @@ class AngrObjectFactory(object):
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
         :parmm func_ty:     A SimType for the function itself
         """
-        return self._default_cc.from_arg_kinds(arch=self._project.arch,
+        return self._default_cc.from_arg_kinds(arch=self.project.arch,
                 fp_args=fp_args,
                 ret_fp=ret_fp,
                 sizes=sizes,
@@ -315,21 +284,31 @@ class AngrObjectFactory(object):
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None  # backward compatibility
+              insn_bytes=None, insn_text=None  # backward compatibility
               ):
+
+        if insn_bytes is not None and insn_text is not None:
+            raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
 
         if insn_bytes is not None:
             byte_string = insn_bytes
 
+        if insn_text is not None:
+            byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
+            if byte_string is None:
+                # assembly failed
+                raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
+                                        " string is correct.")
+
         if max_size is not None:
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
             size = max_size
-        return Block(addr, project=self._project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
+        return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
                      backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags
                      )
 
     def fresh_block(self, addr, size, backup_state=None):
-        return Block(addr, project=self._project, size=size, backup_state=backup_state)
+        return Block(addr, project=self.project, size=size, backup_state=backup_state)
 
     cc.SimRegArg = SimRegArg
     cc.SimStackArg = SimStackArg
@@ -365,7 +344,8 @@ class AngrObjectFactory(object):
             return state
         return self.entry_state(**kwargs)
 
-from .errors import AngrExitError, AngrError
+
+from .errors import AngrError
 from .manager import SimulationManager
 from .codenode import HookNode
 from .block import Block

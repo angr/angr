@@ -10,9 +10,6 @@ class SimEngineProcedure(SimEngine):
     An engine for running SimProcedures
     """
 
-    def __init__(self):
-        super(SimEngineProcedure, self).__init__()
-
     def process(self, state, procedure,
             ret_to=None,
             inline=None,

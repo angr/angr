@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import logging
 l = logging.getLogger("angr.state_plugins.log")
 
@@ -78,4 +76,4 @@ from ..errors import SimEventError
 from .sim_event import SimEvent
 from .sim_action import SimAction, SimActionConstraint
 
-SimStateLog.register_default('log', SimStateLog)
+SimStateLog.register_default('log')

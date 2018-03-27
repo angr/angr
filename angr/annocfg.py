@@ -3,7 +3,6 @@ import logging
 
 import networkx
 
-from .pathprioritizer import PathPrioritizer
 from .errors import AngrAnnotatedCFGError, AngrExitError
 from .analyses.cfg.cfg_node import CFGNode
 
@@ -38,9 +37,6 @@ class AnnotatedCFG(object):
 
         if cfg is not None:
             self._cfg = cfg
-
-            #if target_irsb_addr is not None:
-            #    self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
 
         if self._cfg is not None:
             for run in self._cfg.nodes():

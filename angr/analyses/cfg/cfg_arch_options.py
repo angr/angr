@@ -5,10 +5,7 @@ class CFGArchOptions(object):
     settings.
 
     Suppose `ao` is the CFGArchOptions object, and there is an option called `ret_jumpkind_heuristics`, you can access
-    it by
-        `ao.ret_jumpkind_heuristics`
-        and set its value via
-        `ao.ret_jumpkind_heuristics = True`
+    it by `ao.ret_jumpkind_heuristics` and set its value via `ao.ret_jumpkind_heuristics = True`
 
     :ivar dict OPTIONS: A dict of all default options for different architectures.
     :ivar archinfo.Arch arch: The architecture object.

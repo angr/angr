@@ -9,9 +9,9 @@ Then you can run tests by calling nosetests, by default it will run all the test
 specify a file.
 
     # Run all tests
-    nosetests-2.7
+    nosetests -v --nologcapture test_*.py
     # Run tests from a single file
-    nosetests-2.7 test-fauxware.py
+    nosetests -v --nologcapture test_fauxware.py
 
 These tests require the binaries repository, clone it in the folder where angr was cloned.
 

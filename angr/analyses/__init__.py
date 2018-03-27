@@ -1,9 +1,9 @@
-registered_analyses = {}
-
-def register_analysis(cls, name):
-    registered_analyses[name] = cls
-
 from .analysis import Analysis
+from ..misc.ux import deprecated
+
+@deprecated('cls.register_default(name)')
+def register_analysis(cls, name):
+    cls.register_default(name)
 
 from .cfg import CFGFast, CFGAccurate, CFG, CFGArchOptions
 from .cdg import CDG
@@ -22,6 +22,6 @@ from .static_hooker import StaticHooker
 from .reassembler import Reassembler
 from .binary_optimizer import BinaryOptimizer
 from .disassembly import Disassembly
-from .variable_recovery import VariableRecovery
+from .variable_recovery import VariableRecovery, VariableRecoveryFast
 from .identifier import Identifier
 from .callee_cleanup_finder import CalleeCleanupFinder

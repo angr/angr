@@ -8,6 +8,13 @@ def _bin(s):
     return os.path.join(os.path.dirname(__file__), '../../binaries', s)
 
 def setup():
+
+    # clean up AST cache in claripy, because a cached AST might believe it has been stored in ana after we clean up the
+    # ana storage
+    import claripy
+    claripy.ast.bv._bvv_cache.clear()
+    claripy.ast.bv.BV._hash_cache.clear()
+
     ana.set_dl(ana.DictDataLayer())
 def teardown():
     ana.set_dl(ana.SimpleDataLayer())
@@ -17,7 +24,7 @@ def pickle_callback(state):
 def unpickle_callback(state):
     state.globals['unpickled'] = True
 def priority_key(state):
-    return hash(tuple(state.history.bbl_addrs)) # to help ensure determinism
+    return state.addr * state.history.depth # to help ensure determinism
 
 @nose.with_setup(setup, teardown)
 def test_basic():

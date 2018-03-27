@@ -33,7 +33,7 @@ class Threading(ExplorationTechnique):
             tpg._immutable = False
             tpg.stashes['threadlocal'] = []
             tpg.move(stash, 'threadlocal', lambda path: counts_of(x) % self.threads == x)
-            tasks[self.executor.submit(tpg.step, stash='threadlocal', **kwargs)] = tpg
+            tasks[self.executor.submit(tpg._one_step, stash='threadlocal', **kwargs)] = tpg
 
         pg.stashes[stash] = []
         for f in concurrent.futures.as_completed(tasks):

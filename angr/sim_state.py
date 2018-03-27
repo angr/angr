@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import functools
 import itertools
 import contextlib
@@ -12,6 +10,7 @@ import claripy
 import ana
 from archinfo import arch_from_id
 from .misc.ux import deprecated
+from .misc.plugins import PluginHub, PluginPreset
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -23,12 +22,11 @@ def arch_overrideable(f):
             return f(self, *args, **kwargs)
     return wrapped_f
 
-from .state_plugins import default_plugins
-
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
-class SimState(ana.Storable): # pylint: disable=R0904
+# pylint: disable=not-callable
+class SimState(PluginHub, ana.Storable):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
@@ -36,7 +34,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
     :ivar registers:    The state's register file as a flat memory region
     :ivar memory:       The state's memory as a flat memory region
-    :ivar se:           The solver engine for this state
+    :ivar solver:       The symbolic solver and variable manager for this state
     :ivar inspect:      The breakpoint manager, a :class:`angr.state_plugins.inspect.SimInspector`
     :ivar log:          Information about the state's history
     :ivar scratch:      Information about the current execution step
@@ -48,7 +46,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
     """
 
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
+                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default'):
+        super(SimState, self).__init__()
         self.project = project
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
@@ -70,11 +69,14 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.options = options
         self.mode = mode
 
-        # plugins
-        self.plugins = { }
+        if plugin_preset is not None:
+            self.use_plugin_preset(plugin_preset)
+
         if plugins is not None:
             for n,p in plugins.iteritems():
-                self.register_plugin(n, p)
+                self.register_plugin(n, p, inhibit_init=True)
+            for p in plugins.itervalues():
+                p.init_state()
 
         if not self.has_plugin('memory'):
             # we don't set the memory endness because, unlike registers, it's hard to understand
@@ -117,7 +119,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
-        s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k not in ('inspector', 'regs', 'mem') }
+        s = { k:v for k,v in s.iteritems() if k not in ('inspect', 'regs', 'mem')}
+        s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].iteritems() if k not in ('inspect', 'regs', 'mem') }
         return s
 
     def _ana_setstate(self, s):
@@ -144,6 +147,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
     #
     # Easier access to some properties
     #
+
+    @property
+    def plugins(self):
+        # TODO: This shouldn't be access directly.
+        return self._active_plugins
+
+    @property
+    def se(self):
+        # TODO: Deprecate this
+        return self.get_plugin('solver')
 
     @property
     def ip(self):
@@ -194,94 +207,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
     # Plugin accessors
     #
 
-    def __getattr__(self, v):
-        try:
-            return self.get_plugin(v)
-        except KeyError:
-            raise AttributeError(v)
-
-    @property
-    def memory(self):
-        return self.get_plugin('memory')
-
-    @property
-    def registers(self):
-        return self.get_plugin('registers')
-
-    @property
-    def se(self):
-        return self.get_plugin('solver_engine')
-
-    @property
-    def solver(self):
-        return self.get_plugin('solver_engine')
-
-    @property
-    def inspect(self):
-        return self.get_plugin('inspector')
-
-    @property
-    def log(self):
-        return self.get_plugin('log')
-
-    @property
-    def scratch(self):
-        return self.get_plugin('scratch')
-
-    @property
-    def history(self):
-        return self.get_plugin('history')
-
-    @property
-    def posix(self):
-        return self.get_plugin('posix')
-
-    @property
-    def libc(self):
-        return self.get_plugin('libc')
-
-    @property
-    def cgc(self):
-        return self.get_plugin('cgc')
-
-    @property
-    def regs(self):
-        return self.get_plugin('regs')
-
-    @property
-    def mem(self):
-        return self.get_plugin('mem')
-
-    @property
-    def gdb(self):
-        return self.get_plugin('gdb')
-
-    @property
-    def globals(self):
-        return self.get_plugin('globals')
-
-    @property
-    def uc_manager(self):
-        return self.get_plugin('uc_manager')
-
-    @property
-    def unicorn(self):
-        return self.get_plugin('unicorn')
-
-    @property
-    def preconstrainer(self):
-        return self.get_plugin('preconstrainer')
-    
-    @property
-    def callstack(self):
-        return self.get_plugin('callstack')
-
     def _inspect(self, *args, **kwargs):
-        if self.has_plugin('inspector'):
+        if self.has_plugin('inspect'):
             self.inspect.action(*args, **kwargs)
 
     def _inspect_getattr(self, attr, default_value):
-        if self.has_plugin('inspector'):
+        if self.has_plugin('inspect'):
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
 
@@ -291,28 +222,22 @@ class SimState(ana.Storable): # pylint: disable=R0904
     # Plugins
     #
 
-    def has_plugin(self, name):
-        return name in self.plugins
-
-    def get_plugin(self, name):
-        if name not in self.plugins:
-            p = default_plugins[name]()
-            self.register_plugin(name, p)
-            return p
-        return self.plugins[name]
-
-    def register_plugin(self, name, plugin):
+    def register_plugin(self, name, plugin, inhibit_init=False): # pylint: disable=arguments-differ
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
+        self._set_plugin_state(plugin, inhibit_init=inhibit_init)
+        return super(SimState, self).register_plugin(name, plugin)
+
+    def _init_plugin(self, plugin):
+        plugin = plugin()
+        self._set_plugin_state(plugin)
+        return plugin
+
+    def _set_plugin_state(self, plugin, inhibit_init=False):
         plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
         if plugin.STRONGREF_STATE:
             plugin.set_strongref_state(self)
-        self.plugins[name] = plugin
-        plugin.init_state()
-        return plugin
-
-    def release_plugin(self, name):
-        if name in self.plugins:
-            del self.plugins[name]
+        if not inhibit_init:
+            plugin.init_state()
 
     #
     # Constraint pass-throughs
@@ -388,8 +313,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
                 for original_expr, constrained_si in converted:
                     if not original_expr.variables:
-                        l.error('Incorrect original_expression to replace in add_constraints(). ' +
-                                'This is due to defects in VSA logics inside claripy. Please report ' +
+                        l.error('Incorrect original_expression to replace in add_constraints(). '
+                                'This is due to defects in VSA logics inside claripy. Please report '
                                 'to Fish and he will fix it if he\'s free.')
                         continue
 
@@ -424,8 +349,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Clean up after the solver engine. Calling this when a state no longer needs to be solved on will reduce memory
         usage.
         """
-        if 'solver_engine' in self.plugins:
-            self.se.downsize()
+        if 'solver' in self.plugins:
+            self.solver.downsize()
 
     #
     # State branching operations
@@ -455,7 +380,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def _copy_plugins(self):
         memo = {}
         out = {}
-        for n, p in self.plugins.iteritems():
+        for n, p in self._active_plugins.iteritems():
             if id(p) in memo:
                 out[n] = memo[id(p)]
             else:
@@ -487,16 +412,23 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         :param states: the states to merge
         :param merge_conditions: a tuple of the conditions under which each state holds
-        :param common_ancestor: a state that represents the common history between the states being merged
+        :param common_ancestor:  a state that represents the common history between the states being merged. Usually it
+                                 is only available when EFFICIENT_STATE_MERGING is enabled, otherwise weak-refed states
+                                 might be dropped from state history instances.
         :param plugin_whitelist: a list of plugin names that will be merged. If this option is given and is not None,
                                  any plugin that is not inside this list will not be merged, and will be created as a
                                  fresh instance in the new state.
+        :param common_ancestor_history:
+                                 a SimStateHistory instance that represents the common history between the states being
+                                 merged. This is to allow optimal state merging when EFFICIENT_STATE_MERGING is
+                                 disabled.
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
 
         merge_conditions = kwargs.pop('merge_conditions', None)
         common_ancestor = kwargs.pop('common_ancestor', None)
         plugin_whitelist = kwargs.pop('plugin_whitelist', None)
+        common_ancestor_history = kwargs.pop('common_ancestor_history', None)
 
         if len(kwargs) != 0:
             raise ValueError("invalid arguments: %s" % kwargs.keys())
@@ -547,15 +479,21 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 for t,tp in zip(others, their_plugins)
             ]
 
+            plugin_common_ancestor = (
+                common_ancestor.plugins[p] if
+                (common_ancestor is not None and p in common_ancestor.plugins) else
+                None
+            )
+            if plugin_common_ancestor is None and \
+                    plugin_class is SimStateHistory and \
+                    common_ancestor_history is not None:
+                plugin_common_ancestor = common_ancestor_history
+
             plugin_state_merged = our_filled_plugin.merge(
-                their_filled_plugins, merge_conditions, common_ancestor=(
-                    common_ancestor.plugins[p] if
-                    (common_ancestor is not None and p in common_ancestor.plugins) else
-                    None
-                )
+                their_filled_plugins, merge_conditions, common_ancestor=plugin_common_ancestor,
             )
             if plugin_state_merged:
-                l.debug('Merging occured in %s', p)
+                l.debug('Merging occurred in %s', p)
                 merging_occurred = True
 
         merged.add_constraints(merged.se.Or(*merge_conditions))
@@ -578,7 +516,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         # plugins
         for p in self.plugins:
-            if p in ('solver_engine', 'unicorn'):
+            if p in ('solver', 'unicorn'):
                 continue
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
             if plugin_state_widened:
@@ -860,10 +798,27 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def trim_history(self):
         self.history.trim()
 
-from .state_plugins.symbolic_memory import SimSymbolicMemory
-from .state_plugins.fast_memory import SimFastMemory
-from .state_plugins.abstract_memory import SimAbstractMemory
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
-from .state_plugins.inspect import BP_AFTER, BP_BEFORE
-from .state_plugins.sim_action import SimActionConstraint
+default_state_plugin_preset = PluginPreset()
+SimState.register_preset('default', default_state_plugin_preset)
+
+# this is to resolve a really really really nasty import loop - SimState requres these plugins,
+# but the plugin base class requres SimState in order to know what its hub is
+_has_late_imports = False
+# pylint: disable=unused-variable,used-before-assignment,redefined-outer-name
+def _finish_imports():
+    from .state_plugins.symbolic_memory import SimSymbolicMemory
+    from .state_plugins.fast_memory import SimFastMemory
+    from .state_plugins.abstract_memory import SimAbstractMemory
+    from .state_plugins.history import SimStateHistory
+    from .state_plugins.inspect import BP_AFTER, BP_BEFORE
+    from .state_plugins.sim_action import SimActionConstraint
+    globals().update(locals())
+
 from . import sim_options as o
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, NoPlugin
+SimSymbolicMemory = None
+SimFastMemory = None
+SimAbstractMemory = None
+SimStateHistory = None
+BP_AFTER, BP_BEFORE = None, None
+SimActionConstraint = None

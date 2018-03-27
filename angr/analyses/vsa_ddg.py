@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 
 import networkx
-from . import Analysis, register_analysis
+from . import Analysis
 
 from .code_location import CodeLocation
 from ..errors import AngrDDGError
@@ -418,4 +418,4 @@ class VSA_DDG(Analysis):
                 nodes.add(n)
         return nodes
 
-register_analysis(VSA_DDG, 'VSA_DDG')
+VSA_DDG.register_default()

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """This module handles constraint generation."""
 
 import logging

@@ -1,8 +1,10 @@
-import StringIO
 import logging
 import os
 import types
 import weakref
+import StringIO
+import pickle
+import string
 from collections import defaultdict
 
 import archinfo
@@ -12,49 +14,7 @@ from cle.address_translator import AT
 from .misc.ux import once, deprecated
 
 l = logging.getLogger("angr.project")
-
-# This holds the default execution engine for a given CLE loader backend.
-# All the builtins right now use SimEngineVEX.  This may not hold for long.
-
-
-def global_default(): return {'any': SimEngineVEX}
-default_engines = defaultdict(global_default)
-
-
-def register_default_engine(loader_backend, engine, arch='any'):
-    """
-    Register the default execution engine to be used with a given CLE backend.
-    Usually this is the SimEngineVEX, but if you're operating on something that isn't
-    going to be lifted to VEX, you'll need to make sure the desired engine is registered here.
-
-    :param loader_backend: The loader backend (a type)
-    :param type engine: The engine to use for the loader backend (a type)
-    :param arch: The architecture to associate with this engine. Optional.
-    :return:
-    """
-    if not isinstance(loader_backend, type):
-        raise TypeError("loader_backend must be a type")
-    if not isinstance(engine, type):
-        raise TypeError("engine must be a type")
-    default_engines[loader_backend][arch] = engine
-
-
-def get_default_engine(loader_backend, arch='any'):
-    """
-    Get some sort of sane default for a given loader and/or arch.
-    Can be set with register_default_engine()
-    :param loader_backend:
-    :param arch:
-    :return:
-    """
-    matches = default_engines[loader_backend]
-    for k,v in matches.items():
-        if k == arch or k == 'any':
-            return v
-    return None
-
 projects = weakref.WeakValueDictionary()
-
 
 def fake_project_unpickler(name):
     if name not in projects:
@@ -107,6 +67,12 @@ class Project(object):
                                         will try to read code from the current state instead of the original memory,
                                         regardless of the current memory protections.
     :type support_selfmodifying_code:   bool
+    :param store_function:              A function that defines how the Project should be stored. Default to pickling.
+    :param load_function:               A function that defines how the Project should be loaded. Default to unpickling.
+    :param analyses_preset:             The plugin preset for the analyses provider (i.e. Analyses instance).
+    :type analyses_preset:              angr.misc.PluginPreset
+    :param engines_preset:              The plugin preset for the engines provider (i.e. EngineHub instance).
+    :type engines_preset:               angr.misc.PluginPreset
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -120,6 +86,8 @@ class Project(object):
     :type loader:       cle.Loader
     :ivar surveyors:    The available surveyors.
     :type surveyors:    angr.surveyors.surveyor.Surveyors
+    :ivar storage:      Dictionary of things that should be loaded/stored with the Project.
+    :type storage:      defaultdict(list)
     """
 
     def __init__(self, thing,
@@ -132,6 +100,10 @@ class Project(object):
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
+                 store_function=None,
+                 load_function=None,
+                 analyses_preset=None,
+                 engines_preset=None,
                  **kwargs):
 
         # Step 1: Load the binary
@@ -154,6 +126,9 @@ class Project(object):
             l.info("Loading binary %s", thing)
             self.filename = thing
             self.loader = cle.Loader(self.filename, **load_options)
+
+        if self.filename is not None:
+            projects[self.filename] = self
 
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
         if isinstance(arch, str):
@@ -179,43 +154,50 @@ class Project(object):
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
         self._should_use_sim_procedures = use_sim_procedures
-        self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
+        self._support_selfmodifying_code = support_selfmodifying_code
+        self._translation_cache = translation_cache
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
 
-        if self._support_selfmodifying_code:
+        if support_selfmodifying_code:
             if translation_cache is True:
                 translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
-        # Look up the default engine.
-        engine_cls = get_default_engine(type(self.loader.main_object))
-        if not engine_cls:
-            raise AngrError("No engine associated with loader %s" % str(type(self.loader.main_object)))
-        engine = engine_cls(
-                stop_points=self._sim_procedures,
-                use_cache=translation_cache,
-                support_selfmodifying_code=support_selfmodifying_code)
-        procedure_engine = SimEngineProcedure()
-        hook_engine = SimEngineHook(self)
-        failure_engine = SimEngineFailure(self)
-        syscall_engine = SimEngineSyscall(self)
-        unicorn_engine = SimEngineUnicorn(self._sim_procedures)
-
         self.entry = self.loader.main_object.entry
-        self.factory = AngrObjectFactory(
-                self,
-                engine,
-                procedure_engine,
-                [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
-        self.analyses = Analyses(self)
+        self.storage = defaultdict(list)
+        self.store_function = store_function or self._store
+        self.load_function = load_function or self._load
+
+        # Step 4: Set up the project's plugin hubs
+        # Step 4.1: Engines. Get the preset from the loader, from the arch, or use the default.
+        engines = EngineHub(self)
+        if engines_preset is not None:
+            engines.use_plugin_preset(engines_preset)
+        elif self.loader.main_object.engine_preset is not None:
+            try:
+                engines.use_plugin_preset(self.loader.main_object.engine_preset)
+            except NoPlugin:
+                raise ValueError("The CLE loader asked to use a engine preset: %s" % \
+                        self.loader.main_object.engine_preset)
+        else:
+            try:
+                engines.use_plugin_preset(self.arch.name)
+            except NoPlugin:
+                engines.use_plugin_preset('default')
+
+        self.engines = engines
+        self.factory = AngrObjectFactory(self)
+
+        # Step 4.2: Analyses
+        self.analyses = AnalysesHub(self)
+        self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
+
+        # Step 4.3: ...etc
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
 
-        if self.filename is not None:
-            projects[self.filename] = self
-
-        # Step 4: determine the guest OS
+        # Step 5: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self.simos = simos(self) #pylint:disable=invalid-name
         elif simos is None:
@@ -223,11 +205,11 @@ class Project(object):
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
-        # Step 5: Register simprocedures as appropriate for library functions
+        # Step 6: Register simprocedures as appropriate for library functions
         for obj in self.loader.initial_load_objects:
             self._register_object(obj)
 
-        # Step 6: Run OS-specific configuration
+        # Step 7: Run OS-specific configuration
         self.simos.configure_project()
 
     def _register_object(self, obj):
@@ -339,6 +321,7 @@ class Project(object):
     # They're all related to hooking!
     #
 
+    # pylint: disable=inconsistent-return-statements
     def hook(self, addr, hook=None, length=0, kwargs=None, replace=False):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
@@ -461,8 +444,21 @@ class Project(object):
         if type(symbol_name) not in (int, long):
             sym = self.loader.find_symbol(symbol_name)
             if sym is None:
-                l.error("Could not find symbol %s", symbol_name)
-                return None
+                # it could be a previously unresolved weak symbol..?
+                new_sym = None
+                for reloc in self.loader.find_relevant_relocations(symbol_name):
+                    if not reloc.symbol.is_weak:
+                        raise Exception("Symbol is strong but we couldn't find its resolution? Report to @rhelmot.")
+                    if new_sym is None:
+                        new_sym = self.loader.extern_object.make_extern(symbol_name)
+                    reloc.resolve(new_sym)
+                    reloc.relocate([])
+
+                if new_sym is None:
+                    l.error("Could not find symbol %s", symbol_name)
+                    return None
+                sym = new_sym
+
             basic_addr = sym.rebased_addr
         else:
             basic_addr = symbol_name
@@ -506,11 +502,13 @@ class Project(object):
             l.warning("Could not find symbol %s", symbol_name)
             return False
         if sym.owner_obj is self.loader._extern_object:
-            l.warning("Not unhooking extern symbol %s", symbol_name)
+            l.warning("Refusing to unhook external symbol %s, replace it with another hook if you want to change it",
+                      symbol_name)
             return False
 
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         self.unhook(hook_addr)
+        return True
 
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
@@ -574,15 +572,62 @@ class Project(object):
     def __getstate__(self):
         try:
             analyses, surveyors = self.analyses, self.surveyors
+            store_func, load_func = self.store_function, self.load_function
             self.analyses, self.surveyors = None, None
+            self.store_function, self.load_function = None, None
             return dict(self.__dict__)
         finally:
             self.analyses, self.surveyors = analyses, surveyors
+            self.store_function, self.load_function = store_func, load_func
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.analyses = Analyses(self)
+        self.analyses = AnalysesHub(self)
         self.surveyors = Surveyors(self)
+
+    def _store(self, container):
+        # If container is a filename.
+        if isinstance(container, str):
+            with open(container, 'wb') as f:
+                try:
+                    pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
+                except RuntimeError as e: # maximum recursion depth can be reached here
+                    l.error("Unable to store Project, '%s' during pickling", e.message)
+
+        # If container is an open file.
+        elif isinstance(container, file):
+            try:
+                pickle.dump(self, container, pickle.HIGHEST_PROTOCOL)
+            except RuntimeError as e: # maximum recursion depth can be reached here
+                l.error("Unable to store Project, '%s' during pickling", e.message)
+
+        # If container is just a variable.
+        else:
+            try:
+                container = pickle.dumps(self, pickle.HIGHEST_PROTOCOL)
+            except RuntimeError as e: # maximum recursion depth can be reached here
+                l.error("Unable to store Project, '%s' during pickling", e.message)
+
+    @staticmethod
+    def _load(container):
+        if isinstance(container, str):
+            # If container is a filename.
+            if all(c in string.printable for c in container) and os.path.exists(container):
+                with open(container, 'rb') as f:
+                    return pickle.load(f)
+
+            # If container is a pickle string.
+            else:
+                return pickle.loads(container)
+
+        # If container is an open file
+        elif isinstance(container, file):
+            return pickle.load(container)
+
+        # What else could it be?
+        else:
+            l.error("Cannot unpickle container of type %s", type(container))
+            return None
 
     def __repr__(self):
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
@@ -597,11 +642,11 @@ class Project(object):
         return self.simos
 
 
-from .errors import AngrError
+from .errors import AngrError, NoPlugin
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
-from .analyses.analysis import Analyses
+from .analyses.analysis import AnalysesHub
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
-from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
+from .engines import EngineHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

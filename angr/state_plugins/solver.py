@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import sys
 import functools
 import time
@@ -176,13 +174,18 @@ def concrete_path_list(f):
 import claripy
 class SimSolver(SimStatePlugin):
     """
-    Symbolic solver.
+    This is the plugin you'll use to interact with symbolic variables, creating them and evaluating them.
+    It should be available on a state as ``state.solver``.
+
+    Any top-level variable of the claripy module can be accessed as a property of this object.
     """
-    def __init__(self, solver=None, all_variables=None): #pylint:disable=redefined-outer-name
+    def __init__(self, solver=None, all_variables=None, temporal_tracked_variables=None, eternal_tracked_variables=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")
         SimStatePlugin.__init__(self)
         self._stored_solver = solver
-        self.all_variables = [ ] if all_variables is None else all_variables
+        self.all_variables = [] if all_variables is None else all_variables
+        self.temporal_tracked_variables = {} if temporal_tracked_variables is None else temporal_tracked_variables
+        self.eternal_tracked_variables = {} if eternal_tracked_variables is None else eternal_tracked_variables
 
     def reload_solver(self):
         """
@@ -193,8 +196,70 @@ class SimSolver(SimStatePlugin):
         self._stored_solver = None
         self._solver.add(constraints)
 
+    def get_variables(self, *keys):
+        """
+        Iterate over all variables for which their tracking key is a prefix of the values provided.
+
+        Elements are a tuple, the first element is the full tracking key, the second is the symbol.
+
+        >>> list(s.solver.get_variables('mem'))
+        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>)]
+
+        >>> list(s.solver.get_variables('file'))
+        [(('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+
+        >>> list(s.solver.get_variables('file', 2))
+        [(('file', 2, 0), <BV8 file_2_0_8_8>)]
+
+        >>> list(s.solver.get_variables())
+        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>), (('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+        """
+        for k, v in self.eternal_tracked_variables.iteritems():
+            if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
+                yield k, v
+        for k, v in self.temporal_tracked_variables.iteritems():
+            if k[-1] is None:
+                continue
+            if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
+                yield k, v
+
+    def register_variable(self, v, key, eternal=True):
+        """
+        Register a value with the variable tracking system
+
+        :param v:       The BVS to register
+        :param key:     A tuple to register the variable under
+        :parma eternal: Whether this is an eternal variable, default True. If False, an incrementing counter will be
+                        appended to the key.
+        """
+        if type(key) is not tuple:
+            raise TypeError("Variable tracking key must be a tuple")
+        if eternal:
+            self.eternal_tracked_variables[key] = v
+        else:
+            self.temporal_tracked_variables = dict(self.temporal_tracked_variables)
+            ctrkey = key + (None,)
+            ctrval = self.temporal_tracked_variables.get(ctrkey, 0) + 1
+            self.temporal_tracked_variables[ctrkey] = ctrval
+            tempkey = key + (ctrval,)
+            self.temporal_tracked_variables[tempkey] = v
+
+    def describe_variables(self, v):
+        """
+        Given an AST, iterate over all the keys of all the BVS leaves in the tree which are registered.
+        """
+        reverse_mapping = {iter(var.variables).next(): k for k, var in self.eternal_tracked_variables.iteritems()}
+        reverse_mapping.update({iter(var.variables).next(): k for k, var in self.temporal_tracked_variables.iteritems() if k[-1] is not None})
+
+        for var in v.variables:
+            if var in reverse_mapping:
+                yield reverse_mapping[var]
+
     @property
     def _solver(self):
+        """
+        Creates or gets a Claripy solver, based on the state options.
+        """
         if self._stored_solver is not None:
             return self._stored_solver
 
@@ -220,7 +285,25 @@ class SimSolver(SimStatePlugin):
     #
     # Get unconstrained stuff
     #
-    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, **kwargs):
+    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, key=None, eternal=False, **kwargs):
+        """
+        Creates an unconstrained symbol or a default concrete value (0), based on the state options.
+
+        :param name:            The name of the symbol.
+        :param bits:            The size (in bits) of the symbol.
+        :param uninitialized:   Whether this value should be counted as an "uninitialized" value in the course of an
+                                analysis.
+        :param inspect:         Set to False to avoid firing SimInspect breakpoints
+        :param events:          Set to False to avoid generating a SimEvent for the occasion
+        :param key:             Set this to a tuple of increasingly specific identifiers (for example,
+                                ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
+                                accessable through ``solver.get_variables``.
+        :param eternal:         Set to True in conjunction with setting a key to cause all states with the same
+                                ancestry to retrieve the same symbol when trying to create the value. If False, a
+                                counter will be appended to the key.
+
+        :returns:               an unconstrained symbol (or a concrete value of 0).
+        """
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
@@ -229,35 +312,56 @@ class SimSolver(SimStatePlugin):
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, key=key, eternal=eternal, inspect=inspect, events=events, **kwargs)
                 else:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, key=key, eternal=eternal, inspect=inspect, events=events, **kwargs)
 
             return r
         else:
             # Return a default value, aka. 0
             return claripy.BVV(0, bits)
 
-    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, inspect=True, events=True, **kwargs): #pylint:disable=redefined-builtin
+    def BVS(self, name, size,
+            min=None, max=None, stride=None,
+            uninitialized=False,
+            explicit_name=None, key=None, eternal=False,
+            inspect=True, events=True,
+            **kwargs): #pylint:disable=redefined-builtin
         """
         Creates a bit-vector symbol (i.e., a variable). Other keyword parameters are passed directly on to the
         constructor of claripy.ast.BV.
 
         :param name:            The name of the symbol.
         :param size:            The size (in bits) of the bit-vector.
-        :param min:             The minimum value of the symbol.
-        :param max:             The maximum value of the symbol.
-        :param stride:          The stride of the symbol.
+        :param min:             The minimum value of the symbol. Note that this **only** work when using VSA.
+        :param max:             The maximum value of the symbol. Note that this **only** work when using VSA.
+        :param stride:          The stride of the symbol. Note that this **only** work when using VSA.
         :param uninitialized:   Whether this value should be counted as an "uninitialized" value in the course of an
                                 analysis.
-        :param explicit_name:   If False, an identifier is appended to the name to ensure uniqueness.
+        :param explicit_name:   Set to True to prevent an identifier from appended to the name to ensure uniqueness.
+        :param key:             Set this to a tuple of increasingly specific identifiers (for example,
+                                ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
+                                accessable through ``solver.get_variables``.
+        :param eternal:         Set to True in conjunction with setting a key to cause all states with the same
+                                ancestry to retrieve the same symbol when trying to create the value. If False, a
+                                counter will be appended to the key.
+        :param inspect:         Set to False to avoid firing SimInspect breakpoints
+        :param events:          Set to False to avoid generating a SimEvent for the occasion
 
         :return:                A BV object representing this symbol.
         """
 
+        # should this be locked for multithreading?
+        if key is not None and eternal and key in self.eternal_tracked_variables:
+            r = self.eternal_tracked_variables[key]
+            # pylint: disable=too-many-boolean-expressions
+            if size != r.length or min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
+                l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
+        else:
+            r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
+            if key is not None:
+                self.register_variable(r, key, eternal)
 
-
-        r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
         if inspect:
             self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
         if events:
@@ -290,7 +394,7 @@ class SimSolver(SimStatePlugin):
     #
 
     def copy(self):
-        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables)
+        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables, temporal_tracked_variables=self.temporal_tracked_variables, eternal_tracked_variables=self.eternal_tracked_variables)
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613
@@ -312,10 +416,17 @@ class SimSolver(SimStatePlugin):
     #
 
     def downsize(self):
-        return self._solver.downsize()
+        """
+        Frees memory associated with the constraint solver by clearing all of
+        its internal caches.
+        """
+        self._solver.downsize()
 
     @property
     def constraints(self):
+        """
+        Returns the constraints of the state stored by the solver.
+        """
         return self._solver.constraints
 
     def _adjust_constraint(self, c):
@@ -373,6 +484,14 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def max(self, e, extra_constraints=(), exact=None):
+        """
+        Return the maximum value of expression `e`.
+
+        :param e                : expression (an AST) to evaluate
+        :param extra_constraints: extra constraints (as ASTs) to add to the solver for this solve
+        :param exact            : if False, return approximate solutions.
+        :return: the maximum possible value of e (backend object)
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -385,6 +504,14 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def min(self, e, extra_constraints=(), exact=None):
+        """
+        Return the minimum value of expression `e`.
+
+        :param e                : expression (an AST) to evaluate
+        :param extra_constraints: extra constraints (as ASTs) to add to the solver for this solve
+        :param exact            : if False, return approximate solutions.
+        :return: the minimum possible value of e (backend object)
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -396,6 +523,15 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def solution(self, e, v, extra_constraints=(), exact=None):
+        """
+        Return True if `v` is a solution of `expr` with the extra constraints, False otherwise.
+
+        :param e:                   An expression (an AST) to evaluate
+        :param v:                   The proposed solution (an AST)
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :param exact:               If False, return approximate solutions.
+        :return:                    True if `v` is a solution of `expr`, False otherwise
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -409,6 +545,16 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def is_true(self, e, extra_constraints=(), exact=None):
+        """
+        If the expression provided is absolutely, definitely a true boolean, return True.
+        Note that returning False doesn't necessarily mean that the expression can be false, just that we couldn't
+        figure that out easily.
+
+        :param e:                   An expression (an AST) to evaluate
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :param exact:               If False, return approximate solutions.
+        :return:                    True if `v` is definitely true, False otherwise
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -422,6 +568,16 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def is_false(self, e, extra_constraints=(), exact=None):
+        """
+        If the expression provided is absolutely, definitely a false boolean, return True.
+        Note that returning False doesn't necessarily mean that the expression can be true, just that we couldn't
+        figure that out easily.
+
+        :param e:                   An expression (an AST) to evaluate
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :param exact:               If False, return approximate solutions.
+        :return:                    True if `v` is definitely false, False otherwise
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
             er = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
@@ -434,6 +590,12 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def unsat_core(self, extra_constraints=()):
+        """
+        This function returns the unsat core from the backend solver.
+
+        :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
+        :return: The unsat core.
+        """
         if o.CONSTRAINT_TRACKING_IN_SOLVER not in self.state.options:
             raise SimSolverOptionError('CONSTRAINT_TRACKING_IN_SOLVER must be enabled before calling unsat_core().')
         return self._solver.unsat_core(extra_constraints=extra_constraints)
@@ -441,15 +603,15 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def solve(self, extra_constraints=(), exact=None):
-        return self._solver.solve(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
-
-    @timed_function
-    @ast_stripping_decorator
-    @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
-       #if self.state.addr == 0x804a4df:
-       #    import ipdb; ipdb.set_trace()
+        """
+        This function does a constraint check and checks if the solver is in a sat state.
+
+        :param extra_constraints:   Extra constraints (as ASTs) to add to s for this solve
+        :param exact:               If False, return approximate solutions.
+
+        :return:                    True if sat, otherwise false
+        """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
             ar = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
@@ -462,6 +624,11 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def add(self, *constraints):
+        """
+        Add some constraints to the solver.
+
+        :param constraints:     Pass any constraints that you want to add (ASTs) as varargs.
+        """
         cc = self._adjust_constraint_list(constraints)
         return self._solver.add(cc)
 
@@ -646,6 +813,11 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     def unique(self, e, **kwargs):
+        """
+        Returns True if the expression `e` has only one solution by querying
+        the constraint solver. It does also add that unique solution to the
+        solver's constraints.
+        """
         if not isinstance(e, claripy.ast.Base):
             return True
 
@@ -663,11 +835,19 @@ class SimSolver(SimStatePlugin):
             return False
 
     def symbolic(self, e): # pylint:disable=R0201
+        """
+        Returns True if the expression `e` is symbolic.
+        """
         if type(e) in (int, str, float, bool, long):
             return False
         return e.symbolic
 
     def single_valued(self, e):
+        """
+        Returns True whether `e` is a concrete value or is a value set with
+        only 1 possible value. This differs from `unique` in that this *does*
+        not query the constraint solver.
+        """
         if self.state.mode == 'static':
             if type(e) in (int, str, float, bool, long):
                 return True
@@ -678,19 +858,23 @@ class SimSolver(SimStatePlugin):
             # All symbolic expressions are not single-valued
             return not self.symbolic(e)
 
-    def simplify(self, *args):
-        if len(args) == 0:
+    def simplify(self, e=None):
+        """
+        Simplifies `e`. If `e` is None, simplifies the constraints of this
+        state.
+        """
+        if e is None:
             return self._solver.simplify()
-        elif isinstance(args[0], (int, long, float, bool)):
-            return args[0]
-        elif isinstance(args[0], claripy.ast.Base) and args[0].op in claripy.operations.leaf_operations_concrete:
-            return args[0]
-        elif isinstance(args[0], SimActionObject) and args[0].op in claripy.operations.leaf_operations_concrete:
-            return args[0].ast
-        elif not isinstance(args[0], (SimActionObject, claripy.ast.Base)):
-            return args[0]
+        elif isinstance(e, (int, long, float, bool)):
+            return e
+        elif isinstance(e, claripy.ast.Base) and e.op in claripy.operations.leaf_operations_concrete:
+            return e
+        elif isinstance(e, SimActionObject) and e.op in claripy.operations.leaf_operations_concrete:
+            return e.ast
+        elif not isinstance(e, (SimActionObject, claripy.ast.Base)):
+            return e
         else:
-            return self._claripy_simplify(*args)
+            return self._claripy_simplify(e)
 
     @timed_function
     @ast_stripping_decorator
@@ -699,9 +883,12 @@ class SimSolver(SimStatePlugin):
         return claripy.simplify(args[0])
 
     def variables(self, e): #pylint:disable=no-self-use
+        """
+        Returns the symbolic variables present in the AST of `e`.
+        """
         return e.variables
 
-SimStatePlugin.register_default('solver_engine', SimSolver)
+SimSolver.register_default('solver')
 from .. import sim_options as o
 from .inspect import BP_AFTER
 from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

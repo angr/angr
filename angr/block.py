@@ -5,7 +5,7 @@ import pyvex
 from archinfo import ArchARM
 from .engines import SimEngineVEX
 
-DEFAULT_VEX_ENGINE = SimEngineVEX()  # this is only used when Block is not initialized with a project
+DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
 
 
 class Block(object):
@@ -173,7 +173,14 @@ class Block(object):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
-            self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
+            buf, size = self._project.loader.memory.read_bytes_c(addr)
+
+            # Make sure it does not go over-bound
+            if buf is not None and self.size <= size:
+                self._bytes = pyvex.ffi.unpack(pyvex.ffi.cast('char*', buf), self.size)
+            else:
+                # fall back to the slow path
+                self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
         return self._bytes
 
     @property

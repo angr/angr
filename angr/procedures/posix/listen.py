@@ -10,5 +10,5 @@ class listen(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, sockfd, backlog): #pylint:disable=unused-argument
-        return self.state.se.Unconstrained('listen', self.state.arch.bits)
+        return self.state.se.Unconstrained('listen', self.state.arch.bits, key=('api', 'listen'))
 

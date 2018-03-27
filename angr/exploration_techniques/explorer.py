@@ -52,12 +52,11 @@ class Explorer(ExplorationTechnique):
             avoid = avoid_addrs or set()
 
             # we need the find addresses to be determined statically
-            if find_addrs is None:
+            if not find_addrs:
                 l.error("You must provide at least one 'find' address as a number, set, list, or tuple if you provide a CFG.")
                 l.error("Usage of the CFG has been disabled for this explorer.")
                 self.cfg = None
                 return
-            find = self.find.addrs
 
             for a in avoid:
                 if cfg.get_any_node(a) is None:
@@ -65,7 +64,7 @@ class Explorer(ExplorationTechnique):
 
             # not a queue but a stack... it's just a worklist!
             queue = []
-            for f in find:
+            for f in find_addrs:
                 nodes = cfg.get_all_nodes(f)
                 if len(nodes) == 0:
                     l.warning("'Find' address %#x not present in CFG...", f)
@@ -98,7 +97,7 @@ class Explorer(ExplorationTechnique):
 
     def step(self, simgr, stash, **kwargs):
         base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
-        return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
+        return simgr._one_step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
     def filter(self, state):
         if sim_options.UNICORN in state.options and self._warn_unicorn:

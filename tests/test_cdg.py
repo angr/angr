@@ -8,7 +8,8 @@ import nose.tools
 import angr
 from angr.analyses.cdg import TemporaryNode
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../binaries/tests"))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
+
 
 def test_graph_0():
 
@@ -87,18 +88,13 @@ def test_graph_0():
             nose.tools.assert_true(cdg.graph.has_edge(TemporaryNode(node), TemporaryNode(n)))
         nose.tools.assert_equal(len(cdg.graph.out_edges(TemporaryNode(node))), len(cd_nodes))
 
+
 def test_dominance_frontiers():
+
+    from angr.utils.graph import compute_dominance_frontier
 
     # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron Cytron,
     # etc.
-
-    # Create a project with a random binary - it will not be used anyways
-    p = angr.Project(test_location + "/x86_64/datadep_test",
-                     load_options={'auto_load_libs': False},
-                     use_sim_procedures=True)
-
-    # Create the CDG analysis
-    cdg = p.analyses.CDG(None, no_construct=True)
 
     # Create our mock control flow graph
     g = networkx.DiGraph()
@@ -138,11 +134,8 @@ def test_dominance_frontiers():
     postdom.add_edge(11, 12)
     postdom.add_edge('Entry', 'Exit')
 
-    # Manually set the normalized_cfg
-    cdg._normalized_cfg = g
-
     # Call df_construct()
-    df = cdg._df_construct(postdom)
+    df = compute_dominance_frontier(g, postdom)
 
     standard_df = {
         1: { 'Exit' },
@@ -162,11 +155,13 @@ def test_dominance_frontiers():
     }
     nose.tools.assert_equal(df, standard_df)
 
+
 def run_all():
     g = globals()
     for k, v in g.iteritems():
         if k.startswith('test_') and hasattr(v, '__call__'):
             v()
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:

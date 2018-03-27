@@ -136,4 +136,4 @@ class GDB(SimStatePlugin):
     def copy(self):
         return GDB()
 
-SimStatePlugin.register_default('gdb', GDB)
+GDB.register_default('gdb')

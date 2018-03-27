@@ -44,7 +44,7 @@ class SimFastMemory(SimMemory):
         The default uninitialized read handler. Returns symbolic bytes.
         """
         if self._uninitialized_read_handler is None:
-            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*self.state.arch.byte_width, inspect=inspect, events=events)
+            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*self.state.arch.byte_width, key=self.variable_key_prefix + (addr,), inspect=inspect, events=events)
             return v.reversed if self.endness == "Iend_LE" else v
         else:
             return self._uninitialized_read_handler(self, addr, inspect=inspect, events=events)

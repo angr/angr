@@ -14,6 +14,6 @@ class LengthLimiter(ExplorationTechnique):
         return s.history.block_count > self._max_length
 
     def step(self, pg, stash, **kwargs):
-        pg = pg.step(stash=stash, **kwargs)
+        pg = pg._one_step(stash=stash, **kwargs)
         pg.move('active', '_DROP' if self._drop else 'cut', self._filter)
         return pg

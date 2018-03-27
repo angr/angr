@@ -55,6 +55,9 @@ class AngrSyscallError(AngrError):
 class AngrSimOSError(AngrError):
     pass
 
+class AngrAssemblyError(AngrError):
+    pass
+
 # Congruency check failure
 class AngrIncongruencyError(AngrAnalysisError):
     pass
@@ -374,4 +377,8 @@ class SimSegfaultException(SimException, SimMemoryError):
 SimSegfaultError = SimSegfaultException
 
 class SimZeroDivisionException(SimException, SimOperationError):
+    pass
+
+
+class NoPlugin(AngrError):
     pass

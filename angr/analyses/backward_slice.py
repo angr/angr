@@ -4,7 +4,7 @@ from itertools import ifilter
 
 import networkx
 import pyvex
-from . import Analysis, register_analysis
+from . import Analysis
 
 from .code_location import CodeLocation
 from ..annocfg import AnnotatedCFG
@@ -684,4 +684,4 @@ class BackwardSlice(Analysis):
 
         return cmp_stmt_id, cmp_tmp_id
 
-register_analysis(BackwardSlice, 'BackwardSlice')
+BackwardSlice.register_default()

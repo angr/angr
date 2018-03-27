@@ -20,3 +20,5 @@ from .sim_event import *
 from .callstack import *
 from .globals import *
 from .preconstrainer import *
+from .loop_data import *
+from .view import *

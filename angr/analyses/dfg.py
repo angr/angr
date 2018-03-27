@@ -1,7 +1,7 @@
 import logging
 from copy import copy
 
-from . import Analysis, register_analysis
+from . import Analysis
 from networkx import DiGraph
 
 l = logging.getLogger("angr.analyses.dfg")
@@ -165,4 +165,4 @@ class DFG(Analysis):
                 dfgs[node.addr] = dfg
         return dfgs
 
-register_analysis(DFG, 'DFG')
+DFG.register_default()

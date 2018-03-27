@@ -8,7 +8,7 @@ class MessageBoxA(angr.SimProcedure):
         else:
             caption = 'Error'
 
-        result = self.state.solver.If(uType & 0xf == 0, 1, self.state.solver.BVS('messagebox_button', 32))
+        result = self.state.solver.If(uType & 0xf == 0, 1, self.state.solver.BVS('messagebox_button', 32), key=('api', 'messagebox', 'button'))
         self.state.history.add_event('message_box', text=text, caption=caption, result=result)
         return result
 

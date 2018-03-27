@@ -430,7 +430,6 @@ def test_block_instruction_addresses_armhf():
     path = os.path.join(test_location, 'armhf', 'fauxware')
     proj = angr.Project(path, auto_load_libs=False)
 
-    import logging
     logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
 
     cfg = proj.analyses.CFGFast()
@@ -449,6 +448,27 @@ def test_block_instruction_addresses_armhf():
     nose.tools.assert_equal(len(main_node.instruction_addrs), 12)
     for instr_addr in main_node.instruction_addrs:
         nose.tools.assert_true(instr_addr % 2 == 1)
+
+#
+# Blanket
+#
+
+def test_blanket_fauxware():
+
+    path = os.path.join(test_location, 'x86_64', 'fauxware')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+
+    cfb = proj.analyses.CFBlanket(cfg=cfg)
+
+    # it should raise a key error when calling floor_addr on address 0 because nothing is mapped there
+    nose.tools.assert_raises(KeyError, cfb.floor_addr, 0)
+    # an instruction (or a block) starts at 0x400580
+    nose.tools.assert_equal(cfb.floor_addr(0x400581), 0x400580)
+    # a block ends at 0x4005a9 (exclusive)
+    nose.tools.assert_equal(cfb.ceiling_addr(0x400581), 0x4005a9)
+
 
 def run_all():
 

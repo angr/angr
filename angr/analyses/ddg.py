@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import networkx
 import pyvex
-from . import Analysis, register_analysis
+from . import Analysis
 
 from .code_location import CodeLocation
 from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
@@ -1636,4 +1636,4 @@ class DDG(Analysis):
 
         return sources
 
-register_analysis(DDG, 'DDG')
+DDG.register_default()

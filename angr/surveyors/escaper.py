@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from .surveyor import Surveyor
 from . import Explorer
 

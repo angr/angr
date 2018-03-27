@@ -1,14 +1,17 @@
-import claripy
 import logging
 
-from . import ExplorationTechnique
+import claripy
 
+from . import ExplorationTechnique
 from .. import BP_AFTER, BP_BEFORE
+
 
 l = logging.getLogger("angr.exploration_techniques.crash_monitor")
 
+
 EXEC_STACK = 'EXEC_STACK'
 QEMU_CRASH = 'SEG_FAULT'
+
 
 class CrashMonitor(ExplorationTechnique):
     """
@@ -65,14 +68,14 @@ class CrashMonitor(ExplorationTechnique):
             if self._trim_history and not self._crash_mode:
                 self.last_state.history.trim()
 
-            simgr.step(**kwargs)
+            simgr._one_step(stash, **kwargs)
 
             if self._crash_type == EXEC_STACK:
                 return simgr
 
             # check to see if we reached a deadend
             if self.last_state.globals['bb_cnt'] >= len(self._trace) and self._crash_mode:
-                simgr.step()
+                simgr._one_step(stash)
                 self._crash_type = QEMU_CRASH
                 return simgr
 

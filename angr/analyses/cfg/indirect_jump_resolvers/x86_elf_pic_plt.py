@@ -4,7 +4,6 @@ import logging
 import archinfo
 import cle
 
-from ....engines import SimEngineVEX
 from .resolver import IndirectJumpResolver
 
 
@@ -51,7 +50,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         if not isinstance(self.project.arch, archinfo.ArchX86):
             return False
 
-        section = cfg._addr_belongs_to_section(addr)
+        section = self.project.loader.find_section_containing(addr)
         if section.name != '.plt':
             return False
 
@@ -80,7 +79,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         state = cfg._initial_state.copy()
         state.regs.ebx = got_addr
 
-        successors = SimEngineVEX().process(state, block, force_addr=addr)
+        successors = self.project.engines.default_engine.process(state, block, force_addr=addr)
 
         if len(successors.flat_successors) != 1:
             return False, [ ]

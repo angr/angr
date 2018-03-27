@@ -59,9 +59,7 @@ class SimStateHistory(SimStatePlugin):
 
         self.strongref_state = None if clone is None else clone.strongref_state
 
-    def set_state(self, state):
-        super(SimStateHistory, self).set_state(state)
-
+    def init_state(self):
         self.successor_ip = self.state._ip
 
     def __getstate__(self):
@@ -119,13 +117,21 @@ class SimStateHistory(SimStatePlugin):
         # correct results when using constraints_since()
         self.parent = common_ancestor if common_ancestor is not None else self.parent
 
-        # recents_events must be the join of all recents events
-        # in order to keep constraints_since() correct
-        self.recent_events = [e.recent_events for e in itertools.chain([self], others)]
+        self.recent_events = [e.recent_events for e in itertools.chain([self], others)
+                              if not isinstance(e, SimActionConstraint)
+                              ]
+
+        # rebuild recent constraints
+        recent_constraints = [ h.constraints_since(common_ancestor) for h in itertools.chain([self], others) ]
+        combined_constraint = self.state.solver.Or(
+            *[ self.state.solver.simplify(self.state.solver.And(*history_constraints)) for history_constraints in recent_constraints ]
+        )
+        self.recent_events.append(SimActionConstraint(self.state, combined_constraint))
+
         # hard to say what we should do with these others list of things...
-        self.recent_bbl_addrs = [e.recent_bbl_addrs for e in itertools.chain([self], others)]
-        self.recent_ins_addrs = [e.recent_ins_addrs for e in itertools.chain([self], others)]
-        self.recent_stack_actions = [e.recent_stack_actions for e in itertools.chain([self], others)]
+        #self.recent_bbl_addrs = [e.recent_bbl_addrs for e in itertools.chain([self], others)]
+        #self.recent_ins_addrs = [e.recent_ins_addrs for e in itertools.chain([self], others)]
+        #self.recent_stack_actions = [e.recent_stack_actions for e in itertools.chain([self], others)]
 
         return True
 
@@ -188,18 +194,16 @@ class SimStateHistory(SimStatePlugin):
                 write_type = 'mem'
                 write_offset = write_to
 
-        """
-        def addr_of_stmt(bbl_addr, stmt_idx):
-            if stmt_idx is None:
-                return None
-            stmts = self.state.project.factory.block(bbl_addr).vex.statements
-            if stmt_idx >= len(stmts):
-                return None
-            for i in reversed(xrange(stmt_idx + 1)):
-                if stmts[i].tag == 'Ist_IMark':
-                    return stmts[i].addr + stmts[i].delta
-            return None
-        """
+        #def addr_of_stmt(bbl_addr, stmt_idx):
+        #    if stmt_idx is None:
+        #        return None
+        #    stmts = self.state.project.factory.block(bbl_addr).vex.statements
+        #    if stmt_idx >= len(stmts):
+        #        return None
+        #    for i in reversed(xrange(stmt_idx + 1)):
+        #        if stmts[i].tag == 'Ist_IMark':
+        #            return stmts[i].addr + stmts[i].delta
+        #    return None
 
         def action_reads(action):
             if action.type != read_type:
@@ -514,6 +518,6 @@ class LambdaIterIter(LambdaAttrIter):
             for a in reversed(self._f(hist)) if self._reverse else self._f(hist):
                 yield a
 
-SimStateHistory.register_default('history', SimStateHistory)
+SimStateHistory.register_default('history')
 from .sim_action import SimAction, SimActionConstraint
 from .sim_event import SimEvent

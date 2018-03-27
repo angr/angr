@@ -5,7 +5,7 @@ import angr
 import archinfo
 import claripy
 import networkx
-from . import Analysis, register_analysis
+from . import Analysis
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
@@ -1822,4 +1822,4 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return self._function_node_addrs[function_address]
 
-register_analysis(VFG, 'VFG')
+VFG.register_default()

@@ -21,6 +21,7 @@ class mmap(angr.SimProcedure):
     def run(self, addr, length, prot, flags, fd, offset): #pylint:disable=arguments-differ,unused-argument
         #if self.state.se.symbolic(flags) or self.state.se.eval(flags) != 0x22:
         #   raise Exception("mmap with other than MAP_PRIVATE|MAP_ANONYMOUS unsupported")
+        l.debug("mmap(%s, %s, %s, %s, %s, %s) = ...", addr, length, prot, flags, fd, offset)
 
         #
         # Length
@@ -67,17 +68,20 @@ class mmap(angr.SimProcedure):
 
         # Sanity check. All mmap must have exactly one of MAP_SHARED or MAP_PRIVATE
         if (flags & MAP_SHARED and flags & MAP_PRIVATE) or flags & (MAP_SHARED | MAP_PRIVATE) == 0:
+            l.debug('... = -1 (bad flags)')
             return self.state.se.BVV(-1, self.state.arch.bits)
 
         while True:
             try:
                 self.state.memory.map_region(addr, size, prot[2:0], init_zero=bool(flags & MAP_ANONYMOUS))
+                l.debug('... = %#x', addr)
                 return addr
 
             except angr.SimMemoryError:
                 # This page is already mapped
 
                 if flags & MAP_FIXED:
+                    l.debug('... = -1 (MAP_FIXED failure)')
                     return self.state.se.BVV(-1, self.state.arch.bits)
 
                 # Can't give you that address. Find a different one and loop back around to try again.

@@ -333,4 +333,4 @@ class SimInspector(SimStatePlugin):
     def widen(self, others):
         return self._combine(others)
 
-SimInspector.register_default('inspector', SimInspector)
+SimInspector.register_default('inspect')

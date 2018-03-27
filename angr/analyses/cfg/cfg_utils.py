@@ -1,6 +1,4 @@
 
-from collections import defaultdict
-
 import networkx
 
 
@@ -42,12 +40,8 @@ class CFGUtils(object):
 
         merge_points = set()
 
-        in_degree_to_nodes = defaultdict(set)
-
         for node in graph.nodes():
-            in_degree = graph.in_degree(node)
-            in_degree_to_nodes[in_degree].add(node)
-            if in_degree > 1:
+            if graph.in_degree(node) > 1:
                 merge_points.add(node)
 
         ordered_merge_points = CFGUtils.quasi_topological_sort_nodes(graph, merge_points)

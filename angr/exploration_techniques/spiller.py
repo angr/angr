@@ -76,7 +76,7 @@ class Spiller(ExplorationTechnique):
         self._pickled_states += [ (self._get_priority(w.state), w.ana_store()) for w in wrappers ]
 
     def step(self, pg, stash, **kwargs):
-        pg = pg.step(stash=stash, **kwargs)
+        pg = pg._one_step(stash=stash, **kwargs)
 
         l.debug("STASH STATUS: active: %d, staging: %d", len(pg.stashes[self.src_stash]), len(pg.stashes[self.staging_stash]))
 
