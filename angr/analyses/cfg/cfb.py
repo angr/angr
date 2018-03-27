@@ -158,11 +158,14 @@ class CFBlanket(Analysis):
 
                 pos = min_addr
                 while pos < max_addr:
-                    addr, thing = self.floor_item(pos)
-                    output.append("%#x: %s" % (addr, repr(thing)))
+                    try:
+                        addr, thing = self.floor_item(pos)
+                        output.append("%#x: %s" % (addr, repr(thing)))
 
-                    if thing.size == 0: pos += 1
-                    else: pos += thing.size
+                        if thing.size == 0: pos += 1
+                        else: pos += thing.size
+                    except KeyError:
+                        pos += 1
 
                 output.append("")
 

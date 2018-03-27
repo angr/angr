@@ -461,9 +461,14 @@ def test_blanket_fauxware():
 
     cfg = proj.analyses.CFGFast()
 
-    cfb = proj.analyses.CFB(cfg=cfg)
+    cfb = proj.analyses.CFBlanket(cfg=cfg)
 
-    print cfb.dbg_repr()
+    # it should raise a key error when calling floor_addr on address 0 because nothing is mapped there
+    nose.tools.assert_raises(KeyError, cfb.floor_addr, 0)
+    # an instruction (or a block) starts at 0x400580
+    nose.tools.assert_equal(cfb.floor_addr(0x400581), 0x400580)
+    # a block ends at 0x4005a9 (exclusive)
+    nose.tools.assert_equal(cfb.ceiling_addr(0x400581), 0x4005a9)
 
 
 def run_all():
