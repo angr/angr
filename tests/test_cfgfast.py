@@ -430,7 +430,6 @@ def test_block_instruction_addresses_armhf():
     path = os.path.join(test_location, 'armhf', 'fauxware')
     proj = angr.Project(path, auto_load_libs=False)
 
-    import logging
     logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
 
     cfg = proj.analyses.CFGFast()
@@ -505,9 +504,6 @@ def run_all():
 
 
 def main():
-    test_blanket_fauxware()
-    return
-
     if len(sys.argv) > 1:
         g = globals().copy()
         for func_and_args in g['test_' + sys.argv[1]]():

@@ -99,7 +99,7 @@ class CFBlanket(Analysis):
             try:
                 item = self._blanket[addr]
                 yield (addr, item)
-                item_size = item.size if item.size > 0 else 1
+                item_size = item.size if item.size > 0 else 1  # pylint: disable=no-member
                 addr = self.ceiling_addr(addr + item_size)
             except KeyError:
                 break
@@ -227,11 +227,11 @@ class CFBlanket(Analysis):
     def _mark_unknowns_core(self, min_addr, max_addr, obj=None, segment=None, section=None):
 
         try:
-            addr, item = self.floor_item(min_addr)
+            addr = self.floor_addr(min_addr)
             if addr < min_addr:
                 raise KeyError
         except KeyError:
-            # there is no other lower addresses
+            # there is no other lower address
             try:
                 next_addr = self.ceiling_addr(min_addr)
                 if next_addr >= max_addr:
