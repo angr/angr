@@ -14,8 +14,8 @@ start = time.time()
 #s = b.factory.blank_state(add_options={"COMPOSITE_SOLVER"})
 s = b.factory.blank_state(add_options={"COMPOSITE_SOLVER"}, remove_options={"LAZY_SOLVES"})
 sm = b.factory.simgr(s)
-angr.manager.l.setLevel("DEBUG")
-sm.step(300)
+angr.sim_manager.l.setLevel("DEBUG")
+sm.run(n=300)
 end = time.time()
 print "MB:", resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
 print "time:", end-start

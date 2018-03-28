@@ -392,33 +392,33 @@ class Director(ExplorationTechnique):
         self._cfg = None
         self._cfg_kb = None
 
-    def step(self, pg, stash, **kwargs):
+    def step(self, simgr, stash=None, **kwargs):
         """
 
-        :param pg:
+        :param simgr:
         :param stash:
         :param kwargs:
         :return:
         """
 
         # make sure all current blocks are in the CFG
-        self._peek_forward(pg)
+        self._peek_forward(simgr)
 
         # categorize all states in the simulation manager
-        self._categorize_states(pg)
+        self._categorize_states(simgr)
 
-        if not pg.active:
+        if not simgr.active:
             # active states are empty - none of our existing states will reach the target for sure
-            self._load_fallback_states(pg)
+            self._load_fallback_states(simgr)
 
-        if pg.active:
+        if simgr.active:
             # step all active states forward
-            pg._one_step(stash)
+            simgr = simgr.step(stash=stash)
 
-        if not pg.active:
-            self._load_fallback_states(pg)
+        if not simgr.active:
+            self._load_fallback_states(simgr)
 
-        return pg
+        return simgr
 
     def add_goal(self, goal):
         """
@@ -434,18 +434,18 @@ class Director(ExplorationTechnique):
     # Private methods
     #
 
-    def _peek_forward(self, pg):
+    def _peek_forward(self, simgr):
         """
         Make sure all current basic block on each state shows up in the CFG. For blocks that are not in the CFG, start
         CFG recovery from them with a maximum basic block depth of 100.
 
-        :param pg:
+        :param simgr:
         :return:
         """
 
         if self._cfg is None:
 
-            starts = list(pg.active)
+            starts = list(simgr.active)
             self._cfg_kb = KnowledgeBase(self.project, self.project.loader.main_object)
 
             self._cfg = self.project.analyses.CFGAccurate(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
@@ -454,7 +454,7 @@ class Director(ExplorationTechnique):
 
         else:
 
-            starts = list(pg.active)
+            starts = list(simgr.active)
 
             self._cfg.resume(starts=starts, max_steps=self._peek_blocks)
 
@@ -473,27 +473,27 @@ class Director(ExplorationTechnique):
             pg.active.extend(pg.deprioritized[-self._num_fallback_states : ])
             pg.stashes['deprioritized'] = pg.deprioritized[ : -self._num_fallback_states]
 
-    def _categorize_states(self, pg):
+    def _categorize_states(self, simgr):
         """
         Categorize all states into two different groups: reaching the destination within the peek depth, and not
         reaching the destination within the peek depth.
 
-        :param SimulationManager pg:    The simulation manager that contains states. All active states (state belonging to "active" stash)
+        :param SimulationManager simgr:    The simulation manager that contains states. All active states (state belonging to "active" stash)
                                 are subjected to categorization.
         :return:                The categorized simulation manager.
         :rtype:                 angr.SimulationManager
         """
 
-        past_active_states = len(pg.active)
-        # past_deprioritized_states = len(pg.deprioritized)
+        past_active_states = len(simgr.active)
+        # past_deprioritized_states = len(simgr.deprioritized)
 
         for goal in self._goals:
-            for p in pg.active:
+            for p in simgr.active:
                 if self._check_goals(goal, p):
                     if self._goal_satisfied_callback is not None:
-                        self._goal_satisfied_callback(goal, p, pg)
+                        self._goal_satisfied_callback(goal, p, simgr)
 
-        pg.stash(
+        simgr.stash(
             filter_func=lambda p: all(not goal.check(self._cfg, p, peek_blocks=self._peek_blocks) for goal in
                                       self._goals
                                       ),
@@ -501,16 +501,16 @@ class Director(ExplorationTechnique):
             to_stash='deprioritized',
         )
 
-        if pg.active:
+        if simgr.active:
             # TODO: pick some states from depriorized stash to active stash to avoid overfitting
             pass
 
-        active_states = len(pg.active)
-        # deprioritized_states = len(pg.deprioritized)
+        active_states = len(simgr.active)
+        # deprioritized_states = len(simgr.deprioritized)
 
         l.debug('%d/%d active states are deprioritized.', past_active_states - active_states, past_active_states)
 
-        return pg
+        return simgr
 
     def _check_goals(self, goal, state):  # pylint:disable=no-self-use
         """

@@ -9,7 +9,7 @@ def run_0div(arch):
     p = angr.Project(os.path.join(test_location, arch, 'test_0div'))
     s = p.factory.entry_state(add_options=angr.options.unicorn)
     simgr = p.factory.simulation_manager(s)
-    simgr.step(n=5)
+    simgr.run(n=5)
     nose.tools.assert_equal(len(simgr.active), 1)
     simgr.step()
     nose.tools.assert_equal(len(simgr.errored), 1)

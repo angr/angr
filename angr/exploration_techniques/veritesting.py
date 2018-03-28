@@ -13,7 +13,7 @@ class Veritesting(ExplorationTechnique):
         super(Veritesting, self).__init__()
         self.options = options
 
-    def step_state(self, state, **kwargs):
+    def step_state(self, simgr, state, successor_func=None, **kwargs):
 
         if EFFICIENT_STATE_MERGING not in state.options:
             state.options.add(EFFICIENT_STATE_MERGING)
@@ -32,4 +32,4 @@ class Veritesting(ExplorationTechnique):
                     'errored': simgr.errored,
                     }
 
-        return None
+        return simgr.step_state(state, successor_func=successor_func, **kwargs)

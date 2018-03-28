@@ -541,7 +541,7 @@ class Project(object):
 
         pg = self.factory.simgr(state)
         self._executing = True
-        return pg.step(until=lambda lpg: not self._executing)
+        return pg.run(until=lambda lpg: not self._executing)
 
     def terminate_execution(self):
         """
