@@ -297,3 +297,4 @@ class CFBlanket(Analysis):
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('CFB', CFBlanket)
+AnalysesHub.register_default('CFBlanket', CFBlanket)
