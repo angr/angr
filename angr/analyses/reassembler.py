@@ -2807,4 +2807,5 @@ class Reassembler(Analysis):
         else:
             return data
 
-Reassembler.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('Reassembler', Reassembler)

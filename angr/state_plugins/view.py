@@ -252,5 +252,7 @@ class SimMemView(SimStatePlugin):
 from ..sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
 SimMemView.types = ALL_TYPES # identity purposefully here
 
-SimRegNameView.register_default('regs')
-SimMemView.register_default('mem')
+
+from angr.sim_state import SimState
+SimState.register_default('mem', SimMemView)
+SimState.register_default('regs', SimRegNameView)

@@ -4,7 +4,7 @@ from collections import defaultdict
 import progressbar
 import logging
 
-from ..misc.plugins import PluginVendor, VendorPreset, Plugin
+from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
 from ..errors import AngrAnalysisError
 
@@ -63,8 +63,8 @@ class AnalysesHub(PluginVendor):
     def reload_analyses(self): # pylint: disable=no-self-use
         return
 
-    def _init_plugin(self, plugin):
-        return AnalysisFactory(self.project, plugin)
+    def _init_plugin(self, plugin_cls):
+        return AnalysisFactory(self.project, plugin_cls)
 
     def __getstate__(self):
         s = super(AnalysesHub, self).__getstate__()
@@ -109,22 +109,20 @@ class AnalysisFactory(object):
         return oself
 
 
-class Analysis(Plugin):
+class Analysis(object):
     """
     This class represents an analysis on the program.
 
     :ivar project:  The project for this analysis.
     :type project:  angr.Project
     :ivar KnowledgeBase kb: The knowledgebase object.
-    :ivar callable _progress_callback: A callback function for receiving the progress of this analysis. It only takes
+    :ivar _progress_callback: A callback function for receiving the progress of this analysis. It only takes
                                         one argument, which is a float number from 0.0 to 100.0 indicating the current
                                         progress.
     :ivar bool _show_progressbar: If a progressbar should be shown during the analysis. It's independent from
                                     _progress_callback.
     :ivar progressbar.ProgressBar _progressbar: The progress bar object.
     """
-
-    _hub_type = AnalysesHub
 
     project = None
     kb = None
@@ -205,11 +203,6 @@ class Analysis(Plugin):
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))
 
-    @classmethod
-    def register_default(cls, name=None, preset='default'):
-        if name is None:
-            name = cls.__name__
-        super(Analysis, cls).register_default(name, preset)
 
 default_analyses = VendorPreset()
 AnalysesHub.register_preset('default', default_analyses)

@@ -3309,4 +3309,5 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
-CFGAccurate.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CFGAccurate', CFGAccurate)

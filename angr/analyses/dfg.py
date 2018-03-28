@@ -165,4 +165,5 @@ class DFG(Analysis):
                 dfgs[node.addr] = dfg
         return dfgs
 
-DFG.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('DFG', DFG)

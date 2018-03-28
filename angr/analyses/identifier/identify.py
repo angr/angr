@@ -829,4 +829,5 @@ class Identifier(Analysis):
         return symbolic_state
 
 
-Identifier.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('Identifier', Identifier)
