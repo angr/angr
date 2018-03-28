@@ -158,13 +158,28 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
         return mulpyplexer.MP(list(itertools.chain.from_iterable(self._stashes[s] for s in stashes)))
 
-    def copy(self, deep=False):
+    def copy(self):
         """Make a copy of this simulation manager.
 
         :return:
         """
         simgr = SimulationManager(self._project,
-                                  stashes=self._copy_stashes(deep=deep),
+                                  stashes=self._copy_stashes(),
+                                  hierarchy=self._hierarchy,
+                                  immutable=self._immutable,
+                                  resilience=self._resilence,
+                                  auto_drop=self._auto_drop,
+                                  completion_mode=self._completion_mode,
+                                  errored=self._errored)
+        return simgr
+
+    def deepcopy(self):
+        """Make a deep copy of this simulation manager.
+
+        :return:
+        """
+        simgr = SimulationManager(self._project,
+                                  stashes=self._copy_stashes(deep=True),
                                   hierarchy=self._hierarchy,
                                   immutable=self._immutable,
                                   resilience=self._resilence,
