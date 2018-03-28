@@ -158,13 +158,13 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
         return mulpyplexer.MP(list(itertools.chain.from_iterable(self._stashes[s] for s in stashes)))
 
-    def copy(self):
+    def copy(self, deep=False): # pylint: disable=arguments-differ
         """Make a copy of this simulation manager.
 
         :return:
         """
         simgr = SimulationManager(self._project,
-                                  stashes=self._copy_stashes(),
+                                  stashes=self._copy_stashes(deep=deep),
                                   hierarchy=self._hierarchy,
                                   immutable=self._immutable,
                                   resilience=self._resilence,
@@ -778,9 +778,15 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         stashes.update({name: list() for name in self._integral_stashes})
         return stashes
 
-    def _copy_stashes(self):
+    def _copy_stashes(self, deep=False):
         stashes = defaultdict(list)
-        stashes.update({name: list(stash) for name, stash in self._stashes.iteritems()})
+
+        if not deep:
+            # shallow copy
+            stashes.update({name: list(stash) for name, stash in self._stashes.iteritems()})
+        else:
+            # deep copy
+            stashes.update({name: [s.copy() for s in stash] for name, stash in self.stashes.iteritems()})
         return stashes
 
     #
