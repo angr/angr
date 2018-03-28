@@ -483,10 +483,24 @@ class SimPagedMemory(object):
         if self.state is not None:
             self.state.scratch.push_priv(True)
 
-        print self._memory_backer
-
         if self._memory_backer is None:
             pass
+
+        elif isinstance(self._memory_backer, cle.Clemory) and self._memory_backer.is_concrete_target_set():
+            try:
+                concrete_memory = self._memory_backer.read_bytes(new_page_addr, self._page_size)
+                backer = claripy.BVV(''.join(concrete_memory))
+                mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
+                self._apply_object_to_page(n * self._page_size, mo, page=new_page)
+                initialized = True
+            except SimMemoryError:
+                '''
+                the address requested is not mapped in the concrete process memory
+                this can happen when a memory allocation function/syscall is invoked in the simulated execution
+                and the map_region function is called 
+                '''
+                return
+
 
         elif isinstance(self._memory_backer, cle.Clemory):
             # first, find the right clemory backer
@@ -523,12 +537,6 @@ class SimPagedMemory(object):
                 new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
 
-        elif isinstance(self._memory_backer, cle.ConcreteClemory):
-            print "Reading at address: " + str(new_page_addr)
-            backer = claripy.BVV(''.join(self._memory_backer.read_bytes(new_page_addr,self._page_size)))
-            mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
-            self._apply_object_to_page(n * self._page_size, mo, page=new_page)
-            initialized = True
 
         elif len(self._memory_backer) <= self._page_size:
             for i in self._memory_backer:
@@ -1072,7 +1080,23 @@ class SimPagedMemory(object):
             del self._pages[base_page_num + page]
             del self._symbolic_addrs[base_page_num + page]
 
-    def flush_pages(self):
-        self._pages = {}
+    def flush_pages(self, white_list):
+        """
+        :param white_list: white list of page number to exclude from the flush
+        """
+
+        white_list_page_number = []
+        for addr in white_list:
+            white_list_page_number.append(addr[0] / 0x1000)
+
+        new_page_dict = {}
+
+        # cycle over all the keys ( the page number )
+        for page in self._pages:
+            if page in white_list_page_number:
+                print "Not flushing a page!"
+                self.new_page_dict[page] = self._pages[page]
+
+        self._pages = new_page_dict
 
 from .. import sim_options as o

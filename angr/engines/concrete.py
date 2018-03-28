@@ -68,9 +68,7 @@ class SimEngineConcrete(SimEngine):
         successors.description = "Concrete Successors "
         successors.processed = True
 
-
-
-    def from_engine(self,state,**kwargs):
+    def from_engine(self, state, **kwargs):
         """
         Handling the switch between the concrete execution and Angr.
         This method takes care of:
@@ -88,7 +86,7 @@ class SimEngineConcrete(SimEngine):
         # the concrete target
 
         # registers that we don't want to concretize.
-        regs_blacklist = []
+        regs_blacklist = ['fs', 'gs']
 
         for reg in state.arch.registers:
             if reg not in regs_blacklist:
@@ -109,8 +107,24 @@ class SimEngineConcrete(SimEngine):
         # 2) flush the pages so they will be initialized by the backers content when
         # 	 Angr will access it.
 
-        state.memory.mem._memory_backer = cle.ConcreteClemory(self.target, state.arch)
-        state.memory.flush_pages()
+        state.memory.mem._memory_backer.set_concrete_target(self.target)
+
+        # For now the memory mapped because of fs/gs access
+        # is in the whitelist of addresses read from Angr memory
+        # page_addr = page_num * _page_size
+        # page_num = page_addr / page_size
+        fs_page_address = state.se.eval(state.regs.fs)
+        #gs_page_number = state.regs.gs / 0x1000
+
+        white_list = []
+        #state.memory.mem._memory_backer.set_simulated_addresses(white_list)
+        state.regs.fs =  self.read_fs_register_x64(self.target)
+
+
+        # this flush need to take care of pages that must not be flushed
+        # f.i. pages mapped because of the fs/gs registers must not be flushed
+        # since we want to keep reading them from the Angr memory.
+        state.memory.flush_pages(white_list)
 
     def to_engine(self, state, extra_stop_points, concretize, **kwargs):
         """
@@ -177,4 +191,62 @@ class SimEngineConcrete(SimEngine):
             return False
         '''
 
+    def read_fs_register_x64(self,concrete_target):
+        '''
+                asm_get_fs = asm(mov eax fs:[0xoffset])
+                eip = get_register("eip")
+                eax_val = read_register("eax")
+                old_instruction = read_memory("eip",len(asm_get_fs))
+                write_memory("eip", asm_get_fs)
+                Set breakpoint(eip+len(asm_get_fs))
+                run()
+                Gs_val = Read_register(eax)
+                set_register("eax",eax_val)
+                set_register("eip",eip)
+                write_memory("eip", old_instruction)
+        '''
+        # register used to read the value of the segment register
+        exfiltration_reg = "rax"
+        # instruction to inject for reading the value at segment value = offset
+        #read_fs_x64 = "\x64\x48\x8B\x04\x25" + (struct.pack("B",offset)) + "\x00\x00\x00"
+        read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00" # mov eax, fs:[0]
+        #read_fs_x64_with_offset = read_fs_x64.format( struct.pack("B",offset))
+        len_payload = len(read_fs0_x64)
+        print("encoded shellcode  %s len shellcode %s"%(read_fs0_x64.encode("hex"),len_payload))
 
+
+
+        pc = concrete_target.read_register("pc")
+        print("current pc %x"%(pc))
+
+        #save the content of the current instruction
+        old_instr_content = concrete_target.read_memory(pc,len_payload)
+        print("current instruction %s"%(old_instr_content.encode("hex")))
+
+        # saving value of the register which will be used to read segment register
+        exfiltration_reg_val = concrete_target.read_register(exfiltration_reg)
+        print("exfitration reg %s value %x"%(exfiltration_reg,exfiltration_reg_val))
+
+        #writing to eip ( mov    eax, dword ptr fs:[0x28])
+        concrete_target.write_memory(pc,read_fs0_x64)
+        cur_instr_after_write = concrete_target.read_memory(pc,len_payload)
+        print("current instruction after write %s"%(cur_instr_after_write.encode("hex")))
+
+        concrete_target.set_breakpoint(pc+len_payload)
+        concrete_target.run()
+        fs_value = concrete_target.read_register(exfiltration_reg)
+        print("fs value %x "%(fs_value))
+
+        # restoring previous pc
+        concrete_target.write_register("pc",pc)
+        # restoring previous instruction
+        concrete_target.write_memory(pc, old_instr_content)
+        # restoring previous rax value
+        concrete_target.write_register(exfiltration_reg,exfiltration_reg_val)
+
+        pc = concrete_target.read_register("pc")
+        eax_value = concrete_target.read_register("rax")
+        instr_content = concrete_target.read_memory(pc, 0x10)
+        print("--- pc %x eax value %s instr content %s " % (pc, eax_value, instr_content.encode("hex")))
+
+        return fs_value
