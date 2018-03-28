@@ -295,5 +295,5 @@ class CFBlanket(Analysis):
                 addr = max_addr
 
 
-CFBlanket.register_default()
-CFBlanket.register_default(name="CFB")
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CFB', CFBlanket)
