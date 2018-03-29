@@ -103,6 +103,7 @@ class Project(object):
                  store_function=None,
                  load_function=None,
                  analyses_preset=None,
+                 concrete_target=None,
                  engines_preset=None,
                  **kwargs):
 
@@ -150,6 +151,7 @@ class Project(object):
             l.warning("Passing a lambda type as the exclude_sim_procedures_func argument to Project causes the resulting object to be un-serializable.")
 
         self._sim_procedures = {}
+        self.concrete_target = concrete_target
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list

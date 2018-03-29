@@ -1,5 +1,4 @@
 from . import ExplorationTechnique
-from .. import sim_options
 
 import logging
 l = logging.getLogger("angr.exploration_techniques.symbion")
@@ -59,12 +58,15 @@ class Symbion(ExplorationTechnique):
         :param kwargs:
         :return:
         """
-        ss = self.project.factory.successors(state, engines=[self.project.engines.request_plugin("concrete")],
+        self.project.engines.default_engine = "concrete"
+        ss = self.project.factory.successors(state, default_engine=True,
                                                 extra_stop_points=self.find, concretize=self.concretize)
 
 
         return {'found': ss.successors}
 
     def complete(self, simgr):
+        self.project.engines.default_engine = "vex"  #TODO fix this to restore the old default engine
+        l.info("After concrete execution restoring vex engine as default")
         return len(simgr.stashes[self.find_stash]) >= 1
 

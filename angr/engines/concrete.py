@@ -1,5 +1,4 @@
 import logging
-import cle as cle
 
 from ..engines import SimEngine
 from ..state_plugins.inspect import BP_AFTER
@@ -8,8 +7,46 @@ from ..state_plugins.inspect import BP_AFTER
 #pylint: disable=arguments-differ
 
 l = logging.getLogger("angr.engines.concrete")
+#l.setLevel(logging.DEBUG)
 
 
+class ConcreteTarget(object):
+    """
+    Concrete target used inside the SimConcreteEngine.
+    This object is defined in the Angr script.
+    """
+    def _init_(self):
+        return
+
+    def read_memory(self, address, length, **kwargs):
+        raise NotImplementedError()
+
+    def write_memory(self, address, data, **kwargs):
+        raise NotImplementedError()
+
+    def is_valid_address(self, address, **kwargs):
+        raise NotImplementedError()
+
+    def read_register(self, register, **kwargs):
+        raise NotImplementedError()
+
+    def write_register(self, register, value, **kwargs):
+        raise NotImplementedError()
+
+    def set_breakpoint(self, address, **kwargs):
+        raise NotImplementedError()
+
+    def remove_breakpoint(self, address, **kwargs):
+        raise NotImplementedError()
+
+    def set_watchpoint(self, address, **kwargs):
+        raise NotImplementedError()
+
+    def remove_watchpoint(self, address, **kwargs):
+        raise NotImplementedError()
+
+    def run(self):
+        raise NotImplementedError()
 
 
 
@@ -19,11 +56,12 @@ class SimEngineConcrete(SimEngine):
     Concrete execution inside a concrete target provided by the user.
     :param target: receive and wraps a ConcreteTarget inside this SimConcreteEngine
     """
-    def __init__(self, concrete_target=None):
-        l.warning("Initializing SimEngineConcrete with ConcreteTarget provided.")
+    def __init__(self,project ):
+        l.info("Initializing SimEngineConcrete with ConcreteTarget provided.")
         super(SimEngineConcrete, self).__init__()
-        if isinstance(concrete_target,ConcreteTarget):
-            self.target = concrete_target
+        self.project = project
+        if isinstance(self.project.concrete_target,ConcreteTarget):
+            self.target = self.project.concrete_target
         else:
             print "Error, you must provide an instance of a ConcreteTarget to initialize" \
                   "a SimEngineConcrete."
@@ -79,6 +117,7 @@ class SimEngineConcrete(SimEngine):
 
         :return:
         """
+        l.info("Exiting SimEngineConcrete: simulated address %x concrete address %x "%(state.addr, self.target.read_register("pc")))
 
         #blank_state = state.project.factory.blank_state()
 
@@ -135,9 +174,9 @@ class SimEngineConcrete(SimEngine):
         3- Continue the program execution.
         :return:
         """
-
+        l.info("Entering in SimEngineConcrete: simulated address %x concrete address %x stop points %s"%(state.addr, self.target.read_register("pc"),extra_stop_points ))
         if concretize != []:
-            l.warning("Concretize variables before entering inside the SimEngineConcrete | "
+            l.info("Concretize variables before entering inside the SimEngineConcrete | "
                       "Be patient this could take a while.")
             for sym_var in concretize:
                 sym_var_address = state.se.eval(sym_var[0])
@@ -184,6 +223,8 @@ class SimEngineConcrete(SimEngine):
 
         self.target.run()
 
+
+
         '''
         if stop_point.reason == "BREAKPOINT_HIT":
             return True
@@ -212,30 +253,30 @@ class SimEngineConcrete(SimEngine):
         read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00" # mov eax, fs:[0]
         #read_fs_x64_with_offset = read_fs_x64.format( struct.pack("B",offset))
         len_payload = len(read_fs0_x64)
-        print("encoded shellcode  %s len shellcode %s"%(read_fs0_x64.encode("hex"),len_payload))
+        l.debug("encoded shellcode  %s len shellcode %s"%(read_fs0_x64.encode("hex"),len_payload))
 
 
 
         pc = concrete_target.read_register("pc")
-        print("current pc %x"%(pc))
+        l.debug("current pc %x"%(pc))
 
         #save the content of the current instruction
         old_instr_content = concrete_target.read_memory(pc,len_payload)
-        print("current instruction %s"%(old_instr_content.encode("hex")))
+        l.debug("current instruction %s"%(old_instr_content.encode("hex")))
 
         # saving value of the register which will be used to read segment register
         exfiltration_reg_val = concrete_target.read_register(exfiltration_reg)
-        print("exfitration reg %s value %x"%(exfiltration_reg,exfiltration_reg_val))
+        l.debug("exfitration reg %s value %x"%(exfiltration_reg,exfiltration_reg_val))
 
         #writing to eip ( mov    eax, dword ptr fs:[0x28])
         concrete_target.write_memory(pc,read_fs0_x64)
         cur_instr_after_write = concrete_target.read_memory(pc,len_payload)
-        print("current instruction after write %s"%(cur_instr_after_write.encode("hex")))
+        l.debug("current instruction after write %s"%(cur_instr_after_write.encode("hex")))
 
         concrete_target.set_breakpoint(pc+len_payload)
         concrete_target.run()
         fs_value = concrete_target.read_register(exfiltration_reg)
-        print("fs value %x "%(fs_value))
+        l.debug("fs value %x "%(fs_value))
 
         # restoring previous pc
         concrete_target.write_register("pc",pc)
@@ -247,6 +288,6 @@ class SimEngineConcrete(SimEngine):
         pc = concrete_target.read_register("pc")
         eax_value = concrete_target.read_register("rax")
         instr_content = concrete_target.read_memory(pc, 0x10)
-        print("--- pc %x eax value %s instr content %s " % (pc, eax_value, instr_content.encode("hex")))
+        l.debug("pc %x eax value %x instr content %s " % (pc, eax_value, instr_content.encode("hex")))
 
         return fs_value
