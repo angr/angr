@@ -888,7 +888,9 @@ class SimSolver(SimStatePlugin):
         """
         return e.variables
 
-SimSolver.register_default('solver')
+from angr.sim_state import SimState
+SimState.register_default('solver', SimSolver)
+
 from .. import sim_options as o
 from .inspect import BP_AFTER
 from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

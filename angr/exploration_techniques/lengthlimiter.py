@@ -13,7 +13,7 @@ class LengthLimiter(ExplorationTechnique):
     def _filter(self, s):
         return s.history.block_count > self._max_length
 
-    def step(self, pg, stash, **kwargs):
-        pg = pg._one_step(stash=stash, **kwargs)
-        pg.move('active', '_DROP' if self._drop else 'cut', self._filter)
-        return pg
+    def step(self, simgr, stash=None, **kwargs):
+        simgr = simgr.step(stash=stash, **kwargs)
+        simgr.move('active', '_DROP' if self._drop else 'cut', self._filter)
+        return simgr

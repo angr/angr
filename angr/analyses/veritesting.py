@@ -7,7 +7,7 @@ from .. import SIM_PROCEDURES
 from .. import options as o
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
-from ..manager import SimulationManager
+from ..sim_manager import SimulationManager
 from ..utils.graph import shallow_reverse
 from . import Analysis
 
@@ -334,8 +334,8 @@ class Veritesting(Analysis):
 
             # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                manager.stash_addr(
-                    merge_point_addr,
+                manager.stash(
+                    lambda s: s.addr == merge_point_addr,  # pylint:disable=cell-var-from-loop
                     to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                 )
 
@@ -344,10 +344,9 @@ class Veritesting(Analysis):
                 manager = self._join_merge_points(manager, merge_points)
         if any(len(manager.stashes[stash_name]) for stash_name in self.all_stashes):
             # Remove all stashes other than errored or deadended
-            manager.stashes = {
-                name: stash for name, stash in manager.stashes.items()
-                if name in self.all_stashes
-            }
+            for stash in list(manager.stashes):
+                if stash not in self.all_stashes:
+                    manager.drop(stash=stash)
 
             for stash in manager.stashes:
                 manager.apply(self._unfuck, stash=stash)
@@ -617,7 +616,8 @@ class Veritesting(Analysis):
 
         return [ (n.addr, n.looping_times) for n in nodes ]
 
-Veritesting.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('Veritesting', Veritesting)
 
 from ..errors import SimValueError, SimSolverModeError, SimError
 from ..sim_options import BYPASS_VERITESTING_EXCEPTIONS

@@ -807,7 +807,8 @@ class GirlScout(Analysis):
 
         return lst
 
-GirlScout.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('GirlScout', GirlScout)
 
 from ..blade import Blade
 from ..errors import AngrGirlScoutError

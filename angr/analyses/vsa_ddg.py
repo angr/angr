@@ -418,4 +418,5 @@ class VSA_DDG(Analysis):
                 nodes.add(n)
         return nodes
 
-VSA_DDG.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('VSA_DDG', VSA_DDG)

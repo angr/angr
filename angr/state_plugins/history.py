@@ -518,6 +518,10 @@ class LambdaIterIter(LambdaAttrIter):
             for a in reversed(self._f(hist)) if self._reverse else self._f(hist):
                 yield a
 
-SimStateHistory.register_default('history')
+
+from angr.sim_state import SimState
+SimState.register_default('history', SimStateHistory)
+
+
 from .sim_action import SimAction, SimActionConstraint
 from .sim_event import SimEvent

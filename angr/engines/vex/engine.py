@@ -10,7 +10,7 @@ from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
-                       SimMemoryError, SimIRSBNoDecodeError)
+                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -106,6 +106,19 @@ class SimEngineVEX(SimEngine):
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         :returns:           A SimSuccessors object categorizing the block's successors
         """
+        if 'insn_text' in kwargs:
+
+            if insn_bytes is not None:
+                raise SimEngineError("You cannot provide both 'insn_bytes' and 'insn_text'!")
+
+            insn_bytes = \
+                self.project.arch.asm(kwargs['insn_text'], addr=kwargs.get('addr', 0),
+                                      thumb=kwargs.get('thumb', False), as_bytes=True)
+
+            if insn_bytes is None:
+                raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
+                                        " string is correct.")
+
         return super(SimEngineVEX, self).process(state, irsb,
                 skip_stmts=skip_stmts,
                 last_stmt=last_stmt,

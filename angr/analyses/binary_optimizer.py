@@ -645,4 +645,5 @@ class BinaryOptimizer(Analysis):
                 da = DeadAssignment(reg)
                 self.dead_assignments.append(da)
 
-BinaryOptimizer.register_default()
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('BinaryOptimizer', BinaryOptimizer)

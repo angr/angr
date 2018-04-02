@@ -177,13 +177,13 @@ class Project(object):
         elif self.loader.main_object.engine_preset is not None:
             try:
                 engines.use_plugin_preset(self.loader.main_object.engine_preset)
-            except NoPlugin:
+            except AngrNoPluginError:
                 raise ValueError("The CLE loader asked to use a engine preset: %s" % \
                         self.loader.main_object.engine_preset)
         else:
             try:
                 engines.use_plugin_preset(self.arch.name)
-            except NoPlugin:
+            except AngrNoPluginError:
                 engines.use_plugin_preset('default')
 
         self.engines = engines
@@ -541,7 +541,7 @@ class Project(object):
 
         pg = self.factory.simgr(state)
         self._executing = True
-        return pg.step(until=lambda lpg: not self._executing)
+        return pg.run(until=lambda lpg: not self._executing)
 
     def terminate_execution(self):
         """
@@ -642,7 +642,7 @@ class Project(object):
         return self.simos
 
 
-from .errors import AngrError, NoPlugin
+from .errors import AngrError, AngrNoPluginError
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub

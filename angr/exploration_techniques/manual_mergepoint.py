@@ -16,13 +16,13 @@ class ManualMergepoint(ExplorationTechnique):
     def setup(self, simgr):
         simgr.stashes[self.stash] = []
 
-    def filter(self, state):
-        if self.filter_marker in state.globals:
-            return
+    def filter(self, simgr, state):
+        if self.filter_marker not in state.globals:
+            if state.addr == self.address:
+                self.wait_counter = 0
+                return self.stash
 
-        if state.addr == self.address:
-            self.wait_counter = 0
-            return self.stash
+        return simgr.filter(state)
 
     def mark_nofilter(self, simgr, stash):
         for state in simgr.stashes[stash]:
@@ -32,13 +32,13 @@ class ManualMergepoint(ExplorationTechnique):
         for state in simgr.stashes[stash]:
             state.globals.pop(self.filter_marker)
 
-    def step(self, simgr, stash, **kwargs):
+    def step(self, simgr, stash=None, **kwargs):
         # ha ha, very funny, if this is being run on a single-step basis our filter probably misfired
         if len(simgr.stashes[self.stash]) == 1 and len(simgr.stashes[stash]) == 0:
             simgr = simgr.move(self.stash, stash)
 
         # perform all our analysis as a post-mortem on a given step
-        simgr = simgr._one_step(stash, **kwargs)
+        simgr = simgr.step(stash=stash, **kwargs)
         #self.mark_okfilter(simgr, stash)
 
         # nothing to do if there's no states waiting
