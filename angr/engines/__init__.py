@@ -6,7 +6,7 @@ from .procedure import SimEngineProcedure
 from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
-from .concrete import SimEngineConcrete
+from angr.engines.concrete import SimEngineConcrete
 from .hook import SimEngineHook
 
 from .hub import EngineHub, EnginePreset
