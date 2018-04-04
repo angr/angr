@@ -1,5 +1,5 @@
 import logging
-
+import struct
 from ..engines import SimEngine
 from ..state_plugins.inspect import BP_AFTER
 
@@ -62,6 +62,7 @@ class SimEngineConcrete(SimEngine):
         self.project = project
         if isinstance(self.project.concrete_target,ConcreteTarget):
             self.target = self.project.concrete_target
+            self.preserve_simproc = True
         else:
             print "Error, you must provide an instance of a ConcreteTarget to initialize" \
                   "a SimEngineConcrete."
@@ -148,22 +149,14 @@ class SimEngineConcrete(SimEngine):
 
         state.memory.mem._memory_backer.set_concrete_target(self.target)
 
-        # For now the memory mapped because of fs/gs access
-        # is in the whitelist of addresses read from Angr memory
-        # page_addr = page_num * _page_size
-        # page_num = page_addr / page_size
-        fs_page_address = state.se.eval(state.regs.fs)
-        #gs_page_number = state.regs.gs / 0x1000
+        if self.preserve_simproc:
+            for reloc in self.project.loader.main_object.relocs:
+                func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
+                func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
+                self.project._rehook_symbol(func_address, reloc.symbol.name)
 
-        white_list = []
-        #state.memory.mem._memory_backer.set_simulated_addresses(white_list)
-        state.regs.fs =  self.read_fs_register_x64(self.target)
-
-
-        # this flush need to take care of pages that must not be flushed
-        # f.i. pages mapped because of the fs/gs registers must not be flushed
-        # since we want to keep reading them from the Angr memory.
-        state.memory.flush_pages(white_list)
+        state.regs.fs = self.read_fs_register_x64(self.target)
+        state.memory.flush_pages()
 
     def to_engine(self, state, extra_stop_points, concretize, **kwargs):
         """
@@ -181,7 +174,7 @@ class SimEngineConcrete(SimEngine):
             for sym_var in concretize:
                 sym_var_address = state.se.eval(sym_var[0])
                 sym_var_value = state.se.eval(sym_var[1], cast_to=str)
-                l.info("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
+                print("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
                 self.target.write_memory(sym_var_address, sym_var_value)
 
         '''
