@@ -309,7 +309,7 @@ class Project(object):
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
                 self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
 
-    def _rehook_symbol(self, new_address, symbol_name):
+    def rehook_symbol(self, new_address, symbol_name):
 
         #print("Rehooking " + symbol_name + "with: " + hex(new_address))
         new_sim_procedures = {}

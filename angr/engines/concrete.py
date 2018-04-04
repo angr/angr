@@ -153,7 +153,7 @@ class SimEngineConcrete(SimEngine):
             for reloc in self.project.loader.main_object.relocs:
                 func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
                 func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
-                self.project._rehook_symbol(func_address, reloc.symbol.name)
+                self.project.rehook_symbol(func_address, reloc.symbol.name)
 
         state.regs.fs = self.read_fs_register_x64(self.target)
         state.memory.flush_pages()
