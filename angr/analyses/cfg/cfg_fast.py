@@ -1744,6 +1744,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     jobs.extend(ent)
                 return jobs
 
+        # Special handling:
+        # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring jump
+        if jumpkind == "Ijk_Call" and \
+                cfg_node.instruction_addrs and \
+                ins_addr == cfg_node.instruction_addrs[-1] and \
+                target_addr == irsb.addr + irsb.size:
+            jumpkind = "Ijk_Boring"
+
         # pylint: disable=too-many-nested-blocks
         if jumpkind == 'Ijk_Boring':
             if target_addr is not None:
