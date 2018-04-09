@@ -714,6 +714,7 @@ class ForwardAnalysis(object):
 
         else:
             job_info = JobInfo(key, job)
+            self._job_map[key] = job_info
 
         if self._order_jobs:
             self._binary_insert(self._job_info_queue, job_info, lambda elem: self._job_sorting_key(elem.job))
