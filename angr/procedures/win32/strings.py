@@ -2,6 +2,7 @@ import angr
 from angr.sim_type import SimTypeString, SimTypeInt
 
 class lstrcmpiW(angr.SimProcedure):
+    #pylint:disable=arguments-differ
     def run(self, lpString1, lpString2):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString())}
@@ -11,6 +12,7 @@ class lstrcmpiW(angr.SimProcedure):
         return self.inline_call(strcmp, lpString1, lpString2, wchar=True, ignore_case=True).ret_expr
 
 class lstrcmpW(angr.SimProcedure):
+    #pylint:disable=arguments-differ
     def run(self, lpString1, lpString2):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString())}
