@@ -16,4 +16,3 @@ class InterlockedExchange(angr.SimProcedure):
             old_value = self.state.se.Unconstrained("unconstrained_ret_%s" % self.display_name, self.state.arch.bits)
 
         return old_value
-
