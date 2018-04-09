@@ -96,7 +96,7 @@ class strncmp(angr.SimProcedure):
                     if ord('a') <= a_conc <= ord('z'):
                         a_conc -= ord(' ')
                     if ord('a') <= b_conc <= ord('z'):
-                        a_conc -= ord(' ')
+                        b_conc -= ord(' ')
 
                 if a_conc != b_conc:
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
