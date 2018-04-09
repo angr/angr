@@ -1256,13 +1256,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         jobs = self._scan_block(addr, current_function_addr, jumpkind, src_node, src_ins_addr, src_stmt_idx)
 
-        l.debug("... got %d jobs: %s", len(jobs), jobs)
+        deduped_jobs = [ ]
 
         for job_ in jobs:  # type: CFGJob
-            # register those jobs
-            self._register_analysis_job(job_.func_addr, job_)
+            # register those jobs if the job does not exist
+            if not self.has_job(job_):
+                self._register_analysis_job(job_.func_addr, job_)
+                deduped_jobs.append(job_)
 
-        return jobs
+        l.debug("... got %d jobs, %d after de-duplication: %s", len(jobs), len(deduped_jobs), deduped_jobs)
+
+        return deduped_jobs
 
     def _handle_successor(self, job, successor, successors):
         return [ successor ]
