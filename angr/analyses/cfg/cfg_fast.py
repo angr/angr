@@ -2806,8 +2806,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         while True:
             new_changes = self._iteratively_analyze_function_features()
-            new_returning_functions = new_changes['functions_do_not_return']
-            new_not_returning_functions = new_changes['functions_return']
+            new_returning_functions = new_changes['functions_return']
+            new_not_returning_functions = new_changes['functions_do_not_return']
 
             if not new_returning_functions and not new_not_returning_functions:
                 break
