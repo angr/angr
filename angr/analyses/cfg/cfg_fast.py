@@ -1299,6 +1299,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._insert_job(job)
                 return
 
+            self._clean_pending_exits()
+
         # did we finish analyzing any function?
         # fill in self._completed_functions
         self._make_completed_functions()
@@ -1367,6 +1369,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._register_analysis_job(addr, job)
 
     def _post_analysis(self):
+
+        self._make_completed_functions()
 
         self._analyze_all_function_features()
 
