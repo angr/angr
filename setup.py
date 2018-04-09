@@ -102,7 +102,7 @@ setup(
         'ana',
         'bintrees',
         'cachetools',
-        'capstone>=3.0.5.rc2',
+        'capstone>=3.0.5rc2',
         'cooldict',
         'dpkt-fix',
         'futures',
