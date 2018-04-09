@@ -1893,6 +1893,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._function_exits[current_function_addr].add(addr)
                 self._function_add_return_site(addr, current_function_addr)
                 self.functions[current_function_addr].returning = True
+                self._add_returning_function(current_function_addr)
 
             cfg_node.has_return = True
 
