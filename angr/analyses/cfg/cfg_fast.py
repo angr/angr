@@ -1751,6 +1751,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Special handling:
         # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring jump
         if jumpkind == "Ijk_Call" and \
+                not self.project.arch.call_pushes_ret and \
                 cfg_node.instruction_addrs and \
                 ins_addr == cfg_node.instruction_addrs[-1] and \
                 target_addr == irsb.addr + irsb.size:
