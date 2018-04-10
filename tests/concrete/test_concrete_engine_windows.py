@@ -104,4 +104,4 @@ def test_gdbtarget_windows_x64():
     setup()
     manual_test_concrete_engine_windows_x64()
 
-test_gdbtarget_windows_x64()
+test_gdbtarget_windows_x86()
