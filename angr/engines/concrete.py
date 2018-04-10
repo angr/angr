@@ -25,7 +25,7 @@ class SimEngineConcrete(SimEngine):
         self.project = project
         if isinstance(self.project.concrete_target,ConcreteTarget):
             self.target = self.project.concrete_target
-            self.preserve_simproc = True
+            self.preserve_simproc = False
         else:
             print "Error, you must provide an instance of a ConcreteTarget to initialize" \
                   "a SimEngineConcrete."
