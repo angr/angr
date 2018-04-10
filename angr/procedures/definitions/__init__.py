@@ -82,6 +82,7 @@ class SimLibrary(object):
         :param arch_name:   The string name of the architecture, i.e. the ``.name`` field from archinfo.
         :parm cc_cls:       The SimCC class (not an instance!) to use
         """
+        arch_name = archinfo.arch_from_id(arch_name).name
         self.default_ccs[arch_name] = cc_cls
 
     def set_non_returning(self, *names):
@@ -101,6 +102,14 @@ class SimLibrary(object):
         :param proto:   The prototype of the function as a SimTypeFunction
         """
         self.prototypes[name] = proto
+
+    def set_prototypes(self, protos):
+        """
+        Set the prototypes of many functions
+
+        :param protos:   Dictionary mapping function names to SimTypeFunction objects
+        """
+        self.prototypes.update(protos)
 
     def add(self, name, proc_cls, **kwargs):
         """
@@ -141,8 +150,10 @@ class SimLibrary(object):
             proc.cc = self.default_ccs[arch.name](arch)
         if proc.display_name in self.prototypes:
             if proc.cc is None:
-                proc.cc = self.fallback_cc[arch.name]()
+                proc.cc = self.fallback_cc[arch.name](arch)
             proc.cc.func_ty = self.prototypes[proc.display_name]
+            proc.cc.num_args = len(proc.cc.func_ty.args)
+            proc.num_args = len(proc.cc.func_ty.args)
         if proc.display_name in self.non_returning:
             proc.returns = False
         proc.library_name = self.name
