@@ -114,8 +114,12 @@ class SimEngineConcrete(SimEngine):
                     state.regs.fs - read_fs_register_windows_x86(self.target)
             self.segment_registers_already_init = True
 
-
-
+        # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary        -
+        if self.preserve_simproc:
+            for reloc in self.project.loader.main_object.relocs:
+                func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
+                func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
+                self.project.rehook_symbol(func_address, reloc.symbol.name)
 
         # flush the angr memory in order to synchronize them with the content of the concrete process memory when a read/write to the page is performed
         state.memory.flush_pages()

@@ -35,7 +35,7 @@ def setup_x86():
     subprocess.Popen("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary_x86),stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, shell=True)
 
-
+'''
 
 @nose.with_setup(setup_x64)
 def test_concrete_engine_linux_x64():
@@ -70,9 +70,9 @@ def test_concrete_engine_linux_x64():
     print("Executed until WIN")
     avatar_gdb.exit()
 
+'''
 
-
-@nose.with_setup(setup_x86)
+#@nose.with_setup(setup_x86)
 def test_concrete_engine_linux_x86():
         avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
 
@@ -105,7 +105,8 @@ def test_concrete_engine_linux_x86():
         print("Executed until WIN")
         avatar_gdb.exit()
 
-
+setup_x86()
+test_concrete_engine_linux_x86()
 '''
     #To run this test execute echo "test\n\ntest\n\n"  | gdbserver 127.0.0.1:1234 path/to/fauxware
 def manual_test_concrete_engine_linux_x64():
