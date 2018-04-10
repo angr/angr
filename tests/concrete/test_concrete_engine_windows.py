@@ -13,10 +13,12 @@ binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86','windows','simple_crackme_x86.exe'))
 
 GDB_SERVER_IP = '192.168.56.101'
-GDB_SERVER_PORT = 9999
+GDB_SERVER_IP = '127.0.0.1'
+GDB_SERVER_PORT = 3333
 
 BEFORE_STRCMP_X86 = 0x40155B
-BEFORE_STRCMP_X64 = 0x401585
+#BEFORE_STRCMP_X64 = 0x401585
+BEFORE_STRCMP_X64 = 0x401576
 
 WIN_BLOCK_X86 = 0x401564
 WIN_BLOCK_X64 = 0x40158E

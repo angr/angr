@@ -7,7 +7,7 @@ import logging
 #pylint: disable=arguments-differ
 
 l = logging.getLogger("angr.engines.concrete")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 
@@ -187,7 +187,7 @@ class SimEngineConcrete(SimEngine):
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
             l.info("Setting breakpoints at " + hex(stop_point))
-            self.target.set_breakpoint(stop_point)
+            self.target.set_breakpoint(stop_point,temporary=True)
 
         # Continue the execution of the binary
         #stop_point = self.target.run()
