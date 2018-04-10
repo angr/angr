@@ -478,6 +478,7 @@ class SimPagedMemory(object):
         self._initialized.add(n)
 
         new_page_addr = n*self._page_size
+
         initialized = False
 
         if self.state is not None:
@@ -1080,23 +1081,8 @@ class SimPagedMemory(object):
             del self._pages[base_page_num + page]
             del self._symbolic_addrs[base_page_num + page]
 
-    def flush_pages(self, white_list):
-        """
-        :param white_list: white list of page number to exclude from the flush
-        """
+    def flush_pages(self):
+        self._pages = {}
 
-        white_list_page_number = []
-        for addr in white_list:
-            white_list_page_number.append(addr[0] / 0x1000)
-
-        new_page_dict = {}
-
-        # cycle over all the keys ( the page number )
-        for page in self._pages:
-            if page in white_list_page_number:
-                print "Not flushing a page!"
-                self.new_page_dict[page] = self._pages[page]
-
-        self._pages = new_page_dict
 
 from .. import sim_options as o

@@ -6,25 +6,42 @@ from angr_targets import AvatarGDBConcreteTarget
 import os
 import subprocess
 import nose
-binary = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86_64','fauxware'))
+binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                          os.path.join('..', '..','..','binaries','tests','i386','fauxware'))
 
 GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
 AFTER_USERNAME_PRINT_X64 = 0x40073E
 AFTER_PWD_READ_X64 = 0x4007A4
 WIN_X64 = 0x4007BD
+END_X64 = 0x4007D3
+
+AFTER_USERNAME_PRINT_X86 = 0x8048629
+AFTER_PWD_READ_X86 = 0x80486B2
+WIN_X86 = 0x80486CA
+END_X86 = 0x80486E8
 
 
-def setup():
-    print("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary))
-    subprocess.Popen("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary),stdout=subprocess.PIPE,
+
+def setup_x64():
+    print("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary_x64))
+    subprocess.Popen("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary_x64),stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, shell=True)
 
+def setup_x86():
+    print("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary_x86))
+    subprocess.Popen("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary_x86),stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, shell=True)
+
+
+
+@nose.with_setup(setup_x64)
 def test_concrete_engine_linux_x64():
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP ,GDB_SERVER_PORT)
 
-    p = angr.Project(binary ,load_options={'auto_load_libs': True},concrete_target=avatar_gdb)
+    p = angr.Project(binary_x64 ,load_options={'auto_load_libs': True},concrete_target=avatar_gdb)
     simgr = p.factory.simgr(p.factory.entry_state())
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[AFTER_USERNAME_PRINT_X64], concretize = []))
     exploration = simgr.run()
@@ -51,18 +68,52 @@ def test_concrete_engine_linux_x64():
     print("solution %s"%(value_1))
     nose.tools.assert_true(value_1 == "SOSNEAKY")
     print("Executed until WIN")
+    avatar_gdb.exit()
 
 
+
+@nose.with_setup(setup_x86)
+def test_concrete_engine_linux_x86():
+        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
+
+        p = angr.Project(binary_x86, load_options={'auto_load_libs': True}, concrete_target=avatar_gdb)
+        simgr = p.factory.simgr(p.factory.entry_state())
+        simgr.use_technique(angr.exploration_techniques.Symbion(find=[AFTER_USERNAME_PRINT_X86], concretize=[]))
+        exploration = simgr.run()
+        state = exploration.found[0]
+        print("After concrete execution")
+
+        # p = angr.Project(binary ,load_options={'auto_load_libs': True})
+
+        # explore_simulated
+        # simgr = p.factory.simulation_manager(p.factory.entry_state())
+        simgr = p.factory.simulation_manager(state)
+        pwd = claripy.BVS('pwd', 8 * 8)
+
+        exploration = simgr.explore(find=AFTER_PWD_READ_X86)
+        state = exploration.found[0]
+        sym_addr = state.regs.esp + 0x33
+        state.memory.store(sym_addr, pwd)
+        print("After symbolic execution sym_addr %x"%(state.se.eval(state.regs.esp,cast_to=int) + 0x2A))
+
+        simgr = p.factory.simulation_manager(state)
+        win_exploration = simgr.explore(find=WIN_X86)
+        win_state = win_exploration.found[0]
+        value_1 = win_state.se.eval(pwd, cast_to=str)
+        print("solution %s" % (value_1))
+        nose.tools.assert_true(value_1 == "SOSNEAKY")
+        print("Executed until WIN")
+        avatar_gdb.exit()
 
 
 '''
-    To run this test execute echo "test\n\ntest\n\n"  | gdbserver 127.0.0.1:1234 path/to/fauxware
+    #To run this test execute echo "test\n\ntest\n\n"  | gdbserver 127.0.0.1:1234 path/to/fauxware
 def manual_test_concrete_engine_linux_x64():
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP ,GDB_SERVER_PORT)
 
     p = angr.Project(binary ,load_options={'auto_load_libs': True},concrete_target=avatar_gdb)
     simgr = p.factory.simgr(p.factory.entry_state())
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[AFTER_PWD_READ], concretize = []))
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[AFTER_PWD_READ_X64], concretize = []))
     exploration = simgr.run()
     state = exploration.found[0]
     print("AFTER FIRST EXPLORATION")
@@ -72,16 +123,16 @@ def manual_test_concrete_engine_linux_x64():
     state.memory.store(state.regs.rbp - 0x20, pwd)
 
     simgr = p.factory.simulation_manager(state)
-    win_exploration = simgr.explore(find=WIN)
+    win_exploration = simgr.explore(find=WIN_X64)
     win_state = win_exploration.found[0]
     value_1 = win_state.se.eval(pwd,cast_to=str)
     print("AFTER SIMULATED")
     print("Solution is  %s"%(value_1))
 
     simgr = p.factory.simulation_manager(win_state)
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[WIN], concretize=[(win_state.regs.rbp-0x20, pwd)]))
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(win_state.regs.rbp-0x20, pwd)]))
     simgr.run()
     print("Executed until WIN address %x"%(avatar_gdb.read_register("pc")))
-'''
 
-#setup()
+'''
+#manual_test_concrete_engine_linux_x64()

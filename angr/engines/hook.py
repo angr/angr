@@ -19,8 +19,10 @@ class SimEngineHook(SimEngine):
 
         if procedure is None:
             if state.addr not in self.project._sim_procedures:
+                #print hex(state.addr) + " is not in sim_procedures dict"
                 return False
 
+        #print hex(state.addr) + " is in sim_procedures dict"
         return True
 
     def process(self, state, procedure=None, force_addr=None, **kwargs):

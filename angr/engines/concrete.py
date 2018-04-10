@@ -3,6 +3,8 @@ from angr_targets.concrete import ConcreteTarget
 from angr_targets.segment_registers import *
 from archinfo import ArchX86, ArchAMD64
 import logging
+import struct
+
 
 #pylint: disable=arguments-differ
 
@@ -23,6 +25,7 @@ class SimEngineConcrete(SimEngine):
         self.project = project
         if isinstance(self.project.concrete_target,ConcreteTarget):
             self.target = self.project.concrete_target
+            self.preserve_simproc = True
         else:
             print "Error, you must provide an instance of a ConcreteTarget to initialize" \
                   "a SimEngineConcrete."
@@ -81,14 +84,12 @@ class SimEngineConcrete(SimEngine):
         """
         l.info("Exiting SimEngineConcrete: simulated address %x concrete address %x "%(state.addr, self.target.read_register("pc")))
 
-        #blank_state = state.project.factory.blank_state()
+        # Setting a concrete memory backend
+        state.memory.mem._memory_backer.set_concrete_target(self.target)
 
-        # sync Angr registers with the one getting from
-        # the concrete target
-
+        # Sync Angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
         regs_blacklist = ['fs', 'gs']
-
         for reg in state.arch.registers:
             if reg not in regs_blacklist:
                 try:
@@ -100,18 +101,7 @@ class SimEngineConcrete(SimEngine):
                     pass
                     # TODO need to decide how to handle this
 
-        # Fix the memory of the newly created state
-        # 1) fix the memory backers of this state, this is accomplished
-        #    by substituting the CLEMemory object with a ConcreteCLEMemory object
-        #    that will redirect the read to the remote target.
-
-        # 2) flush the pages so they will be initialized by the backers content when
-        # 	 Angr will access it.
-
-        state.memory.mem._memory_backer.set_concrete_target(self.target)
-
-
-        #Initialize the segment register value if not already initiliazed
+        # Initialize the segment register value if not already initialized
         if not self.segment_registers_already_init:
             if isinstance(state.arch, ArchAMD64):
                 if self.project.simos.name == "Linux":
@@ -125,16 +115,16 @@ class SimEngineConcrete(SimEngine):
                     state.regs.fs - read_fs_register_windows_x86(self.target)
             self.segment_registers_already_init = True
 
-        # page_addr = page_num * _page_size
-        # page_num = page_addr / page_size
-        #white_list = []
-        # state.memory.mem._memory_backer.set_simulated_addresses(white_list)
+        # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary
+        if self.preserve_simproc:
+            for reloc in self.project.loader.main_object.relocs:
+                func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
+                func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
+                self.project.rehook_symbol(func_address, reloc.symbol.name)
 
 
-        # this flush need to take care of pages that must not be flushed
-        # f.i. pages mapped because of the fs/gs registers must not be flushed
-        # since we want to keep reading them from the Angr memory.
-        #state.memory.flush_pages(white_list)
+        # flush the angr memory in order to synchronize them with the content of the concrete process memory when a read/write to the page is performed
+        state.memory.flush_pages()
 
     def to_engine(self, state, extra_stop_points, concretize, **kwargs):
         """
@@ -152,7 +142,7 @@ class SimEngineConcrete(SimEngine):
             for sym_var in concretize:
                 sym_var_address = state.se.eval(sym_var[0])
                 sym_var_value = state.se.eval(sym_var[1], cast_to=str)
-                l.info("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
+                print("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
                 self.target.write_memory(sym_var_address, sym_var_value)
 
         '''

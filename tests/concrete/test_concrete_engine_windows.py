@@ -13,18 +13,18 @@ binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86','windows','simple_crackme_x86.exe'))
 
 GDB_SERVER_IP = '192.168.56.101'
-GDB_SERVER_IP = '127.0.0.1'
-GDB_SERVER_PORT = 3333
+#GDB_SERVER_IP = '127.0.0.1'
+GDB_SERVER_PORT = 9999
 
 BEFORE_STRCMP_X86 = 0x40155B
-#BEFORE_STRCMP_X64 = 0x401585
-BEFORE_STRCMP_X64 = 0x401576
+BEFORE_STRCMP_X64 = 0x401585
+#BEFORE_STRCMP_X64 = 0x401576
 
 WIN_BLOCK_X86 = 0x401564
 WIN_BLOCK_X64 = 0x40158E
 
 END_X86 = 0x4015FE
-END_X64 = 0x401622
+END_X64 = 0x401618
 
 
 
@@ -78,7 +78,7 @@ def manual_test_concrete_engine_windows_x64():
     print("After concrete execution")
 
     pwd = claripy.BVS('pwd', 8 * 8)
-    addr = state.regs.rbp - 0x20
+    addr = state.regs.rbp - 0x30
     state.memory.store(addr, pwd)
 
     simgr = p.factory.simulation_manager(state)
@@ -104,4 +104,4 @@ def test_gdbtarget_windows_x64():
     setup()
     manual_test_concrete_engine_windows_x64()
 
-test_gdbtarget_windows_x64()
+test_gdbtarget_windows_x86()

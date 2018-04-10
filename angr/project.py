@@ -120,6 +120,7 @@ class Project(object):
             l.info("Loading binary from stream")
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
+
         elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
@@ -210,7 +211,7 @@ class Project(object):
         # Step 6: Register simprocedures as appropriate for library functions
         for obj in self.loader.initial_load_objects:
             self._register_object(obj)
-
+            
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
 
@@ -307,6 +308,18 @@ class Project(object):
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
                 self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
+
+    def rehook_symbol(self, new_address, symbol_name):
+
+        #print("Rehooking " + symbol_name + "with: " + hex(new_address))
+        new_sim_procedures = {}
+        for key_address, simproc_obj in self._sim_procedures.items():
+            if simproc_obj.display_name == symbol_name:
+                new_sim_procedures[new_address] = simproc_obj
+            else:
+                new_sim_procedures[key_address] = simproc_obj
+
+        self._sim_procedures = new_sim_procedures
 
     def _check_user_blacklists(self, f):
         """
@@ -437,6 +450,7 @@ class Project(object):
         :returns:           The address of the new symbol.
         :rtype:             int
         """
+
         if type(obj) in (int, long):
             # this is pretty intensely sketchy
             l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)
