@@ -267,11 +267,11 @@ class SimSolver(SimStatePlugin):
 
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
-        elif o.REPLACEMENT_SOLVER in self.state.options:
+        elif o.SYMBOLIC in self.state.options and o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
-        elif o.CACHELESS_SOLVER in self.state.options:
+        elif o.SYMBOLIC in self.state.options and o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless(track=track)
-        elif o.COMPOSITE_SOLVER in self.state.options:
+        elif o.SYMBOLIC in self.state.options and o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverComposite(track=track)
         elif o.SYMBOLIC in self.state.options and o.approximation & self.state.options:
             self._stored_solver = claripy.SolverHybrid(track=track)
