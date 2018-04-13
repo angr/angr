@@ -173,7 +173,11 @@ class SimSuccessors(object):
             if state.arch.call_pushes_ret:
                 ret_addr = state.mem[state.regs._sp].long.concrete
             else:
-                ret_addr = state.se.eval(state.regs._lr)
+                try:
+                    ret_addr = state.se.eval(state.regs._lr)
+                except SimSolverModeError:
+                    # Give it a random address - in memory of the "constant analysis" guy.
+                    ret_addr = 0xc0deb4be
             try:
                 state_addr = state.addr
             except SimValueError:
