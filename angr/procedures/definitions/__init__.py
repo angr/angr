@@ -4,10 +4,11 @@ import archinfo
 from collections import defaultdict
 import logging
 
-from ..stubs.ReturnUnconstrained import ReturnUnconstrained
-from ..stubs.syscall_stub import syscall as stub_syscall
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
+from ...sim_type import parse_file
+from ..stubs.ReturnUnconstrained import ReturnUnconstrained
+from ..stubs.syscall_stub import syscall as stub_syscall
 
 l = logging.getLogger("angr.procedures.definitions")
 SIM_LIBRARIES = {}
@@ -111,6 +112,25 @@ class SimLibrary(object):
         """
         self.prototypes.update(protos)
 
+    def set_c_prototype(self, c_decl):
+        """
+        Set the prototype of a function in the form of a C-style function declaration.
+
+        :param str c_decl: The C-style declaration of the function.
+        :return:           A tuple of (function name, function prototype)
+        :rtype:            tuple
+        """
+
+        parsed = parse_file(c_decl)
+        parsed_decl = parsed[0]
+        if not parsed_decl:
+            raise ValueError('Cannot parse the function prototype.')
+        func_name, func_proto = parsed_decl.items()[0]
+
+        self.set_prototype(func_name, func_proto)
+
+        return func_name, func_proto
+
     def add(self, name, proc_cls, **kwargs):
         """
         Add a function implementation fo the library.
@@ -210,6 +230,17 @@ class SimLibrary(object):
         :return:        A bool indicating if an implementation of the function is available
         """
         return name in self.procedures
+
+    def has_prototype(self, func_name):
+        """
+        Check if a function has a prototype associated with it.
+
+        :param str func_name: The name of the function.
+        :return:              A bool indicating if a prototype of the function is available.
+        :rtype:               bool
+        """
+
+        return func_name in self.prototypes
 
 
 class SimSyscallLibrary(SimLibrary):
