@@ -624,7 +624,7 @@ class SimCC(object):
     @staticmethod
     def _standardize_value(arg, ty, state, alloc):
         check = ty is not None
-        if isinstance(ty, SimTypeInt):
+        if check:
             ty = ty.with_arch(state.arch)
 
         if isinstance(arg, SimActionObject):
