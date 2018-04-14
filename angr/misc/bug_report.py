@@ -4,12 +4,12 @@ import os
 import sys
 import datetime
 
-have_pygit = False
+have_pygit2 = False
 try:
-    import git
-    have_pygit = True
+    import pygit2
+    have_pygit2 = True
 except ImportError:
-    print("If you install pygit (`pip install pygit`), I can give you git info too!")
+    print("If you install pygit2 (`pip install pygit2`), I can give you git info too!")
 
 angr_modules = ['angr', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'simuvex', 'z3', 'unicorn']
 native_modules = {'angr': 'angr.state_plugins.unicorn_engine._UC_NATIVE',
@@ -54,19 +54,19 @@ def print_versions():
 
 
 def print_git_info(dirname):
-    if not have_pygit:
+    if not have_pygit2:
         return
     try:
-        repo = git.Repository(dirname)
-    except git.repository.InvalidRepositoryError:
+        repo = pygit2.Repository(dirname)
+    except pygit2.GitError:
         try:
-            repo = git.Repository(os.path.split(dirname)[0])
+            repo = pygit2.Repository(os.path.split(dirname)[0])
         except:
             print("Couldn't find git info")
             return
     print("Git info:")
-    print("\tChecked out from: " + repo.config['remote.origin.url'])
-    print("\tCurrent commit %s from branch %s" % (repo.head.shortname, repo.head.refname))
+    print("\tChecked out from: " + repo.remotes['origin'].url)
+    print("\tCurrent commit %s from branch %s" % (repo.head.target, repo.head.shorthand))
 
 
 def print_system_info():
