@@ -105,7 +105,7 @@ setup(
         'capstone>=3.0.5rc2',
         'cooldict',
         'dpkt-fix',
-        'futures',
+        'futures; python_version == "2.7"',
         'mulpyplexer',
         'networkx',
         'progressbar',
