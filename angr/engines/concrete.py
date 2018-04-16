@@ -109,9 +109,12 @@ class SimEngineConcrete(SimEngine):
                     state.regs.gs = read_gs_register_windows_x64(self.target)
             elif isinstance(state.arch, ArchX86):
                 if self.project.simos.name == "Linux":
-                    state.regs.gs = read_gs_register_linux_x86(self.target)
+                    gs = read_gs_register_linux_x86(self.target)
+                    setup_gdt(state,0x0,gs)
+
                 elif self.project.simos.name == "Win32":
-                    state.regs.fs - read_fs_register_windows_x86(self.target)
+                    fs = read_fs_register_windows_x86(self.target)
+                    setup_gdt(state, fs,0x0)
             self.segment_registers_already_init = True
 
         # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary        -
@@ -121,8 +124,12 @@ class SimEngineConcrete(SimEngine):
                 func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
                 self.project.rehook_symbol(func_address, reloc.symbol.name)
 
+
+        gdt_addr = GDT_ADDR
+        gdt_size = GDT_LIMIT
+        whitelist = [(gdt_addr,gdt_size)]
         # flush the angr memory in order to synchronize them with the content of the concrete process memory when a read/write to the page is performed
-        state.memory.flush_pages()
+        state.memory.flush_pages(whitelist)
         l.info("Exiting SimEngineConcrete: simulated address %x concrete address %x "%(state.addr, self.target.read_register("pc")))
 
 

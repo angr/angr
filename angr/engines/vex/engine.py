@@ -356,7 +356,6 @@ class SimEngineVEX(SimEngine):
             l.debug("IMark: %#x", stmt.addr)
             state.scratch.num_insns += 1
             state._inspect('instruction', BP_BEFORE, instruction=ins_addr)
-            #print(stmt)
 
         # process it!
         s_stmt = translate_stmt(stmt, state)
