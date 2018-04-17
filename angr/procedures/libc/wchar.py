@@ -2,6 +2,7 @@ import angr
 from angr.sim_type import SimTypeString, SimTypeInt
 
 class wcscmp(angr.SimProcedure):
+    #pylint:disable=arguments-differ
     def run(self, lpString1, lpString2):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString())}
@@ -11,6 +12,7 @@ class wcscmp(angr.SimProcedure):
         return self.inline_call(strcmp, lpString1, lpString2, wchar=True).ret_expr
 
 class wcscasecmp(angr.SimProcedure):
+    #pylint:disable=arguments-differ
     def run(self, lpString1, lpString2):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString())}

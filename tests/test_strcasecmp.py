@@ -1,7 +1,6 @@
 import nose
 import angr
 import claripy
-from archinfo import ArchX86
 
 import os
 
@@ -17,7 +16,7 @@ def test_i386():
     sm.move('deadended', 'found', filter_func=lambda s: "Welcome" in s.posix.dumps(1))
 
     nose.tools.assert_equal(len(sm.found), 1)
-    
+
     f = sm.found[0]
     sol = f.solver.eval(arg1, cast_to=str)
     nose.tools.assert_in('\x00', sol)
