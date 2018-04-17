@@ -16,7 +16,7 @@ class Function(object):
     """
     A representation of a function and various information about it.
     """
-    def __init__(self, function_manager, addr, name=None, syscall=False):
+    def __init__(self, function_manager, addr, name=None, syscall=None):
         """
         Function constructor
 
@@ -49,6 +49,10 @@ class Function(object):
 
         self.is_plt = False
         self.is_simprocedure = False
+
+        if self.is_syscall is None:
+            # Determine whether this function is a syscall or not
+            self.is_syscall = self._project.simos.is_syscall_addr(addr)
 
         if project.is_hooked(addr):
             self.is_simprocedure = True

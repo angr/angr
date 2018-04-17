@@ -12,6 +12,7 @@ from .sim_type import SimTypeFunction
 from .sim_type import SimTypeFloat
 from .sim_type import SimTypeDouble
 from .sim_type import SimStruct
+from .sim_type import SimTypeInt
 
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -623,6 +624,9 @@ class SimCC(object):
     @staticmethod
     def _standardize_value(arg, ty, state, alloc):
         check = ty is not None
+        if isinstance(ty, SimTypeInt):
+            ty = ty.with_arch(state.arch)
+
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
@@ -812,6 +816,16 @@ class SimCCCdecl(SimCC):
 
 class SimCCStdcall(SimCCCdecl):
     CALLEE_CLEANUP = True
+
+class SimCCMicrosoftAMD64(SimCC):
+    ARG_REGS = ['rcx', 'rdx', 'r8', 'r9']
+    FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3']
+    STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
+    STACKARG_SP_BUFF = 32 # 32 bytes of shadow stack space
+    RETURN_VAL = SimRegArg('rax', 8)
+    FP_RETURN_VAL = SimRegArg('xmm0', 32)
+    RETURN_ADDR = SimStackArg(0, 8)
+    ARCH = archinfo.ArchAMD64
 
 class SimCCX86LinuxSyscall(SimCC):
     ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
@@ -1076,7 +1090,6 @@ class SimCCUnknown(SimCC):
     def __repr__(self):
         return "<SimCCUnknown - %s %s sp_delta=%d>" % (self.arch.name, self.args, self.sp_delta)
 
-CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCO64, SimCCPowerPC, SimCCPowerPC64, SimCCAArch64 ]
 DEFAULT_CC = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
