@@ -11,11 +11,11 @@ sys.path.append(
         os.path.dirname(os.path.abspath(__file__)),
         '../../../../../'))
 print(sys.path[-1])
-import pytcg
 
+import pytcg
 # import pyvex
 import claripy
-# from archinfo import ArchARM
+from archinfo import ArchARM
 
 from ... import sim_options as o
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
@@ -50,30 +50,30 @@ class SimEngineTCG(SimEngine):
 
         super(SimEngineTCG, self).__init__(project)
 
-        # self._stop_points = stop_points
-        # self._use_cache = use_cache
-        # self._default_opt_level = default_opt_level
-        # self._support_selfmodifying_code = support_selfmodifying_code
-        # self._single_step = single_step
-        # self._cache_size = cache_size
+        self._stop_points = stop_points
+        self._use_cache = use_cache
+        self._default_opt_level = default_opt_level
+        self._support_selfmodifying_code = support_selfmodifying_code
+        self._single_step = single_step
+        self._cache_size = cache_size
 
-        # if self._use_cache is None:
-        #     if project is not None:
-        #         self._use_cache = project._translation_cache
-        #     else:
-        #         self._use_cache = False
-        # if self._support_selfmodifying_code is None:
-        #     if project is not None:
-        #         self._support_selfmodifying_code = project._support_selfmodifying_code
-        #     else:
-        #         self._support_selfmodifying_code = False
+        if self._use_cache is None:
+            if project is not None:
+                self._use_cache = project._translation_cache
+            else:
+                self._use_cache = False
+        if self._support_selfmodifying_code is None:
+            if project is not None:
+                self._support_selfmodifying_code = project._support_selfmodifying_code
+            else:
+                self._support_selfmodifying_code = False
 
-        # # block cache
-        # self._block_cache = None
-        # self._block_cache_hits = 0
-        # self._block_cache_misses = 0
+        # block cache
+        self._block_cache = None
+        self._block_cache_hits = 0
+        self._block_cache_misses = 0
 
-        # self._initialize_block_cache()
+        self._initialize_block_cache()
 
     def is_stop_point(self, addr):
         if self.project is not None and addr in self.project._sim_procedures:
@@ -155,9 +155,6 @@ class SimEngineTCG(SimEngine):
         state.scratch.sim_procedure = None
         addr = successors.addr
 
-        # FIXME
-        assert(False)
-
         state._inspect('irsb', BP_BEFORE, address=addr)
         while True:
             if irsb is None:
@@ -171,31 +168,32 @@ class SimEngineTCG(SimEngine):
                     thumb=thumb,
                     opt_level=opt_level)
 
-            if irsb.size == 0:
-                if irsb.jumpkind == 'Ijk_NoDecode' and not state.project.is_hooked(irsb.addr):
-                    raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
-                                               "a python replacement using project.hook"
-                                               "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
+            # if irsb.size == 0:
+            #     if irsb.jumpkind == 'Ijk_NoDecode' and not state.project.is_hooked(irsb.addr):
+            #         raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
+            #                                    "a python replacement using project.hook"
+            #                                    "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
 
-                raise SimIRSBError("Empty IRSB passed to SimIRSB.")
+            #     raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
-            # check permissions, are we allowed to execute here? Do we care?
-            if o.STRICT_PAGE_ACCESS in state.options:
-                try:
-                    perms = state.memory.permissions(addr)
-                except SimMemoryError:
-                    raise SimSegfaultError(addr, 'exec-miss')
-                else:
-                    if not perms.symbolic:
-                        perms = state.se.eval(perms)
-                        if not perms & 4 and o.ENABLE_NX in state.options:
-                            raise SimSegfaultError(addr, 'non-executable')
+            # # check permissions, are we allowed to execute here? Do we care?
+            # if o.STRICT_PAGE_ACCESS in state.options:
+            #     try:
+            #         perms = state.memory.permissions(addr)
+            #     except SimMemoryError:
+            #         raise SimSegfaultError(addr, 'exec-miss')
+            #     else:
+            #         if not perms.symbolic:
+            #             perms = state.se.eval(perms)
+            #             if not perms & 4 and o.ENABLE_NX in state.options:
+            #                 raise SimSegfaultError(addr, 'non-executable')
 
             state.scratch.tyenv = irsb.tyenv
             state.scratch.irsb = irsb
 
             try:
-                self._handle_irsb(state, successors, irsb, skip_stmts, last_stmt, whitelist)
+                pass
+                # self._handle_irsb(state, successors, irsb, skip_stmts, last_stmt, whitelist)
             except SimReliftException as e:
                 state = e.state
                 if insn_bytes is not None:
@@ -437,9 +435,6 @@ class SimEngineTCG(SimEngine):
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         """
-        # FIXME
-        assert(False)
-
         # phase 0: sanity check
         if not state and not clemory and not insn_bytes:
             raise ValueError("Must provide state or clemory or insn_bytes!")
@@ -528,33 +523,37 @@ class SimEngineTCG(SimEngine):
         l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in xrange(2):
-                irsb = pyvex.IRSB(buff, addr + thumb, arch,
+                irsb = pytcg.IRSB(buff, addr + thumb, arch,
                                   num_bytes=size,
                                   num_inst=num_inst,
                                   bytes_offset=thumb,
                                   traceflags=traceflags,
                                   opt_level=opt_level)
 
-                if subphase == 0:
-                    # check for possible stop points
-                    stop_point = self._first_stoppoint(irsb)
-                    if stop_point is not None:
-                        size = stop_point - addr
-                        continue
+                # FIXME: What is this
+                # if subphase == 0:
+                #     # check for possible stop points
+                #     stop_point = self._first_stoppoint(irsb)
+                #     if stop_point is not None:
+                #         size = stop_point - addr
+                #         continue
 
                 if self._use_cache:
                     self._block_cache[cache_key] = irsb
                 return irsb
 
+        # FIXME: Handle errors
+        except Exception as e:
+            raise
         # phase x: error handling
-        except pyvex.PyVEXError:
-            l.debug("VEX translation error at %#x", addr)
-            if isinstance(buff, str):
-                l.debug('Using bytes: %r', buff)
-            else:
-                l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
-            e_type, value, traceback = sys.exc_info()
-            raise SimTranslationError, ("Translation error", e_type, value), traceback
+        # except pyvex.PyVEXError:
+        #     l.debug("VEX translation error at %#x", addr)
+        #     if isinstance(buff, str):
+        #         l.debug('Using bytes: %r', buff)
+        #     else:
+        #         l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
+        #     e_type, value, traceback = sys.exc_info()
+        #     raise SimTranslationError, ("Translation error", e_type, value), traceback
 
     def _load_bytes(self, addr, max_size, state=None, clemory=None):
         if not clemory:

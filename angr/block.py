@@ -93,6 +93,8 @@ class Block(object):
             self._instruction_addrs = []
             self.size = vex.size
 
+            return # FIXME
+
             for stmt in vex.statements:
                 if stmt.tag != 'Ist_IMark':
                     continue
