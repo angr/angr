@@ -17,8 +17,7 @@ GDB_SERVER_IP = '192.168.56.101'
 GDB_SERVER_PORT = 9999
 
 BEFORE_STRCMP_X86 = 0x40155B
-BEFORE_STRCMP_X64 = 0x401585
-#BEFORE_STRCMP_X64 = 0x401576
+BEFORE_STRCMP_X64 = 0x40157A
 
 WIN_BLOCK_X86 = 0x401564
 WIN_BLOCK_X64 = 0x40158E
@@ -77,19 +76,20 @@ def manual_test_concrete_engine_windows_x64():
     state = exploration.found[0]
     print("After concrete execution")
 
+    print("ip is %x"%(state.se.eval(state.regs.pc,cast_to=int)))
     pwd = claripy.BVS('pwd', 8 * 8)
-    addr = state.regs.rbp - 0x20
+    addr = state.regs.rbp - 0x30
     state.memory.store(addr, pwd)
 
     simgr = p.factory.simulation_manager(state)
-    win_exploration = simgr.explore(find=WIN_BLOCK_X64)
+    win_exploration = simgr.explore(find=WIN_BLOCK_X64,avoid=0x4015D2)
     win_state = win_exploration.found[0]
     value_1 = win_state.se.eval(pwd, cast_to=str)
     print("After simultated execution")
     print("Solution is \"%s\"" % (value_1))
 
     simgr = p.factory.simgr(win_state)
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(addr, pwd)]))
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(win_state.regs.rbp-0x30, pwd)]))
     simgr.run()
     print("Finished")
     avatar_gdb.exit()
@@ -104,4 +104,4 @@ def test_gdbtarget_windows_x64():
     setup()
     manual_test_concrete_engine_windows_x64()
 
-test_gdbtarget_windows_x86()
+test_gdbtarget_windows_x64()

@@ -300,7 +300,14 @@ class SimEngineVEX(SimEngine):
                 l.debug("The temporary variable for default exit of %s is missing.", self)
         else:
             l.debug("%s has no default exit", self)
-
+        '''
+        print("-------------------------")
+        print("all successors %s" % (list(successors.all_successors)))
+        print("sat successors %s" % (list(successors.successors)))
+        print("unconstrained successors %s" % (list(successors.unconstrained_successors)))
+        print("unsat successors %s" % (list(successors.unsat_successors)))
+        print("-------------------------")
+        '''
         # do return emulation and calless stuff
         for exit_state in list(successors.all_successors):
             exit_jumpkind = exit_state.history.jumpkind
@@ -356,8 +363,13 @@ class SimEngineVEX(SimEngine):
             l.debug("IMark: %#x", stmt.addr)
             state.scratch.num_insns += 1
             state._inspect('instruction', BP_BEFORE, instruction=ins_addr)
+            #print(stmt)
+            #state.project.factory.block(state.se.eval(state.regs.pc)).capstone.pp()
+            #if ("0xf7ecf1ce" in str(stmt)) or ("0x90d9f7b" in str(stmt) or ("0xf7ef2f5c" in str(stmt)) or ("0x804860c" in str(stmt))):
+            #   import ipdb; ipdb.set_trace()
+            #   print("block")
 
-        # process it!
+            # process it!
         s_stmt = translate_stmt(stmt, state)
         if s_stmt is not None:
             state.history.extend_actions(s_stmt.actions)

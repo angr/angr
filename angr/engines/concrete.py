@@ -109,8 +109,14 @@ class SimEngineConcrete(SimEngine):
                     state.regs.gs = read_gs_register_windows_x64(self.target)
             elif isinstance(state.arch, ArchX86):
                 if self.project.simos.name == "Linux":
+                    #Setup the GDT structure in the angr memory and populate the field containing the gs value
                     gs = read_gs_register_linux_x86(self.target)
                     setup_gdt(state,0x0,gs)
+
+                    #Syncronize the address of vsyscall in simprocedures dictionary with the concrete value
+                    _vsyscall_address = self.target.read_memory(gs + 0x10, self.project.arch.bits / 8)
+                    _vsyscall_address = struct.unpack(self.project.arch.struct_fmt(), _vsyscall_address)[0]
+                    self.project.rehook_symbol(_vsyscall_address, '_vsyscall')
 
                 elif self.project.simos.name == "Win32":
                     fs = read_fs_register_windows_x86(self.target)
@@ -118,7 +124,7 @@ class SimEngineConcrete(SimEngine):
             self.segment_registers_already_init = True
 
         # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary        -
-        if self.preserve_simproc:
+        if self.project._should_use_sim_procedures:
             for reloc in self.project.loader.main_object.relocs:
                 func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
                 func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
