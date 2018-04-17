@@ -2,6 +2,7 @@ from .successors import SimSuccessors
 from .engine import SimEngine
 
 from .vex import SimEngineVEX
+from .tcg import SimEngineTCG
 from .procedure import SimEngineProcedure
 from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
@@ -28,6 +29,8 @@ EngineHub.register_preset('default', vex_preset)
 
 vex_preset.add_default_plugin('unicorn', SimEngineUnicorn)
 vex_preset.add_default_plugin('vex', SimEngineVEX)
+vex_preset.add_default_plugin('tcg', SimEngineTCG)
 
-vex_preset.order = 'unicorn', 'vex'
-vex_preset.default_engine = 'vex'
+vex_preset.order = 'unicorn', 'vex', 'tcg'
+vex_preset.default_engine = 'tcg' # FIXME: Works but how do I do this without
+                                  # changing default??
