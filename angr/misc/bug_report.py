@@ -4,14 +4,14 @@ import os
 import sys
 import datetime
 
-have_pygit2 = False
+have_gitpython = False
 try:
-    import pygit2
-    have_pygit2 = True
+    from git import Repo, InvalidGitRepositoryError
+    have_gitpython = True
 except ImportError:
-    print("If you install pygit2 (`pip install pygit2`), I can give you git info too!")
+    print("If you install gitpython (`pip install gitpython`), I can give you git info too!")
 
-angr_modules = ['angr', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'simuvex', 'z3', 'unicorn']
+angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'simuvex', 'z3', 'unicorn']
 native_modules = {'angr': 'angr.state_plugins.unicorn_engine._UC_NATIVE',
                   'unicorn': 'unicorn.unicorn._uc',
                   'pyvex': 'pyvex.pvc',
@@ -54,19 +54,20 @@ def print_versions():
 
 
 def print_git_info(dirname):
-    if not have_pygit2:
+    if not have_gitpython:
         return
     try:
-        repo = pygit2.Repository(dirname)
-    except pygit2.GitError:
-        try:
-            repo = pygit2.Repository(os.path.split(dirname)[0])
-        except:
-            print("Couldn't find git info")
-            return
+        repo = Repo(dirname, search_parent_directories=True)
+    except InvalidGitRepositoryError:
+        print("Couldn't find git info")
+        return
+    cur_commit = repo.commit()
+    cur_branch = repo.active_branch
+    cur_remote = repo.remote()
+    remote_url = list(cur_remote.urls)[0]
     print("Git info:")
-    print("\tChecked out from: " + repo.remotes['origin'].url)
-    print("\tCurrent commit %s from branch %s" % (repo.head.target, repo.head.shorthand))
+    print("\tChecked out from: " + remote_url)
+    print("\tCurrent commit %s from branch %s" % (cur_commit.hexsha, cur_branch.name))
 
 
 def print_system_info():
