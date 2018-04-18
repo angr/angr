@@ -116,7 +116,7 @@ setup(
         'claripy>=7.8.2.21',
         'cle>=7.8.2.21',
         'pyvex>=7.8.2.21',
-        'gitpython',
+        'GitPython',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
