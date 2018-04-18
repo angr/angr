@@ -13,7 +13,7 @@ _ffi = cffi.FFI()
 
 import logging
 l = logging.getLogger("angr.storage.paged_memory")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 
