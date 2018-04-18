@@ -3,12 +3,14 @@ import claripy
 from sortedcontainers import SortedDict
 
 from ..state_plugins.plugin import SimStatePlugin
-from ..engines.vex.ccall import _get_flags
+
 
 l = logging.getLogger("angr.storage.memory")
 
 stn_map = { 'st%d' % n: n for n in xrange(8) }
 tag_map = { 'tag%d' % n: n for n in xrange(8) }
+
+DUMMY_SYMBOLIC_READ_VALUE = 0xc0deb4be
 
 
 class AddressWrapper(object):
@@ -363,6 +365,10 @@ class SimMemory(SimStatePlugin):
                 self._generic_region_map = None
 
     def _resolve_location_name(self, name, is_write=False):
+
+        # Delayed load so SimMemory does not rely on SimEngines
+        from ..engines.vex.ccall import _get_flags
+
         if self.category == 'reg':
             if self.state.arch.name in ('X86', 'AMD64'):
                 if name in stn_map:

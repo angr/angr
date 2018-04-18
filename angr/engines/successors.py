@@ -280,33 +280,34 @@ class SimSuccessors(object):
 
         else:
             # a successor with a symbolic IP
+            _max_targets = state.config.symbolic_ip_max_targets
             try:
                 if o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
-                    addrs = s.eval(target, 257, extra_constraints=tuple(state.ip_constraints))
-                    if len(addrs) > 256:
+                    addrs = s.eval(target, _max_targets + 1, extra_constraints=tuple(state.ip_constraints))
+                    if len(addrs) > _max_targets:
                         # It is not a library
                         l.debug("It is not a Library")
-                        addrs = state.se.eval_upto(target, 257)
-                        if len(addrs) == 1:
-                            state.add_constraints(target == addrs[0])
+                        addrs = state.se.eval_upto(target, _max_targets + 1)
                         l.debug("addrs :%s", addrs)
+                    cond_and_targets = [ (target == addr, addr) for addr in addrs ]
                 else:
-                    addrs = state.se.eval_upto(target, 257)
+                    cond_and_targets = self._eval_target(state, target, _max_targets + 1)
 
-                if len(addrs) > 256:
+                if len(cond_and_targets) > _max_targets:
                     l.warning(
-                        "Exit state has over 257 possible solutions. Likely unconstrained; skipping. %s",
+                        "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
+                        _max_targets,
                         target.shallow_repr()
                     )
                     self.unconstrained_successors.append(state)
                 else:
-                    for a in addrs:
+                    for cond, a in cond_and_targets:
                         split_state = state.copy()
                         if o.KEEP_IP_SYMBOLIC in split_state.options:
                             split_state.regs.ip = target
                         else:
-                            split_state.add_constraints(target == a, action=True)
+                            split_state.add_constraints(cond, action=True)
                             split_state.regs.ip = a
                         split_state.inspect.downsize()
                         self.flat_successors.append(split_state)
@@ -379,10 +380,98 @@ class SimSuccessors(object):
         if len(self.flat_successors) == 1 and len(self.unconstrained_successors) == 0:
             self.flat_successors[0].scratch.avoidable = False
 
+    def _eval_target(self, state, ip, limit):
+        """
+        A *very* fast method to evaluate symbolic jump targets if they are a) concrete targets, or b) targets coming
+        from jump tables.
+
+        :param state:   A SimState instance.
+        :param ip:      The AST of the instruction pointer to evaluate.
+        :param limit:   The maximum number of concrete IPs.
+        :return:        A list of conditions and the corresponding concrete IPs.
+        :rtype:         list
+        """
+
+        if ip.symbolic is False:
+            return ip  # concrete
+
+        # Detect whether ip is in the form of "if a == 1 then addr_0 else if a == 2 then addr_1 else ..."
+        cond_and_targets = [ ]  # tuple of (condition, target)
+
+        ip_ = ip
+        # Handle the outer Reverse
+        outer_reverse = False
+        if ip_.op == "Reverse":
+            ip_ = ip_.args[0]
+            outer_reverse = True
+
+        fallback = False
+        atom = None
+        concretes = set()
+        while True:
+            # We must fully unpack the entire AST to make sure it indeed complies with the form above
+            if ip_.op == "If":
+                cond = ip_.args[0]
+                target = ip_.args[1]
+                if cond.op != "__eq__":
+                    # oops... fallback
+                    fallback = True
+                    break
+                if cond.args[1].symbolic is True:
+                    # oops
+                    fallback = True
+                    break
+                if atom is None:
+                    atom = cond.args[0]
+                elif not atom is cond.args[0]:
+                    # it's checking a different atom
+                    fallback = True
+                    break
+                if target.symbolic is True:
+                    # oops... fallback
+                    fallback = True
+                    break
+                target_addr = state.solver.eval(target)
+                if target_addr in concretes:
+                    # oops... the conditions are not mutually exclusive
+                    fallback = True
+                    break
+                concretes.add(target_addr)
+                cond_and_targets.append((cond, target if not outer_reverse else state.solver.Reverse(target)))
+                ip_ = ip_.args[2]
+            elif ip_.symbolic is False and state.solver.eval(ip_) == DUMMY_SYMBOLIC_READ_VALUE:
+                # Ignore the dummy value
+                break
+            else:
+                # oops... fallback to the traditional route
+                fallback = True
+                break
+
+        if fallback:
+            return self._eval_target_brutal(state, ip, limit)
+        else:
+            return cond_and_targets[:limit]
+
+    def _eval_target_brutal(self, state, ip, limit):
+        """
+        The traditional way of evaluating symbolic jump targets.
+
+        :param state:   A SimState instance.
+        :param ip:      The AST of the instruction pointer to evaluate.
+        :param limit:   The maximum number of concrete IPs.
+        :return:        A list of conditions and the corresponding concrete IPs.
+        :rtype:         list
+        """
+
+        addrs = state.se.eval_upto(ip, limit)
+
+        return [ (ip == addr, addr) for addr in addrs ]
+
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
+from ..storage.memory import DUMMY_SYMBOLIC_READ_VALUE
 from .. import sim_options as o

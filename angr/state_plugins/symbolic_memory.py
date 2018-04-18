@@ -6,7 +6,7 @@ import itertools
 l = logging.getLogger("angr.state_plugins.symbolic_memory")
 
 import claripy
-from ..storage.memory import SimMemory
+from ..storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
 from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 
@@ -526,11 +526,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        read_value = self._read_from(addrs[0], size, inspect=inspect,
-                events=events, ret_on_segv=ret_on_segv)
-        constraint_options = [ dst == addrs[0] ]
+        read_value = DUMMY_SYMBOLIC_READ_VALUE  # it will never be touched
+        constraint_options = [ ]
 
-        for a in addrs[1:]:
+        for a in addrs:
             read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
                                           read_value)
             constraint_options.append(dst == a)
