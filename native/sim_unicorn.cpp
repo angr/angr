@@ -459,7 +459,7 @@ public:
 		} else {
 			if (address == 0x1000) {
 				printf("[sim_unicorn] You've mapped something at 0x1000! "
-					"Please don't do that, I put my GDT there!\n")
+					"Please don't do that, I put my GDT there!\n");
 			} else {
 				printf("[sim_unicorn] Something very bad is happening; please investigate. "
 					"Trying to activate the page at %#llx but it's already activated.\n", address);
