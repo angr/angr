@@ -579,7 +579,7 @@ class Project(object):
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        
+
     def _store(self, container):
         # If container is a filename.
         if isinstance(container, str):
