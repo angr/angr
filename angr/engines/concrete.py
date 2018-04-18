@@ -81,7 +81,7 @@ class SimEngineConcrete(SimEngine):
 
         :return:
         """
-
+        whitelist = []
         # Setting a concrete memory backend
         state.memory.mem._memory_backer.set_concrete_target(self.target)
 
@@ -109,21 +109,29 @@ class SimEngineConcrete(SimEngine):
                     state.regs.gs = read_gs_register_windows_x64(self.target)
             elif isinstance(state.arch, ArchX86):
                 if self.project.simos.name == "Linux":
-                    #Setup the GDT structure in the angr memory and populate the field containing the gs value
+                    # Setup the GDT structure in the angr memory and populate the field containing the gs value
+                    # (mandatory for handling access to segment registers)
                     gs = read_gs_register_linux_x86(self.target)
                     setup_gdt(state,0x0,gs)
 
-                    #Syncronize the address of vsyscall in simprocedures dictionary with the concrete value
+                    # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
                     _vsyscall_address = self.target.read_memory(gs + 0x10, self.project.arch.bits / 8)
                     _vsyscall_address = struct.unpack(self.project.arch.struct_fmt(), _vsyscall_address)[0]
                     self.project.rehook_symbol(_vsyscall_address, '_vsyscall')
 
                 elif self.project.simos.name == "Win32":
+                    # Setup the GDT structure in the angr memory and populate the field containing the fs value
+                    # (mandatory for handling access to segment registers)
                     fs = read_fs_register_windows_x86(self.target)
                     setup_gdt(state, fs,0x0)
+
+                # Avoid flushing the page containing the GDT in this way these addresses will always be read from the angr memory
+                gdt_addr = GDT_ADDR
+                gdt_size = GDT_LIMIT
+                whitelist.append((gdt_addr,gdt_addr+gdt_size))
             self.segment_registers_already_init = True
 
-        # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary        -
+        # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary
         if self.project._should_use_sim_procedures:
             for reloc in self.project.loader.main_object.relocs:
                 func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
@@ -131,9 +139,7 @@ class SimEngineConcrete(SimEngine):
                 self.project.rehook_symbol(func_address, reloc.symbol.name)
 
 
-        gdt_addr = GDT_ADDR
-        gdt_size = GDT_LIMIT
-        whitelist = [(gdt_addr,gdt_size)]
+
         # flush the angr memory in order to synchronize them with the content of the concrete process memory when a read/write to the page is performed
         state.memory.flush_pages(whitelist)
         l.info("Exiting SimEngineConcrete: simulated address %x concrete address %x "%(state.addr, self.target.read_register("pc")))

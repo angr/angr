@@ -25,6 +25,7 @@ WIN_BLOCK_X64 = 0x40158E
 END_X86 = 0x4015FE
 END_X64 = 0x401618
 
+avatar_gdb = None
 
 
 def setup():
@@ -36,8 +37,13 @@ def setup():
     raw_input("Press enter when gdbserver has been executed")
 
 
+def teardown():
+    avatar_gdb.exit()
+    print("--------------\n")
 
+@nose.with_setup(setup,teardown)
 def test_concrete_engine_windows_x86_simprocedures():
+    global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
 
     p = angr.Project(binary_x86, concrete_target=avatar_gdb)
@@ -65,10 +71,39 @@ def test_concrete_engine_windows_x86_simprocedures():
     print("Finished")
     avatar_gdb.exit()
 
+@nose.with_setup(setup,teardown)
+def test_concrete_engine_windows_x86_no_simprocedures():
+    global avatar_gdb
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
 
+    p = angr.Project(binary_x86, concrete_target=avatar_gdb,use_sim_procedures=False)
+    simgr = p.factory.simgr(p.factory.entry_state())
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[BEFORE_STRCMP_X86], concretize=[]))
+    exploration = simgr.run()
+    state = exploration.found[0]
+    print("After concrete execution")
 
+    pwd = claripy.BVS('pwd', 8*8)
+    addr = state.regs.ebp - 0x15
+    state.memory.store(addr, pwd)
 
+    simgr = p.factory.simulation_manager(state)
+    win_exploration = simgr.explore(find=WIN_BLOCK_X86)
+    win_state = win_exploration.found[0]
+    value_1 = win_state.se.eval(pwd, cast_to=str)
+    print("After simultated execution")
+    print("Solution is \"%s\"" % (value_1))
+    nose.tools.assert_true(value_1 == "SOSNEAKY")
+
+    simgr = p.factory.simgr(win_state)
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X86], concretize=[(addr,pwd)]))
+    simgr.run()
+    print("Finished")
+    avatar_gdb.exit()
+
+@nose.with_setup(setup,teardown)
 def test_concrete_engine_windows_x64_no_simprocedures():
+    global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
 
     p = angr.Project(binary_x64, concrete_target=avatar_gdb,use_sim_procedures=False)
@@ -96,8 +131,9 @@ def test_concrete_engine_windows_x64_no_simprocedures():
     print("Finished")
     avatar_gdb.exit()
 
-
+@nose.with_setup(setup,teardown)
 def test_concrete_engine_windows_x64_simprocedures():
+    global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
 
     p = angr.Project(binary_x64, concrete_target=avatar_gdb)
@@ -128,10 +164,11 @@ def test_concrete_engine_windows_x64_simprocedures():
 
 def test_gdbtarget_windows_x86():
     setup()
-    manual_test_concrete_engine_windows_x86()
+    test_concrete_engine_windows_x86_simprocedures()
 
 def test_gdbtarget_windows_x64():
     setup()
-    manual_test_concrete_engine_windows_x64()
+    test_concrete_engine_windows_x64_simprocedures()
+
 
 test_gdbtarget_windows_x64()
