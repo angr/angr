@@ -87,7 +87,7 @@ class SimEngineConcrete(SimEngine):
         regs_blacklist = ['fs', 'gs']
 
         for reg_key, reg_name in state.arch.register_names.items():
-            l.debug("Synchronizing general purpose registers")
+            l.info("Synchronizing general purpose registers")
             if reg_name not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg_name)
