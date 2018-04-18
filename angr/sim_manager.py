@@ -116,7 +116,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     def __repr__(self):
         stashes_repr = ', '.join(("%d %s" % (len(v), k)) for k, v in self._stashes.items() if len(v) != 0)
-        return "<SimulationManager with %s>" % (stashes_repr if stashes_repr else 'all stashes empty')
+        return "<SimulationManager with %s%s>" % (stashes_repr if stashes_repr else 'all stashes empty', ' (%d errored)' % len(self.errored) if self.errored else '')
 
     def __getattr__(self, item):
         try:
@@ -355,8 +355,9 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                 bucket[stash].append(state)
                 continue
 
+            pre_errored = len(self._errored)
             successors = self.step_state(state, successor_func, **run_args)
-            if not any(successors.itervalues()):
+            if not any(successors.itervalues()) and len(self._errored) == pre_errored:
                 bucket['deadended'].append(state)
                 continue
 

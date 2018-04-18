@@ -457,6 +457,16 @@ public:
 				memset(bitmap, TAINT_NONE, sizeof(PageBitmap));
 			}
 		} else {
+			if (address == 0x1000) {
+				printf("[sim_unicorn] You've mapped something at 0x1000! "
+					"Please don't do that, I put my GDT there!\n");
+			} else {
+				printf("[sim_unicorn] Something very bad is happening; please investigate. "
+					"Trying to activate the page at %#llx but it's already activated.\n", address);
+				// to the person who sees this error:
+				// you're gonna need to spend some time looking into it.
+				// I'm not 100% sure that this is necessarily a bug condition.
+			}
 			bitmap = it->second;
 		}
 
