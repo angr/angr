@@ -4,7 +4,7 @@ import claripy
 import avatar2 as avatar2
 from angr_targets import AvatarGDBConcreteTarget
 import os
-import subprocess
+import nose
 import ipdb
 binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86_64','windows','simple_crackme_x64.exe'))
@@ -37,7 +37,7 @@ def setup():
 
 
 
-def manual_test_concrete_engine_windows_x86():
+def test_concrete_engine_windows_x86_simprocedures():
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
 
     p = angr.Project(binary_x86, concrete_target=avatar_gdb)
@@ -57,6 +57,8 @@ def manual_test_concrete_engine_windows_x86():
     value_1 = win_state.se.eval(pwd, cast_to=str)
     print("After simultated execution")
     print("Solution is \"%s\"" % (value_1))
+    nose.tools.assert_true(value_1 == "SOSNEAKY")
+
     simgr = p.factory.simgr(win_state)
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X86], concretize=[(addr,pwd)]))
     simgr.run()
@@ -66,7 +68,36 @@ def manual_test_concrete_engine_windows_x86():
 
 
 
-def manual_test_concrete_engine_windows_x64():
+def test_concrete_engine_windows_x64_no_simprocedures():
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb,use_sim_procedures=False)
+    simgr = p.factory.simgr(p.factory.entry_state())
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[BEFORE_STRCMP_X64], concretize=[]))
+    exploration = simgr.run()
+    state = exploration.found[0]
+    print("After concrete execution")
+
+    pwd = claripy.BVS('pwd', 8 * 8)
+    addr = state.regs.rbp - 0x20
+    state.memory.store(addr, pwd)
+
+    simgr = p.factory.simulation_manager(state)
+    win_exploration = simgr.explore(find=WIN_BLOCK_X64,avoid=0x4015D2)
+    win_state = win_exploration.found[0]
+    value_1 = win_state.se.eval(pwd, cast_to=str)
+    print("After simultated execution")
+    print("Solution is \"%s\"" % (value_1))
+    nose.tools.assert_true(value_1 == "SOSNEAKY")
+
+    simgr = p.factory.simgr(win_state)
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(win_state.regs.rbp-0x20, pwd)]))
+    simgr.run()
+    print("Finished")
+    avatar_gdb.exit()
+
+
+def test_concrete_engine_windows_x64_simprocedures():
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
 
     p = angr.Project(binary_x64, concrete_target=avatar_gdb)
@@ -76,9 +107,8 @@ def manual_test_concrete_engine_windows_x64():
     state = exploration.found[0]
     print("After concrete execution")
 
-    print("ip is %x"%(state.se.eval(state.regs.pc,cast_to=int)))
     pwd = claripy.BVS('pwd', 8 * 8)
-    addr = state.regs.rbp - 0x30
+    addr = state.regs.rbp - 0x20
     state.memory.store(addr, pwd)
 
     simgr = p.factory.simulation_manager(state)
@@ -87,13 +117,13 @@ def manual_test_concrete_engine_windows_x64():
     value_1 = win_state.se.eval(pwd, cast_to=str)
     print("After simultated execution")
     print("Solution is \"%s\"" % (value_1))
+    nose.tools.assert_true(value_1 == "SOSNEAKY")
 
     simgr = p.factory.simgr(win_state)
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(win_state.regs.rbp-0x30, pwd)]))
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(win_state.regs.rbp-0x20, pwd)]))
     simgr.run()
     print("Finished")
     avatar_gdb.exit()
-
 
 
 def test_gdbtarget_windows_x86():

@@ -25,7 +25,6 @@ class SimEngineConcrete(SimEngine):
         self.project = project
         if isinstance(self.project.concrete_target,ConcreteTarget):
             self.target = self.project.concrete_target
-            self.preserve_simproc = False
         else:
             print "Error, you must provide an instance of a ConcreteTarget to initialize" \
                   "a SimEngineConcrete."
@@ -89,12 +88,13 @@ class SimEngineConcrete(SimEngine):
         # Sync Angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
         regs_blacklist = ['fs', 'gs']
-        for reg in state.arch.registers:
-            if reg not in regs_blacklist:
+
+        for reg_key, reg_name in state.arch.register_names.items():
+            if reg_name not in regs_blacklist:
                 try:
-                    reg_value = self.target.read_register(reg)
+                    reg_value = self.target.read_register(reg_name)
                     #print "Storing " + str(reg_value) + " inside reg " + reg
-                    state.registers.store(reg, state.se.BVV(reg_value, state.arch.bits))
+                    state.registers.store(reg_name, state.se.BVV(reg_value, state.arch.bits))
                 except Exception, e:
                     #l.warning("Can't set register " + reg)
                     pass
