@@ -7,7 +7,7 @@ l = logging.getLogger("angr.procedures.libc.strncmp")
 class strncmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, a_addr, b_addr, limit, a_len=None, b_len=None): #pylint:disable=arguments-differ
+    def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False): #pylint:disable=arguments-differ
         # TODO: smarter types here?
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                        1: self.ty_ptr(SimTypeString()),
@@ -16,8 +16,8 @@ class strncmp(angr.SimProcedure):
 
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
-        a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr)
-        b_strlen = b_len if b_len is not None else self.inline_call(strlen, b_addr)
+        a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr, wchar=wchar)
+        b_strlen = b_len if b_len is not None else self.inline_call(strlen, b_addr, wchar=wchar)
 
         a_len = a_strlen.ret_expr
         b_len = b_strlen.ret_expr
@@ -91,6 +91,13 @@ class strncmp(angr.SimProcedure):
                 variables |= a_byte.variables
                 variables |= b_byte.variables
 
+                if ignore_case:
+                    # convert both to lowercase
+                    if ord('a') <= a_conc <= ord('z'):
+                        a_conc -= ord(' ')
+                    if ord('a') <= b_conc <= ord('z'):
+                        b_conc -= ord(' ')
+
                 if a_conc != b_conc:
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
                     if a_conc < b_conc:
@@ -105,7 +112,26 @@ class strncmp(angr.SimProcedure):
                 concrete_run = False
 
             if self.state.mode != 'static':
-                byte_constraint = self.state.se.Or(a_byte == b_byte, self.state.se.ULT(a_len, i), self.state.se.ULT(limit, i))
+                if ignore_case:
+                    byte_constraint = self.state.se.Or(
+                        self.state.se.Or(
+                            a_byte == b_byte,
+                            self.state.se.And(
+                                ord('A') <= a_byte, a_byte <= ord('Z'),
+                                ord('a') <= b_byte, b_byte <= ord('z'),
+                                b_byte - ord(' ') == a_byte,
+                            ),
+                            self.state.se.And(
+                                ord('A') <= b_byte, b_byte <= ord('Z'),
+                                ord('a') <= a_byte, a_byte <= ord('z'),
+                                a_byte - ord(' ') == b_byte,
+                            ),
+                        ),
+                        self.state.se.ULT(a_len, i),
+                        self.state.se.ULT(limit, i)
+                    )
+                else:
+                    byte_constraint = self.state.se.Or(a_byte == b_byte, self.state.se.ULT(a_len, i), self.state.se.ULT(limit, i))
                 match_constraints.append(byte_constraint)
 
         if concrete_run:
