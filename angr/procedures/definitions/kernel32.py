@@ -17,6 +17,8 @@ lib.add('lstrcmpA', P['libc']['strcmp'])
 lib.add('lstrcpyA', P['libc']['strcpy'])
 lib.add('lstrcpynA', P['libc']['strncpy'])
 lib.add('lstrlenA', P['libc']['strlen'])
+lib.add('lstrcmpW', P['libc']['wcscmp'])
+lib.add('lstrcmpiW', P['libc']['wcscasecmp'])
 
 prototypes = {
     "AcquireSRWLockExclusive": SimTypeFunction((SimTypeLong(),)*1, SimTypeLong()),

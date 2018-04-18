@@ -772,7 +772,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             r = globals()[cond_funcname](state, cc_expr)
         else:
             l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
-            raise KeyError('Operation %s with condition %s not found.' % (op, cond))
+            raise SimCCallError('Operation %s with condition %s not found.' % (op, cond))
 
     return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
 
