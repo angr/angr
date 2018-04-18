@@ -12,8 +12,6 @@ l = logging.getLogger("angr.engines.concrete")
 l.setLevel(logging.DEBUG)
 
 
-
-
 class SimEngineConcrete(SimEngine):
     """
     Concrete execution inside a concrete target provided by the user.
@@ -89,6 +87,7 @@ class SimEngineConcrete(SimEngine):
         regs_blacklist = ['fs', 'gs']
 
         for reg_key, reg_name in state.arch.register_names.items():
+            l.debug("Synchronizing general purpose registers")
             if reg_name not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg_name)
