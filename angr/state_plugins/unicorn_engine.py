@@ -807,7 +807,7 @@ class Unicorn(SimStatePlugin):
             raise FetchingZeroPageError()
 
         data = bytearray(length)
-        taint = [ ] # this is a list to get around python's scoping craziness
+        taint = [ ] # this is a list to reference a nonlocal variable. we're using the list like an Option<c array>
 
         def _taint(pos, chunk_size):
             if not taint:
