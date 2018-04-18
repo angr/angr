@@ -12,8 +12,6 @@ l = logging.getLogger("angr.engines.concrete")
 l.setLevel(logging.DEBUG)
 
 
-
-
 class SimEngineConcrete(SimEngine):
     """
     Concrete execution inside a concrete target provided by the user.
@@ -26,8 +24,7 @@ class SimEngineConcrete(SimEngine):
         if isinstance(self.project.concrete_target,ConcreteTarget):
             self.target = self.project.concrete_target
         else:
-            print "Error, you must provide an instance of a ConcreteTarget to initialize" \
-                  "a SimEngineConcrete."
+            l.warn("Error, you must provide an instance of a ConcreteTarget to initialize a SimEngineConcrete.")
             self.target = None
         self.segment_registers_already_init = False
 
@@ -90,10 +87,11 @@ class SimEngineConcrete(SimEngine):
         regs_blacklist = ['fs', 'gs']
 
         for reg_key, reg_name in state.arch.register_names.items():
+            l.info("Synchronizing general purpose registers")
             if reg_name not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg_name)
-                    #print "Storing " + str(reg_value) + " inside reg " + reg
+                    l.debug("Storing " + hex(reg_value) + " inside reg " + reg_name)
                     state.registers.store(reg_name, state.se.BVV(reg_value, state.arch.bits))
                 except Exception, e:
                     #l.warning("Can't set register " + reg)
@@ -102,6 +100,7 @@ class SimEngineConcrete(SimEngine):
 
         # Initialize the segment register value if not already initialized
         if not self.segment_registers_already_init:
+            l.debug("Synchronizing segments registers")
             if isinstance(state.arch, ArchAMD64):
                 if self.project.simos.name == "Linux":
                     state.regs.fs = read_fs_register_linux_x64(self.target)
@@ -133,12 +132,14 @@ class SimEngineConcrete(SimEngine):
 
         # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary
         if self.project._should_use_sim_procedures:
+            l.info("Restoring SimProc using concrete memory")
             for reloc in self.project.loader.main_object.relocs:
                 func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
                 func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
+                l.debug("Re-hooking SimProc " + reloc.symbol.name + " with address " + hex(func_address))
                 self.project.rehook_symbol(func_address, reloc.symbol.name)
-
-
+        else:
+            l.warn("SimProc not restored, you are going to simulate also the code of external libraries!")
 
         # flush the angr memory in order to synchronize them with the content of the concrete process memory when a read/write to the page is performed
         state.memory.flush_pages(whitelist)
@@ -154,14 +155,14 @@ class SimEngineConcrete(SimEngine):
         3- Continue the program execution.
         :return:
         """
-        l.info("Entering in SimEngineConcrete: simulated address %x concrete address %x stop points %s"%(state.addr, self.target.read_register("pc"),extra_stop_points ))
+        l.info("Entering in SimEngineConcrete: simulated address 0x%x concrete address 0x%x stop points %s"%(state.addr, self.target.read_register("pc"),extra_stop_points ))
         if concretize != []:
             l.info("Concretize variables before entering inside the SimEngineConcrete | "
                       "Be patient this could take a while.")
             for sym_var in concretize:
                 sym_var_address = state.se.eval(sym_var[0])
                 sym_var_value = state.se.eval(sym_var[1], cast_to=str)
-                print("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
+                l.debug("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
                 self.target.write_memory(sym_var_address, sym_var_value)
 
         '''
@@ -195,8 +196,8 @@ class SimEngineConcrete(SimEngine):
 
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
-            l.info("Setting breakpoints at " + hex(stop_point))
-            self.target.set_breakpoint(stop_point,temporary=True)
+            l.debug("Setting breakpoints at " + hex(stop_point))
+            self.target.set_breakpoint(stop_point, temporary=True)
 
         # Continue the execution of the binary
         #stop_point = self.target.run()
