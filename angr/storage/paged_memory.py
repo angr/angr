@@ -1087,14 +1087,15 @@ class SimPagedMemory(object):
         """
         white_list_page_number = []
         for addr in white_list:
-            white_list_page_number.append(addr[0] / 0x1000)
+            for page_addr in xrange(addr[0], addr[1], 0x1000):
+                white_list_page_number.append(page_addr / 0x1000)
 
         new_page_dict = {}
 
         # cycle over all the keys ( the page number )
         for page in self._pages:
             if page in white_list_page_number:
-                print "Not flushing a page!"
+                l.debug("page " + str(page) + " not flushed!")
                 new_page_dict[page] = self._pages[page]
 
         self._pages = new_page_dict
