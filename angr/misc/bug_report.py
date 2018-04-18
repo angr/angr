@@ -63,12 +63,19 @@ def print_git_info(dirname):
         return
     cur_commit = repo.commit()
     cur_branch = repo.active_branch
-    cur_remote = repo.remote()
-    remote_url = list(cur_remote.urls)[0]
     print("Git info:")
-    print("\tChecked out from: " + remote_url)
     print("\tCurrent commit %s from branch %s" % (cur_commit.hexsha, cur_branch.name))
-
+    try:
+        # EDG: Git is insane, but this should work 99% of the time
+        cur_tb = cur_branch.tracking_branch()
+        if cur_tb.is_remote():
+            remote_name = cur_tb.remote_name
+            remote_url = repo.remotes[remote_name].url
+            print("\tChecked out from remote %s: %s" % (remote_name, remote_url))
+        else:
+            print("Tracking local branch %s" % cur_tb.name)
+    except:
+        print("Could not resolve tracking branch or remote info!")
 
 def print_system_info():
     print("Platform: " + pkg_resources.get_build_platform())
