@@ -92,7 +92,7 @@ class SimEngineConcrete(SimEngine):
             if reg_name not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg_name)
-                    l.debug("Storing " + hex(reg_value) + " inside reg " + reg)
+                    l.debug("Storing " + hex(reg_value) + " inside reg " + reg_name)
                     state.registers.store(reg_name, state.se.BVV(reg_value, state.arch.bits))
                 except Exception, e:
                     #l.warning("Can't set register " + reg)
