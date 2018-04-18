@@ -151,7 +151,7 @@ class SimEngineConcrete(SimEngine):
         3- Continue the program execution.
         :return:
         """
-        l.info("Entering in SimEngineConcrete: simulated address %x concrete address %x stop points %s"%(state.addr, self.target.read_register("pc"),extra_stop_points ))
+        l.info("Entering in SimEngineConcrete: simulated address 0x%x concrete address 0x%x stop points %s"%(state.addr, self.target.read_register("pc"),extra_stop_points ))
         if concretize != []:
             l.info("Concretize variables before entering inside the SimEngineConcrete | "
                       "Be patient this could take a while.")
