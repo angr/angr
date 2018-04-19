@@ -17,11 +17,11 @@ class EngineHub(PluginHub):
 
     def __getstate__(self):
         s = super(EngineHub, self).__getstate__()
-        return s, self._order, self._default_engine, self._procedure_engine
+        return s, self._order, self._default_engine, self._procedure_engine, self.project
 
     def __setstate__(self, s):
         super(EngineHub, self).__setstate__(s[0])
-        self._order, self._default_engine, self._procedure_engine = s[1:]
+        self._order, self._default_engine, self._procedure_engine, self.project = s[1:]
 
     #
     #   ...
