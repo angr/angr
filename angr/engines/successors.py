@@ -177,7 +177,7 @@ class SimSuccessors(object):
                     ret_addr = state.se.eval(state.regs._lr)
                 except SimSolverModeError:
                     # Give it a random address - in memory of the "constant analysis" guy.
-                    ret_addr = 0xc0deb4be
+                    ret_addr = state.project.simos.unresolvable_target
             try:
                 state_addr = state.addr
             except SimValueError:
