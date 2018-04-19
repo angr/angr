@@ -180,7 +180,7 @@ class SimSuccessors(object):
                     ret_addr = state.project.simos.unresolvable_target
             try:
                 state_addr = state.addr
-            except SimValueError:
+            except (SimValueError, SimSolverModeError):
                 state_addr = None
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],

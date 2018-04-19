@@ -3,7 +3,6 @@ import logging
 import math
 import re
 import string
-import struct
 from collections import defaultdict
 
 from bintrees import AVLTree
@@ -20,8 +19,9 @@ from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
-from ...engines import SimEngineVEX
-from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError
+from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
+                       AngrUnsupportedSyscallError
+                       )
 
 VEX_IRSB_MAX_SIZE = 400
 
@@ -1941,11 +1941,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             succ = self.project.factory.successors(tmp_state).flat_successors[0]
-            syscall_stub = self.project.simos.syscall(succ)
-            if syscall_stub: # can be None if simos is not a subclass of SimUserspac
-                syscall_addr = self.project.simos.syscall(succ).addr
-                target_addr = syscall_addr
-            else:
+            try:
+                syscall_stub = self.project.simos.syscall(succ)
+                if syscall_stub:  # can be None if simos is not a subclass of SimUserspac
+                    syscall_addr = syscall_stub.addr
+                    target_addr = syscall_addr
+                else:
+                    target_addr = self._unresolvable_target_addr
+            except AngrUnsupportedSyscallError:
                 target_addr = self._unresolvable_target_addr
 
         new_function_addr = target_addr

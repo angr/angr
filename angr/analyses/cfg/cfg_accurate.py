@@ -523,7 +523,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         # will lose some edges in this way, but in general it is acceptable.
                         new_dst.looping_times <= max_loop_unrolling_times):
                     # Log all successors of the dst node
-                    dst_successors = graph_copy.successors(dst)
+                    dst_successors = list(graph_copy.successors(dst))
                     # Add new_dst to the graph
                     edge_data = graph_copy.get_edge_data(src, dst)
                     graph_copy.add_edge(src, new_dst, **edge_data)
