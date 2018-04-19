@@ -173,7 +173,11 @@ class SimSuccessors(object):
             if state.arch.call_pushes_ret:
                 ret_addr = state.mem[state.regs._sp].long.concrete
             else:
-                ret_addr = state.se.eval(state.regs._lr)
+                try:
+                    ret_addr = state.se.eval(state.regs._lr)
+                except SimSolverModeError:
+                    # Use the address for UnresolvableTarget instead.
+                    ret_addr = state.project.simos.unresolvable_target
             try:
                 state_addr = state.addr
             except SimValueError:
