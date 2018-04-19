@@ -130,7 +130,7 @@ class SimEngineConcrete(SimEngine):
             self.segment_registers_already_init = True
 
         # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary
-        if self.project._should_use_sim_procedures:
+        if self.project._should_use_sim_procedures and not self.project.loader.main_object.pic:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.project.loader.main_object.relocs:
                 func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
