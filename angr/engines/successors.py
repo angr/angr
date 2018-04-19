@@ -281,6 +281,7 @@ class SimSuccessors(object):
         else:
             # a successor with a symbolic IP
             _max_targets = state.config.symbolic_ip_max_targets
+            _max_jumptable_targets = state.config.jumptable_symbolic_ip_max_targets
             try:
                 if o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
@@ -291,13 +292,20 @@ class SimSuccessors(object):
                         addrs = state.se.eval_upto(target, _max_targets + 1)
                         l.debug("addrs :%s", addrs)
                     cond_and_targets = [ (target == addr, addr) for addr in addrs ]
+                    max_targets = _max_targets
                 else:
-                    cond_and_targets = self._eval_target(state, target, _max_targets + 1)
+                    cond_and_targets = self._eval_target_jumptable(state, target, _max_jumptable_targets + 1)
+                    if cond_and_targets is None:
+                        # Fallback to the traditional and slow method
+                        cond_and_targets = self._eval_target_brutal(state, target, _max_targets + 1)
+                        max_targets = _max_targets
+                    else:
+                        max_targets = _max_jumptable_targets
 
-                if len(cond_and_targets) > _max_targets:
+                if len(cond_and_targets) > max_targets:
                     l.warning(
                         "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
-                        _max_targets,
+                        max_targets,
                         target.shallow_repr()
                     )
                     self.unconstrained_successors.append(state)
@@ -380,7 +388,7 @@ class SimSuccessors(object):
         if len(self.flat_successors) == 1 and len(self.unconstrained_successors) == 0:
             self.flat_successors[0].scratch.avoidable = False
 
-    def _eval_target(self, state, ip, limit):
+    def _eval_target_jumptable(self, state, ip, limit):
         """
         A *very* fast method to evaluate symbolic jump targets if they are a) concrete targets, or b) targets coming
         from jump tables.
@@ -388,12 +396,13 @@ class SimSuccessors(object):
         :param state:   A SimState instance.
         :param ip:      The AST of the instruction pointer to evaluate.
         :param limit:   The maximum number of concrete IPs.
-        :return:        A list of conditions and the corresponding concrete IPs.
-        :rtype:         list
+        :return:        A list of conditions and the corresponding concrete IPs, or None which indicates fallback is
+                        necessary.
+        :rtype:         list or None
         """
 
         if ip.symbolic is False:
-            return ip  # concrete
+            return [ (claripy.ast.bool.true, ip) ]  # concrete
 
         # Detect whether ip is in the form of "if a == 1 then addr_0 else if a == 2 then addr_1 else ..."
         cond_and_targets = [ ]  # tuple of (condition, target)
@@ -464,9 +473,9 @@ class SimSuccessors(object):
             fallback = True
 
         if fallback:
-            return self._eval_target_brutal(state, ip, limit)
+            return None
         else:
-            return cond_and_targets[:limit]
+            return cond_and_targets[ : limit]
 
     def _eval_target_brutal(self, state, ip, limit):
         """
