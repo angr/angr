@@ -412,6 +412,16 @@ class ForwardAnalysis(object):
 
         self._should_abort = True
 
+    def has_job(self, job):
+        """
+        Checks whether there exists another job which has the same job key.
+        :param job: The job to check.
+
+        :return:    True if there exists another job with the same key, False otherwise.
+        """
+        job_key = self._job_key(job)
+        return job_key in self._job_map
+
     #
     # Abstract interfaces
     #
@@ -714,6 +724,7 @@ class ForwardAnalysis(object):
 
         else:
             job_info = JobInfo(key, job)
+            self._job_map[key] = job_info
 
         if self._order_jobs:
             self._binary_insert(self._job_info_queue, job_info, lambda elem: self._job_sorting_key(elem.job))

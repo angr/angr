@@ -11,6 +11,9 @@ C++C := g++
 CFLAGS := -I ${UNICORN_INCLUDE_PATH} -I ${PYVEX_INCLUDE_PATH} \
 	-L ${UNICORN_LIB_PATH} -L ${PYVEX_LIB_PATH} \
 	-O3 -fPIC -std=c++11
+ifneq ($(DEBUG), )
+	CFLAGS := $(CFLAGS) -O0 -g
+endif
 
 OBJS := log.o
 LIBS := -lunicorn -lpyvex

@@ -1299,6 +1299,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._insert_job(job)
                 return
 
+            self._clean_pending_exits()
+
         # did we finish analyzing any function?
         # fill in self._completed_functions
         self._make_completed_functions()
@@ -1367,6 +1369,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._register_analysis_job(addr, job)
 
     def _post_analysis(self):
+
+        self._make_completed_functions()
 
         self._analyze_all_function_features()
 
@@ -1744,6 +1748,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     jobs.extend(ent)
                 return jobs
 
+        # Special handling:
+        # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring jump
+        if jumpkind == "Ijk_Call" and \
+                not self.project.arch.call_pushes_ret and \
+                cfg_node.instruction_addrs and \
+                ins_addr == cfg_node.instruction_addrs[-1] and \
+                target_addr == irsb.addr + irsb.size:
+            jumpkind = "Ijk_Boring"
+
         # pylint: disable=too-many-nested-blocks
         if jumpkind == 'Ijk_Boring':
             if target_addr is not None:
@@ -1893,6 +1906,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._function_exits[current_function_addr].add(addr)
                 self._function_add_return_site(addr, current_function_addr)
                 self.functions[current_function_addr].returning = True
+                self._add_returning_function(current_function_addr)
 
             cfg_node.has_return = True
 
@@ -2806,8 +2820,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         while True:
             new_changes = self._iteratively_analyze_function_features()
-            new_returning_functions = new_changes['functions_do_not_return']
-            new_not_returning_functions = new_changes['functions_return']
+            new_returning_functions = new_changes['functions_return']
+            new_not_returning_functions = new_changes['functions_do_not_return']
 
             if not new_returning_functions and not new_not_returning_functions:
                 break

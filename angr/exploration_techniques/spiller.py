@@ -75,13 +75,13 @@ class Spiller(ExplorationTechnique):
             w.make_uuid()
         self._pickled_states += [ (self._get_priority(w.state), w.ana_store()) for w in wrappers ]
 
-    def step(self, pg, stash, **kwargs):
-        pg = pg._one_step(stash=stash, **kwargs)
+    def step(self, simgr, stash=None, **kwargs):
+        simgr = simgr.step(stash=stash, **kwargs)
 
-        l.debug("STASH STATUS: active: %d, staging: %d", len(pg.stashes[self.src_stash]), len(pg.stashes[self.staging_stash]))
+        l.debug("STASH STATUS: active: %d, staging: %d", len(simgr.stashes[self.src_stash]), len(simgr.stashes[self.staging_stash]))
 
-        states = pg.stashes[self.src_stash]
-        staged_states = pg.stashes.setdefault(self.staging_stash, [ ]) if self.staging_stash else [ ]
+        states = simgr.stashes[self.src_stash]
+        staged_states = simgr.stashes.setdefault(self.staging_stash, [ ]) if self.staging_stash else [ ]
 
         if len(states) < self.min:
             missing = (self.max + self.min) / 2 - len(states)
@@ -111,9 +111,9 @@ class Spiller(ExplorationTechnique):
             self._pickle(staged_states[self.staging_max:])
             staged_states[self.staging_max:] = [ ]
 
-        pg.stashes[self.src_stash] = states
-        pg.stashes[self.staging_stash] = staged_states
-        return pg
+        simgr.stashes[self.src_stash] = states
+        simgr.stashes[self.staging_stash] = staged_states
+        return simgr
 
     @staticmethod
     def state_priority(state):

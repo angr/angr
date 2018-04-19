@@ -14,4 +14,4 @@ progressbar
 pyvex>=7.8.2.21
 rpyc
 unicorn
-pygit
+GitPython

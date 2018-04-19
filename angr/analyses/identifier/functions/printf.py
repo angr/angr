@@ -59,7 +59,7 @@ class printf(Func):
         test = TestData(test_input, test_output, None, max_steps)
         s = runner.get_base_call_state(func, test)
         pg = runner.project.factory.simgr(s)
-        pg.step(18)
+        pg.run(n=18)
         interesting_chars = set()
         for p in pg.active:
             for g in p.history.jump_guards:
