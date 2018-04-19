@@ -406,46 +406,62 @@ class SimSuccessors(object):
             outer_reverse = True
 
         fallback = False
-        atom = None
+        target_variable = None
         concretes = set()
-        while True:
+        reached_sentinel = False
+
+        for cond, target in claripy.reverse_ite_cases(ip_):
             # We must fully unpack the entire AST to make sure it indeed complies with the form above
-            if ip_.op == "If":
-                cond = ip_.args[0]
-                target = ip_.args[1]
-                if cond.op != "__eq__":
-                    # oops... fallback
-                    fallback = True
-                    break
-                if cond.args[1].symbolic is True:
-                    # oops
-                    fallback = True
-                    break
-                if atom is None:
-                    atom = cond.args[0]
-                elif not atom is cond.args[0]:
-                    # it's checking a different atom
-                    fallback = True
-                    break
-                if target.symbolic is True:
-                    # oops... fallback
-                    fallback = True
-                    break
-                target_addr = state.solver.eval(target)
-                if target_addr in concretes:
-                    # oops... the conditions are not mutually exclusive
-                    fallback = True
-                    break
-                concretes.add(target_addr)
-                cond_and_targets.append((cond, target if not outer_reverse else state.solver.Reverse(target)))
-                ip_ = ip_.args[2]
-            elif ip_.symbolic is False and state.solver.eval(ip_) == DUMMY_SYMBOLIC_READ_VALUE:
-                # Ignore the dummy value
-                break
-            else:
-                # oops... fallback to the traditional route
+            if reached_sentinel:
+                # We should not have any other value beyond the sentinel - maybe one of the possible targets happens to
+                # be the same as the sentinel value?
                 fallback = True
                 break
+
+            if target.symbolic is False and state.solver.eval(target) == DUMMY_SYMBOLIC_READ_VALUE:
+                # Ignore the dummy value, which acts as the sentinel of this ITE tree
+                reached_sentinel = True
+                continue
+
+            if cond.op != "__eq__":
+                # We only support equivalence right now. Fallback
+                fallback = True
+                break
+
+            if cond.args[0].symbolic is True and cond.args[1].symbolic is False:
+                variable, value = cond.args
+            elif cond.args[0].symbolic is False and cond.args[1].symbolic is True:
+                value, variable = cond.args
+            else:
+                # Cannot determine variable and value. Fallback
+                fallback = True
+                break
+
+            if target_variable is None:
+                target_variable = variable
+            elif target_variable is not variable:
+                # it's checking a different variable. Fallback
+                fallback = True
+                break
+
+            # Make sure the conditions are mutually exclusive
+            value_concrete = state.solver.eval(value)
+            if value_concrete in concretes:
+                # oops... the conditions are not mutually exclusive
+                fallback = True
+                break
+            concretes.add(value_concrete)
+
+            if target.symbolic is True:
+                # Cannot handle symbolic targets. Fallback
+                fallback = True
+                break
+
+            cond_and_targets.append((cond, target if not outer_reverse else state.solver.Reverse(target)))
+
+        if reached_sentinel is False:
+            # huh?
+            fallback = True
 
         if fallback:
             return self._eval_target_brutal(state, ip, limit)
