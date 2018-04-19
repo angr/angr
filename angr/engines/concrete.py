@@ -7,9 +7,8 @@ import struct
 
 
 #pylint: disable=arguments-differ
-
 l = logging.getLogger("angr.engines.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 class SimEngineConcrete(SimEngine):

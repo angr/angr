@@ -4,6 +4,7 @@ from .engine import SimEngine
 from .successors import SimSuccessors
 
 l = logging.getLogger("angr.engines.hook")
+l.setLevel(logging.DEBUG)
 
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ
@@ -19,10 +20,10 @@ class SimEngineHook(SimEngine):
 
         if procedure is None:
             if state.addr not in self.project._sim_procedures:
-                #print hex(state.addr) + " is not in sim_procedures dict"
                 return False
 
-        #print hex(state.addr) + " is in sim_procedures dict"
+        l.debug(hex(state.addr) + " is in sim_procedures dict, SimProc: " + self.project._sim_procedures[state.addr])
+        
         return True
 
     def process(self, state, procedure=None, force_addr=None, **kwargs):
