@@ -85,9 +85,9 @@ class SimEngineConcrete(SimEngine):
         # Sync Angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
         regs_blacklist = ['fs', 'gs']
+        l.info("Synchronizing general purpose registers")
 
         for reg_key, reg_name in state.arch.register_names.items():
-            l.info("Synchronizing general purpose registers")
             if reg_name not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg_name)
