@@ -76,7 +76,7 @@ class Block(object):
                     self._bytes = str(pyvex.ffi.buffer(self._bytes, size))
             else:
                 self._bytes = None
-        elif type(byte_string) is str:
+        elif type(byte_string) is bytes:
             if self.size is not None:
                 self._bytes = byte_string[:self.size]
             else:

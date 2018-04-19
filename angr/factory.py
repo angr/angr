@@ -197,7 +197,7 @@ class AngrObjectFactory(object):
         :param thing:           Optional - What to put in the new SimulationManager's active stash (either a SimState or a list of SimStates).
         :param kwargs:          Any additional keyword arguments will be passed to the SimulationManager constructor
         :returns:               The new SimulationManager
-        :rtype:                 angr.manager.SimulationManager
+        :rtype:                 angr.sim_manager.SimulationManager
 
         Many different types can be passed to this method:
 
@@ -346,6 +346,6 @@ class AngrObjectFactory(object):
 
 
 from .errors import AngrError
-from .manager import SimulationManager
+from .sim_manager import SimulationManager
 from .codenode import HookNode
 from .block import Block

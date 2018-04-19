@@ -11,7 +11,7 @@ arches = ( "armel", "i386", "mips", "mipsel", "ppc64", "ppc", "x86_64" )
 
 def run_checkbyte(arch):
     p = angr.Project(os.path.join(test_location, arch, "checkbyte"))
-    results = p.factory.simgr().step(100) #, until=lambda lpg: len(lpg.active) > 1)
+    results = p.factory.simgr().run(n=100) #, until=lambda lpg: len(lpg.active) > 1)
 
     assert len(results.deadended) == 2
     one = results.deadended[0].posix.dumps(1)

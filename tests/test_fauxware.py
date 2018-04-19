@@ -61,7 +61,7 @@ def run_fauxware(arch):
 
 def run_pickling(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
-    pg = p.factory.simgr().step(n=10)
+    pg = p.factory.simgr().run(n=10)
     pickled = pickle.dumps(pg, pickle.HIGHEST_PROTOCOL)
     del p
     del pg

@@ -557,7 +557,7 @@ class Project(object):
 
         pg = self.factory.simgr(state)
         self._executing = True
-        return pg.step(until=lambda lpg: not self._executing)
+        return pg.run(until=lambda lpg: not self._executing)
 
     def terminate_execution(self):
         """
@@ -587,19 +587,14 @@ class Project(object):
 
     def __getstate__(self):
         try:
-            analyses, surveyors = self.analyses, self.surveyors
             store_func, load_func = self.store_function, self.load_function
-            self.analyses, self.surveyors = None, None
             self.store_function, self.load_function = None, None
             return dict(self.__dict__)
         finally:
-            self.analyses, self.surveyors = analyses, surveyors
             self.store_function, self.load_function = store_func, load_func
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.analyses = AnalysesHub(self)
-        self.surveyors = Surveyors(self)
 
     def _store(self, container):
         # If container is a filename.

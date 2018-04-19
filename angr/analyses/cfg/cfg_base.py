@@ -879,6 +879,10 @@ class CFGBase(Analysis):
             # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
             # blocks of it.
 
+            if not func.block_addrs_set:
+                # the function is empty. skip
+                continue
+
             # Let's first see if it's a known SimProcedure that does not return
             if self.project.is_hooked(func.addr):
                 procedure = self.project.hooked_by(func.addr)

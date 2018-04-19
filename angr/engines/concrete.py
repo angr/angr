@@ -7,9 +7,8 @@ import struct
 
 
 #pylint: disable=arguments-differ
-
 l = logging.getLogger("angr.engines.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 class SimEngineConcrete(SimEngine):
@@ -85,6 +84,7 @@ class SimEngineConcrete(SimEngine):
         # Sync Angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
         regs_blacklist = ['fs', 'gs']
+        l.info("Synchronizing general purpose registers")
 
         # TODO create a better list containing only the register useful for syncronization
         for reg_key, reg_name in state.arch.register_names.items():
@@ -132,7 +132,7 @@ class SimEngineConcrete(SimEngine):
             self.segment_registers_already_init = True
 
         # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary
-        if self.project._should_use_sim_procedures:
+        if self.project._should_use_sim_procedures and not self.project.loader.main_object.pic:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.project.loader.main_object.relocs:
                 func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
