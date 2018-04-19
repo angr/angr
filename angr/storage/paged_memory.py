@@ -831,7 +831,8 @@ class SimPagedMemory(object):
         self._updated_mappings.add(m)
 
     def _update_range_mappings(self, actual_addr, cnt, size):
-        if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
+        if self.state is None or not \
+                (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
                 options.REVERSE_MEMORY_HASH_MAP in self.state.options or
                 options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options):
             return

@@ -6,6 +6,8 @@ import nose
 from angr.storage.paged_memory import SimPagedMemory
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o
+from angr.state_plugins import SimSystemPosix
+from angr.storage.file import SimFile
 
 
 def test_copy():
@@ -22,21 +24,19 @@ def test_copy():
     nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
     s = SimState(arch="AMD64")
-    s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
-    s.posix.set_pos(0, 0)
+    s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content='ABCDEFGHIJKLMNOP', has_end=True)))
     s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
     x = s.se.BVS('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
 
-    s.posix.read(0, 0x200, x)
+    s.posix.get_fd(0).read(0x200, x)
     nose.tools.assert_equals(sorted(s.se.eval_upto(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
     nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
     nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
     s = SimState(arch="AMD64")
-    s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
-    s.posix.set_pos(0, 0)
+    s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content='ABCDEFGHIJKLMNOP')))
     s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
     x = s.se.BVS('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))

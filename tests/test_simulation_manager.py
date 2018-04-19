@@ -3,6 +3,7 @@ import angr
 
 import logging
 l = logging.getLogger("angr_tests.managers")
+logging.getLogger('angr.manager').setLevel('DEBUG')
 
 import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
@@ -62,7 +63,7 @@ def run_fauxware(arch, threads):
 
     # now merge them!
     pg7 = pg6.merge()
-    nose.tools.assert_equal(len(pg7.active), 1)
+    nose.tools.assert_equal(len(pg7.active), 2)
     nose.tools.assert_equal(len(pg7.backdoor), 0)
     nose.tools.assert_equal(len(pg7.auth), 0)
 

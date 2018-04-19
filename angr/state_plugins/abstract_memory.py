@@ -92,12 +92,13 @@ class MemoryRegion(object):
         self._state = state
         self._memory.set_state(state)
 
-    def copy(self):
+    @SimMemory.memo
+    def copy(self, memo):
         r = MemoryRegion(self._id, self.state,
                          is_stack=self._is_stack,
                          related_function_addr=self._related_function_addr,
                          init_memory=False, endness=self._endness)
-        r._memory = self.memory.copy()
+        r._memory = self.memory.copy(memo)
         r._alocs = copy.deepcopy(self._alocs)
         return r
 
@@ -570,7 +571,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             # The region doesn't exist. Then there is only one segment!
             return [ size ]
 
-    def copy(self):
+    @SimMemory.memo
+    def copy(self, memo):
         """
         Make a copy of this SimAbstractMemory object
         :return:
@@ -582,7 +584,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             generic_region_map=self._generic_region_map
         )
         for region_id, region in self._regions.items():
-            am._regions[region_id] = region.copy()
+            am._regions[region_id] = region.copy(memo)
         am._stack_size = self._stack_size
         return am
 

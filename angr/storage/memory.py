@@ -112,7 +112,8 @@ class RegionMap(object):
     # Public methods
     #
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         r = RegionMap(is_stack=self.is_stack)
 
         # A shallow copy should be enough, since we never modify any RegionDescriptor object in-place
@@ -574,7 +575,7 @@ class SimMemory(SimStatePlugin):
 
         if priv is not None: self.state.scratch.pop_priv()
 
-    def _store(self, request):
+    def _store(self, _request):
         raise NotImplementedError()
 
     def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, endness=None, action=None):
@@ -757,8 +758,7 @@ class SimMemory(SimStatePlugin):
                 o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
                 self.state.uninitialized_access_handler is not None and \
                 (r.op == 'Reverse' or r.op == 'I') and \
-                hasattr(r._model_vsa, 'uninitialized') and \
-                r._model_vsa.uninitialized:
+                getattr(r._model_vsa, 'uninitialized', False):
             normalized_addresses = self.normalize_address(addr)
             if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
                 normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
@@ -817,7 +817,7 @@ class SimMemory(SimStatePlugin):
         """
         return [ addr ]
 
-    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
+    def _load(self, _addr, _size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         raise NotImplementedError()
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
@@ -875,7 +875,7 @@ class SimMemory(SimStatePlugin):
         return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory, dst_memory=dst_memory,
                                    inspect=inspect, disable_actions=disable_actions)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
+    def _copy_contents(self, _dst, _src, _size, condition=None, src_memory=None, dst_memory=None, inspect=True,
                       disable_actions=False):
         raise NotImplementedError()
 

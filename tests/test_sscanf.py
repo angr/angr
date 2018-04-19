@@ -10,14 +10,14 @@ import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
-def run_sscanf(threads):
+def test_sscanf():
     if not sys.platform.startswith('linux'):
         raise nose.SkipTest()
 
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/sscanf_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.simgr(immutable=False, threads=threads)
+    pg = b.factory.simgr(immutable=False)
 
     # find the end of main
     expected_outputs = {
@@ -47,9 +47,5 @@ def run_sscanf(threads):
     # check that all of the outputs were seen
     nose.tools.assert_equal(len(expected_outputs), 0)
 
-def test_sscanf():
-    yield run_sscanf, None
-    # yield run_sscanf, 8
-
 if __name__ == "__main__":
-    run_sscanf(4)
+    test_sscanf()

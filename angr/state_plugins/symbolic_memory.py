@@ -59,7 +59,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Lifecycle management
     #
 
-    def copy(self):
+    @SimMemory.memo
+    def copy(self, _):
         """
         Return a copy of the SimMemory.
         """
@@ -89,7 +90,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return changed_bytes
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         """
         Merge this SimMemory with the other SimMemory
         """
@@ -225,9 +226,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return merged_bytes
 
-    def set_state(self, s):
-        SimMemory.set_state(self, s)
-        self.mem.state = s
+    def set_state(self, state):
+        super(SimSymbolicMemory, self).set_state(state)
+        self.mem.state = state
 
         if self.state is not None:
             if self.read_strategies is None:
@@ -584,7 +585,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             chunk_off = i-chunk_start
             b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
-            cases.append([b == what, start + i])
+            cases.append([b == what, claripy.BVV(i, len(start))])
             match_indices.append(i)
 
             if self.state.mode == 'static':
@@ -630,7 +631,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
 
             #l.debug("running ite_cases %s, %s", cases, default)
-            r = self.state.se.ite_cases(cases, default)
+            r = self.state.se.ite_cases(cases, default - start) + start
             return r, constraints, match_indices
 
     def __contains__(self, dst):
@@ -754,7 +755,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if type(size) not in (int, long):
             size = self.state.solver.eval(size)
         if size < data.length//self.state.arch.byte_width:
-            data = data[size*self.state.arch.byte_width-1:]
+            data = data[len(data)-1:len(data)-size*self.state.arch.byte_width:]
         if condition is not None:
             try:
                 original_value = self._read_from(address, size)

@@ -9,28 +9,33 @@ class lseek(angr.SimProcedure):
 
     def run(self, fd, seek, whence): #pylint:disable=arguments-differ,unused-argument
 
-        if self.state.se.symbolic(whence):
+        if self.state.solver.symbolic(whence):
             err = "Symbolic whence is not supported in lseek syscall."
             l.error(err)
             raise angr.errors.SimPosixError(err)
 
-        whence = self.state.se.eval(whence)
+        whence = self.state.solver.eval(whence)
+        if whence == 0:
+            whence_str = 'start'
+        elif whence == 1:
+            whence_str = 'current'
+        elif whence == 2:
+            whence_str = 'end'
+        else:
+            return -1
 
-        if self.state.se.symbolic(seek):
-            err = "Symbolic seek is not supported in lseek syscall."
-            l.error(err)
-            raise angr.errors.SimPosixError(err)
+        # let's see what happens...
+        #if self.state.se.symbolic(seek):
+        #    err = "Symbolic seek is not supported in lseek syscall."
+        #    l.error(err)
+        #    raise angr.errors.SimPosixError(err)
 
-        seek = self.state.se.eval(seek)
+        #seek = self.state.se.eval(seek)
 
-        # Symbolic fd case is handled in posix.seek
-
-        # Call posix plugin to actually move us
-        ret = self.state.posix.seek(fd, seek, whence)
-
-        # Posix only actually returns 0 or -1. Check for error
-        if ret == -1:
-            return self.state.se.BVV(-1, self.state.arch.bits)
-
-        # To be compliant, we must return the current position on success
-        return self.state.posix.pos(fd)
+        simfd = self.state.posix.get_fd(fd)
+        if simfd is None:
+            return -1
+        success = simfd.seek(seek, whence_str)
+        if self.state.solver.is_false(success):
+            return -1
+        return self.state.solver.If(success, simfd.tell(), -1)

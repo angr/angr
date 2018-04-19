@@ -186,10 +186,17 @@ class SimFastMemoryError(SimMemoryError):
 class SimEventError(SimStateError):
     pass
 
-class SimFileError(SimMemoryError):
+class SimPosixError(SimStateError):
     pass
 
-class SimPosixError(SimStateError):
+
+class SimFilesystemError(SimError):
+    pass
+
+class SimSymbolicFilesystemError(SimFilesystemError):
+    pass
+
+class SimFileError(SimMemoryError, SimFilesystemError):
     pass
 
 #

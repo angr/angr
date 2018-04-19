@@ -60,6 +60,7 @@ class STOP(object): # stop_t
         for item in dir(STOP):
             if item.startswith('STOP_') and getattr(STOP, item) == num:
                 return item
+        raise ValueError(num)
 
 #
 # Memory mapping errors - only used internally
@@ -284,6 +285,7 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Boring'
         self.error = None
         self.errno = 0
+        self.trap_ip = None
 
         self.cache_key = hash(self) if cache_key is None else cache_key
 
@@ -349,7 +351,8 @@ class Unicorn(SimStatePlugin):
 
         self.time = None
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, _memo):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
@@ -376,7 +379,7 @@ class Unicorn(SimStatePlugin):
         u._uncache_pages = list(self._uncache_pages)
         return u
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         self.cooldown_nonunicorn_blocks = max(
             self.cooldown_nonunicorn_blocks,
             max(o.cooldown_nonunicorn_blocks for o in others)
@@ -439,6 +442,9 @@ class Unicorn(SimStatePlugin):
 
         # I guess always lie to the static analysis?
         return False
+
+    def widen(self, others): # pylint: disable=unused-argument
+        l.warning("Can't widen the unicorn plugin!")
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -982,13 +988,15 @@ class Unicorn(SimStatePlugin):
 
         # process the concrete transmits
         i = 0
+        stdout = self.state.posix.get_fd(1)
+
         while True:
             record = _UC_NATIVE.process_transmit(self._uc_state, i)
             if not bool(record):
                 break
 
             string = ctypes.string_at(record.contents.data, record.contents.count)
-            self.state.posix.write(1, string, record.contents.count)
+            stdout.write_data(string)
             i += 1
 
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL):

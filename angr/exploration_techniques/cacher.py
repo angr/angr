@@ -13,6 +13,8 @@ l = logging.getLogger("angr.exploration_techniques.cacher")
 class Cacher(ExplorationTechnique):
     """
     An exploration technique that caches states during symbolic execution.
+
+    DO NOT USE THIS - THIS IS FOR ARCHIVAL PURPOSES ONLY
     """
 
     def __init__(self, when=None, dump_cache=True, load_cache=True, container=None,
@@ -29,7 +31,6 @@ class Cacher(ExplorationTechnique):
         :param load_func:  If provided, should be a function that defines how Cacher should uncache the
                            SimulationManager. Default to uncaching the stash to be stepped.
         """
-
         super(Cacher, self).__init__()
         self._dump_cond = self._condition_to_lambda(when)
         self._dump_cache = dump_cache

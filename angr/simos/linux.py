@@ -1,3 +1,4 @@
+import os
 import logging
 
 import claripy
@@ -5,10 +6,10 @@ from cle import MetaELF
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
-from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
-from ..state_plugins import SimStateSystem
+from ..state_plugins import SimFilesystem, SimHostFilesystem
+from ..storage.file import SimFile, SimFileBase
 from ..errors import AngrSyscallError
 from .userland import SimUserland
 
@@ -147,7 +148,8 @@ class SimLinux(SimUserland):
             raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
 
     # pylint: disable=arguments-differ
-    def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):
+    def state_blank(self, fs=None, concrete_fs=False, chroot=None,
+            cwd='/home/user', pathsep='/', **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs)
 
         if self.project.loader.tls_object is not None:
@@ -164,10 +166,23 @@ class SimLinux(SimUserland):
             elif isinstance(state.arch, ArchAArch64):
                 state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
 
-        last_addr = self.project.loader.main_object.max_addr
-        brk = last_addr - last_addr % 0x1000 + 0x1000
 
-        state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot, brk=brk))
+        if fs is None: fs = {}
+        for name in fs:
+            if type(fs[name]) is unicode:
+                fs[name] = fs[name].encode('utf-8')
+            if type(fs[name]) is bytes:
+                fs[name] = claripy.BVV(fs[name])
+            if isinstance(fs[name], claripy.Bits):
+                fs[name] = SimFile(name, content=fs[name])
+            if not isinstance(fs[name], SimFileBase):
+                raise TypeError("Provided fs initializer with unusable type %r" % type(fs[name]))
+
+        mounts = {}
+        if concrete_fs:
+            mounts[pathsep] = SimHostFilesystem(chroot if chroot is not None else os.path.sep)
+
+        state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
         if self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
@@ -269,35 +284,6 @@ class SimLinux(SimUserland):
     def state_full_init(self, **kwargs):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
-
-    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
-                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
-        _l.warning("Tracer has been heavily tested only for CGC. "
-                   "If you find it buggy for Linux binaries, we are sorry!")
-
-        options = kwargs.get('add_options', set())
-        options.add(o.BYPASS_UNSUPPORTED_SYSCALL)
-
-        kwargs['add_options'] = options
-
-        kwargs['remove_options'] = kwargs.get('remove_options', set())
-
-        kwargs['concrete_fs'] = kwargs.get('concrete_fs', True)
-
-        state = super(SimLinux, self).state_tracer(input_content=input_content,
-                                                   magic_content=magic_content,
-                                                   preconstrain_input=preconstrain_input,
-                                                   preconstrain_flag=preconstrain_flag,
-                                                   constrained_addrs=constrained_addrs,
-                                                   **kwargs)
-
-        state.preconstrainer.preconstrain_state()
-
-        # Increase size of libc limits
-        state.libc.buf_symbolic_bytes = 1024
-        state.libc.max_str_len = 1024
-
-        return state
 
     def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """

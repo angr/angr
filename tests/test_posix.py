@@ -3,14 +3,14 @@ import sys
 
 import nose.tools
 
-from angr import SimState
+from angr import SimState, SimFile
 
 def test_file_create():
     # Create a state first
     state = SimState(arch="AMD64", mode='symbolic')
 
     # Create a file
-    fd = state.posix.open("test", "wb")
+    fd = state.posix.open("test", 1)
 
     nose.tools.assert_equal(fd, 3)
 
@@ -20,45 +20,50 @@ def test_file_read():
     content = state.se.BVV(0xbadf00d, 32)
     content_size = content.size() / 8
 
-    fd = state.posix.open("test", "wb")
-    state.posix.write(fd, content, content_size)
-    state.posix.seek(fd, 0, 0)
-    state.posix.read(fd, 0xc0000000, content_size)
+    fd = state.posix.open("test", 1)
+    simfd = state.posix.get_fd(fd)
+    simfd.write_data(content)
+    simfd.seek(0)
+    simfd.read(0xc0000000, content_size)
 
     data = state.memory.load(0xc0000000, content_size)
 
-    nose.tools.assert_true(state.se.is_true(data == content))
+    nose.tools.assert_is(data, content)
 
 def test_file_seek():
 
     # TODO: Make this test more complete
 
-    SEEK_SET = 0
-    SEEK_CUR = 1
-    SEEK_END = 2
-
     state = SimState(arch="AMD64", mode='symbolic')
 
     # Normal seeking
-    fd = state.posix.open("test", "wb")
-    r = state.posix.seek(fd, 0, SEEK_SET)
-    nose.tools.assert_equal(r, 0)
+    fd = state.posix.open("test1", 1)
+    simfd = state.posix.get_fd(fd)
+    simfd.seek(0, 'start')
+    nose.tools.assert_true(state.solver.is_true(simfd.tell() == 0))
     state.posix.close(fd)
 
     # TODO: test case: seek cannot go beyond the file size or current file pos
-    # TODO: test case: seek should not work for stdin/stdout/stderr
+
+    # seek should not work for stdin/stdout/stderr
+    nose.tools.assert_true(state.solver.is_false(state.posix.get_fd(0).seek(0)))
+    nose.tools.assert_true(state.solver.is_false(state.posix.get_fd(1).seek(0)))
+    nose.tools.assert_true(state.solver.is_false(state.posix.get_fd(2).seek(0)))
 
     # Seek from the end
-    fd = state.posix.open("test", "wb")
-    state.posix.files[fd].size = 20
-    state.posix.seek(fd, 0, SEEK_END)
-    nose.tools.assert_true(state.se.is_true(state.posix.files[fd].pos == 20))
+    state.fs.insert('test2', SimFile(name='qwer', size=20))
+    fd = state.posix.open("test2", 1)
+    simfd = state.posix.get_fd(fd)
+    simfd.seek(0, 'end')
+    nose.tools.assert_true(state.solver.is_true(simfd.tell() == 20))
     state.posix.close(fd)
 
-    # cannot seek from a file whose size is unknown
-    fd = state.posix.open("unknown_size", "wb")
-    r = state.posix.seek(fd, 0, SEEK_END)
-    nose.tools.assert_equal(r, -1)
+    # seek to a symbolic position (whence symbolic end)
+    fd = state.posix.open("unknown_size", 1)
+    simfd = state.posix.get_fd(fd)
+    real_end = state.fs.get("unknown_size").size
+    simfd.seek(0, 'end')
+    nose.tools.assert_is(real_end, simfd.tell())
     state.posix.close(fd)
 
 def main():

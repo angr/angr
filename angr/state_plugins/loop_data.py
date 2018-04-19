@@ -24,15 +24,16 @@ class SimStateLoopData(SimStatePlugin):
         self.trip_counts = defaultdict(list) if trip_counts is None else trip_counts
         self.current_loop = [] if current_loop is None else current_loop
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         l.warning("Merging is not implemented for loop data!")
         return False
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         l.warning("Widening is not implemented for loop data!")
         return False
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimStateLoopData(trip_counts=copy.deepcopy(self.trip_counts),
                                 current_loop=list(self.current_loop))
 

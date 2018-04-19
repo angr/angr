@@ -147,7 +147,7 @@ class SimFastMemory(SimMemory):
             l.debug("Received false condition. Returning.")
             req.completed = False
             req.actual_addresses = [ req.addr ]
-            return
+            return None
         if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
             data = data.reversed
         addr = self._translate_addr(req.addr)
@@ -194,13 +194,14 @@ class SimFastMemory(SimMemory):
         else:
             return [addr], claripy.Concat(*[self._single_load(a, o, s) for a,o,s in accesses]), []
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1): # pylint: disable=unused-argument
         raise SimFastMemoryError("find unsupported")
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None): # pylint: disable=unused-argument
         raise SimFastMemoryError("copy unsupported")
 
-    def copy(self):
+    @SimMemory.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimFastMemory(
             endness=self.endness,
             contents=dict(self._contents),

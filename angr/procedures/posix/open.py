@@ -20,4 +20,6 @@ class open(angr.SimProcedure): #pylint:disable=W0622
         path = self.state.se.eval(p_expr, cast_to=str)
 
         fd = self.state.posix.open(path, flags)
+        if fd is None:
+            return -1
         return fd

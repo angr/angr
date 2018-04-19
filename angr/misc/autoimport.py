@@ -10,8 +10,9 @@ def auto_import_packages(base_module, base_path, ignore_dirs=(), ignore_files=()
             continue
 
         lib_path = os.path.join(base_path, lib_module_name)
-        if not os.path.isdir(lib_path):
-            l.debug("Not a dir: %s", lib_module_name)
+        init_path = os.path.join(lib_path, '__init__.py')
+        if not os.path.isfile(init_path):
+            l.debug("Not a module: %s", lib_module_name)
             continue
 
         l.debug("Loading %s.%s", base_module, lib_module_name)
