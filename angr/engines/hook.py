@@ -22,8 +22,8 @@ class SimEngineHook(SimEngine):
             if state.addr not in self.project._sim_procedures:
                 return False
 
-        l.debug(hex(state.addr) + " is in sim_procedures dict, SimProc: " + self.project._sim_procedures[state.addr])
-        
+        l.debug(hex(state.addr) + " is in sim_procedures dict, SimProc: " + str(self.project._sim_procedures[state.addr]))
+
         return True
 
     def process(self, state, procedure=None, force_addr=None, **kwargs):
