@@ -27,7 +27,7 @@ def setup():
           "Install gdbserver on the machine, be careful the architecture (x86 or x64) of gdbserver should be the same as the debugged binary.\n"
           "Currently using MinGW for 32 bit gdbserver and Cygwin for 64 bit gdbserver"% (GDB_SERVER_IP,GDB_SERVER_IP,GDB_SERVER_PORT))
     print("On windows machine execute gdbserver %s:%s path/to/simple_crackme.exe" % (GDB_SERVER_IP,GDB_SERVER_PORT))
-    raw_input("Press enter when gdbserver has been executed")
+    #raw_input("Press enter when gdbserver has been executed")
 
 
 def teardown():
@@ -39,7 +39,7 @@ def teardown():
 
 @nose.with_setup(setup,teardown)
 def test_concrete_engine_windows_x64_no_simprocedures():
-    print("test_concrete_engine_linux_x64_unicorn_simprocedures")
+    print("test_concrete_engine_windows_x64_no_simprocedures")
     global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
     p = angr.Project(binary_x64, load_options={'auto_load_libs': True}, concrete_target=avatar_gdb, use_sim_procedures=False)
@@ -48,13 +48,33 @@ def test_concrete_engine_windows_x64_no_simprocedures():
 
 
 @nose.with_setup(setup,teardown)
-def test_concrete_engine_windows_x64_no_simprocedures():
-    print("test_concrete_engine_linux_x64_unicorn_simprocedures")
+def test_concrete_engine_windows_x64_simprocedures():
+    print("test_concrete_engine_windows_x64_simprocedures")
     global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
     p = angr.Project(binary_x64, load_options={'auto_load_libs': True}, concrete_target=avatar_gdb, use_sim_procedures=True)
     entry_state = p.factory.entry_state()
     solv_concrete_engine_windows_x64(p, entry_state)
+
+
+@nose.with_setup(setup,teardown)
+def test_concrete_engine_windows_x64_unicorn_no_simprocedures():
+    print("test_concrete_engine_windows_x64_unicorn_no_simprocedures")
+    global avatar_gdb
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, load_options={'auto_load_libs': True}, concrete_target=avatar_gdb, use_sim_procedures=False)
+    entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
+    solv_concrete_engine_windows_x64(p, entry_state)
+
+@nose.with_setup(setup,teardown)
+def test_concrete_engine_windows_x64_unicorn_simprocedures():
+    print("test_concrete_engine_windows_x64_unicorn_simprocedures")
+    global avatar_gdb
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, load_options={'auto_load_libs': True}, concrete_target=avatar_gdb, use_sim_procedures=True)
+    entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
+    solv_concrete_engine_windows_x64(p, entry_state)
+
 
 
 def solv_concrete_engine_windows_x64(p,entry_state):
@@ -75,7 +95,7 @@ def solv_concrete_engine_windows_x64(p,entry_state):
     value_1 = win_state.se.eval(pwd, cast_to=str)
     print("After simultated execution")
     print("Solution is \"%s\"" % (value_1))
-    nose.tools.assert_true(value_1 == "SOSNEAKY")
+    nose.tools.assert_true(value_1 == "password")
 
     simgr = p.factory.simgr(win_state)
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(win_state.regs.rbp-0x20, pwd)]))

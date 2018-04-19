@@ -86,17 +86,18 @@ class SimEngineConcrete(SimEngine):
         # registers that we don't want to concretize.
         regs_blacklist = ['fs', 'gs']
 
+        # TODO create a better list containing only the register useful for syncronization
         for reg_key, reg_name in state.arch.register_names.items():
-            l.info("Synchronizing general purpose registers")
             if reg_name not in regs_blacklist:
                 try:
                     reg_value = self.target.read_register(reg_name)
-                    l.debug("Storing " + hex(reg_value) + " inside reg " + reg_name)
-                    state.registers.store(reg_name, state.se.BVV(reg_value, state.arch.bits))
-                except Exception, e:
-                    #l.warning("Can't set register " + reg)
-                    pass
-                    # TODO need to decide how to handle this
+                    #state.registers.store(reg_name, state.se.BVV(reg_value, state.arch.bits))
+                    setattr(state.regs, reg_name, reg_value)
+                    l.debug("Register: %s value: %x "%(reg_name,state.se.eval(getattr(state.regs,reg_name),cast_to=int)))
+                except ValueError as exc:
+                    l.debug("Can't set register %s reason: %s, if this register is not used this message can be ignored"%( reg_name, exc))
+                    #pass
+
 
         # Initialize the segment register value if not already initialized
         if not self.segment_registers_already_init:
