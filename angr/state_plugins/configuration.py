@@ -24,6 +24,12 @@ class SimStateConfiguration(SimStatePlugin):
 
         return s
 
+    def merge(self, _others, _merge_conditions, _common_ancestor=None):
+        return self.copy(None)
+
+    def widen(self, _others):
+        return self.copy(None)
+
 
 from ..sim_state import SimState
 SimState.register_default('config', SimStateConfiguration)

@@ -388,7 +388,8 @@ class SimSuccessors(object):
         if len(self.flat_successors) == 1 and len(self.unconstrained_successors) == 0:
             self.flat_successors[0].scratch.avoidable = False
 
-    def _eval_target_jumptable(self, state, ip, limit):
+    @staticmethod
+    def _eval_target_jumptable(state, ip, limit):
         """
         A *very* fast method to evaluate symbolic jump targets if they are a) concrete targets, or b) targets coming
         from jump tables.
@@ -477,7 +478,8 @@ class SimSuccessors(object):
         else:
             return cond_and_targets[ : limit]
 
-    def _eval_target_brutal(self, state, ip, limit):
+    @staticmethod
+    def _eval_target_brutal(state, ip, limit):
         """
         The traditional way of evaluating symbolic jump targets.
 
