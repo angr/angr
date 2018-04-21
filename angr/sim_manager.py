@@ -73,7 +73,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
         self._stashes = self._create_integral_stashes() if stashes is None else stashes
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
-        self._resilence = set()
+        self._resilience = set()
         self._auto_drop = {SimulationManager.DROP, }
         self._techniques = []
 
@@ -103,7 +103,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
             self._auto_drop |= set(auto_drop)
 
         if resilience is not None:
-            self._resilence |= set(resilience)
+            self._resilience |= set(resilience)
 
         if errored is not None:
             self._errored.extend(errored)
@@ -167,7 +167,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                                   stashes=self._copy_stashes(deep=deep),
                                   hierarchy=self._hierarchy,
                                   immutable=self._immutable,
-                                  resilience=self._resilence,
+                                  resilience=self._resilience,
                                   auto_drop=self._auto_drop,
                                   completion_mode=self._completion_mode,
                                   errored=self._errored)
@@ -392,7 +392,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                 self._hierarchy.simplify()
             stashes = {'pruned': [state]}
 
-        except tuple(self._resilence) as e:
+        except tuple(self._resilience) as e:
             self._errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
             stashes = {}
 
