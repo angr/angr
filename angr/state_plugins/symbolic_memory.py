@@ -526,13 +526,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        read_value = DUMMY_SYMBOLIC_READ_VALUE  # it will never be touched
-        constraint_options = [ ]
+        constraint_options = []
 
-        for a in addrs:
-            read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
-                                          read_value)
-            constraint_options.append(dst == a)
+        if len(addrs) == 1:
+            # It's not an conditional reaed
+            read_value = self._read_from(addrs[0], size, inspect=inspect, events=events)
+        else:
+            read_value = DUMMY_SYMBOLIC_READ_VALUE  # it's a sentinel value and should never be touched
+
+            for a in addrs:
+                read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
+                                              read_value)
+                constraint_options.append(dst == a)
 
         if len(constraint_options) > 1:
             load_constraint = [ self.state.se.Or(*constraint_options) ]
