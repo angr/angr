@@ -170,14 +170,15 @@ class SimSuccessors(object):
             if new_func_addr is not None and not claripy.is_true(new_func_addr == state.regs._ip):
                 state.regs._ip = new_func_addr
 
-            if state.arch.call_pushes_ret:
-                ret_addr = state.mem[state.regs._sp].long.concrete
-            else:
-                try:
+            try:
+                if state.arch.call_pushes_ret:
+                    ret_addr = state.mem[state.regs._sp].long.concrete
+                else:
                     ret_addr = state.se.eval(state.regs._lr)
-                except SimSolverModeError:
-                    # Use the address for UnresolvableTarget instead.
-                    ret_addr = state.project.simos.unresolvable_target
+            except SimSolverModeError:
+                # Use the address for UnresolvableTarget instead.
+                ret_addr = state.project.simos.unresolvable_target
+
             try:
                 state_addr = state.addr
             except (SimValueError, SimSolverModeError):
