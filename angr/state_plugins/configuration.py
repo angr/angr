@@ -16,7 +16,7 @@ class SimStateConfiguration(SimStatePlugin):
         self.jumptable_symbolic_ip_max_targets = 16384 \
             if jumptable_symbolic_ip_max_targets is None else jumptable_symbolic_ip_max_targets
 
-    def copy(self):
+    def copy(self, memo):  # pylint:disable=unused-argument
         s = SimStateConfiguration()
 
         for slot in SimStateConfiguration.__slots__:
