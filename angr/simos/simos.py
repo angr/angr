@@ -41,7 +41,7 @@ class SimOS(object):
         self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
         self.unresolvable_target = self.project.loader.extern_object.allocate()
-        self.project.hook(self.unresolvable_target, P['stubs']['UnresolvableTarget'])
+        self.project.hook(self.unresolvable_target, P['stubs']['UnresolvableTarget']())
 
         def irelative_resolver(resolver_addr):
             # autohooking runs before this does, might have provided this already
