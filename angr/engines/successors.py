@@ -183,10 +183,16 @@ class SimSuccessors(object):
                 state_addr = state.addr
             except (SimValueError, SimSolverModeError):
                 state_addr = None
+
+            try:
+                stack_ptr = state.se.eval(state.regs._sp)
+            except SimSolverModeError:
+                stack_ptr = 0
+
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
                     func_addr=state_addr,
-                    stack_ptr=state.se.eval(state.regs._sp),
+                    stack_ptr=stack_ptr,
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
             state.callstack.push(new_frame)
