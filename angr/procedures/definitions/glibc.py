@@ -3069,7 +3069,7 @@ for name, proto in _libc_decls.items():
     else:
         unsupported_count += 1
 
-_l.warning("Libc provides %d function prototypes, and has %d unsupported function prototypes.",
+_l.debug("Libc provides %d function prototypes, and has %d unsupported function prototypes.",
          proto_count, unsupported_count)
 
 
