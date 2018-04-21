@@ -8,7 +8,7 @@ from angr.sim_type import SimTypeString, SimTypeInt, SimTypeFd
 class open(angr.SimProcedure): #pylint:disable=W0622
     #pylint:disable=arguments-differ
 
-    def run(self, p_addr, flags):
+    def run(self, p_addr, flags, mode):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: SimTypeInt(32, True)}
         self.return_type = SimTypeFd()
