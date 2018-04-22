@@ -8,7 +8,7 @@ from angr.sim_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 class recv(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, fd, dst, length, flags):  # pylint:disable=unused-arguments
+    def run(self, fd, dst, length, flags):  # pylint:disable=unused-argument
         self.argument_types = {0: SimTypeFd(),
                                1: self.ty_ptr(SimTypeArray(SimTypeChar(), length)),
                                2: SimTypeLength(self.state.arch)}

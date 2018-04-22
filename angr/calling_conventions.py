@@ -87,7 +87,7 @@ class SimRegArg(SimFunctionArgument):
             return offset + (self.size - size)
         return offset
 
-    def set_value(self, state, value, endness=None, size=None, **kwargs):   # pylint: disable=unused-argument
+    def set_value(self, state, value, endness=None, size=None, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         self.check_value(value)
         if endness is None: endness = state.arch.register_endness
         if isinstance(value, (int, long)): value = claripy.BVV(value, self.size*8)
@@ -95,7 +95,7 @@ class SimRegArg(SimFunctionArgument):
         offset = self._fix_offset(state, size)
         state.registers.store(offset, value, endness=endness, size=size)
 
-    def get_value(self, state, endness=None, size=None, **kwargs):          # pylint: disable=unused-argument
+    def get_value(self, state, endness=None, size=None, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         if endness is None: endness = state.arch.register_endness
         if size is None: size = self.size
         offset = self._fix_offset(state, size)
@@ -113,14 +113,14 @@ class SimStackArg(SimFunctionArgument):
     def __eq__(self, other):
         return type(other) is SimStackArg and self.stack_offset == other.stack_offset
 
-    def set_value(self, state, value, endness=None, stack_base=None):    # pylint: disable=arguments-differ
+    def set_value(self, state, value, endness=None, stack_base=None):  # pylint: disable=arguments-differ
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
         if stack_base is None: stack_base = state.regs.sp
         if isinstance(value, (int, long)): value = claripy.BVV(value, self.size*8)
         state.memory.store(stack_base + self.stack_offset, value, endness=endness, size=value.length/8)
 
-    def get_value(self, state, endness=None, stack_base=None, size=None):           # pylint: disable=arguments-differ
+    def get_value(self, state, endness=None, stack_base=None, size=None):  # pylint: disable=arguments-differ
         if endness is None: endness = state.arch.memory_endness
         if stack_base is None: stack_base = state.regs.sp
         return state.memory.load(stack_base + self.stack_offset, endness=endness, size=size or self.size)
@@ -137,7 +137,7 @@ class SimComboArg(SimFunctionArgument):
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
 
-    def set_value(self, state, value, endness=None, **kwargs):
+    def set_value(self, state, value, endness=None, **kwargs):  # pylint:disable=arguments-differ
         # TODO: This code needs to be reworked for variable byte with and the Third Endness
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
@@ -152,7 +152,7 @@ class SimComboArg(SimFunctionArgument):
             loc.set_value(state, value[cur*state.arch.byte_width + loc.size*state.arch.byte_width - 1:cur*state.arch.byte_width], endness=endness, **kwargs)
             cur += loc.size
 
-    def get_value(self, state, endness=None, **kwargs):
+    def get_value(self, state, endness=None, **kwargs):  # pylint:disable=arguments-differ
         if endness is None: endness = state.arch.memory_endness
         vals = []
         for loc in self.locations:
@@ -784,7 +784,7 @@ class SimLyingRegArg(SimRegArg):
         # TODO: This looks byte-related.  Make sure to use Arch.byte_width
         super(SimLyingRegArg, self).__init__(name, 8)
 
-    def get_value(self, state, size=None, endness=None, **kwargs):
+    def get_value(self, state, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         #val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = getattr(state.regs, self.reg_name)
         if endness and endness != state.args.register_endness:
@@ -793,7 +793,7 @@ class SimLyingRegArg(SimRegArg):
             val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_FLOAT)
         return val
 
-    def set_value(self, state, val, size=None, endness=None, **kwargs):
+    def set_value(self, state, val, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         if size == 4:
             if state.arch.register_endness == 'IEnd_LE' and endness == 'IEnd_BE':
                 # pylint: disable=no-member
