@@ -355,7 +355,7 @@ class FormatParser(SimProcedure):
     int_len_mod = {
         'hh': ('char', 'uint8_t'),
         'h' : ('int16_t', 'uint16_t'),
-        'l' : ('long', ('unsigned', 'long')),
+        'l' : ('long', 'unsigned long'),
         # FIXME: long long is 64bit according to stdint.h on Linux,  but that might not always be the case
         'll' : ('int64_t', 'uint64_t'),
 
