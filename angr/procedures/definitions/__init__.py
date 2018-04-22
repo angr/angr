@@ -172,8 +172,9 @@ class SimLibrary(object):
             if proc.cc is None:
                 proc.cc = self.fallback_cc[arch.name](arch)
             proc.cc.func_ty = self.prototypes[proc.display_name]
-            proc.cc.num_args = len(proc.cc.func_ty.args)
-            proc.num_args = len(proc.cc.func_ty.args)
+            if not proc.ARGS_MISMATCH:
+                proc.cc.num_args = len(proc.cc.func_ty.args)
+                proc.num_args = len(proc.cc.func_ty.args)
         if proc.display_name in self.non_returning:
             proc.returns = False
         proc.library_name = self.name

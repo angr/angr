@@ -5,6 +5,8 @@ from angr.procedures.stubs.format_parser import FormatParser
 l = logging.getLogger("angr.procedures.libc.printf")
 
 class printf(FormatParser):
+    ARGS_MISMATCH = True
+
     def run(self):
         stdout = self.state.posix.get_fd(1)
         if stdout is None:
