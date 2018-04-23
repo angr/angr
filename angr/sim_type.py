@@ -68,9 +68,21 @@ class SimType(object):
 
     @property
     def size(self):
+        """
+        The size of the type in bits.
+        """
         if self._size is not None:
             return self._size
         return NotImplemented
+
+    @property
+    def alignment(self):
+        """
+        The alignment of the type in bytes.
+        """
+        if self._arch is None:
+            return NotImplemented
+        return self.size // self._arch.byte_width
 
     def with_arch(self, arch):
         if self._arch is not None and self._arch == arch:
@@ -389,6 +401,10 @@ class SimTypeFixedSizeArray(SimType):
     def size(self):
         return self.elem_type.size * self.length
 
+    @property
+    def alignment(self):
+        return self.elem_type.alignment
+
     def _with_arch(self, arch):
         out = SimTypeFixedSizeArray(self.elem_type.with_arch(arch), self.length)
         out._arch = arch
@@ -420,6 +436,10 @@ class SimTypeArray(SimType):
         if self._arch is None:
             raise ValueError("I can't tell my size without an arch!")
         return self._arch.bits
+
+    @property
+    def alignment(self):
+        return self.elem_type.alignment
 
     def _with_arch(self, arch):
         out = SimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
@@ -472,6 +492,10 @@ class SimTypeString(SimTypeArray):
             return 4096         # :/
         return (self.length + 1) * 8
 
+    @property
+    def alignment(self):
+        return 1
+
     def _with_arch(self, arch):
         return self
 
@@ -516,6 +540,10 @@ class SimTypeWString(SimTypeArray):
         if self.length is None:
             return 4096
         return (self.length * 2 + 2) * 8
+
+    @property
+    def alignment(self):
+        return 2
 
     def _with_arch(self, arch):
         return self
@@ -611,7 +639,8 @@ class SimTypeDouble(SimTypeFloat):
     """
     An IEEE754 double-precision floating point number
     """
-    def __init__(self):
+    def __init__(self, align_double=True):
+        self.align_double = align_double
         super(SimTypeDouble, self).__init__(64)
 
     sort = claripy.FSORT_DOUBLE
@@ -619,16 +648,19 @@ class SimTypeDouble(SimTypeFloat):
     def __repr__(self):
         return 'double'
 
+    @property
+    def alignment(self):
+        return 8 if self.align_double else 4
+
 
 class SimStruct(SimType):
     _fields = ('name', 'fields')
 
-    def __init__(self, fields, name=None, pack=True):
+    def __init__(self, fields, name=None, pack=False, align=None):
         super(SimStruct, self).__init__(None)
-        if not pack:
-            raise ValueError("you think I've implemented padding, how cute")
-
+        self._pack = pack
         self._name = '<anon>' if name is None else name
+        self._align = align
         self.fields = fields
 
         self._arch_memo = {}
@@ -642,6 +674,10 @@ class SimStruct(SimType):
         offsets = {}
         offset_so_far = 0
         for name, ty in self.fields.iteritems():
+            if not self._pack:
+                align = ty.alignment
+                if offset_so_far % align != 0:
+                    offset_so_far += (align - offset_so_far % align)
             offsets[name] = offset_so_far
             offset_so_far += ty.size // self._arch.byte_width
 
@@ -663,7 +699,7 @@ class SimStruct(SimType):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = SimStruct(None, self.name, True)
+        out = SimStruct(None, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         self._arch_memo[arch.name] = out
         out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems())
@@ -676,6 +712,12 @@ class SimStruct(SimType):
     def size(self):
         return sum(val.size for val in self.fields.itervalues())
 
+    @property
+    def alignment(self):
+        if self._align is not None:
+            return self._align
+        return max(val.alignment for val in self.fields.itervalues())
+
     def _refine_dir(self):
         return self.fields.keys()
 
@@ -684,6 +726,17 @@ class SimStruct(SimType):
         ty = self.fields[k]
         return view._deeper(ty=ty, addr=view._addr + offset)
 
+    def store(self, state, addr, value):
+        if type(value) is dict:
+            pass
+        elif type(value) is SimStructValue:
+            value = value._values
+        else:
+            raise TypeError("Can't store struct of type %s" % type(value))
+
+        for field, offset in self.offsets.iteritems():
+            ty = self.fields[field]
+            ty.store(state, addr + offset, value[field])
 
 class SimStructValue(object):
     """
@@ -723,6 +776,10 @@ class SimUnion(SimType):
     @property
     def size(self):
         return max(ty.size for ty in self.members.itervalues())
+
+    @property
+    def alignment(self):
+        return max(val.alignment for val in self.members.itervalues())
 
     def __repr__(self):
         return 'union {\n\t%s\n}' % '\n\t'.join('%s %s;' % (name, repr(ty)) for name, ty in self.members.iteritems())
