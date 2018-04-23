@@ -104,6 +104,7 @@ class SimSystemPosix(SimStatePlugin):
             queued_syscall_returns=None,
             sigmask=None,
             pid=None,
+            ppid=None,
             uid=None,
             gid=None,
             brk=None):
@@ -123,6 +124,7 @@ class SimSystemPosix(SimStatePlugin):
         self.brk = brk if brk is not None else 0x1b00000
         self._sigmask = sigmask
         self.pid = 1337 if pid is None else pid
+        self.ppid = 1336 if ppid is None else ppid
         self.uid = 1000 if uid is None else uid
         self.gid = 1000 if gid is None else gid
         self.dev_fs = None
@@ -407,6 +409,7 @@ class SimSystemPosix(SimStatePlugin):
                 queued_syscall_returns=list(self.queued_syscall_returns),
                 sigmask=self._sigmask,
                 pid=self.pid,
+                ppid=self.ppid,
                 uid=self.uid,
                 gid=self.gid,
                 brk=self.brk)
