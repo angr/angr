@@ -104,6 +104,8 @@ class SimSystemPosix(SimStatePlugin):
             queued_syscall_returns=None,
             sigmask=None,
             pid=None,
+            uid=None,
+            gid=None,
             brk=None):
         super(SimSystemPosix, self).__init__()
 
@@ -121,6 +123,8 @@ class SimSystemPosix(SimStatePlugin):
         self.brk = brk if brk is not None else 0x1b00000
         self._sigmask = sigmask
         self.pid = 1337 if pid is None else pid
+        self.uid = 1000 if uid is None else uid
+        self.gid = 1000 if gid is None else gid
         self.dev_fs = None
         self.autotmp_counter = 0
 
@@ -403,6 +407,8 @@ class SimSystemPosix(SimStatePlugin):
                 queued_syscall_returns=list(self.queued_syscall_returns),
                 sigmask=self._sigmask,
                 pid=self.pid,
+                uid=self.uid,
+                gid=self.gid,
                 brk=self.brk)
         o.dev_fs = self.dev_fs.copy(memo)
         return o
