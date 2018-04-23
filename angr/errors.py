@@ -361,6 +361,13 @@ class SimEmptyCallStackError(SimError):
     pass
 
 #
+# SimStateOptions Errors
+#
+
+class SimStateOptionsError(SimError):
+    pass
+
+#
 # Errors that may be handled by exception handling
 #
 
