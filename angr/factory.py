@@ -313,7 +313,7 @@ class AngrObjectFactory(object):
     # Compatibility layer
     #
 
-    @deprecate('path_group()', 'simgr()')
+    @deprecate('path_group()', 'simulation_manager()')
     def path_group(self, thing=None, **kwargs):
         return self.simgr(thing, **kwargs)
 
