@@ -323,6 +323,16 @@ class SimStateOptions(object):
             ops.discard(key)
         return ops
 
+    def copy(self):
+        """
+        Get a copy of the current SimStateOptions instance.
+
+        :return:    A new SimStateOptions instance.
+        :rtype:     SimStateOptions
+        """
+
+        return SimStateOptions(self)
+
     def tally(self, exclude_false=True, description=False):
         """
         Return a string representation of all state options.
