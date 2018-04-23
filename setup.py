@@ -100,7 +100,7 @@ setup(
     packages=packages,
     install_requires=[
         'ana',
-        'bintrees',
+        'sortedcontainers',
         'cachetools',
         'capstone>=3.0.5rc2',
         'cooldict',

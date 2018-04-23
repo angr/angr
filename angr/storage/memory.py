@@ -1,13 +1,15 @@
 import logging
-
-l = logging.getLogger("angr.storage.memory")
-
 import claripy
+from sortedcontainers import SortedDict
+
 from ..state_plugins.plugin import SimStatePlugin
 from ..engines.vex.ccall import _get_flags
 
+l = logging.getLogger("angr.storage.memory")
+
 stn_map = { 'st%d' % n: n for n in xrange(8) }
 tag_map = { 'tag%d' % n: n for n in xrange(8) }
+
 
 class AddressWrapper(object):
     """
@@ -79,8 +81,8 @@ class RegionMap(object):
         """
         self.is_stack = is_stack
 
-        # An AVLTree, which maps stack addresses to region IDs
-        self._address_to_region_id = AVLTree()
+        # A sorted list, which maps stack addresses to region IDs
+        self._address_to_region_id = SortedDict()
         # A dict, which maps region IDs to memory address ranges
         self._region_id_to_address = { }
 
@@ -102,7 +104,7 @@ class RegionMap(object):
         if not self.is_stack:
             raise SimRegionMapError('Calling "stack_base" on a non-stack region map.')
 
-        return self._address_to_region_id.max_key()
+        return next(self._address_to_region_id.irange(reverse=True))
 
     @property
     def region_ids(self):
@@ -117,10 +119,7 @@ class RegionMap(object):
         r = RegionMap(is_stack=self.is_stack)
 
         # A shallow copy should be enough, since we never modify any RegionDescriptor object in-place
-        if len(self._address_to_region_id) > 0:
-            # TODO: There is a bug in bintrees 2.0.2 that prevents us from copying a non-empty AVLTree object
-            # TODO: Consider submit a pull request
-            r._address_to_region_id = self._address_to_region_id.copy()
+        r._address_to_region_id = self._address_to_region_id.copy()
         r._region_id_to_address = self._region_id_to_address.copy()
 
         return r
@@ -143,13 +142,13 @@ class RegionMap(object):
             # Remove all stack regions that are lower than the one to add
             while True:
                 try:
-                    addr = self._address_to_region_id.floor_key(absolute_address)
+                    addr = next(self._address_to_region_id.irange(maximum=absolute_address, reverse=True))
                     descriptor = self._address_to_region_id[addr]
                     # Remove this mapping
                     del self._address_to_region_id[addr]
                     # Remove this region ID from the other mapping
                     del self._region_id_to_address[descriptor.region_id]
-                except KeyError:
+                except StopIteration:
                     break
 
         else:
@@ -217,13 +216,13 @@ class RegionMap(object):
         if target_region_id is None:
             if self.is_stack:
                 # Get the base address of the stack frame it belongs to
-                base_address = self._address_to_region_id.ceiling_key(absolute_address)
+                base_address = next(self._address_to_region_id.irange(minimum=absolute_address, reverse=False))
 
             else:
                 try:
-                    base_address = self._address_to_region_id.floor_key(absolute_address)
+                    base_address = next(self._address_to_region_id.irange(maximum=absolute_address, reverse=True))
 
-                except KeyError:
+                except StopIteration:
                     # Not found. It belongs to the global region then.
                     return 'global', absolute_address, None
 
@@ -879,7 +878,6 @@ class SimMemory(SimStatePlugin):
                       disable_actions=False):
         raise NotImplementedError()
 
-from bintrees import AVLTree
 from .. import sim_options as o
 from ..state_plugins.sim_action import SimActionData
 from ..state_plugins.sim_action_object import SimActionObject, _raw_ast
