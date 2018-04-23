@@ -280,8 +280,8 @@ class SimSuccessors(object):
 
         else:
             # a successor with a symbolic IP
-            _max_targets = state.config.symbolic_ip_max_targets
-            _max_jumptable_targets = state.config.jumptable_symbolic_ip_max_targets
+            _max_targets = state.options.symbolic_ip_max_targets
+            _max_jumptable_targets = state.options.jumptable_symbolic_ip_max_targets
             try:
                 if o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()

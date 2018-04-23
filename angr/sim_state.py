@@ -9,8 +9,10 @@ l = logging.getLogger("angr.sim_state")
 import claripy
 import ana
 from archinfo import arch_from_id
+
 from .misc.ux import deprecated
 from .misc.plugins import PluginHub, PluginPreset
+from .sim_state_options import SimStateOptions
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -62,12 +64,13 @@ class SimState(PluginHub, ana.Storable):
                 mode = "symbolic"
             options = o.modes[mode]
 
-        options = set(options)
+        if isinstance(options, (set, list)):
+            options = SimStateOptions(options)
         if add_options is not None:
             options |= add_options
         if remove_options is not None:
             options -= remove_options
-        self.options = options
+        self._options = options
         self.mode = mode
 
         if plugin_preset is not None:
@@ -226,6 +229,19 @@ class SimState(PluginHub, ana.Storable):
         """
 
         return self.solver.eval_one(self.regs._ip)
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, v):
+        if isinstance(v, (set, list)):
+            self._options = SimStateOptions(v)
+        elif isinstance(v, SimStateOptions):
+            self._options = v
+        else:
+            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
 
     #
     # Plugin accessors
@@ -422,7 +438,8 @@ class SimState(PluginHub, ana.Storable):
             raise SimStateError("global condition was not cleared before state.copy().")
 
         c_plugins = self._copy_plugins()
-        state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options, mode=self.mode, os_name=self.os_name)
+        state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options.copy(),
+                         mode=self.mode, os_name=self.os_name)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler
@@ -711,7 +728,7 @@ class SimState(PluginHub, ana.Storable):
 
     def set_mode(self, mode):
         self.mode = mode
-        self.options = set(o.modes[mode])
+        self.options = SimStateOptions(o.modes[mode])
 
     @property
     def thumb(self):

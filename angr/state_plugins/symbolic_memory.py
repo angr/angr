@@ -6,9 +6,11 @@ import itertools
 l = logging.getLogger("angr.state_plugins.symbolic_memory")
 
 import claripy
+
 from ..storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
 from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
+from ..sim_state_options import SimStateOptions
 
 DEFAULT_MAX_SEARCH = 8
 
@@ -1198,6 +1200,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         """
         return self.mem.unmap_region(addr, length)
+
+
+# Register state options
+SimStateOptions.register_option("symbolic_ip_max_targets", int,
+                                default=256,
+                                description="The maximum number of concrete addresses a symbolic instruction pointer "
+                                            "can be concretized to."
+                                )
+SimStateOptions.register_option("jumptable_symbolic_ip_max_targets", int,
+                                default=16384,
+                                description="The maximum number of concrete addresses a symbolic instruction pointer "
+                                            "can be concretized to if it is part of a jump table."
+                                )
 
 
 from angr.sim_state import SimState

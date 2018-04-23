@@ -23,4 +23,3 @@ from .preconstrainer import *
 from .loop_data import *
 from .view import *
 from .filesystem import *
-from .configuration import SimStateConfiguration

@@ -1,4 +1,8 @@
-# This module contains the analysis options
+# This module contains the analysis options.
+# All variables with names of all caps will be registered as a state option to SimStateOptions.
+
+import string
+from .sim_state_options import SimStateOptions
 
 # DEBUG options: these options cause angr to set breakpoints in various
 # places or raise exceptions when checks fail.
@@ -80,8 +84,8 @@ ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 
 # This causes symbolic memory to avoid performing symbolic reads and writes. Unconstrained results
 # are returned instead, if these options are present.
-AVOID_MULTIVALUED_READS = "AVOID_SYMBOLIC_READS"
-AVOID_MULTIVALUED_WRITES = "AVOID_SYMBOLIC_WRITES"
+AVOID_MULTIVALUED_READS = "AVOID_MULTIVALUED_READS"
+AVOID_MULTIVALUED_WRITES = "AVOID_MULTIVALUED_WRITES"
 
 # This option concretizes symbolically sized writes
 CONCRETIZE_SYMBOLIC_WRITE_SIZES = "CONCRETIZE_SYMBOLIC_WRITE_SIZES"
@@ -89,7 +93,7 @@ CONCRETIZE_SYMBOLIC_WRITE_SIZES = "CONCRETIZE_SYMBOLIC_WRITE_SIZES"
 # This option concretizes the read size if it's symbolic from the file
 CONCRETIZE_SYMBOLIC_FILE_READ_SIZES = "CONCRETIZE_SYMBOLIC_FILE_READ_SIZES"
 
-# If absenst, treat the end of files as a frontier at which new data will be created
+# If absent, treat the end of files as a frontier at which new data will be created
 # If present, treat the end of files as an EOF
 FILES_HAVE_EOF = "FILES_HAVE_EOF"
 UNKNOWN_FILES_HAVE_EOF = FILES_HAVE_EOF
@@ -232,7 +236,7 @@ OPTIMIZE_IR = "OPTIMIZE_IR"
 
 SPECIAL_MEMORY_FILL = "SPECIAL_MEMORY_FILL"
 
-# using this option the value inside the register ip is keeped symbolic
+# using this option the value inside the register ip is kept symbolic
 KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 
 # Do not union values from different locations when reading from the memory for a reduced loss in precision
@@ -275,6 +279,21 @@ BYPASS_VERITESTING_EXCEPTIONS = 'BYPASS_VERITESTING_EXCEPTIONS'
 CGC_ENFORCE_FD = 'CGC_ENFORCE_FD'
 # FDWAIT will always return FDs as non blocking
 CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
+
+
+#
+# Register those variables as Boolean state options
+#
+
+_g = globals().copy()
+for k, v in _g.items():
+    if all([ char in string.uppercase + "_" for char in k ]) and type(v) is str:
+        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY"):
+            # UNKNOWN_FILES_HAVE_EOF == FILES_HAVE_EOF
+            # CGC_ZERO_FILL_UNCONSTRAINED_MEMORY == ZERO_FILL_UNCONSTRAINED_MEMORY
+            continue
+        SimStateOptions.register_bool_option(v)
+
 
 # useful sets of options
 resilience = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP, BYPASS_VERITESTING_EXCEPTIONS }
