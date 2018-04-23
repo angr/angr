@@ -53,6 +53,20 @@ class StateOption(object):
 
         return "<O %s[%s]%s>" % (self.name, types, desc)
 
+    def __getstate__(self):
+        return {
+            "name": self.name,
+            "types": self.types,
+            "default": self.default,
+            "description": self.description,
+        }
+
+    def __setstate__(self, state):
+        self.name = state["name"]
+        self.types = state["types"]
+        self.default = state["default"]
+        self.description = state["description"]
+
 
 class SimStateOptions(object):
     """
@@ -202,6 +216,23 @@ class SimStateOptions(object):
             self[name] = False
         return self
 
+    def __sub__(self, boolean_switches):
+        """
+        [COMPATIBILITY]
+        You may disable a collection of Boolean switches by doing:
+
+        >>> state.options = state.options - {sim_options.SYMBOLIC}
+
+        :param set boolean_switches:    A collection of Boolean switches to disable.
+        :return:                        A new SimStateOptions instance.
+        :rtype:                         SimStateOptions
+        """
+
+        ops = SimStateOptions(self)
+        for name in boolean_switches:
+            ops[name] = False
+        return ops
+
     def __getattr__(self, key):
         if key in { 'OPTIONS', '_options' }:
             return self.__getattribute__(key)
@@ -212,6 +243,14 @@ class SimStateOptions(object):
             super(SimStateOptions, self).__setattr__(key, value)
             return
         self[key] = value
+
+    def __getstate__(self):
+        return {
+            "_options": self._options,
+        }
+
+    def __setstate__(self, state):
+        self._options = state["_options"]
 
     def add(self, boolean_switch):
         """
@@ -224,16 +263,51 @@ class SimStateOptions(object):
 
         self[boolean_switch] = True
 
-    def discard(self, boolean_switch):
+    def update(self, boolean_switches):
         """
+        [COMPATIBILITY]
+        In order to be compatible with the old interface, you can enable a collection of Boolean switches at the same
+        time by doing the following:
+
+        >>> state.options.update({sim_options.SYMBOLIC, sim_options.ABSTRACT_MEMORY})
+
+        or
+
+        >>> state.options.update(sim_options.unicorn)
+
+        :param set boolean_switches:    A collection of Boolean switches to enable.
+        :return:                        None
+        """
+
+        for name in boolean_switches:
+            self[name] = True
+
+    def remove(self, name):
+        """
+        Drop a state option if it exists, or raise a KeyError if the state option is not set.
+
+        [COMPATIBILITY]
+        Remove a Boolean switch.
+
+        :param str name:    Name of the state option.
+        :return:            NNone
+        """
+
+        del self._options[name]
+
+    def discard(self, name):
+        """
+        Drop a state option if it exists, or silently return if the state option is not set.
+
         [COMPATIBILITY]
         Disable a Boolean switch.
 
-        :param str boolean_switch:  Name of the Boolean switch.
-        :return:                    None
+        :param str name:  Name of the Boolean switch.
+        :return:          None
         """
 
-        self[boolean_switch] = False
+        if name in self._options:
+            del self._options[name]
 
     def difference(self, boolean_switches):
         """
