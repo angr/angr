@@ -60,7 +60,7 @@ def convert_cproto_to_py(c_decl):
 
         s.append('"%s": %s,' % (func_name, func_proto._init_str()))  # The real Python string
 
-    except Exception:
+    except Exception:  # pylint:disable=broad-except
         # Silently catch all parsing errors... supporting all function declarations is impossible
         try:
             func_name = get_function_name(c_decl)
