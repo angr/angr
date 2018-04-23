@@ -402,7 +402,8 @@ class SimSystemPosix(SimStatePlugin):
                 tls_modules=self.tls_modules,
                 queued_syscall_returns=list(self.queued_syscall_returns),
                 sigmask=self._sigmask,
-                pid=self.pid)
+                pid=self.pid,
+                brk=self.brk)
         o.dev_fs = self.dev_fs.copy(memo)
         return o
 

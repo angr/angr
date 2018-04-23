@@ -1181,6 +1181,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
         :param init_zero: Initialize page with zeros
         """
+        l.info("Mapping [%#x, %#x] as %s", addr, addr + length - 1, permissions)
         return self.mem.map_region(addr, length, permissions, init_zero=init_zero)
 
     def unmap_region(self, addr, length):
