@@ -585,8 +585,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             chunk_off = i-chunk_start
             b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
-            cases.append([b == what, claripy.BVV(i, len(start))])
-            match_indices.append(i)
+            condition = b == what
+            if not self.state.solver.is_false(condition):
+                cases.append([b == what, claripy.BVV(i, len(start))])
+                match_indices.append(i)
 
             if self.state.mode == 'static':
                 si = b._model_vsa
