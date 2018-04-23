@@ -93,7 +93,7 @@ CONCRETIZE_SYMBOLIC_WRITE_SIZES = "CONCRETIZE_SYMBOLIC_WRITE_SIZES"
 # This option concretizes the read size if it's symbolic from the file
 CONCRETIZE_SYMBOLIC_FILE_READ_SIZES = "CONCRETIZE_SYMBOLIC_FILE_READ_SIZES"
 
-# If absenst, treat the end of files as a frontier at which new data will be created
+# If absent, treat the end of files as a frontier at which new data will be created
 # If present, treat the end of files as an EOF
 FILES_HAVE_EOF = "FILES_HAVE_EOF"
 UNKNOWN_FILES_HAVE_EOF = FILES_HAVE_EOF
@@ -236,7 +236,7 @@ OPTIMIZE_IR = "OPTIMIZE_IR"
 
 SPECIAL_MEMORY_FILL = "SPECIAL_MEMORY_FILL"
 
-# using this option the value inside the register ip is keeped symbolic
+# using this option the value inside the register ip is kept symbolic
 KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 
 # Do not union values from different locations when reading from the memory for a reduced loss in precision
@@ -288,7 +288,11 @@ CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 _g = globals().copy()
 for k, v in _g.items():
     if all([ char in string.uppercase + "_" for char in k ]) and type(v) is str:
-        SimStateOptions.register_bool_option(k)
+        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY"):
+            # UNKNOWN_FILES_HAVE_EOF == FILES_HAVE_EOF
+            # CGC_ZERO_FILL_UNCONSTRAINED_MEMORY == ZERO_FILL_UNCONSTRAINED_MEMORY
+            continue
+        SimStateOptions.register_bool_option(v)
 
 
 # useful sets of options

@@ -323,10 +323,11 @@ class SimStateOptions(object):
             ops.discard(key)
         return ops
 
-    def tally(self, description=False):
+    def tally(self, exclude_false=True, description=False):
         """
         Return a string representation of all state options.
 
+        :param bool exclude_false:  Whether to exclude Boolean switches that are disabled.
         :param bool description:    Whether to display the description of each option.
         :return:                    A string representation.
         :rtype:                     str
@@ -339,6 +340,11 @@ class SimStateOptions(object):
                 value = self[o.name]
             except SimStateOptionsError:
                 value = "<Unset>"
+
+            if exclude_false and o.one_type() is bool and value is False:
+                # Skip Boolean switches that are False
+                continue
+
             s = "{option}: {value}".format(option=o.name, value=value)
             if description:
                 s += " | {description}".format(description=o.description)
