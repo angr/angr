@@ -11,7 +11,16 @@ def get_function_name(s):
     :rtype:       str
     """
 
-    if s.index('(') == -1:
+    s = s.strip()
+    if s.startswith("__attribute__"):
+        # Remove "__attribute__ ((foobar))"
+        if "))" not in s:
+            raise ValueError("__attribute__ is present, but I cannot find double-right parenthesis in the function "
+                             "declaration string.")
+
+        s = s[s.index("))") + 2 : ].strip()
+
+    if '(' not in s:
         raise ValueError("Cannot find any left parenthesis in the function declaration string.")
 
     func_name = s[:s.index('(')].strip()
@@ -32,8 +41,9 @@ def convert_cproto_to_py(c_decl):
     Convert a C-style function declaration string to its corresponding SimTypes-based Python representation.
 
     :param str c_decl:              The C-style function declaration string.
-    :return:                        A string representing the SimType-based Python representation.
-    :rtype:                         str
+    :return:                        A tuple of the function name, the prototype, and a string representing the
+                                    SimType-based Python representation.
+    :rtype:                         tuple
     """
 
     s = [ ]
@@ -53,9 +63,11 @@ def convert_cproto_to_py(c_decl):
     except Exception:
         # Silently catch all parsing errors... supporting all function declarations is impossible
         try:
-            s.append('"%s": None,' % get_function_name(c_decl))
+            func_name = get_function_name(c_decl)
+            func_proto = None
+            s.append('"%s": None,' % func_name)
         except ValueError:
             # Failed to extract the function name. Is it a function declaration?
-            pass
+            func_name, func_proto = None, None
 
-    return "\n".join(s)
+    return func_name, func_proto, "\n".join(s)
