@@ -688,6 +688,23 @@ class CFGBase(Analysis):
                 return True
         return False
 
+    def _rem_addr_from_exec_memory_regions(self, addr):
+        """
+        Remove an address from the executable memory region. Truncate prior region and then create a new region after this address
+
+        If addr is not in the executable memory region do nothing
+        """
+
+        new_regions = []
+        for (start, end) in self._exec_mem_regions:
+            if addr > start and addr < end: # Found region
+                new_regions.append((start, addr))
+                new_regions.append((addr+self.project.arch.bits*8, end))
+            else:
+                new_regions.append((start,end))
+
+        self._exec_mem_regions= new_regions
+
     def _addr_belongs_to_section(self, addr):
         """
         Return the section object that the address belongs to.

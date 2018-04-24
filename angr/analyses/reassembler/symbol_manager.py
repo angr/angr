@@ -1,8 +1,10 @@
 import string
 from collections import defaultdict
 import cle
+import logging
 
 from .labels import Label, DataLabel, FunctionLabel, ObjectLabel, NotypeLabel
+l = logging.getLogger("angr.analyses.reassembler")
 
 class SymbolManager(object):
     """
@@ -29,8 +31,16 @@ class SymbolManager(object):
                 return addr
         return None
 
-    def new_label(self, addr, name=None, is_function=None, force=False, dereference=True):
+    """
+    def new_label(self, addr, name=None, is_function=None, force=False, dereference=True, op=None, junk=False):
+        r = self.new_label_(addr, name, is_function, force, dereference, op, junk)
+        if r.name == "label_6":
+            import pdb
+            pdb.set_trace()
+        return r
+    """
 
+    def new_label(self, addr, name=None, is_function=None, force=False, dereference=True, op=None, junk=False):
         if force:
             if is_function:
                 l.warning("Unsupported option combination FORCE and IS_FUNCTION")
@@ -38,47 +48,16 @@ class SymbolManager(object):
                 label = DataLabel(self.binary, addr, name=name)
             else:
                 label = Label.new_label(self.binary, name=name, original_addr=addr)
+            assert(not junk)
+            self.addr_to_label[addr].insert(0, label)
             #self.addr_to_label[addr].append(label)
             return label
 
         if addr in self.addr_to_label:
+            if not len(self.addr_to_label[addr]):
+                l.warning("no labels exist at 0x{:x}".format(addr))
+                return None
             return self.addr_to_label[addr][0]
-
-        # If armel and we have a pointer to a string pointer, make some bold assumptions
-        # TODO: handle this better
-        if self.project.arch.name == "ARMEL" and dereference:
-            # Label the nearby pointer to our data, but also label that data
-            label = DataLabel(self.binary, addr)
-
-            # Do an extra dereference
-            string_addr = self.binary.fast_memory_load(addr, 4, int)
-            this_string = self.binary.fast_memory_load(string_addr, 15, "char")
-
-            if this_string and this_string[0] in string.printable:
-                #addr = string_addr
-
-                # TODO: do we need the below logic or can we just do a dereference and move on?
-
-                #"""
-
-
-                # TODO: just ignore the junk labels
-                # Label the existing pointer as junk so we can use the label in the LDR and then string itself
-                # and not have it defined twice
-                junk_label = DataLabel(self.binary, addr, name=label.name+"_junk")
-                self.addr_to_label[addr].append(junk_label)
-
-                if this_string and "\x00" in this_string:
-                    this_string = this_string[:this_string.index("\x00")]
-
-                label = Label.new_label(self.binary, name=label.name, original_addr=string_addr)
-                self.addr_to_label[string_addr].append(label)
-
-                #l.debug("Identified pc-relative reference to 0x{:x} which points to 0x{:x} => {}. Labeled as '{}'".format(
-                #    addr, string_addr, this_string, label))
-                return label
-                #"""
-
 
         # Check if the address points to a function by checking the plt of main binary
         reverse_plt = self.project.loader.main_object.reverse_plt
@@ -99,8 +78,15 @@ class SymbolManager(object):
                 string_addr = self.binary.fast_memory_load(addr, 4, int)
                 this_string = self.binary.fast_memory_load(string_addr, 15, "char")
 
+                if addr in self.cfg.functions:
+                    del self.cfg.functions[addr]
                 label = DataLabel(self.binary, addr)
+                #junk=True
+                #if junk:
+                #    label.name = label.name+"_junk"
                 self.addr_to_label[addr].append(label)
+                #self.addr_to_label[addr] = [label]
+                #print("Making label {}".format(label))
                 return label
 
             # Different architectures use different prefixes
@@ -152,6 +138,8 @@ class SymbolManager(object):
         else:
             label = Label.new_label(self.binary, name=name, original_addr=addr)
 
+        if junk and not label.name.endswith("_junk"):
+            label.name = label.name+"_junk"
         if addr is not None:
             self.addr_to_label[addr].append(label)
 

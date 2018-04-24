@@ -113,6 +113,9 @@ class Data(object):
             # this piece of data comes from a patch, not from the original binary
             return
 
+        #import pdb
+        #pdb.set_trace()
+
         # Put labels to self.labels
         for i in xrange(self.size):
             addr = self.addr + i
@@ -129,12 +132,12 @@ class Data(object):
                             self.labels.append(tpl)
                     else:
                         tpl = (addr, label)
+                        #print("Assign labels: 0x{:x}\t{}".format(addr, label.name))
                         if tpl not in self.labels:
                             self.labels.append(tpl)
 
-    def assembly(self, comments=False, symbolized=True):
+    def assembly(self, comments=False, symbolized=True): #called from reassembler.py:1177
         s = ""
-
         if comments:
             # TODO: move comments so they're after each label/section header
             if self.addr is not None:
@@ -190,6 +193,46 @@ class Data(object):
                     directive = ".asciz"
                 s += "\t.{directive} \"{str}\"".format(directive=directive, str=string_escape(self.content[0]))
             s += '\n'
+        elif self.sort == 'double-pointer':
+
+            if self.binary.project.arch.bits == 32:
+                directive = '.long'
+            elif self.binary.project.arch.bits == 64:
+                directive = '.quad'
+            else:
+                raise BinaryError('Unsupported pointer size %d', self.binary.project.arch.bits)
+
+            if symbolized:
+                addr_to_labels = {}
+                for k, v in self.labels:
+                    if k not in addr_to_labels:
+                        addr_to_labels[k] = [ ]
+                    addr_to_labels[k].append(v)
+
+                i = 0
+                if self.name is not None:
+                    s += "%s:\n" % self.name
+                if len(self.content) == 0:
+                    l.warning("No content in pointer array- sybmolzed subelements will be undefined")
+                symbolized_label = self.content[0]
+                if not self.content:
+                    l.warning("Content is empty")
+                else:
+                    if self.addr is not None and (self.addr + i) in addr_to_labels:
+                        for label in addr_to_labels[self.addr + i]:
+                            s += "%s\n" % str(label)
+                    elif self.addr is not None and (self.addr + i) in self.binary.symbol_manager.addr_to_label:
+                        labels = self.binary.symbol_manager.addr_to_label[self.addr + i]
+                        for label in labels:
+                            s += "%s\n" % str(label)
+                    i += self.project.arch.bits / 8
+
+                    import pdb
+                    pdb.set_trace()
+                    if isinstance(symbolized_label, (int, long)):
+                        s += "\t%s %d\n" % (directive, symbolized_label)
+                    else:
+                        s += "\t%s %s\n" % (directive, symbolized_label.operand_str)
 
         elif self.sort == 'pointer-array':
 
@@ -210,6 +253,17 @@ class Data(object):
                 i = 0
                 if self.name is not None:
                     s += "%s:\n" % self.name
+                if len(self.content) == 0:
+                    if self.addr is not None and (self.addr + i) in addr_to_labels:
+                        for label in addr_to_labels[self.addr + i]:
+                            s += "%s\n" % str(label)
+                    elif self.addr is not None and (self.addr + i) in self.binary.symbol_manager.addr_to_label:
+                        labels = self.binary.symbol_manager.addr_to_label[self.addr + i]
+                        for label in labels:
+                            s += "%s\n" % str(label)
+                    l.warning("No content in pointer array for {} defining as 0".format(s.split("\n")[-2]))
+                    s+= "\t# WARNING: unkown value - set to 0\n"
+                    s+= "\t.byte 0\n"
                 for symbolized_label in self.content:
                     if not symbolized_label:
                         l.warning("Content is empty")
@@ -794,8 +848,9 @@ class Reassembler(Analysis):
 
         # For arm, it's an SP relative offset from PC and we don't have to find it, just trust insn_addr
         if arch == "ARMEL":
-            r = Relocation(insn_addr, insn_addr, sort)
+            r = Relocation(insn_addr, ref_addr, sort)
             self._relocations.append(r)
+            #self.register_data_reference(self.addr, insn_addr) #?
             return
 
         addr = insn_addr
@@ -870,7 +925,7 @@ class Reassembler(Analysis):
         # set the label
         self._symbolization_needed = True
 
-        self.symbol_manager.new_label(addr, name=name, force=True)
+        lbl = self.symbol_manager.new_label(addr, name=name, force=True)
 
     def insert_asm(self, addr, asm_code, before_label=False):
         """
@@ -917,7 +972,12 @@ class Reassembler(Analysis):
 
         if initial_content is None:
             initial_content = ""
+
+        if type(initial_content) in (int, long):
+            initial_content = struct.pack("<I", initial_content)
+
         initial_content = initial_content.ljust(size, "\x00")
+
         data = Data(self, memory_data=None, section_name=section_name, name=name, initial_content=initial_content,
                     size=size, sort=sort
                     )
@@ -954,6 +1014,12 @@ class Reassembler(Analysis):
         #    raise ReassemblerFailureNotice('Integer-used-as-pointer detected. Reassembler will not work safely on '
         #                                   'this binary. Ping Fish if you believe the detection is wrong.'
         #                                   )
+
+        # If something is defined in both data and proc, say it's just data and remove from procs
+        bad_procs=set([x.addr for x in self.data]).intersection(set([x.addr for x in self.procedures]))
+        if len(bad_procs):
+            l.warning("Memory defined as both proc and data at {}. Treating as data".format([hex(x) for x in bad_procs]))
+        self.procedures[:] = [x for x in self.procedures if x.addr not in bad_procs]
 
         for proc in self.procedures:
             proc.assign_labels()
@@ -993,8 +1059,9 @@ class Reassembler(Analysis):
 
         for label in changed_labels:
             self.symbol_manager.addr_to_label[label.original_addr].remove(label)
-            if not self.symbol_manager.addr_to_label[label.original_addr]:
-                del self.symbol_manager.addr_to_label[label.original_addr]
+            #if not self.symbol_manager.addr_to_label[label.original_addr]:
+            #    del self.symbol_manager.addr_to_label[label.original_addr]
+            print("Add label {} at a2l[0x{:x}]".format(label.name, label.base_addr))
             self.symbol_manager.addr_to_label[label.base_addr].append(label)
 
         if changed_labels:
@@ -1018,6 +1085,7 @@ class Reassembler(Analysis):
 
         addr_and_assembly = [ ]
 
+        # TODO: Clean this code up!
         if self.project.extract_libc_main:
             for proc in self.procedures:
                 if ignore_function(proc):
@@ -1026,14 +1094,17 @@ class Reassembler(Analysis):
                     continue
 
                 function_label = proc.binary.symbol_manager.new_label(proc.addr)
-                if function_label == "_start":
+                if  function_label == "_start": # TODO? Is it working better without this?
+                    self.project.extract_libc_main = False # Change back to true only if we succeed
                     insns = proc.blocks[0].instructions
                     asm = []
                     for insn in insns:
                         asm.append(insn.assemble_insn(comments=False, symbolized=True))
 
-                    assert(asm[-1].split("\t")[2] == "__libc_start_main")
+                    if not (asm[-1].split("\t")[2] == "__libc_start_main"):
+                        continue
                     # Find the last time r0 was set before the libc_start_main call (TODO: sort?)
+                    main_lbl = None
                     for insn in asm:
                         if len(insn.split("\t")) < 2:
                             continue
@@ -1057,23 +1128,42 @@ class Reassembler(Analysis):
                     if "=" in main_lbl:
                         main_lbl = main_lbl.split("=")[-1]
 
+                    if not main_lbl:
+                        l.warning("Unable to find call from _start to main")
+                        continue
+                    self.project.extract_libc_main = True
+
+                    main_ptr_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
+                    # Dereference the pointer
                     main_ptr_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
                     main_addr = proc.binary.fast_memory_load(main_ptr_addr, 4, int)
-                    if main_addr:
-                        l.info("Identified main function at 0x%x", main_addr)
 
-# TODO: label main function correctly for libc-based binaries and then remove _start (the assembler can generate that for us)
-# The below code is failing when we incorrectly identify and create a procedure that the main function starts in the middle of
-                    """
-                    proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True, dereference=False)
-                    new_fn = self.cfg.kb.functions.function(addr=main_addr, name="main", create=True)
-                    main_procedure = Procedure(self, new_fn, main_addr, 0x30, "main")
-                    self.procedures.append(main_procedure)
-                    """
+                    # TODO: We need to create a new procedure at main_addr
+                    # For now, just rename the label to 'main'
+                    if len(self.symbol_manager.addr_to_label[main_addr]):
+                        self.symbol_manager.addr_to_label[main_addr][0].name = "main"
+
+                    main_lbl_real = proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True, dereference=False)
+                    self.symbol_manager.addr_to_label[main_addr].append(main_lbl_real)
+
+                    # Figure out if we're in an existing procedure
+                    proc = next((p for p in self.procedures if main_addr in [x[0] for x in p.instruction_addresses()]), None)
+                    if proc is None:
+                        l.warning("Couldn't find main in existing proc")
+                    else:
+                        pass
+                        
+                    #""
+                    #proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True, dereference=False)
+                    #new_fn = self.cfg.kb.functions.function(addr=main_addr, name="main", create=True)
+                    #main_procedure = Procedure(self, new_fn, main_addr, 0x30, "main")
+                    #self.procedures.append(main_procedure)
+                    #""
 
         for proc in self.procedures:
             if not ignore_function(proc):
-                addr_and_assembly.extend(proc.assemble_proc(comments=comments, symbolized=symbolized))
+                asm = proc.assemble_proc(comments=comments, symbolized=symbolized)
+                addr_and_assembly.extend(asm) 
 
         # sort it by the address - must be a stable sort!
         addr_and_assembly = sorted(addr_and_assembly, key=lambda x: x[0])
@@ -1094,11 +1184,22 @@ class Reassembler(Analysis):
                     section=(last_section if last_section != '.init_array' else '.data'),
                     alignment=self.section_alignment(last_section)
                 ))
+
             all_assembly_lines.append(data.assembly(comments=comments, symbolized=symbolized))
 
         s = "\n".join(all_assembly_lines)
 
         return s
+
+    def add_data(self, addr, value):
+        # TODO: make angr happy
+    
+        memory_data = self.cfg.memory_data.get(addr, None)
+        if memory_data:
+            data = Data(self, memory_data, section_name=".rodata", addr=addr, sort="pointer-array", size=4, initial_content=memory_data)
+            self.data.append(data)
+        else:
+            l.error("Couldn't get memory_data for 0x%x", addr)
 
     def remove_cgc_attachments(self):
         """
@@ -1222,6 +1323,7 @@ class Reassembler(Analysis):
             '_fini',
             '__gmon_start__',
             '__do_global_dtors_aux',
+            'call_weak_fn',
             'frame_dummy',
             'atexit',
             'deregister_tm_clones',
@@ -1242,6 +1344,8 @@ class Reassembler(Analysis):
             '__dso_handle',
             '__init_array_start',
             '__init_array_end',
+            '__libc_csu_fini',
+            '__stack_chk_guard',
 
             #
             'stdout',
@@ -1330,17 +1434,19 @@ class Reassembler(Analysis):
         if self.project.arch in ['ARMEL']:
             arch_options = CFGArchOptions(self.project.arch, ret_jumpkind_heuristics=True)
 
+        #"""
         cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, collect_data_references=True,
                                         data_type_guessing_handlers=[
                                             self._sequence_handler,
-                                            self._cgc_extended_application_handler,
+                                            #self._cgc_extended_application_handler,
                                             self._unknown_data_size_handler,
                                         ],
                                         arch_options=arch_options
                                         )
+        #"""
+        #cfg = self.project.analyses.CFGAccurate()
 
         self.cfg = cfg
-
         #print("Project arch is {}".format(self.project.arch))
 
         # project.arch doens't have the capstone_x86_syntax for PPC

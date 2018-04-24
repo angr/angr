@@ -160,7 +160,8 @@ class Procedure(object):
 
             if function_label == "_start" and self.project.extract_libc_main and self.project.arch.name == "ARMEL":
                 # If this is a libc binary, extract main from _start and don't output _start at all, assembler can do that for us, better
-                return ""
+                #return ""
+                pass
 
             header += str(function_label) + "\n"
 
