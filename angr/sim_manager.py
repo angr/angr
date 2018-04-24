@@ -330,6 +330,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :rtype:             SimulationManager
         """
         stash = stash or 'active'
+        l.info("Stepping %s of %s", stash, self)
         # 8<----------------- Compatibility layer -----------------
         if n is not None or until is not None:
             if once('simgr_step_n_until'):
