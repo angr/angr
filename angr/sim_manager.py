@@ -41,7 +41,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
     """
     ALL = '_ALL'
     DROP = '_DROP'
-    ACTIVE = None
 
     _integral_stashes = 'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained'
 
@@ -124,28 +123,15 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         except AttributeError:
             return SimulationManager._fetch_states(self, stash=item)
 
+    def __dir__(self):
+        return list(self.__dict__) + dir(type(self)) + list(self._stashes)
+
     @property
     def errored(self):
-        """Return a list of error records.
-
-        :return:
-        """
         return self._errored
 
     @property
-    def completion_mode(self):
-        """Return the current completion mode.
-
-        :return:
-        """
-        return self._completion_mode
-
-    @property
     def stashes(self):
-        """Return an internal Stashes object.
-
-        :return:
-        """
         return self._stashes
 
     def mulpyplex(self, *stashes):
@@ -159,9 +145,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return mulpyplexer.MP(list(itertools.chain.from_iterable(self._stashes[s] for s in stashes)))
 
     def copy(self, deep=False): # pylint: disable=arguments-differ
-        """Make a copy of this simulation manager.
-
-        :return:
+        """
+        Make a copy of this simulation manager. Pass ``deep=True`` to copy all the states in it as well.
         """
         simgr = SimulationManager(self._project,
                                   stashes=self._copy_stashes(deep=deep),
@@ -169,7 +154,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                                   immutable=self._immutable,
                                   resilience=self._resilience,
                                   auto_drop=self._auto_drop,
-                                  completion_mode=self._completion_mode,
+                                  completion_mode=self.completion_mode,
                                   errored=self._errored)
         return simgr
 
@@ -178,14 +163,15 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
     #
 
     def use_technique(self, tech):
-        """Use an exploration technique with this SimulationManager.
+        """
+        Use an exploration technique with this SimulationManager.
 
         Techniques can be found in :mod:`angr.exploration_techniques`.
 
         :param tech:    An ExplorationTechnique object that contains code to modify
                         this SimulationManager's behavior.
         :type tech:     ExplorationTechnique
-        :return:
+        :return:        The technique that was added, for convenience
         """
         if not isinstance(tech, ExplorationTechnique):
             raise SimulationManagerError
@@ -205,11 +191,11 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return tech
 
     def remove_technique(self, tech):
-        """Remove an exploration technique from a list of active techniques.
+        """
+        Remove an exploration technique from a list of active techniques.
 
         :param tech:    An ExplorationTechnique object.
         :type tech:     ExplorationTechnique
-        :return:
         """
         if not isinstance(tech, ExplorationTechnique):
             raise SimulationManagerError
@@ -261,7 +247,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def run(self, stash=None, n=None, until=None, **kwargs):
-        """Run until the SimulationManager has reached a completed state, according to
+        """
+        Run until the SimulationManager has reached a completed state, according to
         the current exploration techniques.
 
         :param stash:       Operate on this stash
@@ -282,16 +269,16 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return self
 
     def complete(self):
-        """Return whether or not this manager has reached a "completed" state.
-
-        :return:
+        """
+        Returns whether or not this manager has reached a "completed" state.
         """
         return self._completion_mode((tech.complete(self) for tech in self._techniques))
 
     @ImmutabilityMixin.immutable
     def step(self, n=None, selector_func=None, step_func=None, stash=None,
              successor_func=None, until=None, filter_func=None, **run_args):
-        """Step a stash of states forward and categorize the successors appropriately.
+        """
+        Step a stash of states forward and categorize the successors appropriately.
 
         The parameters to this function allow you to control everything about the stepping and
         categorization process.
@@ -374,12 +361,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return self
 
     def step_state(self, state, successor_func=None, **run_args):
-        """Step a single state forward.
-
-        :param state:           The state.
-        :param successor_func:  If provided, should be a function that takes a state and return its successors.
-                                Otherwise, project.factory.successors will be used.
-        :return:                A dict mapping stash names to state lists
+        """
+        Don't use this function manually - it is meant to interface with exploration techniques.
         """
         try:
             successors = self.successors(state, successor_func, **run_args)
@@ -400,58 +383,24 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return stashes
 
     def filter(self, state, filter_func=None):  # pylint:disable=no-self-use
-        """Perform filtering on a state.
-
-        If the state should not be filtered, return None.
-        If the state should be filtered, return the name of the stash to move the state to.
-        If you want to modify the state before filtering it, return a tuple of the stash to
-        move the state to and the modified state.
-
-        :param state:
-        :param filter_func:     If provided, should be a function that takes a state and return the name
-                                of the stash, to which the state should be moved.
-        :return:
+        """
+        Don't use this function manually - it is meant to interface with exploration techniques.
         """
         if filter_func is not None:
             return filter_func(state)
         return None
 
     def selector(self, state, selector_func=None):  # pylint:disable=no-self-use
-        """Return True a state should be stepped.
-
-        :param state:           A state to work with.
-        :param selector_func:   If provided, should be a function that takes a state and returns a
-                                boolean. If True, the state will be stepped. Otherwise, it will be
-                                kept as-is.
-        :return:                True, if the state should be steeped, False otherwise.
+        """
+        Don't use this function manually - it is meant to interface with exploration techniques.
         """
         if selector_func is not None:
             return selector_func(state)
         return True
 
     def successors(self, state, successor_func=None, **run_args):
-        """Return successors for a given state.
-
-        :param successor_func:  If provided, should be a function that takes a state and return its successors.
-                                Otherwise, project.factory.successors will be used.
-
-        Additionally, you can pass in any of the following keyword args for project.factory.successors:
-
-        :param jumpkind:        The jumpkind of the previous exit
-        :param addr:            An address to execute at instead of the state's ip.
-        :param stmt_whitelist:  A list of stmt indexes to which to confine execution.
-        :param last_stmt:       A statement index at which to stop execution.
-        :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
-        :param backup_state:    A state to read bytes from instead of using project memory.
-        :param opt_level:       The VEX optimization level to use.
-        :param insn_bytes:      A string of bytes to use for the block instead of the project.
-        :param insn_text:       A string of assembly instruction to use for the block instead of the project.
-        :param size:            The maximum size of the block, in bytes.
-        :param num_inst:        The maximum number of instructions.
-        :param traceflags:      traceflags to be passed to VEX. Default: 0
-
-        :param state:       A state to work with.
-        :return:            A SimSuccessors object.
+        """
+        Don't use this function manually - it is meant to interface with exploration techniques.
         """
         if successor_func is not None:
             return successor_func(state, **run_args)
@@ -463,7 +412,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def prune(self, filter_func=None, from_stash=None, to_stash=None):
-        """Prune unsatisfiable states from a stash.
+        """
+        Prune unsatisfiable states from a stash.
 
         This function will move all unsatisfiable states in the given stash into a different stash.
 
@@ -491,7 +441,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def populate(self, stash, states):
-        """Populate a stash with a collection of states.
+        """
+        Populate a stash with a collection of states.
 
         :param stash:   A stash to populate.
         :param states:  A list of states with which to populate the stash.
@@ -502,7 +453,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def move(self, from_stash, to_stash, filter_func=None):
-        """Move states from one stash to another.
+        """
+        Move states from one stash to another.
 
         :param from_stash:  Take matching states from this stash.
         :param to_stash:    Put matching states into this stash.
@@ -518,7 +470,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def stash(self, filter_func=None, from_stash=None, to_stash=None):
-        """Stash some states. This is an alias for move(), with defaults for the stashes.
+        """
+        Stash some states. This is an alias for move(), with defaults for the stashes.
 
         :param filter_func: Stash states that match this filter. Should be a function that
                             takes a state and returns True or False. (default: stash all states)
@@ -534,7 +487,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def unstash(self, filter_func=None, to_stash=None, from_stash=None):
-        """Unstash some states. This is an alias for move(), with defaults for the stashes.
+        """
+        Unstash some states. This is an alias for move(), with defaults for the stashes.
 
         :param filter_func: Unstash states that match this filter. Should be a function that
                             takes a state and returns True or False. (default: unstash all states)
@@ -550,7 +504,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def drop(self, filter_func=None, stash=None):
-        """Drops states from a stash. This is an alias for move(), with defaults for the stashes.
+        """
+        Drops states from a stash. This is an alias for move(), with defaults for the stashes.
 
         :param filter_func: Drop states that match this filter. Should be a function that takes
                             a state and returns True or False. (default: drop all states)
@@ -564,7 +519,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def apply(self, state_func=None, stash_func=None, stash=None, to_stash=None):
-        """Applies a given function to a given stash.
+        """
+        Applies a given function to a given stash.
 
         :param state_func:  A function to apply to every state. Should take a state and return a state.
                             The returned state will take the place of the old state. If the function
@@ -605,7 +561,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
     @ImmutabilityMixin.immutable
     def split(self, stash_splitter=None, stash_ranker=None, state_ranker=None,
               limit=8, from_stash=None, to_stash=None):
-        """Split a stash of states into two stashes depending on the specified options.
+        """
+        Split a stash of states into two stashes depending on the specified options.
 
         The stash from_stash will be split into two stashes depending on the other options
         passed in. If to_stash is provided, the second stash will be written there.
@@ -659,7 +616,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def merge(self, merge_func=None, merge_key=None, stash=None):
-        """Merge the states in a given stash.
+        """
+        Merge the states in a given stash.
 
         :param stash:       The stash (default: 'active')
         :param merge_func:  If provided, instead of using state.merge, call this function with
@@ -733,7 +691,8 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return match, nomatch
 
     def _merge_states(self, states):
-        """Merges a list of states.
+        """
+        Merges a list of states.
 
         :param states: the states to merge
         :returns: the resulting state
