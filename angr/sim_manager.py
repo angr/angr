@@ -67,7 +67,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         super(SimulationManager, self).__init__(immutable=immutable)
 
         self._project = project
-        self._completion_mode = completion_mode
+        self.completion_mode = completion_mode
         self._errored = []
 
         self._stashes = self._create_integral_stashes() if stashes is None else stashes
@@ -272,7 +272,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         """
         Returns whether or not this manager has reached a "completed" state.
         """
-        return self._completion_mode((tech.complete(self) for tech in self._techniques))
+        return self.completion_mode((tech.complete(self) for tech in self._techniques))
 
     @ImmutabilityMixin.immutable
     def step(self, n=None, selector_func=None, step_func=None, stash=None,
