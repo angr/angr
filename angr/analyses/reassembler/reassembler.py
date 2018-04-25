@@ -148,6 +148,9 @@ class Data(object):
         if self.skip:
             return s
 
+        if self.sort == "unknown":
+            l.warning("Trying to assemble 0x{:x} but we still don't know what it's sort is".format(self.addr))
+
         if self.sort == 'string':
 
             if symbolized:
@@ -194,7 +197,9 @@ class Data(object):
                 s += "\t.{directive} \"{str}\"".format(directive=directive, str=string_escape(self.content[0]))
             s += '\n'
         elif self.sort == 'double-pointer':
+            l.warning("WE STILL USE DOUBLE POINTER")
 
+            """
             if self.binary.project.arch.bits == 32:
                 directive = '.long'
             elif self.binary.project.arch.bits == 64:
@@ -216,7 +221,7 @@ class Data(object):
                     l.warning("No content in pointer array- sybmolzed subelements will be undefined")
                 symbolized_label = self.content[0]
                 if not self.content:
-                    l.warning("Content is empty")
+                    l.warning("double-pointer Content is empty")
                 else:
                     if self.addr is not None and (self.addr + i) in addr_to_labels:
                         for label in addr_to_labels[self.addr + i]:
@@ -227,12 +232,11 @@ class Data(object):
                             s += "%s\n" % str(label)
                     i += self.project.arch.bits / 8
 
-                    import pdb
-                    pdb.set_trace()
                     if isinstance(symbolized_label, (int, long)):
                         s += "\t%s %d\n" % (directive, symbolized_label)
                     else:
                         s += "\t%s %s\n" % (directive, symbolized_label.operand_str)
+            """
 
         elif self.sort == 'pointer-array':
 
@@ -253,6 +257,7 @@ class Data(object):
                 i = 0
                 if self.name is not None:
                     s += "%s:\n" % self.name
+
                 if len(self.content) == 0:
                     if self.addr is not None and (self.addr + i) in addr_to_labels:
                         for label in addr_to_labels[self.addr + i]:
@@ -261,13 +266,11 @@ class Data(object):
                         labels = self.binary.symbol_manager.addr_to_label[self.addr + i]
                         for label in labels:
                             s += "%s\n" % str(label)
-                    l.warning("No content in pointer array for {} defining as 0".format(s.split("\n")[-2]))
+
+                    l.warning("No content in pointer array[0x{:x}] for {} defining as 0".format(self.addr, s.split("\n")[-2]))
                     s+= "\t# WARNING: unkown value - set to 0\n"
                     s+= "\t.byte 0\n"
                 for symbolized_label in self.content:
-                    if not symbolized_label:
-                        l.warning("Content is empty")
-                        continue
 
                     if self.addr is not None and (self.addr + i) in addr_to_labels:
                         for label in addr_to_labels[self.addr + i]:
@@ -277,6 +280,11 @@ class Data(object):
                         for label in labels:
                             s += "%s\n" % str(label)
                     i += self.project.arch.bits / 8
+                    if not symbolized_label:
+                        l.warning("Empty value in content for pointer array[0x{:x}] with labels: {} defining as 0".format(self.addr, s.split("\n")[-2]))
+                        s+= "\t# WARNING: unkown value - set to 0\n"
+                        s+= "\t.byte 0\n"
+                        continue
 
                     if isinstance(symbolized_label, (int, long)):
                         s += "\t%s %d\n" % (directive, symbolized_label)
@@ -346,6 +354,8 @@ class Data(object):
                     # display it as bytes...
                     addr = self.addr if self.addr is not None else 0
                     for piece in self.content:
+                        if not piece:
+                            l.warning("Could not render content at 0x{:x}".format(self.addr))
                         for c in piece:
                             if addr in addr_to_labels:
                                 for label in addr_to_labels[addr]:
@@ -1033,6 +1043,7 @@ class Reassembler(Analysis):
             insn_addrs.extend(proc.instruction_addresses())
         # just to be safe
         insn_addrs = sorted(set(insn_addrs), key=lambda x: x[0])
+        self.cfg._post_analysis() # Rerun TODO - do we need to do this here? related to operand.py changes
 
         pos = 0
 
@@ -1138,6 +1149,10 @@ class Reassembler(Analysis):
                     main_ptr_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
                     main_addr = proc.binary.fast_memory_load(main_ptr_addr, 4, int)
 
+                    if not main_addr:
+                        l.warning("Could not find main address")
+                        continue
+
                     # TODO: We need to create a new procedure at main_addr
                     # For now, just rename the label to 'main'
                     if len(self.symbol_manager.addr_to_label[main_addr]):
@@ -1195,6 +1210,7 @@ class Reassembler(Analysis):
         # TODO: make angr happy
     
         memory_data = self.cfg.memory_data.get(addr, None)
+        print("Add data\t{}".format(name))
         if memory_data:
             data = Data(self, memory_data, section_name=".rodata", addr=addr, sort="pointer-array", size=4, initial_content=memory_data)
             self.data.append(data)
@@ -1532,7 +1548,7 @@ class Reassembler(Analysis):
                     bad_section_names.append([".init"])
 
                 if section is not None and section.name not in bad_section_names:
-                    data = Data(self, memory_data, section=section)
+                    data = Data(self, memory_data, section=section) # Here for everything
                     self.data.append(data)
                 elif memory_data.sort == 'segment-boundary':
                     # it just points to the end of the segment or a section

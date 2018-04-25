@@ -2301,9 +2301,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # Ultimately need to output LDR, =(ptr as label)
                     memory_data.sort = "pointer-array"
                     ptr = self._fast_memory_load_pointer(data_addr) # data_addr->ptr->label
-                    l.warning("LDR off_{:x} -> 0x{:x}".format(data_addr, ptr))
+                    #l.warning("LDR off_{:x} -> 0x{:x}".format(data_addr, ptr))
                     if data_addr in self.kb.functions:
-                        l.warning("\tDelete from functions")
+                        #l.warning("\tDelete from functions")
                         del self.kb.functions[data_addr] # It's a pointer, not a func
                         new_data_found = True
                     self._memory_data[ptr] = MemoryData(ptr, 1, 'pointer-array', None, None, None, None,
@@ -3498,8 +3498,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
                         # thumb mode
                         is_thumb=True
-                    else:
-                        real_addr = addr
+                    real_addr = addr
                     self._seg_list.occupy(real_addr, irsb.size, "code")
 
                 if is_thumb:

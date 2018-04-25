@@ -55,9 +55,10 @@ class SymbolManager(object):
 
         if addr in self.addr_to_label:
             if not len(self.addr_to_label[addr]):
-                l.warning("no labels exist at 0x{:x}".format(addr))
-                return None
-            return self.addr_to_label[addr][0]
+                l.warning("no labels exist for {}".format(addr))
+                del self.addr_to_label[addr]
+            else:
+                return self.addr_to_label[addr][0]
 
         # Check if the address points to a function by checking the plt of main binary
         reverse_plt = self.project.loader.main_object.reverse_plt

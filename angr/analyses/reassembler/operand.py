@@ -1,5 +1,6 @@
 import pdb
 import logging
+from ..cfg.cfg_fast import MemoryData
 from .ramblr_utils import CAPSTONE_OP_TYPE_MAP, CAPSTONE_REG_MAP, OP_TYPE_MAP, OP_TYPE_IMM, OP_TYPE_REG, OP_TYPE_MEM, OP_TYPE_OTHER
 from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNotice
 from .labels import FunctionLabel
@@ -297,31 +298,74 @@ class Operand(object):
                         # Can we LDR a coderef? I don't think so, because it shoudl be a dataref that then points to a code or dataref
                         #if self.disp_is_coderef or self.disp_is_dataref:
                         if baseaddr in self.binary.kb.functions:
-                            l.warning("\tDelete from functions v2")
-                            del self.binary.kb.functions[baseaddr]
+                            #l.warning("\tDelete from functions v2")
+                            #del self.binary.kb.functions[baseaddr]
                             self.is_dataref = True
                             self.is_coderef = False
 
-                        # Ensure that we'll define label_x as dereferenced_val (ptr or imm)
+                        # Ensure that we'll define label_x as ptr (ptr or imm)
                         # Try to dereference it, if we can, LDR to the dereferenced address
-                        dereferenced_val = self.binary.fast_memory_load(baseaddr, 4, int)
-                        if dereferenced_val:
-                            new_lbl = self.binary.symbol_manager.new_label(addr=dereferenced_val)
-                            print("0x{:x}:\tldr off_{:x} \t = {:<9} =>  {:<15} == 0x{:x}".format(self.insn_addr, baseaddr, "_", new_lbl.name, dereferenced_val))
-
+                        ptr = self.binary.fast_memory_load(baseaddr, 4, int)
+                        if ptr:
+                            new_lbl = self.binary.symbol_manager.new_label(addr=ptr)
+                            print("0x{:x}:\tldr off_{:x} \t = {:<9} =>  {:<15} == 0x{:x}".format(self.insn_addr, baseaddr, "_", new_lbl.name, ptr))
                             self.disp_label = new_lbl
+
+                            # we create the label here but later self.content could be empty for this location, we 
+                            # need to ensure that we add this data into the right place now
+
+                            # Check if the label we now have is a pointer again (Common for strings)
+                            #ptr2 = self.binary.fast_memory_load(dereferenced_val, 4, int) 
+                            if ptr:
+                                # We're basically just re-running cfg's _guess_data_type and deleting any old results TODO - can we directly run it, or move all this into the CFG analysis?
+                                if ptr in self.binary.cfg._memory_data:
+                                    del self.binary.cfg._memory_data[ptr]
+
+                                res = self.binary.cfg._fast_memory_load(ptr)
+                                if res:
+                                    block, block_size = res
+                                    if block:
+                                        l.warning("It's a string")
+                                        max_string_len = min([ block_size, 4096 ])
+                                        s = self.binary.cfg._ffi.string(self.binary.cfg._ffi.cast("char*", block), max_string_len)
+                                        content_holder = []
+                                        if len(s):  # pylint:disable=len-as-condition
+                                            if all([ c in self.binary.cfg.PRINTABLES for c in s ]):
+                                                # it's a string
+                                                # however, it may not be terminated
+                                                if content_holder is not None:
+                                                    content_holder.append(s)
+                                                self.binary.cfg._memory_data[ptr] = MemoryData(ptr, min(len(s)+1, max_string_len), 'string', None, None, None, None)
+                                                self.binary.cfg._memory_data[ptr].content = content_holder
+                                    else:
+                                        l.warning("Couldn't fast memory load 0x{:x}".format(ptr))
+                                else:
+                                    l.warning("Couldn't dereference pointer address, update content")
+                                    if baseaddr not in self.binary.cfg._memory_data:
+                                        l.warning("\tAdd 0x{:x} into memory_data".format(baseaddr))
+                                        self.binary.cfg._memory_data[baseaddr] = MemoryData(ptr, 0, 'integer', None, None, None, None, pointer_addr=baseaddr, insn_addr=baseaddr)
+                                    else:
+                                        l.warning("\tMemory_data[0x{:x}] is type {}".format(baseaddr, self.binary.cfg._memory_data[baseaddr].sort))
+
+                                    if self.binary.cfg._memory_data[baseaddr].sort == 'code': # No code? make an int?
+                                        self.binary.cfg._memory_data[baseaddr] = MemoryData(ptr, 1, 'pointer-array', None, None, None, None, pointer_addr=baseaddr, insn_addr=baseaddr)
+
+                                    self.binary.cfg._memory_data[baseaddr].content = [ptr]
+                            else:
+                                l.warning("Something bad happened")
+
+
                             #self.binary.register_instruction_reference(self.disp, dereferenced_val, 'absolute', 4, self.binary.project.arch.name)
                         else:
-                            l.warning("Ignoring LDR at 0x%x", baseaddr) # TODO - can we handle these? 
+                            l.warning("Ignoring LDR at 0x%x", baseaddr) # TODO - need to figure out how to handle these, they might just be the same as pc-relative?
                             # maybe when we can't dereference, just label it as is, typically points to libc internals and is fixed elsewhere
                             #new_lbl = self.binary.symbol_manager.new_label(addr=baseaddr)
                             #print("0x{:x}:\tldr off_{:x} \t = {:<9}".format(self.insn_addr, baseaddr, "_", new_lbl.name))
                             #self.disp_label = new_lbl
 
-                        #self.binary.register_instruction_reference(self.disp, baseaddr, 'absolute', 4, self.binary.project.arch.name)
                         return
                     else:
-                        # TODO: how to handle this? Just like a regular label?
+                        # TODO: how to handle this? Just like a regular label? (this happens a lot, commented out so we can fix other things)
                         #l.warning("Unsupported register-relative arm LDR: register=%s", CAPSTONE_REG_MAP['ARMEL'][self.base])
                         pass
 
