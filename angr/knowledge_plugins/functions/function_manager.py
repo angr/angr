@@ -308,6 +308,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
             elif create:
                 # the function is not found
                 f = self._function_map[addr]
+                if name is not None:
+                    f.name = name
                 if syscall:
                     f.is_syscall=True
                 return f
