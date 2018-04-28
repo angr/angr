@@ -1,4 +1,5 @@
 import angr
+import claripy
 from angr.sim_type import SimTypeString, SimTypeInt
 from angr.errors import SimProcedureError
 
@@ -84,7 +85,7 @@ class strtol(angr.SimProcedure):
         length = state.libc.max_strtol_len if cutoff else read_length
 
         # expression whether or not it was valid at all
-        expression, _ = strtol._char_to_val(region.load(s, 1), state, base)
+        expression, _ = strtol._char_to_val(region.load(s, 1), base)
 
         cases = []
 
@@ -98,7 +99,7 @@ class strtol(angr.SimProcedure):
         # we need all the conditions to hold except the last one to have found a value
         for i in range(length):
             char = region.load(s + i, 1)
-            condition, value = strtol._char_to_val(char, state, base)
+            condition, value = strtol._char_to_val(char, base)
 
             # if it was the end we'll get the current val
             cases.append((num_bytes == i, current_val))
@@ -130,7 +131,7 @@ class strtol(angr.SimProcedure):
         return expression, result, num_bytes
 
     @staticmethod
-    def _char_to_val(char, state, base):
+    def _char_to_val(char, base):
         """
         converts a symbolic char to a number in the given base
         returns expression, result
@@ -139,30 +140,30 @@ class strtol(angr.SimProcedure):
         """
         cases = []
         # 0-9
-        max_digit = state.se.BVV("9", 8)
-        min_digit = state.se.BVV("0", 8)
+        max_digit = claripy.BVV("9", 8)
+        min_digit = claripy.BVV("0", 8)
         if base < 10:
-            max_digit = state.se.BVV(chr(ord("0") + base), 8)
-        is_digit = state.se.And(char >= min_digit, char <= max_digit)
+            max_digit = claripy.BVV(chr(ord("0") + base), 8)
+        is_digit = claripy.And(char >= min_digit, char <= max_digit)
         # return early here so we don't add unnecessary statements
         if base <= 10:
             return is_digit, char - min_digit
 
         # handle alphabetic chars
-        max_char_lower = state.se.BVV(chr(ord("a") + base-10 - 1), 8)
-        max_char_upper = state.se.BVV(chr(ord("A") + base-10 - 1), 8)
-        min_char_lower = state.se.BVV(chr(ord("a")), 8)
-        min_char_upper = state.se.BVV(chr(ord("A")), 8)
+        max_char_lower = claripy.BVV(chr(ord("a") + base-10 - 1), 8)
+        max_char_upper = claripy.BVV(chr(ord("A") + base-10 - 1), 8)
+        min_char_lower = claripy.BVV(chr(ord("a")), 8)
+        min_char_upper = claripy.BVV(chr(ord("A")), 8)
 
         cases.append((is_digit, char - min_digit))
-        is_alpha_lower = state.se.And(char >= min_char_lower, char <= max_char_lower)
+        is_alpha_lower = claripy.And(char >= min_char_lower, char <= max_char_lower)
         cases.append((is_alpha_lower, char - min_char_lower + 10))
-        is_alpha_upper = state.se.And(char >= min_char_upper, char <= max_char_upper)
+        is_alpha_upper = claripy.And(char >= min_char_upper, char <= max_char_upper)
         cases.append((is_alpha_upper, char - min_char_upper + 10))
 
-        expression = state.se.Or(is_digit, is_alpha_lower, is_alpha_upper)
+        expression = claripy.Or(is_digit, is_alpha_lower, is_alpha_upper)
         # use the last case as the default, the expression will encode whether or not it's satisfiable
-        result = state.se.ite_cases(cases[:-1], cases[-1][1])
+        result = claripy.ite_cases(cases[:-1], cases[-1][1])
 
         return expression, result
 

@@ -5,9 +5,6 @@ import logging
 l = logging.getLogger("angr.state_plugins.view")
 
 class SimRegNameView(SimStatePlugin):
-    def __init__(self):
-        super(SimRegNameView, self).__init__()
-
     def __getattr__(self, k):
         """
         Get the value of a register.
@@ -67,13 +64,14 @@ class SimRegNameView(SimStatePlugin):
             return self.state.arch.registers.keys() + ['flags']
         return self.state.arch.registers.keys()
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimRegNameView()
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         return False
 
     def get(self, reg_name):
@@ -191,18 +189,19 @@ class SimMemView(SimStatePlugin):
     def __setattr__(self, k, v):
         if k in ('state', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
-        self.__getattr__(k).store(v)
+        return self.__getattr__(k).store(v)
 
     def __cmp__(self, other):
         raise ValueError("Trying to compare SimMemView is not what you want to do")
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimMemView()
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         return False
 
     @property

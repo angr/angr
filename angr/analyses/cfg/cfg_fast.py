@@ -3,10 +3,9 @@ import logging
 import math
 import re
 import string
-import struct
 from collections import defaultdict
 
-from bintrees import AVLTree
+from sortedcontainers import SortedDict
 
 import claripy
 import cle
@@ -20,8 +19,9 @@ from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
-from ...engines import SimEngineVEX
-from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError
+from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
+                       AngrUnsupportedSyscallError
+                       )
 
 VEX_IRSB_MAX_SIZE = 400
 
@@ -763,10 +763,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
         self._regions_size = sum((b - a) for a, b in regions)
-        # initial self._regions as an AVL tree
-        self._regions = AVLTree()
-        for start_, end_ in regions:
-            self._regions.insert(start_, end_)
+        # initial self._regions as a sorted dict
+        self._regions = SortedDict(regions)
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -801,8 +799,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
-        for start_addr, end_addr in self._regions.iter_items():
-            l.debug("... %#x - %#x", start_addr, end_addr)
+        for start_addr in self._regions:
+            l.debug("... %#x - %#x", start_addr, self._regions[start_addr])
 
         # A mapping between address and the actual data in memory
         self._memory_data = { }
@@ -935,10 +933,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         try:
-            start_addr, end_addr = self._regions.floor_item(address)
-            return start_addr <= address < end_addr
+            start_addr = next(self._regions.irange(maximum=address, reverse=True))
         except KeyError:
             return False
+        else:
+            return address < self._regions[start_addr]
 
     def _get_min_addr(self):
         """
@@ -952,7 +951,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             l.error("self._regions is empty or not properly set.")
             return None
 
-        return self._regions.min_key()
+        return next(self._regions.irange())
 
     def _next_address_in_regions(self, address):
         """
@@ -963,12 +962,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype:             int
         """
 
+        if self._inside_regions(address):
+            return address
+
         try:
-            start_addr, end_addr = self._regions.floor_item(address)
-            if start_addr <= address < end_addr:
-                return address
-            else:
-                return self._regions.ceiling_key(address)
+            return next(self._regions.irange(minimum=address, reverse=True))
         except KeyError:
             return None
 
@@ -1005,7 +1003,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure curr_addr exists in binary
         accepted = False
-        for start, end in self._regions.iter_items():
+        for start, end in self._regions.iteritems():
             if start <= curr_addr < end:
                 # accept
                 accepted = True
@@ -1299,6 +1297,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._insert_job(job)
                 return
 
+            self._clean_pending_exits()
+
         # did we finish analyzing any function?
         # fill in self._completed_functions
         self._make_completed_functions()
@@ -1367,6 +1367,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._register_analysis_job(addr, job)
 
     def _post_analysis(self):
+
+        self._make_completed_functions()
 
         self._analyze_all_function_features()
 
@@ -1744,6 +1746,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     jobs.extend(ent)
                 return jobs
 
+        # Special handling:
+        # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring jump
+        if jumpkind == "Ijk_Call" and \
+                not self.project.arch.call_pushes_ret and \
+                cfg_node.instruction_addrs and \
+                ins_addr == cfg_node.instruction_addrs[-1] and \
+                target_addr == irsb.addr + irsb.size:
+            jumpkind = "Ijk_Boring"
+
         # pylint: disable=too-many-nested-blocks
         if jumpkind == 'Ijk_Boring':
             if target_addr is not None:
@@ -1893,6 +1904,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._function_exits[current_function_addr].add(addr)
                 self._function_add_return_site(addr, current_function_addr)
                 self.functions[current_function_addr].returning = True
+                self._add_returning_function(current_function_addr)
 
             cfg_node.has_return = True
 
@@ -1927,11 +1939,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             succ = self.project.factory.successors(tmp_state).flat_successors[0]
-            syscall_stub = self.project.simos.syscall(succ)
-            if syscall_stub: # can be None if simos is not a subclass of SimUserspac
-                syscall_addr = self.project.simos.syscall(succ).addr
-                target_addr = syscall_addr
-            else:
+            try:
+                syscall_stub = self.project.simos.syscall(succ)
+                if syscall_stub:  # can be None if simos is not a subclass of SimUserspac
+                    syscall_addr = syscall_stub.addr
+                    target_addr = syscall_addr
+                else:
+                    target_addr = self._unresolvable_target_addr
+            except AngrUnsupportedSyscallError:
                 target_addr = self._unresolvable_target_addr
 
         new_function_addr = target_addr
@@ -2806,8 +2821,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         while True:
             new_changes = self._iteratively_analyze_function_features()
-            new_returning_functions = new_changes['functions_do_not_return']
-            new_not_returning_functions = new_changes['functions_return']
+            new_returning_functions = new_changes['functions_return']
+            new_not_returning_functions = new_changes['functions_do_not_return']
 
             if not new_returning_functions and not new_not_returning_functions:
                 break
@@ -3282,7 +3297,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if isinstance(val, tuple) and val[0] == 'load':
                 # the value comes from memory
                 memory_addr = val[1]
-                lr_on_stack_offset = memory_addr - last_sp
+                lsp = last_sp if isinstance(last_sp, int) else last_sp[1]
+                lr_on_stack_offset = memory_addr - lsp
 
                 if lr_on_stack_offset == function.info['lr_on_stack_offset']:
                     # the jumpkind should be Ret instead of boring

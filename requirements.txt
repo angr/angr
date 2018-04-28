@@ -1,6 +1,6 @@
 ana
 archinfo>=7.8.2.21
-bintrees
+sortedcontainers
 cachetools
 capstone>=3.0.5.rc2
 claripy>=7.8.2.21
@@ -14,4 +14,5 @@ progressbar
 pyvex>=7.8.2.21
 rpyc
 unicorn
-pygit
+GitPython
+pycparser>=2.18

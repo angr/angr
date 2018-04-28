@@ -21,7 +21,7 @@ def test_mips():
         output.append(2)
         num = state.se.eval(state.regs.a1)
         string = '%d ' % num
-        state.posix.files[1].write(state.se.BVV(string), state.se.BVV(len(string), 32))
+        state.posix.get_fd(1).write_data(state.se.BVV(string))
 
     # a manual hook
     p.hook(OUTER_LOOP, hook2, length=0x14)

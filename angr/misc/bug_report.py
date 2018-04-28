@@ -4,14 +4,14 @@ import os
 import sys
 import datetime
 
-have_pygit = False
+have_gitpython = False
 try:
-    import git
-    have_pygit = True
+    from git import Repo, InvalidGitRepositoryError
+    have_gitpython = True
 except ImportError:
-    print("If you install pygit (`pip install pygit`), I can give you git info too!")
+    print("If you install gitpython (`pip install gitpython`), I can give you git info too!")
 
-angr_modules = ['angr', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'simuvex', 'z3', 'unicorn']
+angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'simuvex', 'z3', 'unicorn']
 native_modules = {'angr': 'angr.state_plugins.unicorn_engine._UC_NATIVE',
                   'unicorn': 'unicorn.unicorn._uc',
                   'pyvex': 'pyvex.pvc',
@@ -54,20 +54,28 @@ def print_versions():
 
 
 def print_git_info(dirname):
-    if not have_pygit:
+    if not have_gitpython:
         return
     try:
-        repo = git.Repository(dirname)
-    except git.repository.InvalidRepositoryError:
-        try:
-            repo = git.Repository(os.path.split(dirname)[0])
-        except:
-            print("Couldn't find git info")
-            return
+        repo = Repo(dirname, search_parent_directories=True)
+    except InvalidGitRepositoryError:
+        print("Couldn't find git info")
+        return
+    cur_commit = repo.commit()
+    cur_branch = repo.active_branch
     print("Git info:")
-    print("\tChecked out from: " + repo.config['remote.origin.url'])
-    print("\tCurrent commit %s from branch %s" % (repo.head.shortname, repo.head.refname))
-
+    print("\tCurrent commit %s from branch %s" % (cur_commit.hexsha, cur_branch.name))
+    try:
+        # EDG: Git is insane, but this should work 99% of the time
+        cur_tb = cur_branch.tracking_branch()
+        if cur_tb.is_remote():
+            remote_name = cur_tb.remote_name
+            remote_url = repo.remotes[remote_name].url
+            print("\tChecked out from remote %s: %s" % (remote_name, remote_url))
+        else:
+            print("Tracking local branch %s" % cur_tb.name)
+    except:
+        print("Could not resolve tracking branch or remote info!")
 
 def print_system_info():
     print("Platform: " + pkg_resources.get_build_platform())

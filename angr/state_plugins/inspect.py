@@ -121,7 +121,7 @@ class BP(object):
     A breakpoint.
     """
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
-        if len(set([ k.replace("_unique", "") for k in kwargs.keys()]) - set(inspect_attributes)) != 0:
+        if len(set([ k.replace("_unique", "") for k in kwargs]) - set(inspect_attributes)) != 0:
             raise ValueError("Invalid inspect attribute(s) %s passed in. Should be one of %s, or their _unique option." % (kwargs, inspect_attributes))
 
         self.kwargs = kwargs
@@ -144,7 +144,7 @@ class BP(object):
             return ok
         l.debug("... after enabled and when: %s", ok)
 
-        for a in [ _ for _ in self.kwargs.keys() if not _.endswith("_unique") ]:
+        for a in [ _ for _ in self.kwargs if not _.endswith("_unique") ]:
             current_expr = getattr(state.inspect, a)
             needed = self.kwargs.get(a, None)
 
@@ -291,7 +291,8 @@ class SimInspector(SimStatePlugin):
             # the breakpoint is not found
             l.error('remove_breakpoint(): Breakpoint %s (type %s) is not found.', bp, event_type)
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         c = SimInspector()
         for i in inspect_attributes:
             setattr(c, i, getattr(self, i))
@@ -327,7 +328,7 @@ class SimInspector(SimStatePlugin):
                         seen.add(id(b))
         return False
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return self._combine(others)
 
     def widen(self, others):

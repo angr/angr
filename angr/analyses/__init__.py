@@ -1,7 +1,6 @@
 from .analysis import Analysis, AnalysesHub
 from ..misc.ux import deprecated
 
-@deprecated('cls.register_default(name)')
 def register_analysis(cls, name):
     AnalysesHub.register_default(name, cls)
 

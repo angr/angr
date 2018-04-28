@@ -12,6 +12,7 @@ from .sim_type import SimTypeFunction
 from .sim_type import SimTypeFloat
 from .sim_type import SimTypeDouble
 from .sim_type import SimStruct
+from .sim_type import SimTypeInt
 
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -86,7 +87,7 @@ class SimRegArg(SimFunctionArgument):
             return offset + (self.size - size)
         return offset
 
-    def set_value(self, state, value, endness=None, size=None, **kwargs):   # pylint: disable=unused-argument
+    def set_value(self, state, value, endness=None, size=None, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         self.check_value(value)
         if endness is None: endness = state.arch.register_endness
         if isinstance(value, (int, long)): value = claripy.BVV(value, self.size*8)
@@ -94,7 +95,7 @@ class SimRegArg(SimFunctionArgument):
         offset = self._fix_offset(state, size)
         state.registers.store(offset, value, endness=endness, size=size)
 
-    def get_value(self, state, endness=None, size=None, **kwargs):          # pylint: disable=unused-argument
+    def get_value(self, state, endness=None, size=None, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         if endness is None: endness = state.arch.register_endness
         if size is None: size = self.size
         offset = self._fix_offset(state, size)
@@ -112,14 +113,14 @@ class SimStackArg(SimFunctionArgument):
     def __eq__(self, other):
         return type(other) is SimStackArg and self.stack_offset == other.stack_offset
 
-    def set_value(self, state, value, endness=None, stack_base=None):    # pylint: disable=arguments-differ
+    def set_value(self, state, value, endness=None, stack_base=None):  # pylint: disable=arguments-differ
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
         if stack_base is None: stack_base = state.regs.sp
         if isinstance(value, (int, long)): value = claripy.BVV(value, self.size*8)
         state.memory.store(stack_base + self.stack_offset, value, endness=endness, size=value.length/8)
 
-    def get_value(self, state, endness=None, stack_base=None, size=None):           # pylint: disable=arguments-differ
+    def get_value(self, state, endness=None, stack_base=None, size=None):  # pylint: disable=arguments-differ
         if endness is None: endness = state.arch.memory_endness
         if stack_base is None: stack_base = state.regs.sp
         return state.memory.load(stack_base + self.stack_offset, endness=endness, size=size or self.size)
@@ -136,7 +137,7 @@ class SimComboArg(SimFunctionArgument):
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
 
-    def set_value(self, state, value, endness=None, **kwargs):
+    def set_value(self, state, value, endness=None, **kwargs):  # pylint:disable=arguments-differ
         # TODO: This code needs to be reworked for variable byte with and the Third Endness
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
@@ -151,7 +152,7 @@ class SimComboArg(SimFunctionArgument):
             loc.set_value(state, value[cur*state.arch.byte_width + loc.size*state.arch.byte_width - 1:cur*state.arch.byte_width], endness=endness, **kwargs)
             cur += loc.size
 
-    def get_value(self, state, endness=None, **kwargs):
+    def get_value(self, state, endness=None, **kwargs):  # pylint:disable=arguments-differ
         if endness is None: endness = state.arch.memory_endness
         vals = []
         for loc in self.locations:
@@ -623,6 +624,9 @@ class SimCC(object):
     @staticmethod
     def _standardize_value(arg, ty, state, alloc):
         check = ty is not None
+        if check:
+            ty = ty.with_arch(state.arch)
+
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
@@ -780,7 +784,7 @@ class SimLyingRegArg(SimRegArg):
         # TODO: This looks byte-related.  Make sure to use Arch.byte_width
         super(SimLyingRegArg, self).__init__(name, 8)
 
-    def get_value(self, state, size=None, endness=None, **kwargs):
+    def get_value(self, state, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         #val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = getattr(state.regs, self.reg_name)
         if endness and endness != state.args.register_endness:
@@ -789,7 +793,7 @@ class SimLyingRegArg(SimRegArg):
             val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_FLOAT)
         return val
 
-    def set_value(self, state, val, size=None, endness=None, **kwargs):
+    def set_value(self, state, val, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         if size == 4:
             if state.arch.register_endness == 'IEnd_LE' and endness == 'IEnd_BE':
                 # pylint: disable=no-member
@@ -812,6 +816,16 @@ class SimCCCdecl(SimCC):
 
 class SimCCStdcall(SimCCCdecl):
     CALLEE_CLEANUP = True
+
+class SimCCMicrosoftAMD64(SimCC):
+    ARG_REGS = ['rcx', 'rdx', 'r8', 'r9']
+    FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3']
+    STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
+    STACKARG_SP_BUFF = 32 # 32 bytes of shadow stack space
+    RETURN_VAL = SimRegArg('rax', 8)
+    FP_RETURN_VAL = SimRegArg('xmm0', 32)
+    RETURN_ADDR = SimStackArg(0, 8)
+    ARCH = archinfo.ArchAMD64
 
 class SimCCX86LinuxSyscall(SimCC):
     ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
@@ -1076,7 +1090,6 @@ class SimCCUnknown(SimCC):
     def __repr__(self):
         return "<SimCCUnknown - %s %s sp_delta=%d>" % (self.arch.name, self.args, self.sp_delta)
 
-CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCO64, SimCCPowerPC, SimCCPowerPC64, SimCCAArch64 ]
 DEFAULT_CC = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,

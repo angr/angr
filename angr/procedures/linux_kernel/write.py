@@ -10,6 +10,7 @@ class write(angr.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, fd, src, length):
-        data = self.state.memory.load(src, length)
-        length = self.state.posix.write(fd, data, length)
-        return length
+        simfd = self.state.posix.get_fd(fd)
+        if simfd is None:
+            return -1
+        return simfd.write(src, length)

@@ -1,4 +1,3 @@
-
 import os
 import logging
 
@@ -6,7 +5,6 @@ import claripy
 
 from ..errors import (
     AngrSimOSError,
-    TracerEnvironmentError,
     SimSegfaultException,
     SimUnsupportedError,
     SimZeroDivisionException,
@@ -261,10 +259,6 @@ class SimWindows(SimOS):
 
         return state
 
-    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
-                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
-        raise TracerEnvironmentError("Tracer currently only supports CGC and Unix.")
-
     def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
         # don't bother handling non-vex exceptions
         if engine is not self.project.factory.default_engine:
@@ -294,7 +288,8 @@ class SimWindows(SimOS):
                 if len(r.flat_successors) != 1:
                     if exc_value.guard.is_true():
                         _l.error("Got %d successors while re-executing %d instructions at %#x "
-                                 "for unconditional exception windup", num_inst, successors.initial_state.addr)
+                                 "for unconditional exception windup",
+                                 len(r.flat_successors), num_inst, successors.initial_state.addr)
                         raise exc_type, exc_value, exc_traceback
                     # Try to figure out which successor is ours...
                     _, _, canon_guard = exc_value.guard.canonicalize()
@@ -306,8 +301,7 @@ class SimWindows(SimOS):
                     else:
                         _l.error("None of the %d successors while re-executing %d instructions at %#x "
                                  "for conditional exception windup matched guard",
-                                 num_inst, successors.initial_state.addr
-                                 )
+                                 len(r.flat_successors), num_inst, successors.initial_state.addr)
                         raise exc_type, exc_value, exc_traceback
 
                 else:
@@ -329,7 +323,7 @@ class SimWindows(SimOS):
         # we check is_true since if it's symbolic this is exploitable maybe?
         tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
-            _l.debug("... no handlers register")
+            _l.debug("... no handlers registered")
             exc_value.args = ('Unhandled exception: %r' % exc_value,)
             raise exc_type, exc_value, exc_traceback
         # catch nested exceptions here with magic value

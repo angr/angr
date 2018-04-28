@@ -1,8 +1,8 @@
-import bintrees
 import cooldict
 import claripy
 import cffi
 import cle
+from sortedcontainers import SortedDict
 
 from ..errors import SimMemoryError, SimSegfaultError
 from .. import sim_options as options
@@ -127,84 +127,82 @@ class BasePage(object):
 
 class TreePage(BasePage):
     """
-    Page object, implemented with a bintree.
+    Page object, implemented with a sorted dict. Who knows what's underneath!
     """
 
     def __init__(self, *args, **kwargs):
         storage = kwargs.pop("storage", None)
         super(TreePage, self).__init__(*args, **kwargs)
-        self._storage = bintrees.AVLTree() if storage is None else storage
+        self._storage = SortedDict() if storage is None else storage
 
     def keys(self):
         if len(self._storage) == 0:
             return set()
         else:
-            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.values()))
+            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.itervalues()))
 
     def replace_mo(self, state, old_mo, new_mo):
         start, end = self._resolve_range(old_mo)
-        possible_items = list(self._storage.item_slice(start, end))
-        for a,v in possible_items:
-            if v is old_mo:
+        for key in self._storage.irange(start, end-1):
+            val = self._storage[key]
+            if val is old_mo:
                 #assert new_mo.includes(a)
-                self._storage[a] = new_mo
+                self._storage[key] = new_mo
 
     def store_overwrite(self, state, new_mo, start, end):
-        # get a list of items that we will overwrite
-        current_items = list(self._storage.item_slice(start, end + 1))
-
+        # iterate over each item we might overwrite
+        # track our mutations separately since we're in the process of iterating
+        deletes = []
         updates = { start: new_mo }
 
-        # remove the items we are overwriting
-        if not current_items:
-            # make sure we aren't overwriting an entire item that starts before
-            # the write range and extends past the end of it
-            try:
-                _, floor_value = self._storage.floor_item(start)
-                if floor_value.includes(end):
-                    updates[end] = floor_value
-            except KeyError:
-                pass
-        else:
-            # make sure we're not overwriting an entire item that starts inside
-            # the write range and extends past the end of it
-            if end < self._page_addr + self._page_size and current_items[-1][1].includes(end):
-                updates[end] = current_items[-1][1]
+        for key in self._storage.irange(maximum=end-1, reverse=True):
+            old_mo = self._storage[key]
 
-            # remove existing items
-            del self._storage[start:end]
+            # make sure we aren't overwriting all of an item that overlaps the end boundary
+            if end < self._page_addr + self._page_size and end not in updates and old_mo.includes(end):
+                updates[end] = old_mo
+
+            # we can't set a minimum on the range because we need to do the above for
+            # the first object before start too
+            if key < start:
+                break
+
+            # delete any key that falls within the range
+            deletes.append(key)
 
         #assert all(m.includes(i) for i,m in updates.items())
 
-        # store the new stuff
+        # perform mutations
+        for key in deletes:
+            del self._storage[key]
+
         self._storage.update(updates)
 
     def store_underwrite(self, state, new_mo, start, end):
-        # first, get the current items
-        current_items = list(self._storage.item_slice(start, end + 1))
-
-        # go through them backwards and fill in the gaps
+        # track the point that we need to write up to
         last_missing = end - 1
-        updates = { }
-        for _,mo in reversed(current_items):
-            if not mo.includes(last_missing) and not mo.base > last_missing:
-                # this mo does not cover up to the end; we need to fill it in
-                updates[mo.last_addr+1] = new_mo
+        # track also updates since we can't update while iterating
+        updates = {}
+
+        for key in self._storage.irange(maximum=end-1, reverse=True):
+            mo = self._storage[key]
+
+            # if the mo stops
+            if mo.base <= last_missing and not mo.includes(last_missing):
+                updates[max(mo.last_addr+1, start)] = new_mo
             last_missing = mo.base - 1
 
-        # if the beginning is missing, fill it in and make sure we're not
-        # overwriting something we shouldn't be
+            # we can't set a minimum on the range because we need to do the above for
+            # the first object before start too
+            if last_missing < start:
+                break
+
+        # if there are no memory objects <= start, we won't have filled start yet
         if last_missing >= start:
-            try:
-                _, floor_value = self._storage.floor_item(start)
-                if not floor_value.includes(last_missing):
-                    updates[max(floor_value.last_addr+1, start)] = new_mo
-            except KeyError:
-                updates[start] = new_mo
+            updates[start] = new_mo
 
         #assert all(m.includes(i) for i,m in updates.items())
 
-        # apply it
         self._storage.update(updates)
 
     def load_mo(self, state, page_idx):
@@ -216,11 +214,11 @@ class TreePage(BasePage):
         """
 
         try:
-            mo = self._storage.floor_item(page_idx)[1]
-        except KeyError:
-            mo = None
-
-        return mo
+            key = next(self._storage.irange(maximum=page_idx, reverse=True))
+        except StopIteration:
+            return None
+        else:
+            return self._storage[key]
 
     def load_slice(self, state, start, end):
         """
@@ -230,18 +228,19 @@ class TreePage(BasePage):
         :param end: the end address (non-inclusive)
         :returns: tuples of (starting_addr, memory_object)
         """
-        items = list(self._storage.item_slice(start, end))
-        if not items or items[0][0] != start:
+        keys = list(self._storage.irange(start, end-1))
+        if not keys or keys[0] != start:
             try:
-                _, floor_mo = self._storage.floor_item(start)
-                if floor_mo.includes(start):
-                    items.insert(0, (start, floor_mo))
-            except KeyError:
+                key = next(self._storage.irange(maximum=start, reverse=True))
+            except StopIteration:
                 pass
-        return items
+            else:
+                if self._storage[key].includes(start):
+                    items.insert(0, key)
+        return [(key, self._storage[key]) for key in keys]
 
     def _copy_args(self):
-        return { 'storage': bintrees.AVLTree(self._storage) }
+        return { 'storage': self._storage.copy() }
 
 class ListPage(BasePage):
     """
@@ -831,7 +830,8 @@ class SimPagedMemory(object):
         self._updated_mappings.add(m)
 
     def _update_range_mappings(self, actual_addr, cnt, size):
-        if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
+        if self.state is None or not \
+                (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
                 options.REVERSE_MEMORY_HASH_MAP in self.state.options or
                 options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options):
             return

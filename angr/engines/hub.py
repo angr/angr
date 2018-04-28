@@ -17,11 +17,11 @@ class EngineHub(PluginHub):
 
     def __getstate__(self):
         s = super(EngineHub, self).__getstate__()
-        return s, self._order, self._default_engine, self._procedure_engine
+        return s, self._order, self._default_engine, self._procedure_engine, self.project
 
     def __setstate__(self, s):
         super(EngineHub, self).__setstate__(s[0])
-        self._order, self._default_engine, self._procedure_engine = s[1:]
+        self._order, self._default_engine, self._procedure_engine, self.project = s[1:]
 
     #
     #   ...
@@ -136,7 +136,7 @@ class EnginePreset(PluginPreset):
     """
     This represents a preset of engines for an engine hub.
 
-    As was pointed out by @rhlemot (see https://github.com/angr/angr/pull/897), there's a lot of
+    As was pointed out by @rhelmot (see https://github.com/angr/angr/pull/897), there's a lot of
     behavior in angr which very very specifically assumes that failure/syscall/hook will happen
     exactly the way we want them to.  This plugin preset addresses the issue by allowing a user to
     specify a list of plugins that should be executed first using the ``predefined_order``

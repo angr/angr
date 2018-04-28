@@ -1,10 +1,8 @@
-
 import logging
-
-from bintrees import AVLTree
 import cffi
-
 import cle
+
+from sortedcontainers import SortedDict
 
 from ..analysis import Analysis
 
@@ -67,7 +65,7 @@ class CFBlanket(Analysis):
     A Control-Flow Blanket is a representation for storing all instructions, data entries, and bytes of a full program.
     """
     def __init__(self, cfg=None):
-        self._blanket = AVLTree()
+        self._blanket = SortedDict()
 
         self._ffi = cffi.FFI()
 
@@ -78,63 +76,51 @@ class CFBlanket(Analysis):
             for func in self.kb.functions.values():
                 self.add_function(func)
 
+    def floor_addr(self, addr):
+        try:
+            return next(self._blanket.irange(maximum=addr, reverse=True))
+        except StopIteration:
+            raise KeyError(addr)
+
     def floor_item(self, addr):
-        return self._blanket.floor_item(addr)
+        key = self.floor_addr(addr)
+        return key, self._blanket[key]
 
     def floor_items(self, addr=None):
-
         if addr is None:
-            addr = self._blanket.min_key()
+            start_addr = None
         else:
             try:
-                addr = self.floor_addr(addr)
-            except KeyError:
-                try:
-                    addr = self.ceiling_addr(addr)
-                except KeyError:
-                    # Nothing to yield
-                    raise StopIteration
+                start_addr = next(self._blanket.irange(maximum=addr, reverse=True))
+            except StopIteration:
+                start_addr = addr
 
-        while True:
-            try:
-                item = self._blanket[addr]
-                yield (addr, item)
-                item_size = item.size if item.size > 0 else 1  # pylint: disable=no-member
-                addr = self.ceiling_addr(addr + item_size)
-            except KeyError:
-                break
-
-    def floor_addr(self, addr):
-        return self._blanket.floor_key(addr)
-
-    def ceiling_item(self, addr):
-        return self._blanket.ceiling_item(addr)
+        for key in self._blanket.irange(minimum=start_addr):
+            yield key, self._blanket[key]
 
     def ceiling_addr(self, addr):
-        return self._blanket.ceiling_key(addr)
+        try:
+            return next(self._blanket.irange(minimum=addr, reverse=False))
+        except StopIteration:
+            raise KeyError(addr)
+
+    def ceiling_item(self, addr):
+        key = self.ceiling_addr(addr)
+        return key, self._blanket[key]
 
     def __getitem__(self, addr):
         return self._blanket[addr]
 
     def add_obj(self, addr, obj):
         """
-
-
-        :param addr:
-        :param obj:
-        :return:
+        Adds an object `obj` to the blanket at the specified address `addr`
         """
-
         self._blanket[addr] = obj
 
     def add_function(self, func):
         """
-        Add a function and all blocks of this function to the blanket.
-
-        :param angr.Function func: The function to add.
-        :return:
+        Add a function `func` and all blocks of this function to the blanket.
         """
-
         for block in func.blocks:
             self.add_obj(block.addr, block)
 

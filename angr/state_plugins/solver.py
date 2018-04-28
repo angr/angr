@@ -267,11 +267,11 @@ class SimSolver(SimStatePlugin):
 
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
-        elif o.REPLACEMENT_SOLVER in self.state.options:
+        elif o.SYMBOLIC in self.state.options and o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
-        elif o.CACHELESS_SOLVER in self.state.options:
+        elif o.SYMBOLIC in self.state.options and o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless(track=track)
-        elif o.COMPOSITE_SOLVER in self.state.options:
+        elif o.SYMBOLIC in self.state.options and o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverComposite(track=track)
         elif o.SYMBOLIC in self.state.options and o.approximation & self.state.options:
             self._stored_solver = claripy.SolverHybrid(track=track)
@@ -393,7 +393,8 @@ class SimSolver(SimStatePlugin):
     # Branching stuff
     #
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables, temporal_tracked_variables=self.temporal_tracked_variables, eternal_tracked_variables=self.eternal_tracked_variables)
 
     @error_converter

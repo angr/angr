@@ -54,12 +54,13 @@ class PluginHub(object):
     #
 
     def __getstate__(self):
-        return self._active_plugins, self._active_preset
+        return self._active_plugins, self._active_preset, self._provided_by_preset
 
     def __setstate__(self, s):
-        plugins, preset = s
+        plugins, preset, provided = s
         self._active_preset = preset
         self._active_plugins = {}
+        self._provided_by_preset = provided
 
         for name, plugin in plugins.items():
             if name not in self._active_plugins:
@@ -72,7 +73,8 @@ class PluginHub(object):
             raise AttributeError(name)
 
     def __dir__(self):
-        out = set(self._active_plugins)
+        out = set(self.__dict__)
+        out.update(self._active_plugins)
         if self.has_plugin_preset:
             out.update(self._active_preset.list_default_plugins())
 

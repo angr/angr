@@ -87,12 +87,11 @@ def test_stops():
 
 def run_longinit(arch):
     p = angr.Project(os.path.join(test_location, 'binaries/tests/' + arch + '/longinit'))
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
-    pg = p.factory.simgr(s_unicorn)
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn, remove_options={so.SHORT_READS})
+    pg = p.factory.simgr(s_unicorn, save_unconstrained=True, save_unsat=True)
     pg.explore()
     s = pg.deadended[0]
-    first = s.posix.files[0].content.load(0, 9)
-    second = s.posix.files[0].content.load(9, 9)
+    (first, _), (second, _) = s.posix.stdin.content
     s.add_constraints(first == s.se.BVV('A'*9))
     s.add_constraints(second == s.se.BVV('B'*9))
     nose.tools.assert_equal(s.posix.dumps(1), "You entered AAAAAAAAA and BBBBBBBBB!\n")
@@ -219,13 +218,8 @@ def test_concrete_transmits():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/PIZZA_00001'))
     inp = "320a310a0100000005000000330a330a340a".decode('hex')
 
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, stdin=inp, flag_page='\0'*4096)
     pg_unicorn = p.factory.simgr(s_unicorn)
-    stdin = s_unicorn.posix.get_file(0)
-    stdin.write(inp, len(inp))
-    stdin.seek(0)
-    stdin.size = len(inp)
-
     pg_unicorn.run(n=10)
 
     nose.tools.assert_equal(pg_unicorn.one_active.posix.dumps(1), '1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')

@@ -23,9 +23,9 @@ def make_pickles():
     p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests', 'i386', 'fauxware'))
 
     fs = {
-        '/dev/stdin': SimFile('/dev/stdin', 0),
-        '/dev/stdout': SimFile('/dev/stdout', 0),
-        '/dev/stderr': SimFile('/dev/stderr', 0),
+        '/dev/stdin': SimFile('/dev/stdin'),
+        '/dev/stdout': SimFile('/dev/stdout'),
+        '/dev/stderr': SimFile('/dev/stderr'),
         #'/dev/urandom': SimFile('/dev/urandom', 0),
     }
 
@@ -45,8 +45,7 @@ def make_pickles():
     entry_state = p.factory.entry_state(fs=fs) #pylint:disable=unused-variable
     for f in fs:
         mem = mem_bvv[f]
-        fs[f].write(mem, MEM_SIZE)
-        fs[f].seek(0)
+        fs[f].write(0, mem, MEM_SIZE)
 
     f = open("pickletest_bad", "wb")
     #fname = f.name
@@ -58,6 +57,7 @@ def setup():
     pass
 
 def teardown():
+    # pylint: disable=bare-except
     try:
         shutil.rmtree('pickletest')
     except:
