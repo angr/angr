@@ -172,7 +172,6 @@ class SimEngineSoot(SimEngine):
                 else:
                     computed_target = target
                 l.warning("Possible jump: %s -> %s" % (state._ip, computed_target))
-                print "---", target, computed_target, condition
                 successors.add_successor(state.copy(), computed_target, condition, 'Ijk_Boring')
 
             return True
