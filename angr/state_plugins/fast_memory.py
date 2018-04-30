@@ -6,7 +6,7 @@ from ..storage.memory import SimMemory
 from ..errors import SimFastMemoryError
 
 l = logging.getLogger("angr.state_plugins.fast_memory")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 class SimFastMemory(SimMemory):
     def __init__(self, memory_backer=None, memory_id=None, endness=None, contents=None, width=None, uninitialized_read_handler=None):

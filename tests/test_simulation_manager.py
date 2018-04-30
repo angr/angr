@@ -3,7 +3,6 @@ import angr
 
 import logging
 l = logging.getLogger("angr_tests.managers")
-logging.getLogger('angr.manager').setLevel('DEBUG')
 
 import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
@@ -125,6 +124,7 @@ def test_explore_with_cfg():
     nose.tools.assert_equal(pg.avoid[0].addr, 0x4007C9)
 
 if __name__ == "__main__":
+    logging.getLogger('angr.sim_manager').setLevel('DEBUG')
     print 'explore_with_cfg'
     test_explore_with_cfg()
     print 'find_to_middle'
