@@ -284,10 +284,10 @@ def broken_inline_strstr():
     nose.tools.assert_false(s_nss.satisfiable())
 
 #@nose.tools.timed(10)
-def test_strstr_inconsistency(n=2):
+def test_strstr_inconsistency():
     l.info("symbolic haystack, symbolic needle")
     s = SimState(arch="AMD64", mode="symbolic")
-    s.libc.buf_symbolic_bytes = n
+    s.libc.buf_symbolic_bytes = 2
     addr_haystack = s.se.BVV(0x10, 64)
     addr_needle = s.se.BVV(0xb0, 64)
     #len_needle = strlen(s, inline=True, arguments=[addr_needle])

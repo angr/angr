@@ -80,7 +80,7 @@ class FormatString(object):
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= (1 << fmt_spec.size * 8)
 
-                    if fmt_spec.spec_type == 'd':
+                    if fmt_spec.spec_type in ('d', 'i'):
                         s_val = str(c_val)
                     elif fmt_spec.spec_type == 'u':
                         s_val = str(c_val)
@@ -263,7 +263,7 @@ class FormatString(object):
                 else:
 
                     # XXX: atoi only supports strings of one byte
-                    if fmt_spec.spec_type in ['d', 'u', 'x']:
+                    if fmt_spec.spec_type in ['d', 'i', 'u', 'x']:
                         base = 16 if fmt_spec.spec_type == 'x' else 10
                         status, i, num_bytes = self.parser._sim_atoi_inner(position, region, base=base, read_length=fmt_spec.length_spec)
                         # increase failed count if we were unable to parse it

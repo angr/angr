@@ -430,8 +430,6 @@ def test_block_instruction_addresses_armhf():
     path = os.path.join(test_location, 'armhf', 'fauxware')
     proj = angr.Project(path, auto_load_libs=False)
 
-    logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
-
     cfg = proj.analyses.CFGFast()
 
     main_func = cfg.kb.functions['main']
@@ -513,4 +511,6 @@ def main():
         run_all()
 
 if __name__ == "__main__":
+    logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
+
     main()

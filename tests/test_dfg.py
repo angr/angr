@@ -7,7 +7,6 @@ import sys
 from os.path import join, dirname, realpath
 
 l = logging.getLogger("angr.tests.test_dfg")
-l.setLevel(logging.DEBUG)
 
 import nose
 import angr
@@ -83,6 +82,7 @@ def run_all():
 
 
 if __name__ == "__main__":
+    l.setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.dfg").setLevel(logging.DEBUG)
 
     if len(sys.argv) > 1:

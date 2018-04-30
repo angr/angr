@@ -58,9 +58,9 @@ def test_state_merge():
     nose.tools.assert_true(b.se.unique(b.memory.load(2, 1)))
     nose.tools.assert_true(c.se.unique(c.memory.load(2, 1)))
 
-    logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.DEBUG)
+    #logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.DEBUG)
     m, merge_conditions, merging_occurred = a.merge(b, c)
-    logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.WARNING)
+    #logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.WARNING)
 
     nose.tools.assert_true(merging_occurred)
     #nose.tools.assert_equals(sorted(m.se.eval_upto(merge_flag, 10)), [ 0,1,2 ])
