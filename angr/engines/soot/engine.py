@@ -45,12 +45,17 @@ class SimEngineSoot(SimEngine):
             #return block
             # TODO: Re-enable the above code once bintrees are used
 
-            block = method.block_by_label.get(stmt_idx, None)
-            if block is not None:
-                return block
+
+            # FIXME: stmt_idx does not index from the start of the method but from the start
+            #        of the block therefore it returns always the block with label 0 indipendently
+            #        of where we are
+            # block = method.block_by_label.get(stmt_idx, None)
+            # if block is not None:
+            #     return block
             # Slow path
-            for block in method.blocks:
-                if block.label <= stmt_idx < block.label + len(block.statements):
+            for block_idx, block in enumerate(method.blocks):
+                # if block.label <= stmt_idx < block.label + len(block.statements):
+                if block_idx == addr.block_idx:
                     return block
             return None
 
