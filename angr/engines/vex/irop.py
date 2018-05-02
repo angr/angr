@@ -21,7 +21,7 @@ import claripy
 
 def op_attrs(p):
     m = re.match(r'^Iop_'
-                 r'(?P<generic_name>\D+?)??'
+                 r'(Pw)?(?P<generic_name>\D+?)??'
                  r'(?P<from_type>[IFDV])??'
                  r'(?P<from_signed>[US])??'
                  r'(?P<from_size>\d+)??'
@@ -105,6 +105,24 @@ for _vec_lanewidth in (8, 16, 32, 64):
                 'to_size': _vec_width,
                 'vector_size': _vec_lanewidth,
                 'vector_count': _vec_count,
+        }
+
+# Widens, always 64bits => V128, per the vex IR
+for _widen_op in (8, 16, 32):
+        _vec_width = 128
+        _vec_lanewidth = _widen_op * 2
+        _vec_count = _vec_width // _vec_lanewidth
+        explicit_attrs['Iop_Widen%dUto%dx%d' % (_widen_op, _vec_lanewidth, _vec_count)] = {
+            'generic_name': 'Widen_U',
+            'to_size': _vec_width,
+            'vector_size': _vec_lanewidth,
+            'vector_count': _vec_count,
+        }
+        explicit_attrs['Iop_Widen%dSto%dx%d' % (_widen_op, _vec_lanewidth, _vec_count)] = {
+            'generic_name': 'Widen_S',
+            'to_size': _vec_width,
+            'vector_size': _vec_lanewidth,
+            'vector_count': _vec_count,
         }
 
 
@@ -302,6 +320,12 @@ class SimIROp(object):
             assert self._from_side is None
             self._calculate = self._op_mapped
 
+        # Hack: Fixme: This works, but isn't super elegant
+        elif "Widen_S" in self._generic_name:
+            self._calculate = self._op_vector_widen
+        elif "Widen_U" in self._generic_name:
+            self._calculate = self._op_vector_widen_unsigned
+
         # generic mapping operations
         elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map:
             l.debug("... using generic mapping op")
@@ -311,6 +335,8 @@ class SimIROp(object):
                 self._calculate = self._op_float_op_just_low
             elif self._float and self._vector_count is None:
                 self._calculate = self._op_float_mapped
+            elif "Pw" in self.name and not self._float and self._vector_count is not None:
+                self._calculate = self._op_pairwise_mapped
             elif not self._float and self._vector_count is not None:
                 self._calculate = self._op_vector_mapped
             elif self._float and self._vector_count is not None:
@@ -348,6 +374,8 @@ class SimIROp(object):
         # if we're here and calculate is None, we don't support this
         if self._calculate is None:
             l.debug("... can't support operations")
+            if "PwMax" in self.name:
+                import IPython; IPython.embed()
             raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
 
     def __repr__(self):
@@ -449,6 +477,21 @@ class SimIROp(object):
         chopped_args = ([claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a) for a in args]
                         for i in reversed(xrange(self._vector_count)))
         return claripy.Concat(*(self._op_mapped(ca) for ca in chopped_args))
+
+    def _op_pairwise_mapped(self, args):
+        chopped_args = ([(claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, args[x]),
+                          claripy.Extract((i + 2) * self._vector_size - 1, (i + 1) * self._vector_size, args[x]))
+                         for x, a in enumerate(args)]
+                        for i in reversed(xrange(0, self._vector_count, 2)))
+        return claripy.Concat(*(self._op_mapped(*ca) for ca in chopped_args))
+
+    def _op_vector_widen(self, args):
+        chopped_args = ([claripy.SignExt(self._vector_size, a) for a in args])
+        return claripy.Concat(*chopped_args)
+
+    def _op_vector_widen_unsigned(self, args):
+        chopped_args = ([claripy.ZeroExt(self._vector_size, a) for a in args])
+        return claripy.Concat(*chopped_args)
 
     def _op_vector_float_mapped(self, args):
         rm_part = [] if self._generic_name in self.NO_RM else [args[0]]
@@ -933,7 +976,7 @@ def translate(state, op, s_args):
                 raise SimOperationError
             irop = SimIROp(op, **attrs)
         except SimOperationError:
-            l.info("...failed to make op")
+            l.exception("...failed to make op")
         else:
             operations[op] = irop
             return translate_inner(state, irop, s_args)
