@@ -36,3 +36,12 @@ class SimJavaVM(SimOS):
         state.callstack.push(new_frame)
 
         return state
+
+
+    def state_entry(self, args=None, env=None, argc=None, **kwargs):
+        state = self.state_blank()
+        #args = [1,2,3]
+        #state.memory.store("args", args)
+        return state
+
+
