@@ -63,7 +63,7 @@ class SimEngineSoot(SimEngine):
             return None
 
     def _check(self, state, *args, **kwargs):
-        return state.regs._ip_binary is not None and isinstance(state._ip, SootAddressDescriptor)
+        return isinstance(state._ip, SootAddressDescriptor)
 
     def _process(self, state, successors, *args, **kwargs):
         addr = state._ip
@@ -150,6 +150,7 @@ class SimEngineSoot(SimEngine):
         # print state.memory.stack
 
         if state.scratch.invoke:
+
             # Create a new exit
             l.debug("Adding an invoke exit.")
 
@@ -159,13 +160,21 @@ class SimEngineSoot(SimEngine):
             last_addr.stmt_idx = stmt_idx
             self._prepare_call_state(invoke_state, last_addr)
 
-            # Build the call target
-            call_target = SootAddressDescriptor(state.scratch.invoke_target, 0, 0)
+            if state.scratch.invoke_has_native_target:
+                invoke_addr = self.project.simos.get_clemory_addr_of_native_method(state.scratch.invoke_target)
+                args = []
+                invoke_state = self.project.simos.state_call(invoke_addr, *args,
+                                                             base_state=invoke_state,
+                                                             ret_addr=self.project.simos.native_call_return_to_soot)
+                l.debug("Invoke has a native target.")
+            else:
+                # Build the call target
+                invoke_addr = SootAddressDescriptor(state.scratch.invoke_target, 0, 0)
 
             #invoke_state.regs._invoke_return_variable = invoke_state.scratch.invoke_return_variable
             #invoke_state.regs._invoke_return_target = invoke_state.scratch.invoke_return_target
             #invoke_state.regs._invoke_expr = invoke_state.scratch.invoke_expr
-            successors.add_successor(invoke_state, call_target, state.se.true, 'Ijk_Call', )
+            successors.add_successor(invoke_state, invoke_addr, state.se.true, 'Ijk_Call', )
 
             # We terminate the execution since Soot does not guarantee that a block terminates with an Invoke
             return True

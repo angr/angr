@@ -1,6 +1,8 @@
 import claripy
 from .plugin import SimStatePlugin
 
+from archinfo.arch_soot import SootAddressDescriptor
+
 import logging
 l = logging.getLogger(name=__name__)
 
@@ -52,6 +54,10 @@ class SimRegNameView(SimStatePlugin):
             inspect = True
             disable_actions = False
 
+        if self.state.javavm_with_jni and k == 'ip':
+            # update flag, so that `state.registers` returns the correct plugin
+            self.state.ip_is_soot_addr = True if isinstance(v, SootAddressDescriptor) else False
+    
         try:
             return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
         except KeyError:

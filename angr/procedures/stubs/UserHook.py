@@ -12,3 +12,4 @@ class UserHook(angr.SimProcedure):
         else:
             for state in result:
                 self.successors.add_successor(state, state.addr, state.scratch.guard, state.history.jumpkind)
+                
