@@ -14,7 +14,8 @@ class SimSootExpr_StringConstant(SimSootExpr):
         super(SimSootExpr_StringConstant, self).__init__(expr, state)
 
     def _execute(self):
-        self.expr = self.state.se.StringV(self.expr.value)
+        # We need to strip away the quotes introduced by soot in case of a string constant
+        self.expr = self.state.se.StringV(self.expr.value.strip("\""))
 
 # TODO add other constants
 
