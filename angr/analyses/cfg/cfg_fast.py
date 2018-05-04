@@ -1647,13 +1647,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._changed_functions.add(current_function_addr)
 
         # If we have traced it before, don't trace it anymore
-        aligned_addr = ((addr >> 1) << 1) if self.project.arch.name in ('ARMEL', 'ARMHF') else addr
-        if aligned_addr in self._traced_addresses:
+        real_addr = self._real_address(self.project.arch, addr)
+        if real_addr in self._traced_addresses:
             # the address has been traced before
             return [ ]
         else:
             # Mark the address as traced
-            self._traced_addresses.add(aligned_addr)
+            self._traced_addresses.add(real_addr)
 
         # irsb cannot be None here
         # assert irsb is not None
@@ -1766,7 +1766,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     # it might be a jumpout
                     target_func_addr = None
-                    if target_addr in self._traced_addresses:
+                    real_target_addr = self._real_address(self.project.arch, target_addr)
+                    if real_target_addr in self._traced_addresses:
                         node = self.get_any_node(target_addr)
                         if node is not None:
                             target_func_addr = node.function_address
