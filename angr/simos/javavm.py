@@ -20,8 +20,7 @@ class SimJavaVM(SimOS):
 
     def __init__(self, *args, **kwargs):
 
-        super(SimJavaVM, self).__init__(*args, **kwargs)
-        self.name = "JavaVM"
+        super(SimJavaVM, self).__init__(*args, name='JavaVM', **kwargs)
 
         # are native libraries called via JNI?
         self.jni_support = self.project.loader.main_object.jni_support
