@@ -15,9 +15,4 @@ class SimSootExpr_StaticInvoke(SimSootExpr):
         self.state.scratch.invoke = True
         self.state.scratch.invoke_target = invoke_target
         self.state.scratch.invoke_expr = self.expr
-
-        # is this a native function call?
-        invoke_target_method = self.get_invoke_target_method()
-        if invoke_target_method:
-            has_native_target = 'NATIVE' in invoke_target_method.attrs
-            self.state.scratch.invoke_has_native_target = has_native_target
+        self.state.scratch.invoke_has_native_target = ('NATIVE' in invoke_target.attrs)
