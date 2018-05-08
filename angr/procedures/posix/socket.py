@@ -7,15 +7,11 @@ import angr
 class socket(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, sim_sock_type):
-        # TODO: Handling parameters
-
-        sock_type = self.state.se.eval(sim_sock_type)
-        # TODO handle errors and symbolic path
-        fd = self.state.posix.open("socket_socket", "rw")
-
-        #if type is 0, it's UDP so create a socket for it, if not then it's 1 and we create a socket later in accept()
-        if sock_type is 0:
-            self.state.posix.back_with_pcap(fd)
-        self.state.posix.add_socket(fd)
+    def run(self, domain, typ, protocol):
+        conc_domain = self.state.solver.eval(domain)
+        conc_typ = self.state.solver.eval(typ)
+        conc_protocol = self.state.solver.eval(protocol)
+        nonce = self.state.globals.get('socket_counter', 0) + 1
+        self.state.globals['socket_counter'] = nonce
+        fd = self.state.posix.open_socket(('socket', conc_domain, conc_typ, conc_protocol, nonce))
         return fd

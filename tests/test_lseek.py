@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger('angr.tests.syscalls.lseek')
 
 from angr import SIM_PROCEDURES
-from angr import SimState, SimPosixError
+from angr import SimState, SimPosixError, SimFile
 
 
 FAKE_ADDR = 0x100000
@@ -27,7 +27,8 @@ def test_lseek_set():
     fd = 3
 
     # Create a file
-    state.posix.get_file(fd)
+    state.fs.insert('/tmp/qwer', SimFile(name='qwer', size=100))
+    assert fd == state.posix.open('/tmp/qwer', 2)
 
     # Part 1
 
@@ -63,7 +64,8 @@ def test_lseek_cur():
     fd = 3
 
     # Create a file
-    state.posix.get_file(fd)
+    state.fs.insert('/tmp/qwer', SimFile(name='qwer', size=100))
+    assert fd == state.posix.open('/tmp/qwer', 2)
 
     # Part 1
 
@@ -86,23 +88,20 @@ def test_lseek_cur():
 def test_lseek_end():
     state = SimState(arch="AMD64", mode="symbolic")
 
-    # This could be any number above 2 really
     fd = 3
 
     # Create a file
-    f = state.posix.get_file(fd)
-
-    # Give this a fake size
-    f.size = 16
+    state.fs.insert('/tmp/qwer', SimFile(name='qwer', size=16))
+    assert fd == state.posix.open('/tmp/qwer', 2)
 
     # Part 1
 
     # Add 5
-    current_pos = lseek(state,[fd,5,SEEK_END]).ret_expr
+    current_pos = lseek(state,[fd,0,SEEK_END]).ret_expr
     current_pos = state.se.eval(current_pos)
 
     # We should be at the end + offset
-    nose.tools.assert_equal(current_pos,21)
+    nose.tools.assert_equal(current_pos, 16)
 
     # Part 2
 
@@ -146,14 +145,13 @@ def test_lseek_symbolic_whence():
     fd = 3
 
     # Create a file
-    state.posix.get_file(fd)
+    assert fd == state.posix.open('/tmp/qwer', 1)
 
     whence = state.se.BVS('whence',64)
 
     # This should cause the exception
     lseek(state,[fd,0,whence])
 
-@nose.tools.raises(SimPosixError)
 def test_lseek_symbolic_seek():
     # symbolic seek is currently not possible
     state = SimState(arch="AMD64", mode="symbolic")
@@ -162,11 +160,11 @@ def test_lseek_symbolic_seek():
     fd = 3
 
     # Create a file
-    state.posix.get_file(fd)
+    assert fd == state.posix.open('/tmp/qwer', 1)
 
     seek = state.se.BVS('seek',64)
 
-    # This should cause the exception
+    # This should NOT cause an exception
     lseek(state,[fd,seek,SEEK_SET])
 
 if __name__ == '__main__':

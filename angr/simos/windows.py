@@ -5,7 +5,6 @@ import claripy
 
 from ..errors import (
     AngrSimOSError,
-    TracerEnvironmentError,
     SimSegfaultException,
     SimUnsupportedError,
     SimZeroDivisionException,
@@ -259,10 +258,6 @@ class SimWindows(SimOS):
             link_list(init_order, 16)
 
         return state
-
-    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
-                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
-        raise TracerEnvironmentError("Tracer currently only supports CGC and Unix.")
 
     def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
         # don't bother handling non-vex exceptions

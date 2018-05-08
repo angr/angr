@@ -1,7 +1,7 @@
 import logging
 
 from ..calling_conventions import SYSCALL_CC
-from ..errors import AngrUnsupportedSyscallError
+from ..errors import AngrUnsupportedSyscallError, SimSolverError
 from ..procedures import SIM_PROCEDURES as P
 from .simos import SimOS
 
@@ -62,16 +62,16 @@ class SimUserland(SimOS):
             cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
 
         sym_num = cc.syscall_num(state)
-        possible = state.solver.eval_upto(sym_num, 2)
-
-        if len(possible) == 0:
-            raise AngrUnsupportedSyscallError("The program state is not satisfiable")
-        elif len(possible) == 1:
-            num = possible[0]
-        elif allow_unsupported:
-            num = self.unknown_syscall_number
-        else:
-            raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
+        try:
+            num = state.solver.eval_one(sym_num)
+        except SimSolverError:
+            if allow_unsupported:
+                num = self.unknown_syscall_number
+            else:
+                if not state.solver.satisfiable():
+                    raise AngrUnsupportedSyscallError("The program state is not satisfiable")
+                else:
+                    raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
 
         proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported, abi=abi)
         proc.cc = cc

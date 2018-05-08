@@ -11,6 +11,6 @@ class getchar(angr.SimProcedure):
     def run(self):
         self.return_type = SimTypeInt(32, True)
         fgetc = angr.SIM_PROCEDURES['libc']['fgetc']
-        stdin = self.state.posix.get_file(0)
-        data = self.inline_call(fgetc, 0, simfile=stdin).ret_expr
+        stdin = self.state.posix.get_fd(0)
+        data = self.inline_call(fgetc, 0, simfd=stdin).ret_expr
         return data

@@ -1,7 +1,6 @@
 import logging
 import collections
-
-import bintrees
+from sortedcontainers import SortedDict
 import networkx
 
 from ...errors import SimEngineError
@@ -12,39 +11,37 @@ from .function import Function
 l = logging.getLogger("angr.knowledge.function_manager")
 
 
-class FunctionDict(dict):
+class FunctionDict(SortedDict):
     """
     FunctionDict is a dict where the keys are function starting addresses and
     map to the associated :class:`Function`.
     """
     def __init__(self, backref, *args, **kwargs):
         self._backref = backref
-        self._avltree = bintrees.AVLTree()
         super(FunctionDict, self).__init__(*args, **kwargs)
 
-    def __missing__(self, key):
-        if isinstance(key, (int, long)):
-            addr = key
-        else:
-            raise ValueError("FunctionDict.__missing__ only supports int as key type")
+    def __getitem__(self, addr):
+        try:
+            return super(FunctionDict, self).__getitem__(addr)
+        except KeyError:
+            if not isinstance(addr, (int, long)):
+                raise TypeError("FunctionDict only supports int as key type")
 
-        t = Function(self._backref, addr)
-        self[addr] = t
-        return t
-
-    def __setitem__(self, addr, func):
-        self._avltree[addr] = func
-        super(FunctionDict, self).__setitem__(addr, func)
-
-    def __delitem__(self, addr):
-        del self._avltree[addr]
-        super(FunctionDict, self).__delitem__(addr)
+            t = Function(self._backref, addr)
+            self[addr] = t
+            return t
 
     def floor_addr(self, addr):
-        return self._avltree.floor_key(addr)
+        try:
+            return next(self.irange(maximum=addr, reverse=True))
+        except StopIteration:
+            raise KeyError(addr)
 
     def ceiling_addr(self, addr):
-        return self._avltree.ceiling_key(addr)
+        try:
+            return next(self.irange(minimum=addr, reverse=False))
+        except StopIteration:
+            raise KeyError(addr)
 
 
 class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
@@ -311,6 +308,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
             elif create:
                 # the function is not found
                 f = self._function_map[addr]
+                if name is not None:
+                    f.name = name
                 if syscall:
                     f.is_syscall=True
                 return f

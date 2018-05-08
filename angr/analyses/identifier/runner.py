@@ -9,10 +9,10 @@ from ...sim_type import SimTypeFunction, SimTypeInt
 from ... import sim_options as so
 from ... import SIM_LIBRARIES
 from ... import BP_BEFORE, BP_AFTER
-from ...storage.file import SimFile
+from ...storage.file import SimFile, SimFileDescriptor
+from ...state_plugins import SimSystemPosix
 from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
 from .custom_callable import IdentifierCallable
-from ...procedures import SIM_LIBRARIES
 
 
 l = logging.getLogger("identifier.runner")
@@ -49,7 +49,7 @@ class Runner(object):
             options.add(so.UNICORN)
             l.info("unicorn tracing enabled")
 
-            remove_options = so.simplification | set(so.LAZY_SOLVES) | so.resilience | set(so.SUPPORT_FLOATING_POINT)
+            remove_options = so.simplification | { so.LAZY_SOLVES } | so.resilience | { so.SUPPORT_FLOATING_POINT }
             add_options = options
             entry_state = self.project.factory.entry_state(
                     add_options=add_options,
@@ -105,25 +105,18 @@ class Runner(object):
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
         # FIXME fdwait should do something concrete...
 
-        fs = {'/dev/stdin': SimFile(
-            "/dev/stdin", "r",
-            size=len(test_data.preloaded_stdin))}
-
         if initial_state is None:
-            temp_state = self.project.factory.entry_state(fs=fs)
             if self.base_state is None:
                 self.base_state = self._get_recv_state()
             entry_state = self.base_state.copy()
-            entry_state.register_plugin("posix",temp_state.posix)
-            temp_state.release_plugin("posix")
-            entry_state.ip = function.startpoint.addr
         else:
             entry_state = initial_state.copy()
 
-        # set stdin
-        entry_state.cgc.input_size = len(test_data.preloaded_stdin)
-        if len(test_data.preloaded_stdin) > 0:
-            entry_state.posix.files[0].content.store(0, test_data.preloaded_stdin)
+        stdin = SimFile('stdin', content=test_data.preloaded_stdin)
+        stdout = SimFile('stdout')
+        stderr = SimFile('stderr')
+        fd = {0: SimFileDescriptor(stdin, 0), 1: SimFileDescriptor(stdout, 0), 2: SimFileDescriptor(stderr, 0)}
+        entry_state.register_plugin('posix', SimSystemPosix(stdin=stdin, stdout=stdout, stderr=stderr, fd=fd))
 
         entry_state.options.add(so.STRICT_PAGE_ACCESS)
 
@@ -297,14 +290,14 @@ class Runner(object):
             l.info("return val mismatch got %#x, expected %#x", result_state.se.eval(result), test_data.expected_return_val)
             return False
 
-        if result_state.se.symbolic(result_state.posix.files[1].pos):
+        if result_state.se.symbolic(result_state.posix.stdout.size):
             l.info("symbolic stdout pos")
             return False
 
-        if result_state.se.eval(result_state.posix.files[1].pos) == 0:
+        if result_state.se.eval(result_state.posix.stdout.size) == 0:
             stdout = ""
         else:
-            stdout = result_state.posix.files[1].content.load(0, result_state.posix.files[1].pos)
+            stdout = result_state.posix.stdout.load(0, result_state.posix.stdout.size)
             if stdout.symbolic:
                 l.info("symbolic stdout")
                 return False

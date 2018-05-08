@@ -100,7 +100,7 @@ setup(
     packages=packages,
     install_requires=[
         'ana',
-        'bintrees',
+        'sortedcontainers',
         'cachetools',
         'capstone>=3.0.5rc2',
         'cooldict',
@@ -117,6 +117,7 @@ setup(
         'cle>=7.8.2.21',
         'pyvex>=7.8.2.21',
         'GitPython',
+        'pycparser>=2.18',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,

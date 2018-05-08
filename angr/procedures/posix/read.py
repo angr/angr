@@ -14,7 +14,8 @@ class read(angr.SimProcedure):
                                2: SimTypeLength(self.state.arch)}
         self.return_type = SimTypeLength(self.state.arch)
 
-        # TODO handle errors
-        length = self.state.posix.read(fd, dst, length)
+        simfd = self.state.posix.get_fd(fd)
+        if simfd is None:
+            return -1
 
-        return length
+        return simfd.read(dst, length)

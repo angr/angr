@@ -202,7 +202,7 @@ class SimEngineConcrete(SimEngine):
 
         # Continue the execution of the binary
         #stop_point = self.target.run()
-
+        self.target.run()
         while(self.target.read_register("pc") not in extra_stop_points):
             self.target.run()
             print("Stopped a pc %x but breakpoint set to %s so resuming concrete execution"%(self.target.read_register("pc"),[hex(bp) for bp in  extra_stop_points]))

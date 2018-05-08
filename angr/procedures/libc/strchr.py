@@ -27,7 +27,7 @@ class strchr(angr.SimProcedure):
             max_search = self.state.se.eval(s_strlen.ret_expr)
             a, c, i = self.state.memory.find(s_addr, c, max_search, default=0)
 
-        if len(i) != 0:
+        if len(i) > 1:
             a = a.annotate(MultiwriteAnnotation())
             self.state.add_constraints(*c)
 

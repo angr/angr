@@ -135,18 +135,19 @@ class SimStateHistory(SimStatePlugin):
 
         return True
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         l.warning("history widening is not implemented!")
         return # TODO
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimStateHistory(clone=self)
 
     def trim(self):
         """
         Discard the ancestry of this state.
         """
-        new_hist = self.copy()
+        new_hist = self.copy({})
         new_hist.parent = None
         self.state.register_plugin('history', new_hist)
 

@@ -1002,6 +1002,18 @@ class CFGBase(Analysis):
 
         return changes
 
+    def _real_address(self, arch, addr):
+        """
+        Obtain the real address of an instruction. ARM architectures are supported.
+
+        :param Arch arch:   The Arch object.
+        :param int addr:    The instruction address.
+        :return:            The real address of an instruction.
+        :rtype:             int
+        """
+
+        return ((addr >> 1) << 1) if arch.name in ('ARMEL', 'ARMHF') else addr
+
     def normalize(self):
         """
         Normalize the CFG, making sure that there are no overlapping basic blocks.

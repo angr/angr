@@ -44,7 +44,8 @@ class CallStack(SimStatePlugin):
     # Public methods
     #
 
-    def copy(self, with_tail=True):
+    @SimStatePlugin.memo
+    def copy(self, memo, with_tail=True): # pylint: disable=unused-argument,arguments-differ
         n = CallStack(
                 call_site_addr=self.call_site_addr,
                 func_addr=self.func_addr,
@@ -63,12 +64,12 @@ class CallStack(SimStatePlugin):
         if self.stack_ptr == 0:
             self.stack_ptr = 2**(state.arch.bits) - 1
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:
             if o != self:
                 l.error("Trying to merge states with disparate callstacks!")
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         l.warning("Widening not implemented for callstacks")
 
     def __iter__(self):
@@ -233,7 +234,7 @@ class CallStack(SimStatePlugin):
         if self.state is not None:
             self.state.register_plugin('callstack', cf)
             self.state.history.recent_stack_actions.append(CallStackAction(
-                hash(cf), len(cf), 'push', callframe=cf.copy(False)
+                hash(cf), len(cf), 'push', callframe=cf.copy({}, with_tail=False)
             ))
 
         return cf
@@ -244,7 +245,7 @@ class CallStack(SimStatePlugin):
         """
         if self.next is None:
             raise SimEmptyCallStackError("Cannot pop a frame from an empty call stack.")
-        new_list = self.next.copy()
+        new_list = self.next.copy({})
 
         if self.state is not None:
             self.state.register_plugin('callstack', new_list)
@@ -293,9 +294,8 @@ class CallStack(SimStatePlugin):
                 return_target_index -= 1
             return o
 
-        else:
-            l.warning("Returning to an unexpected address %#x", retn_target)
-            return self
+        l.warning("Returning to an unexpected address %#x", retn_target)
+        return self
 
             # For Debugging
             # raise Exception()

@@ -62,7 +62,7 @@ def run_fauxware(arch, threads):
 
     # now merge them!
     pg7 = pg6.merge()
-    nose.tools.assert_equal(len(pg7.active), 1)
+    nose.tools.assert_equal(len(pg7.active), 2)
     nose.tools.assert_equal(len(pg7.backdoor), 0)
     nose.tools.assert_equal(len(pg7.auth), 0)
 
@@ -124,6 +124,7 @@ def test_explore_with_cfg():
     nose.tools.assert_equal(pg.avoid[0].addr, 0x4007C9)
 
 if __name__ == "__main__":
+    logging.getLogger('angr.sim_manager').setLevel('DEBUG')
     print 'explore_with_cfg'
     test_explore_with_cfg()
     print 'find_to_middle'

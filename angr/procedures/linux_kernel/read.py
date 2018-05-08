@@ -10,5 +10,7 @@ class read(angr.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, fd, dst, length):
-        self.state.posix.read(fd, dst, length)
-        return length
+        simfd = self.state.posix.get_fd(fd)
+        if simfd is None:
+            return -1
+        return simfd.read(dst, length)

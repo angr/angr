@@ -13,12 +13,7 @@ class feof(angr.SimProcedure):
         # TODO handle errors
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fileno = self.state.mem[file_ptr + fd_offset:].int.concrete
-
-        if fileno in self.state.posix.files:
-            f = self.state.posix.files[fileno]
-            if f.size is None or self.state.se.is_true(f.pos < f.size):
-                return 0
-            else:
-                return 1
-        else:
-            return -1
+        simfd = self.state.posix.get_fd(fileno)
+        if simfd is None:
+            return None
+        return self.state.solver.If(simfd.eof(), self.state.solver.BVV(1, self.state.arch.bits), 0)

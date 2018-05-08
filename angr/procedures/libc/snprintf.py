@@ -10,6 +10,8 @@ l = logging.getLogger("angr.procedures.libc.snprintf")
 
 class snprintf(FormatParser):
 
+    ARGS_MISMATCH = True
+
     def run(self, dst_ptr, size):  # pylint:disable=arguments-differ,unused-argument
 
         # The format str is at index 2
