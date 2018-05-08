@@ -1,9 +1,11 @@
 
-from ..engines.soot.values import SimSootValue_Local
+from ..engines.soot.values import SimSootValue_Local, SimSootValue_ArrayRef
 
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory
 from .plugin import SimStatePlugin
+
+MAX_ARRAY_SIZE = 1000
 
 
 class SimJavaVmMemory(SimMemory):
@@ -13,6 +15,12 @@ class SimJavaVmMemory(SimMemory):
         self.id = memory_id
 
         self._stack = [ ] if stack is None else stack
+        self.heap = SimKeyValueMemory("mem")
+
+        # Heap helper
+        # TODO: ask someone how we want to manage this
+        # TODO: Manage out of memory allocation
+        self.max_array_size = MAX_ARRAY_SIZE
 
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None,
               inspect=True, priv=None, disable_actions=False, frame=0):
@@ -22,6 +30,9 @@ class SimJavaVmMemory(SimMemory):
             # A local variable
             # TODO: Implement the stacked stack frames model
             cstack.store(addr.name, data, type_=addr.type)
+        elif type(addr) is SimSootValue_ArrayRef:
+            reference_name = "%s[%d]" % (addr.base.name, addr.index)
+            self.heap.store(reference_name, data, type_=addr.type)
         else:
             import ipdb; ipdb.set_trace()
 
@@ -33,6 +44,8 @@ class SimJavaVmMemory(SimMemory):
             # Load a local variable
             # TODO: Implement the stacked stack frames model
             return cstack.load(addr.name, none_if_missing)
+        elif type(addr) is SimSootValue_ArrayRef:
+            self.heap.load(addr.ref)
         else:
             import ipdb; ipdb.set_trace()
 

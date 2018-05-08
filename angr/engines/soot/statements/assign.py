@@ -1,5 +1,7 @@
 
 from .base import SimSootStmt
+from ..expressions import SimSootExpr_NewArray
+from ..values import SimSootValue_ArrayRef
 import logging
 
 
@@ -25,8 +27,16 @@ class SimSootStmt_Assign(SimSootStmt):
 
         src_val = src_expr.expr
 
-
-        #import IPython; IPython.embed();
+        if isinstance(src_expr, SimSootExpr_NewArray):
+            type_ = dst.type.strip("[]")
+            size_ = len(src_val)
+            # We need to allocate the array on the heap and return the reference
+            ref = SimSootValue_ArrayRef(0, type_, dst, size_)
+            src_val = ref
+            for idx, elem in enumerate(src_expr.expr):
+                ref = SimSootValue_ArrayRef(idx, type_, dst, size_)
+                self.state.memory.store(ref, elem)
+            src_val = SimSootValue_ArrayRef(0, type_, dst, size_)
 
         l.debug("Assigning %s to %s" % (src_val, dst))
         self.state.memory.store(dst, src_val)

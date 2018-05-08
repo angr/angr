@@ -1,4 +1,6 @@
 from .base import SimSootExpr
+from .paramref import SimSootExpr_ParamRef
+from .arrayref import SimSootExpr_ArrayRef
 
 
 class SimSootExpr_Length(SimSootExpr):
@@ -6,6 +8,11 @@ class SimSootExpr_Length(SimSootExpr):
         super(SimSootExpr_Length, self).__init__(expr, state)
 
     def _execute(self):
-        self.expr = self.state.se.BVS('ciao', 32)
+        operand = self._translate_expr(self.expr.value)
+        # TODO: Can we have a symbolic length??
+        if operand.expr.size is None:
+            self.expr = self.state.se.BVS('len_%s' % operand.expr.base.name, 32)
+        else:
+            self.expr = self.state.se.BVV(operand.expr.size, 32)
 
 
