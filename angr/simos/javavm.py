@@ -43,7 +43,7 @@ class SimJavaVM(SimOS):
 
         # Push the array of command line arguments on the stack frame
         if args is None:
-            args = [state.se.StringS("args", 1000)]
+            args = [state.se.StringS("args", 1000)]*100
         # if the user provides only one arguments create a list
         elif not isinstance(args, list):
             args = [args]
@@ -51,12 +51,13 @@ class SimJavaVM(SimOS):
         # Since command line arguments are stored into arrays in Java
         # and arrays are stored on the heap we need to allocate the array on the heap\
         # and return the reference
+        size_ = len(args)
         type_ = "String"
         local = SimSootValue_Local("param_0", type_)
-        base_ref = SimSootValue_ArrayRef(0, type_, local, 1)
         for idx, elem in enumerate(args):
-            ref = SimSootValue_ArrayRef(idx, type_, local, 1)
+            ref = SimSootValue_ArrayRef(idx, type_, local, size_)
             state.memory.store(ref, elem)
+        base_ref = SimSootValue_ArrayRef(0, type_, local, size_)
         state.memory.store(local, base_ref)
 
         return state
