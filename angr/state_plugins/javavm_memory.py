@@ -45,7 +45,8 @@ class SimJavaVmMemory(SimMemory):
             # TODO: Implement the stacked stack frames model
             return cstack.load(addr.name, none_if_missing)
         elif type(addr) is SimSootValue_ArrayRef:
-            self.heap.load(addr.ref, none_if_missing)
+            reference_name = "%s[%d]" % (addr.base.name, addr.index)
+            return self.heap.load(reference_name, none_if_missing)
         elif type(addr) is SimSootValue_ParamRef:
             param_name = "param_%d" % addr.index
             cstack = self._stack[-1+(-1*frame)]

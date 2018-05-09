@@ -10,7 +10,9 @@ from ... import sim_options as o
 from ..engine import SimEngine
 from .statements import translate_stmt, SimSootStmt_Return, SimSootStmt_ReturnVoid
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
-from .values import SimSootValue_Local
+from angr.engines.soot.values import SimSootValue_Local
+from angr.engines.soot.values import translate_value
+from angr.engines.soot.expressions import translate_expr
 
 l = logging.getLogger('angr.engines.soot.engine')
 
@@ -259,24 +261,37 @@ class SimEngineSoot(SimEngine):
         old_ret_addr = state.callstack.next.ret_addr
         l.debug("Callstack push [%s] -> [%s]" % (old_ret_addr, state.callstack.ret_addr))
 
-        # https: // www.artima.com / insidejvm / ed2 / jvm8.html
-        # retrieve the parameter that has to be passed to the new frame
-        # from the old frame
-        fixed_args = []
-        for param in state.scratch.invoke_expr.args:
-            local = SimSootValue_Local.from_sootvalue(param)
-            value = state.memory.load(local)
-            fixed_args.append((local, value))
-
         # Create a new stack frame
         state.memory.push_stack_frame()
+        self._setup_args(state)
 
+
+    # https://www.artima.com/insidejvm/ed2 /jvm8.html
+    def _setup_args(self, state):
+        fixed_args = self._get_args(state)
         # Push parameter on new frame
-        for idx, (local_ref, value) in enumerate(fixed_args):
+        for idx, (value, value_type) in enumerate(fixed_args):
             param_name = "param_%d" % idx
-            local = SimSootValue_Local(param_name, local_ref.type)
+            local = SimSootValue_Local(param_name, value_type)
             state.memory.store(local, value)
 
+    def _get_args(self, state):
+        ie = state.scratch.invoke_expr
+        all_args = list()
+        if hasattr(ie, "base"):
+            all_args.append(ie.base)
+        all_args += ie.args
+        fixed_args = [ ]
+        for arg in all_args:
+            arg_cls_name = arg.__class__.__name__
+            # TODO is this correct?
+            if "Constant" not in arg_cls_name:
+                v = state.memory.load(translate_value(arg), frame=1)
+            else:
+                v = translate_expr(arg, state).expr
+            fixed_args.append((v, arg.type))
+
+        return fixed_args
 
     @staticmethod
     def prepare_return_state(state, ret_value=None):

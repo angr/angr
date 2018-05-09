@@ -9,6 +9,4 @@ class SimSootExpr_ArrayRef(SimSootExpr):
     def _execute(self):
         # Parse the expr to get a SimSootValue_ParamRef instance
         base = self._translate_value(self.expr.base)
-        base_ref = self.state.memory.load(base)
-        ref = self.state.memory.load(base_ref)
-        self.expr = ref
+        self.expr = self.state.memory.load(base)
