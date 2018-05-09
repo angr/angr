@@ -144,6 +144,7 @@ class SimEngineSoot(SimEngine):
         state.scratch.invoke_expr = None
         state.scratch.invoke_return_target = None
         state.scratch.invoke_return_variable = None
+        state.scratch.invoke_has_native_target = False
 
         l.info("Executing statement %s [%s]", stmt, state.addr)
         s_stmt = translate_stmt(stmt, state)
@@ -160,16 +161,30 @@ class SimEngineSoot(SimEngine):
             last_addr.stmt_idx = stmt_idx
             self._prepare_call_state(invoke_state, last_addr)
 
+            invoke_target = state.scratch.invoke_target
+
             if state.scratch.invoke_has_native_target:
-                invoke_addr = self.project.simos.get_clemory_addr_of_native_method(state.scratch.invoke_target)
-                args = []
+
+                # The target of the call is a native function
+                l.debug("Invoke has a native target.")
+
+                # Get native address of native function
+                invoke_addr = self.project.simos.get_clemory_addr_of_native_method(invoke_target)
+
+                # Setup parameter of native function call
+                jni_env = 0
+                jni_this = 0 # or jni_class (static vs. nonstatic)
+                param1 = state.memory.stack.load('i0').reversed # FIXME hardcoded parameter (for testing)
+                args = [jni_env, jni_this] + [param1]
+
+                # Create native invoke state
                 invoke_state = self.project.simos.state_call(invoke_addr, *args,
                                                              base_state=invoke_state,
                                                              ret_addr=self.project.simos.native_call_return_to_soot)
-                l.debug("Invoke has a native target.")
+
             else:
                 # Build the call target
-                invoke_addr = SootAddressDescriptor(state.scratch.invoke_target, 0, 0)
+                invoke_addr = SootAddressDescriptor(invoke_target, 0, 0)
 
             #invoke_state.regs._invoke_return_variable = invoke_state.scratch.invoke_return_variable
             #invoke_state.regs._invoke_return_target = invoke_state.scratch.invoke_return_target

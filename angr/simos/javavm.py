@@ -171,10 +171,14 @@ class SimJavaVM(SimOS):
         ret_state.scratch.guard = ret_state.se.true
         ret_state.history.jumpkind = 'Ijk_Ret'
 
-    #        ret_var = ret_state.callstack.invoke_return_variable
-    #        if ret_var is not None and ret_value is not None:
-    #            # Write the return value to the return variable in the previous stack frame
-    #            ret_state.memory.store(ret_var, ret_value)
+        ret_var = ret_state.callstack.invoke_return_variable
+        if ret_var and ret_var.type == 'int':
+            ret_value = state.regs.rax.to_claripy()
+            # Write the return value to the return variable in the previous stack frame
+            l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.name))
+            ret_state.memory.store(ret_var, ret_value)
+        else:
+            l.error("Type of return value is not supported. Return variable is not updated.")
 
         return [ret_state]
 
