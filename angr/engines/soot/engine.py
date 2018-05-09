@@ -10,6 +10,7 @@ from ... import sim_options as o
 from ..engine import SimEngine
 from .statements import translate_stmt, SimSootStmt_Return, SimSootStmt_ReturnVoid
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
+from .values import SimSootValue_Local
 
 l = logging.getLogger('angr.engines.soot.engine')
 
@@ -258,8 +259,24 @@ class SimEngineSoot(SimEngine):
         old_ret_addr = state.callstack.next.ret_addr
         l.debug("Callstack push [%s] -> [%s]" % (old_ret_addr, state.callstack.ret_addr))
 
+        # https: // www.artima.com / insidejvm / ed2 / jvm8.html
+        # retrieve the parameter that has to be passed to the new frame
+        # from the old frame
+        fixed_args = []
+        for param in state.scratch.invoke_expr.args:
+            local = SimSootValue_Local.from_sootvalue(param)
+            value = state.memory.load(local)
+            fixed_args.append((local, value))
+
         # Create a new stack frame
         state.memory.push_stack_frame()
+
+        # Push parameter on new frame
+        for idx, (local_ref, value) in enumerate(fixed_args):
+            param_name = "param_%d" % idx
+            local = SimSootValue_Local(param_name, local_ref.type)
+            state.memory.store(local, value)
+
 
     @staticmethod
     def prepare_return_state(state, ret_value=None):

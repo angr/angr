@@ -1,6 +1,7 @@
 
 import operator
 from .base import SimSootExpr
+from ..values.paramref import SimSootValue_ParamRef
 
 
 class SimSootExpr_Binop(SimSootExpr):
@@ -27,4 +28,5 @@ class SimSootExpr_Binop(SimSootExpr):
         "xor": operator.xor,
         "rem": operator.imod
     }
+
 

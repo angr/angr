@@ -8,4 +8,4 @@ from archinfo.arch_soot import SootMethodDescriptor
 
 
 def resolve_method(state, expr):
-    return SootMethodDescriptor(expr.class_name, expr.method_name, tuple(a.type for a in expr.args))
+    return SootMethodDescriptor(expr.class_name, expr.method_name, expr.method_params)
