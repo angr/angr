@@ -4,8 +4,6 @@ from ..errors import AngrSimOSError, AngrSimOSError
 
 from ..calling_conventions import DEFAULT_CC
 
-from sets import Set
-
 from ..sim_state import SimState
 from .simos import SimOS
 from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
@@ -34,9 +32,9 @@ class SimJavaVM(SimOS):
             # Step 2: determine and set the native SimOS
             from . import os_mapping  # import dynamically, since the JavaVM class is part of the os_mapping dict
             # for each native library get the Arch
-            native_libs_arch = Set([obj.arch for obj in self.native_libs])
+            native_libs_arch = set([obj.arch for obj in self.native_libs])
             # for each native library get the compatible SimOS 
-            native_libs_simos = Set([os_mapping[obj.os] for obj in self.native_libs]) 
+            native_libs_simos = set([os_mapping[obj.os] for obj in self.native_libs]) 
             # show warning, if more than one SimOS or Arch would be required
             if len(native_libs_simos) > 1 or len(native_libs_arch) > 1:
                 l.warning("Unsupported: Native libraries appear to require different SimOS's or Arch's.")
@@ -78,7 +76,7 @@ class SimJavaVM(SimOS):
             # Soot initializations.
             # Note: `addr` needs to be set to a `native address` (i.e. not an SootAddressDescriptor);
             #       otherwise the `project.entry` is used and the SimState would be in "Soot-mode"
-            # TODO: use state_blank function from the native simos and not super class
+            # TODO: use state_blank function from the native simos and not the super class
             state = super(SimJavaVM, self).state_blank(addr=0, **kwargs)
         else:
             # w/o JNI support, we can just use a blank state
@@ -90,12 +88,14 @@ class SimJavaVM(SimOS):
         state.regs._invoke_return_target = None
         state.regs._invoke_return_variable = None
 
-        # Push the stack frame for the next function we are going to execute
+        # Add empty stack frame
         state.memory.push_stack_frame()
+
+        # Create bottom of callstack
         new_frame = state.callstack.copy()
         new_frame.ret_addr = SootAddressTerminator()
         state.callstack.push(new_frame)
-        
+
         return state
 
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
