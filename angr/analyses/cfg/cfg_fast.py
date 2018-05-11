@@ -818,7 +818,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._indirect_jumps_to_resolve = set()
 
-        self._jump_tables = { }
+        self.jump_tables = { }
 
         self._function_addresses_from_symbols = self._func_addrs_from_symbols()
 
@@ -2474,6 +2474,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             jumps_resolved[jump] = False
 
             resolved = False
+            resolved_by = None
             targets = None
 
             for resolver in self.indirect_jump_resolvers:
@@ -2485,10 +2486,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
                 if resolved:
+                    resolved_by = resolver
                     break
 
             if resolved:
+                from .indirect_jump_resolvers.jumptable import JumpTableResolver
+                if isinstance(resolved_by, JumpTableResolver):
+                    # Fill in the jump_tables dict
+                    self.jump_tables[jump.addr] = jump
+
                 jumps_resolved[jump] = True
+                jump.resolved_targets = targets
                 all_targets |= set([ (t, jump.func_addr, jump.addr, jump.jumpkind) for t in targets ])
 
         for jump, resolved in jumps_resolved.iteritems():
