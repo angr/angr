@@ -30,6 +30,7 @@ from .binop import SimSootExpr_Binop
 from .condition import SimSootExpr_Condition
 from .paramref import SimSootExpr_ParamRef
 from .arrayref import SimSootExpr_ArrayRef
+from .staticfieldref import SimSootExpr_StaticFieldRef
 from .phi import SimSootExpr_Phi
 from .length import SimSootExpr_Length
 from .unsupported import SimSootExpr_Unsupported
