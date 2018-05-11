@@ -189,9 +189,6 @@ class Project(object):
             except AngrNoPluginError:
                 engines.use_plugin_preset('default')
 
-        self.engines = engines
-        self.factory = AngrObjectFactory(self)
-
         # Step 4.2: Analyses
         self.analyses = AnalysesHub(self)
         self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
@@ -201,6 +198,9 @@ class Project(object):
         self.tools.use_plugin_preset(tools_preset if tools_preset is not None else 'default')
 
         # Step 4.4: ...etc
+        self.engines = engines
+        self.factory = self.tools.factory
+
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
 
@@ -645,7 +645,6 @@ class Project(object):
 
 
 from .errors import AngrError, AngrNoPluginError
-from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub
 from .surveyors import Surveyors

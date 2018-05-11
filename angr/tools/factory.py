@@ -1,33 +1,32 @@
 import logging
 
-from .sim_state import SimState
-from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
-from .callable import Callable
-from .errors import AngrAssemblyError
+from angr.sim_state import SimState
+from angr.calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
+from angr.callable import Callable
+from angr.errors import AngrAssemblyError
+from angr.misc.ux import deprecated
 
+from .tool import Tool
 
 l = logging.getLogger("angr.factory")
 
 
-_deprecation_cache = set()
-def deprecate(name, replacement):
-    def wrapper(func):
-        def inner(*args, **kwargs):
-            if name not in _deprecation_cache:
-                l.warning("factory.%s is deprecated! Please use factory.%s instead.", name, replacement)
-                _deprecation_cache.add(name)
-            return func(*args, **kwargs)
-        return inner
-    return wrapper
-
-
-class AngrObjectFactory(object):
+class AngrObjectFactory(Tool):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project):
-        self.project = project
-        self._default_cc = DEFAULT_CC[project.arch.name]
+
+    def __init__(self):
+        super(AngrObjectFactory, self).__init__()
+        self._default_cc = DEFAULT_CC[self.project.arch.name]
+
+    def __getstate__(self):
+        s = super(AngrObjectFactory, self).__getstate__()
+        return s, self._default_cc
+
+    def __setstate__(self, s):
+        s, self._default_cc = s
+        super(AngrObjectFactory, self).__setstate__(s)
 
     @property
     def default_engine(self):
@@ -295,36 +294,31 @@ class AngrObjectFactory(object):
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
 
-
-    #
-    # Private methods
-    #
-
-    @deprecate('sim_run()', 'successors()')
-    def sim_run(self, *args, **kwargs):
-        return self.successors(*args, **kwargs)
-
-    @deprecate('sim_block()', 'successors(default_engine=True)')
-    def sim_block(self, *args, **kwargs):
-        kwargs['default_engine'] = True
-        return self.successors(*args, **kwargs)
-
     #
     # Compatibility layer
     #
 
-    @deprecate('path_group()', 'simulation_manager()')
+    @deprecated('successors()')
+    def sim_run(self, *args, **kwargs):
+        return self.successors(*args, **kwargs)
+
+    @deprecated('successors(default_engine=True)')
+    def sim_block(self, *args, **kwargs):
+        kwargs['default_engine'] = True
+        return self.successors(*args, **kwargs)
+
+    @deprecated('simulation_manager()')
     def path_group(self, thing=None, **kwargs):
         return self.simgr(thing, **kwargs)
 
-    @deprecate('path()', 'entry_state()')
+    @deprecated('entry_state()')
     def path(self, state=None, **kwargs):
         if state is not None:
             return state
         return self.entry_state(**kwargs)
 
 
-from .errors import AngrError
-from .sim_manager import SimulationManager
-from .codenode import HookNode
-from .block import Block
+from angr.errors import AngrError
+from angr.sim_manager import SimulationManager
+from angr.codenode import HookNode
+from angr.block import Block
