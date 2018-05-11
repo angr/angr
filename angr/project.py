@@ -73,6 +73,8 @@ class Project(object):
     :type analyses_preset:              angr.misc.PluginPreset
     :param engines_preset:              The plugin preset for the engines provider (i.e. EngineHub instance).
     :type engines_preset:               angr.misc.PluginPreset
+    :param tools_preset:                The plugin preset for the tools provider (i.e. ToolSet instance).
+    :type tools_preset:                 angr.misc.PluginPreset
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -104,6 +106,7 @@ class Project(object):
                  load_function=None,
                  analyses_preset=None,
                  engines_preset=None,
+                 tools_preset=None,
                  **kwargs):
 
         # Step 1: Load the binary
@@ -193,7 +196,11 @@ class Project(object):
         self.analyses = AnalysesHub(self)
         self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
 
-        # Step 4.3: ...etc
+        # Step 4.3: Tools
+        self.tools = ToolHub(self)
+        self.tools.use_plugin_preset(tools_preset if tools_preset is not None else 'default')
+
+        # Step 4.4: ...etc
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
 
@@ -644,4 +651,5 @@ from .analyses.analysis import AnalysesHub
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
 from .engines import EngineHub
+from .tools import ToolHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
