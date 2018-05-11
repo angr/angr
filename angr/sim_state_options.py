@@ -236,6 +236,8 @@ class SimStateOptions(object):
     def __getattr__(self, key):
         if key in { 'OPTIONS', '_options' }:
             return self.__getattribute__(key)
+        if key.startswith("__") and key.endswith("__"):
+            return self.__getattribute__(key)
         return self[key]
 
     def __setattr__(self, key, value):
