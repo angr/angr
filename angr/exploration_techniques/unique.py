@@ -1,12 +1,7 @@
-"""
-Uniquely explore a program.
-"""
-
 from difflib import SequenceMatcher
 from collections import Counter
 
 from . import ExplorationTechnique
-
 
 class UniqueSearch(ExplorationTechnique):
     """

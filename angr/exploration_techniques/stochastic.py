@@ -1,11 +1,6 @@
-"""
-Stochastically explore a program.
-"""
-
 import random
 
 from . import ExplorationTechnique
-
 
 class StochasticSearch(ExplorationTechnique):
     """
