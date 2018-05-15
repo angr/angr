@@ -10,8 +10,8 @@ binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86_64','windows','simple_crackme_x64.exe'))
 
 
-GDB_SERVER_IP = '192.168.56.101'
-#GDB_SERVER_IP = '127.0.0.1'
+#GDB_SERVER_IP = '192.168.56.101'
+GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
 
 BEFORE_STRCMP_X64 = 0x40157A
@@ -27,7 +27,7 @@ def setup():
           "Install gdbserver on the machine, be careful the architecture (x86 or x64) of gdbserver should be the same as the debugged binary.\n"
           "Currently using MinGW for 32 bit gdbserver and Cygwin for 64 bit gdbserver"% (GDB_SERVER_IP,GDB_SERVER_IP,GDB_SERVER_PORT))
     print("On windows machine execute gdbserver %s:%s path/to/simple_crackme.exe" % (GDB_SERVER_IP,GDB_SERVER_PORT))
-    #raw_input("Press enter when gdbserver has been executed")
+    raw_input("Press enter when gdbserver has been executed")
 
 
 def teardown():
@@ -76,7 +76,6 @@ def test_concrete_engine_windows_x64_unicorn_simprocedures():
     solv_concrete_engine_windows_x64(p, entry_state)
 
 
-
 def solv_concrete_engine_windows_x64(p,entry_state):
 
     simgr = p.factory.simgr(entry_state)
@@ -101,6 +100,10 @@ def solv_concrete_engine_windows_x64(p,entry_state):
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[END_X64], concretize=[(win_state.regs.rbp-0x20, pwd)]))
     simgr.run()
     print("Finished")
+
+
+test_concrete_engine_windows_x64_simprocedures()
+
 
 '''
 @nose.with_setup(setup,teardown)

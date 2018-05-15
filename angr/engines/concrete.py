@@ -4,11 +4,12 @@ from angr_targets.segment_registers import *
 from archinfo import ArchX86, ArchAMD64
 import logging
 import struct
+from angr.errors import SimMemoryError
 
 
 #pylint: disable=arguments-differ
-l = logging.getLogger("angr.engines.concrete")
-#l.setLevel(logging.DEBUG)
+#l = logging.getLogger("angr.engines.concrete")
+l.setLevel(logging.DEBUG)
 
 
 class SimEngineConcrete(SimEngine):
@@ -132,13 +133,15 @@ class SimEngineConcrete(SimEngine):
             self.segment_registers_already_init = True
 
         # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary
-        if self.project._should_use_sim_procedures and not self.project.loader.main_object.pic:
+        #if self.project._should_use_sim_procedures and not self.project.loader.main_object.pic:
+        if self.project._should_use_sim_procedures:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.project.loader.main_object.relocs:
-                func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
-                func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
-                l.debug("Re-hooking SimProc " + reloc.symbol.name + " with address " + hex(func_address))
-                self.project.rehook_symbol(func_address, reloc.symbol.name)
+                if reloc.symbol is not None: # consider only reloc with a symbol
+                    func_address = self.target.read_memory(reloc.rebased_addr, self.project.arch.bits / 8)
+                    func_address = struct.unpack(self.project.arch.struct_fmt(), func_address)[0]
+                    l.debug("Re-hooking SimProc " + reloc.symbol.name + " with address " + hex(func_address))
+                    self.project.rehook_symbol(func_address, reloc.symbol.name)
         else:
             l.warn("SimProc not restored, you are going to simulate also the code of external libraries!")
 
