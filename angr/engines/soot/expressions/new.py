@@ -3,7 +3,7 @@ from .base import SimSootExpr
 
 import logging
 
-l = logging.getLogger('angr.engines.soot.expressions')
+l = logging.getLogger('angr.engines.soot.expressions.new')
 
 
 class SimSootExpr_New(SimSootExpr):
@@ -16,6 +16,6 @@ class SimSootExpr_New(SimSootExpr):
             class_ = self.state.project.loader.main_bin.classes[self.expr.type]
             obj = {}
         except KeyError:
-            l.warning("Try to create an object of a non loaded class %s", self.expr.type)
+            l.warning("Trying to create an object of a non loaded class %s", self.expr.type)
 
 
