@@ -34,4 +34,5 @@ from .staticfieldref import SimSootExpr_StaticFieldRef
 from .phi import SimSootExpr_Phi
 from .length import SimSootExpr_Length
 from .unsupported import SimSootExpr_Unsupported
+from .cast import SimSootExpr_Cast
 from .constants import *
