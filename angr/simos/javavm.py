@@ -8,7 +8,7 @@ from ..sim_state import SimState
 from .simos import SimOS
 from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
 from ..engines.soot.values.local import SimSootValue_Local
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
+from ..sim_type import SimTypeFunction, SimTypeInt, SimTypeReg
 
 
 import logging
@@ -58,6 +58,9 @@ class SimJavaVM(SimOS):
             # More specific: we set the return address to the `native_call_return_to_soot` address and hook it
             self.native_call_return_to_soot = self.project.loader.extern_object.allocate()
             self.project.hook(self.native_call_return_to_soot, self.native_call_return_to_soot_hook)
+
+            # Step 5: Calling convention SimCC class
+            self.native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
 
     #
     # States
@@ -147,52 +150,96 @@ class SimJavaVM(SimOS):
 
     def state_call(self, addr, *args, **kwargs):
         if isinstance(addr, SootAddressDescriptor):
+            # TODO:
+            # If no args are provided, create symbolic bit vectors and constrain
+            # the value w.r.t. to the type
             super(SimJavaVM, self).state_call(addr, *args, **kwargs)
+        
         else:
-            cc = DEFAULT_CC[self.native_simos.arch.name](self.native_simos.arch)
-            return self.native_simos.state_call(addr, *args, cc=cc, **kwargs)
+            # Create function prototype, so the SimCC know how to setup the call-site
+            ret_type = kwargs.pop('ret_type')
+            arg_types = tuple(arg_type for (arg, arg_type) in args)
+            prototype = SimTypeFunction(arg_types, ret_type)
+
+            native_cc = self.native_cc_cls(self.native_simos.arch, func_ty=prototype)
+
+            arg_values = tuple(arg for (arg, arg_type) in args)
+
+            return self.native_simos.state_call(addr, *arg_values, 
+                                                ret_addr=self.native_call_return_to_soot, 
+                                                cc=native_cc, **kwargs)
 
     #
     # Execution
     #
 
-    def native_call_return_to_soot_hook(self, state):
+    def native_call_return_to_soot_hook(self, native_state):
         """
         Hook target for native function returns. 
 
         This function will toggle the state, s.t. the execution continues in the Soot engine.
         """
-
-        ret_state = state.copy()
-        ret_state.get_plugin("memory", plugin_suffix='soot').pop_stack_frame()
-        ret_state.get_plugin("callstack", plugin_suffix='soot').pop()
+        ret_state = native_state.copy()
         ret_addr = ret_state.get_plugin("callstack", plugin_suffix='soot').ret_addr
         ret_state.regs._ip = ret_addr
+        ret_var = ret_state.callstack.invoke_return_variable
         ret_state.scratch.guard = ret_state.se.true
         ret_state.history.jumpkind = 'Ijk_Ret'
+        ret_state.memory.pop_stack_frame()
+        ret_state.callstack.pop()
+        
+        if ret_var:
+            # if available, move the return value to the Soot state
 
-        ret_var = ret_state.callstack.invoke_return_variable
-        if ret_var and ret_var.type == 'int':
-            ret_value = state.regs.rax.to_claripy()
-            # Write the return value to the return variable in the previous stack frame
+            if ret_var.type == 'void':
+                # in this case, the 'invoke_return_variable' should not have been set
+                l.warning("Return variable is available, but return type is set to void.")
+            
+            elif ret_var.type in ['float', 'double']:
+                raise NotImplementedError()
+
+            elif ret_var.type in ArchSoot.primitive_types.keys():
+                # return value has a primitive type
+                # => we need to manually cast the return value to the correct size, as this
+                #    would be usually done by the java callee
+                # 1. get return symbol from native state
+                native_cc = self.native_cc_cls((self.native_simos.arch))
+                ret_symbol = native_cc.get_return_val(native_state).to_claripy()
+                # 2. lookup the size of the native type and extract value
+                ret_var_native_size = ArchSoot.primitive_types[ret_var.type] 
+                ret_value = ret_symbol.reversed.get_bytes(index=0, size=ret_var_native_size/8).reversed
+                # 3. determine size of soot bitvector and resize bitvector
+                # Note: smaller types than int's are stored as a 32-bit SootIntConstant 
+                ret_var_soot_size = ret_var_native_size if ret_var_native_size >= 32 else 32
+                if ret_var.type in ['char', 'boolean']:
+                    # unsigned extend
+                    ret_value = ret_value.zero_extend(ret_var_soot_size-ret_var_native_size)
+                else:
+                    # signed extend
+                    ret_value = ret_value.sign_extend(ret_var_soot_size-ret_var_native_size)
+                
+            else:
+                # reference type
+                raise NotImplementedError()
+                           
             l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.name))
             ret_state.memory.store(ret_var, ret_value)
-        else:
-            l.error("Type of return value is not supported. Return variable is not updated.")
-
+ 
         return [ret_state]
 
     def get_clemory_addr_of_native_method(self, soot_method):
         """
         :param soot_method: Soot method descriptor of a native declared function.
-        :return:  CLE address of the given method in a native library
+        :return:  CLE address of the given method in a native library.
         """
-        # TODO: consider more attributes
         for name, symbol in self.native_symbols.items():
-            name_list = name.split('_')
-            if name_list[-1] == soot_method.name:
-                l.debug("Found native symbol '%s' @ %x matching Soot method '%s'" % (name, symbol.rebased_addr, soot_method) )
+            if soot_method.matches_with_native_name(native_name=name):
+                l.debug("Found native symbol '%s' @ %x matching Soot method '%s'" 
+                        % (name, symbol.rebased_addr, soot_method))
                 return symbol.rebased_addr
                 
         else:
-            raise AngrSimOSError("No native method found that matches the Soot method.")
+            native_symbols = "\n".join(self.native_symbols.keys())
+            raise AngrSimOSError("No native method found that matches the Soot method '%s'.\
+                                  \nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
+                                  % (soot_method.name, native_symbols))

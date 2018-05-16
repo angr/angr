@@ -11,6 +11,7 @@ from .sim_type import SimTypeString
 from .sim_type import SimTypeFunction
 from .sim_type import SimTypeFloat
 from .sim_type import SimTypeDouble
+from .sim_type import SimTypeReg
 from .sim_type import SimStruct
 from .sim_type import parse_file
 
@@ -787,8 +788,10 @@ class SimCC:
             return val
 
         elif isinstance(arg, claripy.ast.Base):
+            if check and isinstance(ty, SimTypeReg):
+                arg = arg.reversed
             # yikes
-            if state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
+            elif state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
                 arg = arg.reversed
             return arg
 

@@ -4,10 +4,12 @@ import logging
 from cle import CLEError
 from archinfo.arch_soot import SootAddressDescriptor, SootAddressTerminator, SootMethodDescriptor
 
+from archinfo import ArchSoot
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ...errors import SimTranslationError
 from ... import sim_options as o
 from ..engine import SimEngine
+from ...sim_type import SimTypeReg
 from .statements import translate_stmt, SimSootStmt_Return, SimSootStmt_ReturnVoid
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
 from angr.engines.soot.values import SimSootValue_Local
@@ -164,34 +166,55 @@ class SimEngineSoot(SimEngine):
             invoke_target = state.scratch.invoke_target
 
             if state.scratch.invoke_has_native_target:
-
                 # The target of the call is a native function
+                # => We need to setup the native call-site
                 l.debug("Invoke has a native target.")
 
-                # Get native address of native function
+                # Step 1: Get native address
                 invoke_addr = self.project.simos.get_clemory_addr_of_native_method(invoke_target)
 
-                # Setup parameter of native function call
-                jni_env = 0
-                jni_this = 0 # or jni_class (static vs. nonstatic)
-                param1 = state.memory.stack.load('i0').reversed # FIXME hardcoded parameter (for testing)
-                args = [jni_env, jni_this] + [param1]
+                # Step 2: Setup parameter
+                
+                args = []
 
-                # Create native invoke state
-                invoke_state = self.project.simos.state_call(invoke_addr, *args,
-                                                             base_state=invoke_state,
-                                                             ret_addr=self.project.simos.native_call_return_to_soot)
+                # JNI enviroment pointer
+                jni_env = 0
+                args += [(jni_env, SimTypeReg(size=0))]
+
+                # Handle to the current object or class (TODO static vs. nonstatic)
+                jni_this = 0
+                args += [(jni_this,  SimTypeReg(size=0))]
+                
+                # Function arguments
+                for idx, arg_type in enumerate(invoke_target.params):
+
+                    if arg_type in ['float', 'double']:
+                        # Argument has a primitive floating-point type
+                        raise NotImplementedError('Floating point types are not yet supported for native arguments.')
+
+                    elif arg_type in ArchSoot.primitive_types.keys():
+                        # Argument has a primitive intergral type
+                        arg_value = invoke_state.memory.stack.load('param_%d' % idx)
+                        arg_sim_type = SimTypeReg(size=ArchSoot.sizeof[arg_type])
+                        args += [(arg_value, arg_sim_type)]
+
+                    else:
+                        # Argument has a relative type
+                        raise NotImplementedError('References types are not yet supported for native arguments.')
+
+                # Step 3: Set return type
+                ret_type = SimTypeReg(size=ArchSoot.sizeof[invoke_target.ret])
+
+                # Step 4: Create native invoke state
+                invoke_state = self.project.simos.state_call(invoke_addr, *args, base_state=invoke_state, ret_type=ret_type)
 
             else:
                 # Build the call target
                 invoke_addr = SootAddressDescriptor(invoke_target, 0, 0)
 
-            #invoke_state.regs._invoke_return_variable = invoke_state.scratch.invoke_return_variable
-            #invoke_state.regs._invoke_return_target = invoke_state.scratch.invoke_return_target
-            #invoke_state.regs._invoke_expr = invoke_state.scratch.invoke_expr
             successors.add_successor(invoke_state, invoke_addr, state.se.true, 'Ijk_Call', )
 
-            # We terminate the execution since Soot does not guarantee that a block terminates with an Invoke
+            # Terminate execution since Soot does not guarantee that a block terminates with an Invoke
             return True
 
         elif state.scratch.jump:
