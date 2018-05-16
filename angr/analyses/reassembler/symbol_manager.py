@@ -55,8 +55,9 @@ class SymbolManager(object):
 
         if addr in self.addr_to_label:
             if not len(self.addr_to_label[addr]):
-                l.warning("no labels exist for {}".format(addr))
+                l.warning("no labels exist for 0x{:x}".format(addr))
                 del self.addr_to_label[addr]
+                return self.new_label(addr, name, is_function, force, dereference, op, junk)
             else:
                 return self.addr_to_label[addr][0]
 
@@ -72,9 +73,7 @@ class SymbolManager(object):
             symbol = symbols_by_addr[addr]
             symbol_name = symbol.name
 
-            # TODO: Figure out this $d thing and do something more sane
-            # These $d labels are never referenced by code we execute(?), but they are referenced
-            # in a few places so we need them to be defined correctly
+            # $d symbol denotes a pointer for ARM
             if self.project.arch.name == "ARMEL" and symbol_name == "$d":
                 string_addr = self.binary.fast_memory_load(addr, 4, int)
                 this_string = self.binary.fast_memory_load(string_addr, 15, "char")
@@ -82,12 +81,7 @@ class SymbolManager(object):
                 if addr in self.cfg.functions:
                     del self.cfg.functions[addr]
                 label = DataLabel(self.binary, addr)
-                #junk=True
-                #if junk:
-                #    label.name = label.name+"_junk"
                 self.addr_to_label[addr].append(label)
-                #self.addr_to_label[addr] = [label]
-                #print("Making label {}".format(label))
                 return label
 
             # Different architectures use different prefixes
@@ -104,8 +98,11 @@ class SymbolManager(object):
                 # it's an object
                 label = ObjectLabel(self.binary, symbol_name, addr)
             elif symbol.type == cle.Symbol.TYPE_NONE:
-                # notype
-                label = NotypeLabel(self.binary, symbol_name, addr)
+                # notype - Not on ARM
+                if self.project.arch.name == "ARMEL":
+                    label = DataLabel(self.binary, addr)
+                else:
+                    label = NotypeLabel(self.binary, symbol_name, addr)
             elif symbol.type == cle.Symbol.TYPE_SECTION:
                 # section label
                 # use a normal label instead
