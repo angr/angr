@@ -1102,6 +1102,7 @@ class SimPagedMemory(object):
                 new_page_dict[page] = self._pages[page]
 
         self._pages = new_page_dict
+        self._initialized = set()
 
 
 from .. import sim_options as o

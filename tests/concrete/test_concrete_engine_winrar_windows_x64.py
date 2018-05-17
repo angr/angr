@@ -83,8 +83,13 @@ OUTER_FUNC_ADDRESS = 0x01400DB6BA
 def solv_concrete_engine_windows_x64(p,entry_state):
     simgr = p.factory.simgr(entry_state)
 
-    '''
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[CALL_CHECK_REGISTRATION], concretize=[]))
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[0x1400DB6B5], concretize=[]))
+    exploration = simgr.run()
+    state = exploration.found[0]
+    print("After concrete execution")
+    simgr = p.factory.simulation_manager(state)
+
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[0x01400A10ED], concretize=[]))
 
     exploration = simgr.run()
     state = exploration.found[0]
@@ -95,7 +100,7 @@ def solv_concrete_engine_windows_x64(p,entry_state):
     print("success %s"%(win_state))
 
     '''
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[0x1400A10ED], concretize=[]))
+    
     exploration = simgr.run()
     state = exploration.found[0]
     print("After concrete execution")
@@ -164,9 +169,9 @@ def solv_concrete_engine_windows_x64(p,entry_state):
 
 
     print("resumed execution")
-
+    '''
 setup()
-test_concrete_engine_windows_x64_simprocedures()
+test_concrete_engine_windows_x64_no_simprocedures()
 teardown()
 
 '''
