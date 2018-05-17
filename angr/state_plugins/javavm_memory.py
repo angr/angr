@@ -47,16 +47,18 @@ class SimJavaVmMemory(SimMemory):
             cstack = self._stack[-1+(-1*frame)]
             # Load a local variable
             # TODO: Implement the stacked stack frames model
-            return cstack.load(addr.name, none_if_missing)
+            return cstack.load(addr.name, none_if_missing=True)
         elif type(addr) is SimSootValue_ArrayRef:
             reference_name = "%s[%d]" % (addr.base.name, addr.index)
-            return self.heap.load(reference_name, none_if_missing)
+            return self.heap.load(reference_name, none_if_missing=True)
         elif type(addr) is SimSootValue_ParamRef:
             param_name = "param_%d" % addr.index
             cstack = self._stack[-1+(-1*frame)]
             # Load a local variable
             # TODO: Implement the stacked stack frames model
-            return cstack.load(param_name, none_if_missing)
+            return cstack.load(param_name, none_if_missing=True)
+        elif type(addr) is SimSootValue_StaticFieldRef:
+            return self.vm_static_table.load(addr.field, none_if_missing=True)
         else:
             import ipdb; ipdb.set_trace()
 
