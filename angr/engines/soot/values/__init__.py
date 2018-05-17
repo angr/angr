@@ -17,3 +17,4 @@ def translate_value(value):
 from .local import SimSootValue_Local
 from .paramref import SimSootValue_ParamRef
 from .arrayref import SimSootValue_ArrayRef
+from .staticfieldref import SimSootValue_StaticFieldRef

@@ -1,5 +1,6 @@
 
-from ..engines.soot.values import SimSootValue_Local, SimSootValue_ArrayRef, SimSootValue_ParamRef
+from ..engines.soot.values import SimSootValue_Local, SimSootValue_ArrayRef, SimSootValue_ParamRef, \
+                                  SimSootValue_StaticFieldRef
 
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory
@@ -9,13 +10,14 @@ MAX_ARRAY_SIZE = 1000
 
 
 class SimJavaVmMemory(SimMemory):
-    def __init__(self, memory_id="mem", stack=None, heap=None):
+    def __init__(self, memory_id="mem", stack=None, heap=None, vm_static_table=None):
         super(SimJavaVmMemory, self).__init__()
 
         self.id = memory_id
 
         self._stack = [ ] if stack is None else stack
         self.heap = SimKeyValueMemory("mem") if heap is None else heap
+        self .vm_static_table = SimKeyValueMemory("mem") if vm_static_table is None else vm_static_table
 
         # Heap helper
         # TODO: ask someone how we want to manage this
@@ -33,6 +35,8 @@ class SimJavaVmMemory(SimMemory):
         elif type(addr) is SimSootValue_ArrayRef:
             reference_name = "%s[%d]" % (addr.base.name, addr.index)
             self.heap.store(reference_name, data, type_=addr.type)
+        elif type(addr) is SimSootValue_StaticFieldRef:
+            self.vm_static_table.store(addr.field, data, type_=addr.type)
         else:
             import ipdb; ipdb.set_trace()
 
@@ -61,7 +65,8 @@ class SimJavaVmMemory(SimMemory):
         return SimJavaVmMemory(
             memory_id=self.id,
             stack=self._stack[::],
-            heap=self.heap.copy()
+            heap=self.heap.copy(),
+            vm_static_table=self.vm_static_table.copy()
         )
 
     def push_stack_frame(self):

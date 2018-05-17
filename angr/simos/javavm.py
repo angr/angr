@@ -5,6 +5,7 @@ from ..sim_state import SimState
 from .simos import SimOS
 from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
 from ..engines.soot.values.local import SimSootValue_Local
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 
 
 class SimJavaVM(SimOS):
@@ -59,6 +60,24 @@ class SimJavaVM(SimOS):
             state.memory.store(ref, elem)
         base_ref = SimSootValue_ArrayRef(0, type_, local, size_)
         state.memory.store(local, base_ref)
+
+        # Sometimes classes has a special method called "<clinit> that initialize part
+        # of the class such as static field with default value etc.
+        # This method would never be executed in a normal exploration so at class
+        # loading time (loading of the main class in this case) we force the symbolic execution
+        # of the method <clinit> and we update the state accordingly.
+        manifest = state.project.loader.main_bin.get_manifest()
+        main_cls = state.project.loader.main_bin.get_class(manifest["Main-Class"])
+        entry = state.addr
+        for method in main_cls.methods:
+            if method.name == "<clinit>":
+                simgr = state.project.factory.simgr(state)
+                simgr.active[0].ip = SootAddressDescriptor(SootMethodDescriptor.from_method(method), 0, 0)
+                simgr.run()
+                if simgr.deadended:
+                    state = simgr.deadended[0]
+                    state.regs._ip = entry
+                break
 
         return state
 
