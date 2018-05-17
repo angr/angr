@@ -9,4 +9,4 @@ class SimSootStmt_Return(SimSootStmt):
         self.return_value = None
 
     def _execute(self):
-        self.return_value = self._translate_expr(self.stmt.value)
+        self.return_value = self._translate_expr(self.stmt.value).expr
