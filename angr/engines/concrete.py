@@ -7,7 +7,7 @@ import struct
 
 #pylint: disable=arguments-differ
 l = logging.getLogger("angr.engines.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 class SimEngineConcrete(SimEngine):
@@ -57,7 +57,7 @@ class SimEngineConcrete(SimEngine):
 
     def _process(self, state, successors, step, extra_stop_points = None, concretize = None, **kwargs ):
         self.to_engine(state, extra_stop_points, concretize, **kwargs)
-       # self.from_engine(state, **kwargs)
+        #self.from_engine(state, **kwargs)
         state.concrete.sync()
 
         successors.engine = "SimEngineConcrete"

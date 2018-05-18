@@ -4,14 +4,17 @@ import struct
 import logging
 from archinfo import ArchX86, ArchAMD64
 l = logging.getLogger("state_plugin.concrete")
+l.setLevel(logging.DEBUG)
+
 
 class Concrete(SimStatePlugin):
-    def __init__(self):
-         self.segment_registers_already_init = False
+    def __init__(self, segment_registers_already_init=False):
+         self.segment_registers_already_init = segment_registers_already_init
 
 
     def copy(self, _memo):
-        conc = Concrete()
+        print("Copying Concrete Plugin")
+        conc = Concrete(segment_registers_already_init=True)
         return conc
 
     def merge(self):
@@ -35,8 +38,12 @@ class Concrete(SimStatePlugin):
 
                 :return:
                 """
+
+        l.debug("Sync the state with the concrete memory inside the Concrete plugin")
+
         self.target = self.state.project.concrete_target
         whitelist = []
+
         # Setting a concrete memory backend
         self.state.memory.mem._memory_backer.set_concrete_target(self.target)
 
@@ -71,7 +78,7 @@ class Concrete(SimStatePlugin):
                     # Setup the GDT structure in the angr memory and populate the field containing the gs value
                     # (mandatory for handling access to segment registers)
                     gs = read_gs_register_linux_x86(self.target)
-                    setup_gdt(self.state,0x0,gs)
+                    setup_gdt(self.state, 0x0, gs)
 
                     # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
                     _vsyscall_address = self.target.read_memory(gs + 0x10, self.state.project.arch.bits / 8)
@@ -82,12 +89,12 @@ class Concrete(SimStatePlugin):
                     # Setup the GDT structure in the angr memory and populate the field containing the fs value
                     # (mandatory for handling access to segment registers)
                     fs = read_fs_register_windows_x86(self.target)
-                    setup_gdt(self.state, fs,0x0)
+                    setup_gdt(self.state, fs, 0x0)
 
                 # Avoid flushing the page containing the GDT in this way these addresses will always be read from the angr memory
                 gdt_addr = GDT_ADDR
                 gdt_size = GDT_LIMIT
-                whitelist.append((gdt_addr,gdt_addr+gdt_size))
+                whitelist.append((gdt_addr, gdt_addr+gdt_size))
             self.segment_registers_already_init = True
 
         # Synchronize the imported functions addresses (.got, IAT) in the concrete process with ones used in the SimProcedures dictionary
