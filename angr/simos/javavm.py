@@ -1,17 +1,19 @@
-from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootAddressTerminator, SootMethodDescriptor
+import logging
 
-from ..errors import AngrSimOSError, AngrSimOSError
+from angr import SIM_PROCEDURES
+from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
+                                SootAddressTerminator, SootMethodDescriptor)
+from claripy import BVV
 
 from ..calling_conventions import DEFAULT_CC
-
-from ..sim_state import SimState
-from .simos import SimOS
 from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
 from ..engines.soot.values.local import SimSootValue_Local
+from ..errors import AngrSimOSError
+from ..procedures.java_jni import jni_functions
+from ..sim_state import SimState
 from ..sim_type import SimTypeFunction, SimTypeInt, SimTypeReg
+from .simos import SimOS
 
-
-import logging
 l = logging.getLogger('angr.simos.JavaVM')
 
 class SimJavaVM(SimOS):
@@ -56,14 +58,32 @@ class SimJavaVM(SimOS):
                     if name.startswith(u'Java'):
                         self.native_symbols[name] = symbol
 
-            # Step 4: Allocate memory for the return hook
-            # In order to return back from the Vex to the Soot engine, we hook the return address,
-            # More specific: we set the return address to the `native_call_return_to_soot` address and hook it
+            # Step 4: Look up SimCC class of the native calling convention 
+            self.native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
+
+            # Step 5: Allocate memory for the return hook
+            # => In order to return back from the Vex to the Soot engine, we hook the return address.
+            #    Therefore we set the return address of the native function to `native_call_return_to_soot`
+            #    and hook it.
             self.native_call_return_to_soot = self.project.loader.extern_object.allocate()
             self.project.hook(self.native_call_return_to_soot, self.native_call_return_to_soot_hook)
 
-            # Step 5: Calling convention SimCC class
-            self.native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
+            # Step 6: JNI interface functions
+            # => During runtime, the native code can interact with the JVM through JNI interface functions.
+            #    We hook these functions and implement the effects with SimProcedures.
+            native_addr_size = self.native_simos.arch.bits/8
+            # allocate memory for the jni env pointer and function table
+            self.jni_env = self.project.loader.extern_object.allocate(size=native_addr_size, 
+                                                                      alignment=native_addr_size)
+            self.jni_function_table = self.project.loader.extern_object.allocate(size=native_addr_size*len(jni_functions),
+                                                                                 alignment=native_addr_size)
+            # hook jni functions
+            for idx, jni_function in enumerate(jni_functions):
+                addr = self.jni_function_table + idx * native_addr_size
+                if not jni_function:
+                    self.project.hook(addr, SIM_PROCEDURES['java_jni']['NotImplemented'])
+                else: 
+                    self.project.hook(addr, SIM_PROCEDURES['java_jni'][jni_function])
 
     #
     # States
@@ -77,13 +97,23 @@ class SimJavaVM(SimOS):
 
         if self.jni_support:
             # If the JNI support is enabled (i.e. native libs are loaded), the SimState
-            # needs to support both the Vex and the Soot engine.
-            # Therefore we start with an initialized native state and extend this with the
-            # Soot initializations.
+            # needs to support both the Vex and the Soot engine. Therefore we start with 
+            # an initialized native state and extend this with the Soot initializations.
             # Note: `addr` needs to be set to a `native address` (i.e. not an SootAddressDescriptor);
             #       otherwise the `project.entry` is used and the SimState would be in "Soot-mode"
             # TODO: use state_blank function from the native simos and not the super class
             state = super(SimJavaVM, self).state_blank(addr=0, **kwargs)
+            # Let the env pointer point to the function table
+            state.memory.store(self.jni_env, BVV(self.jni_function_table, 64).reversed)
+            # Initialize the function table
+            # => Each entry usually contains the address of the function, but since we hook all functions
+            #    with SimProcedures, we store the address of the corresonding hook instead.
+            #    This, by construction, is exactly the address of the function table entry itself.
+            for idx in range(len(jni_functions)):
+                native_addr_size = self.native_simos.arch.bits/8
+                jni_function_addr = self.jni_function_table + idx * native_addr_size
+                state.memory.store(jni_function_addr, BVV(jni_function_addr, 64).reversed)
+
         else:
             # w/o JNI support, we can just use a blank state
             state = SimState(project=self.project, **kwargs)
@@ -103,6 +133,7 @@ class SimJavaVM(SimOS):
         state.callstack.push(new_frame)
 
         return state
+
 
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
         state = self.state_blank(**kwargs)
@@ -169,8 +200,9 @@ class SimJavaVM(SimOS):
             arg_values = tuple(arg for (arg, arg_type) in args)
 
             return self.native_simos.state_call(addr, *arg_values, 
-                                                ret_addr=self.native_call_return_to_soot, 
-                                                cc=native_cc, **kwargs)
+                                                 ret_addr=self.native_call_return_to_soot, 
+                                                 cc=native_cc, **kwargs)
+
 
     #
     # Execution

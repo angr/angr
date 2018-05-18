@@ -178,8 +178,8 @@ class SimEngineSoot(SimEngine):
                 args = []
 
                 # JNI enviroment pointer
-                jni_env = 0
-                args += [(jni_env, SimTypeReg(size=0))]
+                jni_env = self.project.simos.jni_env
+                args += [(jni_env, SimTypeReg(size=64))]
 
                 # Handle to the current object or class (TODO static vs. nonstatic)
                 jni_this = 0
