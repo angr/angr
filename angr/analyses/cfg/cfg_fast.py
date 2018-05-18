@@ -1493,8 +1493,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 for mo in regex.finditer(bytes_):
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
-                        if self._addr_in_exec_memory_regions(position):
-                            unassured_functions.append(AT.from_rva(position, self._binary).to_mva())
+                        mapped_position = AT.from_rva(position, self._binary).to_mva()
+                        if self._addr_in_exec_memory_regions(mapped_position):
+                            unassured_functions.append(mapped_position)
 
         return unassured_functions
 
