@@ -1,6 +1,8 @@
 import angr
 import time
 
+# pylint: disable=arguments-differ,unused-argument
+
 class gettimeofday(angr.SimProcedure):
     def run(self, tv, tz):
         if self.state.solver.is_true(tv == 0):
