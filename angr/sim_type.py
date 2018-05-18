@@ -1,9 +1,6 @@
 from collections import OrderedDict, defaultdict
-import subprocess
 import copy
 import re
-import tempfile
-import os
 
 import claripy
 
@@ -796,6 +793,9 @@ class SimStruct(SimType):
         else:
             raise TypeError("Can't store struct of type %s" % type(value))
 
+        if len(value) != len(self.fields):
+            raise ValueError("Passed bad values for %s; expected %d, got %d" % self, len(self.offsets), len(value))
+
         for field, offset in self.offsets.iteritems():
             ty = self.fields[field]
             ty.store(state, addr + offset, value[field])
@@ -933,6 +933,7 @@ ALL_TYPES.update(BASIC_TYPES)
 # this is a hack, pending https://github.com/eliben/pycparser/issues/187
 def make_preamble():
     out = []
+    types_out = []
     for ty in ALL_TYPES:
         if ty in BASIC_TYPES:
             continue
@@ -953,9 +954,13 @@ def make_preamble():
                 styp = 'unsigned ' + styp
             typ = styp
 
-        out.append('typedef %s %s;' % (typ, ty))
+        if isinstance(typ, (SimStruct,)):
+            types_out.append(str(typ))
 
-    return '\n'.join(out) + '\n'
+        out.append('typedef %s %s;' % (typ, ty))
+        types_out.append(ty)
+
+    return '\n'.join(out) + '\n', types_out
 
 
 def define_struct(defn):
@@ -1019,7 +1024,8 @@ def parse_file(defn, preprocess=True):
     if preprocess:
         defn = do_preprocess(defn)
 
-    node = pycparser.c_parser.CParser().parse(make_preamble() + defn)
+    preamble, ignoreme = make_preamble()
+    node = pycparser.c_parser.CParser().parse(preamble + defn)
     if not isinstance(node, pycparser.c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
     out = {}
@@ -1034,6 +1040,8 @@ def parse_file(defn, preprocess=True):
         elif isinstance(piece, pycparser.c_ast.Typedef):
             extra_types[piece.name] = _decl_to_type(piece.type, extra_types)
 
+    for ty in ignoreme:
+        del extra_types[ty]
     return out, extra_types
 
 
@@ -1051,7 +1059,7 @@ def parse_type(defn, preprocess=True):
     if preprocess:
         defn = do_preprocess(defn)
 
-    node = pycparser.c_parser.CParser().parse(make_preamble() + defn)
+    node = pycparser.c_parser.CParser().parse(make_preamble()[0] + defn)
     if not isinstance(node, pycparser.c_ast.FileAST) or \
             not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
         raise ValueError("Something went horribly wrong using pycparser")
@@ -1130,13 +1138,19 @@ def _parse_const(c):
 
 
 try:
-    define_struct("""
-struct example {
-    int foo;
-    int bar;
-    char *hello;
+    register_types(parse_types("""
+typedef long time_t;
+
+struct timespec {
+    time_t tv_sec;
+    long tv_nsec;
 };
-""")
+
+struct timeval {
+    time_t tv_sec;
+    long tv_usec;
+};
+"""))
 except ImportError:
     pass
 
