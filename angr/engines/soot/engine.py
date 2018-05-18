@@ -147,6 +147,7 @@ class SimEngineSoot(SimEngine):
         state.scratch.invoke_return_target = None
         state.scratch.invoke_return_variable = None
         state.scratch.invoke_has_native_target = False
+        state.scratch.invoke_jni_local_references = []
 
         l.info("Executing statement %s [%s]", stmt, state.addr)
         s_stmt = translate_stmt(stmt, state)
@@ -201,6 +202,14 @@ class SimEngineSoot(SimEngine):
                     else:
                         # Argument has a relative type
                         raise NotImplementedError('References types are not yet supported for native arguments.')
+
+                        ## Local references to object pointer
+                        arg_ref = invoke_state.memory.stack.load('param_%d' % idx)
+
+                        # Generate a unique reference
+                        native_addr_size = self.project.native_simos.arch.bits/8
+                        self.project.loader.extern_object.allocate(size=native_addr_size, alignment=native_addr_size)
+                        l.debug("Map %s to local reference %s" % (str(arg_ref), hex(native_addr_size)))
 
                 # Step 3: Set return type
                 ret_type = SimTypeReg(size=ArchSoot.sizeof[invoke_target.ret])
