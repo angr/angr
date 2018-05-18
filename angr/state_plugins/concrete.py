@@ -1,5 +1,6 @@
 from .plugin import SimStatePlugin
 from angr_targets.segment_registers import *
+import struct
 import logging
 from archinfo import ArchX86, ArchAMD64
 l = logging.getLogger("state_plugin.concrete")

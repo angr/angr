@@ -3,11 +3,10 @@ from angr_targets.concrete import ConcreteTarget
 from angr_targets.segment_registers import *
 import logging
 import struct
-from angr.errors import SimMemoryError
 
 
 #pylint: disable=arguments-differ
-#l = logging.getLogger("angr.engines.concrete")
+l = logging.getLogger("angr.engines.concrete")
 l.setLevel(logging.DEBUG)
 
 
