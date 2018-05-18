@@ -31,16 +31,7 @@ class SymbolManager(object):
                 return addr
         return None
 
-    """
-    def new_label(self, addr, name=None, is_function=None, force=False, dereference=True, op=None, junk=False):
-        r = self.new_label_(addr, name, is_function, force, dereference, op, junk)
-        if r.name == "label_6":
-            import pdb
-            pdb.set_trace()
-        return r
-    """
-
-    def new_label(self, addr, name=None, is_function=None, force=False, dereference=True, op=None, junk=False):
+    def new_label(self, addr, name=None, is_function=None, force=False, dereference=True, op=None):
         if force:
             if is_function:
                 l.warning("Unsupported option combination FORCE and IS_FUNCTION")
@@ -48,7 +39,6 @@ class SymbolManager(object):
                 label = DataLabel(self.binary, addr, name=name)
             else:
                 label = Label.new_label(self.binary, name=name, original_addr=addr)
-            assert(not junk)
             self.addr_to_label[addr].insert(0, label)
             #self.addr_to_label[addr].append(label)
             return label
@@ -57,7 +47,7 @@ class SymbolManager(object):
             if not len(self.addr_to_label[addr]):
                 l.warning("no labels exist for 0x{:x}".format(addr))
                 del self.addr_to_label[addr]
-                return self.new_label(addr, name, is_function, force, dereference, op, junk)
+                return self.new_label(addr, name, is_function, force, dereference, op)
             else:
                 return self.addr_to_label[addr][0]
 
@@ -136,8 +126,6 @@ class SymbolManager(object):
         else:
             label = Label.new_label(self.binary, name=name, original_addr=addr)
 
-        if junk and not label.name.endswith("_junk"):
-            label.name = label.name+"_junk"
         if addr is not None:
             self.addr_to_label[addr].append(label)
 

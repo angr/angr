@@ -35,6 +35,37 @@ class Relocation(object):
         s = "<Reloc %s %#x (%#x)>" % (self.sort, self.addr, self.ref_addr)
         return s
 
+class PythonSux(list):
+    def __init__(self, name):
+        self.data = []
+        self.name = name
+
+    def __getitem__(self,x):
+        #print('GET {:x}'.format(x))
+        return self.data[x]
+
+    def __setitem__(self,x,y):
+        print('set {}={}'.format(x,y))
+        self.data[x] =y
+
+    def append(self,x):
+        #print("APPEND {}".format(x))
+        if self.name == 'res_data' and x.addr==0x12558:
+            print("DATA MAIN")
+            import pdb
+            pdb.set_trace()
+        if self.name == 'res_proc' and x.addr==0x12558:
+            print("PROC MAIN")
+            import pdb
+            pdb.set_trace()
+        self.data.append(x)
+
+    def __iter__(self):
+        return super(PythonSux, self).__iter__()
+
+    def __contains__(self,x):
+        return super(PythonSux, self).__contains__(x)
+
 
 class Reassembler(Analysis):
     """
@@ -55,8 +86,8 @@ class Reassembler(Analysis):
         self._cgc_attachments_removed = False
         self.log_relocations = log_relocations
 
-        self.procedures = [ ]
-        self.data = [ ]
+        self.procedures = []
+        self.data = []
 
         self.extra_rodata = [ ]
         self.extra_data = [ ]
@@ -478,20 +509,18 @@ class Reassembler(Analysis):
         # If something is defined in both data and proc, say it's just data and remove from procs
         bad_procs=set([x.addr for x in self.data]).intersection(set([x.addr for x in self.procedures]))
         if len(bad_procs):
-            l.warning("Memory defined as both proc and data at {}. Treating as data".format([hex(x) for x in bad_procs]))
-        self.procedures[:] = [x for x in self.procedures if x.addr not in bad_procs]
+            l.error("Memory defined as both proc and data at {}. Creating assembly for both".format([hex(x) for x in bad_procs]))
+            #l.warning("Memory defined as both proc and data at {}. Treating as data".format([hex(x) for x in bad_procs]))
+        #self.procedures[:] = [x for x in self.procedures if x.addr not in bad_procs]
 
         for proc in self.procedures:
             proc.assign_labels()
 
-###### 
-###### TODO - We see a label here (e.g., label3 for array_nosym) but we don't put the label in the generated assembly for some reason
-###### 
         for data in self.data:
             #print("Assign labels to {}".format(data))
             data.assign_labels()
             #print(", ".join([x.name for _, x in data.labels]))
-        print("All labels: {}".format([[y.name for addr, y in x.labels] for x in self.data]))
+        #print("All labels: {}".format([[y.name for addr, y in x.labels] for x in self.data]))
 
 
         # Get all instruction addresses, and modify those labels pointing to the middle of an instruction
@@ -644,32 +673,48 @@ class Reassembler(Analysis):
         last_section = None
 
         if self._cgc_attachments_removed:
-            all_data = self.data + self.extra_rodata + self.extra_data
+                                    all_data = self.data + self.extra_rodata + self.extra_data
         else:
             # to reduce memory usage, we put extra data in front of the original data in binary
             all_data = self.extra_data + self.data + self.extra_rodata
 
-        print("All labels2: {}".format([[y.name for addr, y in x.labels] for x in all_data]))
-        #import pdb
-        #pdb.set_trace()
+        #print("All labels2: {}".format([[y.name for _, y in x.labels] for x in all_data if len(x.labels)]))
+        #print("All addrs2: {}".format([[hex(addr) for addr, _ in x.labels] for x in all_data if len(x.labels)]))
+        #print("All addrs3: {}".format([hex(x.addr) for x in all_data]))
+
+        seen = []
         for data in all_data:
+            if data.addr in seen:
+                l.error("Duplicate data: data[{}]".format(data.addr))
+            seen.append(data.addr)
+
+        seen_addrs = [] # TODO remove this?
+        for data in all_data:
+            if data.addr in seen_addrs:
+                continue 
+            #assert(not data.addr in seen_addrs)
+
+            seen_addrs.append(data.addr)
             #print(data)
+            if (data.section_name is None):
+                data.section_name = ".rodata"
             if last_section is None or data.section_name != last_section:
                 last_section = data.section_name
-                if (data.section_name is None):
-                    data.section_name = ".rodata"
                 all_assembly_lines.append("\t.section {section}\n\t.align {alignment}".format(
                     section=(last_section if last_section != '.init_array' else '.data'),
                     alignment=self.section_alignment(last_section)
                 ))
 
-            #if len(data.labels):
-                #print("Assemble1 code with label: {}".format(", ".join([x.name for _, x in data.labels])))
-            #if "label_3" in [x.name for _, x in data.labels]:
-                #import pdb
-                #pdb.set_trace()
             all_assembly_lines.append(data.data_assembly(comments=comments, symbolized=symbolized))
+
+        seen_addrs2 = [] # TODO - find what's adding duplicate labels and delete
         for label in self.symbol_manager.addr_to_label:
+            if (data.addr in seen_addrs2+seen_addrs):
+                continue 
+            print("Generate assembly for extra data in addr_to_label at 0x{:x}".format(data.addr))
+            assert(not data.addr in seen_addrs2)
+            seen_addrs2.append(data.addr)
+
 
             all_assembly_lines.append(data.data_assembly(comments=comments, symbolized=symbolized))
             #if len(data.labels):
@@ -679,9 +724,10 @@ class Reassembler(Analysis):
 
         return s
 
-    def add_data(self, addr, value):
+    def add_data(self, addr, value): # TODO - remove or use, make decision
         # TODO: make angr happy
     
+        assert("This isn't used" == 0)
         memory_data = self.cfg.memory_data.get(addr, None)
         print("Add data\t{}".format(name))
         if memory_data:
@@ -868,7 +914,7 @@ class Reassembler(Analysis):
 
         self.procedures = [p for p in self.procedures if p.name not in glibc_functions_blacklist and not p.is_plt]
 
-        self.data = [d for d in self.data if not any(lbl.name in glibc_data_blacklist for _, lbl in d.labels)]
+        self.data = [d for d in self.data if not any(lbl.name in glibc_data_blacklist or lbl.name in glibc_functions_blacklist for _, lbl in d.labels)]
 
         for d in self.data:
             if d.sort == 'pointer-array':
@@ -981,7 +1027,16 @@ class Reassembler(Analysis):
                 continue
 
             procedure = Procedure(self, f, section=section)
+
+            if f.addr in [x.addr for x in self.data]:
+                l.warning("Added procedure at 0x%x but there's also data defined, deleting", f.addr)
+                self.data[:] = [x for x in self.data if x.addr != f.addr]
+
+            if f.addr in [x.addr for x in self.procedures]:
+                l.warning("Want to add procedure at 0x%x but there's already a procedure there- SKIP", f.addr)
+                continue
             self.procedures.append(procedure)
+
 
         self.procedures = sorted(self.procedures, key=lambda x: x.addr)
 
@@ -995,6 +1050,10 @@ class Reassembler(Analysis):
         for addr, memory_data in cfg._memory_data.iteritems():
             if memory_data.sort in ('code reference', ):
                 continue
+
+            if addr in [x.addr for x in self.procedures]:
+                l.warning("Added data at 0x%x but there's also a proc defined there! Delete from procs", addr)
+                self.procedures[:] = [x for x in self.procedures if x.addr != addr]
 
             # TODO: CGC specific
             if memory_data.sort == 'string':
@@ -1023,7 +1082,8 @@ class Reassembler(Analysis):
 
                 if section is not None and section.name not in bad_section_names:
                     data = Data(self, memory_data, section=section) # Here for everything
-                    self.data.append(data)
+                    if data.addr not in [x.addr for x in self.data]:
+                        self.data.append(data)
                 elif memory_data.sort == 'segment-boundary':
                     # it just points to the end of the segment or a section
                     section = next(iter(sec for sec in self.project.loader.main_object.sections
@@ -1050,6 +1110,9 @@ class Reassembler(Analysis):
 
                 if segment is not None:
                     data = Data(self, memory_data, section_name='.data')
+                    if data.addr == 0xedb88320:
+                        import pdb
+                        pdb.set_trace()
                     self.data.append(data)
 
         # remove all data that belong to GCC-specific sections

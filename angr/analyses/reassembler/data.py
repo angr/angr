@@ -204,45 +204,6 @@ class Data(object):
         elif self.sort == 'double-pointer':
             l.warning("WE STILL USE DOUBLE POINTER")
 
-            """
-            if self.binary.project.arch.bits == 32:
-                directive = '.long'
-            elif self.binary.project.arch.bits == 64:
-                directive = '.quad'
-            else:
-                raise BinaryError('Unsupported pointer size %d', self.binary.project.arch.bits)
-
-            if symbolized:
-                addr_to_labels = {}
-                for k, v in self.labels:
-                    if k not in addr_to_labels:
-                        addr_to_labels[k] = [ ]
-                    addr_to_labels[k].append(v)
-
-                i = 0
-                if self.name is not None:
-                    s += "%s:\n" % self.name
-                if len(self.content) == 0:
-                    l.warning("No content in pointer array- sybmolzed subelements will be undefined")
-                symbolized_label = self.content[0]
-                if not self.content:
-                    l.warning("double-pointer Content is empty")
-                else:
-                    if self.addr is not None and (self.addr + i) in addr_to_labels:
-                        for label in addr_to_labels[self.addr + i]:
-                            s += "%s\n" % str(label)
-                    elif self.addr is not None and (self.addr + i) in self.binary.symbol_manager.addr_to_label:
-                        labels = self.binary.symbol_manager.addr_to_label[self.addr + i]
-                        for label in labels:
-                            s += "%s\n" % str(label)
-                    i += self.project.arch.bits / 8
-
-                    if isinstance(symbolized_label, (int, long)):
-                        s += "\t%s %d\n" % (directive, symbolized_label)
-                    else:
-                        s += "\t%s %s\n" % (directive, symbolized_label.operand_str)
-            """
-
         elif self.sort == 'pointer-array':
 
             if self.binary.project.arch.bits == 32:
@@ -432,7 +393,8 @@ class Data(object):
                 # Something bad is going on, we've created a label but don't know what data to place here
                 if not len(self.content):
                     if addr in addr_to_labels:
-                        l.warning("Empty content for label(s) %s", ", ".join([x.name for x in addr_to_labels[addr]]))
+                        #l.warning("Empty content for label(s) %s at addr 0x%x", ", ".join([x.name for x in addr_to_labels[addr]]), addr)
+
                         for label in addr_to_labels[addr]:
                             content += ["%s" % str(label) , "\t#Unknown data (This should never happen)"]
                         for _ in range((self.size / self.project.arch.bits)*4): # How many bytes in this size

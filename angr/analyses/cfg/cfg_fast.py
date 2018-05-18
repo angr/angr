@@ -1999,9 +1999,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     #print("In ARM insn: \t 0x{:x} \t {}".format(irsb_addr, stmt))
                     pass
 
-                # Getting LDle:I32(0x00010400) ... for when we're loading off_10400
+                #if "t7 = LDle:I32(0x00013a90)" in str(stmt):
+                    #import pdb
+                    #pdb.set_trace()
+            # Getting LDle:I32(0x00010400) ... for when we're loading off_10400
 
-
+        # Test LDR- 12578
 
         # for each statement, collect all constants that are referenced or used.
         self._collect_data_references_core(irsb, irsb_addr)
@@ -2024,6 +2027,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             :param str data_type: Type of the data being manipulated
             :return: None
             """
+
+            if self.project.arch.name in ('ARMHF', 'ARMEL') and type(stmt.data) is pyvex.IRExpr.Load \
+                and type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
+                    data_type="pointer-array" # It's just a pointer, aka an array with 1 element
 
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
@@ -2070,8 +2077,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
                     #print("Recurse on pointer value:\n\t{}\t{}\t{}".format(stmt, self._seg_list.is_occupied(stmt.data.addr), self._seg_list.occupied_by_sort(stmt.data.addr)))
 
+                        #loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
+                        #_process(irsb, stmt, stmt_idx, loc, instr_addr, next_instr_addr)
+
                     size = stmt.data.result_size(irsb.tyenv) / 8 # convert to bytes
-                    #print("Process 0x{:x} : {}".format(instr_addr, stmt))
                     _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
                              data_size=size, data_type='integer'
                              )
@@ -2138,7 +2147,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure data_addr is within a valid memory range
         if not self._addr_belongs_to_segment(data_addr):
-
             # data might be at the end of some section or segment...
             # let's take a look
             for segment in self.project.loader.main_object.segments:
@@ -2323,27 +2331,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                 pointer_addr=data_addr + j
                                                                 )
                             new_data_found = True
-
-                elif data_type == "double-pointer":
-                    # Ultimately need to output LDR, =(ptr as label)
-                    memory_data.sort = "pointer-array"
-                    ptr = self._fast_memory_load_pointer(data_addr) # data_addr->ptr->label
-                    #l.warning("LDR off_{:x} -> 0x{:x}".format(data_addr, ptr))
-                    if data_addr in self.kb.functions:
-                        #l.warning("\tDelete from functions")
-                        del self.kb.functions[data_addr] # It's a pointer, not a func
-                        new_data_found = True
-                    self._memory_data[ptr] = MemoryData(ptr, 1, 'pointer-array', None, None, None, None,
-                                                        pointer_addr=data_addr, insn_addr=data_addr)
-
-                    self._memory_data[data_addr] = MemoryData(data_addr, 1, 'unknown', None, None, None, None,
-                                                        insn_addr=data_addr)
-                    #if data_addr == 0x10528:
-                    #    import pdb
-                    #    pdb.set_trace()
-                    if not self._memory_data[data_addr].content:
-                        self._memory_data[data_addr].content = []
-                    self._memory_data[data_addr].content.append(ptr)
             else:
                 memory_data.size = memory_data.max_size
 

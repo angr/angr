@@ -283,6 +283,71 @@ class Operand(object):
 # TODO: can we move all this logic into cfg_fast around ~:1992
 
                 if self.mnemonic.startswith(u'ldr') :
+# TODO moved most of this logic into cfg_fast, now minimize to just load the off_XYZ addr
+                    self.disp += 8
+                    self.disp_is_coderef, self.disp_is_dataref, baseaddr = \
+                        self._imm_to_ptr(self.disp, self.type, self.mnemonic, self.binary.project.arch.name)
+
+                    if CAPSTONE_REG_MAP['ARMEL'][self.base] == "r15": # r15 is IP for ARMEL
+                        # LDR will load a data reference every time, that can then point to a codereference
+
+                        if not baseaddr:
+                            l.warning("0x{:x}\t LDR skip".format(self.insn_addr))
+                            return
+
+                        # Can we LDR a coderef? I don't think so, because it shoudl be a dataref that then points to a code or dataref
+                        """
+                        if baseaddr in self.binary.kb.functions:
+                            l.warning("\tDelete from functions (v2) at 0x{:x}".format(baseaddr))
+                            del self.binary.kb.functions[baseaddr]
+                            self.binary.data[:] = [x for x in self.binary.data if x.addr != baseaddr]
+
+                        assert(baseaddr not in self.binary.kb.functions)
+                        """
+
+                        # Ensure that we'll define label_x as ptr (ptr or imm)
+                        # Try to dereference it, if we can, LDR to the dereferenced address
+                        ptr = self.binary.fast_memory_load(baseaddr, 4, int)
+
+                        new_lbl = self.binary.symbol_manager.new_label(addr=ptr) # Just give us the existing label
+                        self.disp_label = new_lbl
+
+
+                        add_to_data = False
+                        if ptr in self.binary.cfg._memory_data:
+                            if self.binary.cfg._memory_data[ptr].sort == 'unknown': # Generated somewhere else uhhhhh?????? TODO
+                                l.warning("\tDONT Remove stale data for %s", self.disp_label.name)
+                                #del self.binary.cfg._memory_data[ptr]
+                                #assert(self.binary.cfg._memory_data[ptr].insn_addr == self.insn_addr) # Sometimes emm_data[ptr].insn_addr is None
+                            else:
+                                #l.warning("\tSkip duplicate for %s", self.disp_label.name) # We generated this from another LDR
+                                return
+                        else:
+                            # Populate memory_data[ptr] with a data object that points back to self.insn_addr
+                            data = MemoryData(ptr, 0, 'unknown', None, None, None, None, insn_addr=self.insn_addr)
+                            data.content = [ptr]
+                            self.binary.cfg._memory_data[ptr] = data
+                            add_to_data = True
+
+                        ptr_memory_data = self.binary.cfg._memory_data[ptr]
+                        ptr_content_holder = [ ]
+                        ptr_data_type, ptr_data_size = self.binary.cfg._guess_data_type(ptr_memory_data.irsb, ptr_memory_data.irsb_addr,
+                                                                         ptr_memory_data.stmt_idx, ptr, ptr_memory_data.max_size,
+                                                                         content_holder=ptr_content_holder)
+
+                        self.binary.cfg._memory_data[ptr] = MemoryData(ptr, ptr_data_size, ptr_data_type, None, None, None, None,
+                                                                pointer_addr=self.insn_addr, insn_addr=self.insn_addr)
+
+                        if add_to_data:
+                            d = Data(self.binary, self.binary.cfg._memory_data[ptr], addr=self.insn_addr, size=ptr_data_size, initial_content=ptr)
+                            self.binary.data.append(d)
+
+                        return
+                    else:
+                        # TODO: how to handle this? Just like a regular label? (this happens a lot, commented out so we can fix other things)
+                        #l.warning("Unsupported register-relative arm LDR: register=%s", CAPSTONE_REG_MAP['ARMEL'][self.base])
+                        pass
+                    """
                     self.disp += 8
                     self.disp_is_coderef, self.disp_is_dataref, baseaddr = \
                         self._imm_to_ptr(self.disp, self.type, self.mnemonic, self.binary.project.arch.name)
@@ -325,7 +390,7 @@ class Operand(object):
                                 l.warning("\tRemove stale data for %s", self.disp_label.name)
                                 del self.binary.cfg._memory_data[ptr]
                             else:
-                                l.warning("\t Skip duplicate for %s", self.disp_label.name) # We generated this from another LDR
+                                l.warning("\tSkip duplicate for %s", self.disp_label.name) # We generated this from another LDR
                                 return
 
                         # Populate memory_data[ptr] with a data object that points back to self.insn_addr
@@ -343,13 +408,26 @@ class Operand(object):
                                                                 pointer_addr=self.insn_addr, insn_addr=self.insn_addr)
 
                         #l.warning("\t\tAdd to data with content 0x%x", ptr)
-                        self.binary.data.append(Data(self.binary, self.binary.cfg._memory_data[ptr], addr=self.insn_addr, size=ptr_data_size, initial_content=ptr))
+
+                        d = Data(self.binary, self.binary.cfg._memory_data[ptr], addr=self.insn_addr, size=ptr_data_size, initial_content=ptr)
+
+                        # Combine labels for duplicate addresses
+                        if d.addr in [x.addr for x in self.binary.data]:
+                            for idx, val in enumerate(self.binary.data):
+                                cpy = val
+                                cpy.labels.extend(d.labels)
+                                self.binary.data[idx] = cpy
+                        else:
+                            self.binary.data.append(d)
+
+                        # TODO: something else is adding data into this list and not checking for duplicates
 
                         return
                     else:
                         # TODO: how to handle this? Just like a regular label? (this happens a lot, commented out so we can fix other things)
                         #l.warning("Unsupported register-relative arm LDR: register=%s", CAPSTONE_REG_MAP['ARMEL'][self.base])
                         pass
+                    """
 
                 elif self.mnemonic.startswith(u'str'):
                     pass # TODO?
