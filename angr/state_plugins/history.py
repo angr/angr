@@ -460,8 +460,7 @@ class TreeIter(object):
         return list(reversed(tuple(reversed(self))))
 
     def __len__(self):
-        # TODO: this is wrong
-        return self._start.depth
+        return self._start.depth + 1
 
     def __getitem__(self, k):
         if isinstance(k, slice):
