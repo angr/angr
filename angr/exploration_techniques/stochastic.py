@@ -1,4 +1,5 @@
 import random
+from collections import defaultdict
 
 from . import ExplorationTechnique
 
@@ -12,33 +13,33 @@ class StochasticSearch(ExplorationTechnique):
     When we run out of active paths to step, we start again from the start state.
     """
 
-    def __init__(self, start_state, cfg):
+    def __init__(self, start_state, restart_prob=0.0001):
         """
-        :param start_state: The initial state from which exploration stems.
-        :param cfg:         The control flow graph of the explored program.
+        :param start_state:  The initial state from which exploration stems.
+        :param restart_prob: The probability of randomly restarting the search (default 0.0001).
         """
-
         super(StochasticSearch, self).__init__()
         self.start_state = start_state
-        self.cfg = cfg
-        self.affinity = StochasticSearch.random_affinity(self.cfg)
+        self.restart_prob = restart_prob
+        self._random = random.Random()
+        self._random.seed(42)
+        self.affinity = defaultdict(self._random.random)
 
     def step(self, simgr, stash=None, **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
 
-        if not simgr.stashes[stash] or random.random() < 0.0001:
+        if not simgr.stashes[stash] or self._random.random() < self.restart_prob:
             simgr.stashes[stash] = [self.start_state]
-            self.affinity = StochasticSearch.random_affinity(self.cfg)
+            self.affinity.clear()
 
-        if len(simgr.stashes[stash]) > 1:
+        if len(simgr.stashes[stash]) >= 2:
             def weighted_pick(states):
                 """
                 param states: Diverging states.
                 """
                 assert len(states) >= 2
-                affinity = lambda s: self.affinity[s.addr]
-                total_weight = sum((affinity(s) for s in states))
-                selected = random.uniform(0, total_weight)
+                total_weight = sum((self.affinity[s.addr] for s in states))
+                selected = self._random.uniform(0, total_weight)
                 i = 0
                 for i, state in enumerate(states):
                     weight = self.affinity[state.addr]
@@ -52,10 +53,3 @@ class StochasticSearch(ExplorationTechnique):
             simgr.stashes[stash] = [weighted_pick(simgr.stashes[stash])]
 
         return simgr
-
-    @staticmethod
-    def random_affinity(cfg):
-        """
-        param cfg: The control flow graph to assign weights.
-        """
-        return {addr: random.random() for addr in cfg.get_bbl_dict()}

@@ -9,6 +9,9 @@ class UniqueSearch(ExplorationTechnique):
 
     Will only keep one path active at a time, any others will be deferred.
     The state that is explored depends on how unique it is relative to the other deferred states.
+    A path's uniqueness is determined by its average similarity between the other (deferred) paths.
+    Similarity is calculated based on the supplied `similarity_func`, which by default is:
+    The (L2) distance between the counts of the state addresses in the history of the path.
     """
 
     def __init__(self, similarity_func=None, deferred_stash='deferred'):
@@ -16,7 +19,6 @@ class UniqueSearch(ExplorationTechnique):
         :param similarity_func: How to calculate similarity between two states.
         :param deferred_stash:  Where to store the deferred states.
         """
-
         super(UniqueSearch, self).__init__()
         self.similarity_func = similarity_func or UniqueSearch.similarity
         self.deferred_stash = deferred_stash
@@ -74,6 +76,7 @@ class UniqueSearch(ExplorationTechnique):
     @staticmethod
     def similarity(state_a, state_b):
         """
+        The (L2) distance between the counts of the state addresses in the history of the path.
         :param state_a: The first state to compare
         :param state_b: The second state to compare
         """
@@ -86,6 +89,7 @@ class UniqueSearch(ExplorationTechnique):
     @staticmethod
     def sequence_matcher_similarity(state_a, state_b):
         """
+        The `difflib.SequenceMatcher` ratio between the state addresses in the history of the path.
         :param state_a: The first state to compare
         :param state_b: The second state to compare
         """
