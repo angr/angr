@@ -143,6 +143,7 @@ class Data(object):
 
     def data_assembly(self, comments=False, symbolized=True): #called from reassembler.py:1177
         s = ""
+        blacklisted_labels = ["__JCR_END__"]
         if comments:
             # TODO: move comments so they're after each label/section header
             if self.addr is not None:
@@ -202,7 +203,7 @@ class Data(object):
                 s += "\t.{directive} \"{str}\"".format(directive=directive, str=string_escape(self.content[0]))
             s += '\n'
         elif self.sort == 'double-pointer':
-            l.warning("WE STILL USE DOUBLE POINTER")
+            l.warning("WE STILL USE DOUBLE POINTER") # TODO
 
         elif self.sort == 'pointer-array':
 
@@ -220,6 +221,7 @@ class Data(object):
                         addr_to_labels[k] = [ ]
                     addr_to_labels[k].append(v)
 
+
                 i = 0
                 if self.name is not None:
                     s += "%s:\n" % self.name
@@ -234,7 +236,7 @@ class Data(object):
                             s += "%s\n" % str(label)
 
                     l.warning("No content in pointer array[0x{:x}] for {} defining as 0".format(self.addr, s.split("\n")[-2]))
-                    s+= "\t# WARNING: unkown value - set to 0\n"
+                    s+= "\t# WARNING: unknown value - set to 0\n"
                     s+= "\t.byte 0\n"
                 for symbolized_label in self.content:
 
@@ -248,13 +250,16 @@ class Data(object):
                     i += self.project.arch.bits / 8
                     if not symbolized_label:
                         l.warning("Empty value in content for pointer array[0x{:x}] with labels: {} defining as 0".format(self.addr, s.split("\n")[-2]))
-                        s+= "\t# WARNING: unkown value - set to 0\n"
+                        s+= "\t# WARNING: unknown value - set to 0\n"
                         s+= "\t.byte 0\n"
                         continue
 
                     if isinstance(symbolized_label, (int, long)):
                         s += "\t%s %d\n" % (directive, symbolized_label)
                     else:
+                        if symbolized_label.operand_str in blacklisted_labels:
+                            s += "\t# Blacklisted label %s ignored" % (symbolized_label.operand_str)
+                            continue
                         s += "\t%s %s\n" % (directive, symbolized_label.operand_str)
 
             else:
@@ -381,6 +386,8 @@ class Data(object):
                     addr_to_labels[k].append(v)
 
                 addr = self.addr if self.addr is not None else 0
+
+
                 for piece in self.content:
                     for c in piece:
                         if addr in addr_to_labels:
@@ -469,6 +476,7 @@ class Data(object):
                 self.labels.append((0, lbl))
 
                 self._content = [ self._initial_content ]
+                l.warning("Initialized _content at 0x%x with %s", self.addr, str(self._content))
 
             elif self.sort == 'segment-boundary':
                 label = self.binary.symbol_manager.new_label(self.addr)

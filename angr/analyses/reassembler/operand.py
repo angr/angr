@@ -1,4 +1,5 @@
 import pdb
+import struct
 import logging
 from ..cfg.cfg_fast import MemoryData
 from .ramblr_utils import CAPSTONE_OP_TYPE_MAP, CAPSTONE_REG_MAP, OP_TYPE_MAP, OP_TYPE_IMM, OP_TYPE_REG, OP_TYPE_MEM, OP_TYPE_OTHER
@@ -314,18 +315,10 @@ class Operand(object):
 
 
                         add_to_data = False
-                        if ptr in self.binary.cfg._memory_data:
-                            if self.binary.cfg._memory_data[ptr].sort == 'unknown': # Generated somewhere else uhhhhh?????? TODO
-                                l.warning("\tDONT Remove stale data for %s", self.disp_label.name)
-                                #del self.binary.cfg._memory_data[ptr]
-                                #assert(self.binary.cfg._memory_data[ptr].insn_addr == self.insn_addr) # Sometimes emm_data[ptr].insn_addr is None
-                            else:
-                                #l.warning("\tSkip duplicate for %s", self.disp_label.name) # We generated this from another LDR
-                                return
-                        else:
+                        if ptr not in self.binary.cfg._memory_data:
                             # Populate memory_data[ptr] with a data object that points back to self.insn_addr
                             data = MemoryData(ptr, 0, 'unknown', None, None, None, None, insn_addr=self.insn_addr)
-                            data.content = [ptr]
+                            #data.content = [ptr]
                             self.binary.cfg._memory_data[ptr] = data
                             add_to_data = True
 
@@ -340,7 +333,14 @@ class Operand(object):
 
                         if add_to_data:
                             d = Data(self.binary, self.binary.cfg._memory_data[ptr], addr=self.insn_addr, size=ptr_data_size, initial_content=ptr)
-                            self.binary.data.append(d)
+                            # The Data class automatically creates content from insn_addr, but that won't work when ptr is a constant
+                            # being loaded with LDR. In that case, we need to replace that with the ptr value
+                            # TODO: We won't handle it correctly if we LDR a constant value that could be a pointer
+                            if not d._content:
+                                d._content = [struct.pack(">I", ptr)]
+                                d.size = 4
+                                d.sort = 'integer'
+                                self.binary.data.append(d)
 
                         return
                     else:
