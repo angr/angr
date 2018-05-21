@@ -2,18 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 from cachetools import LRUCache
-
-# FIXME: pytcg should be installed via pip or something... just add it
-# to the path for now ¯\_(ツ)_/¯ 
-import os, os.path
-sys.path.append(
-    os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        '../../../../../'))
-print(sys.path[-1])
-
 import pytcg
-# import pyvex
 import claripy
 from archinfo import ArchARM
 
