@@ -315,6 +315,10 @@ class SimProcedure:
 
             self.ret_expr = expr
 
+        if not self.should_add_successors:
+            l.debug("Returning without setting exits due to 'internal' call.")
+            return
+
         ret_addr = self._compute_ret_addr(expr)
         if ret_addr is None:
             raise SimProcedureError("No source for return address in ret() call!")
@@ -446,10 +450,6 @@ class SimProcedure:
                 return_val=expr,
                 arg_types=[False] * self.num_args if self.cc.args is None else None
             )
-
-        if not self.should_add_successors:
-            l.debug("Returning without setting exits due to 'internal' call.")
-            return
 
         if self.ret_to is not None:
             ret_addr = self.ret_to
