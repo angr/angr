@@ -30,7 +30,7 @@ class Block(object):
         if isinstance(self.arch, ArchARM):
             if addr & 1 == 1:
                 thumb = True
-            if thumb:
+            elif thumb:
                 addr |= 1
         else:
             thumb = False

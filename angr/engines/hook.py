@@ -19,6 +19,8 @@ class SimEngineHook(SimEngine):
 
         if procedure is None:
             if state.addr not in self.project._sim_procedures:
+                if state.arch.name.startswith('ARM') and state.addr & 1 == 1 and state.addr - 1 in self.project._sim_procedures:
+                    return True
                 return False
 
         return True
@@ -38,7 +40,10 @@ class SimEngineHook(SimEngine):
 
         if procedure is None:
             if addr not in self.project._sim_procedures:
-                return SimSuccessors.failure()
+                if state.arch.name.startswith('ARM') and addr & 1 == 1 and addr - 1 in self.project._sim_procedures:
+                    procedure = self.project._sim_procedures[addr - 1]
+                else:
+                    return SimSuccessors.failure()
             else:
                 procedure = self.project._sim_procedures[addr]
 

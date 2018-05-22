@@ -32,7 +32,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         if mountpoints is None: mountpoints = {}
 
         self.pathsep = pathsep
-        self.cwd = self.pathsep # temp root cwd to easily normalize paths
+        self.cwd = cwd
         self.unlinks = []
         self._files = {}
         self._mountpoints = {}
@@ -41,8 +41,6 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
             self.mount(fname, mountpoints[fname])
         for fname in files:
             self.insert(fname, files[fname])
-
-        self.cwd = cwd # real cwd
 
     def set_state(self, state):
         super(SimFilesystem, self).set_state(state)

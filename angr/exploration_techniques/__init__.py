@@ -1,3 +1,4 @@
+from .. import engines
 from ..errors import SimError
 
 
@@ -140,6 +141,9 @@ class ExplorationTechnique(object):
                     # returning {p.addr} instead of True to properly handle find/avoid conflicts
                     return {p.addr}
 
+                if not isinstance(self.project.engines.default_engine, engines.SimEngineVEX):
+                    return False
+
                 try:
                     # If the address is not in the set (which could mean it is
                     # not at the top of a block), check directly in the blocks
@@ -181,4 +185,6 @@ from .director import Director, ExecuteAddressGoal, CallFunctionGoal
 from .spiller import Spiller
 from .manual_mergepoint import ManualMergepoint
 from .tech_builder import TechniqueBuilder
+from .stochastic import StochasticSearch
+from .unique import UniqueSearch
 from ..errors import AngrError, AngrExplorationTechniqueError
