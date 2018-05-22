@@ -3,6 +3,7 @@ from ..engines.soot.values import SimSootValue_Local
 
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory
+from .plugin import SimStatePlugin
 
 
 class SimJavaVmMemory(SimMemory):
@@ -35,7 +36,8 @@ class SimJavaVmMemory(SimMemory):
         else:
             import ipdb; ipdb.set_trace()
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo):  # pylint: disable=unused-argument
         return SimJavaVmMemory(
             memory_id=self.id,
             stack=self._stack[::],
@@ -50,3 +52,7 @@ class SimJavaVmMemory(SimMemory):
     @property
     def stack(self):
         return self._stack[-1]
+
+
+from angr.sim_state import SimState
+SimState.register_default('javavm_memory', SimJavaVmMemory)
