@@ -185,4 +185,6 @@ from .director import Director, ExecuteAddressGoal, CallFunctionGoal
 from .spiller import Spiller
 from .manual_mergepoint import ManualMergepoint
 from .tech_builder import TechniqueBuilder
+from .stochastic import StochasticSearch
+from .unique import UniqueSearch
 from ..errors import AngrError, AngrExplorationTechniqueError
