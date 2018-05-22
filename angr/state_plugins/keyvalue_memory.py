@@ -1,10 +1,11 @@
 
 from ..storage import SimKVStore
+from .plugin import SimStatePlugin
 
 
 class SimKeyValueMemory(SimKVStore):
-    def __init__(self, memory_id):
-        super(SimKeyValueMemory, self).__init__()
+    def __init__(self, memory_id, store=None):
+        super(SimKeyValueMemory, self).__init__(store)
         self.memory_id = memory_id
 
     @SimStatePlugin.memo
