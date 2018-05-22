@@ -23,7 +23,7 @@ from .data import Data
 from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNotice
 
 l = logging.getLogger("angr.analyses.reassembler")
-l.setLevel("DEBUG")
+l.setLevel("WARNING")
 
 class Relocation(object):
     def __init__(self, addr, ref_addr, sort):
@@ -35,7 +35,9 @@ class Relocation(object):
         s = "<Reloc %s %#x (%#x)>" % (self.sort, self.addr, self.ref_addr)
         return s
 
-class PythonSux(list):
+"""
+# Debug-only helper class to replace arrays so we can trigger breakpoints when elements are added
+class FakeList(list):
     def __init__(self, name):
         self.data = []
         self.name = name
@@ -49,22 +51,14 @@ class PythonSux(list):
         self.data[x] =y
 
     def append(self,x):
-        #print("APPEND {}".format(x))
-        if self.name == 'res_data' and x.addr==0x12558:
-            print("DATA MAIN")
-            import pdb
-            pdb.set_trace()
-        if self.name == 'res_proc' and x.addr==0x12558:
-            print("PROC MAIN")
-            import pdb
-            pdb.set_trace()
         self.data.append(x)
 
     def __iter__(self):
-        return super(PythonSux, self).__iter__()
+        return super(FakeList, self).__iter__()
 
     def __contains__(self,x):
-        return super(PythonSux, self).__contains__(x)
+        return super(FakeList, self).__contains__(x)
+"""
 
 
 class Reassembler(Analysis):
@@ -443,7 +437,7 @@ class Reassembler(Analysis):
         proc = Procedure(self, name=name, asm_code=asm_code)
         self.procedures.append(proc)
 
-    def append_data(self, name, initial_content, size, readonly=False, sort="unknown"):  # pylint:disable=unused-argument
+    def append_data(self, name, initial_content, size, readonly=False, sort='unknown'):  # pylint:disable=unused-argument
         """
         Append a new data entry into the binary with specific name, content, and size.
 
@@ -558,7 +552,7 @@ class Reassembler(Analysis):
             self.symbol_manager.addr_to_label[label.original_addr].remove(label)
             #if not self.symbol_manager.addr_to_label[label.original_addr]:
             #    del self.symbol_manager.addr_to_label[label.original_addr]
-            print("Add label {} at a2l[0x{:x}]".format(label.name, label.base_addr))
+            #print("Add label {} at a2l[0x{:x}]".format(label.name, label.base_addr))
             self.symbol_manager.addr_to_label[label.base_addr].append(label)
 
         if changed_labels:
@@ -630,36 +624,26 @@ class Reassembler(Analysis):
                         continue
                     self.project.extract_libc_main = True
 
-                    main_ptr_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
-                    # Dereference the pointer
-                    main_ptr_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
-                    main_addr = proc.binary.fast_memory_load(main_ptr_addr, 4, int)
+                    main_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
 
                     if not main_addr:
                         l.warning("Could not find main address")
                         continue
 
-                    # TODO: We need to create a new procedure at main_addr
-                    # For now, just rename the label to 'main'
+                    # Just rename the label to 'main'
+                    #TODO maybe we need to create a new procedure at main_addr
                     if len(self.symbol_manager.addr_to_label[main_addr]):
                         self.symbol_manager.addr_to_label[main_addr][0].name = "main"
 
-                    main_lbl_real = proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True, dereference=False)
+                    main_lbl_real = proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True)
                     self.symbol_manager.addr_to_label[main_addr].append(main_lbl_real)
 
                     # Figure out if we're in an existing procedure
                     proc = next((p for p in self.procedures if main_addr in [x[0] for x in p.instruction_addresses()]), None)
                     if proc is None:
-                        l.warning("Couldn't find main in existing proc")
+                        l.warning("Couldn't find main (0x%x) in existing proc", main_addr)
                     else:
                         pass
-                        
-                    #""
-                    #proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True, dereference=False)
-                    #new_fn = self.cfg.kb.functions.function(addr=main_addr, name="main", create=True)
-                    #main_procedure = Procedure(self, new_fn, main_addr, 0x30, "main")
-                    #self.procedures.append(main_procedure)
-                    #""
 
         for proc in self.procedures:
             if not ignore_function(proc):
@@ -704,6 +688,10 @@ class Reassembler(Analysis):
                     section=(last_section if last_section != '.init_array' else '.data'),
                     alignment=self.section_alignment(last_section)
                 ))
+
+            if data.sort == 'unknown' and data.size == 4: # TODO track this bug down better, seen with g_4 in csmith tests
+                l.warning("Risky bugfix- Marking unknown of size 4 as an int")
+                data.sort = 'integer'
 
             all_assembly_lines.append(data.data_assembly(comments=comments, symbolized=symbolized))
 
@@ -1051,8 +1039,8 @@ class Reassembler(Analysis):
             if memory_data.sort in ('code reference', ):
                 continue
 
-            if addr in [x.addr for x in self.procedures]:
-                l.warning("Added data at 0x%x but there's also a proc defined there! Delete from procs", addr)
+            if addr in [x.addr for x in self.procedures]: # TODO - Keep duplicates out in the first place
+                #l.warning("Added data at 0x%x but there's also a proc defined there! Delete from procs", addr)
                 self.procedures[:] = [x for x in self.procedures if x.addr != addr]
 
             # TODO: CGC specific
@@ -1110,9 +1098,6 @@ class Reassembler(Analysis):
 
                 if segment is not None:
                     data = Data(self, memory_data, section_name='.data')
-                    if data.addr == 0xedb88320:
-                        import pdb
-                        pdb.set_trace()
                     self.data.append(data)
 
         # remove all data that belong to GCC-specific sections
@@ -1379,9 +1364,9 @@ class Reassembler(Analysis):
                 break
 
         if size is not None:
-            return "unknown", size
+            return 'unknown', size
         elif sequence_offset is not None:
-            return "unknown", sequence_offset
+            return 'unknown', sequence_offset
         else:
             return None, None
 

@@ -22,7 +22,7 @@ from .symbol_manager import SymbolManager
 from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNotice
 
 l = logging.getLogger("angr.analyses.reassembler")
-l.setLevel("DEBUG")
+l.setLevel("WARNING")
 
 class Data(object):
     def __init__(self, binary, memory_data=None, section=None, section_name=None, name=None, size=None, sort=None,
@@ -141,9 +141,9 @@ class Data(object):
         l.warning("Deprecated call to data.assembly. Use data.data_assembly")
         return self.data_assembly(comments, symbolized)
 
-    def data_assembly(self, comments=False, symbolized=True): #called from reassembler.py:1177
+    def data_assembly(self, comments=False, symbolized=True):
         s = ""
-        blacklisted_labels = ["__JCR_END__"]
+        blacklisted_labels = ["__JCR_END__"] # Named values we skip printing
         if comments:
             # TODO: move comments so they're after each label/section header
             if self.addr is not None:
@@ -151,10 +151,14 @@ class Data(object):
             else:
                 s += "\t# data (%s)\n" % self.name
 
+        # Can we skip unlabeled values? This often picks up null terminators after strings. Disabling for now
+        #if symbolized and not self.labels:
+        #    s += "\t# SKIP?\n"
+
         if self.skip:
             return s
 
-        if self.sort == "unknown":
+        if self.sort == 'unknown':
             l.warning("Trying to assemble 0x{:x} but we still don't know what it's sort is".format(self.addr))
 
         if self.sort == 'string':
@@ -202,8 +206,6 @@ class Data(object):
                     directive = ".asciz"
                 s += "\t.{directive} \"{str}\"".format(directive=directive, str=string_escape(self.content[0]))
             s += '\n'
-        elif self.sort == 'double-pointer':
-            l.warning("WE STILL USE DOUBLE POINTER") # TODO
 
         elif self.sort == 'pointer-array':
 
@@ -248,7 +250,7 @@ class Data(object):
                         for label in labels:
                             s += "%s\n" % str(label)
                     i += self.project.arch.bits / 8
-                    if not symbolized_label:
+                    if symbolized_label is None:
                         l.warning("Empty value in content for pointer array[0x{:x}] with labels: {} defining as 0".format(self.addr, s.split("\n")[-2]))
                         s+= "\t# WARNING: unknown value - set to 0\n"
                         s+= "\t.byte 0\n"
@@ -376,7 +378,7 @@ class Data(object):
         else:
             content = []
             if self.sort == None:
-                l.warning("Data sort is none at 0x%x (%s)", self.addr, ", ".join([x.name for _, x in self.labels]))
+                l.debug("Data sort is none at 0x%x (%s)", self.addr, ", ".join([x.name for _, x in self.labels]))
 
             if symbolized:
                 addr_to_labels = { }

@@ -48,7 +48,7 @@ class Instruction(object):
         :return:
         """
 
-        assembly = self.assembly(comments=True, symbolized=False)
+        assembly = self.assemble_insn(comments=True, symbolized=False)
         return assembly
 
     #

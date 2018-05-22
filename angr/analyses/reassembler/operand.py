@@ -71,27 +71,29 @@ class Operand(object):
     #
 
     def assembly(self):
-        if self.type == OP_TYPE_IMM and self.label:
+        if self.type == OP_TYPE_IMM:
+            if self.label:
+                # No support for a label offset with pre- or postfixed
+                assert not(self.label_offset !=0 and (self.label_suffix or self.label_prefix))
 
-            # No support for a label offset with pre- or postfixed
-            assert not(self.label_offset !=0 and (self.label_suffix or self.label_prefix))
 
+                # Architectures like PPC can load reg@h or reg@l to indicate high or low bits of an address
+                # If the label_offset is a string, it should be used as a suffix on 'label@'
+                if self.label_suffix:
+                    return "%s%s" % (self.label.operand_str, self.label_offset)
 
-            # Architectures like PPC can load reg@h or reg@l to indicate high or low bits of an address
-            # If the label_offset is a string, it should be used as a suffix on 'label@'
-            if self.label_suffix:
-                return "%s%s" % (self.label.operand_str, self.label_offset)
+                if self.label_prefix:
+                    return "%s%s" % (self.label_prefix, self.label.operand_str)
 
-            if self.label_prefix:
-                return "%s%s" % (self.label_prefix, self.label.operand_str)
-
-            # Otherwise, it will be an integer +/- of the label
-            if self.label_offset > 0:
-                return "%s + %d" % (self.label.operand_str, self.label_offset)
-            elif self.label_offset < 0:
-                return "%s - %d" % (self.label.operand_str, abs(self.label_offset))
-            else:
-                return self.label.operand_str
+                # Otherwise, it will be an integer +/- of the label
+                if self.label_offset > 0:
+                    return "%s + %d" % (self.label.operand_str, self.label_offset)
+                elif self.label_offset < 0:
+                    return "%s - %d" % (self.label.operand_str, abs(self.label_offset))
+                else:
+                    return self.label.operand_str
+            elif self.project.arch.name == "ARMEL":
+                return "=%d" % self.disp # ARM can LDR r1, =1234
 
         elif self.type == OP_TYPE_MEM:
 
@@ -124,7 +126,7 @@ class Operand(object):
                                               self.scale
                                               )
                 elif self.base:  # not self.index
-                    if self.project.arch.name != "ARMEL" or base != "%r15":
+                    if self.project.arch.name != "ARMEL" or CAPSTONE_REG_MAP["ARMEL"][self.base] != "r15":
                         asm = "%s(%s)" % (disp, base)
                     else:
                         try:
@@ -223,9 +225,6 @@ class Operand(object):
             l.warning("Disabling log_relocations for PPC32. Not sure what that really means...")
             self.binary.log_relocations = False # Not currently supported, not sure if it needs to be
 
-        #if self.insn_addr == 0x00b0ec:
-        #    pdb.set_trace()
-
         if self.type == OP_TYPE_IMM:
             # Check if this is a reference to code
             imm = capstone_operand.imm
@@ -310,15 +309,23 @@ class Operand(object):
                         # Try to dereference it, if we can, LDR to the dereferenced address
                         ptr = self.binary.fast_memory_load(baseaddr, 4, int)
 
+                        ptr_is_coderef, ptr_is_dataref, basevalue = \
+                            self._imm_to_ptr(ptr, self.type, self.mnemonic, self.binary.project.arch.name)
+
+
+                        if not ptr_is_coderef and not ptr_is_dataref: # Ptr points to a constant
+                            self.type = OP_TYPE_IMM
+                            self.base = 0 # Absolute value
+                            self.disp = ptr
+
                         new_lbl = self.binary.symbol_manager.new_label(addr=ptr) # Just give us the existing label
                         self.disp_label = new_lbl
-
 
                         add_to_data = False
                         if ptr not in self.binary.cfg._memory_data:
                             # Populate memory_data[ptr] with a data object that points back to self.insn_addr
+                            l.debug("Create unknown data at 0x%x", ptr) # This is okay, right? I think it's resolved below
                             data = MemoryData(ptr, 0, 'unknown', None, None, None, None, insn_addr=self.insn_addr)
-                            #data.content = [ptr]
                             self.binary.cfg._memory_data[ptr] = data
                             add_to_data = True
 
@@ -328,6 +335,9 @@ class Operand(object):
                                                                          ptr_memory_data.stmt_idx, ptr, ptr_memory_data.max_size,
                                                                          content_holder=ptr_content_holder)
 
+                        if len(ptr_content_holder) == 1: # Not sure if this does anything - may affect the 'if not d._content' logic below
+                            ptr_memory_data.content = ptr_content_holder[0]
+
                         self.binary.cfg._memory_data[ptr] = MemoryData(ptr, ptr_data_size, ptr_data_type, None, None, None, None,
                                                                 pointer_addr=self.insn_addr, insn_addr=self.insn_addr)
 
@@ -335,7 +345,6 @@ class Operand(object):
                             d = Data(self.binary, self.binary.cfg._memory_data[ptr], addr=self.insn_addr, size=ptr_data_size, initial_content=ptr)
                             # The Data class automatically creates content from insn_addr, but that won't work when ptr is a constant
                             # being loaded with LDR. In that case, we need to replace that with the ptr value
-                            # TODO: We won't handle it correctly if we LDR a constant value that could be a pointer
                             if not d._content:
                                 d._content = [struct.pack(">I", ptr)]
                                 d.size = 4
@@ -347,162 +356,14 @@ class Operand(object):
                         # TODO: how to handle this? Just like a regular label? (this happens a lot, commented out so we can fix other things)
                         #l.warning("Unsupported register-relative arm LDR: register=%s", CAPSTONE_REG_MAP['ARMEL'][self.base])
                         pass
-                    """
-                    self.disp += 8
-                    self.disp_is_coderef, self.disp_is_dataref, baseaddr = \
-                        self._imm_to_ptr(self.disp, self.type, self.mnemonic, self.binary.project.arch.name)
-
-                    if CAPSTONE_REG_MAP['ARMEL'][self.base] == "r15": # r15 is IP for ARMEL
-                        # LDR will load a data reference every time, that can then point to a codereference
-                        self.disp_is_coderef = False
-                        self.disp_is_dataref = True
-
-                        if not baseaddr:
-                            l.warning("0x{:x}\t LDR skip".format(self.insn_addr))
-                            #c, d, b = self._imm_to_ptr(self.disp, self.type, self.mnemonic, self.binary.project.arch.name)
-                            return
-
-                        # Can we LDR a coderef? I don't think so, because it shoudl be a dataref that then points to a code or dataref
-                        #if self.disp_is_coderef or self.disp_is_dataref:
-                        if baseaddr in self.binary.kb.functions:
-                            #l.warning("\tDelete from functions (v2) at 0x{:x}".format(baseaddr))
-                            del self.binary.kb.functions[baseaddr]
-                            self.binary.data[:] = [x for x in self.binary.data if x.addr != baseaddr]
-                            self.is_dataref = True
-                            self.is_coderef = False
-
-
-                        # Ensure that we'll define label_x as ptr (ptr or imm)
-                        # Try to dereference it, if we can, LDR to the dereferenced address
-                        ptr = self.binary.fast_memory_load(baseaddr, 4, int)
-
-                        # Ptr will always exist, but it may or may not point to additional data - Need to decide
-                        ptr_coderef, ptr_dataref, ptr_baseaddr = self._imm_to_ptr(ptr, self.type, self.mnemonic) # type and menmonic are wrong
-
-                        new_lbl = self.binary.symbol_manager.new_label(addr=ptr)
-                        self.disp_label = new_lbl
-
-                        l.warning("0x{:x} -> 0x{:x} -> {} \t LDR".format(self.insn_addr, baseaddr, self.disp_label.name))
-                        l.warning("\tCreated/loaded label %s", self.disp_label.name)
-
-                        if ptr in self.binary.cfg._memory_data:
-                            if self.binary.cfg._memory_data[ptr].sort == 'unknown': # Generated somewhere else
-                                l.warning("\tRemove stale data for %s", self.disp_label.name)
-                                del self.binary.cfg._memory_data[ptr]
-                            else:
-                                l.warning("\tSkip duplicate for %s", self.disp_label.name) # We generated this from another LDR
-                                return
-
-                        # Populate memory_data[ptr] with a data object that points back to self.insn_addr
-                        data = MemoryData(ptr, 0, 'unknown', None, None, None, None, insn_addr=self.insn_addr)
-                        data.content = [ptr]
-                        self.binary.cfg._memory_data[ptr] = data
-
-                        ptr_memory_data = self.binary.cfg._memory_data[ptr]
-                        ptr_content_holder = [ ]
-                        ptr_data_type, ptr_data_size = self.binary.cfg._guess_data_type(ptr_memory_data.irsb, ptr_memory_data.irsb_addr,
-                                                                         ptr_memory_data.stmt_idx, ptr, ptr_memory_data.max_size,
-                                                                         content_holder=ptr_content_holder)
-
-                        self.binary.cfg._memory_data[ptr] = MemoryData(ptr, ptr_data_size, ptr_data_type, None, None, None, None,
-                                                                pointer_addr=self.insn_addr, insn_addr=self.insn_addr)
-
-                        #l.warning("\t\tAdd to data with content 0x%x", ptr)
-
-                        d = Data(self.binary, self.binary.cfg._memory_data[ptr], addr=self.insn_addr, size=ptr_data_size, initial_content=ptr)
-
-                        # Combine labels for duplicate addresses
-                        if d.addr in [x.addr for x in self.binary.data]:
-                            for idx, val in enumerate(self.binary.data):
-                                cpy = val
-                                cpy.labels.extend(d.labels)
-                                self.binary.data[idx] = cpy
-                        else:
-                            self.binary.data.append(d)
-
-                        # TODO: something else is adding data into this list and not checking for duplicates
-
-                        return
-                    else:
-                        # TODO: how to handle this? Just like a regular label? (this happens a lot, commented out so we can fix other things)
-                        #l.warning("Unsupported register-relative arm LDR: register=%s", CAPSTONE_REG_MAP['ARMEL'][self.base])
-                        pass
-                    """
-
                 elif self.mnemonic.startswith(u'str'):
                     pass # TODO?
-                    """
-                    self.disp_is_coderef, self.disp_is_dataref, baseaddr = \
-                        self._imm_to_ptr(self.disp, self.type, self.mnemonic, self.binary.project.arch.name)
-
-                    self.disp_is_coderef = False
-                    self.disp_is_dataref = True
-                    if self.insn_addr == 0x104d8:
-                        import pdb
-                        pdb.set_trace()
-
-                    dereferenced_val = self.binary.fast_memory_load(baseaddr, 4, int)
-                    if dereferenced_val:
-                        new_lbl = self.binary.symbol_manager.new_label(addr=dereferenced_val)
-                        print("0x{:x}:\tSTR off_{:x} \t = {:<9} =>  {:<15} == 0x{:x}".format(self.insn_addr, baseaddr, "_", new_lbl.name, dereferenced_val))
-
-                    self.label = self.binary.symbol_manager.new_label(addr=baseaddr)
-                    self.label_offset = imm - baseaddr
-                    """
                 else:
                     l.warning(self.mnemonic)
                     if self.is_coderef or self.is_dataref:
                         self.label = self.binary.symbol_manager.new_label(addr=baseaddr)
                         self.label_offset = imm - baseaddr
 
-                """
-                #self.disp_label_offset = self.disp - baseaddr
-                self.disp_is_coderef = False
-                self.disp_is_dataref = True
-                self.binary.register_instruction_reference(self.insn_addr, self.disp, 'relative', self.insn_size, self.binary.project.arch.name)
-                self.binary.symbol_manager.addr_to_label[baseaddr].insert(0, self.disp_label)
-                print("Add label {} at a2l[0x{:x}] ={} (coderef={}, dataref={})".format(self.disp_label.name, baseaddr, [x.name for x in self.binary.symbol_manager.addr_to_label[baseaddr]], self.disp_is_coderef, self.disp_is_dataref))
-
-                dereference = False #TODO - Is this helping? did we fix this somewhere else?
-                if dereference and self.project.arch.name == "ARMEL" and self.mnemonic.startswith(u'ldr') and \
-                    self.disp not in self.binary.symbol_manager.addr_to_label.keys():
-
-                    # The memory reference from LDR might be a pointer - how do we handle that?
-                    # We need to fixup the disassembly a bit here - we have a memory reference LDR is referencing 
-                    self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size, self.binary.project.arch.name)
-
-                    # use a label here: ldr r0, [.label_this]
-
-                    self.disp_label = self.binary.symbol_manager.new_label(addr=self.disp)
-
-                    #self.binary.symbol_manager.addr_to_label[self.disp] = [self.disp_label]
-                    self.disp_label_offset = 0
-                    l.warning("Found LDR mem at 0x%x - mem 0x%x labeled as %s", self.insn_addr, self.disp, self.disp_label.name)
-
-                    # Dereference the pointer we just labeled and symbolize if necessary
-                    dereferenced = self.binary.fast_memory_load(self.disp, 4, int)
-                    is_coderef, is_dataref, baseaddr = self._imm_to_ptr(dereferenced, self.type, self.mnemonic)
-
-                    # Symbolize the pointer's value as well, if necessary
-                    if is_coderef or is_dataref:
-                        deref_lbl = self.binary.symbol_manager.new_label(addr=dereferenced)
-                        dereferenced_val = self.binary.fast_memory_load(dereferenced, 4, int)
-                        l.warning("\t That's a pointer to 0x%x - labeled as %s", dereferenced, deref_lbl.name)
-                        self.binary.register_instruction_reference(self.disp, dereferenced, 'absolute', 4, self.binary.project.arch.name)
-                        self.binary.add_data(dereferenced, dereferenced_val)
-
-
-                        dereferenced2 = self.binary.fast_memory_load(dereferenced, 4, int)
-                        #procedure = Procedure(self, f, section=section)
-                        #self.procedures.append(procedure)
-                        #pdb.set_trace()
-                        self.binary.append_data2(deref_lbl, dereferenced2, 4)
-                else:
-                    self.disp_label = self.binary.symbol_manager.new_label(addr=baseaddr)
-                    print("Add label {} at a2l[0x{:x}] (coderef={}, dataref={})".format(self.disp_label.name, baseaddr, self.disp_is_coderef, self.disp_is_dataref))
-                    self.disp_label_offset = self.disp - baseaddr
-                    self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size, self.binary.project.arch.name)
-                """
         elif self.type == OP_TYPE_OTHER:
             # TODO: Add support for other types of armel operands
             l.warning("Ignoring operand of type OP_TYPE_OTHER: %s", capstone_operand.type)

@@ -2402,7 +2402,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                      ):
                                 # Update sections so PTR is data, not code
 
-                                return "double-pointer", self.project.arch.bits / 8 # It's one pointer long
+                                assert(False) # We don't use double pointers anymore
                             else:
                                 return None, None
 
