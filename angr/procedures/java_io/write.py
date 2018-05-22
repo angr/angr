@@ -16,4 +16,4 @@ class Write(JavaSimProcedure):
         # I tested with: echo "a" | java -jar simple3.jar  > /tmp/o1.bin; xxd /tmp/o1.bin; 00000000: 62
 
         v = (b % 256).get_byte(3)
-        self.state.posix.write(1, v, 1)
+        self.state.posix.stdout.write(None, v)

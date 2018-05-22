@@ -10,5 +10,5 @@ class Read(JavaSimProcedure):
     )
 
     def run(self, this, *args):
-        v = self.state.posix.read_from(0, 1)
-        return v.zero_extend(32-8)
+        data, _, _ = self.state.posix.stdin.read(None, 1)
+        return data.zero_extend(32-8)
