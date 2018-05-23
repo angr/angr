@@ -154,7 +154,6 @@ class Project(object):
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
         self._should_use_sim_procedures = use_sim_procedures
-        self._use_sim_procedures = use_sim_procedures
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
@@ -312,7 +311,7 @@ class Project(object):
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return not self._use_sim_procedures or \
+        return not self._should_use_sim_procedures or \
                f in self._exclude_sim_procedures_list or \
                f in self._ignore_functions or \
                (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
@@ -629,7 +628,7 @@ class Project(object):
 
     @property
     def use_sim_procedures(self):
-        return self._use_sim_procedures
+        return self._should_use_sim_procedures
 
     #
     # Compatibility
