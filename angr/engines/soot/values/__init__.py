@@ -1,5 +1,5 @@
 
-def translate_value(value):
+def translate_value(method_fullname, value):
     value_name = value.__class__.__name__
     if value_name.startswith("Soot"): value_name = value_name[4:]
     value_cls_name = "SimSootValue_" + value_name
@@ -10,7 +10,7 @@ def translate_value(value):
     else:
         return value
 
-    value_ = value_cls.from_sootvalue(value)
+    value_ = value_cls.from_sootvalue(method_fullname, value)
     return value_
 
 

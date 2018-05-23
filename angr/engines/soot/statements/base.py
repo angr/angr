@@ -29,5 +29,5 @@ class SimSootStmt(object):
         return expr_
 
     def _translate_value(self, value):
-        value_ = translate_value(value)
+        value_ = translate_value(self.state.ip.method.fullname, value)
         return value_

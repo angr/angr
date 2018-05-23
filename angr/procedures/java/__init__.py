@@ -16,6 +16,7 @@ class JavaSimProcedure(angr.SimProcedure):
 
     def _setup_args(self, inst, state, arguments):
         ie = state.scratch.invoke_expr
+        source_method = state.scratch.source.method.fullname
         all_args = list()
         if hasattr(ie, "base"):
             all_args.append(ie.base)
@@ -25,7 +26,7 @@ class JavaSimProcedure(angr.SimProcedure):
             arg_cls_name = arg.__class__.__name__
             # TODO is this correct?
             if "Constant" not in arg_cls_name:
-                v = state.memory.load(translate_value(arg), frame=1)
+                v = state.memory.load(translate_value(source_method, arg), frame=1)
             else:
                 v = translate_expr(arg, state).expr
             sim_args.append(v)

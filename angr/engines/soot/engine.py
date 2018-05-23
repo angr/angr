@@ -269,10 +269,10 @@ class SimEngineSoot(SimEngine):
     # https://www.artima.com/insidejvm/ed2 /jvm8.html
     def _setup_args(self, state):
         fixed_args = self._get_args(state)
+        target_method_fullname = state.scratch.invoke_target.fullname
         # Push parameter on new frame
         for idx, (value, value_type) in enumerate(fixed_args):
-            param_name = "param_%d" % idx
-            local = SimSootValue_Local(param_name, value_type)
+            local = SimSootValue_Local(target_method_fullname, "param_%d" % idx, value_type)
             state.memory.store(local, value)
 
     def _get_args(self, state):
@@ -286,7 +286,7 @@ class SimEngineSoot(SimEngine):
             arg_cls_name = arg.__class__.__name__
             # TODO is this correct?
             if "Constant" not in arg_cls_name:
-                v = state.memory.load(translate_value(arg), frame=1)
+                v = state.memory.load(translate_value(state.ip.method.fullname, arg), frame=1)
             else:
                 v = translate_expr(arg, state).expr
             fixed_args.append((v, arg.type))

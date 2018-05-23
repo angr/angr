@@ -4,15 +4,21 @@ from .base import SimSootValue
 
 class SimSootValue_StaticFieldRef(SimSootValue):
 
-    __slots__ = ['field', 'type']
+    __slots__ = ['id', 'type', 'class_name', 'field_name']
 
     def __init__(self, class_name, field_name, type_):
-        self.field = class_name + "." + field_name
+        self.id = self._create_unique_id(class_name, field_name)
+        self.class_name = class_name
+        self.field_name = field_name
         self.type = type_
 
+    @staticmethod
+    def _create_unique_id(class_name, field_name):
+        return "%s.%s" % (class_name, field_name)
+
     @classmethod
-    def from_sootvalue(cls, soot_value):
+    def from_sootvalue(cls, method_fullname, soot_value):
         return cls(soot_value.field[1], soot_value.field[0], soot_value.type)
 
     def __repr__(self):
-        return "%s (%s)" % (self.field, self.type)
+        return self.id
