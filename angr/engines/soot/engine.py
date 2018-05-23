@@ -15,6 +15,7 @@ from .exceptions import BlockTerminationNotice, IncorrectLocationException
 from angr.engines.soot.values import SimSootValue_Local
 from angr.engines.soot.values import translate_value
 from angr.engines.soot.expressions import translate_expr
+from .values.paramref import SimSootValue_ParamRef 
 
 l = logging.getLogger('angr.engines.soot.engine')
 
@@ -187,6 +188,7 @@ class SimEngineSoot(SimEngine):
                 args += [(jni_this,  SimTypeReg(size=0))]
                 
                 # Function arguments
+                method_fullname = state.scratch.invoke_target.fullname
                 for idx, arg_type in enumerate(invoke_target.params):
 
                     if arg_type in ['float', 'double']:
@@ -195,7 +197,8 @@ class SimEngineSoot(SimEngine):
 
                     elif arg_type in ArchSoot.primitive_types.keys():
                         # Argument has a primitive intergral type
-                        arg_value = invoke_state.memory.stack.load('param_%d' % idx)
+                        param_ref = SimSootValue_ParamRef(method_fullname, idx, arg_type)
+                        arg_value = invoke_state.memory.load(param_ref)
                         arg_sim_type = SimTypeReg(size=ArchSoot.sizeof[arg_type])
                         args += [(arg_value, arg_sim_type)]
 
