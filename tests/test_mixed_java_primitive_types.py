@@ -20,9 +20,9 @@ classes = project.loader.main_object.classes['MixedJava']
 print classes
 
 
-def assert_values(state, values):
+def assert_values(state, values, method_fullname):
     for symbol_name, assert_value in values.items():
-        symbol = state.memory.stack.load(symbol_name)
+        symbol = state.memory.stack.load(method_fullname+"."+symbol_name)
         val = state.solver.eval_one(symbol)
         print symbol_name + ":", "assert", hex(val), "==", hex(assert_value)
         assert val == assert_value
@@ -48,60 +48,66 @@ def get_last_state_of_method(method_name):
 
 
 def test_boolean():
+    method_fullname = "MixedJava.test_boolean"
     values = {'z0': 1,
               'z1': 0,
               'z2': 1,
               'z3': 0,
               'z4': 1
               }
-    end_state = get_last_state_of_method("MixedJava.test_boolean")
-    assert_values(end_state, values)
+    end_state = get_last_state_of_method(method_fullname)
+    assert_values(end_state, values, method_fullname)
 
 
 def test_byte():
+    method_fullname = "MixedJava.test_byte"
     values = {'b5': 30,
               'b8': 0xffffff80,
               'b11': 0
               }
-    end_state = get_last_state_of_method("MixedJava.test_byte")
-    assert_values(end_state, values)
+    end_state = get_last_state_of_method(method_fullname)
+    assert_values(end_state, values, method_fullname)
 
 
 def test_char():
+    method_fullname = "MixedJava.test_char"
     values = {'c4': 21,
               'c6': 0,
               'c9':  1
               }
-    end_state = get_last_state_of_method("MixedJava.test_char")
-    assert_values(end_state, values)
+    end_state = get_last_state_of_method(method_fullname)
+    assert_values(end_state, values, method_fullname)
 
 
 def test_short():
+    method_fullname = "MixedJava.test_short"
     values = {'s3': 0x1000,
               's0': 11,
               's5': 0xfffff000,
               's9': 0
               }
-    end_state = get_last_state_of_method("MixedJava.test_short")
-    assert_values(end_state, values)
+    end_state = get_last_state_of_method(method_fullname)
+    assert_values(end_state, values, method_fullname)
 
 
 def test_int():
+    method_fullname = "MixedJava.test_int"
     values = {'i1': 0xfffffff6,
               'i3': 0,
               'i5': 0x80000001,
               'i7': 0x7fffffff
               }
-    end_state = get_last_state_of_method("MixedJava.test_int")
-    assert_values(end_state, values)
+    end_state = get_last_state_of_method(method_fullname)
+    assert_values(end_state, values, method_fullname)
 
 
 def test_long():
+    method_fullname = "MixedJava.test_long"
     values = {'l1': 0xffffffffffffffff,
               'l3': 1
               }
-    end_state = get_last_state_of_method("MixedJava.test_long")
-    assert_values(end_state, values)
+    end_state = get_last_state_of_method(method_fullname)
+    assert_values(end_state, values, method_fullname)
 
 
 def main():

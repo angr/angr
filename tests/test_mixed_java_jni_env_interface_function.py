@@ -55,6 +55,7 @@ print classes
 
 def assert_values(state, values):
     for symbol_name, assert_value in values.items():
+        symbol_name = "MixedJava.main." + symbol_name
         symbol = state.memory.stack.load(symbol_name)
         val = state.solver.eval_one(symbol)
         print symbol_name + ":", "assert", hex(val), "==", hex(assert_value)
@@ -80,6 +81,7 @@ def test_jni_env_get_version():
 
 def main():
 
+    # import logging
     # logging.getLogger("angr.sim_procedure").setLevel("DEBUG")
     # logging.getLogger("angr.engines").setLevel("DEBUG")
     # logging.getLogger('angr.simos.JavaVM').setLevel("DEBUG")
