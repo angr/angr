@@ -257,7 +257,7 @@ class SimJavaVM(SimOS):
                 # reference type
                 raise NotImplementedError()
                            
-            l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.name))
+            l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.local_name))
             ret_state.memory.store(ret_var, ret_value)
  
         return [ret_state]
