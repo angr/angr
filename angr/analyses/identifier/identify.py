@@ -1,6 +1,7 @@
 
-import logging
+
 from collections import defaultdict
+import logging
 
 from .. import Analysis
 from cle.backends.cgc import CGC

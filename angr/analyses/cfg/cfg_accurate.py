@@ -1784,7 +1784,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if a.type == "mem" and a.action == "read":
                     try:
                         addr = se.eval_one(a.addr.ast, default=0)
-                    except claripy.ClaripyError:
+                    except (claripy.ClaripyError, SimSolverModeError):
                         continue
                     if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or \
                             (not self.project.arch.call_pushes_ret and addr >= new_sp_addr):
