@@ -24,13 +24,24 @@ basic_preset.procedure_engine = 'procedure'
 
 # This is a VEX engine preset.
 # It will be used as a default preset for engine hub.
+
 vex_preset = basic_preset.copy()
-EngineHub.register_preset('default', vex_preset)
 
 vex_preset.add_default_plugin('unicorn', SimEngineUnicorn)
 vex_preset.add_default_plugin('vex', SimEngineVEX)
 vex_preset.add_default_plugin('tcg', SimEngineTCG)
 
-vex_preset.order = 'unicorn', 'vex', 'tcg'
-vex_preset.default_engine = 'tcg' # FIXME: Works but how do I do this without
-                                  # changing default??
+vex_preset.order = 'unicorn', 'vex'
+vex_preset.default_engine = 'vex'
+
+# This is a TCG engine preset.
+# It will be used as a default preset for engine hub.
+tcg_preset = basic_preset.copy()
+
+tcg_preset.add_default_plugin('unicorn', SimEngineUnicorn)
+tcg_preset.add_default_plugin('tcg', SimEngineTCG)
+tcg_preset.order = 'unicorn', 'tcg'
+tcg_preset.default_engine = 'tcg'
+
+EngineHub.register_preset('default', vex_preset)
+EngineHub.register_preset('tcg', tcg_preset)

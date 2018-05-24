@@ -40,7 +40,7 @@ from . import sim_type as types
 from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
-from .engines import SimEngineVEX, SimEngine
+from .engines import SimEngineTCG, SimEngineVEX, SimEngine
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
 
 # for compatibility reasons

@@ -508,7 +508,7 @@ class SimEngineTCG(SimEngine):
         if not buff or size == 0:
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
 
-        # phase 5: call into pyvex
+        # phase 5: call into pytcg
         l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in xrange(2):
