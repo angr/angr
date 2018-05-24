@@ -39,5 +39,6 @@ vex_preset.default_engine = 'vex'
 soot_preset = basic_preset.copy()
 EngineHub.register_preset('Soot', soot_preset)
 soot_preset.add_default_plugin('soot', SimEngineSoot)
+soot_preset.add_default_plugin('vex', SimEngineVEX)
 soot_preset.default_engine = 'soot'
-soot_preset.order = ['soot']
+soot_preset.order = ['soot', 'vex']
