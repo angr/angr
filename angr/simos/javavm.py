@@ -215,7 +215,7 @@ class SimJavaVM(SimOS):
         This function will toggle the state, s.t. the execution continues in the Soot engine.
         """
         ret_state = native_state.copy()
-        ret_addr = ret_state.get_plugin("callstack", plugin_suffix='soot').ret_addr
+        ret_addr = ret_state.get_plugin("callstack", with_suffix='_soot').ret_addr
         ret_state.regs._ip = ret_addr
         ret_var = ret_state.callstack.invoke_return_variable
         ret_state.scratch.guard = ret_state.se.true

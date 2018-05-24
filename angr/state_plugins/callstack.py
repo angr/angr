@@ -235,7 +235,7 @@ class CallStack(SimStatePlugin):
         """
         cf.next = self
         if self.state is not None:
-            self.state.register_plugin('callstack', cf)
+            self.state.set_callstack(cf)
             self.state.history.recent_stack_actions.append(CallStackAction(
                 hash(cf), len(cf), 'push', callframe=cf.copy({}, with_tail=False)
             ))
@@ -251,7 +251,7 @@ class CallStack(SimStatePlugin):
         new_list = self.next.copy({})
 
         if self.state is not None:
-            self.state.register_plugin('callstack', new_list)
+            self.state.set_callstack(new_list)
             self.state.history.recent_stack_actions.append(CallStackAction(
                 hash(new_list), len(new_list), 'pop', ret_site_addr=self.ret_addr
             ))
