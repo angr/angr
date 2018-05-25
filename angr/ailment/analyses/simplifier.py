@@ -1,6 +1,7 @@
 
 from angr import Analysis, register_analysis
 from angr.analyses.reaching_definitions import OP_AFTER
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
 from ..block import Block
 from ..statement import Assignment
@@ -72,7 +73,8 @@ class Simplifier(Analysis):
 
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
         dead_virgins = rd.one_result._dead_virgin_definitions
-        dead_virgins_stmt_idx = set([ d.codeloc.stmt_idx for d in dead_virgins ])
+        dead_virgins_stmt_idx = set([ d.codeloc.stmt_idx for d in dead_virgins
+                                      if not isinstance(d.codeloc, ExternalCodeLocation) ])
 
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
