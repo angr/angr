@@ -15,7 +15,7 @@ class SimSootExpr(object):
         return expr_
 
     def _translate_value(self, value):
-        value_ = translate_value(self.state.ip.method.fullname, value)
+        value_ = translate_value(value, self.state)
         return value_
 
 from . import translate_expr

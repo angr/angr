@@ -145,7 +145,7 @@ class SimJavaVM(SimOS):
 
         # Push the array of command line arguments on the stack frame
         if args is None:
-            args = [state.se.StringS("args", 1000)]*100
+            args = [state.se.StringS("cmd_arg", 1000) for _ in range(100)]
         # if the user provides only one arguments create a list
         elif not isinstance(args, list):
             args = [args]
@@ -154,12 +154,13 @@ class SimJavaVM(SimOS):
         # and arrays are stored on the heap we need to allocate the array on the heap\
         # and return the reference
         size_ = len(args)
-        type_ = "String"
-        local = SimSootValue_Local(state.project.entry.method.fullname, "param_0", type_)
+        type_ = "String[]"
+        heap_alloc_id = state.memory.get_new_uuid()
         for idx, elem in enumerate(args):
-            ref = SimSootValue_ArrayRef(idx, type_, local, size_)
+            ref = SimSootValue_ArrayRef(heap_alloc_id, idx, type_, size_)
             state.memory.store(ref, elem)
-        base_ref = SimSootValue_ArrayRef(0, type_, local, size_)
+        base_ref = SimSootValue_ArrayRef(heap_alloc_id, 0, type_, size_)
+        local = SimSootValue_Local("param_0", type_)
         state.memory.store(local, base_ref)
 
         # Sometimes classes has a special method called "<clinit> that initialize part

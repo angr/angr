@@ -1,6 +1,9 @@
 
+import binascii
+import os
+
 from ..engines.soot.values import SimSootValue_Local, SimSootValue_ArrayRef, SimSootValue_ParamRef, \
-                                  SimSootValue_StaticFieldRef
+                                  SimSootValue_StaticFieldRef, SimSootValue_ThisRef
 
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory
@@ -17,12 +20,18 @@ class SimJavaVmMemory(SimMemory):
 
         self._stack = [ ] if stack is None else stack
         self.heap = SimKeyValueMemory("mem") if heap is None else heap
-        self .vm_static_table = SimKeyValueMemory("mem") if vm_static_table is None else vm_static_table
+        self.vm_static_table = SimKeyValueMemory("mem") if vm_static_table is None else vm_static_table
 
         # Heap helper
         # TODO: ask someone how we want to manage this
         # TODO: Manage out of memory allocation
+        # self._heap_allocation_id = 0
         self.max_array_size = MAX_ARRAY_SIZE
+
+    def get_new_uuid(self):
+        # self._heap_allocation_id += 1
+        # return str(self._heap_allocation_id)
+        return binascii.hexlify(os.urandom(4))
 
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None,
               inspect=True, priv=None, disable_actions=False, frame=0):
@@ -50,6 +59,12 @@ class SimJavaVmMemory(SimMemory):
         elif type(addr) is SimSootValue_ArrayRef:
             return self.heap.load(addr.id, none_if_missing=True)
         elif type(addr) is SimSootValue_ParamRef:
+            cstack = self._stack[-1+(-1*frame)]
+            # Load a local variable
+            # TODO: Implement the stacked stack frames model
+            return cstack.load(addr.id, none_if_missing=True)
+        # see comment in SimSootValue_ThisRef class
+        elif type(addr) is SimSootValue_ThisRef:
             cstack = self._stack[-1+(-1*frame)]
             # Load a local variable
             # TODO: Implement the stacked stack frames model

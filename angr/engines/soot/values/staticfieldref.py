@@ -17,7 +17,7 @@ class SimSootValue_StaticFieldRef(SimSootValue):
         return "%s.%s" % (class_name, field_name)
 
     @classmethod
-    def from_sootvalue(cls, method_fullname, soot_value):
+    def from_sootvalue(cls, soot_value, state):
         return cls(soot_value.field[1], soot_value.field[0], soot_value.type)
 
     def __repr__(self):

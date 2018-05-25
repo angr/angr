@@ -26,7 +26,7 @@ class JavaSimProcedure(angr.SimProcedure):
             arg_cls_name = arg.__class__.__name__
             # TODO is this correct?
             if "Constant" not in arg_cls_name:
-                v = state.memory.load(translate_value(source_method, arg), frame=1)
+                v = state.memory.load(translate_value(arg, state), frame=1)
             else:
                 v = translate_expr(arg, state).expr
             sim_args.append(v)

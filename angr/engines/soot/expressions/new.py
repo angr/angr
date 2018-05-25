@@ -1,5 +1,6 @@
 
 from .base import SimSootExpr
+from ..values import SimSootValue_ThisRef
 
 import logging
 
@@ -14,7 +15,8 @@ class SimSootExpr_New(SimSootExpr):
 
         try:
             class_ = self.state.project.loader.main_bin.classes[self.expr.type]
-            obj = {}
+            obj = SimSootValue_ThisRef(self.state.ip.method.fullname)
+            self.state.memory.store()
         except KeyError:
             l.warning("Trying to create an object of a non loaded class %s", self.expr.type)
 

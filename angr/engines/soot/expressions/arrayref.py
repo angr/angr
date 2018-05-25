@@ -17,8 +17,8 @@ class SimSootExpr_ArrayRef(SimSootExpr):
         # and if the base exist we create a new reference that points to the correct
         # element
         if array_ref_base is not None:
-            array_ref = SimSootValue_ArrayRef(self.expr.index.value, array_ref_base.type, array_ref_base.base)
+            array_ref = SimSootValue_ArrayRef(array_ref_base.heap_alloc_id, self.expr.index.value,
+                                              array_ref_base.type, array_ref_base.size)
             self.expr = self.state.memory.load(array_ref)
         else:
             l.warning("Trying to access a non existing array! (%r)", self.expr)
-
