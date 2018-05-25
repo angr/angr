@@ -12,7 +12,7 @@ from ..engine import SimEngine
 from ...sim_type import SimTypeReg
 from .statements import translate_stmt, SimSootStmt_Return, SimSootStmt_ReturnVoid
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
-from angr.engines.soot.values import SimSootValue_Local
+from angr.engines.soot.values import SimSootValue_Local, SimSootValue_ThisRef
 from angr.engines.soot.values import translate_value
 from angr.engines.soot.expressions import translate_expr
 from .values.paramref import SimSootValue_ParamRef 
@@ -285,8 +285,14 @@ class SimEngineSoot(SimEngine):
     def _setup_args(self, state):
         fixed_args = self._get_args(state)
         # Push parameter on new frame
-        for idx, (value, value_type) in enumerate(fixed_args):
-            local = SimSootValue_Local("param_%d" % idx, value_type)
+        param_idx = 0
+        for (value, value_type) in fixed_args:
+            if type(value) is SimSootValue_ThisRef:
+                local_name = "%s.this" % value.type
+            else:
+                local_name = "param_%d" % param_idx
+                param_idx += 1
+            local = SimSootValue_Local(local_name, value_type)
             state.memory.store(local, value)
 
     def _get_args(self, state):

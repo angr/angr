@@ -12,11 +12,11 @@ class SimSootExpr_New(SimSootExpr):
         super(SimSootExpr_New, self).__init__(expr, state)
 
     def _execute(self):
-
         try:
+            # create just the reference to pass to the constructor method
             class_ = self.state.project.loader.main_bin.classes[self.expr.type]
-            obj = SimSootValue_ThisRef(self.state.ip.method.fullname)
-            self.state.memory.store()
+            heap_allocation_id = self.state.memory.get_new_uuid()
+            self.expr = SimSootValue_ThisRef(heap_allocation_id, class_.name)
         except KeyError:
             l.warning("Trying to create an object of a non loaded class %s", self.expr.type)
 

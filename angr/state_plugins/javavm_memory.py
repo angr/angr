@@ -3,7 +3,7 @@ import binascii
 import os
 
 from ..engines.soot.values import SimSootValue_Local, SimSootValue_ArrayRef, SimSootValue_ParamRef, \
-                                  SimSootValue_StaticFieldRef, SimSootValue_ThisRef
+                                  SimSootValue_StaticFieldRef, SimSootValue_ThisRef, SimSootValue_InstanceFieldRef
 
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory
@@ -45,6 +45,8 @@ class SimJavaVmMemory(SimMemory):
             self.heap.store(addr.id, data, type_=addr.type)
         elif type(addr) is SimSootValue_StaticFieldRef:
             self.vm_static_table.store(addr.id, data, type_=addr.type)
+        elif type(addr) is SimSootValue_InstanceFieldRef:
+            self.heap.store(addr.id, data, type_=addr.type)
         else:
             import ipdb; ipdb.set_trace()
 
@@ -59,12 +61,6 @@ class SimJavaVmMemory(SimMemory):
         elif type(addr) is SimSootValue_ArrayRef:
             return self.heap.load(addr.id, none_if_missing=True)
         elif type(addr) is SimSootValue_ParamRef:
-            cstack = self._stack[-1+(-1*frame)]
-            # Load a local variable
-            # TODO: Implement the stacked stack frames model
-            return cstack.load(addr.id, none_if_missing=True)
-        # see comment in SimSootValue_ThisRef class
-        elif type(addr) is SimSootValue_ThisRef:
             cstack = self._stack[-1+(-1*frame)]
             # Load a local variable
             # TODO: Implement the stacked stack frames model
