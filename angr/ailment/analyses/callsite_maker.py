@@ -56,7 +56,8 @@ class CallSiteMaker(Analysis):
             arg_locs = func.calling_convention.arg_locs()
             for arg_loc in arg_locs:
                 if type(arg_loc) is SimRegArg:
-                    offset, size = arg_loc._fix_offset(None, None, arch=self.project.arch)
+                    size = arg_loc.size
+                    offset = arg_loc._fix_offset(None, size, arch=self.project.arch)
                     args.append(Expr.Register(None, None, offset, size * 8, reg_name=arg_loc.reg_name))
                 else:
                     raise NotImplementedError('Not implemented yet.')
