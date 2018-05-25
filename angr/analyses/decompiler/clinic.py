@@ -58,7 +58,7 @@ class Clinic(Analysis):
 
         s = ""
 
-        for block in sorted(self.graph.nodes_iter(), key=lambda x: x.addr):
+        for block in sorted(self.graph.nodes(), key=lambda x: x.addr):
             s += str(block) + "\n\n"
 
         return s
@@ -93,7 +93,7 @@ class Clinic(Analysis):
         :return:
         """
 
-        for block_node in self.function.transition_graph.nodes_iter():
+        for block_node in self.function.transition_graph.nodes():
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
@@ -194,13 +194,13 @@ class Clinic(Analysis):
 
         node_to_block_mapping = {}
 
-        for node in self.function.transition_graph.nodes_iter():
+        for node in self.function.transition_graph.nodes():
             ail_block = self._blocks.get((node.addr, node.size), node)
             node_to_block_mapping[node] = ail_block
 
             self.graph.add_node(ail_block)
 
-        for src_node, dst_node, data in self.function.transition_graph.edges_iter(data=True):
+        for src_node, dst_node, data in self.function.transition_graph.edges(data=True):
             src = node_to_block_mapping[src_node]
             dst = node_to_block_mapping[dst_node]
 

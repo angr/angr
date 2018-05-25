@@ -142,8 +142,8 @@ class KeyedRegion(object):
         """
 
         # TODO: is the current solution not optimal enough?
-        for _, item in other._storage.iteritems():  # type: RegionObject
-            for loc_and_var in item.objects:
+        for _, item in other._storage.items():  # type: RegionObject
+            for loc_and_var in item.stored_objects:
                 self.__store(loc_and_var, overwrite=False, make_phi_func=make_phi_func)
 
         return self
@@ -246,7 +246,7 @@ class KeyedRegion(object):
         if container is None:
             return []
         else:
-            return container.variables
+            return container.stored_objects
 
     def get_objects_by_offset(self, start):
         """

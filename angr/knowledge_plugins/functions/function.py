@@ -1041,8 +1041,8 @@ class Function(object):
             # PLT entries must have the same declaration as their jump targets
             # Try to determine which library this PLT entry will jump to
             edges = self.transition_graph.edges()
-            if len(edges) == 1 and type(edges[0][1]) is HookNode:
-                target = edges[0][1].addr
+            if len(edges) == 1 and type(next(iter(edges))[1]) is HookNode:
+                target = next(iter(edges))[1].addr
                 if target in self._function_manager:
                     target_func = self._function_manager[target]
                     binary_name = target_func.binary_name

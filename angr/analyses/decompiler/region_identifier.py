@@ -49,7 +49,7 @@ class GraphRegion(object):
 
         addrs = [ ]
         s = ""
-        for node in self.graph.nodes_iter():
+        for node in self.graph.nodes():
             if hasattr(node, 'addr'):
                 addrs.append(node.addr)
             if addrs:
@@ -65,7 +65,7 @@ class GraphRegion(object):
         new_graph = networkx.DiGraph()
 
         nodes_map = { }
-        for node in self.graph.nodes_iter():
+        for node in self.graph.nodes():
             if type(node) is GraphRegion:
                 new_node = node.recursive_copy()
                 nodes_map[node] = new_node
@@ -77,7 +77,7 @@ class GraphRegion(object):
                 nodes_map[node] = new_node
             new_graph.add_node(new_node)
 
-        for src, dst in self.graph.edges_iter():
+        for src, dst in self.graph.edges():
             new_graph.add_edge(nodes_map[src], nodes_map[dst])
 
         return GraphRegion(nodes_map[self.head], new_graph)
@@ -185,7 +185,7 @@ class RegionIdentifier(Analysis):
         # preprocess: make it a super graph
         self._make_supergraph(graph)
 
-        self._start_node = next(n for n in graph.nodes_iter() if graph.in_degree(n) == 0)
+        self._update_start_node(graph)
 
         # preprocess: find loop headers
         self._loop_headers = self._find_loop_headers(graph)
@@ -194,7 +194,10 @@ class RegionIdentifier(Analysis):
 
         assert len(graph.nodes()) == 1
 
-        self.region = graph.nodes()[0]
+        self.region = next(iter(graph.nodes()))
+
+    def _update_start_node(self, graph):
+        self._start_node = next(n for n in graph.nodes() if graph.in_degree(n) == 0)
 
     def _test_reducibility(self):
 
@@ -223,7 +226,7 @@ class RegionIdentifier(Analysis):
         while True:
             for src, dst, data in graph.edges(data=True):
                 if data['type'] == 'fake_return':
-                    if len(graph.successors(src)) == 1 and len(graph.predecessors(dst)) == 1:
+                    if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
                         self._merge_nodes(graph, src, dst, force_multinode=True)
                         break
                 if data['type'] == 'call':
@@ -352,6 +355,7 @@ class RegionIdentifier(Analysis):
                     l.debug("Refined exit nodes %s", self._dbg_block_list(refined_exit_nodes))
 
                     if len(refined_exit_nodes) > 1:
+                        self._update_start_node(graph)
                         node_post_order = list(networkx.dfs_postorder_nodes(graph, self._start_node))
                         sorted_exit_nodes = sorted(list(refined_exit_nodes), key=lambda node: node_post_order.index(node))
                         normal_exit_node = sorted_exit_nodes[0]
@@ -364,6 +368,7 @@ class RegionIdentifier(Analysis):
                 # acyclic region
                 else:
                     if df is None:
+                        self._update_start_node(graph)
                         df = networkx.algorithms.dominance_frontiers(graph, self._start_node)
                     frontier = df[node]
                     if len(frontier) <= 1:
@@ -421,7 +426,7 @@ class RegionIdentifier(Analysis):
         in_edges = self._region_in_edges(graph, region, data=True)
 
         nodes_set = set()
-        for node_ in region.graph.nodes_iter():
+        for node_ in list(region.graph.nodes()):
             nodes_set.add(node_)
             graph.remove_node(node_)
 
@@ -469,7 +474,7 @@ class RegionIdentifier(Analysis):
 
     def _region_in_edges(self, graph, region, data=False):
 
-        return graph.in_edges(region.head, data=data)
+        return list(graph.in_edges(region.head, data=data))
 
     def _remove_node(self, graph, node):
 
