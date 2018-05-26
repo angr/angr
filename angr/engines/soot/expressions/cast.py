@@ -21,7 +21,7 @@ class SimSootExpr_Cast(SimSootExpr):
         value_uncasted = self.state.memory.load(local)
 
         # lookup the type size and extract value
-        value_size = ArchSoot.primitive_types[self.expr.cast_type] 
+        value_size = ArchSoot.sizeof[self.expr.cast_type] 
         value_extracted = value_uncasted.reversed.get_bytes(index=0, size=value_size/8).reversed
 
         # determine size of Soot bitvector and resize bitvector
