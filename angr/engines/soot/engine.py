@@ -402,7 +402,7 @@ class SimEngineSoot(SimEngine):
                 # reference type
                 raise NotImplementedError()
                            
-            l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.local_name))
+            l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.id))
             ret_state.memory.store(ret_var, ret_value)
  
         return [ret_state]
@@ -426,7 +426,7 @@ class SimEngineSoot(SimEngine):
         for idx, arg_type in enumerate(invoke_target.params):
 
             # Get value of the argument
-            arg_param_ref = SimSootValue_ParamRef(invoke_target.fullname, idx, arg_type)
+            arg_param_ref = SimSootValue_ParamRef(idx, arg_type)
             arg_value = invoke_state.memory.load(arg_param_ref)
 
             if arg_type in ['float', 'double']:

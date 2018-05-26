@@ -167,7 +167,7 @@ def test_primitive_types(binary_dir="3"):
 
 def assert_values(state, values, method_fullname):
     for symbol_name, assert_value in values.items():
-        symbol = state.memory.stack.load(method_fullname+"."+symbol_name)
+        symbol = state.memory.stack.load(symbol_name)
         val = state.solver.eval_one(symbol)
         print symbol_name + ":", "assert", hex(val), "==", hex(assert_value)
         assert val == assert_value
@@ -200,8 +200,8 @@ def get_last_state_of_method(project, method_name):
 
 
 def main():
-    test_loading_of_native_libs_with_ld_path()
-    test_loading_of_native_libs_without_ld_path()
+    #test_loading_of_native_libs_with_ld_path()
+    #test_loading_of_native_libs_without_ld_path()
     test_jni_env_get_version()
     test_primitive_types()
 
