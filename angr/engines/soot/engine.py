@@ -29,6 +29,7 @@ class SimEngineSoot(SimEngine):
         super(SimEngineSoot, self).__init__()
 
         self.project = project
+        self.javavm = self.project.simos
 
     def lift(self, addr=None, the_binary=None, **kwargs):
         assert isinstance(addr, SootAddressDescriptor)
@@ -148,8 +149,9 @@ class SimEngineSoot(SimEngine):
         state.scratch.invoke_return_target = None
         state.scratch.invoke_return_variable = None
         state.scratch.invoke_has_native_target = False
-        state.scratch.invoke_jni_local_references = []
-
+        state.scratch.invoke_native_cc = None
+        state.scratch.invoke_jni_local_references = {}
+        
         l.info("Executing statement %s [%s]", stmt, state.addr)
         s_stmt = translate_stmt(stmt, state)
         # print state.memory.stack
@@ -171,54 +173,8 @@ class SimEngineSoot(SimEngine):
                 # The target of the call is a native function
                 # => We need to setup the native call-site
                 l.debug("Invoke has a native target.")
-
-                # Step 1: Get native address
-                invoke_addr = self.project.simos.get_clemory_addr_of_native_method(invoke_target)
-
-                # Step 2: Setup parameter
-                
-                args = []
-
-                # JNI enviroment pointer
-                jni_env = self.project.simos.jni_env
-                args += [(jni_env, SimTypeReg(size=64))]
-
-                # Handle to the current object or class (TODO static vs. nonstatic)
-                jni_this = 0
-                args += [(jni_this,  SimTypeReg(size=0))]
-                
-                # Function arguments
-                method_fullname = state.scratch.invoke_target.fullname
-                for idx, arg_type in enumerate(invoke_target.params):
-
-                    if arg_type in ['float', 'double']:
-                        # Argument has a primitive floating-point type
-                        raise NotImplementedError('Floating point types are not yet supported for native arguments.')
-
-                    elif arg_type in ArchSoot.primitive_types.keys():
-                        # Argument has a primitive intergral type
-                        param_ref = SimSootValue_ParamRef(method_fullname, idx, arg_type)
-                        arg_value = invoke_state.memory.load(param_ref)
-                        arg_sim_type = SimTypeReg(size=ArchSoot.sizeof[arg_type])
-                        args += [(arg_value, arg_sim_type)]
-
-                    else:
-                        # Argument has a relative type
-                        raise NotImplementedError('References types are not yet supported for native arguments.')
-
-                        ## Local references to object pointer
-                        arg_ref = invoke_state.memory.stack.load('param_%d' % idx)
-
-                        # Generate a unique reference
-                        native_addr_size = self.project.native_simos.arch.bits/8
-                        self.project.loader.extern_object.allocate(size=native_addr_size, alignment=native_addr_size)
-                        l.debug("Map %s to local reference %s" % (str(arg_ref), hex(native_addr_size)))
-
-                # Step 3: Set return type
-                ret_type = SimTypeReg(size=ArchSoot.sizeof[invoke_target.ret])
-
-                # Step 4: Create native invoke state
-                invoke_state = self.project.simos.state_call(invoke_addr, *args, base_state=invoke_state, ret_type=ret_type)
+                invoke_addr = self.javavm.get_clemory_addr_of_native_method(invoke_target)
+                invoke_state = self._setup_native_callsite(invoke_addr, invoke_state, invoke_target)
 
             else:
                 # Build the call target
@@ -385,3 +341,117 @@ class SimEngineSoot(SimEngine):
         successors.add_successor(state, state.regs.ip, state.se.true, 'Ijk_Exit')
         successors.processed = True
         raise BlockTerminationNotice()
+
+
+    #
+    # JNI Native Interface
+    #
+
+    @staticmethod
+    def prepare_native_return_state(native_state):
+        """
+        Hook target, when a native function call returns. This function toggles the state, s.t.
+        the execution continues in the Soot engine and stores the return value.
+        """
+
+        ret_state = native_state.copy()
+        ret_addr = ret_state.get_plugin("callstack", with_suffix='_soot').ret_addr
+        ret_state.regs._ip = ret_addr
+        ret_var = ret_state.callstack.invoke_return_variable
+        ret_state.scratch.guard = ret_state.se.true
+        ret_state.history.jumpkind = 'Ijk_Ret'
+        ret_state.memory.pop_stack_frame()
+        ret_state.callstack.pop()
+        
+        if ret_var:
+            # if available, move the return value to the Soot state
+
+            if ret_var.type == 'void':
+                # in this case, the 'invoke_return_variable' should not have been set
+                l.warning("Return variable is available, but return type is set to void.")
+            
+            elif ret_var.type in ['float', 'double']:
+                raise NotImplementedError()
+
+            elif ret_var.type in ArchSoot.primitive_types:
+                # return value has a primitive type
+                # => we need to manually cast the return value to the correct size, as this
+                #    would be usually done by the java callee
+                # 1. get return symbol from native state
+                native_cc = ret_state.scratch.invoke_native_cc
+                ret_symbol = native_cc.get_return_val(native_state).to_claripy()
+                # 2. lookup the size of the native type and extract value
+                ret_var_native_size = ArchSoot.sizeof[ret_var.type] 
+                ret_value = ret_symbol.reversed.get_bytes(index=0, size=ret_var_native_size/8).reversed
+                # 3. determine size of soot bitvector and resize bitvector
+                # Note: smaller types than int's are stored as a 32-bit SootIntConstant 
+                ret_var_soot_size = ret_var_native_size if ret_var_native_size >= 32 else 32
+                if ret_var.type in ['char', 'boolean']:
+                    # unsigned extend
+                    ret_value = ret_value.zero_extend(ret_var_soot_size-ret_var_native_size)
+                else:
+                    # signed extend
+                    ret_value = ret_value.sign_extend(ret_var_soot_size-ret_var_native_size)
+                
+            else:
+                # reference type
+                raise NotImplementedError()
+                           
+            l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.local_name))
+            ret_state.memory.store(ret_var, ret_value)
+ 
+        return [ret_state]
+
+    def _setup_native_callsite(self, invoke_addr, invoke_state, invoke_target):
+        
+        # Step 1: Setup parameter
+        native_args = []
+
+        # JNI enviroment pointer
+        jni_env = self.javavm.jni_env
+        jni_env_type = self.javavm.get_native_type('reference')
+        native_args += [(jni_env, jni_env_type)]
+
+        # Handle to the current object or class (TODO static vs. nonstatic)
+        jni_this = 0
+        jni_this_type = self.javavm.get_native_type('reference')
+        native_args += [(jni_this, jni_this_type)]
+        
+        # Function arguments
+        for idx, arg_type in enumerate(invoke_target.params):
+
+            # Get value of the argument
+            arg_param_ref = SimSootValue_ParamRef(invoke_target.fullname, idx, arg_type)
+            arg_value = invoke_state.memory.load(arg_param_ref)
+
+            if arg_type in ['float', 'double']:
+                # Argument has a primitive floating-point type
+                raise NotImplementedError('No support for native floating-point arguments.')
+
+            elif arg_type in ArchSoot.primitive_types:
+                # Argument has a primitive integral type
+                native_arg_type = self.javavm.get_native_type(arg_type)
+                native_arg_value = arg_value
+
+            else:
+                # Argument has a relative type
+                # => We map the Java reference to an opaque reference, which then can be used by the
+                #    native code to access the Java object through the JNI interface functions.
+                opaque_ref = self.javavm.generate_opaque_reference()
+                invoke_state.scratch.invoke_jni_local_references[opaque_ref] = arg_value
+                l.debug("Map %s to opaque reference %s" % (str(arg_value), hex(opaque_ref)))
+
+                native_arg_type = self.javavm.get_native_type('reference')
+                native_arg_value = opaque_ref
+
+            native_args += [(native_arg_value, native_arg_type)]
+
+        # Step 2: Set return type
+        ret_type = self.javavm.get_native_type(invoke_target.ret)
+        
+        # Step 3: Create native invoke state
+        invoke_state = self.javavm.state_call(invoke_addr, *native_args, 
+                                              base_state=invoke_state, 
+                                              ret_type=ret_type)
+
+        return invoke_state

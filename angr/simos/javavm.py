@@ -8,11 +8,13 @@ from claripy import BVV
 from ..calling_conventions import DEFAULT_CC
 from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
 from ..engines.soot.values.local import SimSootValue_Local
+from ..engines.soot import SimEngineSoot
 from ..errors import AngrSimOSError
 from ..procedures.java_jni import jni_functions
 from ..sim_state import SimState
 from ..sim_type import SimTypeFunction, SimTypeInt, SimTypeReg
 from .simos import SimOS
+
 
 l = logging.getLogger('angr.simos.JavaVM')
 
@@ -42,7 +44,8 @@ class SimJavaVM(SimOS):
             native_libs_simos = set([os_mapping[obj.os] for obj in self.native_libs]) 
             # show warning, if more than one SimOS or Arch would be required
             if len(native_libs_simos) > 1 or len(native_libs_arch) > 1:
-                l.warning("Unsupported: Native libraries appear to require different SimOS's or Arch's.")
+                l.warning("Unsupported: Native libraries appear to require different SimOS's (%s) or Arch's (%s)." 
+                          % (str(native_libs_arch), str(native_libs_simos)))
             # instantiate native SimOS
             if native_libs_simos:
                 self.native_simos = native_libs_simos.pop()(self.project)
@@ -51,7 +54,7 @@ class SimJavaVM(SimOS):
             else:
                 raise AngrSimOSError("Cannot instantiate SimOS for native libraries: No compatible SimOS found.")
 
-            # Step 3: Match JNI symbols from native libs
+            # Step 3: Match static JNI symbols from native libs
             self.native_symbols = {}
             for lib in self.native_libs:
                 for name, symbol in lib.symbols_by_name.items():
@@ -62,28 +65,30 @@ class SimJavaVM(SimOS):
             self.native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
 
             # Step 5: Allocate memory for the return hook
-            # => In order to return back from the Vex to the Soot engine, we hook the return address.
-            #    Therefore we set the return address of the native function to `native_call_return_to_soot`
-            #    and hook it.
-            self.native_call_return_to_soot = self.project.loader.extern_object.allocate()
-            self.project.hook(self.native_call_return_to_soot, self.native_call_return_to_soot_hook)
+            # => In order to return back from the Vex to the Soot engine, we hook the return address (see state_call).
+            self.native_return_hook_addr = self.project.loader.extern_object.allocate()
+            self.project.hook(self.native_return_hook_addr, SimEngineSoot.prepare_native_return_state)
 
             # Step 6: JNI interface functions
             # => During runtime, the native code can interact with the JVM through JNI interface functions.
-            #    We hook these functions and implement the effects with SimProcedures.
+            #    For this, the native code gets a JNIEnv interface pointer with every native call, which 
+            #    "[...] points to a location that contains a pointer to a function table" and "each entry in 
+            #    the function table points to a JNI function."
+            # => In order to simulate this mechanism, we setup this structure in the native memory and hook all 
+            #    table entries with SimProcedures, which then implement the effects of the interface functions.
+            # i)   First we allocate memory for the JNIEnv pointer and the function table
             native_addr_size = self.native_simos.arch.bits/8
-            # allocate memory for the jni env pointer and function table
-            self.jni_env = self.project.loader.extern_object.allocate(size=native_addr_size, 
-                                                                      alignment=native_addr_size)
-            self.jni_function_table = self.project.loader.extern_object.allocate(size=native_addr_size*len(jni_functions),
-                                                                                 alignment=native_addr_size)
-            # hook jni functions
+            self.jni_env = self.project.loader.extern_object.allocate(size=native_addr_size)
+            self.jni_function_table = self.project.loader.extern_object.allocate(size=native_addr_size*len(jni_functions))
+            # ii)  Then we hook each table entry with the corresponding sim procedure
             for idx, jni_function in enumerate(jni_functions):
                 addr = self.jni_function_table + idx * native_addr_size
                 if not jni_function:
                     self.project.hook(addr, SIM_PROCEDURES['java_jni']['NotImplemented'])
                 else: 
                     self.project.hook(addr, SIM_PROCEDURES['java_jni'][jni_function])
+            # iii) We store the targets of the JNIEnv and function pointer in memory.
+            #      => This is done for a specific state (see state_blank)
 
     #
     # States
@@ -99,11 +104,11 @@ class SimJavaVM(SimOS):
             # If the JNI support is enabled (i.e. native libs are loaded), the SimState
             # needs to support both the Vex and the Soot engine. Therefore we start with 
             # an initialized native state and extend this with the Soot initializations.
-            # Note: `addr` needs to be set to a `native address` (i.e. not an SootAddressDescriptor);
-            #       otherwise the `project.entry` is used and the SimState would be in "Soot-mode"
+            # Note: `addr` needs to be set to a `native address` (i.e. not an SootAddressDescriptor).
+            #       This makes sure that the SimState is not in "Soot-mode".
             # TODO: use state_blank function from the native simos and not the super class
             state = super(SimJavaVM, self).state_blank(addr=0, **kwargs)
-            # Let the env pointer point to the function table
+            # Let the target of the JNIEnv pointer point to the function table
             state.memory.store(self.jni_env, BVV(self.jni_function_table, 64).reversed)
             # Initialize the function table
             # => Each entry usually contains the address of the function, but since we hook all functions
@@ -183,84 +188,32 @@ class SimJavaVM(SimOS):
 
 
     def state_call(self, addr, *args, **kwargs):
+        # *args contains the argument values together with their types
+        # => extract values
+        arg_values = tuple(arg for (arg, arg_type) in args)
+        # Check if we need to setup a native call site
         if isinstance(addr, SootAddressDescriptor):
             # TODO:
             # If no args are provided, create symbolic bit vectors and constrain
             # the value w.r.t. to the type
-            super(SimJavaVM, self).state_call(addr, *args, **kwargs)
+            super(SimJavaVM, self).state_call(addr, *arg_values, **kwargs)
         
         else:
             # Create function prototype, so the SimCC know how to setup the call-site
             ret_type = kwargs.pop('ret_type')
             arg_types = tuple(arg_type for (arg, arg_type) in args)
             prototype = SimTypeFunction(arg_types, ret_type)
-
             native_cc = self.native_cc_cls(self.native_simos.arch, func_ty=prototype)
-
-            arg_values = tuple(arg for (arg, arg_type) in args)
-
-            return self.native_simos.state_call(addr, *arg_values, 
-                                                 ret_addr=self.native_call_return_to_soot, 
-                                                 cc=native_cc, **kwargs)
-
+            # Setup native invoke_state
+            invoke_state = self.native_simos.state_call(addr, *arg_values, 
+                                                        ret_addr=self.native_return_hook_addr, 
+                                                        cc=native_cc, **kwargs)
+            invoke_state.scratch.invoke_native_cc = native_cc
+            return invoke_state
 
     #
-    # Execution
+    # Helper
     #
-
-    def native_call_return_to_soot_hook(self, native_state):
-        """
-        Hook target for native function returns. 
-
-        This function will toggle the state, s.t. the execution continues in the Soot engine.
-        """
-        ret_state = native_state.copy()
-        ret_addr = ret_state.get_plugin("callstack", with_suffix='_soot').ret_addr
-        ret_state.regs._ip = ret_addr
-        ret_var = ret_state.callstack.invoke_return_variable
-        ret_state.scratch.guard = ret_state.se.true
-        ret_state.history.jumpkind = 'Ijk_Ret'
-        ret_state.memory.pop_stack_frame()
-        ret_state.callstack.pop()
-        
-        if ret_var:
-            # if available, move the return value to the Soot state
-
-            if ret_var.type == 'void':
-                # in this case, the 'invoke_return_variable' should not have been set
-                l.warning("Return variable is available, but return type is set to void.")
-            
-            elif ret_var.type in ['float', 'double']:
-                raise NotImplementedError()
-
-            elif ret_var.type in ArchSoot.primitive_types.keys():
-                # return value has a primitive type
-                # => we need to manually cast the return value to the correct size, as this
-                #    would be usually done by the java callee
-                # 1. get return symbol from native state
-                native_cc = self.native_cc_cls((self.native_simos.arch))
-                ret_symbol = native_cc.get_return_val(native_state).to_claripy()
-                # 2. lookup the size of the native type and extract value
-                ret_var_native_size = ArchSoot.primitive_types[ret_var.type] 
-                ret_value = ret_symbol.reversed.get_bytes(index=0, size=ret_var_native_size/8).reversed
-                # 3. determine size of soot bitvector and resize bitvector
-                # Note: smaller types than int's are stored as a 32-bit SootIntConstant 
-                ret_var_soot_size = ret_var_native_size if ret_var_native_size >= 32 else 32
-                if ret_var.type in ['char', 'boolean']:
-                    # unsigned extend
-                    ret_value = ret_value.zero_extend(ret_var_soot_size-ret_var_native_size)
-                else:
-                    # signed extend
-                    ret_value = ret_value.sign_extend(ret_var_soot_size-ret_var_native_size)
-                
-            else:
-                # reference type
-                raise NotImplementedError()
-                           
-            l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.local_name))
-            ret_state.memory.store(ret_var, ret_value)
- 
-        return [ret_state]
 
     def get_clemory_addr_of_native_method(self, soot_method):
         """
@@ -278,3 +231,31 @@ class SimJavaVM(SimOS):
             raise AngrSimOSError("No native method found that matches the Soot method '%s'.\
                                   \nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
                                   % (soot_method.name, native_symbols))
+
+    def generate_opaque_reference(self):
+        """
+        Native code cannot interact directly with Java objects, but needs to use JNI interface
+        functions. For this, Java objects are getting referenced with opaque references.
+
+        :return: Address, which can be used as an opaque reference.
+        """
+        return self.project.loader.extern_object.allocate()
+
+    def get_native_type(self, java_type):
+        """
+        Maps the Java type to a SimTypeReg representation of its native counterpart.
+        This type can be used to indicate the (well-defined) size of the native JNI type.
+
+        :return: A SymTypeReg with the JNI size of the given type.
+        """
+        if java_type in ArchSoot.sizeof.keys():
+            jni_type_size = ArchSoot.sizeof[java_type]
+
+        elif java_type == "reference":
+            jni_type_size = self.native_simos.arch.bits
+        
+        else:
+            l.warning("Unknown type %s" % java_type)
+            return None
+
+        return SimTypeReg(size=jni_type_size)
