@@ -66,7 +66,9 @@ def test_fauxware():
         yield run_fauxware, arch, lst
 
 
-def test_cgc():
+# def test_cgc():
+def disabled_cgc():
+    # Skip this test since we do not have the binaries-private repo cloned on Travis CI.
 
     binaries = [
         '002ba801_01',

@@ -18,13 +18,16 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),
 def run_reaching_definition_analysis(project, func, groundtruth):
 
     # Create a temporary KnowledgeBase instance
-    tmp_kb = angr.KnowledgeBase(project, project.loader.main_bin)
+    tmp_kb = angr.KnowledgeBase(project, project.loader.main_object)
 
     rd = project.analyses.ReachingDefinitions(func, kb=tmp_kb)
 
     import ipdb; ipdb.set_trace()
 
-def test_reaching_definition_analysis():
+# def test_reaching_definition_analysis():
+def disabled_reaching_definition_analysis():
+
+    # FIXME: Rewrite test cases for ReachingDefinitionAnalysis
 
     binary_path = os.path.join(test_location, 'x86_64', 'all')
     project = angr.Project(binary_path, load_options={'auto_load_libs': False})

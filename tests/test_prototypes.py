@@ -6,10 +6,12 @@ import nose.tools
 import angr
 import angr.calling_conventions
 
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
 
-def test_function_declaration():
 
-    proj = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'))
+def test_function_prototype():
+
+    proj = angr.Project(os.path.join(test_location, 'x86_64', 'all'))
 
     func = angr.knowledge_plugins.Function(proj.kb.functions, 0x100000, name='strcmp')
     func.prototype = angr.SIM_LIBRARIES['libc.so.6'].prototypes[func.name]
@@ -21,8 +23,8 @@ def test_function_declaration():
     # import ipdb; ipdb.set_trace()
 
 
-def test_find_declaration():
-    proj = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+def test_find_prototype():
+    proj = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)
 
     cfg = proj.analyses.CFG()
 
@@ -46,8 +48,8 @@ def test_find_declaration():
 
 
 def main():
-    test_find_declaration()
-    test_function_declaration()
+    test_find_prototype()
+    test_function_prototype()
 
 if __name__ == "__main__":
     main()

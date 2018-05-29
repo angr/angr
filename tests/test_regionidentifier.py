@@ -6,16 +6,17 @@ import nose.tools
 import angr
 import angr.analyses.decompiler
 
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+
+
 def test_smoketest():
 
-    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)
     cfg = p.analyses.CFG(normalize=True)
 
     main_func = cfg.kb.functions['main']
 
     st = p.analyses.RegionIdentifier(main_func)
-
-    import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":

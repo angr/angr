@@ -7,10 +7,12 @@ import nose.tools
 import angr
 import angr.analyses.decompiler
 
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+
 
 def test_smoketest():
 
-    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)
     cfg = p.analyses.CFG(normalize=True)
 
     main_func = cfg.kb.functions['main']
@@ -27,7 +29,7 @@ def test_smoketest():
 
 def test_simple():
 
-    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)
     cfg = p.analyses.CFG(normalize=True)
 
     main_func = cfg.kb.functions['main']
@@ -48,7 +50,7 @@ def test_simple():
 
 def test_simple_loop():
 
-    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'cfg_loop_unrolling'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'), auto_load_libs=False)
     cfg = p.analyses.CFG(normalize=True)
 
     test_func = cfg.kb.functions['test_func']
@@ -68,7 +70,7 @@ def test_simple_loop():
 
 
 def test_recursive_structuring():
-    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'cfg_loop_unrolling'),
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'),
                      auto_load_libs=False)
     cfg = p.analyses.CFG(normalize=True)
 
@@ -89,7 +91,7 @@ def test_recursive_structuring():
 
 
 def test_while_true_break():
-    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'test_decompiler_loops_O0'),
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),
                      auto_load_libs=False)
     cfg = p.analyses.CFG(normalize=True)
 
@@ -109,7 +111,7 @@ def test_while_true_break():
     print codegen.text
 
 def test_while():
-    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'test_decompiler_loops_O0'),
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),
                      auto_load_libs=False)
     cfg = p.analyses.CFG(normalize=True)
 
