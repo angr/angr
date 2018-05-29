@@ -315,7 +315,9 @@ class RegionIdentifier(Analysis):
         while True:
             df = None
 
-            for node in list(networkx.dfs_postorder_nodes(graph)):
+            self._update_start_node(graph)
+
+            for node in networkx.dfs_postorder_nodes(graph, source=self._start_node):
                 succs = graph.successors(node)
                 if not succs:
                     # the root element of the region hierarchy should always be a GraphRegion,
