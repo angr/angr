@@ -79,7 +79,7 @@ def get_engine(base_engine):
                 return None
             return self.state.function.addr
 
-        def process(self, state, *args, **kwargs):
+        def process(self, state, *args, **kwargs):  # pylint:disable=unused-argument
             # we are using a completely different state. Therefore, we directly call our _process() method before
             # SimEngine becomes flexible enough.
             try:
@@ -88,8 +88,7 @@ def get_engine(base_engine):
                 if kwargs.pop('fail_fast', False) is True:
                     raise e
 
-        def _process(self, state, successors,
-                     block=None, func_addr=None):
+        def _process(self, state, successors, block=None, func_addr=None):  # pylint:disable=unused-argument
 
             self.processor_state = state.processor_state
             self.variable_manager = state.variable_manager
@@ -272,7 +271,7 @@ def get_engine(base_engine):
             self.state.register_region.set_variable(offset, variable)
             self.variable_manager[self.func_addr].write_to(variable, 0, codeloc)
 
-        def _store(self, addr, data, size):
+        def _store(self, addr, data, size):  # pylint:disable=unused-argument
             """
 
             :param addr:

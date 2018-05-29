@@ -20,7 +20,7 @@ class CConstruct(object):
         raise NotImplementedError()
 
 
-class CFunction(CConstruct):
+class CFunction(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a function in C.
     """
@@ -32,15 +32,12 @@ class CFunction(CConstruct):
         self.statements = statements
 
 
-class CStatement(CConstruct):
+class CStatement(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a statement in C.
     """
-    def __init__(self):
-
-        super(CStatement, self).__init__()
-
-    def indent_str(self, indent=0):
+    @staticmethod
+    def indent_str(indent=0):
         return " " * indent
 
 
@@ -82,13 +79,11 @@ class CAILBlock(CStatement):
         return "\n".join(lines)
 
 
-class CLoop(CStatement):
+class CLoop(CStatement):  # pylint:disable=abstract-method
     """
     Represents a loop in C.
     """
-    def __init__(self):
-
-        super(CLoop, self).__init__()
+    pass
 
 
 class CWhileLoop(CLoop):
@@ -197,6 +192,12 @@ class CAssignment(CStatement):
         self.lhs = lhs
         self.rhs = rhs
 
+    def c_repr(self, indent=0):
+
+        indent_str = self.indent_str(indent=indent)
+
+        return indent_str + "%s = %s;" % (self.lhs, self.rhs)
+
 
 class StructuredCodeGenerator(Analysis):
     def __init__(self, sequence):
@@ -260,7 +261,7 @@ class StructuredCodeGenerator(Analysis):
         elif loop_node.sort == 'do-while':
             # TODO: FIXME
 
-            if loop_node.condition == None:
+            if loop_node.condition is None:
                 raise NotImplementedError()
             else:
                 lines.append('do')
@@ -281,11 +282,11 @@ class StructuredCodeGenerator(Analysis):
                        )
         return code
 
-    def _handle_ConditionalBreak(self, node):
+    def _handle_ConditionalBreak(self, node):  # pylint:disable=no-self-use
 
         return CIfBreak(node.condition)
 
-    def _handle_MultiNode(self, node):
+    def _handle_MultiNode(self, node):  # pylint:disable=no-self-use
 
         lines = [ ]
 

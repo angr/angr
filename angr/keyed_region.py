@@ -242,7 +242,7 @@ class KeyedRegion(object):
         :rtype:  set
         """
 
-        base_addr, container = self._get_container(start)
+        _, container = self._get_container(start)
         if container is None:
             return []
         else:
@@ -256,7 +256,7 @@ class KeyedRegion(object):
         :return:
         """
 
-        base_addr, container = self._get_container(start)
+        _, container = self._get_container(start)
         if container is None:
             return set()
         else:

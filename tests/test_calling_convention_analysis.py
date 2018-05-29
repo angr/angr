@@ -21,7 +21,7 @@ def run_fauxware(arch, function_and_cc_list):
 
     for func_name, expected_cc in function_and_cc_list:
         authenticate = cfg.functions[func_name]
-        variable_recovery = fauxware.analyses.VariableRecoveryFast(authenticate)
+        _ = fauxware.analyses.VariableRecoveryFast(authenticate)
 
         cc_analysis = fauxware.analyses.CallingConvention(authenticate)
         cc = cc_analysis.cc

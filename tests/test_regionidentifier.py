@@ -1,8 +1,6 @@
 
 import os
 
-import nose.tools
-
 import angr
 import angr.analyses.decompiler
 
@@ -16,7 +14,7 @@ def test_smoketest():
 
     main_func = cfg.kb.functions['main']
 
-    st = p.analyses.RegionIdentifier(main_func)
+    _ = p.analyses.RegionIdentifier(main_func)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from ...errors import SimEngineError
 l = logging.getLogger('angr.analyses.reaching_definitions.engine_vex')
 
 
-class SimEngineRDVEX(SimEngineLightVEX):
+class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     def __init__(self, current_local_call_depth, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDVEX, self).__init__()
         self._current_local_call_depth = current_local_call_depth
@@ -38,7 +38,8 @@ class SimEngineRDVEX(SimEngineLightVEX):
     # Private methods
     #
 
-    def _external_codeloc(self):
+    @staticmethod
+    def _external_codeloc():
         return ExternalCodeLocation()
 
     #
@@ -413,7 +414,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
 
         ip_addr = ip_data.get_first_element()
         if not isinstance(ip_addr, (int, long)):
-            l.error('Invalid type %s for IP.' % type(ip_addr).__name__)
+            l.error('Invalid type %s for IP.', type(ip_addr).__name__)
             return None
 
         is_internal = False

@@ -31,12 +31,8 @@ def test_find_prototype():
     func = cfg.kb.functions.function(name='strcmp', plt=False)
     func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](proj.arch)
 
-    try:
-        func.calling_convention.arg_locs()
-        nose.tools.assert_true(False, msg="Calling SimCC.arg_locs() should fail when the function declaration is not provided.")
-    except ValueError:
-        # as expected
-        pass
+    # Calling SimCC.arg_locs() should fail when the function prototype is not provided.
+    nose.tools.assert_raises(ValueError, func.calling_convention.arg_locs)
 
     func.find_declaration()
 

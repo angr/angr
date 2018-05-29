@@ -82,7 +82,7 @@ class Clinic(Analysis):
 
         self._update_graph()
 
-        ri = self.project.analyses.RegionIdentifier(self.function, graph=self.graph)
+        ri = self.project.analyses.RegionIdentifier(self.function, graph=self.graph)  # pylint:disable=unused-variable
 
         # print ri.region.dbg_print()
 
@@ -139,7 +139,7 @@ class Clinic(Analysis):
     def _recover_and_link_variables(self):
 
         # variable recovery
-        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=self.kb)
+        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=self.kb)  # pylint:disable=unused-variable
 
         # TODO: The current mapping implementation is kinda hackish...
 

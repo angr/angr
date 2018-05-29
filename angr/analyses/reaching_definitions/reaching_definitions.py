@@ -210,7 +210,7 @@ class LiveDefinitions(object):
         self.tmp_uses[atom.tmp_idx].add((code_loc, current_def))
 
 
-class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
+class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
     ReachingDefinitionAnalysis is a text-book implementation of a static data-flow analysis that works on either a
     function or a block. It supports both VEX and AIL. By registering observers to observation points, users may use

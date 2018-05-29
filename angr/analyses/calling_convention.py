@@ -69,7 +69,7 @@ class CallingConventionAnalysis(Analysis):
 
         return cc
 
-    def _analyze_callsites(self):
+    def _analyze_callsites(self):  # pylint:disable=no-self-use
         """
 
         :return:
@@ -77,7 +77,7 @@ class CallingConventionAnalysis(Analysis):
 
         return []
 
-    def _merge_cc(self, *cc_lst):
+    def _merge_cc(self, *cc_lst):  # pylint:disable=no-self-use
 
         # TODO: finish it
 
@@ -162,7 +162,7 @@ class CallingConventionAnalysis(Analysis):
 
         :return:
         """
-        if kb == None:
+        if kb is None:
             kb = project.kb
 
         new_cc_found = True

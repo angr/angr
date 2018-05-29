@@ -13,7 +13,7 @@ from ...errors import SimEngineError
 l = logging.getLogger('angr.analyses.reaching_definitions.engine_ail')
 
 
-class SimEngineRDAIL(SimEngineLightAIL):
+class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def __init__(self, current_local_call_depth, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDAIL, self).__init__()
         self._current_local_call_depth = current_local_call_depth
@@ -34,7 +34,8 @@ class SimEngineRDAIL(SimEngineLightAIL):
     # Private methods
     #
 
-    def _external_codeloc(self):
+    @staticmethod
+    def _external_codeloc():
         return ExternalCodeLocation()
 
     #
@@ -76,17 +77,17 @@ class SimEngineRDAIL(SimEngineLightAIL):
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
     def _ail_handle_Store(self, stmt):
-        data = self._expr(stmt.data)
-        addr = self._expr(stmt.addr)
+        data = self._expr(stmt.data)  # pylint:disable=unused-variable
+        addr = self._expr(stmt.addr)  # pylint:disable=unused-variable
 
     def _ail_handle_Jump(self, stmt):
-        target = self._expr(stmt.target)
+        target = self._expr(stmt.target)  # pylint:disable=unused-variable
 
     def _ail_handle_ConditionalJump(self, stmt):
 
-        cond = self._expr(stmt.condition)
-        true_target = self._expr(stmt.true_target)
-        false_target = self._expr(stmt.false_target)
+        cond = self._expr(stmt.condition)  # pylint:disable=unused-variable
+        true_target = self._expr(stmt.true_target)  # pylint:disable=unused-variable
+        false_target = self._expr(stmt.false_target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bits / 8)
         self.state.kill_definitions(ip, self._codeloc(), )
@@ -99,7 +100,7 @@ class SimEngineRDAIL(SimEngineLightAIL):
         self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
     def _ail_handle_Call(self, stmt):
-        target = self._expr(stmt.target)
+        target = self._expr(stmt.target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bits / 8)
 
@@ -222,7 +223,7 @@ class SimEngineRDAIL(SimEngineLightAIL):
 
         ip_addr = ip_data.get_first_element()
         if not isinstance(ip_addr, (int, long)):
-            l.error('Invalid type %s for IP.' % type(ip_addr).__name__)
+            l.error('Invalid type %s for IP.', type(ip_addr).__name__)
             return None
 
         is_internal = False

@@ -1,8 +1,6 @@
 
 import os
 
-import nose.tools
-
 import angr
 import angr.analyses.decompiler
 
@@ -14,7 +12,7 @@ def main():
 
     cfg = proj.analyses.CFG()
 
-    main_func = proj.kb.functions['main']
+    main_func = cfg.kb.functions['main']
 
     clinic = proj.analyses.Clinic(main_func)
 

@@ -44,7 +44,7 @@ class SimEngineLightVEX(SimEngineLight):
         # for VEX blocks only
         self.tyenv = None
 
-    def _process(self, state, successors, block=None):
+    def _process(self, state, successors, block=None):  # pylint:disable=arguments-differ
 
         assert block is not None
 
@@ -207,7 +207,7 @@ class SimEngineLightVEX(SimEngineLight):
     # Unary operation handlers
     #
 
-    def _handle_Const(self, expr):
+    def _handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.con.value
 
     #
@@ -296,7 +296,7 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 ^ expr_1
         except TypeError as e:
-            l.warning(e)
+            self.l.warning(e)
             return None
 
     def _handle_Shl(self, expr):
@@ -339,7 +339,7 @@ class SimEngineLightAIL(SimEngineLight):
     def __init__(self):
         super(SimEngineLightAIL, self).__init__(engine_type='ail')
 
-    def _process(self, state, successors, block=None):
+    def _process(self, state, successors, block=None):  # pylint:disable=arguments-differ
 
         self.tmps = {}
         self.block = block
@@ -395,7 +395,7 @@ class SimEngineLightAIL(SimEngineLight):
     # Expression handlers
     #
 
-    def _ail_handle_Const(self, expr):
+    def _ail_handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.value
 
     def _ail_handle_Tmp(self, expr):

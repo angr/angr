@@ -86,7 +86,8 @@ class GraphRegion(object):
     def addr(self):
         return self.head.addr
 
-    def dbg_get_repr(self, obj, ident=0):
+    @staticmethod
+    def dbg_get_repr(obj, ident=0):
         if type(obj) is GraphRegion:
             s = obj.dbg_print(ident=ident)
         else:
@@ -359,7 +360,7 @@ class RegionIdentifier(Analysis):
                     if len(refined_exit_nodes) > 1:
                         self._update_start_node(graph)
                         node_post_order = list(networkx.dfs_postorder_nodes(graph, self._start_node))
-                        sorted_exit_nodes = sorted(list(refined_exit_nodes), key=lambda node: node_post_order.index(node))
+                        sorted_exit_nodes = sorted(list(refined_exit_nodes), key=node_post_order.index)
                         normal_exit_node = sorted_exit_nodes[0]
                         abnormal_exit_nodes = set(sorted_exit_nodes[1:])
                     else:
@@ -389,7 +390,8 @@ class RegionIdentifier(Analysis):
 
         return r
 
-    def _compute_region(self, graph, node, frontier, include_frontier=False):
+    @staticmethod
+    def _compute_region(graph, node, frontier, include_frontier=False):
 
         subgraph = networkx.DiGraph()
         queue = [ node ]
@@ -443,8 +445,9 @@ class RegionIdentifier(Analysis):
             for frontier_node in frontier:
                 graph.add_edge(region, frontier_node)
 
-
-    def _abstract_cyclic_region(self, graph, loop_nodes, head, normal_entries, abnormal_entries, normal_exit_node, abnormal_exit_nodes): 
+    @staticmethod
+    def _abstract_cyclic_region(graph, loop_nodes, head, normal_entries, abnormal_entries, normal_exit_node,
+                                abnormal_exit_nodes):
         region = GraphRegion(head, networkx.DiGraph())
         graph.add_node(region)
         for node in loop_nodes:
@@ -475,7 +478,8 @@ class RegionIdentifier(Analysis):
         for node in loop_nodes:
             graph.remove_node(node)
 
-    def _region_in_edges(self, graph, region, data=False):
+    @staticmethod
+    def _region_in_edges(graph, region, data=False):
 
         return list(graph.in_edges(region.head, data=data))
 
@@ -485,19 +489,20 @@ class RegionIdentifier(Analysis):
         out_edges = [ (src, dst, data) for (src, dst, data) in graph.out_edges(node, data=True) if not dst is node ]
 
         if len(in_edges) <= 1 and len(out_edges) <= 1:
-            # it forms a region :-)
-            new_node = GraphRegion([ node ])
-            self.regions.append(new_node)
+            # it forms a region by itself :-)
+            new_node = None
 
         else:
             new_node = MultiNode([ node ])
 
         graph.remove_node(node)
-        for src, _, data in in_edges:
-            graph.add_edge(src, new_node, **data)
 
-        for _, dst, data in out_edges:
-            graph.add_edge(new_node, dst, **data)
+        if new_node is not None:
+            for src, _, data in in_edges:
+                graph.add_edge(src, new_node, **data)
+
+            for _, dst, data in out_edges:
+                graph.add_edge(new_node, dst, **data)
 
     def _merge_nodes(self, graph, node_a, node_b, force_multinode=False):
 
@@ -505,26 +510,27 @@ class RegionIdentifier(Analysis):
         out_edges = [ (src, dst, data) for (src, dst, data) in graph.out_edges(node_b, data=True) ]
 
         if not force_multinode and len(in_edges) <= 1 and len(out_edges) <= 1:
-            # it forms a region :-)
-            new_node = GraphRegion([ node_a, node_b ])
-            self.regions.append(new_node)
+            # it forms a region by itself :-)
+            new_node = None
 
         else:
             new_node = MultiNode([ node_a, node_b ])
 
         graph.remove_node(node_a)
         graph.remove_node(node_b)
-        graph.add_node(new_node)
 
-        for src, _, data in in_edges:
-            if src is node_b:
-                src = new_node
-            graph.add_edge(src, new_node, **data)
+        if new_node is not None:
+            graph.add_node(new_node)
 
-        for _, dst, data in out_edges:
-            if dst is node_a:
-                dst = new_node
-            graph.add_edge(new_node, dst, **data)
+            for src, _, data in in_edges:
+                if src is node_b:
+                    src = new_node
+                graph.add_edge(src, new_node, **data)
+
+            for _, dst, data in out_edges:
+                if dst is node_a:
+                    dst = new_node
+                graph.add_edge(new_node, dst, **data)
 
         assert not node_a in graph
         assert not node_b in graph
@@ -536,9 +542,8 @@ class RegionIdentifier(Analysis):
         out_edges_kiddie = graph.out_edges(node_kiddie, data=True)
 
         if not force_multinode and len(in_edges_mommy) <= 1 and len(out_edges_kiddie) <= 1:
-            # it forms a region :-)
-            new_node = GraphRegion([node_mommy, node_kiddie])
-            self.regions.append(new_node)
+            # it forms a region by itself :-)
+            new_node = None
 
         else:
             new_node = MultiNode([node_mommy, node_kiddie])
@@ -546,24 +551,25 @@ class RegionIdentifier(Analysis):
         graph.remove_node(node_mommy)
         graph.remove_node(node_kiddie)
 
-        graph.add_node(new_node)
+        if new_node is not None:
+            graph.add_node(new_node)
 
-        for src, _, data in in_edges_mommy:
-            if src == node_kiddie:
-                src = new_node
-            graph.add_edge(src, new_node, **data)
+            for src, _, data in in_edges_mommy:
+                if src == node_kiddie:
+                    src = new_node
+                graph.add_edge(src, new_node, **data)
 
-        for _, dst, data in out_edges_mommy:
-            if dst == node_kiddie:
-                continue
-            if dst == node_mommy:
-                dst = new_node
-            graph.add_edge(new_node, dst, **data)
+            for _, dst, data in out_edges_mommy:
+                if dst == node_kiddie:
+                    continue
+                if dst == node_mommy:
+                    dst = new_node
+                graph.add_edge(new_node, dst, **data)
 
-        for _, dst, data in out_edges_kiddie:
-            if dst == node_mommy:
-                dst = new_node
-            graph.add_edge(new_node, dst, **data)
+            for _, dst, data in out_edges_kiddie:
+                if dst == node_mommy:
+                    dst = new_node
+                graph.add_edge(new_node, dst, **data)
 
         assert not node_mommy in graph
         assert not node_kiddie in graph
@@ -571,5 +577,6 @@ class RegionIdentifier(Analysis):
     @staticmethod
     def _dbg_block_list(blocks):
         return map(lambda block: hex(block.addr), blocks)
+
 
 register_analysis(RegionIdentifier, 'RegionIdentifier')

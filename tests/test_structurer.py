@@ -2,8 +2,6 @@
 
 import os
 
-import nose.tools
-
 import angr
 import angr.analyses.decompiler
 
@@ -24,7 +22,7 @@ def test_smoketest():
     ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
 
     # structure it
-    st = p.analyses.Structurer(ri.region)
+    st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
 
 
 def test_simple():

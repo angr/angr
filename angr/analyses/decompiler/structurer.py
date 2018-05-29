@@ -108,9 +108,9 @@ class ConditionNode(object):
         s += (indent_str + "if (<block-missing>; %s)\n" +
               indent_str + "{\n" +
               indent_str + "%s\n" +
-              indent_str + "}\n" % (
+              indent_str + "}\n") % (
             self.condition, self.true_node.dbg_repr(indent+2),
-        ))
+        )
         if self.false_node is not None:
             s += (indent_str + "else\n" +
               indent_str + "{\n" +
@@ -189,7 +189,8 @@ class RecursiveStructurer(Analysis):
                 else:
                     self._replace_region(parent_region, current_region, st.result)
 
-    def _replace_region(self, parent_region, sub_region, node):
+    @staticmethod
+    def _replace_region(parent_region, sub_region, node):
 
         parent_region.replace_region(sub_region, node)
 
@@ -303,7 +304,7 @@ class Structurer(Analysis):
 
         return loop_subgraph, loop_successors
 
-    def _refine_loop_successors(self, loop_subgraph, loop_successors):
+    def _refine_loop_successors(self, loop_subgraph, loop_successors):  # pylint:disable=unused-argument,no-self-use
 
         l.warning('_refine_loop_successors() is not implemented yet.')
 
@@ -333,7 +334,8 @@ class Structurer(Analysis):
 
         return loop_node
 
-    def _refine_loop_while(self, loop_node):
+    @staticmethod
+    def _refine_loop_while(loop_node):
 
         if loop_node.sort == 'while' and loop_node.condition is None:
             # it's an endless loop
@@ -348,7 +350,8 @@ class Structurer(Analysis):
 
         return False, loop_node
 
-    def _refine_loop_dowhile(self, loop_node):
+    @staticmethod
+    def _refine_loop_dowhile(loop_node):
 
         if loop_node.sort == 'while' and loop_node.condition is None:
             # it's an endless loop
@@ -510,7 +513,8 @@ class Structurer(Analysis):
                 new_node = ConditionNode(node.addr, None, node.reaching_condition, node, None)
                 seq.nodes[i] = new_node
 
-    def _make_ite(self, seq, node_0, node_1):
+    @staticmethod
+    def _make_ite(seq, node_0, node_1):
 
         pos = max(seq.node_position(node_0), seq.node_position(node_1))
 
@@ -574,7 +578,8 @@ class Structurer(Analysis):
         else:
             raise NotImplementedError()
 
-    def _bool_variable_from_ail_condition(self, block, condition):
+    @staticmethod
+    def _bool_variable_from_ail_condition(block, condition):
         return claripy.BoolS('structurer-cond_%#x_%s' % (block.addr, repr(condition)), explicit_name=True)
 
 
