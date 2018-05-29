@@ -812,6 +812,7 @@ class SimCC(object):
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
         found.
+
         :param Arch arch:       An ArchX instance. Can be obtained from archinfo.
         :param list args:       A list of arguments.
         :param int sp_delta:    The change of stack pointer before and after the call is made.
