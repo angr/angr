@@ -8,7 +8,7 @@ from collections import defaultdict
 
 import claripy
 from ...errors import SimEngineError, SimMemoryError
-from ...declarations import SIM_DECLARATIONS
+from ...procedures import SIM_LIBRARIES
 
 l = logging.getLogger("angr.knowledge.function")
 
@@ -112,8 +112,8 @@ class Function(object):
         # Calling convention
         self.calling_convention = None
 
-        # Declaration
-        self.declaration = None
+        # Function prototype
+        self.prototype = None
 
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -1024,8 +1024,8 @@ class Function(object):
 
     def find_declaration(self):
         """
-        Find the most likely function declaration from the embedded collection of declarations, set it to
-        self.declaration, and update self.calling_convention with the declaration.
+        Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
+        and update self.calling_convention with the declaration.
 
         :return: None
         """
@@ -1034,7 +1034,7 @@ class Function(object):
 
         if not self.is_plt:
             binary_name = self.binary_name
-            if binary_name not in SIM_DECLARATIONS:
+            if binary_name not in SIM_LIBRARIES:
                 return
         else:
             binary_name = None
@@ -1050,20 +1050,20 @@ class Function(object):
         if binary_name is None:
             return
 
-        declarations = SIM_DECLARATIONS.get_declarations(binary_name)
+        library = SIM_LIBRARIES.get(binary_name, None)
 
-        if declarations is None:
+        if library is None:
             return
 
-        if not declarations.has_decl(self.name):
+        if not library.has_prototype(self.name):
             return
 
-        decl = declarations[self.name]
+        proto = library.prototypes[self.name]
 
-        self.declaration = decl
+        self.prototype = proto
         if self.calling_convention is not None:
             self.calling_convention.args = None
-            self.calling_convention.func_ty = decl
+            self.calling_convention.func_ty = proto
 
 
 from ...codenode import BlockNode, HookNode

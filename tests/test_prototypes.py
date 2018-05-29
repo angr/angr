@@ -1,6 +1,5 @@
 
 import os
-import logging
 
 import nose.tools
 
@@ -12,11 +11,11 @@ def test_function_declaration():
 
     proj = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'))
 
-    func = angr.knowledge.Function(proj.kb.functions, 0x100000, name='strcmp')
-    func.declaration = angr.SIM_DECLARATIONS['libc'][func.name]
+    func = angr.knowledge_plugins.Function(proj.kb.functions, 0x100000, name='strcmp')
+    func.prototype = angr.SIM_LIBRARIES['libc.so.6'].prototypes[func.name]
     func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](
         proj.arch,
-        func_ty=func.declaration,
+        func_ty=func.prototype,
     )
 
     # import ipdb; ipdb.set_trace()
@@ -27,7 +26,7 @@ def test_find_declaration():
 
     cfg = proj.analyses.CFG()
 
-    func = proj.kb.functions.function(name='strcmp', plt=False)
+    func = cfg.kb.functions.function(name='strcmp', plt=False)
     func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](proj.arch)
 
     try:
@@ -48,7 +47,7 @@ def test_find_declaration():
 
 def main():
     test_find_declaration()
-    # test_function_declaration()
+    test_function_declaration()
 
 if __name__ == "__main__":
     main()
