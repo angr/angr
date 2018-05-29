@@ -779,10 +779,10 @@ class Function(object):
         for src, dst, data in self.transition_graph.edges(data=True):
             if 'type' in data:
                 if data['type']  == 'transition' and ('outside' not in data or data['outside'] is False):
-                    g.add_edge(src, dst, attr_dict=data)
+                    g.add_edge(src, dst, **data)
                 elif data['type'] == 'fake_return' and 'confirmed' in data and \
                         ('outside' not in data or data['outside'] is False):
-                    g.add_edge(src, dst, attr_dict=data)
+                    g.add_edge(src, dst, **data)
 
         self._local_transition_graph = g
 
