@@ -177,10 +177,11 @@ class RecursiveStructurer(Analysis):
                 # pop this region from the stack
                 stack.pop()
 
-                # structure this region
-                st = self.project.analyses.Structurer(current_region)
-                # replace this region with the resulting node in its parent region... if it's not an orphan
+                # Get the parent region
                 parent_region = parent_map.get(current_region, None)
+                # structure this region
+                st = self.project.analyses.Structurer(current_region, parent_region=parent_region)
+                # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
                     self.result = st.result
@@ -197,9 +198,10 @@ class Structurer(Analysis):
     """
     Structure a region.
     """
-    def __init__(self, region):
+    def __init__(self, region, parent_region=None):
 
         self._region = region
+        self._parent_region = parent_region
 
         self._reaching_conditions = None
         self._predicate_mapping = None
@@ -234,7 +236,7 @@ class Structurer(Analysis):
 
         loop_node = self._refine_loop(loop_node)
 
-        self.result = SequenceNode(nodes=[ loop_node ] + list(successors))
+        self.result = SequenceNode(nodes=[ loop_node ] + [ succ for succ in successors if succ in loop_subgraph ])
 
     def _analyze_acyclic(self):
 
@@ -283,12 +285,21 @@ class Structurer(Analysis):
         # find loop nodes and successors
         loop_subgraph = RegionIdentifier.slice_graph(graph, head, latching_nodes, include_frontier=True)
 
+        # Case A: The loop successor is inside the current region (does it happen at all?)
         loop_successors = set()
-        for node, successors in networkx.bfs_successors(graph, head).iteritems():
+
+        for node, successors in networkx.bfs_successors(graph, head):
             if node in loop_subgraph:
                 for suc in successors:
                     if suc not in loop_subgraph:
                         loop_successors.add(suc)
+
+        # Case B: The loop successor is the successor to this region in the parent graph
+        if not loop_successors:
+            parent_graph = self._parent_region.graph
+            for node, successors in networkx.bfs_successors(parent_graph, self._region):
+                for suc in successors:
+                    loop_successors.add(suc)
 
         return loop_subgraph, loop_successors
 
