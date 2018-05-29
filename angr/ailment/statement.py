@@ -150,12 +150,12 @@ class ConditionalJump(Statement):
 
 
 class Call(Statement):
-    def __init__(self, idx, target, calling_convention=None, declaration=None, args=None, **kwargs):
+    def __init__(self, idx, target, calling_convention=None, prototype=None, args=None, **kwargs):
         super(Call, self).__init__(idx, **kwargs)
 
         self.target = target
         self.calling_convention = calling_convention
-        self.declaration = declaration
+        self.prototype = prototype
         self.args = args
 
     def __eq__(self, other):
@@ -163,16 +163,16 @@ class Call(Statement):
                self.idx == other.idx and \
                self.target == other.target and \
                self.calling_convention == other.calling_convention and \
-               self.declaration == other.declaration and \
+               self.prototype == other.prototype and \
                self.args == other.args
 
     def __str__(self):
 
         cc = "Unknown CC" if self.calling_convention is None else "%s" % self.calling_convention
         if self.args is None:
-            s = ("%s" % cc) if self.declaration is None else "%s: %s" % (self.calling_convention, self.calling_convention.arg_locs())
+            s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention, self.calling_convention.arg_locs())
         else:
-            s = ("%s" % cc) if self.declaration is None else "%s: %s" % (self.calling_convention, self.args)
+            s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention, self.args)
 
         return "Call(%s, %s)" % (
             self.target,
@@ -195,7 +195,7 @@ class Call(Statement):
         if r:
             return True, Call(self.idx, replaced_target,
                               calling_convention=self.calling_convention,
-                              declaration=self.declaration,
+                              prototype=self.prototype,
                               args=new_args,
                               **self.tags
                               )

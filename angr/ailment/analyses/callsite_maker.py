@@ -41,10 +41,10 @@ class CallSiteMaker(Analysis):
 
         func = self.kb.functions[target]
 
-        if func.declaration is None:
+        if func.prototype is None:
             func.find_declaration()
 
-        if func.declaration is None:
+        if func.prototype is None:
             # cannot find a declaration to it
             return
 
@@ -66,7 +66,7 @@ class CallSiteMaker(Analysis):
 
         new_stmts[-1] = Stmt.Call(last_stmt, last_stmt.target,
                                   calling_convention=func.calling_convention,
-                                  declaration=func.declaration,
+                                  prototype=func.prototype,
                                   args=args,
                                   **last_stmt.tags
                                   )
