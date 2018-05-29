@@ -4,7 +4,7 @@ import cffi
 import cle
 from sortedcontainers import SortedDict
 
-from ..errors import SimMemoryError, SimSegfaultError
+from ..errors import SimMemoryError, SimSegfaultError, ConcreteMemoryError
 from .. import sim_options as options
 from .memory_object import SimMemoryObject
 from claripy.ast.bv import BV
@@ -496,7 +496,7 @@ class SimPagedMemory(object):
                 mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
                 self._apply_object_to_page(n * self._page_size, mo, page=new_page)
                 initialized = True
-            except SimMemoryError:
+            except ConcreteMemoryError:
                 '''
                 the address requested is not mapped in the concrete process memory
                 this can happen when a memory allocation function/syscall is invoked in the simulated execution

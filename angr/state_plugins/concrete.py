@@ -1,4 +1,5 @@
 from .plugin import SimStatePlugin
+from angr.errors import ConcreteRegisterError
 from angr_targets.segment_registers import *
 import struct
 import logging
@@ -53,7 +54,7 @@ class Concrete(SimStatePlugin):
                     #self.state.registers.store(reg_name, self.state.se.BVV(reg_value, self.state.arch.bits))
                     setattr(self.state.regs, reg_name, reg_value)
                     l.debug("Register: %s value: %x "%(reg_name,self.state.se.eval(getattr(self.state.regs,reg_name),cast_to=int)))
-                except ValueError as exc:
+                except ConcreteRegisterError as exc:
                     l.debug("Can't set register %s reason: %s, if this register is not used this message can be ignored"%( reg_name, exc))
                     #pass
 
