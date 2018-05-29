@@ -2,59 +2,19 @@
 import logging
 from collections import defaultdict
 
-import pyvex
-from .. import Analysis
+import ailment
 
+from .. import Analysis
+from ..calling_convention import CallingConventionAnalysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
+from ...errors import SimEngineError
 from ...keyed_region import KeyedRegion
+from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast")
-
-
-class RegAndOffset(object):
-    def __init__(self, bits, reg, offset):
-        self._bits = bits
-        self.reg = reg
-        self.offset = offset
-
-    def __repr__(self):
-        return "%s%s" % (self.reg, '' if self.offset == 0 else '%+x' % self.offset)
-
-    def __add__(self, other):
-        if type(other) in (int, long):
-            return RegAndOffset(self._bits, self.reg, self._to_signed(self.offset + other))
-        raise TypeError()
-
-    def __sub__(self, other):
-        if type(other) in (int, long):
-            return RegAndOffset(self._bits, self.reg, self._to_signed(self.offset - other))
-        raise TypeError()
-
-    def _to_signed(self, n):
-        if n >= 2 ** (self._bits - 1):
-            return n - 2 ** self._bits
-        return n
-
-
-class SpAndOffset(RegAndOffset):
-    def __init__(self, bits, offset, is_base=False):
-        super(SpAndOffset, self).__init__(bits, 'sp', offset)
-        self.is_base = is_base
-
-    def __repr__(self):
-        return "%s%s" % ('BP' if self.is_base else 'SP', '' if self.offset == 0 else '%+x' % self.offset)
-
-    def __add__(self, other):
-        if type(other) in (int, long):
-            return SpAndOffset(self._bits, self._to_signed(self.offset + other))
-        raise TypeError()
-
-    def __sub__(self, other):
-        if type(other) in (int, long):
-            return SpAndOffset(self._bits, self._to_signed(self.offset - other))
-        raise TypeError()
 
 
 class ProcessorState(object):
@@ -81,6 +41,9 @@ class ProcessorState(object):
         return s
 
     def merge(self, other):
+        if not self == other:
+            l.warn("Inconsistent merge: %s %s ", self, other)
+
         # FIXME: none of the following logic makes any sense...
         if other.sp_adjusted is True:
             self.sp_adjusted = True
@@ -90,280 +53,329 @@ class ProcessorState(object):
         self.bp = max(self.bp, other.bp)
         return self
 
+    def __eq__(self, other):
+        if not isinstance(other, ProcessorState):
+            return False
+        return (self.sp_adjusted == other.sp_adjusted and
+                self.sp_adjustment == other.sp_adjustment and
+                self.bp == other.bp and
+                self.bp_as_base == other.bp_as_base)
 
-class BlockProcessor(object):
-    def __init__(self, state, block):
+    def __repr__(self):
+        return "<ProcessorState %s%#x%s %s>" % (self.bp, self.sp_adjustment,
+            " adjusted" if self.sp_adjusted else "", self.bp_as_base)
 
-        self.state = state
-        self.processor_state = state.processor_state
-        self.arch = state.arch
-        self.func_addr = state.function.addr
-        self.variable_manager = state.variable_manager
-        self.block = block
-        self.vex_block = block.vex
-        self.tyenv = self.vex_block.tyenv
+def get_engine(base_engine):
+    class SimEngineVR(base_engine):
+        def __init__(self):
+            super(SimEngineVR, self).__init__()
 
-        self.stmt_idx = None
-        self.ins_addr = None
-        self.tmps = { }
+            self.processor_state = None
+            self.variable_manager = None
 
-    def process(self):
+        @property
+        def func_addr(self):
+            if self.state is None:
+                return None
+            return self.state.function.addr
 
-        for stmt_idx, stmt in enumerate(self.vex_block.statements):
-            # print stmt.__str__(arch=self.arch, tyenv=self.vex_block.tyenv)
+        def process(self, state, *args, **kwargs):  # pylint:disable=unused-argument
+            # we are using a completely different state. Therefore, we directly call our _process() method before
+            # SimEngine becomes flexible enough.
+            try:
+                self._process(state, None, block=kwargs.pop('block', None))
+            except SimEngineError as e:
+                if kwargs.pop('fail_fast', False) is True:
+                    raise e
 
-            self.stmt_idx = stmt_idx
-            if type(stmt) is pyvex.IRStmt.IMark:
-                self.ins_addr = stmt.addr + stmt.delta
-                continue
+        def _process(self, state, successors, block=None, func_addr=None):  # pylint:disable=unused-argument
 
-            handler = "_handle_%s" % type(stmt).__name__
-            if hasattr(self, handler):
-                getattr(self, handler)(stmt)
+            self.processor_state = state.processor_state
+            self.variable_manager = state.variable_manager
 
-        #print ""
-        #print self.tmps
-        #print ""
+            super(SimEngineVR, self)._process(state, successors, block=block)
 
-        self.stmt_idx = None
-        self.ins_addr = None
+        #
+        # VEX
+        #
 
-    #
-    # Statement handlers
-    #
+        # Statement handlers
 
-    def _handle_WrTmp(self, stmt):
-        data = self._expr(stmt.data)
-        if data is None:
-            return
-
-        self.tmps[stmt.tmp] = data
-
-    def _handle_Put(self, stmt):
-        offset = stmt.offset
-        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-
-        if offset == self.arch.sp_offset:
+        def _handle_Put(self, stmt):
+            offset = stmt.offset
             data = self._expr(stmt.data)
-            if type(data) is SpAndOffset:
-                sp_offset = data.offset
-                self.processor_state.sp_adjusted = True
-                self.processor_state.sp_adjustment = sp_offset
+            size = stmt.data.result_size(self.tyenv) / 8
 
-                l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
+            self._assign_to_register(offset, data, size)
 
-            return
-
-        if offset == self.arch.bp_offset:
+        def _handle_Store(self, stmt):
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) / 8
             data = self._expr(stmt.data)
-            if data is not None:
-                self.processor_state.bp = data
+
+            self._store(addr, data, size)
+
+
+        # Expression handlers
+
+        def _handle_Get(self, expr):
+            reg_offset = expr.offset
+            reg_size = expr.result_size(self.tyenv) / 8
+
+            return self._read_from_register(reg_offset, reg_size)
+
+
+        def _handle_Load(self, expr):
+            addr = self._expr(expr.addr)
+            size = expr.result_size(self.tyenv) / 8
+
+            return self._load(addr, size)
+
+        #
+        # AIL
+        #
+
+        # Statement handlers
+
+        def _ail_handle_Assignment(self, stmt):
+            dst_type = type(stmt.dst)
+
+            if dst_type is ailment.Expr.Register:
+                offset = stmt.dst.reg_offset
+                data = self._expr(stmt.src)
+                size = stmt.src.bits / 8
+
+                self._assign_to_register(offset, data, size)
+
+            elif dst_type is ailment.Expr.Tmp:
+                # simply write to self.tmps
+                data = self._expr(stmt.src)
+                if data is None:
+                    return
+
+                self.tmps[stmt.dst.tmp_idx] = data
+
             else:
-                self.processor_state.bp = None
-            return
+                l.warning('Unsupported dst type %s.', dst_type)
 
-        # handle register writes
-        data = self._expr(stmt.data)
-        if type(data) is SpAndOffset:
-            # lea
-            stack_offset = data.offset
-            existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                         'memory')
+        def _ail_handle_Store(self, stmt):
+            addr = self._expr(stmt.addr)
+            data = self._expr(stmt.data)
+            size = stmt.data.bits / 8
 
-            if not existing_vars:
-                # TODO: how to determine the size for a lea?
-                existing_vars = self.state.stack_region.get_variables_by_offset(stack_offset)
+            self._store(addr, data, size)
+
+        def _ail_handle_Jump(self, stmt):
+            pass
+
+        def _ail_handle_ConditionalJump(self, stmt):
+            pass
+
+        def _ail_handle_Call(self, stmt):
+            pass
+
+        # Expression handlers
+
+        def _ail_handle_Register(self, expr):
+            offset = expr.reg_offset
+            size = expr.bits / 8
+
+            return self._read_from_register(offset, size)
+
+        def _ail_handle_Load(self, expr):
+            addr = self._expr(expr.addr)
+            size = expr.size
+
+            return self._load(addr, size)
+
+        #
+        # Logic
+        #
+
+        def _assign_to_register(self, offset, data, size):
+            """
+
+            :param int offset:
+            :param data:
+            :param int size:
+            :return:
+            """
+
+            codeloc = self._codeloc()
+
+            if offset == self.arch.sp_offset:
+                if type(data) is SpOffset:
+                    sp_offset = data.offset
+                    self.processor_state.sp_adjusted = True
+                    self.processor_state.sp_adjustment = sp_offset
+                    l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
+                return
+
+            if offset == self.arch.bp_offset:
+                if data is not None:
+                    self.processor_state.bp = data
+                else:
+                    self.processor_state.bp = None
+                return
+
+            # handle register writes
+            if type(data) is SpOffset:
+                # lea
+                stack_offset = data.offset
+                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr,
+                                                                                             self.stmt_idx,
+                                                                                             'memory')
+
                 if not existing_vars:
-                    size = 1
+                    # TODO: how to determine the size for a lea?
+                    existing_vars = self.state.stack_region.get_variables_by_offset(stack_offset)
+                    if not existing_vars:
+                        size = 1
+                        variable = SimStackVariable(stack_offset, size, base='bp',
+                                                    ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                        'stack'),
+                                                    region=self.func_addr,
+                                                    )
+
+                        self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                        l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+                    else:
+                        variable = next(iter(existing_vars))
+
+                else:
+                    variable, _ = existing_vars[0]
+
+                self.state.stack_region.add_variable(stack_offset, variable)
+                base_offset = self.state.stack_region.get_base_addr(stack_offset)
+                for var in self.state.stack_region.get_variables_by_offset(base_offset):
+                    self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset, codeloc)
+
+            else:
+                pass
+
+            # register writes
+
+            existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
+                                                                                         'register'
+                                                                                         )
+            if not existing_vars:
+                variable = SimRegisterVariable(offset, size,
+                                               ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                   'register'),
+                                               region=self.func_addr
+                                               )
+                self.variable_manager[self.func_addr].add_variable('register', offset, variable)
+            else:
+                variable, _ = existing_vars[0]
+
+            self.state.register_region.set_variable(offset, variable)
+            self.variable_manager[self.func_addr].write_to(variable, 0, codeloc)
+
+        def _store(self, addr, data, size):  # pylint:disable=unused-argument
+            """
+
+            :param addr:
+            :param data:
+            :param int size:
+            :return:
+            """
+
+            if type(addr) is SpOffset:
+                # Storing data to stack
+                stack_offset = addr.offset
+
+                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
+                                                                                             'memory')
+                if not existing_vars:
                     variable = SimStackVariable(stack_offset, size, base='bp',
                                                 ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                                 region=self.func_addr,
                                                 )
-
                     self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+
                 else:
-                    variable = next(iter(existing_vars))
+                    variable, _ = existing_vars[0]
 
-            else:
-                variable, _ = existing_vars[0]
+                self.state.stack_region.set_variable(stack_offset, variable)
 
-            self.state.stack_region.add_variable(stack_offset, variable)
-            base_offset = self.state.stack_region.get_base_addr(stack_offset)
-            for var in self.state.stack_region.get_variables_by_offset(base_offset):
-                self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset, codeloc)
+                base_offset = self.state.stack_region.get_base_addr(stack_offset)
+                codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+                for var in self.state.stack_region.get_variables_by_offset(stack_offset):
+                    self.variable_manager[self.func_addr].write_to(var,
+                                                                   stack_offset - base_offset,
+                                                                   codeloc
+                                                                   )
 
-        else:
-            pass
+        def _load(self, addr, size):
+            """
 
-        # register writes
+            :param addr:
+            :param size:
+            :return:
+            """
 
-        existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                     'register'
-                                                                                     )
-        if not existing_vars:
-            reg_size = stmt.data.result_size(self.tyenv) / 8
-            variable = SimRegisterVariable(offset, reg_size,
-                                           ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                           region=self.func_addr
-                                           )
-            self.variable_manager[self.func_addr].add_variable('register', offset, variable)
-        else:
-            variable, _ = existing_vars[0]
+            if type(addr) is SpOffset:
+                # Loading data from stack
+                stack_offset = addr.offset
 
-        self.state.register_region.set_variable(offset, variable)
-        self.variable_manager[self.func_addr].write_to(variable, 0, codeloc)
+                if stack_offset not in self.state.stack_region:
+                    variable = SimStackVariable(stack_offset, size, base='bp',
+                                                ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
+                                                region=self.func_addr,
+                                                )
+                    self.state.stack_region.add_variable(stack_offset, variable)
 
+                    self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
 
-    def _handle_Store(self, stmt):
-        addr = self._expr(stmt.addr)
+                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
-        if type(addr) is SpAndOffset:
-            # Storing data to stack
-            size = stmt.data.result_size(self.tyenv) / 8
-            stack_offset = addr.offset
+                base_offset = self.state.stack_region.get_base_addr(stack_offset)
 
-            existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                         'memory')
-            if not existing_vars:
-                variable = SimStackVariable(stack_offset, size, base='bp',
-                                            ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
-                                            region=self.func_addr,
-                                            )
-                self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-                l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+                codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
-            else:
-                variable, _ = existing_vars[0]
+                all_vars = self.state.stack_region.get_variables_by_offset(base_offset)
+                assert len(all_vars) == 1  # we enabled phi nodes
 
-            self.state.stack_region.set_variable(stack_offset, variable)
-
-            base_offset = self.state.stack_region.get_base_addr(stack_offset)
-            codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-            for var in self.state.stack_region.get_variables_by_offset(stack_offset):
-                self.variable_manager[self.func_addr].write_to(var,
-                                                               stack_offset - base_offset,
-                                                               codeloc
-                                                               )
+                var = next(iter(all_vars))
+                self.variable_manager[self.func_addr].read_from(var,
+                                                                stack_offset - base_offset,
+                                                                codeloc,
+                                                                # overwrite=True
+                                                                )
 
 
-    #
-    # Expression handlers
-    #
+        def _read_from_register(self, offset, size):
+            """
 
-    def _expr(self, expr):
+            :param offset:
+            :param size:
+            :return:
+            """
 
-        handler = "_handle_%s" % type(expr).__name__
-        if hasattr(self, handler):
-            return getattr(self, handler)(expr)
-        return None
+            codeloc = self._codeloc()
 
-    def _handle_RdTmp(self, expr):
-        tmp = expr.tmp
+            if offset == self.arch.sp_offset:
+                # loading from stack pointer
+                return SpOffset(self.arch.bits, self.processor_state.sp_adjustment, is_base=False)
+            elif offset == self.arch.bp_offset:
+                return self.processor_state.bp
 
-        if tmp in self.tmps:
-            return self.tmps[tmp]
-        return None
+            if offset not in self.state.register_region:
+                variable = SimRegisterVariable(offset, size,
+                                               ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
+                                               region=self.func_addr,
+                                               )
+                self.state.register_region.add_variable(offset, variable)
+                self.variable_manager[self.func_addr].add_variable('register', offset, variable)
 
-    def _handle_Get(self, expr):
-        reg_offset = expr.offset
-        reg_size = expr.result_size(self.tyenv) / 8
-        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+            for var in self.state.register_region.get_variables_by_offset(offset):
+                self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
 
-        if reg_offset == self.arch.sp_offset:
-            # loading from stack pointer
-            return SpAndOffset(self.arch.bits, self.processor_state.sp_adjustment, is_base=False)
-        elif reg_offset == self.arch.bp_offset:
-            return self.processor_state.bp
-
-        if reg_offset not in self.state.register_region:
-            variable = SimRegisterVariable(reg_offset, reg_size,
-                                           ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                           region=self.func_addr,
-                                           )
-            self.state.register_region.add_variable(reg_offset, variable)
-            self.variable_manager[self.func_addr].add_variable('register', reg_offset, variable)
-
-        for var in self.state.register_region.get_variables_by_offset(reg_offset):
-            self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
-
-        return None
-
-    def _handle_Load(self, expr):
-        addr = self._expr(expr.addr)
-
-        if type(addr) is SpAndOffset:
-            # Loading data from stack
-            size = expr.result_size(self.tyenv) / 8
-            stack_offset = addr.offset
-
-            if stack_offset not in self.state.stack_region:
-                variable = SimStackVariable(stack_offset, size, base='bp',
-                                            ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
-                                            region=self.func_addr,
-                                            )
-                self.state.stack_region.add_variable(stack_offset, variable)
-
-                self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-
-                l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-
-            base_offset = self.state.stack_region.get_base_addr(stack_offset)
-
-            codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-
-            all_vars = self.state.stack_region.get_variables_by_offset(base_offset)
-            assert len(all_vars) == 1  # we enabled phi nodes
-
-            var = next(iter(all_vars))
-            self.variable_manager[self.func_addr].read_from(var,
-                                                            stack_offset - base_offset,
-                                                            codeloc,
-                                                            # overwrite=True
-                                                            )
-
-    def _handle_Binop(self, expr):
-        if expr.op.startswith('Iop_Add'):
-            return self._handle_Add(*expr.args)
-        elif expr.op.startswith('Iop_Sub'):
-            return self._handle_Sub(*expr.args)
-        elif expr.op.startswith('Const'):
-            return self._handle_Const(*expr.args)
-
-        return None
-
-    #
-    # Binary operation handlers
-    #
-
-    def _handle_Add(self, arg0, arg1):
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
             return None
 
-        try:
-            return expr_0 + expr_1
-        except TypeError:
-            return None
 
-    def _handle_Sub(self, arg0, arg1):
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        try:
-            return expr_0 - expr_1
-        except TypeError:
-            return None
-
-    def _handle_Const(self, arg):  #pylint:disable=no-self-use
-        return arg.con.value
+    return SimEngineVR
 
 
 class VariableRecoveryFastState(object):
@@ -463,10 +475,12 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
     """
 
-    def __init__(self, func, max_iterations=3):
+    def __init__(self, func, max_iterations=3, clinic=None):
         """
 
         :param knowledge.Function func:  The function to analyze.
+        :param int max_iterations:
+        :param clinic:
         """
 
         function_graph_visitor = FunctionGraphVisitor(func)
@@ -481,10 +495,17 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         self.variable_manager = self.kb.variables
 
         self._max_iterations = max_iterations
+        self._clinic = clinic
+
+        self._ail_engine = get_engine(SimEngineLightAIL)()
+        self._vex_engine = get_engine(SimEngineLightVEX)()
+
         self._node_iterations = defaultdict(int)
 
         # phi nodes dict
         self._cached_phi_nodes = { }
+
+        self._node_to_cc = { }
 
         self._analyze()
 
@@ -493,7 +514,13 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     #
 
     def _pre_analysis(self):
-        pass
+        CallingConventionAnalysis.recover_calling_conventions(self.project)
+
+        # initialize node_to_cc map
+        function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
+        for func_node in function_nodes:
+            for callsite_node in self.function.transition_graph.predecessors(func_node):
+                self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
     def _pre_job_handling(self, job):
         pass
@@ -506,9 +533,18 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         # give it enough stack space
         # concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        return VariableRecoveryFastState(self.variable_manager, self.project.arch, self.function,
-                                         make_phi=self._make_phi_node
-                                         )
+        state = VariableRecoveryFastState(self.variable_manager, self.project.arch, self.function,
+                                          make_phi=self._make_phi_node
+                                          )
+        # put a return address on the stack if necessary
+        if self.project.arch.call_pushes_ret:
+            ret_addr_offset = self.project.arch.bits / 8
+            ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bits / 8, base='bp', name='ret_addr',
+                                            region=self.function.addr, category='return_address',
+                                            )
+            state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
+
+        return state
 
     def _merge_states(self, node, *states):
 
@@ -525,7 +561,12 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         input_state = state  # make it more meaningful
 
-        block = self.project.factory.block(node.addr, node.size, opt_level=0)
+        if self._clinic:
+            # AIL mode
+            block = self._clinic.block(node.addr, node.size)
+        else:
+            # VEX mode
+            block = self.project.factory.block(node.addr, node.size, opt_level=0)
 
         if node.addr in self._node_to_input_state:
             prev_state = self._node_to_input_state[node.addr]
@@ -590,8 +631,15 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         l.debug('Processing block %#x.', block.addr)
 
-        processor = BlockProcessor(state, block)
-        processor.process()
+        processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
+        processor.process(state, block=block, fail_fast=self._fail_fast)
+
+        # readjusting sp at the end for blocks that end in a call
+        if block.addr in self._node_to_cc:
+            cc = self._node_to_cc[block.addr]
+            state.processor_state.sp_adjustment += cc.sp_delta
+            state.processor_state.sp_adjusted = True
+            l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
 
     def _make_phi_node(self, block_addr, *variables):
 

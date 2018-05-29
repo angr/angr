@@ -241,7 +241,7 @@ class VariableManagerInternal(object):
 
         return variables
 
-    def input_variables(self):
+    def input_variables(self, exclude_specials=True):
         """
         Get all variables that have never been written to.
 
@@ -258,7 +258,8 @@ class VariableManagerInternal(object):
 
         for variable, accesses in self._variable_accesses.iteritems():
             if not has_write_access(accesses) and has_read_access(accesses):
-                input_variables.append(variable)
+                if not exclude_specials or not variable.category:
+                    input_variables.append(variable)
 
         return input_variables
 

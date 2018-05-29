@@ -722,7 +722,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             normalize=normalize,
             binary=binary,
             force_segment=force_segment,
-            base_state=base_state)
+            base_state=base_state,
+            iropt_level=1,  # right now this is a must, since we rely on the VEX optimization to tell us
+                            # the concrete jump targets of each block.
+        )
 
         # necessary warnings
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3 \
@@ -2480,7 +2483,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             for resolver in self.indirect_jump_resolvers:
                 resolver.base_state = self._base_state
-                block = self._lift(jump.addr)
+                block = self._lift(jump.addr, opt_level=1)
 
                 if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
                     continue
@@ -2563,7 +2566,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10))
+                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10), opt_level=1)
                         vex_block = block.vex
                     except SimTranslationError:
                         continue
@@ -3277,7 +3280,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                            if isinstance(stmt, pyvex.IRStmt.IMark)
                            ), 0
                           )
-        tmp_irsb = self._lift(last_imark.addr + last_imark.delta).vex
+        tmp_irsb = self._lift(last_imark.addr + last_imark.delta, opt_level=self._iropt_level).vex
         # pylint:disable=too-many-nested-blocks
         for stmt in tmp_irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp):
@@ -3307,8 +3310,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if isinstance(val, tuple) and val[0] == 'load':
                 # the value comes from memory
                 memory_addr = val[1]
-                lsp = last_sp if isinstance(last_sp, int) else last_sp[1]
-                lr_on_stack_offset = memory_addr - lsp
+                if isinstance(last_sp, (int, long)):
+                    lr_on_stack_offset = memory_addr - last_sp
+                else:
+                    lr_on_stack_offset = memory_addr - last_sp[1]
 
                 if lr_on_stack_offset == function.info['lr_on_stack_offset']:
                     # the jumpkind should be Ret instead of boring
@@ -3412,7 +3417,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return addr_0, cfg_node.function_address, cfg_node, irsb
 
                 try:
-                    lifted_block = self._lift(addr_0, size=distance)
+                    lifted_block = self._lift(addr_0, size=distance, opt_level=self._iropt_level)
                     irsb = lifted_block.vex
                     irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:
@@ -3570,6 +3575,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         lst = sorted(lst, key=lambda x: x[0])
         return lst
+
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('CFGFast', CFGFast)
