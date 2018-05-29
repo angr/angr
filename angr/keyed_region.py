@@ -246,7 +246,7 @@ class KeyedRegion(object):
         if container is None:
             return []
         else:
-            return container.stored_objects
+            return container.internal_objects
 
     def get_objects_by_offset(self, start):
         """
