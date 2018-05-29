@@ -116,6 +116,7 @@ setup(
         'claripy>=7.8.2.21',
         'cle>=7.8.2.21',
         'pyvex>=7.8.2.21',
+        'ailment',
         'GitPython',
         'pycparser>=2.18',
     ],
