@@ -23,7 +23,7 @@ from ...keyed_region import KeyedRegion
 l = logging.getLogger('angr.analyses.reaching_definitions')
 
 
-class ReachingDefinitions(object):
+class LiveDefinitions(object):
     def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
 
         # handy short-hands
@@ -46,7 +46,7 @@ class ReachingDefinitions(object):
         self._dead_virgin_definitions = set()  # definitions that are killed before used
 
     def __repr__(self):
-        ctnt = "ReachingDefinitions, %d regdefs, %d memdefs" % (len(self.register_definitions),
+        ctnt = "LiveDefs, %d regdefs, %d memdefs" % (len(self.register_definitions),
                                                                 len(self.memory_definitions))
         if self._track_tmps:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
@@ -91,7 +91,7 @@ class ReachingDefinitions(object):
             self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
 
     def copy(self):
-        rd = ReachingDefinitions(
+        rd = LiveDefinitions(
             self.arch,
             self.loader,
             track_tmps=self._track_tmps,
@@ -211,6 +211,19 @@ class ReachingDefinitions(object):
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
+    """
+    ReachingDefinitionAnalysis is a text-book implementation of a static data-flow analysis that works on either a
+    function or a block. It supports both VEX and AIL. By registering observers to observation points, users may use
+    this analysis to generate use-def chains, def-use chains, and reaching definitions, and perform other traditional
+    data-flow analyses such as liveness analysis.
+
+    * I've always wanted to find a better name for this analysis. Now I gave up and decided to live with this name for
+      the foreseeable future (until a better name is proposed by someone else).
+    * Aliasing is definitely a problem, and I forgot how aliasing is resolved in this implementation. I'll leave this
+      as a post-graduation TODO.
+    * Some more documentation and examples would be nice.
+    """
+
     def __init__(self, func=None, block=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state=None, init_func=False, cc=None, function_handler=None,
                  current_local_call_depth=1, maximum_local_call_depth=5):
@@ -225,7 +238,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
                                                 definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
                                                 OP_AFTER.
-        :param ReachingDefinitions init_state:  An optional initialization state. The analysis creates and works on a
+        :param LiveDefinitions init_state:  An optional initialization state. The analysis creates and works on a
                                                 copy.
         :param bool init_func:                  Whether stack and arguments are initialized or not.
         :param SimCC cc:                        Calling convention of the function.
@@ -336,8 +349,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         if self._init_state is not None:
             return self._init_state
         else:
-            return ReachingDefinitions(self.project.arch, self.project.loader, track_tmps=self._track_tmps,
-                                       analysis=self, init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
+            return LiveDefinitions(self.project.arch, self.project.loader, track_tmps=self._track_tmps,
+                                   analysis=self, init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
