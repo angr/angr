@@ -326,7 +326,7 @@ class RegionIdentifier(Analysis):
                         subgraph = networkx.DiGraph()
                         subgraph.add_node(node)
                         self._abstract_acyclic_region(graph, GraphRegion(node, subgraph), [])
-                    continue
+                    break
 
                 # cyclic region
                 # TODO optimize
@@ -367,6 +367,7 @@ class RegionIdentifier(Analysis):
                         abnormal_exit_nodes = set()
 
                     self._abstract_cyclic_region(graph, refined_loop_nodes, node, normal_entries, abnormal_entries, normal_exit_node, abnormal_exit_nodes)
+                    break
                 # acyclic region
                 else:
                     if df is None:
