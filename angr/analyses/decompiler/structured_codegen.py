@@ -296,7 +296,7 @@ class StructuredCodeGenerator(Analysis):
 
         return CStatements(lines) if len(lines) > 1 else lines[0]
 
-    def _handle_AILBlock(self, node):
+    def _handle_AILBlock(self, node):  # pylint:disable=no-self-use
 
         return CStatements([ CAILBlock(node) ])
 

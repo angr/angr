@@ -14,7 +14,6 @@ from .undefined import Undefined
 from .uses import Uses
 from .. import register_analysis
 from ..analysis import Analysis
-from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.light import SpOffset

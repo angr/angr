@@ -483,7 +483,7 @@ class RegionIdentifier(Analysis):
 
         return list(graph.in_edges(region.head, data=data))
 
-    def _remove_node(self, graph, node):
+    def _remove_node(self, graph, node):  # pylint:disable=no-self-use
 
         in_edges = [ (src, dst, data) for (src, dst, data) in graph.in_edges(node, data=True) if not src is node ]
         out_edges = [ (src, dst, data) for (src, dst, data) in graph.out_edges(node, data=True) if not dst is node ]
@@ -504,7 +504,7 @@ class RegionIdentifier(Analysis):
             for _, dst, data in out_edges:
                 graph.add_edge(new_node, dst, **data)
 
-    def _merge_nodes(self, graph, node_a, node_b, force_multinode=False):
+    def _merge_nodes(self, graph, node_a, node_b, force_multinode=False):  # pylint:disable=no-self-use
 
         in_edges = [ (src, dst, data) for (src, dst, data) in graph.in_edges(node_a, data=True) ]
         out_edges = [ (src, dst, data) for (src, dst, data) in graph.out_edges(node_b, data=True) ]
@@ -535,7 +535,7 @@ class RegionIdentifier(Analysis):
         assert not node_a in graph
         assert not node_b in graph
 
-    def _absorb_node(self, graph, node_mommy, node_kiddie, force_multinode=False):
+    def _absorb_node(self, graph, node_mommy, node_kiddie, force_multinode=False):  # pylint:disable=no-self-use
 
         in_edges_mommy = graph.in_edges(node_mommy, data=True)
         out_edges_mommy = graph.out_edges(node_mommy, data=True)
