@@ -426,7 +426,7 @@ class Structurer(Analysis):
         edge_conditions = { }
         predicate_mapping = { }
         # traverse the graph to recover the condition for each edge
-        for src in self._region.graph.nodes_iter():
+        for src in self._region.graph.nodes():
             nodes = self._region.graph[src]
             if len(nodes) > 1:
                 for dst in nodes:

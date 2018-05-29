@@ -122,8 +122,8 @@ class GraphRegion(object):
         if sub_region is self.head:
             self.head = replace_with
 
-        in_edges = self.graph.in_edges(sub_region)
-        out_edges = self.graph.out_edges(sub_region)
+        in_edges = list(self.graph.in_edges(sub_region))
+        out_edges = list(self.graph.out_edges(sub_region))
 
         self.graph.remove_node(sub_region)
         self.graph.add_node(replace_with)
