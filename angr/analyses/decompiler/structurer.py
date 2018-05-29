@@ -309,7 +309,7 @@ class Structurer(Analysis):
 
     def _make_endless_loop(self, loop_head, loop_subgraph, loop_successors):
 
-        # TODO: As this point, the loop body should be a SequenceNode
+        # TODO: At this point, the loop body should be a SequenceNode
         loop_body = self._to_loop_body_sequence(loop_head, loop_subgraph, loop_successors)
 
         # create a while(true) loop with sequence node being the loop body
