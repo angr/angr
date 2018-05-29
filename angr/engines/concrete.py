@@ -2,12 +2,18 @@ from angr.engines import SimEngine
 from angr_targets.concrete import ConcreteTarget
 from angr_targets.segment_registers import *
 import logging
-import struct
-
+import signal
+import sys
 
 #pylint: disable=arguments-differ
 l = logging.getLogger("angr.engines.concrete")
 l.setLevel(logging.DEBUG)
+
+
+def timeout_handler():
+    l.critical("[ERROR] Timeout error during resuming of concrete process")
+    # situation is compromised, better to exit.
+    sys.exit()
 
 
 class SimEngineConcrete(SimEngine):
@@ -15,15 +21,22 @@ class SimEngineConcrete(SimEngine):
     Concrete execution inside a concrete target provided by the user.
     :param target: receive and wraps a ConcreteTarget inside this SimConcreteEngine
     """
-    def __init__(self,project ):
+    def __init__(self, project):
         l.info("Initializing SimEngineConcrete with ConcreteTarget provided.")
         super(SimEngineConcrete, self).__init__()
         self.project = project
-        if isinstance(self.project.concrete_target,ConcreteTarget):
+        if isinstance(self.project.concrete_target, ConcreteTarget):
             self.target = self.project.concrete_target
+            try:
+                self.target_timeout = self.project.concrete_target.timeout
+            except AttributeError:
+                l.warning("No timeout provided for the concrete execution, "
+                          "will wait indefinitely during concrete process resume")
+                self.target_timeout = None
         else:
             l.warn("Error, you must provide an instance of a ConcreteTarget to initialize a SimEngineConcrete.")
             self.target = None
+
         self.segment_registers_already_init = False
 
     def process(self, state,
@@ -47,8 +60,7 @@ class SimEngineConcrete(SimEngine):
                 extra_stop_points=extra_stop_points,
                 inline=inline,
                 force_addr=force_addr,
-                **kwargs
-                )
+                **kwargs)
 
     def _check(self, state, **kwargs):
         # Whatever checks before turning on this engine
@@ -56,8 +68,12 @@ class SimEngineConcrete(SimEngine):
         return True
 
     def _process(self, state, successors, step, extra_stop_points = None, concretize = None, **kwargs ):
+
+        # setup the concrete process and resume the execution
         self.to_engine(state, extra_stop_points, concretize, **kwargs)
-       # self.from_engine(state, **kwargs)
+
+        # sync angr with the current state of the concrete process using
+        # the state plugin
         state.concrete.sync()
 
         successors.engine = "SimEngineConcrete"
@@ -66,75 +82,58 @@ class SimEngineConcrete(SimEngine):
         successors.description = "Concrete Successors "
         successors.processed = True
 
-
-
     def to_engine(self, state, extra_stop_points, concretize, **kwargs):
         """
         Handling the switch between the execution in Angr and the concrete target.
         This method takes care of:
-        1- Set the breakpoint on the address provided by the user
+        1- Set the breakpoints on the addresses provided by the user
         2- Concretize the symbolic variables and perform the write inside the concrete process
         3- Continue the program execution.
         :return:
         """
-        l.info("Entering in SimEngineConcrete: simulated address 0x%x concrete address 0x%x stop points %s"%(state.addr, self.target.read_register("pc"),extra_stop_points ))
-        if concretize != []:
+        l.info("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
+               (hex(state.addr), hex(self.target.read_register("pc")), extra_stop_points))
+
+        if concretize:
             l.info("Concretize variables before entering inside the SimEngineConcrete | "
-                      "Be patient this could take a while.")
+                   "Be patient this could take a while.")
+
             for sym_var in concretize:
                 sym_var_address = state.se.eval(sym_var[0])
                 sym_var_value = state.se.eval(sym_var[1], cast_to=str)
-                l.debug("Concretizing memory at address " + hex(sym_var_address) + " with value " + sym_var_value)
+                l.debug("Concretize memory at address %s with value %s" % (hex(sym_var_address), sym_var_value))
                 self.target.write_memory(sym_var_address, sym_var_value)
-
-        '''
-        # Getting rid of this later 
-        #-------------------------------------------------------------------------------------------------
-        # TODO what if we have multiple solutions?
-        # TODO what if we concretize also registers? If not, we are going to refuse to step the SimState?
-        # TODO what if we concretize file sym vars?
-
-        # get all the registered symbolic variables inside this state
-        # succ.se.get_variables('mem')  only for the memory
-        # succ.se.get_variables('reg')  only for register
-        # succ.se.get_variables('file') only for file
-        #
-        # symbolic_vars is f.i:
-        # ('mem', 576460752303357952L, 1), <BV64 mem_7ffffffffff0000_5_64{UNINITIALIZED}>)
-        #
-        symbolic_vars = list(state.se.get_variables('mem'))
-
-        # dictionary of memory address to concretize
-        # f.i. to_concretize_memory[0x7ffffffffff0000] = 0xdeadbeef
-        #      ...
-        to_concretize_memory = {}
-
-        for sym_var in symbolic_vars:
-            sym_var_address = sym_var[0][1]
-            sym_var_name = sym_var[1]
-            sym_var_sol = state.se.eval(sym_var_name)
-            self.target.write_memory(sym_var_address,sym_var_sol)
-        '''
 
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
-            l.debug("Setting breakpoints at " + hex(stop_point))
+            l.debug("Setting breakpoints at %s " % hex(stop_point))
             self.target.set_breakpoint(stop_point, temporary=True)
 
-        # Continue the execution of the binary
-        #stop_point = self.target.run()
+        # Set up the timeout if requested
+        if self.target_timeout:
+            original_sigalrm_handler = signal.getsignal(signal.SIGALRM)
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(self.target_timeout)
+
+        # resuming of the concrete process, if the target won't reach the
+        # breakpoint specified by the user the timeout will abort angr execution.
         self.target.run()
-        while(self.target.read_register("pc") not in extra_stop_points):
+
+        # reset the alarm
+        if self.target_timeout:
+            signal.alarm(0)
+
+        # handling the case in which the program stops at a point different than the breakpoints set
+        # by the user. In these case we try to resume the execution hoping that the concrete process will
+        # reach the correct address.
+        while self.target.read_register("pc") not in extra_stop_points:
+            if self.target_timeout:
+                signal.alarm(self.target_timeout)
             self.target.run()
-            print("Stopped a pc %x but breakpoint set to %s so resuming concrete execution"%(self.target.read_register("pc"),[hex(bp) for bp in  extra_stop_points]))
+            l.warn("Stopped a pc %s but breakpoint set to %s so resuming concrete execution"
+                   % (hex(self.target.read_register("pc")), [hex(bp) for bp in extra_stop_points]))
 
-
-
-        '''
-        if stop_point.reason == "BREAKPOINT_HIT":
-            return True
-        elif stop_point.reason == "OTHER_REASONS":
-            return False
-        '''
-
+        # restoring old sigalrm handler
+        if self.target_timeout:
+            signal.signal(signal.SIGALRM, original_sigalrm_handler)
 
