@@ -1,5 +1,6 @@
 from .base import SimSootValue
 from . import translate_value
+from .constants import SimSootValue_IntConstant
 
 
 class SimSootValue_ArrayRef(SimSootValue):
@@ -15,13 +16,21 @@ class SimSootValue_ArrayRef(SimSootValue):
 
     @staticmethod
     def _create_unique_id(heap_alloc_id, index):
-        return "%s[%d]" % (heap_alloc_id, index)
+        return "%s[%s]" % (heap_alloc_id, str(index))
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
         fixed_base = translate_value(soot_value.base, state)
         array_ref_base = state.memory.load(fixed_base)
-        return cls(array_ref_base.heap_alloc_id, soot_value.index.value, soot_value.type, array_ref_base.size)
+        idx = translate_value(soot_value.index, state)
+        if isinstance(idx, SimSootValue_IntConstant):
+            # idx is a constant
+            idx_value = idx.value
+        else:
+            # idx is a variable
+            # => load value from memory
+            idx_value = state.memory.load(idx)
+        return cls(array_ref_base.heap_alloc_id, idx_value, soot_value.type, array_ref_base.size)
 
     def __repr__(self):
         return self.id
