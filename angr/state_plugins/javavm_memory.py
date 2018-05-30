@@ -83,6 +83,9 @@ class SimJavaVmMemory(SimMemory):
         elif type(addr) is SimSootValue_StaticFieldRef:
             return self.vm_static_table.load(addr.id, none_if_missing=True)
 
+        elif type(addr) is SimSootValue_InstanceFieldRef:
+            return self.heap.load(addr.id, none_if_missing=True)
+
         else:
             l.error("Unknown addr type %s" % addr)
             return None

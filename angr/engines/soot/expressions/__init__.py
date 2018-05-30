@@ -32,6 +32,7 @@ from .paramref import SimSootExpr_ParamRef
 from .arrayref import SimSootExpr_ArrayRef
 from .thisref import SimSootExpr_ThisRef
 from .staticfieldref import SimSootExpr_StaticFieldRef
+from .instancefieldref import SimSootExpr_InstanceFieldRef
 from .phi import SimSootExpr_Phi
 from .length import SimSootExpr_Length
 from .unsupported import SimSootExpr_Unsupported

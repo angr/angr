@@ -3,7 +3,7 @@ import logging
 from angr import SIM_PROCEDURES
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootAddressTerminator, SootMethodDescriptor)
-from claripy import BVV
+from claripy import BVV, BoolV
 
 from ..calling_conventions import DEFAULT_CC
 from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
@@ -261,7 +261,21 @@ class SimJavaVM(SimOS):
 
     @staticmethod
     def get_default_value_by_type(type_):
-        return BVV(0, 32)
+        """
+        Java specify defaults values for initialized field based on the field type.
+        This method returns these default values given a type.
+        (https://blog.ajduke.in/2012/03/25/variable-initialization-and-default-values)
+
+        TODO: ask what to do for symbolic value and under constraint symbolic execution
+        :param type_: string represent the type name
+        :return: Default values specified for the type
+        """
+        if type_ == "int":
+            return BVV(0, 32)
+        elif type_ == "boolean":
+            return BoolV(False)
+        else:
+            return None
 
     @staticmethod
     def cast_primitive(value, to_type):
