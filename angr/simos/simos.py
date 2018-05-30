@@ -2,7 +2,7 @@ import logging
 
 import claripy
 from archinfo import ArchMIPS32
-
+import struct
 from ..errors import (
     AngrCallableError,
     AngrCallableMultistateError,
@@ -32,6 +32,7 @@ class SimOS(object):
         self.name = name
         self.return_deadend = None
         self.unresolvable_target = None
+
 
     def configure_project(self):
         """
@@ -277,3 +278,149 @@ class SimOS(object):
 
     def syscall_from_number(self, number, allow_unsupported=True, abi=None):
         return None
+
+        
+
+    def setup_gdt(self,state, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
+    
+        A_PRESENT = 0x80
+        A_DATA = 0x10
+        A_DATA_WRITABLE = 0x2
+        A_PRIV_0 = 0x0
+        A_DIR_CON_BIT = 0x4
+        F_PROT_32 = 0x4
+        S_GDT = 0x0
+        S_PRIV_0 = 0x0
+
+    
+        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0, F_PROT_32)
+        fs_entry = self.create_gdt_entry(fs, fs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        gs_entry = self.create_gdt_entry(gs, gs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        state.memory.store(self.gdt_addr + 8, normal_entry + stack_entry + fs_entry + gs_entry)
+    
+        state.regs.gdt = (self.gdt_addr << 16 | self.gdt_limit)
+        selector = self.create_selector(1, S_GDT | S_PRIV_0)
+        state.regs.cs = selector
+        state.regs.ds = selector
+        state.regs.es = selector
+        selector = self.create_selector(2, S_GDT | S_PRIV_0)
+        state.regs.ss = selector
+        selector = self.create_selector(3, S_GDT | S_PRIV_0)
+        state.regs.fs = selector
+        selector = self.create_selector(4, S_GDT | S_PRIV_0)
+        state.regs.gs = selector
+
+    '''
+    def generate_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
+        A_PRESENT = 0x80
+        A_DATA = 0x10
+        A_DATA_WRITABLE = 0x2
+        A_PRIV_0 = 0x0
+        A_DIR_CON_BIT = 0x4
+        F_PROT_32 = 0x4
+        S_GDT = 0x0
+        S_PRIV_0 = 0x0
+        GDT_ADDR = 0x4000
+        GDT_LIMIT = 0x1000
+
+        gdt = {}
+
+        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF,
+                                             A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT,
+                                             F_PROT_32)
+        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0,
+                                            F_PROT_32)
+        fs_entry = self.create_gdt_entry(fs, fs_size,
+                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        gs_entry = self.create_gdt_entry(gs, gs_size,
+                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+
+        gdt["table"] = GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry
+        gdt["gdt"] =  (GDT_ADDR << 16 | GDT_LIMIT)
+        #state.regs.gdt = (GDT_ADDR << 16 | GDT_LIMIT)
+        selector = self.create_selector(1, S_GDT | S_PRIV_0)
+        gdt["cs"] = selector
+        gdt["ds"] = selector
+        gdt["es"] = selector
+        selector = self.create_selector(2, S_GDT | S_PRIV_0)
+        gdt["ss"] = selector
+        selector = self.create_selector(3, S_GDT | S_PRIV_0)
+        gdt["fs"] = selector
+        selector = self.create_selector(4, S_GDT | S_PRIV_0)
+        gdt["gs"] = selector
+        return gdt
+        '''
+    def generate_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
+        A_PRESENT = 0x80
+        A_DATA = 0x10
+        A_DATA_WRITABLE = 0x2
+        A_PRIV_0 = 0x0
+        A_DIR_CON_BIT = 0x4
+        F_PROT_32 = 0x4
+        S_GDT = 0x0
+        S_PRIV_0 = 0x0
+        GDT_ADDR = 0x4000
+        GDT_LIMIT = 0x1000
+
+        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF,
+                                             A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT,
+                                             F_PROT_32)
+        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0,
+                                            F_PROT_32)
+        fs_entry = self.create_gdt_entry(fs, fs_size,
+                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        gs_entry = self.create_gdt_entry(gs, gs_size,
+                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+
+        table = normal_entry + stack_entry + fs_entry + gs_entry
+        gdt =  (GDT_ADDR << 16 | GDT_LIMIT)
+        #state.regs.gdt = (GDT_ADDR << 16 | GDT_LIMIT)
+        selector = self.create_selector(1, S_GDT | S_PRIV_0)
+        cs = selector
+        ds = selector
+        es = selector
+        selector = self.create_selector(2, S_GDT | S_PRIV_0)
+        ss = selector
+        selector = self.create_selector(3, S_GDT | S_PRIV_0)
+        fs = selector
+        selector = self.create_selector(4, S_GDT | S_PRIV_0)
+        gs = selector
+        global_descriptor_table = GlobalDescriptorTable(GDT_ADDR,GDT_LIMIT,table,gdt,cs,ds,es,ss,fs,gs)
+        return global_descriptor_table
+
+    @staticmethod
+    def create_selector(idx, flags):
+        to_ret = flags
+        to_ret |= idx << 3
+        return to_ret
+    
+    @staticmethod
+    def create_gdt_entry(base, limit, access, flags):
+        to_ret = limit & 0xffff
+        to_ret |= (base & 0xffffff) << 16
+        to_ret |= (access & 0xff) << 40
+        to_ret |= ((limit >> 16) & 0xf) << 48
+        to_ret |= (flags & 0xff) << 52
+        to_ret |= ((base >> 24) & 0xff) << 56
+        return struct.pack('<Q', to_ret)
+
+
+
+
+
+
+class GlobalDescriptorTable(object):
+
+    def __init__(self,addr,limit,table,gdt_sel,cs_sel,ds_sel,es_sel,ss_sel,fs_sel,gs_sel):
+        self.addr = addr
+        self.limit = limit
+        self.table = table
+        self.gdt = gdt_sel
+        self.cs = cs_sel
+        self.ds = ds_sel
+        self.es = es_sel
+        self.ss = ss_sel
+        self.fs = fs_sel
+        self.gs = gs_sel
+

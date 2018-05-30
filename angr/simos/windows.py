@@ -13,6 +13,7 @@ from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
 from .simos import SimOS
+from archinfo import ArchX86, ArchAMD64
 
 _l = logging.getLogger('angr.simos.windows')
 
@@ -415,3 +416,25 @@ class SimWindows(SimOS):
         state.regs.eip = state.mem[addr + 0xb8].uint32_t.resolved
         state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved
         state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
+
+    '''
+    def set_segment_register(self, state, concrete_target):
+        _l.debug("Synchronizing segments registers")
+        if isinstance(state.arch, ArchAMD64):
+            state.regs.gs = self._read_gs_register_x64(concrete_target)
+        elif isinstance(state.arch, ArchX86):
+            fs = self._read_fs_register_x86(concrete_target)
+            self.setup_gdt(state, 0x0, fs)
+    '''
+    def read_fs_register_x86(self, concrete_target):
+        exfiltration_reg = "eax"
+        # instruction to inject for reading the value at segment value = offset
+        read_fs0_x86 = "\x64\xA1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
+        return concrete_target.execute_shellcode(read_fs0_x86, exfiltration_reg)
+
+    def read_gs_register_x64(self, concrete_target):
+        exfiltration_reg = "rax"
+        # instruction to inject for reading the value at segment value = offset
+        read_gs0_x64 = "\x65\x48\x8B\x04\x25\x30\x00\x00\x00"  # mov rax, gs:[0x30]
+        return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
+
