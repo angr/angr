@@ -161,7 +161,8 @@ class Project(object):
         if self.concrete_target and auto_load_lib_opt:
             l.critical("Incompatible options selected for this project, please disable auto_load_libs if "
                        "you want to use a concrete target.")
-            raise Exception("Incompatible options for the project")
+            raise Exception("Incompatible options selected for this project, please disable auto_load_libs if "
+                            "you want to use a concrete target.")
 
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
