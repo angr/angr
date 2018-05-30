@@ -27,7 +27,12 @@ class SimEngineConcrete(SimEngine):
         self.project = project
         if isinstance(self.project.concrete_target, ConcreteTarget):
             self.target = self.project.concrete_target
-
+            try:
+                self.target_timeout = self.project.concrete_target.timeout
+            except AttributeError:
+                l.warning("No timeout provided for the concrete execution, "
+                          "will wait indefinitely during concrete process resume")
+                self.target_timeout = None
         else:
             l.warn("Error, you must provide an instance of a ConcreteTarget to initialize a SimEngineConcrete.")
             self.target = None
@@ -105,30 +110,30 @@ class SimEngineConcrete(SimEngine):
             self.target.set_breakpoint(stop_point, temporary=True)
 
         # Set up the timeout if requested
-        if self.target.timeout:
+        if self.target_timeout:
             original_sigalrm_handler = signal.getsignal(signal.SIGALRM)
             signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(self.target.timeout)
+            signal.alarm(self.target_timeout)
 
         # resuming of the concrete process, if the target won't reach the
         # breakpoint specified by the user the timeout will abort angr execution.
         self.target.run()
 
         # reset the alarm
-        if self.target.timeout:
+        if self.target_timeout:
             signal.alarm(0)
 
         # handling the case in which the program stops at a point different than the breakpoints set
         # by the user. In these case we try to resume the execution hoping that the concrete process will
         # reach the correct address.
         while self.target.read_register("pc") not in extra_stop_points:
-            if self.target.timeout:
-                signal.alarm(self.target.timeout)
+            if self.target_timeout:
+                signal.alarm(self.target_timeout)
             self.target.run()
             l.warn("Stopped a pc %s but breakpoint set to %s so resuming concrete execution"
                    % (hex(self.target.read_register("pc")), [hex(bp) for bp in extra_stop_points]))
 
         # restoring old sigalrm handler
-        if self.target.timeout:
+        if self.target_timeout:
             signal.signal(signal.SIGALRM, original_sigalrm_handler)
 
