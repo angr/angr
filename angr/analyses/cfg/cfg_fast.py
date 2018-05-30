@@ -96,7 +96,7 @@ class SegmentList(object):
 
     def _search(self, addr):
         """
-        Checks which segment tha the address `addr` should belong to, and, returns the offset of that segment.
+        Checks which segment that the address `addr` should belong to, and, returns the offset of that segment.
         Note that the address may not actually belong to the block.
 
         :param addr: The address to search
@@ -332,6 +332,37 @@ class SegmentList(object):
             return self._list[i].end
 
         return address
+
+    def next_pos_with_sort_not_in(self, address, sorts):
+        """
+        Returns the address of the next occupied block whose sort is not one of the specified ones.
+
+        :param int address: The address to begin the search with (including itself).
+        :param sorts:       A collection of sort strings.
+        :return:            The next occupied position whose sort is not one of the specified ones, or None if no such
+                            position exists.
+        :rtype:             int or None
+        """
+
+        idx = self._search(address)
+        if idx < len(self._list):
+            # Occupied
+
+            block = self._list[idx]
+            if block.start <= address < block.end:
+                # the address is inside the current block
+                if block.sort not in sorts:
+                    return address
+                # tick the idx forward by 1
+                idx += 1
+
+            i = idx
+            while i < len(self._list):
+                if self._list[i].sort not in sorts:
+                    return self._list[i].start
+                i += 1
+
+        return None
 
     def is_occupied(self, address):
         """
@@ -2062,6 +2093,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return
 
             if val != next_insn_addr:
+                if data_size:
+                    # Mark the region as unknown so we won't try to create a code block covering this region in the
+                    # future.
+                    self._seg_list.occupy(val, data_size, "unknown")
                 self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val,
                                          data_size=data_size, data_type=data_type
                                          )
@@ -3388,6 +3423,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         distance = distance_to_func
                     else:
                         distance = min(distance, distance_to_func)
+
+            # in the end, check the distance between `addr` and the closest occupied region in segment list
+            next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, { "code" })
+            if next_noncode_addr is not None:
+                distance_to_noncode_addr = next_noncode_addr - addr
+                distance = min(distance, distance_to_noncode_addr)
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
