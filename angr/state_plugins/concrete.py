@@ -6,7 +6,7 @@ import logging
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-#l.setLevel(logging.DEBUG)
+# l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
@@ -62,7 +62,7 @@ class Concrete(SimStatePlugin):
                 except ConcreteRegisterError as exc:
                     l.debug("Can't set register %s reason: %s, if this register is not used "
                             "this message can be ignored" % (reg_name, exc))
-
+                    
         # Initialize the segment register value if not already initialized
         if not self.segment_registers_already_init:
             l.debug("Synchronizing segments registers")
