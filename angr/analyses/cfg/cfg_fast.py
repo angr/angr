@@ -2411,7 +2411,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # TODO: Support unicode string longer than the max length
         if block_size >= 4 and block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
-            unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
+            try:
+                unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
+            except ValueError:
+                # cffi fails to interpret the bytes as unicode
+                unicode_str = u''
+
             if (len(unicode_str) and  # pylint:disable=len-as-condition
                     all([ c in self.PRINTABLES for c in unicode_str])):
                 if content_holder is not None:
