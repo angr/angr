@@ -6,7 +6,7 @@ import angr
 
 class close(angr.SimProcedure):
     def run(self, fd):  # pylint:disable=arguments-differ
-
-        self.state.posix.close(fd)
-
-        return self.state.se.BVV(0, self.state.arch.bits)
+        if self.state.posix.close(fd):
+            return 0
+        else:
+            return -1

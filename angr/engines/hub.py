@@ -136,7 +136,7 @@ class EnginePreset(PluginPreset):
     """
     This represents a preset of engines for an engine hub.
 
-    As was pointed out by @rhlemot (see https://github.com/angr/angr/pull/897), there's a lot of
+    As was pointed out by @rhelmot (see https://github.com/angr/angr/pull/897), there's a lot of
     behavior in angr which very very specifically assumes that failure/syscall/hook will happen
     exactly the way we want them to.  This plugin preset addresses the issue by allowing a user to
     specify a list of plugins that should be executed first using the ``predefined_order``

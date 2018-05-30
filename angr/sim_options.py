@@ -1,4 +1,8 @@
-# This module contains the analysis options
+# This module contains the analysis options.
+# All variables with names of all caps will be registered as a state option to SimStateOptions.
+
+import string
+from .sim_state_options import SimStateOptions
 
 # DEBUG options: these options cause angr to set breakpoints in various
 # places or raise exceptions when checks fail.
@@ -80,14 +84,25 @@ ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 
 # This causes symbolic memory to avoid performing symbolic reads and writes. Unconstrained results
 # are returned instead, if these options are present.
-AVOID_MULTIVALUED_READS = "AVOID_SYMBOLIC_READS"
-AVOID_MULTIVALUED_WRITES = "AVOID_SYMBOLIC_WRITES"
+AVOID_MULTIVALUED_READS = "AVOID_MULTIVALUED_READS"
+AVOID_MULTIVALUED_WRITES = "AVOID_MULTIVALUED_WRITES"
 
 # This option concretizes symbolically sized writes
 CONCRETIZE_SYMBOLIC_WRITE_SIZES = "CONCRETIZE_SYMBOLIC_WRITE_SIZES"
 
 # This option concretizes the read size if it's symbolic from the file
 CONCRETIZE_SYMBOLIC_FILE_READ_SIZES = "CONCRETIZE_SYMBOLIC_FILE_READ_SIZES"
+
+# If absent, treat the end of files as a frontier at which new data will be created
+# If present, treat the end of files as an EOF
+FILES_HAVE_EOF = "FILES_HAVE_EOF"
+UNKNOWN_FILES_HAVE_EOF = FILES_HAVE_EOF
+
+# Attempting to open an unkown file will result in creating it with a symbolic length
+ALL_FILES_EXIST = "ALL_FILES_EXIST"
+
+# Reads from devices will have a symbolic size
+SHORT_READS = "SHORT_READS"
 
 # This causes angr to support fully symbolic writes. It is very likely that speed will suffer.
 SYMBOLIC_WRITE_ADDRESSES = "SYMBOLIC_WRITE_ADDRESSES"
@@ -206,8 +221,8 @@ BEST_EFFORT_MEMORY_STORING = 'BEST_EFFORT_MEMORY_STORING'
 # Approximation options (to optimize symbolic execution)
 APPROXIMATE_GUARDS = "APPROXIMATE_GUARDS"
 APPROXIMATE_SATISFIABILITY = "APPROXIMATE_SATISFIABILITY" # does GUARDS and the rest of the constraints
-APPROXIMATE_MEMORY_SIZES = "APPROXIMAGE_MEMORY_SIZES"
-APPROXIMATE_MEMORY_INDICES = "APPROXIMAGE_MEMORY_INDICES"
+APPROXIMATE_MEMORY_SIZES = "APPROXIMATE_MEMORY_SIZES"
+APPROXIMATE_MEMORY_INDICES = "APPROXIMATE_MEMORY_INDICES"
 VALIDATE_APPROXIMATIONS = "VALIDATE_APPROXIMATIONS"
 
 # use an experimental replacement solver
@@ -221,7 +236,7 @@ OPTIMIZE_IR = "OPTIMIZE_IR"
 
 SPECIAL_MEMORY_FILL = "SPECIAL_MEMORY_FILL"
 
-# using this option the value inside the register ip is keeped symbolic
+# using this option the value inside the register ip is kept symbolic
 KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 
 # Do not union values from different locations when reading from the memory for a reduced loss in precision
@@ -265,6 +280,21 @@ CGC_ENFORCE_FD = 'CGC_ENFORCE_FD'
 # FDWAIT will always return FDs as non blocking
 CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 
+
+#
+# Register those variables as Boolean state options
+#
+
+_g = globals().copy()
+for k, v in _g.items():
+    if all([ char in string.uppercase + "_" for char in k ]) and type(v) is str:
+        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY"):
+            # UNKNOWN_FILES_HAVE_EOF == FILES_HAVE_EOF
+            # CGC_ZERO_FILL_UNCONSTRAINED_MEMORY == ZERO_FILL_UNCONSTRAINED_MEMORY
+            continue
+        SimStateOptions.register_bool_option(v)
+
+
 # useful sets of options
 resilience = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP, BYPASS_VERITESTING_EXCEPTIONS }
 resilience_options = resilience # alternate name?
@@ -272,7 +302,7 @@ refs = { TRACK_REGISTER_ACTIONS, TRACK_MEMORY_ACTIONS, TRACK_TMP_ACTIONS, TRACK_
 approximation = { APPROXIMATE_SATISFIABILITY, APPROXIMATE_MEMORY_SIZES, APPROXIMATE_MEMORY_INDICES }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, SYMBOLIC_INITIAL_VALUES, COMPOSITE_SOLVER }
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_REGISTER_WRITES }
-common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT, EXTENDED_IROP_SUPPORT } | simplification
+common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT, EXTENDED_IROP_SUPPORT, ALL_FILES_EXIST, FILES_HAVE_EOF } | simplification
 unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, INITIALIZE_ZERO_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL, UNICORN_TRACK_BBL_ADDRS, UNICORN_TRACK_STACK_POINTERS }
 
 modes = {
@@ -280,5 +310,5 @@ modes = {
     'symbolic_approximating': common_options | symbolic | approximation | { TRACK_CONSTRAINT_ACTIONS },
     'static': (common_options - simplification) | { REGION_MAPPING, BEST_EFFORT_MEMORY_STORING, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP },
     'fastpath': (common_options - simplification ) | (symbolic - { SYMBOLIC, DO_CCALLS }) | resilience | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS },
-    'tracing': common_options | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { STRICT_PAGE_ACCESS, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, USE_SYSTEM_TIMES },
+    'tracing': (common_options - simplification - {SUPPORT_FLOATING_POINT}) | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { CGC_NO_SYMBOLIC_RECEIVE_LENGTH, REPLACEMENT_SOLVER, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, USE_SYSTEM_TIMES },
 }

@@ -190,6 +190,9 @@ class SimProcedure(object):
     ADDS_EXITS = False      # set this to true if you do any control flow other than returning
     IS_SYSCALL = False      # self-explanatory.
     IS_FUNCTION = True      # does this procedure simulate a function?
+    ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
+                            # function specification? This may happen when we manually extract arguments in the run()
+                            # method of a SimProcedure.
 
     local_vars = ()         # if you use self.call(), set this to a list of all the local variable
                             # names in your class. They will be restored on return.

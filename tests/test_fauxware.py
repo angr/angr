@@ -97,13 +97,18 @@ def run_merge(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
     pg = p.factory.simgr()
     pg.explore()
-    pg.merge(stash='deadended')
+
+    # release the unmergable data
+    for s in pg.deadended:
+        s.release_plugin('fs')
+        if 3 in s.posix.fd:
+            s.posix.close(3)
+
+    pg.merge(stash='deadended', merge_key=lambda s: s.addr)
 
     path = pg.deadended[[ 'Welcome' in s for s in pg.mp_deadended.posix.dumps(1).mp_items ].index(True)]
-    # FIXME(@zardus): why are the merge_conditions sorted by their depth?
-    # yes, no = sorted(path.history.merge_conditions, key=lambda c: c.depth)
     yes, no = path.history.merge_conditions
-    inp = path.posix.files[0].content.load(0, 18)
+    inp = path.posix.stdin.content[2][0] # content of second packet
     try:
         assert 'SOSNEAKY' in path.se.eval(inp, cast_to=str, extra_constraints=(yes,))
         assert 'SOSNEAKY' not in path.se.eval(inp, cast_to=str, extra_constraints=(no,))

@@ -5,6 +5,8 @@ lib = SimSyscallLibrary()
 lib.set_library_names('linux')
 lib.add_all_from_dict(P['linux_kernel'])
 lib.add_alias('exit', 'exit_group')
+lib.add_alias('getuid', 'geteuid')
+lib.add_alias('getgid', 'getegid')
 
 # python parse_syscalls_from_gdb.py >> linux_kernel.py
 

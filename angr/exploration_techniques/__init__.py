@@ -1,3 +1,4 @@
+from .. import engines
 from ..errors import SimError
 
 
@@ -140,6 +141,9 @@ class ExplorationTechnique(object):
                 if p.addr in addrs:
                     # returning {p.addr} instead of True to properly handle find/avoid conflicts
                     return {p.addr}
+
+                if not isinstance(self.project.engines.default_engine, engines.SimEngineVEX):
+                    return False
 
                 try:
                     # If the address is not in the set (which could mean it is

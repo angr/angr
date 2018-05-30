@@ -1,9 +1,11 @@
-from angr.sim_procedure import SimProcedure
-import string
-import claripy
+from string import digits as ascii_digits
 import logging
+import math
+import claripy
 
-from angr import sim_type
+from ... import sim_type
+from ...sim_procedure import SimProcedure
+from ...storage.file import SimPackets
 
 l = logging.getLogger("angr.procedures.stubs.format_parser")
 
@@ -12,7 +14,7 @@ class FormatString(object):
     Describes a format string.
     """
 
-    SCANF_DELIMITERS = ["\x00", "\x09", "\x0a", "\x0b", "\x0d", "\x20"]
+    SCANF_DELIMITERS = ["\x09", "\x0a", "\x0b", "\x0d", "\x20"]
 
     def __init__(self, parser, components):
         """
@@ -22,8 +24,12 @@ class FormatString(object):
         self.parser = parser
         self.string = None
 
-    def _add_to_string(self, string, c):
+    @property
+    def state(self):
+        return self.parser.state
 
+    @staticmethod
+    def _add_to_string(string, c):
         if c is None:
             return string
         if string is None:
@@ -43,8 +49,11 @@ class FormatString(object):
 
     def replace(self, startpos, args):
         """
-        Produce a new string based of the format string self with args `args` and return a new string, possibly
-        symbolic.
+        Implement printf - based on the stored format specifier information, format the values from the arg getter function `args` into a string.
+
+        :param startpos:        The index of the first argument to be used by the first element of the format string
+        :param args:            A function which, given an argument index, returns the integer argument to the current function at that index
+        :return:                The result formatted string
         """
 
         argpos = startpos
@@ -71,7 +80,7 @@ class FormatString(object):
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= (1 << fmt_spec.size * 8)
 
-                    if fmt_spec.spec_type == 'd':
+                    if fmt_spec.spec_type in ('d', 'i'):
                         s_val = str(c_val)
                     elif fmt_spec.spec_type == 'u':
                         s_val = str(c_val)
@@ -92,10 +101,103 @@ class FormatString(object):
 
         return string
 
-    def interpret(self, addr, startpos, args, region=None):
+    def interpret(self, startpos, args, addr=None, simfd=None):
         """
-        Interpret a format string, reading the data at `addr` in `region` into `args` starting at `startpos`.
+        implement scanf - extract formatted data from memory or a file according to the stored format
+        specifiers and store them into the pointers extracted from `args`.
+
+        :param startpos:    The index of the first argument corresponding to the first format element
+        :param args:        A function which, given the index of an argument to the function, returns that argument
+        :param addr:        The address in the memory to extract data from, or...
+        :param simfd:       A file descriptor to use for reading data from
+        :return:            The number of arguments parsed
         """
+        if simfd is not None and isinstance(simfd.read_storage, SimPackets):
+            argnum = startpos
+            for component in self.components:
+                if type(component) is bytes:
+                    sdata, _ = simfd.read_data(len(component), short_reads=False)
+                    self.state.solver.add(sdata == component)
+                elif isinstance(component, claripy.Bits):
+                    sdata, _ = simfd.read_data(len(component) // 8, short_reads=False)
+                    self.state.solver.add(sdata == component)
+                elif component.spec_type == 's':
+                    if component.length_spec is None:
+                        sdata, slen = simfd.read_data(self.state.libc.buf_symbolic_bytes)
+                    else:
+                        sdata, slen = simfd.read_data(component.length_spec)
+                    for byte in sdata.chop(8):
+                        self.state.solver.add(claripy.And(*[byte != char for char in self.SCANF_DELIMITERS]))
+                    self.state.memory.store(args(argnum), sdata, size=slen)
+                    self.state.memory.store(args(argnum) + slen, claripy.BVV(0, 8))
+                    argnum += 1
+                elif component.spec_type == 'c':
+                    sdata, _ = simfd.read_data(1, short_reads=False)
+                    self.state.memory.store(args(argnum), sdata)
+                    argnum += 1
+                else:
+                    bits = component.size * 8
+                    if component.spec_type == 'x':
+                        base = 16
+                    elif component.spec_type == 'o':
+                        base = 8
+                    else:
+                        base = 10
+
+                    # here's the variable representing the result of the parsing
+                    target_variable = self.state.solver.BVS('scanf_' + component.string, bits,
+                            key=('api', 'scanf', argnum - startpos, component.string))
+                    negative = claripy.SLT(target_variable, 0)
+
+                    # how many digits does it take to represent this variable fully?
+                    max_digits = int(math.ceil(math.log(2**bits, base)))
+
+                    # how many digits does the format specify?
+                    spec_digits = component.length_spec
+
+                    # how many bits can we specify as input?
+                    available_bits = float('inf') if spec_digits is None else spec_digits * math.log(base, 2)
+                    not_enough_bits = available_bits < bits
+
+                    # how many digits will we model this input as?
+                    digits = max_digits if spec_digits is None else spec_digits
+
+                    # constrain target variable range explicitly if it can't take on all possible values
+                    if not_enough_bits:
+                        self.state.solver.add(self.state.solver.And(
+                            self.state.solver.SLE(target_variable, (base**digits) - 1),
+                            self.state.solver.SGE(target_variable, -(base**(digits - 1) - 1))))
+
+                    # perform the parsing in reverse - constrain the input digits to be the string version of the input
+                    # this only works because we're reading from a packet stream and therefore nobody has the ability
+                    # to add other constraints to this data!
+                    # this makes z3's job EXTREMELY easy
+                    sdata, _ = simfd.read_data(digits, short_reads=False)
+                    for i, digit in enumerate(reversed(sdata.chop(8))):
+                        digit_value = (target_variable / (base**i)) % base
+                        digit_ascii = digit_value + ord('0')
+                        if base > 10:
+                            digit_ascii = claripy.If(digit_value >= 10, digit_value + (-10 + ord('a')), digit_ascii)
+
+                        # if there aren't enough bits, we can increase the range by accounting for the possibility that
+                        # the first digit is a minus sign
+                        if not_enough_bits:
+                            if i == digits - 1:
+                                neg_digit_ascii = ord('-')
+                            else:
+                                neg_digit_value = (-target_variable / (base**i)) % base
+                                neg_digit_ascii = neg_digit_value + ord('0')
+                                if base > 10:
+                                    neg_digit_ascii = claripy.If(neg_digit_value >= 10, neg_digit_value + (-10 + ord('a')), neg_digit_ascii)
+
+                            digit_ascii = claripy.If(negative, neg_digit_ascii, digit_ascii)
+
+                        self.state.solver.add(digit == digit_ascii[7:0])
+
+                    self.state.memory.store(args(argnum), target_variable, endness=self.state.arch.memory_endness)
+                    argnum += 1
+
+            return argnum - startpos
 
         # TODO: we only support one format specifier in interpretation for now
 
@@ -103,12 +205,15 @@ class FormatString(object):
         if format_specifier_count > 1:
             l.warning("We don't support more than one format specifiers in format strings.")
 
-        if region is None:
+        if simfd is not None:
+            region = simfd.read_storage
+            addr = simfd._pos if hasattr(simfd, '_pos') else simfd._read_pos # XXX THIS IS BAD
+        else:
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
         failed = self.parser.state.se.BVV(0, bits)
-        argpos = startpos 
+        argpos = startpos
         position = addr
         for component in self.components:
             if isinstance(component, str):
@@ -143,7 +248,7 @@ class FormatString(object):
 
                     # TODO all of these should be delimiters we search for above
                     # add that the contents of the string cannot be any scanf %s string delimiters
-                    for delimiter in set(FormatString.SCANF_DELIMITERS) - {'\x00'}:
+                    for delimiter in set(FormatString.SCANF_DELIMITERS):
                         delim_bvv = self.parser.state.se.BVV(delimiter)
                         for i in range(length):
                             self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
@@ -158,7 +263,7 @@ class FormatString(object):
                 else:
 
                     # XXX: atoi only supports strings of one byte
-                    if fmt_spec.spec_type in ['d', 'u', 'x']:
+                    if fmt_spec.spec_type in ['d', 'i', 'u', 'x']:
                         base = 16 if fmt_spec.spec_type == 'x' else 10
                         status, i, num_bytes = self.parser._sim_atoi_inner(position, region, base=base, read_length=fmt_spec.length_spec)
                         # increase failed count if we were unable to parse it
@@ -176,9 +281,10 @@ class FormatString(object):
 
                 argpos += 1
 
-        # we return (new position, number of items parsed)
-        # new position is used for interpreting from a file, so we can increase file position
-        return (position, ((argpos - startpos) - failed))
+        if simfd is not None:
+            simfd.read_data(position - addr)
+
+        return (argpos - startpos) - failed
 
     def __repr__(self):
         outstr = ""
@@ -249,7 +355,7 @@ class FormatParser(SimProcedure):
     int_len_mod = {
         'hh': ('char', 'uint8_t'),
         'h' : ('int16_t', 'uint16_t'),
-        'l' : ('long', ('unsigned', 'long')),
+        'l' : ('long', 'unsigned long'),
         # FIXME: long long is 64bit according to stdint.h on Linux,  but that might not always be the case
         'll' : ('int64_t', 'uint64_t'),
 
@@ -318,7 +424,7 @@ class FormatParser(SimProcedure):
         length_spec = None
 
         for j, c in enumerate(nugget):
-            if (c in string.digits):
+            if c in ascii_digits:
                 length_str.append(c)
             else:
                 nugget = nugget[j:]
@@ -433,13 +539,14 @@ class FormatParser(SimProcedure):
         fmt = [ ]
         for i in xrange(fmt_xpr.size(), 0, -8):
             char = fmt_xpr[i - 1 : i - 8]
-            concrete_chars = self.state.se.eval_upto(char, 2)
-            if len(concrete_chars) == 1:
-                # Concrete chars are directly appended to the list
-                fmt.append(chr(concrete_chars[0]))
-            else:
+            try:
+                conc_char = self.state.solver.eval_one(char)
+            except SimSolverError:
                 # For symbolic chars, just keep them symbolic
                 fmt.append(char)
+            else:
+                # Concrete chars are directly appended to the list
+                fmt.append(chr(conc_char))
 
         # make a FormatString object
         fmt_str = self._get_fmt(fmt)
@@ -448,4 +555,4 @@ class FormatParser(SimProcedure):
 
         return fmt_str
 
-from angr.errors import SimProcedureArgumentError, SimProcedureError
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError

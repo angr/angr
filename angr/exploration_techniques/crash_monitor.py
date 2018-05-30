@@ -18,19 +18,16 @@ class CrashMonitor(ExplorationTechnique):
     The crashed state that would make the program crash is in 'crashed' stash.
     """
 
-    def __init__(self, trace=None, trim_history=True, crash_mode=False, crash_addr=None):
+    def __init__(self, trace=None, crash_addr=None):
         """
         :param trace       : The basic block trace.
-        :param trim_history: Trim the history of a path.
-        :param crash_mode  : Whether or not the preconstrained input causes a crash.
         :param crash_addr  : If the input caused a crash, what address did it crash at?
         """
 
         super(CrashMonitor, self).__init__()
         # TODO add concolic mode to this and tracer
+        # ^ what r u talking about, tracer+preconstrainer is literally an implementation of concolic execution
         self._trace = trace
-        self._trim_history = trim_history
-        self._crash_mode = crash_mode
         self._crash_addr = crash_addr
 
         self.last_state = None
@@ -42,14 +39,12 @@ class CrashMonitor(ExplorationTechnique):
         simgr.active[0].inspect.b('state_step', when=BP_AFTER, action=self._check_stack)
 
     def complete(self, simgr):
-        # if we spot a crashed path in crash mode return the goods
+        # if we spot a crashed state, return the goods >:]
         if self._crash_type is not None:
             if self._crash_type == QEMU_CRASH:
-                l.info("crash occured in basic block %x", self._trace[-1])
-
                 # time to recover the crashing state
                 self._crash_state = self._crash_windup()
-                l.debug("tracing done!")
+                l.debug("Found the crash!")
 
             # stashes['crashed'] = [self._crash_state]
             simgr.populate('crashed', [self._crash_state])
@@ -61,17 +56,13 @@ class CrashMonitor(ExplorationTechnique):
         if len(simgr.active) == 1:
             self.last_state = simgr.active[0]
 
-            # if we're not in crash mode we don't care about the history
-            if self._trim_history and not self._crash_mode:
-                self.last_state.history.trim()
-
             simgr = simgr.step(stash=stash, **kwargs)
 
             if self._crash_type == EXEC_STACK:
                 return simgr
 
             # check to see if we reached a deadend
-            if self.last_state.globals['bb_cnt'] >= len(self._trace) and self._crash_mode:
+            if self.last_state.globals['bb_cnt'] >= len(self._trace):
                 simgr.step(stash=stash)
                 self._crash_type = QEMU_CRASH
                 return simgr
@@ -157,7 +148,7 @@ class CrashMonitor(ExplorationTechnique):
             if result is None:
                 l.warning("addr concretization result is None")
                 return
-            self.address_concretization.append((addr, result))
+            state.preconstrainer.address_concretization.append((addr, result))
 
     def _dont_add_constraints(self, state):
         """

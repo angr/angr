@@ -149,10 +149,20 @@ class Project(object):
             ignore_functions = []
 
         if isinstance(exclude_sim_procedures_func, types.LambdaType):
-            l.warning("Passing a lambda type as the exclude_sim_procedures_func argument to Project causes the resulting object to be un-serializable.")
+            l.warning("Passing a lambda type as the exclude_sim_procedures_func argument to "
+                      "Project causes the resulting object to be un-serializable.")
 
         self._sim_procedures = {}
         self.concrete_target = concrete_target
+
+        # It doesn't make any sense to have auto_load_libs
+        # if you have the concrete target
+        auto_load_lib_opt = load_options.get('auto_load_libs', None)
+        if self.concrete_target and auto_load_lib_opt:
+            l.critical("Incompatible options selected for this project, please disable auto_load_libs if "
+                       "you want to use a concrete target.")
+            raise Exception("Incompatible options for the project")
+
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
@@ -160,7 +170,7 @@ class Project(object):
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
-        self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
+        self._executing = False  # this is a flag for the convenience API, exec() and terminate_execution() below
 
         if support_selfmodifying_code:
             if translation_cache is True:

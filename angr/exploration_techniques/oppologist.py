@@ -26,7 +26,7 @@ class Oppologist(ExplorationTechnique):
     def _restore_state(old, new):
         new.release_plugin('unicorn')
         new.register_plugin('unicorn', old.unicorn.copy())
-        new.options = set(old.options)
+        new.options = old.options.copy()
         return new
 
     def _oppologize(self, state, pn, **kwargs):

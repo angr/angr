@@ -73,7 +73,8 @@ class PluginHub(object):
             raise AttributeError(name)
 
     def __dir__(self):
-        out = set(self._active_plugins)
+        out = set(self.__dict__)
+        out.update(self._active_plugins)
         if self.has_plugin_preset:
             out.update(self._active_preset.list_default_plugins())
 

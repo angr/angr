@@ -17,9 +17,9 @@ def mode_to_flag(mode):
     all_modes = {
         "r"  : angr.storage.file.Flags.O_RDONLY,
         "r+" : angr.storage.file.Flags.O_RDWR,
-        "w"  : angr.storage.file.Flags.O_WRTONLY | angr.storage.file.Flags.O_CREAT,
+        "w"  : angr.storage.file.Flags.O_WRONLY | angr.storage.file.Flags.O_CREAT,
         "w+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT,
-        "a"  : angr.storage.file.Flags.O_WRTONLY | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND,
+        "a"  : angr.storage.file.Flags.O_WRONLY | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND,
         "a+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND
         }
     if mode not in all_modes:
@@ -41,7 +41,7 @@ class fdopen(angr.SimProcedure):
         # TODO: handle append and other mode subtleties
 
         fd = self.state.se.eval(fd_int)
-        if fd not in self.state.posix.files:
+        if fd not in self.state.posix.fd:
             # if file descriptor not found return NULL
             return 0
         else:

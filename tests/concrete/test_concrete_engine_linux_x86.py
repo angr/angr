@@ -70,7 +70,7 @@ def test_concrete_engine_linux_x86_unicorn_no_simprocedures():
         print("test_concrete_engine_linux_x86_unicorn_no_simprocedures")
         global avatar_gdb
         avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x86, load_options={'auto_load_libs': True}, concrete_target=avatar_gdb, use_sim_procedures=False)
+        p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=False)
         entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
         solv_concrete_engine_linux_x86(p, entry_state)
 
@@ -80,7 +80,7 @@ def test_concrete_engine_linux_x86_unicorn_simprocedures():
         print("test_concrete_engine_linux_x86_unicorn_simprocedures")
         global avatar_gdb
         avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x86, load_options={'auto_load_libs': True}, concrete_target=avatar_gdb, use_sim_procedures=True)
+        p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=True)
         entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
         solv_concrete_engine_linux_x86(p, entry_state)
 

@@ -186,10 +186,17 @@ class SimFastMemoryError(SimMemoryError):
 class SimEventError(SimStateError):
     pass
 
-class SimFileError(SimMemoryError):
+class SimPosixError(SimStateError):
     pass
 
-class SimPosixError(SimStateError):
+
+class SimFilesystemError(SimError):
+    pass
+
+class SimSymbolicFilesystemError(SimFilesystemError):
+    pass
+
+class SimFileError(SimMemoryError, SimFilesystemError):
     pass
 
 #
@@ -354,6 +361,13 @@ class SimEmptyCallStackError(SimError):
     pass
 
 #
+# SimStateOptions Errors
+#
+
+class SimStateOptionsError(SimError):
+    pass
+
+#
 # Errors that may be handled by exception handling
 #
 
@@ -381,4 +395,18 @@ class SimZeroDivisionException(SimException, SimOperationError):
 
 
 class AngrNoPluginError(AngrError):
+    pass
+
+#
+# Concrete Targets Execution errors
+#
+
+class ConcreteMemoryError(AngrError):
+    pass
+
+
+class ConcreteRegisterError(AngrError):
+    pass
+
+class ConcreteBreakpointError(AngrError):
     pass
