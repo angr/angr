@@ -20,3 +20,4 @@ from .arrayref import SimSootValue_ArrayRef
 from .thisref import SimSootValue_ThisRef
 from .staticfieldref import SimSootValue_StaticFieldRef
 from .instancefieldref import SimSootValue_InstanceFieldRef
+from .constants import SimSootValue_IntConstant
