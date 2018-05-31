@@ -62,7 +62,10 @@ def _module_location(i):
 
 _angr_location = _module_location('angr')
 for _m in { 'ailment', 'ana', 'archinfo', 'claripy', 'cle', 'cooldict', 'idalink', 'mulpyplexer', 'pysoot', 'pyvex' }:
-	_mloc = _module_location(_m)
+	try:
+		_mloc = _module_location(_m)
+	except ImportError:
+		continue
 	if _mloc != _angr_location:
 		logging.getLogger("angr").warning(
 			"pypi/git installation mismatch: angr is installed in %s and dependency %s is installed in %s. This will almost certainly lead to problems.",
