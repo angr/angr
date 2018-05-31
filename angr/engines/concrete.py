@@ -8,15 +8,12 @@ import sys
 #pylint: disable=arguments-differ
 l = logging.getLogger("angr.engines.concrete")
 l.setLevel(logging.DEBUG)
-<<<<<<< HEAD
-=======
 
 
 def timeout_handler():
     l.critical("[ERROR] Timeout error during resuming of concrete process")
     # situation is compromised, better to exit.
     sys.exit()
->>>>>>> 9a5896fe307c0fbf02fc81365c6f0a6f4a5a8c9c
 
 
 class SimEngineConcrete(SimEngine):

@@ -356,14 +356,8 @@ class SimEngineVEX(SimEngine):
             #l.debug("IMark: %#x", stmt.addr)
             state.scratch.num_insns += 1
             state._inspect('instruction', BP_BEFORE, instruction=ins_addr)
-            print(hex(stmt.addr))
-            print(self.project.factory.block(stmt.addr).capstone.pp())
-            
 
             # process it!
-            #print(stmt)
-            #state.project.factory.block(state.se.eval(state.regs.pc)).capstone.pp()
-
         s_stmt = translate_stmt(stmt, state)
         if s_stmt is not None:
             state.history.extend_actions(s_stmt.actions)
