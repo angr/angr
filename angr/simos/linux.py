@@ -311,13 +311,13 @@ class SimLinux(SimUserland):
 
     def initialize_segment_register_x64(self, state, concrete_target):
         _l.debug("Synchronizing fs segment register")
-        state.regs.fs = self.read_fs_register_x64(concrete_target)
+        state.regs.fs = self._read_fs_register_x64(concrete_target)
 
 
 
     def initialize_gdt_x86(self,state,concrete_target):
         _l.debug("Creating fake Global Descriptor Table and synchronizing gs segment register")
-        gs = self.read_gs_register_x86(concrete_target)
+        gs = self._read_gs_register_x86(concrete_target)
         gdt = self.generate_gdt(0x0,gs)
         self.setup_gdt(state,gdt)
 
@@ -329,7 +329,7 @@ class SimLinux(SimUserland):
         return gdt
 
 
-    def read_fs_register_x64(self, concrete_target):
+    def _read_fs_register_x64(self, concrete_target):
         '''
         Injects small shellcode to leak the fs segment register address. In Linux x64 this address is pointed by fs[0]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
@@ -344,7 +344,7 @@ class SimLinux(SimUserland):
 
 
 
-    def read_gs_register_x86(self, concrete_target):
+    def _read_gs_register_x86(self, concrete_target):
         '''
         Injects small shellcode to leak the fs segment register address. In Linux x86 this address is pointed by gs[0]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address

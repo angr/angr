@@ -62,11 +62,10 @@ class Concrete(SimStatePlugin):
                     l.debug("Can't set register %s reason: %s, if this register is not used "
                             "this message can be ignored" % (reg_name, exc))
                     
-        # Initialize the segment register value if not already initialized
+        # Initialize the segment registers value if not already initialized
         if not self.segment_registers_already_init:
             if isinstance(self.state.arch, ArchAMD64):
                 self.state.project.simos.initialize_segment_register_x64(self.state,self.target)
-
             elif isinstance(self.state.arch, ArchX86):
                 gdt = self.state.project.simos.initialize_gdt_x86(self.state, self.target)
                 whitelist.append((gdt.addr, gdt.addr + gdt.limit))
@@ -75,7 +74,6 @@ class Concrete(SimStatePlugin):
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
-
         # if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
         if self.state.project._should_use_sim_procedures:
             l.info("Restoring SimProc using concrete memory")

@@ -304,39 +304,39 @@ class SimOS(object):
         GDT_ADDR = 0x4000
         GDT_LIMIT = 0x1000
 
-        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF,
+        normal_entry = self._create_gdt_entry(0, 0xFFFFFFFF,
                                              A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT,
                                              F_PROT_32)
-        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0,
+        stack_entry = self._create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0,
                                             F_PROT_32)
-        fs_entry = self.create_gdt_entry(fs, fs_size,
+        fs_entry = self._create_gdt_entry(fs, fs_size,
                                          A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        gs_entry = self.create_gdt_entry(gs, gs_size,
+        gs_entry = self._create_gdt_entry(gs, gs_size,
                                          A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
 
         table = normal_entry + stack_entry + fs_entry + gs_entry
         gdt =  (GDT_ADDR << 16 | GDT_LIMIT)
-        selector = self.create_selector(1, S_GDT | S_PRIV_0)
+        selector = self._create_selector(1, S_GDT | S_PRIV_0)
         cs = selector
         ds = selector
         es = selector
-        selector = self.create_selector(2, S_GDT | S_PRIV_0)
+        selector = self._create_selector(2, S_GDT | S_PRIV_0)
         ss = selector
-        selector = self.create_selector(3, S_GDT | S_PRIV_0)
+        selector = self._create_selector(3, S_GDT | S_PRIV_0)
         fs = selector
-        selector = self.create_selector(4, S_GDT | S_PRIV_0)
+        selector = self._create_selector(4, S_GDT | S_PRIV_0)
         gs = selector
         global_descriptor_table = GlobalDescriptorTable(GDT_ADDR,GDT_LIMIT,table,gdt,cs,ds,es,ss,fs,gs)
         return global_descriptor_table
 
     @staticmethod
-    def create_selector(idx, flags):
+    def _create_selector(idx, flags):
         to_ret = flags
         to_ret |= idx << 3
         return to_ret
     
     @staticmethod
-    def create_gdt_entry(base, limit, access, flags):
+    def _create_gdt_entry(base, limit, access, flags):
         to_ret = limit & 0xffff
         to_ret |= (base & 0xffffff) << 16
         to_ret |= (access & 0xff) << 40
@@ -344,10 +344,6 @@ class SimOS(object):
         to_ret |= (flags & 0xff) << 52
         to_ret |= ((base >> 24) & 0xff) << 56
         return struct.pack('<Q', to_ret)
-
-
-
-
 
 
 class GlobalDescriptorTable(object):
