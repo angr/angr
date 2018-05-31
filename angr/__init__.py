@@ -50,3 +50,21 @@ from . import sim_manager as manager
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
+
+# make sure there's not a git/pip mix
+import os
+def _module_location(i):
+	_module_location = __import__(i).__file__
+	if '__init__' in _module_location:
+		return os.path.dirname(os.path.dirname(os.path.dirname(_module_location)))
+	else:
+		return os.path.dirname(os.path.dirname(_module_location))
+
+_angr_location = _module_location('angr')
+for _m in { 'ailment', 'ana', 'archinfo', 'claripy', 'cle', 'cooldict', 'idalink', 'mulpyplexer', 'pysoot', 'pyvex' }:
+	_mloc = _module_location(_m)
+	if _mloc != _angr_location:
+		logging.getLogger("angr").warning(
+			"pypi/git installation mismatch: angr is installed in %s and dependency %s is installed in %s. This will almost certainly lead to problems.",
+			_angr_location, _m, _mloc
+		)
