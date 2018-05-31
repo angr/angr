@@ -27,11 +27,10 @@ class Concrete(SimStatePlugin):
 
     def sync(self):
         """
-        Handling the switch between the concrete execution and angr.
+        Handle the switch between the concrete execution and angr.
         This method takes care of:
         1- Synchronize registers
-        2- Substitute the CLEMemory backer of the self.state with a ConcreteCLEMemory object
-           that redirects the read inside the concrete process.
+        2- Set a concrete target to the memory backer so the memory reads are redirected in the concrete process memory.
         3- Flush all the pages loaded until now.
 
         :return:
@@ -74,8 +73,7 @@ class Concrete(SimStatePlugin):
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
-        # if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
-        if self.state.project._should_use_sim_procedures:
+        if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.state.project.loader.main_object.relocs:
                 if reloc.symbol is not None:  # consider only reloc with a symbol

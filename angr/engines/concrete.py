@@ -1,6 +1,5 @@
 from angr.engines import SimEngine
 from angr_targets.concrete import ConcreteTarget
-from angr_targets.segment_registers import *
 import logging
 import signal
 import sys
