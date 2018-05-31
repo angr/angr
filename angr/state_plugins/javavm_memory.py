@@ -3,7 +3,7 @@ import binascii
 import os
 
 from ..engines.soot.values import SimSootValue_Local, SimSootValue_ArrayRef, SimSootValue_ParamRef, \
-                                  SimSootValue_StaticFieldRef, SimSootValue_ThisRef, SimSootValue_InstanceFieldRef
+                                  SimSootValue_StaticFieldRef, SimSootValue_InstanceFieldRef
 
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory

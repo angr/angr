@@ -168,20 +168,7 @@ class SimJavaVM(SimOS):
         # of the method <clinit> and we update the state accordingly.
         manifest = state.project.loader.main_bin.get_manifest()
         main_cls = state.project.loader.main_bin.get_class(manifest["Main-Class"])
-        for method in main_cls.methods:
-            if method.name == "<clinit>":
-                entry_state = state.copy()
-                simgr = state.project.factory.simgr(entry_state)
-                simgr.active[0].ip = SootAddressDescriptor(SootMethodDescriptor.from_method(method), 0, 0)
-                simgr.run()
-                # if we reach the end of the method the correct state is the deadended state
-                if simgr.deadended:
-                    # The only thing that can change in the <clinit> methods are static fields so
-                    # it can only change the vm_static_table and the heap.
-                    # We need to fix the entry state memory with the new memory state.
-                    state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
-                    state.memory.heap = simgr.deadended[0].memory.heap.copy()
-                break
+        state.javavm_classloader.load_class(main_cls)
 
         return state
 
