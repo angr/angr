@@ -280,77 +280,18 @@ class SimOS(object):
         return None
 
         
+    def setup_gdt(self, state, gdt):
 
-    def setup_gdt(self,state, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
-    
-        A_PRESENT = 0x80
-        A_DATA = 0x10
-        A_DATA_WRITABLE = 0x2
-        A_PRIV_0 = 0x0
-        A_DIR_CON_BIT = 0x4
-        F_PROT_32 = 0x4
-        S_GDT = 0x0
-        S_PRIV_0 = 0x0
+        state.memory.store(gdt.addr+8, gdt.table)
+        state.regs.gdt = gdt.gdt
+        state.regs.cs = gdt.cs
+        state.regs.ds = gdt.ds
+        state.regs.es = gdt.es
+        state.regs.ss = gdt.ss
+        state.regs.fs = gdt.fs
+        state.regs.gs = gdt.gs
 
-    
-        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0, F_PROT_32)
-        fs_entry = self.create_gdt_entry(fs, fs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        gs_entry = self.create_gdt_entry(gs, gs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        state.memory.store(self.gdt_addr + 8, normal_entry + stack_entry + fs_entry + gs_entry)
-    
-        state.regs.gdt = (self.gdt_addr << 16 | self.gdt_limit)
-        selector = self.create_selector(1, S_GDT | S_PRIV_0)
-        state.regs.cs = selector
-        state.regs.ds = selector
-        state.regs.es = selector
-        selector = self.create_selector(2, S_GDT | S_PRIV_0)
-        state.regs.ss = selector
-        selector = self.create_selector(3, S_GDT | S_PRIV_0)
-        state.regs.fs = selector
-        selector = self.create_selector(4, S_GDT | S_PRIV_0)
-        state.regs.gs = selector
 
-    '''
-    def generate_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
-        A_PRESENT = 0x80
-        A_DATA = 0x10
-        A_DATA_WRITABLE = 0x2
-        A_PRIV_0 = 0x0
-        A_DIR_CON_BIT = 0x4
-        F_PROT_32 = 0x4
-        S_GDT = 0x0
-        S_PRIV_0 = 0x0
-        GDT_ADDR = 0x4000
-        GDT_LIMIT = 0x1000
-
-        gdt = {}
-
-        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF,
-                                             A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT,
-                                             F_PROT_32)
-        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0,
-                                            F_PROT_32)
-        fs_entry = self.create_gdt_entry(fs, fs_size,
-                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        gs_entry = self.create_gdt_entry(gs, gs_size,
-                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-
-        gdt["table"] = GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry
-        gdt["gdt"] =  (GDT_ADDR << 16 | GDT_LIMIT)
-        #state.regs.gdt = (GDT_ADDR << 16 | GDT_LIMIT)
-        selector = self.create_selector(1, S_GDT | S_PRIV_0)
-        gdt["cs"] = selector
-        gdt["ds"] = selector
-        gdt["es"] = selector
-        selector = self.create_selector(2, S_GDT | S_PRIV_0)
-        gdt["ss"] = selector
-        selector = self.create_selector(3, S_GDT | S_PRIV_0)
-        gdt["fs"] = selector
-        selector = self.create_selector(4, S_GDT | S_PRIV_0)
-        gdt["gs"] = selector
-        return gdt
-        '''
     def generate_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
         A_PRESENT = 0x80
         A_DATA = 0x10
@@ -375,7 +316,6 @@ class SimOS(object):
 
         table = normal_entry + stack_entry + fs_entry + gs_entry
         gdt =  (GDT_ADDR << 16 | GDT_LIMIT)
-        #state.regs.gdt = (GDT_ADDR << 16 | GDT_LIMIT)
         selector = self.create_selector(1, S_GDT | S_PRIV_0)
         cs = selector
         ds = selector

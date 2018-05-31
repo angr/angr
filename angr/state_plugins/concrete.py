@@ -65,32 +65,11 @@ class Concrete(SimStatePlugin):
         # Initialize the segment register value if not already initialized
         if not self.segment_registers_already_init:
             if isinstance(self.state.arch, ArchAMD64):
-                if self.state.project.simos.name == "Linux":
-                    self.state.regs.fs = self.state.project.simos.read_fs_register_x64(self.target)
-                elif self.state.project.simos.name == "Win32":
-                    self.state.regs.gs = self.state.project.simos.read_gs_register_x64(self.target)
+                self.state.project.simos.initialize_segment_register_x64(self.state,self.target)
 
             elif isinstance(self.state.arch, ArchX86):
-                if self.state.project.simos.name == "Linux":
-                    # Setup the GDT structure in the angr memory and populate the field containing the gs value
-                    # (mandatory for handling access to segment registers)
-                    gs = self.state.project.simos.read_gs_register_x86(self.target)
-                    gdt = self.state.project.simos.generate_gdt(0x0, gs)
-                    self.setup_gdt(self.state,gdt)
-                    whitelist.append((gdt.addr, gdt.addr + gdt.limit))
-
-                    # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
-                    _vsyscall_address = self.target.read_memory(gs + 0x10, self.state.project.arch.bits / 8)
-                    _vsyscall_address = struct.unpack(self.state.project.arch.struct_fmt(), _vsyscall_address)[0]
-                    self.state.project.rehook_symbol(_vsyscall_address, '_vsyscall')
-
-                elif self.state.project.simos.name == "Win32":
-                    # Setup the GDT structure in the angr memory and populate the field containing the fs value
-                    # (mandatory for handling access to segment registers)
-                    fs = self.state.project.simos.read_fs_register_x86(self.target)
-                    gdt = self.state.project.simos.generate_gdt(fs, 0x0)
-                    self.setup_gdt(self.state,gdt)
-                    whitelist.append((gdt.addr, gdt.addr + gdt.limit))
+                gdt = self.state.project.simos.initialize_gdt_x86(self.state, self.target)
+                whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
             self.segment_registers_already_init = True
 
@@ -117,16 +96,7 @@ class Concrete(SimStatePlugin):
         l.info("Exiting SimEngineConcrete: simulated address %x concrete address %x "
                % (self.state.addr, self.target.read_register("pc")))
 
-    def setup_gdt(self, state, gdt):
 
-        state.memory.store(gdt.addr+8,gdt.table)
-        state.regs.gdt = gdt.gdt
-        state.regs.cs = gdt.cs
-        state.regs.ds = gdt.ds
-        state.regs.es = gdt.es
-        state.regs.ss = gdt.ss
-        state.regs.fs = gdt.fs
-        state.regs.gs = gdt.gs
 
 
 from .. import sim_options as options
