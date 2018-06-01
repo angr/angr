@@ -81,6 +81,10 @@ def broken_cache_stall():
 
 
 def test_manual_recursion():
+
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     b = os.path.join(bin_location, "tests/cgc", "CROMU_00071")
     blob = open(os.path.join(bin_location, 'tests_data/', 'crash2731')).read()
 
