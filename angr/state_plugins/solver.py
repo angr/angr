@@ -719,7 +719,7 @@ class SimSolver(SimStatePlugin):
         """
         try:
             return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.iteritems() if k != 'default'})[0]
-        except (SimUnsatError, SimValueError):
+        except (SimUnsatError, SimValueError, SimSolverModeError):
             if 'default' in kwargs:
                 return kwargs.pop('default')
             raise
