@@ -121,6 +121,7 @@ class Hook(DisassemblyPiece):
 class Instruction(DisassemblyPiece):
     def __init__(self, insn, parentblock):
         self.addr = insn.address
+        self.size = insn.size
         self.insn = insn
         self.parentblock = parentblock
         self.project = parentblock.project
@@ -344,9 +345,9 @@ class Operand(DisassemblyPiece):
             op0, op1 = operand.values
             if type(op0) is Register and op0.is_ip and type(op1) is Value:
                 # Indirect addressing in x86_64
-                # 400520  push [rip+0x200782] ==>  400520  push 0x600ca2
-                absolute_addr = parentinsn.addr + op1.val
-                return ConstantOperand(1, [Value(absolute_addr, False)], parentinsn)
+                # 400520  push [rip+0x200782] ==>  400520  push [0x600ca8]
+                absolute_addr = parentinsn.addr + parentinsn.size + op1.val
+                return MemoryOperand(1, ['[', Value(absolute_addr, False), ']'], parentinsn)
 
         return operand
 
