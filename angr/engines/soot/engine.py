@@ -360,7 +360,7 @@ class SimEngineSoot(SimEngine):
         """
 
         ret_state = native_state.copy()
-        ret_addr = ret_state.get_plugin("callstack", with_suffix='_soot').ret_addr
+        ret_addr = ret_state.get_javavm_view_of_plugin("callstack").ret_addr
         ret_state.regs._ip = ret_addr
         ret_var = ret_state.callstack.invoke_return_variable
         ret_state.scratch.guard = ret_state.se.true

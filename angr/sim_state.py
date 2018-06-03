@@ -353,13 +353,13 @@ class SimState(PluginHub):
     # Plugins
     #
 
-    def get_plugin(self, name, with_suffix=''):
-        if self.javavm_with_jni and not with_suffix:
+    def get_plugin(self, name):
+        if self.javavm_with_jni:
             # In case of the JavaVM with JNI support, a state can store the same plugin
             # twice; one for the native and one for the java view of the state.
             suffix = '_soot' if self.ip_is_soot_addr else '_vex'
             name = name+suffix if self.has_plugin(name+suffix) else name
-        return super(SimState, self).get_plugin(name+with_suffix)
+        return super(SimState, self).get_plugin(name)
 
     def register_plugin(self, name, plugin, inhibit_init=False): # pylint: disable=arguments-differ
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
@@ -383,6 +383,16 @@ class SimState(PluginHub):
         if self.javavm_with_jni:
             plugin_name += '_soot' if self.ip_is_soot_addr else '_vex'
         self.register_plugin(plugin_name, new_callstack)
+
+    def get_javavm_view_of_plugin(self, plugin_name):
+        """
+        In case of the JavaVM with JNI support, a state can store the same plugin
+        twice; one for the native and one for the java view of the state.
+
+        :return: The JavaVM view of the requested plugin.
+        """
+        plugin_name = plugin_name+"_soot" if self.has_plugin(plugin_name+"_soot") else plugin_name
+        return self.get_plugin(plugin_name)
 
     #
     # Constraint pass-throughs
