@@ -1,7 +1,9 @@
-from angr import SimProcedure
+from . import JNISimProcedure
 
-class GetVersion(SimProcedure):
+class GetVersion(JNISimProcedure):
 
-    def run(self):
+    return_ty = 'int'
+
+    def run(self, ptr_env):
         # return JNI version 1.8
         return 0x00010008

@@ -1,9 +1,9 @@
-from angr import SimProcedure
-from angr.engines.soot.expressions.length import SimSootExpr_Length
-from . import lookup_local_reference
+from . import JNISimProcedure
 
-class GetArrayLength(SimProcedure):
+class GetArrayLength(JNISimProcedure):
 
-    def run(self, env, array_opaque_ref):
-        array_ref = lookup_local_reference(self.state, array_opaque_ref)
+    return_ty = 'int'
+
+    def run(self, ptr_env, array):
+        array_ref = self.lookup_local_reference(array)
         return array_ref.size

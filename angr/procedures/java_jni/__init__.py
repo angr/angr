@@ -1,11 +1,70 @@
 
-# Dictionary containing all functions from the JNI Native Interface struct.
+from ...sim_procedure import SimProcedure
+from ...sim_type import SimTypeFunction
+from ...calling_conventions import DefaultCC
+from archinfo import ArchSoot
+
+class JNISimProcedure(SimProcedure):
+
+    return_ty = None
+
+    def __init__(self, **kwargs):
+        super(JNISimProcedure, self).__init__(**kwargs)
+
+    def execute(self, state, successors=None, arguments=None, ret_to=None):
+        # Setup SimCC with the correct type of the return value
+        if self.return_ty is None:
+            raise ValueError("Implementing JNISimProcedure classes must set the return type.")
+        func_ty = SimTypeFunction(args=[], returnty=state.project.simos.get_native_type(self.return_ty))
+        self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)        
+        super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
+
+    def lookup_local_reference(self, opaque_ref):
+        opaque_ref = opaque_ref.to_claripy()
+        if opaque_ref.symbolic:
+            raise ValueError("Opaque reference is symbolic.")
+        opaque_ref = self.state.solver.eval(opaque_ref)
+        return self.state.scratch.invoke_jni_local_references[opaque_ref]
+
+    def allocate_native_memory(self, size):
+        return self.state.project.loader.extern_object.allocate(size=size)
+
+    def dump_in_native_memory(self, data, data_type, addr=None):
+        """
+        
+        list resembling arrays
+        -> type is base_type of array elements
+
+        """
+
+        if addr is not None and self.state.solver.symbolic(addr):
+            print "symbolic addr"
+
+        type_size = ArchSoot.sizeof[data_type]
+        native_memory_endness = self.state.arch.memory_endness
+
+        if isinstance(data, int):
+            if addr is None:
+                addr = self.allocate_native_memory(size=type_size/8)
+            value = self.state.solver.BVV(data, type_size)
+            self.state.memory.store(addr, value, endness=native_memory_endness)
+
+        elif isinstance(data, list):
+            addr = self.allocate_native_memory(size=type_size*len(data))
+            for idx, value in enumerate(data):
+                memory_addr = addr+idx*type_size/8
+                self.state.memory.store(memory_addr, value, endness=native_memory_endness)
+
+        return addr
+
+# Dictionary containing all functions from the JNI Native Interface struct
+# All entries with None are replaced with a NotImplemented SimProcedure
 jni_functions = [
     None, 		# reserved0
     None, 		# reserved1
     None, 		# reserved2
     None, 		# reserved3
-    "GetVersion",
+    "GetVersion", # GetVersion
     None, 		# DefineClass
     None, 		# FindClass
     None, 		# FromReflectedMethod
@@ -172,7 +231,7 @@ jni_functions = [
     None, 		# GetStringUTFLength
     None, 		# GetStringUTFChars
     None, 		# ReleaseStringUTFChars
-    "GetArrayLength",
+    "GetArrayLength", # GetArrayLength
     None, 		# NewObjectArray
     None, 		# GetObjectArrayElement
     None, 		# SetObjectArrayElement
@@ -185,10 +244,10 @@ jni_functions = [
     None, 		# NewFloatArray
     None, 		# NewDoubleArray
     None, 		# GetBooleanArrayElements
-    None, 		# GetByteArrayElements
+    "GetArrayElements", # GetByteArrayElements
     None, 		# GetCharArrayElements
     None, 		# GetShortArrayElements
-    None, 		# GetIntArrayElements
+    "GetArrayElements", # GetIntArrayElements
     None, 		# GetLongArrayElements
     None, 		# GetFloatArrayElements
     None, 		# GetDoubleArrayElements
@@ -236,9 +295,3 @@ jni_functions = [
     None, 		# GetObjectRefType
 ]
 
-def lookup_local_reference(state, opaque_ref):
-    opaque_ref = opaque_ref.to_claripy()
-    if opaque_ref.symbolic:
-        raise ValueError("Opaque reference is symbolic.")
-    opaque_ref = state.solver.eval(opaque_ref)
-    return state.scratch.invoke_jni_local_references[opaque_ref]
