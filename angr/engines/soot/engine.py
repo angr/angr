@@ -387,7 +387,7 @@ class SimEngineSoot(SimEngine):
                 # => we need to manually cast the return value to the correct size, as this
                 #    would be usually done by the java callee
                 # 1. get return symbol from native state
-                native_cc = ret_state.scratch.invoke_native_cc
+                native_cc = ret_state.project.simos.get_native_cc()
                 ret_symbol = native_cc.get_return_val(native_state).to_claripy()
                 # 2. lookup the size of the native type and extract value
                 ret_var_native_size = ArchSoot.sizeof[ret_var.type] 
