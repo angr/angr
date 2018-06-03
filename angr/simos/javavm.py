@@ -109,15 +109,15 @@ class SimJavaVM(SimOS):
             # TODO: use state_blank function from the native simos and not the super class
             state = super(SimJavaVM, self).state_blank(addr=0, **kwargs)
             # Let the target of the JNIEnv pointer point to the function table
-            state.memory.store(self.jni_env, BVV(self.jni_function_table, 64).reversed)
+            native_addr_size = self.native_simos.arch.bits
+            state.memory.store(self.jni_env, BVV(self.jni_function_table, native_addr_size).reversed)
             # Initialize the function table
             # => Each entry usually contains the address of the function, but since we hook all functions
             #    with SimProcedures, we store the address of the corresonding hook instead.
             #    This, by construction, is exactly the address of the function table entry itself.
             for idx in range(len(jni_functions)):
-                native_addr_size = self.native_simos.arch.bits/8
-                jni_function_addr = self.jni_function_table + idx * native_addr_size
-                state.memory.store(jni_function_addr, BVV(jni_function_addr, 64).reversed)
+                jni_function_addr = self.jni_function_table + idx * native_addr_size/8
+                state.memory.store(jni_function_addr, BVV(jni_function_addr, native_addr_size).reversed)
 
         else:
             # w/o JNI support, we can just use a blank state
