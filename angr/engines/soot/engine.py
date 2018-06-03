@@ -6,7 +6,7 @@ from archinfo.arch_soot import SootAddressDescriptor, SootAddressTerminator, Soo
 
 from archinfo import ArchSoot
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ...errors import SimTranslationError
+from ...errors import SimTranslationError, SimEngineError
 from ... import sim_options as o
 from ..engine import SimEngine
 from ...sim_type import SimTypeReg
@@ -152,8 +152,12 @@ class SimEngineSoot(SimEngine):
         state.scratch.invoke_native_cc = None
         state.scratch.invoke_jni_local_references = {}
         
-        l.info("Executing statement %s [%s]", stmt, state.addr)
-        s_stmt = translate_stmt(stmt, state)
+        try:
+            l.info("Executing statement %s [%s]", stmt, state.addr)
+            s_stmt = translate_stmt(stmt, state)
+        except SimEngineError as e:
+            l.error("Skipping statement: " + str(e))
+            return
         # print state.memory.stack
 
         if state.scratch.invoke:
@@ -193,7 +197,7 @@ class SimEngineSoot(SimEngine):
                     computed_target = self._get_next_linear_instruction(state, last_addr)
                 else:
                     computed_target = target
-                l.warning("Possible jump: %s -> %s" % (state._ip, computed_target))
+                l.debug("Possible jump: %s -> %s" % (state._ip, computed_target))
                 successors.add_successor(state.copy(), computed_target, condition, 'Ijk_Boring')
 
             return True
