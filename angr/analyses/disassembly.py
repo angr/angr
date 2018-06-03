@@ -197,7 +197,7 @@ class Instruction(DisassemblyPiece):
                     if i > 0 and insn_pieces[i-1] in ('+', '-'):
                         with_sign = True
                         if insn_pieces[i-1] == '-':
-                            intc = -intc
+                            intc = -intc  # pylint: disable=invalid-unary-operand-type
                         insn_pieces[i-1] = ''
                     cur_operand.append(Value(intc, with_sign))
                 else:
@@ -340,14 +340,13 @@ class Operand(DisassemblyPiece):
         # Post-processing
         if cls is MemoryOperand and \
                 parentinsn.arch.name in { 'AMD64' } and \
-                len(operand.values) == 2 and \
-                type(operand.values[0]) is Register and \
-                operand.values[0].is_ip and \
-                type(operand.values[1]) is Value:
-            # Indirect addressing in x86_64
-            # 400520  push [rip+0x200782] ==>  400520  push 0x600ca2
-            absolute_addr = parentinsn.addr + operand.values[1].val
-            return ConstantOperand(1, [Value(absolute_addr, False)], parentinsn)
+                len(operand.values) == 2:
+            op0, op1 = operand.values
+            if type(op0) is Register and op0.is_ip and type(op1) is Value:
+                # Indirect addressing in x86_64
+                # 400520  push [rip+0x200782] ==>  400520  push 0x600ca2
+                absolute_addr = parentinsn.addr + op1.val
+                return ConstantOperand(1, [Value(absolute_addr, False)], parentinsn)
 
         return operand
 
