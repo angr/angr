@@ -10,6 +10,8 @@ class JNISimProcedure(SimProcedure):
 
     def __init__(self, **kwargs):
         super(JNISimProcedure, self).__init__(**kwargs)
+        self.JNI_TRUE = 1
+        self.JNI_FALSE = 0
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         # Setup SimCC with the correct type of the return value
@@ -243,12 +245,12 @@ jni_functions = [
     None, 		# NewLongArray
     None, 		# NewFloatArray
     None, 		# NewDoubleArray
-    None, 		# GetBooleanArrayElements
+    "GetArrayElements", # GetBooleanArrayElements
     "GetArrayElements", # GetByteArrayElements
-    None, 		# GetCharArrayElements
-    None, 		# GetShortArrayElements
+    "GetArrayElements", # GetCharArrayElements
+    "GetArrayElements", # GetShortArrayElements
     "GetArrayElements", # GetIntArrayElements
-    None, 		# GetLongArrayElements
+    "GetArrayElements", # GetLongArrayElements
     None, 		# GetFloatArrayElements
     None, 		# GetDoubleArrayElements
     None, 		# ReleaseBooleanArrayElements

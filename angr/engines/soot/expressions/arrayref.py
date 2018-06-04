@@ -13,14 +13,12 @@ class SimSootExpr_ArrayRef(SimSootExpr):
         base = self._translate_value(self.expr.base)
         array_ref_base = self.state.memory.load(base)
         if array_ref_base is not None:
+            # translate idx
             idx = SimSootValue_ArrayRef.translate_array_index(self.expr.index, self.state)
+            # check idx against array bounds
             SimSootValue_ArrayRef.check_array_bounds(idx, array_ref_base, self.state)
-            # load array element
-            # => Kinda hacky way of doing this:
-            #    First we got the reference to the base of the array and now we create a 
-            #    new reference that points to the correct element.
-            array_ref = SimSootValue_ArrayRef(array_ref_base.heap_alloc_id, idx,
-                                              array_ref_base.type, array_ref_base.size)
+            # load element
+            array_ref = SimSootValue_ArrayRef.get_arrayref_for_idx(base=array_ref_base, idx=idx)
             self.expr = self.state.memory.load(array_ref)
         else:
             l.warning("Trying to access a non existing array! (%r)", self.expr)
