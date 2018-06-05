@@ -2,6 +2,7 @@
 from .base import SimSootValue
 from . import translate_value
 
+
 class SimSootValue_InstanceFieldRef(SimSootValue):
 
     __slots__ = ['id', 'type', 'class_name', 'field_name', 'heap_alloc_id']

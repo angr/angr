@@ -1,6 +1,6 @@
 import logging
 
-from ..virtual_dispatcher import resolve_method
+from ..static_dispatcher import resolve_method
 from .base import SimSootExpr
 
 l = logging.getLogger('angr.engines.soot.expressions.staticfieldref')

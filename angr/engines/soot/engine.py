@@ -285,17 +285,20 @@ class SimEngineSoot(SimEngine):
         self._setup_args(state)
 
 
-    # https://www.artima.com/insidejvm/ed2 /jvm8.html
+    # https://www.artima.com/insidejvm/ed2/jvm8.html
     def _setup_args(self, state):
         fixed_args = self._get_args(state)
         # Push parameter on new frame
+        if hasattr(state.scratch.invoke_expr, "base"):
+            this_ref, this_type = fixed_args.next()
+            local_name = "%s.this" % this_ref.type
+            local = SimSootValue_Local(local_name, this_type)
+            state.memory.store(local, this_ref)
+
         param_idx = 0
         for (value, value_type) in fixed_args:
-            if type(value) is SimSootValue_ThisRef:
-                local_name = "%s.this" % value.type
-            else:
-                local_name = "param_%d" % param_idx
-                param_idx += 1
+            local_name = "param_%d" % param_idx
+            param_idx += 1
             local = SimSootValue_Local(local_name, value_type)
             state.memory.store(local, value)
 
@@ -305,7 +308,6 @@ class SimEngineSoot(SimEngine):
         if hasattr(ie, "base"):
             all_args.append(ie.base)
         all_args += ie.args
-        fixed_args = [ ]
         for arg in all_args:
             arg_cls_name = arg.__class__.__name__
             # TODO is this correct?
@@ -313,9 +315,7 @@ class SimEngineSoot(SimEngine):
                 v = state.memory.load(translate_value(arg, state), frame=1)
             else:
                 v = translate_expr(arg, state).expr
-            fixed_args.append((v, arg.type))
-
-        return fixed_args
+            yield (v, arg.type)
 
     @staticmethod
     def prepare_return_state(state, ret_value=None):

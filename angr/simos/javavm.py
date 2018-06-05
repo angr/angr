@@ -8,6 +8,8 @@ from claripy import BVV, BoolV
 from ..calling_conventions import DEFAULT_CC
 from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
 from ..engines.soot.values.local import SimSootValue_Local
+from ..engines.soot.values.thisref import SimSootValue_ThisRef
+from ..engines.soot.values.instancefieldref import SimSootValue_InstanceFieldRef
 from ..engines.soot import SimEngineSoot
 from ..errors import AngrSimOSError
 from ..procedures.java_jni import jni_functions
@@ -143,7 +145,7 @@ class SimJavaVM(SimOS):
 
         # Push the array of command line arguments on the stack frame
         if args is None:
-            args = [state.se.StringS("cmd_arg", 1000) for _ in range(100)]
+            args = [state.se.StringS("cmd_arg", 1000) for _ in range(1)]
         # if the user provides only one arguments create a list
         elif not isinstance(args, list):
             args = [args]
@@ -153,11 +155,15 @@ class SimJavaVM(SimOS):
         # and return the reference
         size_ = len(args)
         type_ = "String[]"
-        heap_alloc_id = state.memory.get_new_uuid()
+        array_heap_alloc_id = state.memory.get_new_uuid()
         for idx, elem in enumerate(args):
-            ref = SimSootValue_ArrayRef(heap_alloc_id, idx, type_, size_)
-            state.memory.store(ref, elem)
-        base_ref = SimSootValue_ArrayRef(heap_alloc_id, 0, type_, size_)
+            object_heap_alloc_id = state.memory.get_new_uuid()
+            this_ref = SimSootValue_ThisRef(object_heap_alloc_id, type_)
+            field_ref = SimSootValue_InstanceFieldRef(object_heap_alloc_id, type_, 'value', type_)
+            state.memory.store(field_ref, elem)
+            ref = SimSootValue_ArrayRef(array_heap_alloc_id, idx, type_, size_)
+            state.memory.store(ref, this_ref)
+        base_ref = SimSootValue_ArrayRef(array_heap_alloc_id, 0, type_, size_)
         local = SimSootValue_Local("param_0", type_)
         state.memory.store(local, base_ref)
 

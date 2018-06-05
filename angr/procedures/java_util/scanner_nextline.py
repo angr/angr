@@ -1,5 +1,7 @@
 from ..java import JavaSimProcedure
-import  logging
+from angr.engines.soot.values.thisref import SimSootValue_ThisRef
+from angr.engines.soot.values.instancefieldref import SimSootValue_InstanceFieldRef
+import logging
 
 import claripy
 
@@ -13,4 +15,9 @@ class ScannerNextLine(JavaSimProcedure):
 
     def run(self, this):
         l.debug("Called SimProcedure java.utils.scanner.nextLine")
-        return claripy.StringS("scanner_return", 1000)
+        heap_allocation_id = self.state.memory.get_new_uuid()
+        type_ = "java.lang.String"
+        this_ref = SimSootValue_ThisRef(heap_allocation_id, type_)
+        field_ref = SimSootValue_InstanceFieldRef(heap_allocation_id, type_, 'value', type_)
+        self.state.memory.store(field_ref, claripy.StringS("scanner_return", 1000))
+        return this_ref
