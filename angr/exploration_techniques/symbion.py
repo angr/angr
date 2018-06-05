@@ -3,6 +3,7 @@ from . import ExplorationTechnique
 import logging
 l = logging.getLogger("angr.exploration_techniques.symbion")
 
+
 class Symbion(ExplorationTechnique):
     """
      The Symbion exploration technique uses only the SimEngineConcrete available in order
@@ -19,18 +20,9 @@ class Symbion(ExplorationTechnique):
         self.concretize = concretize
         self.find_stash = find_stash
 
-        #addresses = map(hex,find)
-        #print("Initialized Symbion with args: find = " + addresses + " concretize = " + str(concretize))
-
     def setup(self, simgr):
         if not self.find_stash in simgr.stashes:
             simgr.stashes[self.find_stash] = []
-
-    '''
-    def filter(self, state):
-        # check possible conditions on the state that we need to step inside the SimEngineConcrete
-        return True
-    '''
 
     def step(self, simgr, stash, **kwargs):
 
@@ -46,7 +38,6 @@ class Symbion(ExplorationTechnique):
             l.warning("You are trying to use the Symbion exploration technique on multiple state, "
                       "this is not supported now.")
 
-        # TODO do we need to extract a state from the stash if we have multiple states here?
         return simgr._one_step(stash=stash, **kwargs)
 
     def step_state(self, state, **kwargs):
@@ -66,7 +57,7 @@ class Symbion(ExplorationTechnique):
         return {'found': ss.successors}
 
     def complete(self, simgr):
-        self.project.engines.default_engine = "vex"  #TODO fix this to restore the old default engine
+        self.project.engines.default_engine = "vex"
         l.info("After concrete execution restoring vex engine as default")
         return len(simgr.stashes[self.find_stash]) >= 1
 
