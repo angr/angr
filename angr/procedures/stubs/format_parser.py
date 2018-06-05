@@ -2,6 +2,7 @@ from string import digits as ascii_digits
 import logging
 import math
 import claripy
+import signal
 
 from ... import sim_type
 from ...sim_procedure import SimProcedure
@@ -9,6 +10,28 @@ from ...storage.file import SimPackets
 
 l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
+
+
+def timeout(seconds=10):
+    def decorator(func):
+        original_handler = signal.getsignal(signal.SIGALRM)
+        def _handle_timeout(signum, frame):
+            signal.signal(signal.SIGALRM, original_handler)
+            raise Exception("Timeout")
+        def wrapper(*args, **kwargs):
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            except:
+                Exception("Timeout")
+            finally:
+                signal.alarm(0)
+            return result
+        return wrapper
+
+    return decorator
+
 
 class FormatString(object):
     """
@@ -78,27 +101,30 @@ class FormatString(object):
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     i_val = args(argpos)
-                    c_val = int(self.parser.state.solver.eval(i_val))
-                    c_val &= (1 << (fmt_spec.size * 8)) - 1
-                    if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
-                        c_val -= (1 << fmt_spec.size * 8)
-
-                    if fmt_spec.spec_type in (b'd', b'i'):
-                        s_val = str(c_val)
-                    elif fmt_spec.spec_type == b'u':
-                        s_val = str(c_val)
-                    elif fmt_spec.spec_type == b'c':
-                        s_val = chr(c_val & 0xff)
-                    elif fmt_spec.spec_type == b'x':
-                        s_val = hex(c_val)[2:]
-                    elif fmt_spec.spec_type == b'o':
-                        s_val = oct(c_val)[2:]
-                    elif fmt_spec.spec_type == b'p':
-                        s_val = hex(c_val)
+                    if fmt_spec.spec_type == b'n':
+                        self.state.memory.store(i_val, self.state.solver.BVS('format_%n', self.state.arch.bits))
                     else:
-                        raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
+                        c_val = int(self.parser.state.solver.eval(i_val))
+                        c_val &= (1 << (fmt_spec.size * 8)) - 1
+                        if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
+                            c_val -= (1 << fmt_spec.size * 8)
 
-                    string = self._add_to_string(string, self.parser.state.solver.BVV(s_val.encode()))
+                        if fmt_spec.spec_type in (b'd', b'i'):
+                            s_val = str(c_val)
+                        elif fmt_spec.spec_type == b'u':
+                            s_val = str(c_val)
+                        elif fmt_spec.spec_type == b'c':
+                            s_val = chr(c_val & 0xff)
+                        elif fmt_spec.spec_type == b'x':
+                            s_val = hex(c_val)[2:].rstrip(b'L')
+                        elif fmt_spec.spec_type == b'o':
+                            s_val = oct(c_val)[1:].rstrip(b'L')
+                        elif fmt_spec.spec_type == b'p':
+                            s_val = hex(c_val).rstrip(b'L')
+                        else:
+                            raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
+
+                        string = self._add_to_string(string, self.parser.state.solver.BVV(s_val))
 
                 argpos += 1
 
@@ -138,7 +164,7 @@ class FormatString(object):
                     sdata, _ = simfd.read_data(1, short_reads=False)
                     self.state.memory.store(args(argnum), sdata)
                     argnum += 1
-                else:
+                elif component.spec_type in ['d', 'x', 'o']:
                     bits = component.size * 8
                     if component.spec_type == b'x':
                         base = 16
@@ -199,6 +225,8 @@ class FormatString(object):
 
                     self.state.memory.store(args(argnum), target_variable, endness=self.state.arch.memory_endness)
                     argnum += 1
+                elif component.spec_type == 'n':
+                    self.state.memory.store(args(argnum), self.state.solver.BVS('format_%n', self.state.arch.bits))
 
             return argnum - startpos
 
@@ -218,6 +246,7 @@ class FormatString(object):
         failed = self.parser.state.solver.BVV(0, bits)
         argpos = startpos
         position = addr
+        unreliable = False
         for component in self.components:
             if isinstance(component, bytes):
                 # TODO we skip non-format-specifiers in format string interpretation for now
@@ -268,19 +297,36 @@ class FormatString(object):
                     # XXX: atoi only supports strings of one byte
                     if fmt_spec.spec_type in [b'd', b'i', b'u', b'x']:
                         base = 16 if fmt_spec.spec_type == b'x' else 10
-                        status, i, num_bytes = self.parser._sim_atoi_inner(position, region, base=base, read_length=fmt_spec.length_spec)
+                        try:
+                            # FIXME: this is so slow now
+                            status, i, num_bytes = self.parser._sim_atoi_inner(position, region, base=base, read_length=fmt_spec.length_spec)
+                        except:
+                            status = self.state.solver.BoolS('failed')
+                            i = self.state.solver.Unconstrained('atoi', fmt_spec.size * 8)
+                            num_bytes = 0
                         # increase failed count if we were unable to parse it
                         failed = self.parser.state.solver.If(status, failed, failed + 1)
                         position += num_bytes
                     elif fmt_spec.spec_type == b'c':
-                        i = region.load(position, 1)
-                        i = i.zero_extend(bits - 8)
-                        position += 1
+                        if unreliable:
+                            i = self.state.solver.Unconstrained('char', 8)
+                        else:
+                            i = region.load(position, 1)
+                            i = i.zero_extend(bits - 8)
+                            position += 1
+                    elif component.spec_type == b'n':
+                        self.state.memory.store(args(argpos), self.state.solver.BVS('format_%n', self.state.arch.bits))
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
-
-                    i = self.parser.state.solver.Extract(fmt_spec.size*8-1, 0, i)
-                    self.parser.state.memory.store(dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness)
+                    if not fmt_spec.discarded:
+                        if fmt_spec.size * 8 < i.size():
+                            i = self.parser.state.solver.Extract(fmt_spec.size*8-1, 0, i)
+                        elif fmt_spec.size * 8 > i.size():
+                            if fmt_spec.spec_type == b'u':
+                                i = self.parser.state.solver.ZeroExt(fmt_spec.size * 8 - i.size(), i)
+                            else:
+                                i = self.parser.state.solver.SignExt(fmt_spec.size * 8 - i.size(), i)
+                        self.parser.state.memory.store(dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness)
 
                 argpos += 1
 
@@ -301,11 +347,12 @@ class FormatSpecifier(object):
     Describes a format specifier within a format string.
     """
 
-    def __init__(self, string, length_spec, size, signed):
+    def __init__(self, string, length_spec, size, signed, discarded=False):
         self.string = string
         self.size = size
         self.signed = signed
         self.length_spec = length_spec
+        self.discarded = discarded
 
     @property
     def spec_type(self):
@@ -427,10 +474,12 @@ class FormatParser(SimProcedure):
         original_nugget = nugget
         length_str = [ ]
         length_spec = None
-
+        discarded = False
         for j, c in enumerate(nugget):
             if c in ascii_digits:
                 length_str.append(c)
+            elif c == b'*':
+                discarded = True
             else:
                 nugget = nugget[j:]
                 length_spec = None if len(length_str) == 0 else int(bytes(length_str))
@@ -438,18 +487,19 @@ class FormatParser(SimProcedure):
 
         # we need the length of the format's length specifier to extract the format and nothing else
         length_spec_str_len = 0 if length_spec is None else len(length_str)
+        discarded_len = 1 if discarded else 0
         # is it an actual format?
         for spec in all_spec:
             if nugget.startswith(spec):
                 # this is gross coz sim_type is gross..
                 nugget = nugget[:len(spec)]
-                original_nugget = original_nugget[:(length_spec_str_len + len(spec))]
+                original_nugget = original_nugget[:(discarded_len + length_spec_str_len + len(spec))]
                 nugtype = all_spec[nugget]
                 try:
                     typeobj = sim_type.parse_type(nugtype).with_arch(self.state.arch)
                 except:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
-                return FormatSpecifier(original_nugget, length_spec, typeobj.size // 8, typeobj.signed)
+                return FormatSpecifier(original_nugget, length_spec, typeobj.size // 8, typeobj.signed, discarded)
 
         return None
 
@@ -466,6 +516,10 @@ class FormatParser(SimProcedure):
         i = 0
         while i < len(fmt):
             if type(fmt[i]) is bytes and fmt[i] == b"%":
+                # FIXME: %% support
+                if i + 1 < len(fmt) and type(fmt[i + 1]) is str and fmt[i + 1] == '%':
+                    components.append('%')
+                    i += 1
                 # Note that we only support concrete format specifiers
                 # grab the specifier
                 # go to the space
@@ -493,6 +547,7 @@ class FormatParser(SimProcedure):
 
         return FormatString(self, components)
 
+    @timeout(seconds=10)
     def _sim_atoi_inner(self, str_addr, region, base=10, read_length=None):
         """
         Return the result of invoking the atoi simprocedure on `str_addr`.

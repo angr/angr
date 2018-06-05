@@ -4,7 +4,7 @@ from angr.sim_type import SimTypeTop, SimTypeLength, SimTypeInt
 import logging
 l = logging.getLogger(name=__name__)
 
-class memcmp(angr.SimProcedure):
+class memcmp_old(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s1_addr, s2_addr, n):
@@ -60,3 +60,10 @@ class memcmp(angr.SimProcedure):
             return ret_expr
         else:
             return definite_answer
+
+class memcmp(memcmp_old):
+    def run(self, s1_addr, s2_addr, n):
+        try:
+            super().run(s1_addr, s2_addr, n)
+        except angr.SimUnsatError:
+            return self.state.solver.Unconstrained('memcmp', 32, uninitialized=False)

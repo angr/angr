@@ -220,6 +220,47 @@ def amd64g_dirtyhelper_SxDT(state, addr, op): #pylint:disable=unused-argument
 
     return None, [ ]
 
+# FIXME: is this correct??
+def amd64g_dirtyhelper_loadF80le(state, addr):
+    tbyte = state.memory.load(addr, size=10, endness='Iend_LE')
+    sign = tbyte[79]
+    exponent = tbyte[78:64]
+    mantissa = tbyte[62:0]
+
+    normalized_exponent = exponent[10:0] - 16383 + 1023
+    zero_exponent = state.solver.BVV(0, 11)
+    inf_exponent = state.solver.BVV(-1, 11)
+    final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
+
+    normalized_mantissa = tbyte[62:11]
+    zero_mantissa = claripy.BVV(0, 52)
+    inf_mantissa = claripy.BVV(-1, 52)
+    final_mantissa = claripy.If(exponent == 0, zero_mantissa, claripy.If(exponent == -1, claripy.If(mantissa == 0, zero_mantissa, inf_mantissa), normalized_mantissa))
+
+    qword = claripy.Concat(sign, final_exponent, final_mantissa)
+    assert len(qword) == 64
+    return qword, []
+
+def amd64g_dirtyhelper_storeF80le(state, addr, qword):
+    sign = qword[63]
+    exponent = qword[62:52]
+    mantissa = qword[51:0]
+
+    normalized_exponent = exponent.zero_extend(4) - 1023 + 16383
+    zero_exponent = state.solver.BVV(0, 15)
+    inf_exponent = state.solver.BVV(-1, 15)
+    final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
+
+    normalized_mantissa = claripy.Concat(claripy.BVV(1, 1), mantissa, claripy.BVV(0, 11))
+    zero_mantissa = claripy.BVV(0, 64)
+    inf_mantissa = claripy.BVV(-1, 64)
+    final_mantissa = claripy.If(exponent == 0, zero_mantissa, claripy.If(exponent == -1, claripy.If(mantissa == 0, zero_mantissa, inf_mantissa), normalized_mantissa))
+
+    tbyte = claripy.Concat(sign, final_exponent, final_mantissa)
+    assert len(tbyte) == 80
+    state.memory.store(addr, tbyte, endness='Iend_LE')
+    return None, []
+
 def x86g_dirtyhelper_CPUID_sse0(state, _):
     old_eax = state.regs.eax
 

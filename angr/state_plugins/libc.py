@@ -195,6 +195,7 @@ class SimStateLibc(SimStatePlugin):
         self.max_strtol_len = 11 # len(str(2**31)) + 1
         self.max_memcpy_size = 4096
         self.max_packet_size = 256
+        self.exit_handler = []
 
         # strtok
         self.strtok_heap = [ ]
@@ -240,6 +241,7 @@ class SimStateLibc(SimStatePlugin):
         c.ctype_tolower_loc_table_ptr = self.ctype_tolower_loc_table_ptr
         c.ctype_toupper_loc_table_ptr = self.ctype_toupper_loc_table_ptr
         c.errno_location = self.errno_location
+        c.exit_handler = self.exit_handler
         #c.aa = self.aa
 
         return c

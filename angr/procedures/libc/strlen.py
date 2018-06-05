@@ -6,7 +6,7 @@ from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 import logging
 l = logging.getLogger(name=__name__)
 
-class strlen(angr.SimProcedure):
+class strlen_old(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s, wchar=False):
@@ -73,3 +73,12 @@ class strlen(angr.SimProcedure):
                 self.state.solver.add(result == rresult)
                 result = rresult
             return result
+
+
+class strlen(strlen_old):
+    def run(self, s, wchar=False):
+        try:
+            super().run(s, wchar)
+        except angr.SimUnsatError:
+            self.max_null_index = self.state.libc.max_str_len
+            return self.state.solver.Unconstrained('strlen', 64, uninitialized=False)

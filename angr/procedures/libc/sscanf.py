@@ -15,8 +15,9 @@ class sscanf(FormatParser):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(self.state.arch.bits, True)
-
-        fmt_str = self._parse(1)
-
-        items = fmt_str.interpret(2, self.arg, addr=data)
-        return items
+        try:
+            fmt_str = self._parse(1)    
+            items = fmt_str.interpret(2, self.arg, addr=data)
+            return items
+        except angr.SimUnsatError:
+            return self.state.solver.Unconstrained('sscanf', 32, uninitialized=False)

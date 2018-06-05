@@ -4,7 +4,7 @@ from angr.sim_type import SimTypeString, SimTypeLength, SimTypeInt
 import logging
 l = logging.getLogger(name=__name__)
 
-class strncmp(angr.SimProcedure):
+class strncmp_old(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False): #pylint:disable=arguments-differ
@@ -162,4 +162,12 @@ class strncmp(angr.SimProcedure):
 
             self.state.add_constraints(self.state.solver.Or(match_case, nomatch_case, l0_case, empty_case))
 
-        return ret_expr
+            return ret_expr
+
+
+class strncmp(strncmp_old):
+    def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False): #pylint:disable=arguments-differ
+        try:
+            super().run(a_addr, b_addr, limit, a_len, b_len, wchar, ignore_case)
+        except angr.SimUnsatError:
+            return self.state.solver.Unconstrained('stncmp', 32, uninitialized=False)

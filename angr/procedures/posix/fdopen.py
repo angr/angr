@@ -34,26 +34,29 @@ class fdopen(angr.SimProcedure):
         #pylint:disable=unused-variable
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
-        m_strlen = self.inline_call(strlen, m_addr)
-        m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
-        mode = self.state.solver.eval(m_expr, cast_to=bytes)
+        try:
+            m_strlen = self.inline_call(strlen, m_addr)
+            m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
+            mode = self.state.solver.eval(m_expr, cast_to=bytes)
+             # TODO: handle append and other mode subtleties
+            fd = self.state.solver.eval(fd_int)
+            if fd not in self.state.posix.fd:
+                # if file descriptor not found return NULL
+                return 0
+            else:
+                # Allocate a FILE struct in heap
+                malloc = angr.SIM_PROCEDURES['libc']['malloc']
+                io_file_data = io_file_data_for_arch(self.state.arch)
+                file_struct_ptr = self.inline_call(malloc, io_file_data['size']).ret_expr
+                 # Write the fd
+                fd_bvv = self.state.solver.BVV(fd, 4 * 8) # int
+                self.state.memory.store(file_struct_ptr + io_file_data['fd'],
+                                        fd_bvv,
+                                        endness=self.state.arch.memory_endness)
+                return file_struct_ptr
+        except angr.SimUnsatError:
+            fd = self.state.posix._pick_fd()
+            new_filename = '/tmp/angr_implicit_%d' % self.state.posix.autotmp_counter
+            self.state.posix.autotmp_counter += 1
+            self.state.posix.open(new_filename, 0x2, preferred_fd=fd)
 
-        # TODO: handle append and other mode subtleties
-
-        fd = self.state.solver.eval(fd_int)
-        if fd not in self.state.posix.fd:
-            # if file descriptor not found return NULL
-            return 0
-        else:
-            # Allocate a FILE struct in heap
-            malloc = angr.SIM_PROCEDURES['libc']['malloc']
-            io_file_data = io_file_data_for_arch(self.state.arch)
-            file_struct_ptr = self.inline_call(malloc, io_file_data['size']).ret_expr
-
-            # Write the fd
-            fd_bvv = self.state.solver.BVV(fd, 4 * 8) # int
-            self.state.memory.store(file_struct_ptr + io_file_data['fd'],
-                                    fd_bvv,
-                                    endness=self.state.arch.memory_endness)
-
-            return file_struct_ptr

@@ -15,4 +15,8 @@ class fwrite(angr.SimProcedure):
         simfd = self.state.posix.get_fd(fileno)
         if simfd is None:
             return -1
-        return simfd.write(src, size*nmemb)
+        try:
+            return simfd.write(src, size*nmemb)
+        except angr.SimUnsatError:
+            # XXX: hase fallback
+            return 0

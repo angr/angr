@@ -19,4 +19,17 @@ class fread(angr.SimProcedure):
             return -1
 
         ret = simfd.read(dst, size * nm)
-        return self.state.solver.If(self.state.solver.Or(size == 0, nm == 0), 0, ret // size)
+        try:
+            ret = simfd.read(dst, size * nm)
+            return self.state.solver.If(self.state.solver.Or(size == 0, nm == 0), 0, ret // size)
+        except angr.SimUnsatError:
+            length = size * nm
+            if self.state.solver.symbolic(length):
+                try:
+                    length = max(self.state.solver.min(length), min(self.state.solver.max(length), 0x1000))
+                except angr.SimUnsatError:
+                    length = self.state.libc.max_variable_size
+            else:
+                length = self.state.solver.eval(length)
+            self.state.memory.store(dst, self.state.solver.Unconstrained('fread', length * 8, uninitialized=False))
+            return self.state.solver.Unconstrained('fread_len', 32, uninitialized=False)

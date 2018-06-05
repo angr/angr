@@ -350,9 +350,14 @@ class SimSystemPosix(SimStatePlugin):
             fd = self.state.solver.eval_one(fd)
         except SimSolverError:
             ideal = self._pick_fd()
+            old_con = self.state.solver.constraints
             self.state.solver.add(fd == ideal)
             if not self.state.solver.satisfiable():
-                raise SimPosixError("Tried to do operation on symbolic but partially constrained file descriptor")
+                # FIXME: cannot figure the reason why it's unsatisfied when using paste-0624
+                l.warning('Failed to add constraints on symbolic fileno')
+                self.state.solver._solver._cached_satness = True
+                self.state.solver._solver.constraints = old_con
+                # raise SimPosixError("Tried to do operation on symbolic but partially constrained file descriptor")
             fd = ideal
             new_filename = b'/tmp/angr_implicit_%d' % self.autotmp_counter
             l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", ideal, new_filename)

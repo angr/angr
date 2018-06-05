@@ -25,8 +25,13 @@ class strchr(angr.SimProcedure):
         if self.state.solver.symbolic(s_strlen.ret_expr):
             l.debug("symbolic strlen")
             # TODO: more constraints here to make sure we don't search too little
-            max_sym = min(self.state.solver.max_int(s_strlen.ret_expr), self.state.libc.max_symbolic_strchr)
-            a, c, i = self.state.memory.find(s_addr, c, s_strlen.max_null_index, max_symbolic_bytes=max_sym, default=0)
+            try:
+                max_sym = min(self.state.solver.max_int(s_strlen.ret_expr), self.state.libc.max_symbolic_strchr)
+                a, c, i = self.state.memory.find(s_addr, c, s_strlen.max_null_index, max_symbolic_bytes=max_sym, default=0)
+            except angr.SimUnsatError:
+                # XXX: reduce constraint
+                max_sym = self.state.libc.max_symbolic_strchr
+                a, c, i = self.state.memory.find(s_addr, c, self.state.libc.max_str_len, max_symbolic_bytes=max_sym, default=0)
         else:
             l.debug("concrete strlen")
             max_search = self.state.solver.eval(s_strlen.ret_expr)

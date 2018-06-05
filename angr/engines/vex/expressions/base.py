@@ -2,6 +2,7 @@
 
 import logging
 l = logging.getLogger(name=__name__)
+import claripy
 from pyvex.const import get_type_size
 _nonset = frozenset()
 
@@ -53,8 +54,13 @@ class SimIRExpr(object):
         if self.state.solver.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
+        # FIXME: add this will cause BV96 data, why?
         if self.expr.size() != self.size_bits():
-            raise SimExpressionError("Inconsistent expression size: should be %d but is %d" % (self.size_bits(), self.expr.size()))
+            l.warning("Inconsistent expression size: should be %d but is %d" % (self.size_bits(), self.expr.size()))
+            if self.expr.size() > self.size_bits():
+                self.expr = claripy.Extract(self.size_bits() - 1, 0, self.expr)
+            else:
+                self.expr = claripy.ZeroExt(self.size_bits() - self.expr.size(), self.expr)
 
     def size_bits(self, ty=None):
         if not ty:

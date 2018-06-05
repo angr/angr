@@ -48,12 +48,17 @@ class memset(angr.SimProcedure):
 
         if self.state.solver.symbolic(num):
             l.debug("symbolic length")
-            max_size = self.state.solver.min_int(num) + self.state.libc.max_buffer_size
+            try:
+                max_size = self.state.solver.min_int(num) + self.state.libc.max_buffer_size
+            except angr.SimUnsatError:
+                max_size = self.state.libc.max_buffer_size
             write_bytes = self.state.solver.Concat(*([ char ] * max_size))
             self.state.memory.store(dst_addr, write_bytes, size=num)
         else:
             max_size = self.state.solver.eval(num)
-            l.debug("memset writing %d bytes", max_size)
+            # angr doesn't check max length here.
+            max_size = min(max_size, self.state.libc.max_buffer_size)
+            l.warning("memset writing %d bytes", max_size)
 
             offset = 0
             while offset < max_size:

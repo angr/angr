@@ -5,7 +5,7 @@ from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 import logging
 l = logging.getLogger(name=__name__)
 
-class strstr(angr.SimProcedure):
+class strstr_old(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, haystack_addr, needle_addr, haystack_strlen=None, needle_strlen=None):
@@ -71,3 +71,10 @@ class strstr(angr.SimProcedure):
 
         self.state.add_constraints(*c)
         return r
+
+class strstr(strstr_old):
+    def run(self, haystack_addr, needle_addr, haystack_strlen=None, needle_strlen=None):
+        try:
+            super().run(haystack_strlen, needle_addr, haystack_strlen, needle_strlen)
+        except angr.SimUnsatError:
+            return self.state.solver.Unconstrained('strstr', self.state.arch.bits, uninitialized=False)

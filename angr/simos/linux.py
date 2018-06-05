@@ -139,12 +139,16 @@ class SimLinux(SimUserland):
 
         super(SimLinux, self).configure_project(syscall_abis)
 
+    # FIXME: bug from angr https://github.com/angr/angr/issues/971
+    # TODO: add other vex ir? https://github.com/smparkes/valgrind-vex/blob/master/pub/libvex_ir.h
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':
             return None
         if state.history.jumpkind == 'Ijk_Sys_int128':
             return 'i386'
         elif state.history.jumpkind == 'Ijk_Sys_syscall':
+            return 'amd64'
+        elif state.history.jumpkind == 'Ijk_EmWarn':
             return 'amd64'
         else:
             raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)

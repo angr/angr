@@ -8,7 +8,7 @@ from angr.sim_type import SimTypeString, SimTypeInt, SimTypeFd
 class open(angr.SimProcedure): #pylint:disable=W0622
     #pylint:disable=arguments-differ
 
-    def run(self, p_addr, flags, mode):  # pylint:disable=unused-argument
+    def run(self, p_addr, flags, mode=0o644):  # pylint:disable=unused-argument
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: SimTypeInt(32, True)}
         self.return_type = SimTypeFd()
@@ -17,9 +17,12 @@ class open(angr.SimProcedure): #pylint:disable=W0622
 
         p_strlen = self.inline_call(strlen, p_addr)
         p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')
-        path = self.state.solver.eval(p_expr, cast_to=bytes)
+        try:
+            path = self.state.solver.eval(p_expr, cast_to=bytes)
 
-        fd = self.state.posix.open(path, flags)
-        if fd is None:
-            return -1
-        return fd
+            fd = self.state.posix.open(path, flags)
+            if fd is None:
+                return -1
+            return fd
+        except angr.SimUnsatError:
+            return self.state.solver.Unconstrained("open", 32, uninitialized=False)

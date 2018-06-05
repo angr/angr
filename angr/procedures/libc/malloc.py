@@ -16,8 +16,11 @@ class malloc(angr.SimProcedure):
         self.return_type = self.ty_ptr(SimTypeTop(sim_size))
 
         if self.state.solver.symbolic(sim_size):
-            size = self.state.solver.max_int(sim_size)
-            if size > self.state.libc.max_variable_size:
+            try:
+                size = self.state.solver.max_int(sim_size)
+                if size > self.state.libc.max_variable_size:
+                    size = self.state.libc.max_variable_size
+            except angr.SimUnsatError:
                 size = self.state.libc.max_variable_size
         else:
             size = self.state.solver.eval(sim_size)

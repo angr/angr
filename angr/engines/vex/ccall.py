@@ -886,6 +886,13 @@ def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
+# FIXME: is this correct??
+def amd64g_check_fldcw(state, fpucw):
+    return ((fpucw >> 10) & 3).zero_extend(32), ()
+
+def amd64g_create_fpucw(state, fpround):
+    return 0x037f | ((fpround & 3) << 10), []
+
 ###########################
 ### X86-specific ones ###
 ###########################
