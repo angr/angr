@@ -5,7 +5,7 @@ import claripy
 from cle import MetaELF
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
-
+import struct
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
@@ -306,3 +306,53 @@ class SimLinux(SimUserland):
             if basic_addr is None:
                 basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
             return basic_addr, basic_addr
+
+
+
+    def initialize_segment_register_x64(self, state, concrete_target):
+        _l.debug("Synchronizing fs segment register")
+        state.regs.fs = self._read_fs_register_x64(concrete_target)
+
+
+
+    def initialize_gdt_x86(self,state,concrete_target):
+        _l.debug("Creating fake Global Descriptor Table and synchronizing gs segment register")
+        gs = self._read_gs_register_x86(concrete_target)
+        gdt = self.generate_gdt(0x0,gs)
+        self.setup_gdt(state,gdt)
+
+        # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
+        _vsyscall_address = concrete_target.read_memory(gs + 0x10, state.project.arch.bits / 8)
+        _vsyscall_address = struct.unpack(state.project.arch.struct_fmt(), _vsyscall_address)[0]
+        state.project.rehook_symbol(_vsyscall_address, '_vsyscall')
+
+        return gdt
+
+
+    def _read_fs_register_x64(self, concrete_target):
+        '''
+        Injects small shellcode to leak the fs segment register address. In Linux x64 this address is pointed by fs[0]
+        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        :return: fs register address
+        :rtype string
+        '''
+        # register used to read the value of the segment register
+        exfiltration_reg = "rax"
+        # instruction to inject for reading the value at segment value = offset
+        read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
+        return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
+
+
+
+    def _read_gs_register_x86(self, concrete_target):
+        '''
+        Injects small shellcode to leak the fs segment register address. In Linux x86 this address is pointed by gs[0]
+        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        :return: gs register address
+        :rtype string
+        '''
+        # register used to read the value of the segment register
+        exfiltration_reg = "eax"
+        # instruction to inject for reading the value at segment value = offset
+        read_gs0_x64 = "\x65\xA1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
+        return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)

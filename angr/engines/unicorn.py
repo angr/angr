@@ -81,9 +81,8 @@ class SimEngineUnicorn(SimEngine):
         return True
 
     def _process(self, state, successors, step, extra_stop_points):
-    
-    	l.debug("Processing " + str(state) + "with unicorn engine!")
-    	
+        l.debug("Processing " + str(state) + "with unicorn engine!")
+
         if o.UNICORN not in state.options:
             return
         if extra_stop_points is None:

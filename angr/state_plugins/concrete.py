@@ -1,6 +1,5 @@
 from .plugin import SimStatePlugin
 from angr.errors import ConcreteRegisterError
-from angr_targets.segment_registers import *
 import struct
 import logging
 from archinfo import ArchX86, ArchAMD64
@@ -28,11 +27,10 @@ class Concrete(SimStatePlugin):
 
     def sync(self):
         """
-        Handling the switch between the concrete execution and angr.
+        Handle the switch between the concrete execution and angr.
         This method takes care of:
         1- Synchronize registers
-        2- Substitute the CLEMemory backer of the self.state with a ConcreteCLEMemory object
-           that redirects the read inside the concrete process.
+        2- Set a concrete target to the memory backer so the memory reads are redirected in the concrete process memory.
         3- Flush all the pages loaded until now.
 
         :return:
@@ -63,43 +61,19 @@ class Concrete(SimStatePlugin):
                     l.debug("Can't set register %s reason: %s, if this register is not used "
                             "this message can be ignored" % (reg_name, exc))
                     
-        # Initialize the segment register value if not already initialized
+        # Initialize the segment registers value if not already initialized
         if not self.segment_registers_already_init:
-            l.debug("Synchronizing segments registers")
             if isinstance(self.state.arch, ArchAMD64):
-                if self.state.project.simos.name == "Linux":
-                    self.state.regs.fs = read_fs_register_linux_x64(self.target)
-                elif self.state.project.simos.name == "Win32":
-                    self.state.regs.gs = read_gs_register_windows_x64(self.target)
+                self.state.project.simos.initialize_segment_register_x64(self.state,self.target)
             elif isinstance(self.state.arch, ArchX86):
-                if self.state.project.simos.name == "Linux":
-                    # Setup the GDT structure in the angr memory and populate the field containing the gs value
-                    # (mandatory for handling access to segment registers)
-                    gs = read_gs_register_linux_x86(self.target)
-                    setup_gdt(self.state, 0x0, gs)
+                gdt = self.state.project.simos.initialize_gdt_x86(self.state, self.target)
+                whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
-                    # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
-                    _vsyscall_address = self.target.read_memory(gs + 0x10, self.state.project.arch.bits / 8)
-                    _vsyscall_address = struct.unpack(self.state.project.arch.struct_fmt(), _vsyscall_address)[0]
-                    self.state.project.rehook_symbol(_vsyscall_address, '_vsyscall')
-
-                elif self.state.project.simos.name == "Win32":
-                    # Setup the GDT structure in the angr memory and populate the field containing the fs value
-                    # (mandatory for handling access to segment registers)
-                    fs = read_fs_register_windows_x86(self.target)
-                    setup_gdt(self.state, fs, 0x0)
-
-                # Avoid flushing the page containing the GDT in this way these addresses will always be read from the angr memory
-                gdt_addr = GDT_ADDR
-                gdt_size = GDT_LIMIT
-                whitelist.append((gdt_addr, gdt_addr+gdt_size))
             self.segment_registers_already_init = True
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
-
-        # if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
-        if self.state.project._should_use_sim_procedures:
+        if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.state.project.loader.main_object.relocs:
                 if reloc.symbol is not None:  # consider only reloc with a symbol
@@ -117,6 +91,8 @@ class Concrete(SimStatePlugin):
         self.state.memory.flush_pages(whitelist)
         l.info("Exiting SimEngineConcrete: simulated address %x concrete address %x "
                % (self.state.addr, self.target.read_register("pc")))
+
+
 
 
 from .. import sim_options as options
