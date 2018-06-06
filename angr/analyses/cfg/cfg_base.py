@@ -8,7 +8,7 @@ import networkx
 
 import pyvex
 from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
+from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
@@ -652,7 +652,15 @@ class CFGBase(Analysis):
                     if section.is_executable:
                         tpl = (section.min_addr, section.max_addr)
                         memory_regions.append(tpl)
-
+            
+            elif isinstance(b, MachO):
+                if b.segments:
+                    # Get all executable segments
+                    for seg in b.segments:
+                        if seg.is_executable:
+                            tpl = (seg.min_addr, seg.max_addr)
+                            memory_regions.append(tpl)
+                                
             elif isinstance(b, Blob):
                 # a blob is entirely executable
                 tpl = (b.min_addr, b.max_addr)
