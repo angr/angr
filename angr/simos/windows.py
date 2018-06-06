@@ -434,7 +434,7 @@ class SimWindows(SimOS):
         '''
         Injects small shellcode to leak the fs segment register address. In Windows x86 this address is pointed by gs:[0x18]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
-        :return: gs register address
+        :return: fs register address
         :rtype string
         '''
         exfiltration_reg = "eax"
