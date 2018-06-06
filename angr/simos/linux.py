@@ -339,9 +339,7 @@ class SimLinux(SimUserland):
         # register used to read the value of the segment register
         exfiltration_reg = "rax"
         # instruction to inject for reading the value at segment value = offset
-        #read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
-
-        read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00"
+        read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
 
         return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
 
