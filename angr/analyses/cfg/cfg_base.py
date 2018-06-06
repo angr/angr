@@ -658,8 +658,10 @@ class CFGBase(Analysis):
                     # Get all executable segments
                     for seg in b.segments:
                         if seg.is_executable:
-                            tpl = (seg.min_addr, seg.max_addr)
-                            memory_regions.append(tpl)
+                            # Take all sections from this segment (MachO style)
+                            for section in seg.sections:
+                                tpl = (section.min_addr, section.max_addr)
+                                memory_regions.append(tpl)
 
             elif isinstance(b, Blob):
                 # a blob is entirely executable
