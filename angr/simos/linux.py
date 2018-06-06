@@ -318,8 +318,8 @@ class SimLinux(SimUserland):
     def initialize_gdt_x86(self,state,concrete_target):
         _l.debug("Creating fake Global Descriptor Table and synchronizing gs segment register")
         gs = self._read_gs_register_x86(concrete_target)
-        gdt = self.generate_gdt(0x0,gs)
-        self.setup_gdt(state,gdt)
+        gdt = self.generate_gdt(0x0, gs)
+        self.setup_gdt(state, gdt)
 
         # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
         _vsyscall_address = concrete_target.read_memory(gs + 0x10, state.project.arch.bits / 8)
@@ -339,9 +339,11 @@ class SimLinux(SimUserland):
         # register used to read the value of the segment register
         exfiltration_reg = "rax"
         # instruction to inject for reading the value at segment value = offset
-        read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
-        return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
+        #read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
 
+        read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00"
+
+        return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
 
 
     def _read_gs_register_x86(self, concrete_target):
@@ -356,3 +358,10 @@ class SimLinux(SimUserland):
         # instruction to inject for reading the value at segment value = offset
         read_gs0_x64 = "\x65\xA1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
         return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
+
+
+    def get_segment_register_name(self):
+        if isinstance(self.arch, ArchAMD64):
+            return self.arch.registers['fs'][0]  # return fs, archinfo/amd64
+        elif isinstance(self.arch, ArchX86):
+            return self.arch.registers['gs'][0]  # return gs, archinfo/x86

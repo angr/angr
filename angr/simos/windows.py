@@ -454,3 +454,8 @@ class SimWindows(SimOS):
         read_gs0_x64 = "\x65\x48\x8B\x04\x25\x30\x00\x00\x00"  # mov rax, gs:[0x30]
         return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
 
+    def get_segment_register_name(self):
+        if isinstance(self.arch, ArchAMD64):
+            return self.arch.registers['gs'][0]  # return gs, archinfo/amd64
+        elif isinstance(self.arch, ArchX86):
+            return self.arch.registers['fs'][0]  # return fs, archinfo/x86

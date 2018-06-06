@@ -357,7 +357,8 @@ class SimEngineVEX(SimEngine):
             state.scratch.num_insns += 1
             state._inspect('instruction', BP_BEFORE, instruction=ins_addr)
 
-            # process it!
+            # process it
+
         s_stmt = translate_stmt(stmt, state)
         if s_stmt is not None:
             state.history.extend_actions(s_stmt.actions)
