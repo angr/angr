@@ -34,7 +34,8 @@ class SimJavaVM(SimOS):
                                     if not isinstance(obj.arch, ArchSoot)]
 
             if len(self.native_libs) == 0:
-                raise AngrSimOSError("No native lib was loaded. Is the native_libs_ld_path set correctly?")
+                l.error("No native lib was loaded. Is the native_libs_ld_path set correctly?")
+                raise AngrSimOSError()
 
             # Step 2: determine and set the native SimOS
             from . import os_mapping  # import dynamically, since the JavaVM class is part of the os_mapping dict
@@ -226,9 +227,10 @@ class SimJavaVM(SimOS):
                 
         else:
             native_symbols = "\n".join(self.native_symbols.keys())
-            raise AngrSimOSError("No native method found that matches the Soot method '%s'.\
+            l.error("No native method found that matches the Soot method '%s'.\
                                   \nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
                                   % (soot_method.name, native_symbols))
+            raise AngrSimOSError()
 
     def generate_opaque_reference(self):
         """
