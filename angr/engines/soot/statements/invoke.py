@@ -17,5 +17,6 @@ class SimSootStmt_Invoke(SimSootStmt):
         self.state.scratch.invoke = True
         self.state.scratch.invoke_target = invoke_target
         self.state.scratch.invoke_expr = self.stmt.invoke_expr
+        self.state.scratch.invoke_has_native_target = ('NATIVE' in invoke_target.attrs)
 
 
