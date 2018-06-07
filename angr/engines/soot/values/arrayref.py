@@ -75,6 +75,6 @@ class SimSootValue_ArrayRef(SimSootValue):
             
         # exist any out-of-bounds solutions?
         if False in idx_stays_within_bounds:
-            l.warning("Possible out-of-bounds access! Index gets constraint to valid values. (%s[%s], length %s)"
+            l.warning("Possible out-of-bounds access! Index and/or length gets constraint to valid values. (%s[%s], length %s)"
                       % (array.heap_alloc_id, idx, length))
             state.solver.add(And(length.SGT(idx), zero.SLE(idx)))
