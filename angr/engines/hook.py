@@ -4,7 +4,7 @@ from .engine import SimEngine
 from .successors import SimSuccessors
 
 l = logging.getLogger("angr.engines.hook")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ
@@ -37,6 +37,7 @@ class SimEngineHook(SimEngine):
         :param force_addr:  Force execution to pretend that we're working at this concrete address
         :returns:           A SimSuccessors object categorizing the execution's successor states
         """
+
         addr = state.addr if force_addr is None else force_addr
 
         if procedure is None:

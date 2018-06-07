@@ -9,13 +9,14 @@ l = logging.getLogger("state_plugin.concrete")
 
 
 class Concrete(SimStatePlugin):
-    def __init__(self, segment_registers_already_init = False, whitelist=[]):
-        self.segment_registers_already_init = False
+    def __init__(self, segment_registers_already_init=False, whitelist=[]):
+        self.segment_registers_already_init = segment_registers_already_init
         self.whitelist = []
         self.fs_register_bp = None
 
 
     def copy(self, _memo):
+        print("COPYING FLAG WITH VALUE: " + str(self.segment_registers_already_init))
         conc = Concrete(segment_registers_already_init=self.segment_registers_already_init, whitelist=self.whitelist)
         return conc
 
@@ -88,7 +89,8 @@ class Concrete(SimStatePlugin):
         # on demand when the symbolic execution accesses it
         if not self.segment_registers_already_init:
             self.fs_register_bp = self.state.inspect.b('reg_read', reg_read_offset=self.state.project.simos.get_segment_register_name(),
-                                                       condition=self.sync_segments)
+                                                       action=self.sync_segments)
+            print("BP IS " + str(self.fs_register_bp))
 
             l.debug("Set SimInspect breakpoint to the new state!")
 
@@ -98,8 +100,9 @@ class Concrete(SimStatePlugin):
      symbolic execution access a segment register. 
     '''
     def sync_segments(self, state):
-
+        print(state)
         target = state.project.concrete_target
+        print("BEFORE SYNC SEGMENTS FLAG IS " + str(self.segment_registers_already_init))
 
         # Initialize the segment registers value if not already initialized
         if not self.segment_registers_already_init:
@@ -110,7 +113,9 @@ class Concrete(SimStatePlugin):
                 self.whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
             self.segment_registers_already_init = True
-            state.inspect.remove_breakpoint('reg_read', self.fs_register_bp)
+            print("AFTER SYNC SEGMENTS FLAG IS " + str(self.segment_registers_already_init))
+
+            state.inspect.remove_breakpoint('reg_read',bp=self.fs_register_bp)
             self.fs_register_bp = None
 
 
