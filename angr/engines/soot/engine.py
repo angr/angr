@@ -425,19 +425,16 @@ class SimEngineSoot(SimEngine):
 
             elif arg_type in ArchSoot.primitive_types:
                 # Argument has a primitive integral type
-                native_arg_type = self.javavm.get_native_type(arg_type)
                 native_arg_value = arg_value
+                native_arg_type = self.javavm.get_native_type(arg_type)
 
             else:
                 # Argument has a relative type
                 # => We map the Java reference to an opaque reference, which then can be used by the
-                #    native code to access the Java object through the JNI interface functions.
-                opaque_ref = self.javavm.generate_opaque_reference()
-                invoke_state.scratch.invoke_jni_local_references[opaque_ref] = arg_value
-                l.debug("Map %s to opaque reference %s" % (str(arg_value), hex(opaque_ref)))
-
-                native_arg_type = self.javavm.get_native_type('reference')
+                #    native code to access the Java object through the JNI interface.
+                opaque_ref = invoke_state.jni_references.create_new_reference(java_ref=arg_value)
                 native_arg_value = opaque_ref
+                native_arg_type = self.javavm.get_native_type('reference')
 
             native_args += [(native_arg_value, native_arg_type)]
 

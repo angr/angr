@@ -4,6 +4,6 @@ class GetArrayLength(JNISimProcedure):
 
     return_ty = 'int'
 
-    def run(self, ptr_env, array):
-        array_ref = self.lookup_local_reference(array)
-        return array_ref.size
+    def run(self, ptr_env, array_):
+        array = self.state.jni_references.lookup(array_)
+        return array.size

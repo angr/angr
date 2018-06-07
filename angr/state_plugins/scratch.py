@@ -49,9 +49,6 @@ class SimStateScratch(SimStatePlugin):
         self.invoke_return_target = None
         self.invoke_expr = None
         self.invoke_has_native_target = None
-        self.invoke_jni_local_references = {}
-        self.invoke_jni_global_references = {}
-        
 
         if scratch is not None:
             self.temps.update(scratch.temps)
@@ -82,9 +79,7 @@ class SimStateScratch(SimStatePlugin):
             self.invoke_return_target = scratch.invoke_return_target
             self.invoke_expr = scratch.invoke_expr
             self.invoke_has_native_target = scratch.invoke_has_native_target
-            self.invoke_jni_local_references = scratch.invoke_jni_local_references
-            self.invoke_jni_global_references = scratch.invoke_jni_global_references
-            
+
 
         # priveleges
         self._priv_stack = [False]
