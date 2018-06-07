@@ -68,6 +68,7 @@ class SimEngineConcrete(SimEngine):
 
         # sync angr with the current state of the concrete process using
         # the state plugin
+        print("Sync state " + str(state))
         state.concrete.sync()
 
         successors.engine = "SimEngineConcrete"

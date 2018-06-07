@@ -1164,7 +1164,6 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     base = get_segdescr_base(state, descriptor)
     limit = get_segdescr_limit(state, descriptor)
 
-
     '''
     if state.se.is_true(virtual_addr >= limit):
         return bad("virtual_addr >= limit")
