@@ -264,3 +264,25 @@ class SimJavaVM(SimOS):
         """
         native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
         return native_cc_cls(self.native_simos.arch, func_ty=func_ty)
+
+    @staticmethod
+    def cast_primitive(value, to_type):
+        """
+        Casts the value to the 'cast_to' type.
+        """
+
+        # lookup the type size and extract value
+        value_size = ArchSoot.sizeof[to_type] 
+        value_extracted = value.reversed.get_bytes(index=0, size=value_size/8).reversed
+
+        # determine size of Soot bitvector and resize bitvector
+        # Note: smaller types than int's are stored in a 32-bit BV 
+        value_soot_size = value_size if value_size >= 32 else 32
+        if to_type in ['char', 'boolean']:
+            # unsigned extend
+            value_casted = value_extracted.zero_extend(value_soot_size-value_size)
+        else:
+            # signed extend
+            value_casted = value_extracted.sign_extend(value_soot_size-value_size)
+        
+        return value_casted

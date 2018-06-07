@@ -386,21 +386,7 @@ class SimEngineSoot(SimEngine):
                 # return value has a primitive type
                 # => we need to manually cast the return value to the correct size, as this
                 #    would be usually done by the java callee
-                # 1. get return symbol from native state
-                native_cc = ret_state.project.simos.get_native_cc()
-                ret_symbol = native_cc.get_return_val(native_state).to_claripy()
-                # 2. lookup the size of the native type and extract value
-                ret_var_native_size = ArchSoot.sizeof[ret_var.type] 
-                ret_value = ret_symbol.reversed.get_bytes(index=0, size=ret_var_native_size/8).reversed
-                # 3. determine size of soot bitvector and resize bitvector
-                # Note: smaller types than int's are stored as a 32-bit SootIntConstant 
-                ret_var_soot_size = ret_var_native_size if ret_var_native_size >= 32 else 32
-                if ret_var.type in ['char', 'boolean']:
-                    # unsigned extend
-                    ret_value = ret_value.zero_extend(ret_var_soot_size-ret_var_native_size)
-                else:
-                    # signed extend
-                    ret_value = ret_value.sign_extend(ret_var_soot_size-ret_var_native_size)
+                ret_value = ret_state.project.simos.cast_primitive(ret_symbol, to_type=ret_var.type)
                 
             else:
                 # reference type
