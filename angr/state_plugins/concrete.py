@@ -68,6 +68,7 @@ class Concrete(SimStatePlugin):
         if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.state.project.loader.main_object.relocs:
+
                 if reloc.symbol is not None:  # consider only reloc with a symbol
                     l.debug("Trying to re-hook SimProc %s" % reloc.symbol.name)
                     l.debug("reloc.rebased_addr: %s " % hex(reloc.rebased_addr))
