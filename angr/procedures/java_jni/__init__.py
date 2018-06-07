@@ -3,6 +3,8 @@ from ...sim_procedure import SimProcedure
 from ...sim_type import SimTypeFunction
 from ...calling_conventions import DefaultCC
 from archinfo import ArchSoot
+from ...state_plugins.sim_action_object import SimActionObject
+
 
 class JNISimProcedure(SimProcedure):
 
@@ -10,28 +12,29 @@ class JNISimProcedure(SimProcedure):
 
     def __init__(self, **kwargs):
         super(JNISimProcedure, self).__init__(**kwargs)
+
+        # jboolean constants 
         self.JNI_TRUE = 1
         self.JNI_FALSE = 0
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
-        # Setup SimCC with the correct type of the return value
+        # Setup a SimCC using the correct type for the return value
         if self.return_ty is None:
-            raise ValueError("Implementing JNISimProcedure classes must set the return type.")
-        func_ty = SimTypeFunction(args=[], returnty=state.project.simos.get_native_type(self.return_ty))
-        self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)        
+            raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
+        elif self.return_ty is not 'void':
+            func_ty = SimTypeFunction(args=[], returnty=state.project.simos.get_native_type(self.return_ty))
+            self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)
         super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
 
-    def lookup_local_reference(self, opaque_ref):
-        opaque_ref = opaque_ref.to_claripy()
-        if opaque_ref.symbolic:
-            raise ValueError("Opaque reference is symbolic.")
-        opaque_ref = self.state.solver.eval(opaque_ref)
-        return self.state.scratch.invoke_jni_local_references[opaque_ref]
+
+    #
+    # Memory
+    #
 
     def allocate_native_memory(self, size):
         return self.state.project.loader.extern_object.allocate(size=size)
 
-    def dump_in_native_memory(self, data, data_type, addr=None):
+    def store_in_native_memory(self, data, data_type, addr=None):
         """
         
         list resembling arrays
@@ -52,12 +55,50 @@ class JNISimProcedure(SimProcedure):
             self.state.memory.store(addr, value, endness=native_memory_endness)
 
         elif isinstance(data, list):
-            addr = self.allocate_native_memory(size=type_size*len(data))
+            if addr is None:
+                addr = self.allocate_native_memory(size=type_size*len(data))
             for idx, value in enumerate(data):
                 memory_addr = addr+idx*type_size/8
                 self.state.memory.store(memory_addr, value, endness=native_memory_endness)
 
         return addr
+
+    def load_from_native_memory(self, addr, value_type, no_of_elements=1):
+
+        if addr is not None and self.state.solver.symbolic(addr):
+            print "symbolic addr"
+
+        type_size = ArchSoot.sizeof[value_type]/8
+
+        values = [] 
+        for i in range(no_of_elements):
+            value_uncasted = self.state.memory.load(addr + i*type_size, size=type_size, endness="Iend_LE")
+            value = self.state.project.simos.cast_primitive(value=value_uncasted, 
+                                                            to_type=value_type)
+            values.append(value)
+
+        if no_of_elements == 1:
+            return values[0]
+        else:
+            return values
+
+    #
+    # MISC
+    #
+
+    def _normalize_array_idx(self, idx):
+        """
+        In Java, all array indices are represented by a 32 bit integer and consequently we are 
+        using in the Soot engine a 32bit bitvector for this. This function normalize the given
+        index to follow this "convention".
+        :return: Index as a 32bit bitvector.
+        """
+        if isinstance(idx, SimActionObject):
+            idx = idx.to_claripy()
+        if self.arch.memory_endness == "Iend_LE":
+            return idx.reversed.get_bytes(index=0, size=4).reversed
+        else:
+            return idx.get_bytes(index=0, size=4)
 
 # Dictionary containing all functions from the JNI Native Interface struct
 # All entries with None are replaced with a NotImplemented SimProcedure
@@ -237,12 +278,12 @@ jni_functions = [
     None, 		# NewObjectArray
     None, 		# GetObjectArrayElement
     None, 		# SetObjectArrayElement
-    None, 		# NewBooleanArray
-    None, 		# NewByteArray
-    None, 		# NewCharArray
-    None, 		# NewShortArray
-    None, 		# NewIntArray
-    None, 		# NewLongArray
+    "NewBooleanArray", # NewBooleanArray
+    "NewByteArray", # NewByteArray
+    "NewCharArray", # NewCharArray
+    "NewShortArray", # NewShortArray
+    "NewIntArray", # NewIntArray
+    "NewLongArray", # NewLongArray
     None, 		# NewFloatArray
     None, 		# NewDoubleArray
     "GetArrayElements", # GetBooleanArrayElements
@@ -254,27 +295,27 @@ jni_functions = [
     None, 		# GetFloatArrayElements
     None, 		# GetDoubleArrayElements
     None, 		# ReleaseBooleanArrayElements
-    None, 		# ReleaseByteArrayElements
-    None, 		# ReleaseCharArrayElements
-    None, 		# ReleaseShortArrayElements
-    None, 		# ReleaseIntArrayElements
-    None, 		# ReleaseLongArrayElements
+    "ReleaseArrayElements", # ReleaseByteArrayElements
+    "ReleaseArrayElements", # ReleaseCharArrayElements
+    "ReleaseArrayElements", # ReleaseShortArrayElements
+    "ReleaseArrayElements", # ReleaseIntArrayElements
+    "ReleaseArrayElements", # ReleaseLongArrayElements
     None, 		# ReleaseFloatArrayElements
     None, 		# ReleaseDoubleArrayElements
-    None, 		# GetBooleanArrayRegion
-    None, 		# GetByteArrayRegion
-    None, 		# GetCharArrayRegion
-    None, 		# GetShortArrayRegion
-    None, 		# GetIntArrayRegion
-    None, 		# GetLongArrayRegion
+    "GetArrayRegion", # GetBooleanArrayRegion
+    "GetArrayRegion", # GetByteArrayRegion
+    "GetArrayRegion", # GetCharArrayRegion
+    "GetArrayRegion", # GetShortArrayRegion
+    "GetArrayRegion", # GetIntArrayRegion
+    "GetArrayRegion", # GetLongArrayRegion
     None, 		# GetFloatArrayRegion
     None, 		# GetDoubleArrayRegion
-    None, 		# SetBooleanArrayRegion
-    None, 		# SetByteArrayRegion
-    None, 		# SetCharArrayRegion
-    None, 		# SetShortArrayRegion
-    None, 		# SetIntArrayRegion
-    None, 		# SetLongArrayRegion
+    "SetArrayRegion", # SetBooleanArrayRegion
+    "SetArrayRegion", # SetByteArrayRegion
+    "SetArrayRegion", # SetCharArrayRegion
+    "SetArrayRegion", # SetShortArrayRegion
+    "SetArrayRegion", # SetIntArrayRegion
+    "SetArrayRegion", # SetLongArrayRegion
     None, 		# SetFloatArrayRegion
     None, 		# SetDoubleArrayRegion
     None, 		# RegisterNatives
@@ -284,8 +325,8 @@ jni_functions = [
     None, 		# GetJavaVM
     None, 		# GetStringRegion
     None, 		# GetStringUTFRegion
-    None, 		# GetPrimitiveArrayCritical
-    None, 		# ReleasePrimitiveArrayCritical
+    "GetArrayElements", # GetPrimitiveArrayCritical
+    "ReleaseArrayElements", # ReleasePrimitiveArrayCritical
     None, 		# GetStringCritical
     None, 		# ReleaseStringCritical
     None, 		# NewWeakGlobalRef
@@ -296,4 +337,3 @@ jni_functions = [
     None, 		# GetDirectBufferCapacity
     None, 		# GetObjectRefType
 ]
-

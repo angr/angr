@@ -13,13 +13,19 @@ class GetArrayElements(JNISimProcedure):
             self.store_in_native_memory(data=self.JNI_TRUE, data_type='boolean', addr=ptr_isCopy)
         return memory_addr
 
-    def load_java_array(self, array_ref, start_idx=None, end_idx=None):
+    @staticmethod
+    def load_java_array(state, array_ref, start_idx=None, end_idx=None):
         if start_idx is None:
             start_idx = 0 
+        else:
+            start_idx = state.solver.min(start_idx)
+            
         if end_idx is None:
-            end_idx = self.state.solver.max(array_ref.size)
+            end_idx = state.solver.max(array_ref.size)
+        else:
+            end_idx = state.solver.max(end_idx)
 
-        javavm_memory = self.state.get_javavm_view_of_plugin("memory")
+        javavm_memory = state.get_javavm_view_of_plugin("memory")
         values = []
         for idx in range(start_idx, end_idx):
             idx_array_ref = SimSootValue_ArrayRef.get_arrayref_for_idx(base=array_ref, idx=idx)
