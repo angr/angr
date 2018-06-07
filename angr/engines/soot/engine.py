@@ -1,21 +1,21 @@
 
 import logging
 
+from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
+                                SootAddressTerminator, SootMethodDescriptor)
 from cle import CLEError
-from archinfo.arch_soot import SootAddressDescriptor, SootAddressTerminator, SootMethodDescriptor
 
-from archinfo import ArchSoot
-from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ...errors import SimTranslationError, SimEngineError
 from ... import sim_options as o
-from ..engine import SimEngine
+from ...errors import SimEngineError, SimTranslationError
 from ...sim_type import SimTypeReg
-from .statements import translate_stmt, SimSootStmt_Return, SimSootStmt_ReturnVoid
+from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
+from ..engine import SimEngine
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
-from angr.engines.soot.values import SimSootValue_Local, SimSootValue_ThisRef
-from angr.engines.soot.values import translate_value
-from angr.engines.soot.expressions import translate_expr
-from .values.paramref import SimSootValue_ParamRef 
+from .expressions import translate_expr
+from .statements import (SimSootStmt_Return, SimSootStmt_ReturnVoid,
+                         translate_stmt)
+from .values import (SimSootValue_Local, SimSootValue_ParamRef,
+                     SimSootValue_ThisRef, translate_value)
 
 l = logging.getLogger('angr.engines.soot.engine')
 
@@ -374,24 +374,24 @@ class SimEngineSoot(SimEngine):
         
         if ret_var:
             # if available, move the return value to the Soot state
+            native_cc = ret_state.project.simos.get_native_cc()
+            ret_symbol = native_cc.get_return_val(native_state).to_claripy()
 
             if ret_var.type == 'void':
                 # in this case, the 'invoke_return_variable' should not have been set
                 l.warning("Return variable is available, but return type is set to void.")
-            
-            elif ret_var.type in ['float', 'double']:
-                raise NotImplementedError()
-
+        
             elif ret_var.type in ArchSoot.primitive_types:
                 # return value has a primitive type
                 # => we need to manually cast the return value to the correct size, as this
                 #    would be usually done by the java callee
                 ret_value = ret_state.project.simos.cast_primitive(ret_symbol, to_type=ret_var.type)
-                
+
             else:
-                # reference type
-                raise NotImplementedError()
-                           
+                # return value has a reference type
+                # => lookup java refernce correpsonding to the opaque ref in ret_symbol
+                ret_value = ret_state.jni_references.lookup(ret_symbol)
+
             l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.id))
             ret_state.memory.store(ret_var, ret_value)
  

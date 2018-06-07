@@ -220,7 +220,7 @@ class SimJavaVM(SimOS):
         :return:  CLE address of the given method in a native library.
         """
         for name, symbol in self.native_symbols.items():
-            if soot_method.matches_with_native_name(native_name=name):
+            if soot_method.matches_with_native_name(native_method=name):
                 l.debug("Found native symbol '%s' @ %x matching Soot method '%s'" 
                         % (name, symbol.rebased_addr, soot_method))
                 return symbol.rebased_addr
@@ -228,18 +228,9 @@ class SimJavaVM(SimOS):
         else:
             native_symbols = "\n".join(self.native_symbols.keys())
             l.error("No native method found that matches the Soot method '%s'.\
-                                  \nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
-                                  % (soot_method.name, native_symbols))
+                    \nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
+                    % (soot_method.name, native_symbols))
             raise AngrSimOSError()
-
-    def generate_opaque_reference(self):
-        """
-        Native code cannot interact directly with Java objects, but needs to use JNI interface
-        functions. For this, Java objects are getting referenced with opaque references.
-
-        :return: Address, which can be used as an opaque reference.
-        """
-        return self.project.loader.extern_object.allocate()
 
     def get_native_type(self, java_type):
         """
@@ -251,12 +242,9 @@ class SimJavaVM(SimOS):
         if java_type in ArchSoot.sizeof.keys():
             jni_type_size = ArchSoot.sizeof[java_type]
 
-        elif java_type == "reference":
-            jni_type_size = self.native_simos.arch.bits
-        
         else:
-            l.warning("Unknown type %s" % java_type)
-            return None
+            # if it's not a primitive type, treat it as a reference
+            jni_type_size = self.native_simos.arch.bits
 
         return SimTypeReg(size=jni_type_size)
 
