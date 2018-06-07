@@ -9,6 +9,8 @@ class GetArrayElements(JNISimProcedure):
         array_ref = self.state.jni_references.lookup(array)
         values = self.load_java_array(self.state, array_ref)
         memory_addr = self.store_in_native_memory(values, array_ref.type)
+        if self.state.solver.eval(ptr_isCopy != 0):
+            self.store_in_native_memory(data=self.JNI_TRUE, data_type='boolean', addr=ptr_isCopy)
         return memory_addr
 
     def load_java_array(self, array_ref, start_idx=None, end_idx=None):
