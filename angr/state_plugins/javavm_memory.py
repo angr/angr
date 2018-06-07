@@ -99,7 +99,7 @@ class SimJavaVmMemory(SimMemory):
 
 
     #
-    # Arrays
+    # Array Store
     #
 
     def _store_array_ref(self, addr, data):
@@ -109,10 +109,10 @@ class SimJavaVmMemory(SimMemory):
     
         if len(idxes) == 1:
             concretized_idx = idxes[0]
-            self._store_arrayref_on_array(array_id=addr.heap_alloc_id, 
-                                          idx=concretized_idx,
-                                          value=data,
-                                          value_type=addr.type)
+            self._store_arrayref_on_heap(array_id=addr.heap_alloc_id, 
+                                         idx=concretized_idx,
+                                         value=data,
+                                         value_type=addr.type)
 
             # if idx was symbolic, constraint it to the concretized one
             if self.state.solver.symbolic(idx):
@@ -122,21 +122,55 @@ class SimJavaVmMemory(SimMemory):
             idx_options = []
             for concretized_idx in idxes:
                 idx_options.append(concretized_idx == idx)
-                self._store_arrayref_on_array(array_id=addr.heap_alloc_id, 
-                                              idx=concretized_idx,
-                                              value=data,
-                                              value_type=addr.type,
-                                              store_condition=idx_options[-1])
+                self._store_arrayref_on_heap(array_id=addr.heap_alloc_id, 
+                                             idx=concretized_idx,
+                                             value=data,
+                                             value_type=addr.type,
+                                             store_condition=idx_options[-1])
             idx_constraint = self.state.solver.Or(*idx_options)
             self.state.add_constraints(idx_constraint)
 
-    def _store_arrayref_on_array(self, array_id, idx, value, value_type, store_condition=None):
+    def _store_arrayref_on_heap(self, array_id, idx, value, value_type, store_condition=None):
         if store_condition is not None:
             current_value = self._load_arrayref_from_heap(array_id, idx)
             new_value = value
             value = self.state.solver.If(store_condition, new_value, current_value)
         heap_elem_id = '%s[%d]' % (array_id, idx)
         self.heap.store(heap_elem_id, value, value_type)
+
+    def store_array_range(self, array, elements, start_idx, no_of_elements):
+        # concretize values
+        start_idxes = self.concretize_load_idx(start_idx)
+
+        print array, elements, start_idxes, no_of_elements
+
+        if len(start_idxes) == 1:
+
+            concrete_start_idx = start_idxes[0]
+            for i, element in enumerate(elements):
+                self._store_arrayref_on_heap(array_id=array.heap_alloc_id, 
+                                            idx=concrete_start_idx+i,
+                                            value=element,
+                                            value_type=array.type)
+
+        else:
+            start_idx_options  = []
+            for concrete_start_idx in start_idxes:
+                start_idx_options.append(concrete_start_idx == start_idx)
+                for i, element in enumerate(elements):
+                    self._store_arrayref_on_heap(array_id=array.heap_alloc_id, 
+                                                 idx=concrete_start_idx+i,
+                                                 value=element,
+                                                 value_type=array.type,
+                                                 store_condition=start_idx_options[-1])
+
+            idx_constraint = self.state.solver.Or(*start_idx_options)
+            self.state.add_constraints(idx_constraint)
+
+
+    #
+    # Array Load
+    #
 
     def _load_array_ref(self, addr):
 
@@ -175,6 +209,48 @@ class SimJavaVmMemory(SimMemory):
             l.info("Init array element %s to 0." % heap_elem_id)
             self.heap.store(heap_elem_id, value)
         return value
+
+    def load_array_range(self, array, start_idx, no_of_elements):
+        # concretize values
+        start_idxes = self.concretize_load_idx(start_idx)
+        # load values for first concrete start index
+        concrete_start_idx = start_idxes[0]
+        load_values = self._load_array_range(array=array, 
+                                             start=concrete_start_idx, 
+                                             end=concrete_start_idx+no_of_elements)
+        start_idx_options = [concrete_start_idx == start_idx]
+        # update load values for all remaining start indexes
+        for concrete_start_idx in start_idxes[1:]:
+            values = self._load_array_range(array=array, 
+                                            start=concrete_start_idx, 
+                                            end=concrete_start_idx+no_of_elements)
+            for i, value in enumerate(values):
+                load_values[i] = self.state.solver.If(
+                    concrete_start_idx == start_idx,
+                    value,
+                    load_values[i]
+                )
+            start_idx_options.append(concrete_start_idx == start_idx)
+            print values
+            print load_values
+
+        if len(start_idx_options) > 1:
+            load_constraint = [self.state.solver.Or(*start_idx_options)]
+        elif not self.state.solver.symbolic(start_idx_options[0]):
+            load_constraint = []
+        else:  
+            load_constraint = [start_idx_options[0]]
+            
+        self.state.add_constraints(*load_constraint)
+
+        return load_values
+
+    def _load_array_range(self, array, start, end):
+        values = []
+        for idx in range(start, end):
+            value = self._load_arrayref_from_heap(array_id=array.heap_alloc_id, idx=idx)
+            values.append(value)
+        return values
 
     #
     # Concretization strategies
