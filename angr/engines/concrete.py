@@ -70,19 +70,6 @@ class SimEngineConcrete(SimEngine):
         # the state plugin
         state.concrete.sync()
 
-        # now we have to register a SimInspect in order to synchronize the segments register
-        # on demand when the symbolic execution accesses it
-        if not self.segment_registers_already_init:
-
-            def _sync_segments(state):
-                state.concrete.sync_segments()
-                self.segment_registers_already_init = True
-
-            state.inspect.b('reg_read', reg_read_offset=state.project.simos.get_segment_register_name(),
-                            condition=_sync_segments)
-
-            l.debug("Set SimInspect breakpoint to the new state!")
-
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
         successors.add_successor(state, state.ip, state.se.true, state.unicorn.jumpkind)

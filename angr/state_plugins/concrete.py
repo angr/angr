@@ -12,6 +12,7 @@ class Concrete(SimStatePlugin):
     def __init__(self, segment_registers_already_init = False, whitelist=[]):
         self.segment_registers_already_init = False
         self.whitelist = []
+        self.fs_register_bp = None
 
 
     def copy(self, _memo):
@@ -83,25 +84,34 @@ class Concrete(SimStatePlugin):
         l.info("Exiting SimEngineConcrete: simulated address %x concrete address %x "
                % (self.state.addr, target.read_register("pc")))
 
+        # now we have to register a SimInspect in order to synchronize the segments register
+        # on demand when the symbolic execution accesses it
+        if not self.segment_registers_already_init:
+            self.fs_register_bp = self.state.inspect.b('reg_read', reg_read_offset=self.state.project.simos.get_segment_register_name(),
+                                                       condition=self.sync_segments)
+
+            l.debug("Set SimInspect breakpoint to the new state!")
+
+
     '''
      Segment registers synchronization is on demand as soon as the 
      symbolic execution access a segment register. 
     '''
-    def sync_segments(self):
+    def sync_segments(self, state):
 
-        target = self.state.project.concrete_target
+        target = state.project.concrete_target
 
         # Initialize the segment registers value if not already initialized
         if not self.segment_registers_already_init:
-            if isinstance(self.state.arch, ArchAMD64):
-                self.state.project.simos.initialize_segment_register_x64(self.state, target)
-            elif isinstance(self.state.arch, ArchX86):
-                gdt = self.state.project.simos.initialize_gdt_x86(self.state, target)
+            if isinstance(state.arch, ArchAMD64):
+                state.project.simos.initialize_segment_register_x64(state, target)
+            elif isinstance(state.arch, ArchX86):
+                gdt = state.project.simos.initialize_gdt_x86(state, target)
                 self.whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
             self.segment_registers_already_init = True
-        else:
-            return
+            state.inspect.remove_breakpoint('reg_read', self.fs_register_bp)
+            self.fs_register_bp = None
 
 
 from .. import sim_options as options
