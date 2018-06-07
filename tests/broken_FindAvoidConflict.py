@@ -26,7 +26,7 @@ def test_FindAvoidConflict():
         for addr in path.addr_trace:
             try:
                 instAddrs = set(proj.factory.block(addr).instruction_addrs)
-            except AngrError:
+            except angr.errors.AngrError:
                 instAddrs = {}
             assert (avoidAddr not in instAddrs)
 

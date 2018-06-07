@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import claripy
 from ...errors import SimEngineError, SimMemoryError
+from ...procedures import SIM_LIBRARIES
 
 l = logging.getLogger("angr.knowledge.function")
 
@@ -110,6 +111,9 @@ class Function(object):
 
         # Calling convention
         self.calling_convention = None
+
+        # Function prototype
+        self.prototype = None
 
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -775,10 +779,10 @@ class Function(object):
         for src, dst, data in self.transition_graph.edges(data=True):
             if 'type' in data:
                 if data['type']  == 'transition' and ('outside' not in data or data['outside'] is False):
-                    g.add_edge(src, dst, attr_dict=data)
+                    g.add_edge(src, dst, **data)
                 elif data['type'] == 'fake_return' and 'confirmed' in data and \
                         ('outside' not in data or data['outside'] is False):
-                    g.add_edge(src, dst, attr_dict=data)
+                    g.add_edge(src, dst, **data)
 
         self._local_transition_graph = g
 
@@ -1018,6 +1022,49 @@ class Function(object):
 
         self.normalized = True
 
+    def find_declaration(self):
+        """
+        Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
+        and update self.calling_convention with the declaration.
 
-from ...codenode import BlockNode
+        :return: None
+        """
+
+        # determine the library name
+
+        if not self.is_plt:
+            binary_name = self.binary_name
+            if binary_name not in SIM_LIBRARIES:
+                return
+        else:
+            binary_name = None
+            # PLT entries must have the same declaration as their jump targets
+            # Try to determine which library this PLT entry will jump to
+            edges = self.transition_graph.edges()
+            if len(edges) == 1 and type(next(iter(edges))[1]) is HookNode:
+                target = next(iter(edges))[1].addr
+                if target in self._function_manager:
+                    target_func = self._function_manager[target]
+                    binary_name = target_func.binary_name
+
+        if binary_name is None:
+            return
+
+        library = SIM_LIBRARIES.get(binary_name, None)
+
+        if library is None:
+            return
+
+        if not library.has_prototype(self.name):
+            return
+
+        proto = library.prototypes[self.name]
+
+        self.prototype = proto
+        if self.calling_convention is not None:
+            self.calling_convention.args = None
+            self.calling_convention.func_ty = proto
+
+
+from ...codenode import BlockNode, HookNode
 from ...errors import AngrValueError

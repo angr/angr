@@ -596,9 +596,12 @@ class SimEngineVEX(SimEngine):
         for stmt in irsb.statements:
             if type(stmt) is pyvex.stmt.IMark:  # pylint: disable=unidiomatic-typecheck
                 addr = stmt.addr + stmt.delta
-                if not first_imark and self.is_stop_point(addr):
-                    # could this part be moved by pyvex?
-                    return addr
+                if not first_imark:
+                    if self.is_stop_point(addr):
+                        # could this part be moved by pyvex?
+                        return addr
+                    if stmt.delta != 0 and self.is_stop_point(stmt.addr):
+                        return addr
 
                 first_imark = False
         return None

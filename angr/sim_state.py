@@ -793,7 +793,7 @@ class SimState(PluginHub, ana.Storable):
 
     @property
     def jumpkind(self):
-        return self.scratch.jumpkind
+        return self.history.jumpkind
 
     @property
     def last_actions(self):

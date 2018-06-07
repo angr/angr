@@ -29,6 +29,7 @@ class FunctionDict(SortedDict):
 
             t = Function(self._backref, addr)
             self[addr] = t
+            self._backref._function_added(t)
             return t
 
     def floor_addr(self, addr):
@@ -225,6 +226,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     def __setitem__(self, k, v):
         if isinstance(k, (int, long)):
             self._function_map[k] = v
+            self._function_added(v)
         else:
             raise ValueError("FunctionManager.__setitem__ keys must be an int")
 
@@ -242,6 +244,17 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     def __iter__(self):
         for i in sorted(self._function_map.iterkeys()):
             yield i
+
+    def _function_added(self, func):
+        """
+        A callback method for adding a new function instance to the manager.
+
+        :param Function func:   The Function instance being added.
+        :return:                None
+        """
+
+        # make sure all functions exist in the call graph
+        self.callgraph.add_node(func.addr)
 
     def contains_addr(self, addr):
         """

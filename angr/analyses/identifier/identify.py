@@ -1,6 +1,7 @@
 
-import logging
+
 from collections import defaultdict
+import logging
 
 from .. import Analysis
 from cle.backends.cgc import CGC
@@ -344,7 +345,7 @@ class Identifier(Analysis):
         # step one last time to the call
         simgr.step()
         if len(simgr.active) == 0:
-            IdentifierException("Didn't succeed call")
+            raise IdentifierException("Didn't succeed call")
         return simgr.active[0]
 
     def get_call_args(self, func, callsite):

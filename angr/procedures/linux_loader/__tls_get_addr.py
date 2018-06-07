@@ -1,4 +1,6 @@
 import angr
+from angr.errors import SimValueError
+
 
 class __tls_get_addr(angr.SimProcedure):
     # pylint: disable=arguments-differ
