@@ -15,7 +15,7 @@ from .. import sim_options as options
 import logging
 l = logging.getLogger("angr.state_plugins.javavm_memory")
 
-# MAX_ARRAY_SIZE = 1000
+MAX_ARRAY_SIZE = 1000 # FIXME arbitrarily chosen limit
 
 class SimJavaVmMemory(SimMemory):
     def __init__(self, memory_id="mem", stack=None, heap=None, vm_static_table=None,
@@ -32,7 +32,7 @@ class SimJavaVmMemory(SimMemory):
         # TODO: ask someone how we want to manage this
         # TODO: Manage out of memory allocation
         # self._heap_allocation_id = 0
-        # self.max_array_size = MAX_ARRAY_SIZE
+        self.max_array_size = MAX_ARRAY_SIZE
 
         # concretizing strategies
         self.load_strategies = load_strategies
