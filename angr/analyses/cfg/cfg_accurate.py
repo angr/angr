@@ -1267,7 +1267,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                   self._block_artifacts
                                                   )
 
-        # Ad additional edges supplied by the user
+        # Remove all successors whose IP is symbolic
+        successors = [ s for s in successors if not s.ip.symbolic ]
+
+        # Add additional edges supplied by the user
         successors = self._add_additional_edges(input_state, sim_successors, job.cfg_node, successors)
 
         # if base graph is used, add successors implied from the graph
@@ -1784,7 +1787,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if a.type == "mem" and a.action == "read":
                     try:
                         addr = se.eval_one(a.addr.ast, default=0)
-                    except claripy.ClaripyError:
+                    except (claripy.ClaripyError, SimSolverModeError):
                         continue
                     if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or \
                             (not self.project.arch.call_pushes_ret and addr >= new_sp_addr):

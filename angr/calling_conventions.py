@@ -51,6 +51,9 @@ class SimFunctionArgument(object):
     def __ne__(self, other):
         return not self == other
 
+    def __hash__(self):
+        return hash(('function_argument', self.size))
+
     def check_value(self, value):
         if not isinstance(value, claripy.ast.Base) and self.size is None:
             raise TypeError("Only claripy objects may be stored through SimFunctionArgument when size is not provided")
@@ -76,14 +79,23 @@ class SimRegArg(SimFunctionArgument):
     def __eq__(self, other):
         return type(other) is SimRegArg and self.reg_name == other.reg_name
 
-    def _fix_offset(self, state, size):
+    def __hash__(self):
+        return hash((self.size, self.reg_name, tuple(self.alt_offsets)))
+
+    def _fix_offset(self, state, size, arch=None):
         """
         This is a hack to deal with small values being stored at offsets into large registers unpredictably
         """
-        offset = state.arch.registers[self.reg_name][0]
+        if state is not None:
+            arch = state.arch
+
+        if arch is None:
+            raise ValueError('Either "state" or "arch" must be specified.')
+
+        offset = arch.registers[self.reg_name][0]
         if size in self.alt_offsets:
             return offset + self.alt_offsets[size]
-        elif size < self.size and state.arch.register_endness == 'Iend_BE':
+        elif size < self.size and arch.register_endness == 'Iend_BE':
             return offset + (self.size - size)
         return offset
 
@@ -112,6 +124,9 @@ class SimStackArg(SimFunctionArgument):
 
     def __eq__(self, other):
         return type(other) is SimStackArg and self.stack_offset == other.stack_offset
+
+    def __hash__(self):
+        return hash((self.size, self.stack_offset))
 
     def set_value(self, state, value, endness=None, stack_base=None):  # pylint: disable=arguments-differ
         self.check_value(value)
@@ -278,6 +293,7 @@ class SimCC(object):
     STACKARG_SP_BUFF = 0            # The amount of stack space reserved between the saved return address
                                     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0            # The amount of stack space reserved for the return address
+    CALLER_SAVED_REGS = None        # Caller-saved registers
     RETURN_ADDR = None              # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL = None               # The location where the return value is stored, as a SimFunctionArgument
     FP_RETURN_VAL = None            # The location where floating-point argument return values are stored
@@ -401,7 +417,7 @@ class SimCC(object):
                 (isinstance(val, claripy.ast.Base) and val.op.startswith('fp')) or \
                 (isinstance(val, claripy.ast.Base) and val.op == 'Reverse' and val.args[0].op.startswith('fp'))
 
-    def arg_locs(self, is_fp, sizes=None):
+    def arg_locs(self, is_fp=None, sizes=None):
         """
         Pass this a list of whether each parameter is floating-point or not, and get back a list of
         SimFunctionArguments. Optionally, pass a list of argument sizes (in bytes) as well.
@@ -409,7 +425,15 @@ class SimCC(object):
         If you've customized this CC, this will sanity-check the provided locations with the given list.
         """
         session = self.arg_session
-        if sizes is None: sizes = [self.arch.bytes]*len(is_fp)
+        if self.func_ty is None:
+            # No function prototype is provided. `is_fp` must be provided.
+            if is_fp is None:
+                raise ValueError('"is_fp" must be provided when no function prototype is available.')
+        else:
+            # let's rely on the func_ty for the number of arguments and whether each argument is FP or not
+            is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) else False for arg in self.func_ty.args ]
+
+        if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
         return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
 
     def arg(self, state, index, stack_base=None):
@@ -756,6 +780,14 @@ class SimCC(object):
     def __repr__(self):
         return "<" + self.__class__.__name__ + '>'
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+
+        return set(self.args) == set(other.args) and \
+               self.ret_val == other.ret_val and \
+               self.sp_delta == other.sp_delta
+
     @classmethod
     def _match(cls, arch, args, sp_delta):
         if cls.ARCH is not None and not isinstance(arch, cls.ARCH):
@@ -774,6 +806,27 @@ class SimCC(object):
                 return False
 
         return True
+
+    @staticmethod
+    def find_cc(arch, args, sp_delta):
+        """
+        Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
+        found.
+
+        :param Arch arch:       An ArchX instance. Can be obtained from archinfo.
+        :param list args:       A list of arguments.
+        :param int sp_delta:    The change of stack pointer before and after the call is made.
+        :return:                A calling convention instance, or None if none of the SimCC subclasses seems to fit the
+                                arguments provided.
+        :rtype:                 SimCC or None
+        """
+        if arch.name not in CC:
+            return None
+        possible_cc_classes = CC[arch.name]
+        for cc_cls in possible_cc_classes:
+            if cc_cls._match(arch, args, sp_delta):
+                return cc_cls(arch, args=args, sp_delta=sp_delta)
+        return None
 
 
 class SimLyingRegArg(SimRegArg):
@@ -864,6 +917,7 @@ class SimCCSystemVAMD64(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
     FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7']
     STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
+    CALLER_SAVED_REGS = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9', 'r10', 'r11', 'rax', ]
     RETURN_ADDR = SimStackArg(0, 8)
     RETURN_VAL = SimRegArg('rax', 8)
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
@@ -1089,6 +1143,38 @@ class SimCCUnknown(SimCC):
 
     def __repr__(self):
         return "<SimCCUnknown - %s %s sp_delta=%d>" % (self.arch.name, self.args, self.sp_delta)
+
+
+CC = {
+    'AMD64': [
+        SimCCSystemVAMD64,
+    ],
+    'X86': [
+        SimCCCdecl,
+    ],
+    'ARMEL': [
+        SimCCARM,
+    ],
+    'ARMHF': [
+        SimCCARM,
+    ],
+    'MIPS32': [
+        SimCCO32,
+    ],
+    'MIPS64': [
+        SimCCO64,
+    ],
+    'PPC32': [
+        SimCCPowerPC,
+    ],
+    'PPC64': [
+        SimCCPowerPC64,
+    ],
+    'AARCH64': [
+        SimCCAArch64,
+    ],
+}
+
 
 DEFAULT_CC = {
     'AMD64': SimCCSystemVAMD64,

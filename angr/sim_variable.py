@@ -3,9 +3,9 @@ import claripy
 
 class SimVariable(object):
 
-    __slots__ = ['ident', 'name', 'region']
+    __slots__ = ['ident', 'name', 'region', 'category']
 
-    def __init__(self, ident=None, name=None, region=None):
+    def __init__(self, ident=None, name=None, region=None, category=None):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
@@ -13,6 +13,7 @@ class SimVariable(object):
         self.ident = ident
         self.name = name
         self.region = region if region is not None else ""
+        self.category = category
 
     @property
     def phi(self):
@@ -80,8 +81,8 @@ class SimRegisterVariable(SimVariable):
 
     __slots__ = ['reg', 'size', '_hash']
 
-    def __init__(self, reg_offset, size, ident=None, name=None, region=None):
-        SimVariable.__init__(self, ident=ident, name=name, region=region)
+    def __init__(self, reg_offset, size, ident=None, name=None, region=None, category=None):
+        SimVariable.__init__(self, ident=ident, name=name, region=region, category=category)
 
         self.reg = reg_offset
         self.size = size
@@ -152,8 +153,8 @@ class SimMemoryVariable(SimVariable):
 
     __slots__ = ['addr', 'size', '_hash']
 
-    def __init__(self, addr, size, ident=None, name=None, region=None):
-        SimVariable.__init__(self, ident=ident, name=name, region=region)
+    def __init__(self, addr, size, ident=None, name=None, region=None, category=None):
+        SimVariable.__init__(self, ident=ident, name=name, region=region, category=category)
 
         self.addr = addr
 
@@ -247,7 +248,7 @@ class SimStackVariable(SimMemoryVariable):
 
     __slots__ = ['base', 'offset']
 
-    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None):
+    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None, category=None):
         if offset > 0x1000000 and isinstance(offset, (int, long)):
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
@@ -260,7 +261,7 @@ class SimStackVariable(SimMemoryVariable):
             # TODO: this is not optimal
             addr = offset
 
-        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, region=region)
+        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, region=region, category=category)
 
         self.base = base
         self.offset = offset
