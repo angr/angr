@@ -25,4 +25,4 @@ def test_signed_div():
     nose.tools.assert_equal(out_angr, stdout_real)
 
 if __name__ == "__main__":
-    run_signed_div()
+    test_signed_div()

@@ -126,10 +126,10 @@ class LoopSeer(ExplorationTechnique):
                     state.loop_data.current_loop.pop()
 
                 if self.bound is not None:
-                    if self.bound_reached is not None:
-                        simgr = self.bound_reached(simgr)
-                    else:
-                        if state.loop_data.trip_counts[header][-1] >= self.bound:
+                    if state.loop_data.trip_counts[header][-1] >= self.bound:
+                        if self.bound_reached is not None:
+                            simgr = self.bound_reached(simgr)
+                        else:
                             simgr.stashes[stash].remove(state)
                             simgr.stashes[self.discard_stash].append(state)
 

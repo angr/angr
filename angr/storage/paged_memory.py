@@ -236,7 +236,7 @@ class TreePage(BasePage):
                 pass
             else:
                 if self._storage[key].includes(start):
-                    items.insert(0, key)
+                    keys.insert(0, key)
         return [(key, self._storage[key]) for key in keys]
 
     def _copy_args(self):

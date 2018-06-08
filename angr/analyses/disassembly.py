@@ -9,6 +9,8 @@ from ..block import CapstoneInsn
 
 l = logging.getLogger("angr.analyses.disassembly")
 
+# pylint: disable=unidiomatic-typecheck
+
 
 class DisassemblyPiece(object):
     addr = None
@@ -119,9 +121,11 @@ class Hook(DisassemblyPiece):
 class Instruction(DisassemblyPiece):
     def __init__(self, insn, parentblock):
         self.addr = insn.address
+        self.size = insn.size
         self.insn = insn
         self.parentblock = parentblock
         self.project = parentblock.project
+        self.arch = parentblock.project.arch
         self.format = ''
         self.components = ()
         self.operands = [ ]
@@ -133,14 +137,14 @@ class Instruction(DisassemblyPiece):
 
         self.disect_instruction()
 
-        decode_instruction(self.project.arch, self)
+        decode_instruction(self.arch, self)
 
     @property
     def mnemonic(self):
         return self.opcode
 
     def reload_format(self):
-        self.insn = CapstoneInsn(next(self.project.arch.capstone.disasm(self.insn.bytes, self.addr)))
+        self.insn = CapstoneInsn(next(self.arch.capstone.disasm(self.insn.bytes, self.addr)))
         self.disect_instruction()
 
     def disect_instruction(self):
@@ -176,7 +180,7 @@ class Instruction(DisassemblyPiece):
                 try:
                     intc = int(c, 0)
                 except ValueError:
-                    reg = c in self.project.arch.registers
+                    reg = c in self.arch.registers
 
                 # if this is a "live" piece, liven it up!
                 # special considerations:
@@ -194,7 +198,7 @@ class Instruction(DisassemblyPiece):
                     if i > 0 and insn_pieces[i-1] in ('+', '-'):
                         with_sign = True
                         if insn_pieces[i-1] == '-':
-                            intc = -intc
+                            intc = -intc  # pylint: disable=invalid-unary-operand-type
                         insn_pieces[i-1] = ''
                     cur_operand.append(Value(intc, with_sign))
                 else:
@@ -314,7 +318,7 @@ class Operand(DisassemblyPiece):
         return [''.join(x if type(x) in (str, unicode) else x.render(formatting)[0] for x in self.children)]
 
     @staticmethod
-    def build(operand_type, *args, **kwargs):
+    def build(operand_type, op_num, children, parentinsn):
 
         # Maps capstone operand types to operand classes
         MAPPING = {
@@ -332,7 +336,20 @@ class Operand(DisassemblyPiece):
         if cls is None:
             raise ValueError('Unknown capstone operand type %s.' % operand_type)
 
-        return cls(*args, **kwargs)
+        operand = cls(op_num, children, parentinsn)
+
+        # Post-processing
+        if cls is MemoryOperand and \
+                parentinsn.arch.name in { 'AMD64' } and \
+                len(operand.values) == 2:
+            op0, op1 = operand.values
+            if type(op0) is Register and op0.is_ip and type(op1) is Value:
+                # Indirect addressing in x86_64
+                # 400520  push [rip+0x200782] ==>  400520  push [0x600ca8]
+                absolute_addr = parentinsn.addr + parentinsn.size + op1.val
+                return MemoryOperand(1, ['[', Value(absolute_addr, False), ']'], parentinsn)
+
+        return operand
 
 
 class ConstantOperand(Operand):
@@ -485,6 +502,7 @@ class Register(OperandPiece):
     def __init__(self, reg, prefix):
         self.reg = reg
         self.prefix = prefix
+        self.is_ip = self.reg in {"eip", "rip"}  # TODO: Support more architectures
 
     def _render(self, formatting):
         # TODO: register renaming

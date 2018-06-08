@@ -96,7 +96,7 @@ class SegmentList(object):
 
     def _search(self, addr):
         """
-        Checks which segment tha the address `addr` should belong to, and, returns the offset of that segment.
+        Checks which segment that the address `addr` should belong to, and, returns the offset of that segment.
         Note that the address may not actually belong to the block.
 
         :param addr: The address to search
@@ -332,6 +332,37 @@ class SegmentList(object):
             return self._list[i].end
 
         return address
+
+    def next_pos_with_sort_not_in(self, address, sorts):
+        """
+        Returns the address of the next occupied block whose sort is not one of the specified ones.
+
+        :param int address: The address to begin the search with (including itself).
+        :param sorts:       A collection of sort strings.
+        :return:            The next occupied position whose sort is not one of the specified ones, or None if no such
+                            position exists.
+        :rtype:             int or None
+        """
+
+        idx = self._search(address)
+        if idx < len(self._list):
+            # Occupied
+
+            block = self._list[idx]
+            if block.start <= address < block.end:
+                # the address is inside the current block
+                if block.sort not in sorts:
+                    return address
+                # tick the idx forward by 1
+                idx += 1
+
+            i = idx
+            while i < len(self._list):
+                if self._list[i].sort not in sorts:
+                    return self._list[i].start
+                i += 1
+
+        return None
 
     def is_occupied(self, address):
         """
@@ -722,7 +753,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             normalize=normalize,
             binary=binary,
             force_segment=force_segment,
-            base_state=base_state)
+            base_state=base_state,
+            iropt_level=1,  # right now this is a must, since we rely on the VEX optimization to tell us
+                            # the concrete jump targets of each block.
+        )
 
         # necessary warnings
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3 \
@@ -2059,6 +2093,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return
 
             if val != next_insn_addr:
+                if data_size:
+                    # Mark the region as unknown so we won't try to create a code block covering this region in the
+                    # future.
+                    self._seg_list.occupy(val, data_size, "unknown")
                 self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val,
                                          data_size=data_size, data_type=data_type
                                          )
@@ -2373,7 +2411,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # TODO: Support unicode string longer than the max length
         if block_size >= 4 and block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
-            unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
+            try:
+                unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
+            except ValueError:
+                # cffi fails to interpret the bytes as unicode
+                unicode_str = u''
+
             if (len(unicode_str) and  # pylint:disable=len-as-condition
                     all([ c in self.PRINTABLES for c in unicode_str])):
                 if content_holder is not None:
@@ -2480,7 +2523,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             for resolver in self.indirect_jump_resolvers:
                 resolver.base_state = self._base_state
-                block = self._lift(jump.addr)
+                block = self._lift(jump.addr, opt_level=1)
 
                 if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
                     continue
@@ -2563,7 +2606,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10))
+                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10), opt_level=1)
                         vex_block = block.vex
                     except SimTranslationError:
                         continue
@@ -3277,7 +3320,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                            if isinstance(stmt, pyvex.IRStmt.IMark)
                            ), 0
                           )
-        tmp_irsb = self._lift(last_imark.addr + last_imark.delta).vex
+        tmp_irsb = self._lift(last_imark.addr + last_imark.delta, opt_level=self._iropt_level).vex
         # pylint:disable=too-many-nested-blocks
         for stmt in tmp_irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp):
@@ -3307,8 +3350,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if isinstance(val, tuple) and val[0] == 'load':
                 # the value comes from memory
                 memory_addr = val[1]
-                lsp = last_sp if isinstance(last_sp, int) else last_sp[1]
-                lr_on_stack_offset = memory_addr - lsp
+                if isinstance(last_sp, (int, long)):
+                    lr_on_stack_offset = memory_addr - last_sp
+                else:
+                    lr_on_stack_offset = memory_addr - last_sp[1]
 
                 if lr_on_stack_offset == function.info['lr_on_stack_offset']:
                     # the jumpkind should be Ret instead of boring
@@ -3384,6 +3429,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     else:
                         distance = min(distance, distance_to_func)
 
+            # in the end, check the distance between `addr` and the closest occupied region in segment list
+            next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, { "code" })
+            if next_noncode_addr is not None:
+                distance_to_noncode_addr = next_noncode_addr - addr
+                distance = min(distance, distance_to_noncode_addr)
+
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
             irsb = None
@@ -3412,7 +3463,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return addr_0, cfg_node.function_address, cfg_node, irsb
 
                 try:
-                    lifted_block = self._lift(addr_0, size=distance)
+                    lifted_block = self._lift(addr_0, size=distance, opt_level=self._iropt_level)
                     irsb = lifted_block.vex
                     irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:
@@ -3570,6 +3621,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         lst = sorted(lst, key=lambda x: x[0])
         return lst
+
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('CFGFast', CFGFast)
