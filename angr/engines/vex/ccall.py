@@ -1091,6 +1091,7 @@ def get_segdescr_limit(state, descriptor):
 
 def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     # TODO Read/write/exec bit handling
+
     def bad(msg):
         if msg:
             l.warning("x86g_use_seg_selector: " + msg)
