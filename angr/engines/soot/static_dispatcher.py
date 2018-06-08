@@ -1,5 +1,9 @@
 
 from archinfo.arch_soot import SootMethodDescriptor
+from cle.errors import CLEError
+
+import logging
+l = logging.getLogger('angr.engines.soot.static_dispatcher')
 
 
 # TODO implement properly
@@ -8,4 +12,26 @@ from archinfo.arch_soot import SootMethodDescriptor
 
 
 def resolve_method(state, expr):
-    return SootMethodDescriptor(expr.class_name, expr.method_name, expr.method_params)
+
+    # get binary containing the method
+    jar = state.regs._ip_binary
+
+    try:
+        # get all methods matching class- and method-name
+        methods = list(jar.get_method(expr.method_name, expr.class_name))
+
+    except CLEError:
+        # No methods found
+        # => We are executing code that is not in CLE (typically library code)
+        # Fallback: use only infos from the invocation, so we can still use SimProcedures
+        l.warning("Couldn't find method %s.%s" % (expr.method_name, expr.class_name))
+        return SootMethodDescriptor(expr.class_name, expr.method_name, expr.method_params)
+
+    else:
+        if len(methods) != 1: 
+            # Found several methods matching class- and method-name
+            # TODO: use information about the function signature to find the right one
+            l.warning("Function %s is ambiguous in class %s" % (expr.method_name, expr.class_name))
+        return SootMethodDescriptor.from_soot_method(methods[0])
+
+    # return SootMethodDescriptor(expr.class_name, expr.method_name, expr.method_params)
