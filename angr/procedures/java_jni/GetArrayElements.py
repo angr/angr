@@ -5,31 +5,22 @@ class GetArrayElements(JNISimProcedure):
 
     return_ty = 'reference'
 
-    def run(self, ptr_env, array, ptr_isCopy):
-        array_ref = self.state.jni_references.lookup(array)
-        values = self.load_java_array(self.state, array_ref)
-        memory_addr = self.store_in_native_memory(values, array_ref.type)
+    def run(self, ptr_env, array_, ptr_isCopy):
+
+        array = self.state.jni_references.lookup(array_)
+
+        # load array elements from java memory 
+        # => if size is symbolic, we load the maxmimum number of elements
+        max_array_length = self.state.solver.max(array.size)
+        javavm_memory = self.state.get_javavm_view_of_plugin("memory")
+        values = javavm_memory.load_array_elements(array, start_idx=0, no_of_elements=max_array_length)
+
+        # store elements in native memory
+        memory_addr = self.store_in_native_memory(values, array.type)
+
+        # if isCopy is not null, store JNI_TRUE at that address
         if self.state.solver.eval(ptr_isCopy != 0):
             self.store_in_native_memory(data=self.JNI_TRUE, data_type='boolean', addr=ptr_isCopy)
+        
+        # return native address to the elements
         return memory_addr
-
-    @staticmethod
-    def load_java_array(state, array_ref, start_idx=None, end_idx=None):
-        if start_idx is None:
-            start_idx = 0 
-        else:
-            start_idx = state.solver.min(start_idx)
-            
-        if end_idx is None:
-            end_idx = state.solver.max(array_ref.size)
-        else:
-            end_idx = state.solver.max(end_idx)
-
-        javavm_memory = state.get_javavm_view_of_plugin("memory")
-        values = []
-        for idx in range(start_idx, end_idx):
-            idx_array_ref = SimSootValue_ArrayRef.get_arrayref_for_idx(base=array_ref, idx=idx)
-            value = javavm_memory.load(idx_array_ref)
-            values.append(value)
-
-        return values

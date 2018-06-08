@@ -13,17 +13,19 @@ class GetArrayRegion(JNISimProcedure):
         start_idx = self._normalize_array_idx(start_idx_)
         length = self._normalize_array_idx(length_)
 
-        # check if the range, induced by start_idx and length, is valid
-        if self._check_region_bounds(array, start_idx, length, self.state):
-            no_of_elements = self._concretize_region_length(length, self.state)
-            # load elements from javavm memory
-            javavm_memory = self.state.get_javavm_view_of_plugin("memory")
-            elements = javavm_memory.load_array_range(array, start_idx, no_of_elements)
-            # and store them in the native memory
-            self.store_in_native_memory(data=elements, data_type=array.type, addr=ptr_buf)
-        
-        else:
-            pass
+        # check if the range (induced by start_idx and length) is valid
+        if not self._check_region_bounds(array, start_idx, length, self.state):
+            return
+
+        # concretize length (TODO handle symbolic length)
+        no_of_elements = self._concretize_region_length(length, self.state)
+
+        # load elements from java memory
+        javavm_memory = self.state.get_javavm_view_of_plugin("memory")
+        elements = javavm_memory.load_array_elements(array, start_idx, no_of_elements)
+
+        # and store them in the native memory
+        self.store_in_native_memory(data=elements, data_type=array.type, addr=ptr_buf)
 
     @staticmethod
     def _concretize_region_length(length, state):

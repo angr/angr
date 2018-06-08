@@ -211,7 +211,7 @@ class SimJavaVM(SimOS):
             return invoke_state
 
     #
-    # Helper
+    # Helper JNI
     #
 
     def get_clemory_addr_of_native_method(self, soot_method):
@@ -254,6 +254,14 @@ class SimJavaVM(SimOS):
         """
         native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
         return native_cc_cls(self.native_simos.arch, func_ty=func_ty)
+
+    #
+    # MISC
+    #
+
+    @staticmethod
+    def get_default_value_by_type(type_):
+        return BVV(0, 32)
 
     @staticmethod
     def cast_primitive(value, to_type):
