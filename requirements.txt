@@ -1,7 +1,7 @@
 ailment
 ana
 archinfo>=7.8.2.21
-sortedcontainers
+sortedcontainers<2
 cachetools
 capstone>=3.0.5.rc2
 claripy>=7.8.2.21
