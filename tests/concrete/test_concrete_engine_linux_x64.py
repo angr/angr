@@ -45,7 +45,6 @@ def teardown():
     print("---------------------------\n")
 
     
-# -------------------------------- X64 tests ----------------------------------
 
 @nose.with_setup(setup_x64,teardown)
 def test_concrete_engine_linux_x64_no_simprocedures():
