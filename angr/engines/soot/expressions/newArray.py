@@ -24,8 +24,8 @@ class SimSootExpr_NewArray(SimSootExpr):
         # arrays are stored on the heap
         # => create a unique reference 
         javavm_memory = state.get_javavm_view_of_plugin('memory')
-        heap_alloc_id = "{type}_array_{uuid}".format(type=base_type,
-                                                     uuid=javavm_memory.get_new_uuid())
+        heap_alloc_id = "{uuid}.{base_type}_array".format(base_type=base_type,
+                                                          uuid=javavm_memory.get_new_uuid())
         # return the reference of the base element
         # => elements as such getting lazy initialized in the javavm memory
         return SimSootValue_ArrayRef(heap_alloc_id, 0, base_type, size_bounded)
