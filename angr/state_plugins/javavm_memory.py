@@ -57,6 +57,7 @@ class SimJavaVmMemory(SimMemory):
 
         elif type(addr) is SimSootValue_StaticFieldRef:
             self.vm_static_table.store(addr.id, data, type_=addr.type)
+            
         elif type(addr) is SimSootValue_InstanceFieldRef:
             self.heap.store(addr.id, data, type_=addr.type)
         else:

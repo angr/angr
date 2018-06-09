@@ -253,6 +253,11 @@ class SimJavaVM(SimOS):
     #
 
     @staticmethod
+    def get_java_type_from_signature(type_sig):
+        sig_dict = {'I' : 'int'}
+        return sig_dict[type_sig]
+
+    @staticmethod
     def get_default_value_by_type(type_):
         """
         Java specify defaults values for initialized field based on the field type.

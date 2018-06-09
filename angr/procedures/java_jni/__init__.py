@@ -134,7 +134,7 @@ jni_functions = [
     None, 		# NewObject
     None, 		# NewObjectV
     None, 		# NewObjectA
-    None, 		# GetObjectClass
+    "GetObjectClass", # GetObjectClass
     None, 		# IsInstanceOf
     None, 		# GetMethodID
     None, 		# CallObjectMethod
@@ -197,14 +197,14 @@ jni_functions = [
     None, 		# CallNonvirtualVoidMethod
     None, 		# CallNonvirtualVoidMethodV
     None, 		# CallNonvirtualVoidMethodA
-    None, 		# GetFieldID
-    None, 		# GetObjectField
-    None, 		# GetBooleanField
-    None, 		# GetByteField
-    None, 		# GetCharField
-    None, 		# GetShortField
-    None, 		# GetIntField
-    None, 		# GetLongField
+    "GetFieldID", # GetFieldID
+    "GetObjectField", # GetObjectField
+    "GetBooleanField", # GetBooleanField
+    "GetByteField", # GetByteField
+    "GetCharField", # GetCharField
+    "GetShortField", # GetShortField
+    "GetIntField", # GetIntField
+    "GetLongField", # GetLongField
     None, 		# GetFloatField
     None, 		# GetDoubleField
     None, 		# SetObjectField

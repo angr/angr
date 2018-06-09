@@ -2,6 +2,7 @@
 from .base import SimSootExpr
 from ..values import SimSootValue_ThisRef
 from ..values import SimSootValue_InstanceFieldRef
+from ..values.constants import SimSootValue_ClassConstant
 
 
 class SimSootExpr_IntConstant(SimSootExpr):
@@ -30,4 +31,12 @@ class SimSootExpr_StringConstant(SimSootExpr):
         value = self.state.se.StringV(self.expr.value.strip("\""))
         self.state.memory.store(field_ref, value)
         self.expr = this_ref
+
+class SimSootExpr_ClassConstant(SimSootExpr):
+    def __init__(self, expr, state):
+        super(SimSootExpr_ClassConstant, self).__init__(expr, state)
+
+    def _execute(self):
+        self.expr = SimSootValue_ClassConstant.from_sootvalue(self.expr)
+
 
