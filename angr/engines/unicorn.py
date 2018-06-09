@@ -6,7 +6,7 @@ from ..state_plugins.inspect import BP_AFTER
 #pylint: disable=arguments-differ
 
 l = logging.getLogger("angr.engines.unicorn")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 class SimEngineUnicorn(SimEngine):
@@ -63,7 +63,7 @@ class SimEngineUnicorn(SimEngine):
         # if we have a concrete target we want the program to synchronize the segment
         # registers before, otherwise undefined behavior could happen.
         if state.project.concrete_target:
-            if not state.concrete.segment_registers_already_init:
+            if not state.concrete.segment_registers_initialized:
                 l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
                 return False
         if state.regs.ip.symbolic:

@@ -1166,7 +1166,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     limit = get_segdescr_limit(state, descriptor)
 
     #With the concrete target
-    if state.se.is_true(virtual_addr >= limit) and state.project.concrete_target is not None:
+    if state.se.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
         return bad("virtual_addr >= limit")
 
 

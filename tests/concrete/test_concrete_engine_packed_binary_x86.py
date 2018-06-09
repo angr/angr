@@ -43,22 +43,22 @@ def teardown():
 
 @nose.with_setup(setup_x86,teardown)
 def test_concrete_engine_linux_x86_no_simprocedures():
-    print("test_concrete_engine_linux_x64_no_simprocedures")
+    print("test_concrete_engine_linux_x86_no_simprocedures")
     global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
     p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=False)
     entry_state = p.factory.entry_state()
-    solv_concrete_engine_linux_x64(p,entry_state)
+    solv_concrete_engine_linux_x86(p,entry_state)
 
 
 @nose.with_setup(setup_x86,teardown)
 def test_concrete_engine_linux_x86_unicorn_no_simprocedures():
-    print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
+    print("test_concrete_engine_linux_x86_unicorn_no_simprocedures")
     global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
     p = angr.Project(binary_x86 , concrete_target=avatar_gdb, use_sim_procedures=False)
     entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
-    solv_concrete_engine_linux_x64(p,entry_state)
+    solv_concrete_engine_linux_x86(p,entry_state)
 
 
 
@@ -70,7 +70,7 @@ def execute_concretly(project, state,address,concretize):
 
 
 
-def solv_concrete_engine_linux_x64(p,entry_state):
+def solv_concrete_engine_linux_x86(p,entry_state):
     
     print "[1]Executing binary concretely until address: " + hex(UNPACKING_BINARY)
     
@@ -106,7 +106,5 @@ def solv_concrete_engine_linux_x64(p,entry_state):
 
     correct_solution = 0xa000000f9ffffff000000000000000000000000000000000000000000000000
     nose.tools.assert_true(binary_configuration == correct_solution)
-
-
 
 

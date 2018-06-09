@@ -5,18 +5,21 @@ import logging
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
-    def __init__(self, segment_registers_already_init=False, whitelist=[]):
-        self.segment_registers_already_init = segment_registers_already_init
-        self.whitelist = []
+    def __init__(self, segment_registers_initialized=False, segment_registers_callback_initialized=False, whitelist=[]):
+        self.segment_registers_initialized = segment_registers_initialized
+        self.segment_registers_callback_initialized = segment_registers_callback_initialized
+
+        self.whitelist = whitelist
         self.fs_register_bp = None
 
-
     def copy(self, _memo):
-        conc = Concrete(segment_registers_already_init=self.segment_registers_already_init, whitelist=self.whitelist)
+        conc = Concrete(segment_registers_initialized=self.segment_registers_initialized,
+                        segment_registers_callback_initialized=self.segment_registers_callback_initialized,
+                        whitelist=self.whitelist)
         return conc
 
     def merge(self):
@@ -26,7 +29,7 @@ class Concrete(SimStatePlugin):
         pass
 
     def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
+        super(SimStatePlugin, self).set_state(self, state)
 
     def sync(self):
         """
@@ -88,11 +91,11 @@ class Concrete(SimStatePlugin):
 
         # now we have to register a SimInspect in order to synchronize the segments register
         # on demand when the symbolic execution accesses it
-        if not self.segment_registers_already_init:
+        if not self.segment_registers_callback_initialized:
             self.fs_register_bp = self.state.inspect.b('reg_read', reg_read_offset=self.state.project.simos.get_segment_register_name(),
                                                        action=self.sync_segments)
 
-            self.segment_registers_already_init = True
+            self.segment_registers_callback_initialized = True
 
             l.debug("Set SimInspect breakpoint to the new state!")
 
@@ -111,6 +114,7 @@ class Concrete(SimStatePlugin):
             self.whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
         state.inspect.remove_breakpoint('reg_read', bp=self.fs_register_bp)
+        self.segment_registers_initialized = True
 
         self.fs_register_bp = None
 
