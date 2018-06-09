@@ -394,6 +394,9 @@ class SimEngineSoot(SimEngine):
 
             l.debug("Assigning %s to return variable %s" % (str(ret_value), ret_var.id))
             ret_state.memory.store(ret_var, ret_value)
+
+        # finally, delete all local references
+        ret_state.jni_references.clear_local_references()
  
         return [ret_state]
 

@@ -46,6 +46,9 @@ class SimStateJNIReferences(SimStatePlugin):
             raise NotImplementedError("Opaque reference is symbolic.")
         return self.state.solver.eval(opaque_ref)
 
+    def clear_local_references(self):
+        self.local_references = {}
+
     @SimStatePlugin.memo
     def copy(self, memo):
         return SimStateJNIReferences(local_references=self.local_references,
