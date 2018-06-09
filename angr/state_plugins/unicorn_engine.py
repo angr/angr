@@ -1091,7 +1091,7 @@ class Unicorn(SimStatePlugin):
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.eval(flags))
             fs = self.state.se.eval(self.state.regs.fs) << 16
             gs = self.state.se.eval(self.state.regs.gs) << 16
-            gdt = self.state.project.simos.generate_gdt(fs,gs)
+            gdt = self.state.project.simos.generate_gdt(fs, gs)
             self.setup_gdt(gdt)
 
         for r, c in self._uc_regs.iteritems():

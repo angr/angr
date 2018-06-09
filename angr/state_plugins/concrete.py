@@ -5,7 +5,7 @@ import logging
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
@@ -56,6 +56,7 @@ class Concrete(SimStatePlugin):
                 try:
                     reg_value = target.read_register(reg_name)
                     setattr(self.state.regs, reg_name, reg_value)
+
                     l.debug("Register: %s value: %x " % (reg_name,
                                                          self.state.se.eval(getattr(self.state.regs, reg_name),
                                                                             cast_to=int)))
@@ -110,6 +111,7 @@ class Concrete(SimStatePlugin):
             self.whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
         state.inspect.remove_breakpoint('reg_read', bp=self.fs_register_bp)
+
         self.fs_register_bp = None
 
 
