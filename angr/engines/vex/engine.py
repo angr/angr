@@ -629,6 +629,7 @@ class SimEngineVEX(SimEngine):
         self._support_selfmodifying_code = state['_support_selfmodifying_code']
         self._single_step = state['_single_step']
         self._cache_size = state['_cache_size']
+        self.default_strict_block_end = state['default_strict_block_end']
 
         # rebuild block cache
         self._initialize_block_cache()
@@ -642,5 +643,6 @@ class SimEngineVEX(SimEngine):
         s['_support_selfmodifying_code'] = self._support_selfmodifying_code
         s['_single_step'] = self._single_step
         s['_cache_size'] = self._cache_size
+        s['default_strict_block_end'] = self.default_strict_block_end
 
         return s
