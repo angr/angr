@@ -8,7 +8,7 @@ import subprocess
 import os
 
 binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          os.path.join('..','..', '..', 'binaries','tests','x86_64','packed_binary'))
+                                          os.path.join('..','..', '..', 'binaries','tests','x86_64','packed_concrete_test'))
 
 
 GDB_SERVER_IP = '127.0.0.1'

@@ -8,7 +8,7 @@ import nose
 
 
 binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          os.path.join('..','..', '..', 'binaries','tests','i386','packed_binary'))
+                                          os.path.join('..','..', '..', 'binaries','tests','i386','packed_concrete_test32'))
 
 GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
@@ -82,9 +82,7 @@ def solv_concrete_engine_linux_x86(p,entry_state):
         new_concrete_state = execute_concretly(p, new_concrete_state,UNPACKING_BINARY,[])
      
     new_concrete_state = execute_concretly(p, new_concrete_state,BINARY_DECISION_ADDRESS,[])
-    
-    print(new_concrete_state)
-    
+
     arg0 = claripy.BVS('arg0',8*32)
     symbolic_buffer_address = new_concrete_state.regs.ebp-0xa0
     new_concrete_state.memory.store(symbolic_buffer_address,arg0)  
