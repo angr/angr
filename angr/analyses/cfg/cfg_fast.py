@@ -1001,7 +1001,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         try:
             return next(self._regions.irange(minimum=address, reverse=True))
-        except KeyError:
+        except StopIteration:
             return None
 
     # Methods for scanning the entire image
