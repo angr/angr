@@ -970,6 +970,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             start_addr = next(self._regions.irange(maximum=address, reverse=True))
         except KeyError:
             return False
+	except StopIteration:
+	    return False
         else:
             return address < self._regions[start_addr]
 
