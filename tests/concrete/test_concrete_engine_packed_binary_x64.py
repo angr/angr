@@ -105,8 +105,3 @@ def solv_concrete_engine_linux_x64(p,entry_state):
     nose.tools.assert_true(binary_configuration == correct_solution)
 
 
-
-
-setup_x64()
-test_concrete_engine_linux_x64_unicorn_no_simprocedures()
-teardown()

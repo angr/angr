@@ -9,7 +9,7 @@ l = logging.getLogger("state_plugin.concrete")
 
 
 class Concrete(SimStatePlugin):
-    def __init__(self, segment_registers_initialized=False, segment_registers_callback_initialized=False, whitelist=[]):
+    def __init__(self, segment_registers_initialized=False, segment_registers_callback_initialized=False, whitelist=[], fs_register_bp=None):
         self.segment_registers_initialized = segment_registers_initialized
         self.segment_registers_callback_initialized = segment_registers_callback_initialized
 
@@ -19,7 +19,9 @@ class Concrete(SimStatePlugin):
     def copy(self, _memo):
         conc = Concrete(segment_registers_initialized=self.segment_registers_initialized,
                         segment_registers_callback_initialized=self.segment_registers_callback_initialized,
-                        whitelist=self.whitelist)
+                        whitelist=self.whitelist,
+                        fs_register_bp = self.fs_register_bp
+                        )
         return conc
 
     def merge(self):
@@ -29,7 +31,7 @@ class Concrete(SimStatePlugin):
         pass
 
     def set_state(self, state):
-        super(SimStatePlugin, self).set_state(self, state)
+        SimStatePlugin.set_state(self, state)
 
     def sync(self):
         """
@@ -114,9 +116,9 @@ class Concrete(SimStatePlugin):
             self.whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
         state.inspect.remove_breakpoint('reg_read', bp=self.fs_register_bp)
-        self.segment_registers_initialized = True
+        state.concrete.segment_registers_initialized = True
 
-        self.fs_register_bp = None
+        state.concrete.fs_register_bp = None
 
 
 
