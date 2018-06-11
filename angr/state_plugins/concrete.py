@@ -113,9 +113,9 @@ class Concrete(SimStatePlugin):
             state.project.simos.initialize_segment_register_x64(state, target)
         elif isinstance(state.arch, ArchX86):
             gdt = state.project.simos.initialize_gdt_x86(state, target)
-            self.whitelist.append((gdt.addr, gdt.addr + gdt.limit))
+            state.concrete.whitelist.append((gdt.addr, gdt.addr + gdt.limit))
 
-        state.inspect.remove_breakpoint('reg_read', bp=self.fs_register_bp)
+        state.inspect.remove_breakpoint('reg_read', bp=state.concrete.fs_register_bp)
         state.concrete.segment_registers_initialized = True
 
         state.concrete.fs_register_bp = None
