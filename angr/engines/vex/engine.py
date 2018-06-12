@@ -357,9 +357,6 @@ class SimEngineVEX(SimEngine):
             state.scratch.num_insns += 1
             state._inspect('instruction', BP_BEFORE, instruction=ins_addr)
 
-            print(stmt)
-            print(state.project.factory.block(state.se.eval(state.regs.pc)).capstone.pp())
-
         # process it
         s_stmt = translate_stmt(stmt, state)
         if s_stmt is not None:
