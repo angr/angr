@@ -11,8 +11,6 @@ binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86','windows','simple_crackme_x86.exe'))
 
 GDB_SERVER_IP = '192.168.57.3'
-#GDB_SERVER_IP = '192.168.56.101'
-#GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
 
 BEFORE_STRCMP_X86 = 0x40155B
@@ -57,6 +55,7 @@ def test_concrete_engine_windows_x86_simprocedures():
     entry_state = p.factory.entry_state()
     solv_concrete_engine_windows_x86(p, entry_state)
 
+
 @nose.with_setup(setup_x86, teardown)
 def test_concrete_engine_windows_x86_unicorn_no_simprocedures():
     global avatar_gdb
@@ -75,6 +74,7 @@ def test_concrete_engine_windows_x86_unicorn_simprocedures():
     p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=True)
     entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
     solv_concrete_engine_windows_x86(p, entry_state)
+
 
 def solv_concrete_engine_windows_x86(p,entry_state):
     simgr = p.factory.simgr(entry_state)
