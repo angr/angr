@@ -107,7 +107,7 @@ setup(
         'dpkt-fix',
         'futures; python_version == "2.7"',
         'mulpyplexer',
-        'networkx',
+        'networkx>=2.0',
         'progressbar',
         'rpyc',
         'cffi>=1.7.0',
