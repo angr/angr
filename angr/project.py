@@ -319,18 +319,6 @@ class Project(object):
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
                 self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
 
-    def rehook_symbol(self, new_address, symbol_name):
-
-        #print("Rehooking " + symbol_name + "with: " + hex(new_address))
-        new_sim_procedures = {}
-        for key_address, simproc_obj in self._sim_procedures.items():
-            if simproc_obj.display_name == symbol_name:
-                new_sim_procedures[new_address] = simproc_obj
-            else:
-                new_sim_procedures[key_address] = simproc_obj
-
-        self._sim_procedures = new_sim_procedures
-
     def _check_user_blacklists(self, f):
         """
         Has symbol name `f` been marked for exclusion by any of the user
@@ -535,6 +523,25 @@ class Project(object):
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         self.unhook(hook_addr)
         return True
+
+
+    def rehook_symbol(self, new_address, symbol_name):
+        """
+        Rehook a symbol in the simprocedures table given a name of the
+        function if it exists.
+        :param new_address:
+        :param symbol_name:
+        :return:
+        """
+        new_sim_procedures = {}
+        for key_address, simproc_obj in self._sim_procedures.items():
+            if simproc_obj.display_name == symbol_name:
+                new_sim_procedures[new_address] = simproc_obj
+            else:
+                new_sim_procedures[key_address] = simproc_obj
+
+        self._sim_procedures = new_sim_procedures
+
 
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
