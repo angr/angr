@@ -522,7 +522,6 @@ class Project(object):
         self.unhook(hook_addr)
         return True
 
-
     def rehook_symbol(self, new_address, symbol_name):
         """
         Rehook a symbol in the simprocedures table given a name of the
