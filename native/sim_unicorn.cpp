@@ -839,7 +839,7 @@ public:
 
 			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
 			uc_mem_read(this->uc, address, instructions.get(), size);
-			IRSB *the_block = vex_lift(this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0);
+			IRSB *the_block = vex_lift(this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1);
 
 			if (the_block == NULL) {
 				// TODO: how to handle?

@@ -263,7 +263,8 @@ class AngrObjectFactory(object):
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None, insn_text=None  # backward compatibility
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None,
               ):
 
         if insn_bytes is not None and insn_text is not None:
@@ -283,7 +284,8 @@ class AngrObjectFactory(object):
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
             size = max_size
         return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
-                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags
+                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
+                     strict_block_end=strict_block_end
                      )
 
     def fresh_block(self, addr, size, backup_state=None):
