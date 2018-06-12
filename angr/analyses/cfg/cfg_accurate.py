@@ -1938,10 +1938,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
             dst_node_addr = dst_node.addr
             dst_codenode = dst_node.to_codenode()
+            dst_node_func_addr = dst_node.function_address
         else:
             dst_node = None
             dst_node_addr = None
             dst_codenode = None
+            dst_node_func_addr = None
 
         if src_node_key is None:
             if dst_node is None:
@@ -1994,7 +1996,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if dst_node is not None:
                 # Create a returning edge in the caller function
                 self.kb.functions._add_return_from_call(
-                    function_addr=dst_node.function_address,
+                    function_addr=dst_node_func_addr,
                     src_function_addr=src_node.function_address,
                     to_node=dst_codenode,
                 )
@@ -2010,11 +2012,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         elif jumpkind == 'Ijk_Boring':
 
             src_obj = self.project.loader.find_object_containing(src_node.addr)
-            dest_obj = self.project.loader.find_object_containing(dst_node.addr)
+            dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
 
             if src_obj is dest_obj:
                 # Jump/branch within the same object. Might be an outside jump.
-                to_outside = src_node.function_address != dst_node.function_address
+                to_outside = src_node.function_address != dst_node_func_addr
             else:
                 # Jump/branch between different objects. Must be an outside jump.
                 to_outside = True
@@ -2033,7 +2035,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
                     to_node=dst_codenode,
-                    to_function_addr=dst_node.function_address,
+                    to_function_addr=dst_node_func_addr,
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                 )

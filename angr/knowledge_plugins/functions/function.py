@@ -539,15 +539,20 @@ class Function(object):
 
         if outside:
             self._register_nodes(True, from_node)
-            self._register_nodes(False, to_node)
+            if to_node is not None:
+                self._register_nodes(False, to_node)
 
             self._jumpout_sites.add(from_node)
         else:
-            self._register_nodes(True, from_node, to_node)
+            if to_node is not None:
+                self._register_nodes(True, from_node, to_node)
+            else:
+                self._register_nodes(True, from_node)
 
-        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
-                                       stmt_idx=stmt_idx
-                                       )
+        if to_node is not None:
+            self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
+                                           stmt_idx=stmt_idx
+                                           )
 
         if outside:
             # this node is an endpoint of the current function
