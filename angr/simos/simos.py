@@ -315,7 +315,7 @@ class SimOS(object):
                                          A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
 
         table = normal_entry + stack_entry + fs_entry + gs_entry
-        gdt = (GDT_ADDR << 16 | GDT_LIMIT)
+        gdt =  (GDT_ADDR << 16 | GDT_LIMIT)
         selector = self._create_selector(1, S_GDT | S_PRIV_0)
         cs = selector
         ds = selector
@@ -328,9 +328,6 @@ class SimOS(object):
         gs = selector
         global_descriptor_table = GlobalDescriptorTable(GDT_ADDR,GDT_LIMIT,table,gdt,cs,ds,es,ss,fs,gs)
         return global_descriptor_table
-
-    def get_segment_register_name(self):
-        return None
 
     @staticmethod
     def _create_selector(idx, flags):

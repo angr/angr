@@ -14,13 +14,13 @@ class Concrete(SimStatePlugin):
         self.segment_registers_callback_initialized = segment_registers_callback_initialized
 
         self.whitelist = whitelist
-        self.fs_register_bp = None
+        self.fs_register_bp = fs_register_bp
 
     def copy(self, _memo):
         conc = Concrete(segment_registers_initialized=self.segment_registers_initialized,
                         segment_registers_callback_initialized=self.segment_registers_callback_initialized,
                         whitelist=self.whitelist,
-                        fs_register_bp = self.fs_register_bp
+                        fs_register_bp=self.fs_register_bp
                         )
         return conc
 

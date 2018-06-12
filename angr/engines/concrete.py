@@ -120,9 +120,14 @@ class SimEngineConcrete(SimEngine):
         # handling the case in which the program stops at a point different than the breakpoints set
         # by the user. In these case we try to resume the execution hoping that the concrete process will
         # reach the correct address.
+
         number_of_attempt = 4
+        attempt = 0
 
         while self.target.read_register("pc") not in extra_stop_points:
+            attempt = attempt + 1
+            if attempt == number_of_attempt:
+                l.warn("Reached max number of hits of not expected breakpoints. Aborting.")
             if self.target.timeout:
                 signal.alarm(self.target.timeout)
             self.target.run()
