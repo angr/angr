@@ -33,7 +33,6 @@ class SimOS(object):
         self.return_deadend = None
         self.unresolvable_target = None
 
-
     def configure_project(self):
         """
         Configure the project to set up global settings (like SimProcedures).
@@ -279,7 +278,6 @@ class SimOS(object):
     def syscall_from_number(self, number, allow_unsupported=True, abi=None):
         return None
 
-        
     def setup_gdt(self, state, gdt):
 
         state.memory.store(gdt.addr+8, gdt.table)
@@ -290,7 +288,6 @@ class SimOS(object):
         state.regs.ss = gdt.ss
         state.regs.fs = gdt.fs
         state.regs.gs = gdt.gs
-
 
     def generate_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
         A_PRESENT = 0x80
@@ -326,7 +323,7 @@ class SimOS(object):
         fs = selector
         selector = self._create_selector(4, S_GDT | S_PRIV_0)
         gs = selector
-        global_descriptor_table = GlobalDescriptorTable(GDT_ADDR,GDT_LIMIT,table,gdt,cs,ds,es,ss,fs,gs)
+        global_descriptor_table = GlobalDescriptorTable(GDT_ADDR, GDT_LIMIT, table, gdt, cs, ds, es, ss, fs, gs)
         return global_descriptor_table
 
     def get_segment_register_name(self):
@@ -351,7 +348,7 @@ class SimOS(object):
 
 class GlobalDescriptorTable(object):
 
-    def __init__(self,addr,limit,table,gdt_sel,cs_sel,ds_sel,es_sel,ss_sel,fs_sel,gs_sel):
+    def __init__(self, addr, limit, table, gdt_sel, cs_sel, ds_sel, es_sel, ss_sel, fs_sel, gs_sel):
         self.addr = addr
         self.limit = limit
         self.table = table

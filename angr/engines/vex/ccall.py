@@ -1091,7 +1091,6 @@ def get_segdescr_limit(state, descriptor):
 
 def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     # TODO Read/write/exec bit handling
-
     def bad(msg):
         if msg:
             l.warning("x86g_use_seg_selector: " + msg)
@@ -1168,7 +1167,6 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     #With the concrete target
     if state.se.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
         return bad("virtual_addr >= limit")
-
 
     r = (base + virtual_addr).zero_extend(32)
     l.debug("x86g_use_seg_selector: addr=" + str(r))

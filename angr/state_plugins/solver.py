@@ -359,9 +359,7 @@ class SimSolver(SimStatePlugin):
                 l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
         else:
             r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
-
             if key is not None:
-
                 self.register_variable(r, key, eternal)
 
         if inspect:

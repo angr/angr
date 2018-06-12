@@ -31,6 +31,5 @@ vex_preset.add_default_plugin('unicorn', SimEngineUnicorn)
 vex_preset.add_default_plugin('vex', SimEngineVEX)
 vex_preset.add_default_plugin('concrete', SimEngineConcrete)
 
-
 vex_preset.order = 'unicorn', 'vex', 'concrete'
 vex_preset.default_engine = 'vex'
