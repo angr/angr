@@ -1,10 +1,10 @@
-from angr.engines import SimEngine
-from angr_targets.concrete import ConcreteTarget
 import logging
 import signal
 import sys
+from angr.engines import SimEngine
+from angr_targets.concrete import ConcreteTarget
 
-#pylint: disable=arguments-differ
+
 l = logging.getLogger("angr.engines.concrete")
 l.setLevel(logging.DEBUG)
 
@@ -34,11 +34,11 @@ class SimEngineConcrete(SimEngine):
         self.segment_registers_already_init = False
 
     def process(self, state,
-            step=None,
-            extra_stop_points=None,
-            inline=False,
-            force_addr=None,
-            **kwargs):
+                step=None,
+                extra_stop_points=None,
+                inline=False,
+                force_addr=None,
+                **kwargs):
         """
         :param state:               The state with which to execute
         :param step:                How many basic blocks we want to execute
@@ -50,18 +50,16 @@ class SimEngineConcrete(SimEngine):
                                     whether it succeeded.
         """
         return super(SimEngineConcrete, self).process(state,
-                step=step,
-                extra_stop_points=extra_stop_points,
-                inline=inline,
-                force_addr=force_addr,
-                **kwargs)
+                    step=step,
+                    extra_stop_points=extra_stop_points,
+                    inline=inline,
+                    force_addr=force_addr,
+                    **kwargs)
 
     def _check(self, state, **kwargs):
-        # Whatever checks before turning on this engine
-        # TODO
         return True
 
-    def _process(self, state, successors, step, extra_stop_points = None, concretize = None, **kwargs ):
+    def _process(self, state, successors, step, extra_stop_points=None, concretize=None, **kwargs):
 
         # setup the concrete process and resume the execution
         self.to_engine(state, extra_stop_points, concretize, **kwargs)
@@ -76,7 +74,7 @@ class SimEngineConcrete(SimEngine):
         successors.description = "Concrete Successors "
         successors.processed = True
 
-    def to_engine(self, state, extra_stop_points, concretize, **kwargs):
+    def to_engine(self, state, extra_stop_points, concretize):
         """
         Handling the switch between the execution in Angr and the concrete target.
         This method takes care of:

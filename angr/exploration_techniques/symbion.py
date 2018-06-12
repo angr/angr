@@ -1,6 +1,6 @@
+import logging
 from . import ExplorationTechnique
 
-import logging
 l = logging.getLogger("angr.exploration_techniques.symbion")
 
 
@@ -10,7 +10,7 @@ class Symbion(ExplorationTechnique):
      to step a SimState.
      :param find: address or list of addresses that we want to reach, these will be translated into breakpoints
                   inside the concrete process using the ConcreteTarget interface provided by the user
-                  that is living inside the SimEngineConcrete.
+                  inside the SimEngineConcrete.
      :param concretize: list of symbolic variables to concretize and write inside
                         the concrete process.
     """
@@ -30,10 +30,10 @@ class Symbion(ExplorationTechnique):
             l.warning("No stashes to step, aborting.")
             return
 
-        # check if the stash contains only one SimState and if not warn the user that only the first state
-        # in the stash can be stepped in the SimEngineConcrete.
-        # This because for now we support only one concrete execution, in future we can think about a snapshot
-        # engine and give to each SimState an instance of a concrete process.
+        # check if the stash contains only one SimState and if not warn the user that only the
+        # first state in the stash can be stepped in the SimEngineConcrete.
+        # This because for now we support only one concrete execution, in future we can think about
+        # a snapshot engine and give to each SimState an instance of a concrete process.
         if len(simgr.stashes[stash]) > 1:
             l.warning("You are trying to use the Symbion exploration technique on multiple state, "
                       "this is not supported now.")
@@ -51,7 +51,7 @@ class Symbion(ExplorationTechnique):
         """
         self.project.engines.default_engine = "concrete"
         ss = self.project.factory.successors(state, default_engine=True,
-                                                extra_stop_points=self.find, concretize=self.concretize)
+                                             extra_stop_points=self.find, concretize=self.concretize)
 
 
         return {'found': ss.successors}

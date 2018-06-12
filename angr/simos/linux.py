@@ -1,11 +1,11 @@
 import os
 import logging
-
+import struct
 import claripy
 from cle import MetaELF
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
-import struct
+
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
@@ -307,13 +307,9 @@ class SimLinux(SimUserland):
                 basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
             return basic_addr, basic_addr
 
-
-
     def initialize_segment_register_x64(self, state, concrete_target):
         _l.debug("Synchronizing fs segment register")
         state.regs.fs = self._read_fs_register_x64(concrete_target)
-
-
 
     def initialize_gdt_x86(self,state,concrete_target):
         _l.debug("Creating fake Global Descriptor Table and synchronizing gs segment register")
@@ -328,8 +324,8 @@ class SimLinux(SimUserland):
 
         return gdt
 
-
-    def _read_fs_register_x64(self, concrete_target):
+    @staticmethod
+    def _read_fs_register_x64(concrete_target):
         '''
         Injects small shellcode to leak the fs segment register address. In Linux x64 this address is pointed by fs[0]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
@@ -343,8 +339,8 @@ class SimLinux(SimUserland):
 
         return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
 
-
-    def _read_gs_register_x86(self, concrete_target):
+    @staticmethod
+    def _read_gs_register_x86(concrete_target):
         '''
         Injects small shellcode to leak the fs segment register address. In Linux x86 this address is pointed by gs[0]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
@@ -356,7 +352,6 @@ class SimLinux(SimUserland):
         # instruction to inject for reading the value at segment value = offset
         read_gs0_x64 = "\x65\xA1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
         return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
-
 
     def get_segment_register_name(self):
         if isinstance(self.arch, ArchAMD64):

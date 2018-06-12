@@ -417,11 +417,9 @@ class SimWindows(SimOS):
         state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved
         state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
 
-
     def initialize_segment_register_x64(self, state, concrete_target):
         _l.debug("Synchronizing gs segment register")
         state.regs.gs = self._read_gs_register_x64(concrete_target)
-
 
     def initialize_gdt_x86(self,state,concrete_target):
         _l.debug("Creating Global Descriptor Table and synchronizing fs segment register")
@@ -430,6 +428,7 @@ class SimWindows(SimOS):
         self.setup_gdt(state,gdt)
         return gdt
 
+    @staticmethod
     def _read_fs_register_x86(self, concrete_target):
         '''
         Injects small shellcode to leak the fs segment register address. In Windows x86 this address is pointed by gs:[0x18]
@@ -442,6 +441,7 @@ class SimWindows(SimOS):
         read_fs0_x86 = "\x64\xA1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
         return concrete_target.execute_shellcode(read_fs0_x86, exfiltration_reg)
 
+    @staticmethod
     def _read_gs_register_x64(self, concrete_target):
         '''
         Injects small shellcode to leak the gs segment register address. In Windows x64 this address is pointed by gs:[0x30]

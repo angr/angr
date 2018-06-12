@@ -13,9 +13,6 @@ _ffi = cffi.FFI()
 
 import logging
 l = logging.getLogger("angr.storage.paged_memory")
-#l.setLevel(logging.DEBUG)
-
-
 
 class BasePage(object):
     """
@@ -480,7 +477,6 @@ class SimPagedMemory(object):
         self._initialized.add(n)
 
         new_page_addr = n*self._page_size
-
         initialized = False
 
         if self.state is not None:
@@ -497,13 +493,11 @@ class SimPagedMemory(object):
                 self._apply_object_to_page(n * self._page_size, mo, page=new_page)
                 initialized = True
             except ConcreteMemoryError:
-                '''
-                the address requested is not mapped in the concrete process memory
-                this can happen when a memory allocation function/syscall is invoked in the simulated execution
-                and the map_region function is called 
-                '''
-                return
+                l.debug("The address requested is not mapped in the concrete process memory \
+                this can happen when a memory allocation function/syscall is invoked in the simulated execution \
+                and the map_region function is called")
 
+                return
 
         elif isinstance(self._memory_backer, cle.Clemory):
             # first, find the right clemory backer

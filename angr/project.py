@@ -120,7 +120,6 @@ class Project(object):
             l.info("Loading binary from stream")
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
-
         elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
@@ -170,7 +169,7 @@ class Project(object):
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
-        self._executing = False  # this is a flag for the convenience API, exec() and terminate_execution() below
+        self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
 
         if support_selfmodifying_code:
             if translation_cache is True:
@@ -221,7 +220,7 @@ class Project(object):
         # Step 6: Register simprocedures as appropriate for library functions
         for obj in self.loader.initial_load_objects:
             self._register_object(obj)
-            
+
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
 
@@ -448,7 +447,6 @@ class Project(object):
         :returns:           The address of the new symbol.
         :rtype:             int
         """
-
         if type(obj) in (int, long):
             # this is pretty intensely sketchy
             l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)

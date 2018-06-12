@@ -120,8 +120,5 @@ class Concrete(SimStatePlugin):
         state.concrete.fs_register_bp = None
 
 
-
-from .. import sim_options as options
-
 from angr.sim_state import SimState
 SimState.register_default('concrete', Concrete)

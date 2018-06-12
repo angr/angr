@@ -4,7 +4,6 @@ from .engine import SimEngine
 from .successors import SimSuccessors
 
 l = logging.getLogger("angr.engines.hook")
-l.setLevel(logging.DEBUG)
 
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ
@@ -24,8 +23,6 @@ class SimEngineHook(SimEngine):
                     return True
                 return False
 
-        #l.debug(hex(state.addr) + " is in sim_procedures dict, SimProc: " + str(self.project._sim_procedures[state.addr]))
-
         return True
 
     def process(self, state, procedure=None, force_addr=None, **kwargs):
@@ -39,7 +36,6 @@ class SimEngineHook(SimEngine):
         :param force_addr:  Force execution to pretend that we're working at this concrete address
         :returns:           A SimSuccessors object categorizing the execution's successor states
         """
-
         addr = state.addr if force_addr is None else force_addr
 
         if procedure is None:
