@@ -5,7 +5,7 @@ import logging
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
@@ -53,21 +53,20 @@ class Concrete(SimStatePlugin):
 
         # Sync Angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
-        regs_blacklist = ['fs', 'gs']
         l.info("Synchronizing general purpose registers")
 
-        for reg_key, reg_name in self.state.arch.register_names.items():
-            if reg_name not in regs_blacklist:
-                try:
-                    reg_value = target.read_register(reg_name)
-                    setattr(self.state.regs, reg_name, reg_value)
+        for reg_key, reg_name in self.state.arch.concrete_register_names.items():
 
-                    l.debug("Register: %s value: %x " % (reg_name,
-                                                         self.state.se.eval(getattr(self.state.regs, reg_name),
-                                                                            cast_to=int)))
-                except ConcreteRegisterError as exc:
-                    l.debug("Can't set register %s reason: %s, if this register is not used "
-                            "this message can be ignored" % (reg_name, exc))
+            try:
+                reg_value = target.read_register(reg_name)
+                setattr(self.state.regs, reg_name, reg_value)
+
+                l.debug("Register: %s value: %x " % (reg_name,
+                                                     self.state.se.eval(getattr(self.state.regs, reg_name),
+                                                                        cast_to=int)))
+            except ConcreteRegisterError as exc:
+                l.debug("Can't set register %s reason: %s, if this register is not used "
+                        "this message can be ignored" % (reg_name, exc))
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
