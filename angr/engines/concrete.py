@@ -128,13 +128,14 @@ class SimEngineConcrete(SimEngine):
             attempt = attempt + 1
             if attempt == number_of_attempt:
                 l.warn("Reached max number of hits of not expected breakpoints. Aborting.")
-            if self.target.timeout:
-                signal.alarm(self.target.timeout)
-            self.target.run()
-            l.warn("Stopped a pc %s but breakpoint set to %s so resuming concrete execution"
-                   % (hex(self.target.read_register("pc")), [hex(bp) for bp in extra_stop_points]))
+            else:
+                if self.target.timeout:
+                    signal.alarm(self.target.timeout)
+                self.target.run()
+                l.warn("Stopped a pc %s but breakpoint set to %s so resuming concrete execution"
+                       % (hex(self.target.read_register("pc")), [hex(bp) for bp in extra_stop_points]))
 
-        # restoring old sigalrm handler
-        if self.target.timeout:
-            signal.signal(signal.SIGALRM, original_sigalrm_handler)
+            # restoring old sigalrm handler
+            if self.target.timeout:
+                signal.signal(signal.SIGALRM, original_sigalrm_handler)
 
