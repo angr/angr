@@ -1118,8 +1118,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     # RPL=11 check
     #if state.se.is_true((seg_selector & 3) != 3):
-    #    return bad and
-
+    #    return bad
 
     tiBit = (seg_selector >> 2) & 1
     if state.se.is_true(tiBit == 0):

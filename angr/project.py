@@ -220,7 +220,7 @@ class Project(object):
         # Step 6: Register simprocedures as appropriate for library functions
         for obj in self.loader.initial_load_objects:
             self._register_object(obj)
-            
+
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
 

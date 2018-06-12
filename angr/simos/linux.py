@@ -1,11 +1,11 @@
 import os
 import logging
-
+import struct
 import claripy
 from cle import MetaELF
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
-import struct
+
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
