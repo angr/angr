@@ -6,7 +6,7 @@ from angr_targets.concrete import ConcreteTarget
 
 
 l = logging.getLogger("angr.engines.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 def timeout_handler():
@@ -84,11 +84,11 @@ class SimEngineConcrete(SimEngine):
         3- Continue the program execution.
         :return:
         """
-        l.info("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
+        l.warn("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
                (hex(state.addr), hex(self.target.read_register("pc")), extra_stop_points))
 
         if concretize:
-            l.info("Concretize variables before entering inside the SimEngineConcrete | "
+            l.warn("Concretize variables before entering inside the SimEngineConcrete | "
                    "Be patient this could take a while.")
 
             for sym_var in concretize:

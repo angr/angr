@@ -152,6 +152,7 @@ class Project(object):
                       "Project causes the resulting object to be un-serializable.")
 
         self._sim_procedures = {}
+
         self.concrete_target = concrete_target
 
         # It doesn't make any sense to have auto_load_libs
@@ -160,6 +161,10 @@ class Project(object):
         if self.concrete_target and auto_load_lib_opt:
             l.critical("Incompatible options selected for this project, please disable auto_load_libs if "
                        "you want to use a concrete target.")
+            raise Exception("Incompatible options for the project")
+
+        if self.concrete_target and self.arch.name not in ['X86', 'AMD64']:
+            l.critical("Concrete execution does not support yet the selected architecture. Aborting.")
             raise Exception("Incompatible options for the project")
 
         self._default_analysis_mode = default_analysis_mode
