@@ -456,6 +456,10 @@ class SimWindows(SimOS):
 
     def get_segment_register_name(self):
         if isinstance(self.arch, ArchAMD64):
-            return self.arch.registers['gs'][0]  # return gs, archinfo/amd64
+            for register in self.arch.register_list:
+                if register.name == 'gs':
+                    return register.vex_offset
         elif isinstance(self.arch, ArchX86):
-            return self.arch.registers['fs'][0]  # return fs, archinfo/x86
+            for register in self.arch.register_list:
+                if register.name == 'fs':
+                    return register.vex_offset

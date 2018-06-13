@@ -55,18 +55,19 @@ class Concrete(SimStatePlugin):
         # registers that we don't want to concretize.
         l.info("Synchronizing general purpose registers")
 
-        for reg_key, reg_name in self.state.arch.concrete_register_names.items():
+        to_sync_register = list(filter(lambda x: x.concrete, self.state.arch.register_list))
 
+        for register in to_sync_register:
             try:
-                reg_value = target.read_register(reg_name)
-                setattr(self.state.regs, reg_name, reg_value)
+                reg_value = target.read_register(register.name)
+                setattr(self.state.regs, register.name, reg_value)
 
-                l.debug("Register: %s value: %x " % (reg_name,
-                                                     self.state.se.eval(getattr(self.state.regs, reg_name),
+                l.debug("Register: %s value: %x " % (register.name,
+                                                     self.state.se.eval(getattr(self.state.regs, register.name),
                                                                         cast_to=int)))
             except ConcreteRegisterError as exc:
                 l.debug("Can't set register %s reason: %s, if this register is not used "
-                        "this message can be ignored" % (reg_name, exc))
+                        "this message can be ignored" % (register.name, exc))
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary

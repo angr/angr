@@ -6,7 +6,7 @@ from angr_targets.concrete import ConcreteTarget
 
 
 l = logging.getLogger("angr.engines.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 def timeout_handler():
@@ -32,6 +32,7 @@ class SimEngineConcrete(SimEngine):
             self.target = None
 
         self.segment_registers_already_init = False
+        self.unexpected_stop_points_limit = 4
 
     def process(self, state,
                 step=None,
@@ -83,11 +84,11 @@ class SimEngineConcrete(SimEngine):
         3- Continue the program execution.
         :return:
         """
-        l.info("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
+        l.warn("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
                (hex(state.addr), hex(self.target.read_register("pc")), extra_stop_points))
 
         if concretize:
-            l.info("Concretize variables before entering inside the SimEngineConcrete | "
+            l.warn("Concretize variables before entering inside the SimEngineConcrete | "
                    "Be patient this could take a while.")
 
             for sym_var in concretize:
@@ -119,13 +120,12 @@ class SimEngineConcrete(SimEngine):
         # by the user. In these case we try to resume the execution hoping that the concrete process will
         # reach the correct address.
 
-        number_of_attempt = 4
-        attempt = 0
+        unexpected_breakpoint_cnt = 0
 
         while self.target.read_register("pc") not in extra_stop_points:
             print(extra_stop_points)
-            attempt = attempt + 1
-            if attempt == number_of_attempt:
+            unexpected_breakpoint_cnt = unexpected_breakpoint_cnt + 1
+            if unexpected_breakpoint_cnt == self.unexpected_stop_points_limit:
                 l.warn("Reached max number of hits of not expected breakpoints. Aborting.")
             else:
                 if self.target.timeout:
