@@ -1,12 +1,11 @@
 from . import JNISimProcedure
-
 from ...engines.soot.values import SimSootValue_InstanceFieldRef
 
-class GetField(JNISimProcedure):
+class SetField(JNISimProcedure):
 
-    return_ty = None
+    return_ty = 'void'
 
-    def run(self, ptr_env, obj_, field_id_):
+    def run(self, ptr_env, obj_, field_id_, value_):
         # lookup parameter
         obj = self.state.jni_references.lookup(obj_)
         field_id = self.state.jni_references.lookup(field_id_)
@@ -15,27 +14,9 @@ class GetField(JNISimProcedure):
                                                   class_name=field_id.class_name,
                                                   field_name=field_id.name,
                                                   type_=field_id.type)
-        # load value from java memory
+        # cast value to java type
+        value = self.state.project.simos.cast_primitive(value=value_.to_claripy(), 
+                                                        to_type=field_id.type)
+        # store value in java memory
         javavm_memory = self.state.get_javavm_view_of_plugin('memory')
-        return javavm_memory.load(field_ref)
-
-class GetBooleanField(GetField):
-    return_ty = 'boolean'
-
-class GetByteField(GetField):
-    return_ty = 'byte'
-
-class GetCharField(GetField):
-    return_ty = 'char'
-
-class GetShortField(GetField):
-    return_ty = 'short'
-
-class GetIntField(GetField):
-    return_ty = 'int'
-
-class GetLongField(GetField):
-    return_ty = 'long'
-
-class GetObjectField(GetField):
-    return_ty = 'reference'
+        javavm_memory.store(field_ref, value)

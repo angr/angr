@@ -27,6 +27,18 @@ class SimJavaVmClassloader(SimStatePlugin):
     def is_class_loaded(self, class_):
         return class_.name in self._classes_loaded
 
+    def get_class(self, name):
+        try:
+            return self.state.project.loader.main_object.classes[name]
+        except KeyError:
+            return None
+    
+    def get_superclass(self, name):
+        base_class  = self.get_class(name)
+        if base_class:
+            return self.get_class(base_class.super_class)
+        return None
+
     @SimStatePlugin.memo
     def copy(self, memo):
         return SimJavaVmClassloader(

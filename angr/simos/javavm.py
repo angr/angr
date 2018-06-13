@@ -252,6 +252,10 @@ class SimJavaVM(SimOS):
     # MISC
     #
 
+    @property
+    def native_arch(self):
+        return self.native_simos.arch
+
     @staticmethod
     def get_java_type_from_signature(type_sig):
         sig_dict = {'I' : 'int'}

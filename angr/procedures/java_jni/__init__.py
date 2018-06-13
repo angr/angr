@@ -4,6 +4,7 @@ from ...sim_type import SimTypeFunction
 from ...calling_conventions import DefaultCC
 from archinfo import ArchSoot
 from ...state_plugins.sim_action_object import SimActionObject
+import itertools
 
 
 class JNISimProcedure(SimProcedure):
@@ -82,6 +83,30 @@ class JNISimProcedure(SimProcedure):
         else:
             return values
 
+    def _load_string_from_native_memory(self, addr_):
+
+        # check if addr is symbolic
+        if self.state.solver.symbolic(addr_):
+            l.error("Loading strings from symbolic addresses is not implemented. "
+                    "Continue execution with an empty string.")
+            return ""
+        addr = self.state.solver.eval(addr_)
+
+        # load chars one by one
+        chars = []
+        for i in itertools.count():
+            str_byte = self.state.memory.load(addr+i, size=1)
+            if self.state.solver.symbolic(str_byte):
+                l.error("Loading strings with symbolic chars is not implemented "
+                        "Continue execution with an empty string.")
+                return ""
+            str_byte = self.state.solver.eval(str_byte)
+            if str_byte == 0:
+                break
+            chars.append(chr(str_byte))
+
+        return "".join(chars)
+
     #
     # MISC
     #
@@ -100,8 +125,14 @@ class JNISimProcedure(SimProcedure):
         else:
             return idx.get_bytes(index=0, size=4)
 
+class FieldID:
+    def __init__(self, class_name, name, type_):
+        self.class_name = class_name
+        self.name = name
+        self.type = type_
+
 # Dictionary containing all functions from the JNI Native Interface struct
-# All entries with None are replaced with a NotImplemented SimProcedure
+# All entries with None are replaced with the NotImplemented SimProcedure
 jni_functions = [
     None, 		# reserved0
     None, 		# reserved1
@@ -207,13 +238,13 @@ jni_functions = [
     "GetLongField", # GetLongField
     None, 		# GetFloatField
     None, 		# GetDoubleField
-    None, 		# SetObjectField
-    None, 		# SetBooleanField
-    None, 		# SetByteField
-    None, 		# SetCharField
-    None, 		# SetShortField
-    None, 		# SetIntField
-    None, 		# SetLongField
+    "SetField", # SetObjectField
+    "SetField", # SetBooleanField
+    "SetField", # SetByteField
+    "SetField", # SetCharField
+    "SetField", # SetShortField
+    "SetField", # SetIntField
+    "SetField", # SetLongField
     None, 		# SetFloatField
     None, 		# SetDoubleField
     None, 		# GetStaticMethodID
