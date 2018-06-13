@@ -188,7 +188,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         data = self.load(0, size)
 
         kwargs['cast_to'] = kwargs.get('cast_to', str)
-        kwargs['extra_constraints'] = kwargs.get('extra_constraints', ()) + (self._size == size,)
+        kwargs['extra_constraints'] = tuple(kwargs.get('extra_constraints', ())) + (self._size == size,)
         return self.state.solver.eval(data, **kwargs)
 
     def read(self, pos, size, **kwargs):

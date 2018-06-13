@@ -34,7 +34,8 @@ class SimEngineVEX(SimEngine):
             cache_size=50000,
             default_opt_level=1,
             support_selfmodifying_code=None,
-            single_step=False):
+            single_step=False,
+            default_strict_block_end=False):
 
         super(SimEngineVEX, self).__init__(project)
 
@@ -44,6 +45,7 @@ class SimEngineVEX(SimEngine):
         self._support_selfmodifying_code = support_selfmodifying_code
         self._single_step = single_step
         self._cache_size = cache_size
+        self.default_strict_block_end = default_strict_block_end
 
         if self._use_cache is None:
             if project is not None:
@@ -388,7 +390,8 @@ class SimEngineVEX(SimEngine):
             num_inst=None,
             traceflags=0,
             thumb=False,
-            opt_level=None):
+            opt_level=None,
+            strict_block_end=None):
 
         """
         Lift an IRSB.
@@ -415,6 +418,7 @@ class SimEngineVEX(SimEngine):
         :param size:            The maximum size of the block, in bytes.
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
+        :param strict_block_end:   Whether to force blocks to end at all conditional branches (default: false)
         """
         # phase 0: sanity check
         if not state and not clemory and not insn_bytes:
@@ -445,6 +449,8 @@ class SimEngineVEX(SimEngine):
                 opt_level = 1
             else:
                 opt_level = self._default_opt_level
+        if strict_block_end is None:
+            strict_block_end = self.default_strict_block_end
         if self._support_selfmodifying_code:
             if opt_level > 0:
                 l.warning("Self-modifying code is not always correctly optimized by PyVEX. To guarantee correctness, VEX optimizations have been disabled.")
@@ -464,7 +470,7 @@ class SimEngineVEX(SimEngine):
             thumb = 0
 
         # phase 3: check cache
-        cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
+        cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
         if self._use_cache and cache_key in self._block_cache:
             self._block_cache_hits += 1
             irsb = self._block_cache[cache_key]
@@ -474,7 +480,7 @@ class SimEngineVEX(SimEngine):
             else:
                 size = stop_point - addr
                 # check the cache again
-                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
+                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
                 if cache_key in self._block_cache:
                     self._block_cache_hits += 1
                     return self._block_cache[cache_key]
@@ -482,7 +488,7 @@ class SimEngineVEX(SimEngine):
                     self._block_cache_misses += 1
         else:
             # a special case: `size` is used as the maximum allowed size
-            tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level)
+            tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level, strict_block_end)
             try:
                 irsb = self._block_cache[tmp_cache_key]
                 if irsb.size <= size:
@@ -509,7 +515,8 @@ class SimEngineVEX(SimEngine):
                                   num_inst=num_inst,
                                   bytes_offset=thumb,
                                   traceflags=traceflags,
-                                  opt_level=opt_level)
+                                  opt_level=opt_level,
+                                  strict_block_end=strict_block_end)
 
                 if subphase == 0:
                     # check for possible stop points
@@ -622,6 +629,7 @@ class SimEngineVEX(SimEngine):
         self._support_selfmodifying_code = state['_support_selfmodifying_code']
         self._single_step = state['_single_step']
         self._cache_size = state['_cache_size']
+        self.default_strict_block_end = state['default_strict_block_end']
 
         # rebuild block cache
         self._initialize_block_cache()
@@ -635,5 +643,6 @@ class SimEngineVEX(SimEngine):
         s['_support_selfmodifying_code'] = self._support_selfmodifying_code
         s['_single_step'] = self._single_step
         s['_cache_size'] = self._cache_size
+        s['default_strict_block_end'] = self.default_strict_block_end
 
         return s
