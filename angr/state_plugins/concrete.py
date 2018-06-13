@@ -58,18 +58,15 @@ class Concrete(SimStatePlugin):
         to_sync_register = list(filter(lambda x: x.concrete, self.state.arch.register_list))
 
         for register in to_sync_register:
-            try:
-                reg_value = target.read_register(register.name)
-                setattr(self.state.regs, register.name, reg_value)
 
-                l.debug("Register: %s value: %x " % (register.name,
-                                                     self.state.se.eval(getattr(self.state.regs, register.name),
-                                                                        cast_to=int)))
-            except ConcreteRegisterError as exc:
-                l.debug("Can't set register %s reason: %s, if this register is not used "
-                        "this message can be ignored" % (register.name, exc))
+            # before let's sync all the subregisters of the current register.
+            # sometimes this can be helpful ( i.e. ymmm0 e xmm0 )
+            if register.subregisters:
+                subregisters_names = map(lambda x: x[0], register.subregisters)
+                self._sync_registers(subregisters_names, target)
 
-
+            # finally let's synchronize the whole register
+            self._sync_registers([register.name], target)
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
@@ -77,7 +74,7 @@ class Concrete(SimStatePlugin):
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.state.project.loader.main_object.relocs:
 
-                if reloc.symbol is not None:  # consider only reloc with a symbol
+                if reloc.symbol:  # consider only reloc with a symbol
                     l.debug("Trying to re-hook SimProc %s" % reloc.symbol.name)
                     l.debug("reloc.rebased_addr: %s " % hex(reloc.rebased_addr))
 
@@ -102,6 +99,18 @@ class Concrete(SimStatePlugin):
             self.segment_registers_callback_initialized = True
 
             l.debug("Set SimInspect breakpoint to the new state!")
+
+    def _sync_registers(self, register_names, target):
+        for register_name in register_names:
+            try:
+                reg_value = target.read_register(register_name)
+                setattr(self.state.regs, register_name, reg_value)
+                l.debug("Register: %s value: %x " % (register_name,
+                                                     self.state.se.eval(getattr(self.state.regs, register_name),
+                                                                        cast_to=int)))
+            except ConcreteRegisterError as exc:
+                l.debug("Can't set register %s reason: %s, if this register is not used "
+                        "this message can be ignored" % (register_name, exc))
 
 
     '''
