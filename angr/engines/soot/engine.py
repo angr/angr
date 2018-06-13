@@ -291,7 +291,7 @@ class SimEngineSoot(SimEngine):
         # Push parameter on new frame
         if hasattr(state.scratch.invoke_expr, "base"):
             this_ref, this_type = fixed_args.next()
-            local_name = "%s.this" % this_ref.type
+            local_name = "this"
             local = SimSootValue_Local(local_name, this_type)
             state.memory.store(local, this_ref)
 
