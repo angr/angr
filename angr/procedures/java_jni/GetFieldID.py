@@ -1,6 +1,6 @@
-from . import JNISimProcedure, FieldID
-
+from . import JNISimProcedure
 from ...engines.soot.values import SimSootValue_InstanceFieldRef
+from archinfo.arch_soot import SootFieldDescriptor
 
 import logging
 l = logging.getLogger('angr.procedures.java_jni.getfieldid')
@@ -23,9 +23,9 @@ class GetFieldID(JNISimProcedure):
             # if this class contains the field
             if self._class_contains_field(classes[-1], field_name, field_type):
                 # then create the field id
-                field_id = FieldID(class_name=classes[-1].name, 
-                                   name=field_name,
-                                   type_=field_type)
+                field_id = SootFieldDescriptor(class_name=classes[-1].name, 
+                                               name=field_name,
+                                               type_=field_type)
                 # and return an opaque reference to it
                 return self.state.jni_references.create_new_reference(field_id)
 

@@ -1,5 +1,4 @@
 from . import JNISimProcedure
-
 from ...engines.soot.values import SimSootValue_InstanceFieldRef
 
 class GetField(JNISimProcedure):

@@ -6,6 +6,8 @@ from archinfo import ArchSoot
 from ...state_plugins.sim_action_object import SimActionObject
 import itertools
 
+import logging
+l = logging.getLogger('angr.procedures.java_jni')
 
 class JNISimProcedure(SimProcedure):
 
@@ -124,12 +126,6 @@ class JNISimProcedure(SimProcedure):
             return idx.reversed.get_bytes(index=0, size=4).reversed
         else:
             return idx.get_bytes(index=0, size=4)
-
-class FieldID:
-    def __init__(self, class_name, name, type_):
-        self.class_name = class_name
-        self.name = name
-        self.type = type_
 
 # Dictionary containing all functions from the JNI Native Interface struct
 # All entries with None are replaced with the NotImplemented SimProcedure
