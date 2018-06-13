@@ -69,6 +69,8 @@ class Concrete(SimStatePlugin):
                 l.debug("Can't set register %s reason: %s, if this register is not used "
                         "this message can be ignored" % (register.name, exc))
 
+
+
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
         if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:

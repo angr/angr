@@ -49,15 +49,13 @@ class Symbion(ExplorationTechnique):
         :param kwargs:
         :return:
         """
-        self.project.engines.default_engine = "concrete"
-        ss = self.project.factory.successors(state, default_engine=True,
-                                             extra_stop_points=self.find, concretize=self.concretize)
 
+        ss = self.project.factory.successors(state, engines=['concrete'],
+                                             extra_stop_points=self.find, concretize=self.concretize)
 
         return {'found': ss.successors}
 
     def complete(self, simgr):
-        self.project.engines.default_engine = "vex"
         l.info("After concrete execution restoring vex engine as default")
         return len(simgr.stashes[self.find_stash]) >= 1
 
