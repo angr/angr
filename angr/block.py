@@ -16,7 +16,7 @@ class Block(object):
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 opt_level=None, num_inst=None, traceflags=0):
+                 opt_level=None, num_inst=None, traceflags=0, strict_block_end=None):
 
         # set up arch
         if project is not None:
@@ -57,7 +57,8 @@ class Block(object):
                         thumb=thumb,
                         opt_level=opt_level,
                         num_inst=num_inst,
-                        traceflags=traceflags)
+                        traceflags=traceflags,
+                        strict_block_end=strict_block_end)
                 size = vex.size
 
         self._vex = vex

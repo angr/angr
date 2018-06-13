@@ -297,7 +297,7 @@ class CongruencyCheck(Analysis):
         reg_diff = sr.registers.changed_bytes(sl.registers)
 
         # this is only for unicorn
-        if "UNICORN" in sl.options | sr.options:
+        if "UNICORN" in sl.options or "UNICORN" in sr.options:
             if sl.arch.name == "X86":
                 reg_diff -= set(range(40, 52)) #ignore cc psuedoregisters
                 reg_diff -= set(range(320, 324)) #some other VEX weirdness
