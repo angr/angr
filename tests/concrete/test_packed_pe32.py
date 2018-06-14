@@ -1,11 +1,9 @@
-#gdbserver 127.0.0.1:9999 /home/degrigis/Projects/Symbion/angr_tests/MalwareTest/dummy_malware
 import angr
 import claripy
 import avatar2 as avatar2
 from angr_targets import AvatarGDBConcreteTarget
 import os
 import nose
-import ipdb
 
 binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86','windows','packed_pe32.exe'))
