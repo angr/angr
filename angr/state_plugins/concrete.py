@@ -37,9 +37,11 @@ class Concrete(SimStatePlugin):
         """
         Handle the switch between the concrete execution and angr.
         This method takes care of:
-        1- Synchronize registers
+        1- Synchronize registers.
         2- Set a concrete target to the memory backer so the memory reads are redirected in the concrete process memory.
-        3- Flush all the pages loaded until now.
+        3- If possible restore the SimProcedures with the real addresses inside the concrete process.
+        4- Set an inspect point to sync the segments register as soon as they are read during the symbolic execution.
+        5- Flush all the pages loaded until now.
 
         :return:
         """
