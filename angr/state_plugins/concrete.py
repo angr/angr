@@ -94,7 +94,7 @@ class Concrete(SimStatePlugin):
         # on demand when the symbolic execution accesses it
         if not self.segment_registers_callback_initialized:
             self.fs_register_bp = self.state.inspect.b('reg_read', reg_read_offset=self.state.project.simos.get_segment_register_name(),
-                                                       action=self.sync_segments)
+                                                       action=self._sync_segments)
 
             self.segment_registers_callback_initialized = True
 
@@ -112,12 +112,11 @@ class Concrete(SimStatePlugin):
                 l.debug("Can't set register %s reason: %s, if this register is not used "
                         "this message can be ignored" % (register_name, exc))
 
-
-    '''
-     Segment registers synchronization is on demand as soon as the 
-     symbolic execution access a segment register. 
-    '''
-    def sync_segments(self, state):
+    def _sync_segments(self, state):
+        """
+        Segment registers synchronization is on demand as soon as the
+        symbolic execution access a segment register.
+        """
         target = state.project.concrete_target
 
         if isinstance(state.arch, ArchAMD64):
