@@ -279,7 +279,13 @@ class SimOS(object):
         return None
 
     def setup_gdt(self, state, gdt):
+        """
+        Write the GlobalDescriptorTable object in the current state memory
 
+        :param state: state in which to write the GDT
+        :param gdt: GlobalDescriptorTable object
+        :return:
+        """
         state.memory.store(gdt.addr+8, gdt.table)
         state.regs.gdt = gdt.gdt
         state.regs.cs = gdt.cs
@@ -290,6 +296,15 @@ class SimOS(object):
         state.regs.gs = gdt.gs
 
     def generate_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
+        """
+        Generate a GlobalDescriptorTable object and populate it using the value of the gs and fs register
+
+        :param fs:      value of the fs segment register
+        :param gs:      value of the gs segment register
+        :param fs_size: size of the fs segment register
+        :param gs_size: size of the gs segment register
+        :return: gdt a GlobalDescriptorTable object
+        """
         A_PRESENT = 0x80
         A_DATA = 0x10
         A_DATA_WRITABLE = 0x2

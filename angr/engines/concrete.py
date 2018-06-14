@@ -17,8 +17,7 @@ def timeout_handler():
 
 class SimEngineConcrete(SimEngine):
     """
-    Concrete execution inside a concrete target provided by the user.
-    :param target: receive and wraps a ConcreteTarget inside this SimConcreteEngine
+    Concrete execution using a concrete target provided by the user.
     """
     def __init__(self, project):
         l.info("Initializing SimEngineConcrete with ConcreteTarget provided.")
@@ -77,13 +76,19 @@ class SimEngineConcrete(SimEngine):
 
     def to_engine(self, state, extra_stop_points, concretize):
         """
-        Handling the switch between the execution in Angr and the concrete target.
+        Handle the concrete execution of the process
         This method takes care of:
         1- Set the breakpoints on the addresses provided by the user
         2- Concretize the symbolic variables and perform the write inside the concrete process
         3- Continue the program execution.
+
+        :param state:               The state with which to execute
+        :param extra_stop_points:   list of a addresses where to stop the concrete execution and return to the simulated one
+        :param concretize:          list of tuples (address, symbolic variable) that are going to be written
+                                    in the concrete process memory
         :return:
         """
+
         l.debug("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
                 (hex(state.addr), hex(self.target.read_register("pc")), map(hex, extra_stop_points)))
 

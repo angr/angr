@@ -308,10 +308,25 @@ class SimLinux(SimUserland):
             return basic_addr, basic_addr
 
     def initialize_segment_register_x64(self, state, concrete_target):
+        """
+        Set the fs register in the angr to the value of the fs register in the concrete process
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return:
+        """
         _l.debug("Synchronizing fs segment register")
         state.regs.fs = self._read_fs_register_x64(concrete_target)
 
     def initialize_gdt_x86(self,state,concrete_target):
+        """
+        Create a GDT in the state memory and populate the segment registers.
+        Rehook the vsyscall address using the real value in the concrete process memory
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return:
+        """
         _l.debug("Creating fake Global Descriptor Table and synchronizing gs segment register")
         gs = self._read_gs_register_x86(concrete_target)
         gdt = self.generate_gdt(0x0, gs)
@@ -327,7 +342,7 @@ class SimLinux(SimUserland):
     @staticmethod
     def _read_fs_register_x64(concrete_target):
         '''
-        Injects small shellcode to leak the fs segment register address. In Linux x64 this address is pointed by fs[0]
+        Injects a small shellcode to leak the fs segment register address. In Linux x64 this address is pointed by fs[0]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
         :return: fs register address
         :rtype string
@@ -342,10 +357,10 @@ class SimLinux(SimUserland):
     @staticmethod
     def _read_gs_register_x86(concrete_target):
         '''
-        Injects small shellcode to leak the fs segment register address. In Linux x86 this address is pointed by gs[0]
-        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        Injects a small shellcode to leak the gs segment register address. In Linux x86 this address is pointed by gs[0]
+        :param concrete_target: ConcreteTarget which will be used to get the gs register address
         :return: gs register address
-        :rtype string
+        :rtype :str
         '''
         # register used to read the value of the segment register
         exfiltration_reg = "eax"

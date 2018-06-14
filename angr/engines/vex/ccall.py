@@ -1118,7 +1118,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     # RPL=11 check
     #if state.se.is_true((seg_selector & 3) != 3):
-    #    return bad
+    #    return bad()
 
     tiBit = (seg_selector >> 2) & 1
     if state.se.is_true(tiBit == 0):
@@ -1163,7 +1163,8 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     base = get_segdescr_base(state, descriptor)
     limit = get_segdescr_limit(state, descriptor)
 
-    #With the concrete target
+    # When a concrete target is set and memory is read directly from the process sometimes a negative offset
+    # from a segment register is used
     if state.se.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
         return bad("virtual_addr >= limit")
 
