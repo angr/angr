@@ -84,12 +84,11 @@ class SimEngineConcrete(SimEngine):
         3- Continue the program execution.
         :return:
         """
-        l.warn("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
-               (hex(state.addr), hex(self.target.read_register("pc")), extra_stop_points))
+        l.debug("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
+                (hex(state.addr), hex(self.target.read_register("pc")), map(hex, extra_stop_points)))
 
         if concretize:
-            l.warn("Concretize variables before entering inside the SimEngineConcrete | "
-                   "Be patient this could take a while.")
+            l.warn("SimEngineConcrete is concretizing variables before resuming the concrete process")
 
             for sym_var in concretize:
                 sym_var_address = state.se.eval(sym_var[0])
@@ -110,6 +109,7 @@ class SimEngineConcrete(SimEngine):
 
         # resuming of the concrete process, if the target won't reach the
         # breakpoint specified by the user the timeout will abort angr execution.
+        l.warn("SimEngineConcrete is resuming the concrete process!")
         self.target.run()
 
         # reset the alarm
