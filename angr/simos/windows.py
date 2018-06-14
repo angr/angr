@@ -418,10 +418,24 @@ class SimWindows(SimOS):
         state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
 
     def initialize_segment_register_x64(self, state, concrete_target):
+        """
+        Set the gs register in the angr to the value of the fs register in the concrete process
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return:
+       """
         _l.debug("Synchronizing gs segment register")
         state.regs.gs = self._read_gs_register_x64(concrete_target)
 
     def initialize_gdt_x86(self,state,concrete_target):
+        """
+        Create a GDT in the state memory and populate the segment registers.
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return:
+        """
         _l.debug("Creating Global Descriptor Table and synchronizing fs segment register")
         fs = self._read_fs_register_x86(concrete_target)
         gdt = self.generate_gdt(fs,0x0)
