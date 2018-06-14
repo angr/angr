@@ -122,7 +122,18 @@ class Explorer(ExplorationTechnique):
                 while state.addr not in rFind:
                     if state.addr in rAvoid:
                         return self.avoid_stash
-                    state = self.project.factory.successors(state, num_inst=1).successors[0]
+                    try:
+                        state = self.project.factory.successors(state, num_inst=1).successors[0]
+		    except SimIRSBNoDecodeError as ex:
+                        if state.arch.name.startswith('MIPS'):
+                            l.warning('Due to MIPS delay slots, the find address must be executed with other instructions and therefore may not be able to be found' + \
+				' - Trying to find state that includes find address')
+                            if len(rFind.intersection(set(state.block().instruction_addrs))) > 0:
+                        	#there is an address that is both in the block AND in the rFind stat
+                                l.warning('Found state that includes find instruction, this one will be returned')
+                                rFind = rFind.union(set(state.block().instruction_addrs))
+                        else:
+                                raise ex
                 if self.avoid_priority & (state.addr in rAvoid):
                     # Only occurs if the intersection of rAvoid and rFind is not empty
                     # Why would anyone want that?
