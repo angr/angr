@@ -110,7 +110,6 @@ def solv_concrete_engine_linux_x86(p,entry_state):
     print "[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration)
 
     correct_solution = 0xa000000f9ffffff000000000000000000000000000000000000000000000000
-    print("%x\n%x"%(correct_solution,binary_configuration))
     nose.tools.assert_true(binary_configuration == correct_solution)
 
 
