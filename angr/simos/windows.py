@@ -443,7 +443,7 @@ class SimWindows(SimOS):
         return gdt
 
     @staticmethod
-    def _read_fs_register_x86(self, concrete_target):
+    def _read_fs_register_x86(concrete_target):
         '''
         Injects small shellcode to leak the fs segment register address. In Windows x86 this address is pointed by gs:[0x18]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
@@ -456,7 +456,7 @@ class SimWindows(SimOS):
         return concrete_target.execute_shellcode(read_fs0_x86, exfiltration_reg)
 
     @staticmethod
-    def _read_gs_register_x64(self, concrete_target):
+    def _read_gs_register_x64(concrete_target):
         '''
         Injects small shellcode to leak the gs segment register address. In Windows x64 this address is pointed by gs:[0x30]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
