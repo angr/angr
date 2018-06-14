@@ -1,5 +1,6 @@
 from . import ExplorationTechnique
 from .. import sim_options
+from ..errors import SimIRSBNoDecodeError
 
 import logging
 l = logging.getLogger("angr.exploration_techniques.explorer")
