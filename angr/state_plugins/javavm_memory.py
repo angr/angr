@@ -52,6 +52,10 @@ class SimJavaVmMemory(SimMemory):
             # TODO: Implement the stacked stack frames model
             cstack.store(addr.id, data, type_=addr.type)
 
+        elif type(addr) is SimSootValue_ParamRef:
+            cstack = self._stack[-1+(-1*frame)]
+            cstack.store(addr.id, data, type_=addr.type)
+
         elif type(addr) is SimSootValue_ArrayRef:
             self.store_array_elements(array=addr, start_idx=addr.index, data=data)
 

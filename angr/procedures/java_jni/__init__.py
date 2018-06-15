@@ -67,18 +67,19 @@ class JNISimProcedure(SimProcedure):
 
         return addr
 
-    def load_from_native_memory(self, addr, value_type, no_of_elements=1):
+    def load_from_native_memory(self, addr, value_type=None, value_size=None, no_of_elements=1):
 
         if addr is not None and self.state.solver.symbolic(addr):
             print "symbolic addr"
 
-        type_size = ArchSoot.sizeof[value_type]/8
+        if not value_size:
+            value_size = ArchSoot.sizeof[value_type]/8
 
         values = [] 
         for i in range(no_of_elements):
-            value_uncasted = self.state.memory.load(addr + i*type_size, size=type_size, endness="Iend_LE")
-            value = self.state.project.simos.cast_primitive(value=value_uncasted, 
-                                                            to_type=value_type)
+            value = self.state.memory.load(addr + i*value_size, size=value_size, endness="Iend_LE")
+            if value_type:
+                value = self.state.project.simos.cast_primitive(value=value, to_type=value_type)
             values.append(value)
 
         if no_of_elements == 1:

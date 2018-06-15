@@ -197,7 +197,6 @@ class SimJavaVM(SimOS):
             invoke_state = self.native_simos.state_call(addr, *arg_values, 
                                                         ret_addr=self.native_return_hook_addr, 
                                                         cc=native_cc, **kwargs)
-            invoke_state.scratch.invoke_native_cc = native_cc
             return invoke_state
 
     #
@@ -252,11 +251,6 @@ class SimJavaVM(SimOS):
     @property
     def native_arch(self):
         return self.native_simos.arch
-
-    @staticmethod
-    def get_java_type_from_signature(type_sig):
-        sig_dict = {'I' : 'int'}
-        return sig_dict[type_sig]
 
     @staticmethod
     def get_default_value_by_type(type_):

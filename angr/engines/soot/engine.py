@@ -16,6 +16,8 @@ from .statements import (SimSootStmt_Return, SimSootStmt_ReturnVoid,
                          translate_stmt)
 from .values import (SimSootValue_Local, SimSootValue_ParamRef,
                      SimSootValue_ThisRef, translate_value)
+from .values.constants import SimSootValue_ClassConstant
+
 
 l = logging.getLogger('angr.engines.soot.engine')
 
@@ -148,8 +150,6 @@ class SimEngineSoot(SimEngine):
         state.scratch.invoke_return_target = None
         state.scratch.invoke_return_variable = None
         state.scratch.invoke_has_native_target = False
-        state.scratch.invoke_native_cc = None
-        state.scratch.invoke_jni_local_references = {}
         
         try:
             l.info("Executing statement %s [%s]", stmt, state.addr)
@@ -172,7 +172,7 @@ class SimEngineSoot(SimEngine):
 
             invoke_target = state.scratch.invoke_target
 
-            if state.scratch.invoke_has_native_target:
+            if 'NATIVE' in invoke_target.attrs:
                 # The target of the call is a native function
                 # => We need to setup the native call-site
                 l.debug("Invoke has a native target.")
@@ -244,6 +244,31 @@ class SimEngineSoot(SimEngine):
         self.project._sim_procedures[addr] = proc
 
         return proc
+
+    @classmethod
+    def setup_callsite(cls, state, ret_addr, args):
+        #
+        #   Merge with _prepare_call_state
+        #   If ret_addr != None: ...
+        #   If args != None: ...
+
+        # push new callstack frame
+        state.callstack.push(state.callstack.copy())
+        state.callstack.ret_addr = ret_addr
+
+        # push new stack frame
+        javavm_memory = state.get_javavm_view_of_plugin('memory')
+        javavm_memory.push_stack_frame()
+
+        # setup arguments
+        if isinstance(args[0][0], SimSootValue_ThisRef):
+            this_ref, this_ref_type = args.pop(0)
+            local = SimSootValue_Local("this", this_ref_type)
+            javavm_memory.store(local, this_ref)
+
+        for idx, (value, value_type) in enumerate(args):
+            param_ref = SimSootValue_ParamRef(idx, value_type)
+            javavm_memory.store(param_ref, value)
 
     @staticmethod
     def _is_method_beginning(addr):
@@ -325,14 +350,29 @@ class SimEngineSoot(SimEngine):
         :param ret_value:   The value to return from the current method.
         :return:            None
         """
-
-        ret_var = state.callstack.invoke_return_variable
-        state.memory.pop_stack_frame()
+        # pop callstack frame
+        callstack = state.callstack
         state.callstack.pop()
+        
+        # pass procedure data to the current callstack (if available)
+        # => this will get removed by the corresponding sim procedure
+        state.callstack.top.procedure_data = callstack.procedure_data
 
-        if ret_var is not None and ret_value is not None:
-            # Write the return value to the return variable in the previous stack frame
-            state.memory.store(ret_var, ret_value)
+        # pop stack frame
+        state.memory.pop_stack_frame()
+
+        # save return value
+        if ret_value is not None:
+            ret_var = callstack.invoke_return_variable
+            if ret_var is not None:
+                # usually the return value is stored in the previous stack frame
+                state.memory.store(ret_var, ret_value)
+            else:
+                # however if we call a method from outside (e.g. project.state_call),
+                # no previous stack frame exist
+                # => in this case we store the value in the registers, so it still
+                #    can be accessed
+                state.regs.invoke_return_value = ret_value
 
     @staticmethod
     def terminate_execution(statement, state, successors):
@@ -409,10 +449,21 @@ class SimEngineSoot(SimEngine):
         jni_env_type = self.javavm.get_native_type('reference')
         native_args += [(jni_env, jni_env_type)]
 
-        # Handle to the current object or class (TODO static vs. nonstatic)
-        jni_this = 0
-        jni_this_type = self.javavm.get_native_type('reference')
-        native_args += [(jni_this, jni_this_type)]
+        # Handle to the current object or class
+        invoke_expr = invoke_state.scratch.invoke_expr
+        if hasattr(invoke_expr, "base"):
+            # Instance method call => pass 'this' reference to native code
+            this = invoke_state.memory.load(SimSootValue_Local("this", invoke_expr.base.type))
+            this_ref = invoke_state.jni_references.create_new_reference(java_ref=this)
+            this_ref_type = self.javavm.get_native_type('reference')
+            native_args += [(this_ref, this_ref_type)]
+        
+        else:
+            # Static method call => pass 'class' reference to native code
+            class_ = SimSootValue_ClassConstant.from_classname(invoke_expr.class_name)
+            class_ref = invoke_state.jni_references.create_new_reference(java_ref=class_)
+            class_ref_type = self.javavm.get_native_type('reference')
+            native_args += [(class_ref, class_ref_type)]
         
         # Function arguments
         for idx, arg_type in enumerate(invoke_target.params):
