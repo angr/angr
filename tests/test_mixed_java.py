@@ -53,28 +53,21 @@ def test_toggling_of_simstate(binary_dir="2"):
     assert isinstance(state.arch, ArchSoot)
     assert isinstance(state.memory, SimJavaVmMemory)
     assert isinstance(state.registers, SimKeyValueMemory)
-    assert len(state.callstack) == 2
-
-    state.callstack.push(state.callstack.copy())
-    assert len(state.callstack) == 3
 
     state.regs.ip = 1
-    assert len(state.callstack) == 1
     assert not state.ip_is_soot_addr
     assert isinstance(state.arch, ArchAMD64)
     assert isinstance(state.memory, SimSymbolicMemory)
     assert isinstance(state.registers, SimSymbolicMemory)
 
     state.regs._ip = project.entry
-    state.callstack.pop()
-    assert len(state.callstack) == 2
+
     assert state.ip_is_soot_addr
     assert isinstance(state.arch, ArchSoot)
     assert isinstance(state.memory, SimJavaVmMemory)
     assert isinstance(state.registers, SimKeyValueMemory)
 
     state.ip = 1
-    assert len(state.callstack) == 1
     assert not state.ip_is_soot_addr
     assert isinstance(state.arch, ArchAMD64)
     assert isinstance(state.memory, SimSymbolicMemory)
@@ -82,7 +75,6 @@ def test_toggling_of_simstate(binary_dir="2"):
 
     state_copy = state.copy()
     assert not state_copy.ip_is_soot_addr
-    assert len(state_copy.callstack) == 1
     assert isinstance(state_copy.arch, ArchAMD64)
     assert isinstance(state_copy.memory, SimSymbolicMemory)
     assert isinstance(state_copy.registers, SimSymbolicMemory)

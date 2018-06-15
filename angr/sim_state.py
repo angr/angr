@@ -183,11 +183,6 @@ class SimState(PluginHub):
                 self.register_plugin('registers_soot', javavm_sim_registers)
                 self.register_plugin('registers_vex', native_sim_registers)
 
-        # Callstack
-        if self.javavm_with_jni and not self.has_plugin('callstack_soot'):
-            callstack_cls = self.plugin_preset.request_plugin('callstack')
-            self.register_plugin('callstack_vex', callstack_cls())
-            self.register_plugin('callstack_soot', callstack_cls())
 
         # OS name
         self.os_name = os_name
@@ -378,11 +373,6 @@ class SimState(PluginHub):
         if not inhibit_init:
             plugin.init_state()
         
-    def set_callstack(self, new_callstack):
-        plugin_name = 'callstack'
-        if self.javavm_with_jni:
-            plugin_name += '_soot' if self.ip_is_soot_addr else '_vex'
-        self.register_plugin(plugin_name, new_callstack)
 
     def get_javavm_view_of_plugin(self, plugin_name):
         """
