@@ -184,7 +184,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         """
         Return a concretization of the contents of the file, as a flat bytestring.
         """
-        size = self.state.solver.eval(self._size, **kwargs)
+        size = self.state.solver.min(self._size, **kwargs)
         data = self.load(0, size)
 
         kwargs['cast_to'] = kwargs.get('cast_to', str)
