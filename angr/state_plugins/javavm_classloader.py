@@ -8,6 +8,10 @@ class SimJavaVmClassloader(SimStatePlugin):
         self._classes_loaded = classes_loaded
 
     def load_class(self, class_):
+
+        if self.is_class_loaded(class_):
+            return
+
         self.classes_loaded.add(class_.name)
         for method in class_.methods:
             if method.name == "<clinit>":
@@ -38,6 +42,13 @@ class SimJavaVmClassloader(SimStatePlugin):
         if base_class:
             return self.get_class(base_class.super_class)
         return None
+
+    def get_class_hierarchy(self, name):
+        class_ = self.get_class(name)
+        while class_:
+            yield class_
+            class_ = self.get_class(class_.super_class)
+
 
     @SimStatePlugin.memo
     def copy(self, memo):
