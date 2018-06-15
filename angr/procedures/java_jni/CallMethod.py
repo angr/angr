@@ -43,10 +43,10 @@ class CallMethodBase(JNISimProcedure):
         
         # Step 3: call java method
         # => after the method return, the execution will be continued in _return_result_of_computation
-        self.call(invoke_addr, args, "_return_result_of_computation", cc=SimCCSoot(ArchSoot()))
+        self.call(invoke_addr, args, "return_result_of_computation", cc=SimCCSoot(ArchSoot()))
 
 
-    def _return_result_of_computation(self, ptr_env, obj_, method_id_, _):
+    def _return_result_of_computation(self):
         if self.return_ty != 'void':
             ret_value = self.state.get_javavm_view_of_plugin('registers').load('invoke_return_value')
             if self.return_ty == 'reference':
@@ -66,6 +66,9 @@ class CallMethod(CallMethodBase):
         arg_values = [ self.arg(self.num_args+idx).to_claripy() 
                        for idx in range(len(method_id.params)) ]
         self._call_java_method(this_ref, method_id, arg_values)
+
+    def return_result_of_computation(self, ptr_env, obj_, method_id_):
+        return self._return_result_of_computation()
 
 
 class CallObjectMethod(CallMethod):
@@ -105,6 +108,9 @@ class CallMethodA(CallMethodBase):
                                                   value_size=self.arch.bytes, 
                                                   no_of_elements=len(method_id.params))
         self._call_java_method(this_ref, method_id, arg_values)
+    
+    def return_result_of_computation(self, ptr_env, obj_, method_id_, ptr_args):
+        return self._return_result_of_computation()
 
 class CallObjectMethodA(CallMethodA):
     return_ty = 'reference'
