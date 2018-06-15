@@ -329,7 +329,7 @@ def assert_values(state, values):
 
 def get_entry_state_of_method(project, method_fullname):
     # get SootAddressDescriptor of method entry
-    soot_method = next(project.loader.main_object.get_method(method_fullname))
+    soot_method = project.loader.main_object.get_method(method_fullname)
     method = SootMethodDescriptor.from_soot_method(soot_method)
     addr = SootAddressDescriptor(method, 0, 0)
     # create call state

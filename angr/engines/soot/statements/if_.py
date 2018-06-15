@@ -13,7 +13,7 @@ class SimSootStmt_If(SimSootStmt):
 
     def _execute(self):
         condition_expr = self._translate_expr(self.stmt.condition)
-        method = next(self.state.regs._ip_binary.get_method(self.state._ip.method))
+        method = self.state.regs._ip_binary.get_method(self.state._ip.method)
         try:
             bb_idx = method.block_by_label[self.stmt.target].idx
         except KeyError:

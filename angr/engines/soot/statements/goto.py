@@ -11,7 +11,7 @@ class SimSootStmt_Goto(SimSootStmt):
         super(SimSootStmt_Goto, self).__init__(stmt, state)
 
     def _execute(self):
-        method = next(self.state.regs._ip_binary.get_method(self.state._ip.method))
+        method = self.state.regs._ip_binary.get_method(self.state._ip.method)
         try:
             bb_idx = method.block_by_label[self.stmt.target].idx
         except KeyError:

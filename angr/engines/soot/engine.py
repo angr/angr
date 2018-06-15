@@ -37,8 +37,7 @@ class SimEngineSoot(SimEngine):
         method, stmt_idx = addr.method, addr.stmt_idx
 
         try:
-            methods = the_binary.get_method(method)
-            method = next(methods)
+            method = the_binary.get_method(method)
         except CLEError as ex:
             raise SimTranslationError("CLE error: " + ex.message)
 
@@ -91,7 +90,7 @@ class SimEngineSoot(SimEngine):
         binary = state.regs._ip_binary
 
         try:
-            method = next(binary.get_method(addr.method))
+            method = binary.get_method(addr.method)
         except CLEError:
             l.warning("We ended up in non-loaded Java code %s" % addr)
             successors.processed = False
@@ -252,7 +251,7 @@ class SimEngineSoot(SimEngine):
 
     @staticmethod
     def _get_next_linear_instruction(state, addr):
-        method = next(state.regs._ip_binary.get_method(addr.method))
+        method = state.regs._ip_binary.get_method(addr.method)
         current_bb = method.blocks[addr.block_idx]
         new_stmt_idx = addr.stmt_idx + 1
         if new_stmt_idx < len(current_bb.statements):
