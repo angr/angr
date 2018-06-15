@@ -81,11 +81,8 @@ class SimJavaVM(SimOS):
             self.jni_env = self.project.loader.extern_object.allocate(size=native_addr_size)
             self.jni_function_table = self.project.loader.extern_object.allocate(size=native_addr_size*len(jni_functions))
             # ii)  Then we hook each table entry with the corresponding sim procedure
-            for idx, jni_function in enumerate(jni_functions):
+            for idx, jni_function in enumerate(jni_functions.values()):
                 addr = self.jni_function_table + idx * native_addr_size
-                if not jni_function:
-                    self.project.hook(addr, SIM_PROCEDURES['java_jni']['NotImplemented']())
-                else: 
                     self.project.hook(addr, SIM_PROCEDURES['java_jni'][jni_function]())
             # iii) We store the targets of the JNIEnv and function pointer in memory.
             #      => This is done for a specific state (see state_blank)

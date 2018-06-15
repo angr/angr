@@ -5,6 +5,7 @@ from ...calling_conventions import DefaultCC
 from archinfo import ArchSoot
 from ...state_plugins.sim_action_object import SimActionObject
 import itertools
+import collections
 
 import logging
 l = logging.getLogger('angr.procedures.java_jni')
@@ -127,240 +128,275 @@ class JNISimProcedure(SimProcedure):
         else:
             return idx.get_bytes(index=0, size=4)
 
-# Dictionary containing all functions from the JNI Native Interface struct
-# All entries with None are replaced with the NotImplemented SimProcedure
-jni_functions = [
-    None, 		# reserved0
-    None, 		# reserved1
-    None, 		# reserved2
-    None, 		# reserved3
-    "GetVersion", # GetVersion
-    None, 		# DefineClass
-    None, 		# FindClass
-    None, 		# FromReflectedMethod
-    None, 		# FromReflectedField
-    None, 		# ToReflectedMethod
-    None, 		# GetSuperclass
-    None, 		# IsAssignableFrom
-    None, 		# ToReflectedField
-    None, 		# Throw
-    None, 		# ThrowNew
-    None, 		# ExceptionOccurred
-    None, 		# ExceptionDescribe
-    None, 		# ExceptionClear
-    None, 		# FatalError
-    None, 		# PushLocalFrame
-    None, 		# PopLocalFrame
-    None, 		# NewGlobalRef
-    None, 		# DeleteGlobalRef
-    None, 		# DeleteLocalRef
-    None, 		# IsSameObject
-    None, 		# NewLocalRef
-    None, 		# EnsureLocalCapacity
-    None, 		# AllocObject
-    None, 		# NewObject
-    None, 		# NewObjectV
-    None, 		# NewObjectA
-    "GetObjectClass", # GetObjectClass
-    None, 		# IsInstanceOf
-    None, 		# GetMethodID
-    None, 		# CallObjectMethod
-    None, 		# CallObjectMethodV
-    None, 		# CallObjectMethodA
-    None, 		# CallBooleanMethod
-    None, 		# CallBooleanMethodV
-    None, 		# CallBooleanMethodA
-    None, 		# CallByteMethod
-    None, 		# CallByteMethodV
-    None, 		# CallByteMethodA
-    None, 		# CallCharMethod
-    None, 		# CallCharMethodV
-    None, 		# CallCharMethodA
-    None, 		# CallShortMethod
-    None, 		# CallShortMethodV
-    None, 		# CallShortMethodA
-    None, 		# CallIntMethod
-    None, 		# CallIntMethodV
-    None, 		# CallIntMethodA
-    None, 		# CallLongMethod
-    None, 		# CallLongMethodV
-    None, 		# CallLongMethodA
-    None, 		# CallFloatMethod
-    None, 		# CallFloatMethodV
-    None, 		# CallFloatMethodA
-    None, 		# CallDoubleMethod
-    None, 		# CallDoubleMethodV
-    None, 		# CallDoubleMethodA
-    None, 		# CallVoidMethod
-    None, 		# CallVoidMethodV
-    None, 		# CallVoidMethodA
-    None, 		# CallNonvirtualObjectMethod
-    None, 		# CallNonvirtualObjectMethodV
-    None, 		# CallNonvirtualObjectMethodA
-    None, 		# CallNonvirtualBooleanMethod
-    None, 		# CallNonvirtualBooleanMethodV
-    None, 		# CallNonvirtualBooleanMethodA
-    None, 		# CallNonvirtualByteMethod
-    None, 		# CallNonvirtualByteMethodV
-    None, 		# CallNonvirtualByteMethodA
-    None, 		# CallNonvirtualCharMethod
-    None, 		# CallNonvirtualCharMethodV
-    None, 		# CallNonvirtualCharMethodA
-    None, 		# CallNonvirtualShortMethod
-    None, 		# CallNonvirtualShortMethodV
-    None, 		# CallNonvirtualShortMethodA
-    None, 		# CallNonvirtualIntMethod
-    None, 		# CallNonvirtualIntMethodV
-    None, 		# CallNonvirtualIntMethodA
-    None, 		# CallNonvirtualLongMethod
-    None, 		# CallNonvirtualLongMethodV
-    None, 		# CallNonvirtualLongMethodA
-    None, 		# CallNonvirtualFloatMethod
-    None, 		# CallNonvirtualFloatMethodV
-    None, 		# CallNonvirtualFloatMethodA
-    None, 		# CallNonvirtualDoubleMethod
-    None, 		# CallNonvirtualDoubleMethodV
-    None, 		# CallNonvirtualDoubleMethodA
-    None, 		# CallNonvirtualVoidMethod
-    None, 		# CallNonvirtualVoidMethodV
-    None, 		# CallNonvirtualVoidMethodA
-    "GetFieldID", # GetFieldID
-    "GetObjectField", # GetObjectField
-    "GetBooleanField", # GetBooleanField
-    "GetByteField", # GetByteField
-    "GetCharField", # GetCharField
-    "GetShortField", # GetShortField
-    "GetIntField", # GetIntField
-    "GetLongField", # GetLongField
-    None, 		# GetFloatField
-    None, 		# GetDoubleField
-    "SetField", # SetObjectField
-    "SetField", # SetBooleanField
-    "SetField", # SetByteField
-    "SetField", # SetCharField
-    "SetField", # SetShortField
-    "SetField", # SetIntField
-    "SetField", # SetLongField
-    None, 		# SetFloatField
-    None, 		# SetDoubleField
-    None, 		# GetStaticMethodID
-    None, 		# CallStaticObjectMethod
-    None, 		# CallStaticObjectMethodV
-    None, 		# CallStaticObjectMethodA
-    None, 		# CallStaticBooleanMethod
-    None, 		# CallStaticBooleanMethodV
-    None, 		# CallStaticBooleanMethodA
-    None, 		# CallStaticByteMethod
-    None, 		# CallStaticByteMethodV
-    None, 		# CallStaticByteMethodA
-    None, 		# CallStaticCharMethod
-    None, 		# CallStaticCharMethodV
-    None, 		# CallStaticCharMethodA
-    None, 		# CallStaticShortMethod
-    None, 		# CallStaticShortMethodV
-    None, 		# CallStaticShortMethodA
-    None, 		# CallStaticIntMethod
-    None, 		# CallStaticIntMethodV
-    None, 		# CallStaticIntMethodA
-    None, 		# CallStaticLongMethod
-    None, 		# CallStaticLongMethodV
-    None, 		# CallStaticLongMethodA
-    None, 		# CallStaticFloatMethod
-    None, 		# CallStaticFloatMethodV
-    None, 		# CallStaticFloatMethodA
-    None, 		# CallStaticDoubleMethod
-    None, 		# CallStaticDoubleMethodV
-    None, 		# CallStaticDoubleMethodA
-    None, 		# CallStaticVoidMethod
-    None, 		# CallStaticVoidMethodV
-    None, 		# CallStaticVoidMethodA
-    None, 		# GetStaticFieldID
-    None, 		# GetStaticObjectField
-    None, 		# GetStaticBooleanField
-    None, 		# GetStaticByteField
-    None, 		# GetStaticCharField
-    None, 		# GetStaticShortField
-    None, 		# GetStaticIntField
-    None, 		# GetStaticLongField
-    None, 		# GetStaticFloatField
-    None, 		# GetStaticDoubleField
-    None, 		# SetStaticObjectField
-    None, 		# SetStaticBooleanField
-    None, 		# SetStaticByteField
-    None, 		# SetStaticCharField
-    None, 		# SetStaticShortField
-    None, 		# SetStaticIntField
-    None, 		# SetStaticLongField
-    None, 		# SetStaticFloatField
-    None, 		# SetStaticDoubleField
-    None, 		# NewString
-    None, 		# GetStringLength
-    None, 		# GetStringChars
-    None, 		# ReleaseStringChars
-    None, 		# NewStringUTF
-    None, 		# GetStringUTFLength
-    None, 		# GetStringUTFChars
-    None, 		# ReleaseStringUTFChars
-    "GetArrayLength", # GetArrayLength
-    None, 		# NewObjectArray
-    None, 		# GetObjectArrayElement
-    None, 		# SetObjectArrayElement
-    "NewBooleanArray", # NewBooleanArray
-    "NewByteArray", # NewByteArray
-    "NewCharArray", # NewCharArray
-    "NewShortArray", # NewShortArray
-    "NewIntArray", # NewIntArray
-    "NewLongArray", # NewLongArray
-    None, 		# NewFloatArray
-    None, 		# NewDoubleArray
-    "GetArrayElements", # GetBooleanArrayElements
-    "GetArrayElements", # GetByteArrayElements
-    "GetArrayElements", # GetCharArrayElements
-    "GetArrayElements", # GetShortArrayElements
-    "GetArrayElements", # GetIntArrayElements
-    "GetArrayElements", # GetLongArrayElements
-    None, 		# GetFloatArrayElements
-    None, 		# GetDoubleArrayElements
-    None, 		# ReleaseBooleanArrayElements
-    "ReleaseArrayElements", # ReleaseByteArrayElements
-    "ReleaseArrayElements", # ReleaseCharArrayElements
-    "ReleaseArrayElements", # ReleaseShortArrayElements
-    "ReleaseArrayElements", # ReleaseIntArrayElements
-    "ReleaseArrayElements", # ReleaseLongArrayElements
-    None, 		# ReleaseFloatArrayElements
-    None, 		# ReleaseDoubleArrayElements
-    "GetArrayRegion", # GetBooleanArrayRegion
-    "GetArrayRegion", # GetByteArrayRegion
-    "GetArrayRegion", # GetCharArrayRegion
-    "GetArrayRegion", # GetShortArrayRegion
-    "GetArrayRegion", # GetIntArrayRegion
-    "GetArrayRegion", # GetLongArrayRegion
-    None, 		# GetFloatArrayRegion
-    None, 		# GetDoubleArrayRegion
-    "SetArrayRegion", # SetBooleanArrayRegion
-    "SetArrayRegion", # SetByteArrayRegion
-    "SetArrayRegion", # SetCharArrayRegion
-    "SetArrayRegion", # SetShortArrayRegion
-    "SetArrayRegion", # SetIntArrayRegion
-    "SetArrayRegion", # SetLongArrayRegion
-    None, 		# SetFloatArrayRegion
-    None, 		# SetDoubleArrayRegion
-    None, 		# RegisterNatives
-    None, 		# UnregisterNatives
-    None, 		# MonitorEnter
-    None, 		# MonitorExit
-    None, 		# GetJavaVM
-    None, 		# GetStringRegion
-    None, 		# GetStringUTFRegion
-    "GetArrayElements", # GetPrimitiveArrayCritical
-    "ReleaseArrayElements", # ReleasePrimitiveArrayCritical
-    None, 		# GetStringCritical
-    None, 		# ReleaseStringCritical
-    None, 		# NewWeakGlobalRef
-    None, 		# DeleteWeakGlobalRef
-    None, 		# ExceptionCheck
-    None, 		# NewDirectByteBuffer
-    None, 		# GetDirectBufferAddress
-    None, 		# GetDirectBufferCapacity
-    None, 		# GetObjectRefType
-]
+#
+# JNI function table
+# Map all interface function to the name of their corresponding SimProcedure 
+jni_functions = collections.OrderedDict()
+not_implemented = "NotImplemented"
+
+# Reserved Entries
+jni_functions["reserved0"] = not_implemented
+jni_functions["reserved1"] = not_implemented
+jni_functions["reserved2"] = not_implemented
+jni_functions["reserved3"] = not_implemented
+
+# Version Information
+jni_functions["GetVersion"] = "GetVersion"
+
+# Class and Interface Operations
+jni_functions["DefineClass"] = not_implemented
+jni_functions["FindClass"] = not_implemented
+jni_functions["FromReflectedMethod"] = not_implemented
+jni_functions["FromReflectedField"] = not_implemented
+jni_functions["ToReflectedMethod"] = not_implemented
+jni_functions["GetSuperclass"] = not_implemented
+jni_functions["IsAssignableFrom"] = not_implemented
+jni_functions["ToReflectedField"] = not_implemented
+
+# Exceptions
+jni_functions["Throw"] = not_implemented
+jni_functions["ThrowNew"] = not_implemented
+jni_functions["ExceptionOccurred"] = not_implemented
+jni_functions["ExceptionDescribe"] = not_implemented
+jni_functions["ExceptionClear"] = not_implemented
+jni_functions["FatalError"] = not_implemented
+
+# Global and Local References
+jni_functions["PushLocalFrame"] = not_implemented
+jni_functions["PopLocalFrame"] = not_implemented
+jni_functions["NewGlobalRef"] = not_implemented
+jni_functions["DeleteGlobalRef"] = not_implemented
+jni_functions["DeleteLocalRef"] = not_implemented
+
+# Object Operations
+jni_functions["IsSameObject"] = not_implemented
+jni_functions["NewLocalRef"] = not_implemented
+jni_functions["EnsureLocalCapacity"] = not_implemented
+jni_functions["AllocObject"] = not_implemented
+jni_functions["NewObject"] = not_implemented
+jni_functions["NewObjectV"] = not_implemented
+jni_functions["NewObjectA"] = not_implemented
+jni_functions["GetObjectClass"] = "GetObjectClass"
+jni_functions["IsInstanceOf"] = not_implemented
+
+# Instance Method Calls
+jni_functions["GetMethodID"] = "GetMethodID"
+jni_functions["CallObjectMethod"] = "CallObjectMethod"
+jni_functions["CallObjectMethodV"] = not_implemented
+jni_functions["CallObjectMethodA"] = "CallObjectMethodA"
+jni_functions["CallBooleanMethod"] = "CallBooleanMethod"
+jni_functions["CallBooleanMethodV"] = not_implemented
+jni_functions["CallBooleanMethodA"] = "CallBooleanMethodA"
+jni_functions["CallByteMethod"] = "CallByteMethod"
+jni_functions["CallByteMethodV"] = not_implemented
+jni_functions["CallByteMethodA"] = "CallByteMethodA"
+jni_functions["CallCharMethod"] = "CallCharMethod"
+jni_functions["CallCharMethodV"] = not_implemented
+jni_functions["CallCharMethodA"] = "CallCharMethodA"
+jni_functions["CallShortMethod"] = "CallShortMethod"
+jni_functions["CallShortMethodV"] = not_implemented
+jni_functions["CallShortMethodA"] = "CallShortMethodA"
+jni_functions["CallIntMethod"] = "CallIntMethod"
+jni_functions["CallIntMethodV"] = not_implemented
+jni_functions["CallIntMethodA"] = "CallIntMethodA"
+jni_functions["CallLongMethod"] = "CallLongMethod"
+jni_functions["CallLongMethodV"] = not_implemented
+jni_functions["CallLongMethodA"] = "CallLongMethodA"
+jni_functions["CallFloatMethod"] = not_implemented
+jni_functions["CallFloatMethodV"] = not_implemented
+jni_functions["CallFloatMethodA"] = not_implemented
+jni_functions["CallDoubleMethod"] = not_implemented
+jni_functions["CallDoubleMethodV"] = not_implemented
+jni_functions["CallDoubleMethodA"] = not_implemented
+jni_functions["CallVoidMethod"] = "CallVoidMethod"
+jni_functions["CallVoidMethodV"] = not_implemented
+jni_functions["CallVoidMethodA"] = "CallVoidMethodA"
+
+#Calling Instance Methods of a Superclass
+jni_functions["CallNonvirtualObjectMethod"] = not_implemented
+jni_functions["CallNonvirtualObjectMethodV"] = not_implemented
+jni_functions["CallNonvirtualObjectMethodA"] = not_implemented
+jni_functions["CallNonvirtualBooleanMethod"] = not_implemented
+jni_functions["CallNonvirtualBooleanMethodV"] = not_implemented
+jni_functions["CallNonvirtualBooleanMethodA"] = not_implemented
+jni_functions["CallNonvirtualByteMethod"] = not_implemented
+jni_functions["CallNonvirtualByteMethodV"] = not_implemented
+jni_functions["CallNonvirtualByteMethodA"] = not_implemented
+jni_functions["CallNonvirtualCharMethod"] = not_implemented
+jni_functions["CallNonvirtualCharMethodV"] = not_implemented
+jni_functions["CallNonvirtualCharMethodA"] = not_implemented
+jni_functions["CallNonvirtualShortMethod"] = not_implemented
+jni_functions["CallNonvirtualShortMethodV"] = not_implemented
+jni_functions["CallNonvirtualShortMethodA"] = not_implemented
+jni_functions["CallNonvirtualIntMethod"] = not_implemented
+jni_functions["CallNonvirtualIntMethodV"] = not_implemented
+jni_functions["CallNonvirtualIntMethodA"] = not_implemented
+jni_functions["CallNonvirtualLongMethod"] = not_implemented
+jni_functions["CallNonvirtualLongMethodV"] = not_implemented
+jni_functions["CallNonvirtualLongMethodA"] = not_implemented
+jni_functions["CallNonvirtualFloatMethod"] = not_implemented
+jni_functions["CallNonvirtualFloatMethodV"] = not_implemented
+jni_functions["CallNonvirtualFloatMethodA"] = not_implemented
+jni_functions["CallNonvirtualDoubleMethod"] = not_implemented
+jni_functions["CallNonvirtualDoubleMethodV"] = not_implemented
+jni_functions["CallNonvirtualDoubleMethodA"] = not_implemented
+jni_functions["CallNonvirtualVoidMethod"] = not_implemented
+jni_functions["CallNonvirtualVoidMethodV"] = not_implemented
+jni_functions["CallNonvirtualVoidMethodA"] = not_implemented
+
+# Instance Field Access
+jni_functions["GetFieldID"] = "GetFieldID"
+jni_functions["GetObjectField"] = "GetObjectField"
+jni_functions["GetBooleanField"] = "GetBooleanField"
+jni_functions["GetByteField"] = "GetByteField"
+jni_functions["GetCharField"] = "GetCharField"
+jni_functions["GetShortField"] = "GetShortField"
+jni_functions["GetIntField"] =  "GetIntField"
+jni_functions["GetLongField"] = "GetLongField"
+jni_functions["GetFloatField"] = not_implemented
+jni_functions["GetDoubleField"] = not_implemented
+jni_functions["SetObjectField"] = "SetField"
+jni_functions["SetBooleanField"] = "SetField"
+jni_functions["SetByteField"] = "SetField"
+jni_functions["SetCharField"] = "SetField"
+jni_functions["SetShortField"] = "SetField"
+jni_functions["SetIntField"] = "SetField"
+jni_functions["SetLongField"] = "SetField"
+jni_functions["SetFloatField"] = not_implemented
+jni_functions["SetDoubleField"] = not_implemented
+
+# Static Method Calls
+jni_functions["GetStaticMethodID"] = not_implemented
+jni_functions["CallStaticObjectMethod"] = not_implemented
+jni_functions["CallStaticObjectMethodV"] = not_implemented
+jni_functions["CallStaticObjectMethodA"] = not_implemented
+jni_functions["CallStaticBooleanMethod"] = not_implemented
+jni_functions["CallStaticBooleanMethodV"] = not_implemented
+jni_functions["CallStaticBooleanMethodA"] = not_implemented
+jni_functions["CallStaticByteMethod"] = not_implemented
+jni_functions["CallStaticByteMethodV"] = not_implemented
+jni_functions["CallStaticByteMethodA"] = not_implemented
+jni_functions["CallStaticCharMethod"] = not_implemented
+jni_functions["CallStaticCharMethodV"] = not_implemented
+jni_functions["CallStaticCharMethodA"] = not_implemented
+jni_functions["CallStaticShortMethod"] = not_implemented
+jni_functions["CallStaticShortMethodV"] = not_implemented
+jni_functions["CallStaticShortMethodA"] = not_implemented
+jni_functions["CallStaticIntMethod"] = not_implemented
+jni_functions["CallStaticIntMethodV"] = not_implemented
+jni_functions["CallStaticIntMethodA"] = not_implemented
+jni_functions["CallStaticLongMethod"] = not_implemented
+jni_functions["CallStaticLongMethodV"] = not_implemented
+jni_functions["CallStaticLongMethodA"] = not_implemented
+jni_functions["CallStaticFloatMethod"] = not_implemented
+jni_functions["CallStaticFloatMethodV"] = not_implemented
+jni_functions["CallStaticFloatMethodA"] = not_implemented
+jni_functions["CallStaticDoubleMethod"] = not_implemented
+jni_functions["CallStaticDoubleMethodV"] = not_implemented
+jni_functions["CallStaticDoubleMethodA"] = not_implemented
+jni_functions["CallStaticVoidMethod"] = not_implemented
+jni_functions["CallStaticVoidMethodV"] = not_implemented
+jni_functions["CallStaticVoidMethodA"] = not_implemented
+
+# Static Field Access
+jni_functions["GetStaticFieldID"] = not_implemented
+jni_functions["GetStaticObjectField"] = not_implemented
+jni_functions["GetStaticBooleanField"] = not_implemented
+jni_functions["GetStaticByteField"] = not_implemented
+jni_functions["GetStaticCharField"] = not_implemented
+jni_functions["GetStaticShortField"] = not_implemented
+jni_functions["GetStaticIntField"] = not_implemented
+jni_functions["GetStaticLongField"] = not_implemented
+jni_functions["GetStaticFloatField"] = not_implemented
+jni_functions["GetStaticDoubleField"] = not_implemented
+jni_functions["SetStaticObjectField"] = not_implemented
+jni_functions["SetStaticBooleanField"] = not_implemented
+jni_functions["SetStaticByteField"] = not_implemented
+jni_functions["SetStaticCharField"] = not_implemented
+jni_functions["SetStaticShortField"] = not_implemented
+jni_functions["SetStaticIntField"] = not_implemented
+jni_functions["SetStaticLongField"] = not_implemented
+jni_functions["SetStaticFloatField"] = not_implemented
+jni_functions["SetStaticDoubleField"] = not_implemented
+
+# String Operations
+jni_functions["NewString"] = not_implemented
+jni_functions["GetStringLength"] = not_implemented
+jni_functions["GetStringChars"] = not_implemented
+jni_functions["ReleaseStringChars"] = not_implemented
+jni_functions["NewStringUTF"] = not_implemented
+jni_functions["GetStringUTFLength"] = not_implemented
+jni_functions["GetStringUTFChars"] = not_implemented
+jni_functions["ReleaseStringUTFChars"] = not_implemented
+
+# Array Operations
+jni_functions["GetArrayLength"] =  "GetArrayLength"
+jni_functions["NewObjectArray"] = not_implemented
+jni_functions["GetObjectArrayElement"] = not_implemented
+jni_functions["SetObjectArrayElement"] = not_implemented
+jni_functions["NewBooleanArray"] = "NewBooleanArray"
+jni_functions["NewByteArray"] = "NewByteArray"
+jni_functions["NewCharArray"] = "NewCharArray"
+jni_functions["NewShortArray"] = "NewShortArray"
+jni_functions["NewIntArray"] =  "NewIntArray"
+jni_functions["NewLongArray"] = "NewLongArray"
+jni_functions["NewFloatArray"] = not_implemented
+jni_functions["NewDoubleArray"] = not_implemented
+jni_functions["GetBooleanArrayElements"] = "GetArrayElements"
+jni_functions["GetByteArrayElements"] = "GetArrayElements"
+jni_functions["GetCharArrayElements"] = "GetArrayElements"
+jni_functions["GetShortArrayElements"] = "GetArrayElements"
+jni_functions["GetIntArrayElements"] = "GetArrayElements"
+jni_functions["GetLongArrayElements"] = "GetArrayElements"
+jni_functions["GetFloatArrayElements"] = not_implemented
+jni_functions["GetDoubleArrayElements"] = not_implemented
+jni_functions["ReleaseBooleanArrayElements"] = not_implemented
+jni_functions["ReleaseByteArrayElements"] = "ReleaseArrayElements"
+jni_functions["ReleaseCharArrayElements"] = "ReleaseArrayElements"
+jni_functions["ReleaseShortArrayElements"] = "ReleaseArrayElements"
+jni_functions["ReleaseIntArrayElements"] = "ReleaseArrayElements"
+jni_functions["ReleaseLongArrayElements"] = "ReleaseArrayElements"
+jni_functions["ReleaseFloatArrayElements"] = not_implemented
+jni_functions["ReleaseDoubleArrayElements"] = not_implemented
+jni_functions["GetBooleanArrayRegion"] = "GetArrayRegion"
+jni_functions["GetByteArrayRegion"] = "GetArrayRegion"
+jni_functions["GetCharArrayRegion"] = "GetArrayRegion"
+jni_functions["GetShortArrayRegion"] = "GetArrayRegion"
+jni_functions["GetIntArrayRegion"] = "GetArrayRegion"
+jni_functions["GetLongArrayRegion"] = "GetArrayRegion"
+jni_functions["GetFloatArrayRegion"] = not_implemented
+jni_functions["GetDoubleArrayRegion"] = not_implemented
+jni_functions["SetBooleanArrayRegion"] = "SetArrayRegion"
+jni_functions["SetByteArrayRegion"] = "SetArrayRegion"
+jni_functions["SetCharArrayRegion"] = "SetArrayRegion"
+jni_functions["SetShortArrayRegion"] = "SetArrayRegion"
+jni_functions["SetIntArrayRegion"] = "SetArrayRegion"
+jni_functions["SetLongArrayRegion"] = "SetArrayRegion"
+jni_functions["SetFloatArrayRegion"] = not_implemented
+jni_functions["SetDoubleArrayRegion"] = not_implemented
+
+# Native Method Registration
+jni_functions["RegisterNatives"] = not_implemented
+jni_functions["UnregisterNatives"] = not_implemented
+
+# Monitor Operations
+jni_functions["MonitorEnter"] = not_implemented
+jni_functions["MonitorExit"] = not_implemented
+
+# JavaVM Interface
+jni_functions["GetJavaVM"] = not_implemented
+
+# Misc
+jni_functions["GetStringRegion"] = not_implemented
+jni_functions["GetStringUTFRegion"] = not_implemented
+jni_functions["GetPrimitiveArrayCritical"] = "GetArrayElements"
+jni_functions["ReleasePrimitiveArrayCritical"] = "ReleaseArrayElements"
+jni_functions["GetStringCritical"] = not_implemented
+jni_functions["ReleaseStringCritical"] = not_implemented
+jni_functions["NewWeakGlobalRef"] = not_implemented
+jni_functions["DeleteWeakGlobalRef"] = not_implemented
+jni_functions["ExceptionCheck"] = not_implemented
+jni_functions["NewDirectByteBuffer"] = not_implemented
+jni_functions["GetDirectBufferAddress"] = not_implemented
+jni_functions["GetDirectBufferCapacity"] = not_implemented
+jni_functions["GetObjectRefType"] = not_implemented
