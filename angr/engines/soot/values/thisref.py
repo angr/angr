@@ -17,7 +17,7 @@ class SimSootValue_ThisRef(SimSootValue):
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        local = SimSootValue_Local("%s.this" % soot_value.type, soot_value.type)
+        local = SimSootValue_Local("this", soot_value.type)
         return state.memory.load(local)
 
     def __repr__(self):
