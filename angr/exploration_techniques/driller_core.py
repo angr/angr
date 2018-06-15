@@ -60,10 +60,11 @@ class DrillerCore(ExplorationTechnique):
                 hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
                 transition = (prev_addr, state.addr)
+                mapped_to = self.project.loader.find_object_containing(state.addr).binary
 
                 l.debug("Found %#x -> %#x transition.", transition[0], transition[1])
 
-                if not hit and transition not in self.encounters and not self._has_false(state):
+                if not hit and transition not in self.encounters and not self._has_false(state) and mapped_to != 'cle##externs':
                     state.preconstrainer.remove_preconstraints()
 
                     if state.satisfiable():
