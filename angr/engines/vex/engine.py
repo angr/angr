@@ -224,6 +224,9 @@ class SimEngineVEX(SimEngine):
         # exit barring errors
         has_default_exit = num_stmts <= last_stmt
 
+        # Shall we terminate the execution of the current block as early on as possible?
+        terminate_exec_on_false_guard = o.TERMINATE_EXEC_ON_FALSE_GUARD in state.options
+
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:
             imark_counter = 0
@@ -271,7 +274,7 @@ class SimEngineVEX(SimEngine):
                 break
 
             # Terminate block execution early if the guard becomes False
-            if state.solver.is_false(state.scratch.guard):
+            if terminate_exec_on_false_guard and state.solver.is_false(state.scratch.guard):
                 l.debug("%#x hits a branch that must be taken after analyzing statement %d.",
                           successors.addr, stmt_idx
                           )
