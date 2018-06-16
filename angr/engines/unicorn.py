@@ -58,6 +58,13 @@ class SimEngineUnicorn(SimEngine):
             return False
 
         unicorn = state.unicorn  # shorthand
+
+        # if we have a concrete target we want the program to synchronize the segment
+        # registers before, otherwise undefined behavior could happen.
+        if state.project.concrete_target:
+            if not state.concrete.segment_registers_initialized:
+                l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
+                return False
         if state.regs.ip.symbolic:
             l.debug("symbolic IP!")
             return False

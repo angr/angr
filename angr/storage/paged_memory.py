@@ -4,7 +4,7 @@ import cffi
 import cle
 from sortedcontainers import SortedDict
 
-from ..errors import SimMemoryError, SimSegfaultError
+from ..errors import SimMemoryError, SimSegfaultError, ConcreteMemoryError
 from .. import sim_options as options
 from .memory_object import SimMemoryObject
 from claripy.ast.bv import BV
@@ -484,6 +484,21 @@ class SimPagedMemory(object):
 
         if self._memory_backer is None:
             pass
+
+        elif isinstance(self._memory_backer, cle.Clemory) and self._memory_backer.is_concrete_target_set():
+            try:
+                concrete_memory = self._memory_backer.read_bytes(new_page_addr, self._page_size)
+                backer = claripy.BVV(''.join(concrete_memory))
+                mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
+                self._apply_object_to_page(n * self._page_size, mo, page=new_page)
+                initialized = True
+            except ConcreteMemoryError:
+                l.debug("The address requested is not mapped in the concrete process memory \
+                this can happen when a memory allocation function/syscall is invoked in the simulated execution \
+                and the map_region function is called")
+
+                return
+
         elif isinstance(self._memory_backer, cle.Clemory):
             # first, find the right clemory backer
             for addr, backer in self._memory_backer.cbackers if self.byte_width == 8 else ((x, y) for x, _, y in self._memory_backer.stride_repr):
@@ -519,6 +534,7 @@ class SimPagedMemory(object):
                 new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
 
+
         elif len(self._memory_backer) <= self._page_size:
             for i in self._memory_backer:
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
@@ -531,6 +547,7 @@ class SimPagedMemory(object):
                     mo = SimMemoryObject(backer, i, byte_width=self.byte_width)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
+
         elif len(self._memory_backer) > self._page_size:
             for i in range(self._page_size):
                 try:
@@ -1060,5 +1077,26 @@ class SimPagedMemory(object):
         for page in xrange(pages):
             del self._pages[base_page_num + page]
             del self._symbolic_addrs[base_page_num + page]
+
+    def flush_pages(self,white_list):
+        """
+            :param white_list: white list of page number to exclude from the flush
+        """
+        white_list_page_number = []
+        for addr in white_list:
+            for page_addr in xrange(addr[0], addr[1], 0x1000):
+                white_list_page_number.append(page_addr / 0x1000)
+
+        new_page_dict = {}
+
+        # cycle over all the keys ( the page number )
+        for page in self._pages:
+            if page in white_list_page_number:
+                l.debug("Page " + str(page) + " not flushed!")
+                new_page_dict[page] = self._pages[page]
+
+        self._pages = new_page_dict
+        self._initialized = set()
+
 
 from .. import sim_options as o
