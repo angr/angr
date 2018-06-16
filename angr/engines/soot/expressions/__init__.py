@@ -24,8 +24,6 @@ def translate_expr(expr, state):
 from .new import SimSootExpr_New
 from .newArray import SimSootExpr_NewArray
 from .local import SimSootExpr_Local
-from .virtualinvoke import SimSootExpr_VirtualInvoke
-from .staticinvoke import SimSootExpr_StaticInvoke
 from .binop import SimSootExpr_Binop
 from .condition import SimSootExpr_Condition
 from .paramref import SimSootExpr_ParamRef
@@ -38,4 +36,4 @@ from .length import SimSootExpr_Length
 from .unsupported import SimSootExpr_Unsupported
 from .cast import SimSootExpr_Cast
 from .constants import *
-from .specialinvoke import SimSootExpr_SpecialInvoke
+from .invoke import SimSootExpr_SpecialInvoke, SimSootExpr_StaticInvoke, SimSootExpr_VirtualInvoke
