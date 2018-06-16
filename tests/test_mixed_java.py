@@ -12,6 +12,132 @@ test_location = str(os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
 
 #
+# JNI Method Calls
+#
+
+def test_jni_non_virtual_instance_method_call(binary_dir="6"):
+    project = create_project(binary_dir)
+
+    # test_jni_non_virtual_instance_method_call
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_non_virtual_instance_method_call"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':5})
+
+
+def test_jni_instance_method_calls(binary_dir="6"):
+    project = create_project(binary_dir)
+
+    # test_jni_instance_method_calls_basic
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_instance_method_calls_basic"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':7, 'i1':7})
+
+    # test_jni_instance_method_calls_subclass
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_instance_method_calls_subclass"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':2, 'i1':2})
+
+    # test_jni_instance_method_calls_shared_method_id
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_instance_method_calls_shared_method_id"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':8, 'i1':2})
+
+    # test_jni_instance_method_calls_args
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_instance_method_calls_args"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':11})
+
+def test_jni_static_method_call(binary_dir="6"):
+
+    project = create_project(binary_dir)
+
+    # test_jni_static_method_call
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_static_method_call"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':10})
+
+    # test_jni_static_method_call_return_obj
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_static_method_call_return_obj"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':7})
+
+#
+# Method Calls
+#
+
+def test_instance_method_calls(binary_dir="5"):
+    project = create_project(binary_dir, load_native_libs=False)
+
+    # test_instance_method_calls
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_instance_method_calls"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':0, 'i1':1, 'i2':1, 'i3':2, 'i4':2, 'i5':2})
+
+
+def test_static_method_calls(binary_dir="5"):
+    project = create_project(binary_dir, load_native_libs=False)
+
+    # test_static_method_calls_0
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_static_method_calls_0"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':0, 'i1':1, 'i2':2, 'i3':2})
+
+    # test_static_method_calls_1
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_static_method_calls_1"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':0, 'i1':0, 'i2':1, 'i3':2, 'i4':2, 'i5':2})
+
+
+def test_specialinvoke_method_calls(binary_dir="5"):
+    project = create_project(binary_dir, load_native_libs=False)
+
+    # test_special_invoke_0
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_special_invoke_0"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':3})
+
+    # test_special_invoke_1
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_special_invoke_1"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':4})
+
+#
 # Loading
 #
 
@@ -297,11 +423,24 @@ def test_basic_array_operations(binary_dir="4"):
 # Helper
 #
 
-def create_project(binary_dir):
+def print_java_memory(state):
+    print "\n##### STACK ##########" + "#"*60
+    print state.memory.stack
+    print "\n##### HEAP ###########" + "#"*60
+    print state.memory.heap
+    print "\n##### VM STATIC TABLE " + "#"*60
+    print state.memory.vm_static_table
+    print
+
+def create_project(binary_dir, load_native_libs=True):
     jar_path = os.path.join(test_location, "mixed_java",
                             binary_dir, "MixedJava.jar")
-    jni_options = {'native_libs': ['libmixedjava.so']}
-    return angr.Project(jar_path, main_opts=jni_options)
+    if load_native_libs:
+        jni_options = {'native_libs': ['libmixedjava.so']}
+        return angr.Project(jar_path, main_opts=jni_options)
+    else:
+        return angr.Project(jar_path)
+
 
 
 def load_value_from_stack(state, symbol_name):
