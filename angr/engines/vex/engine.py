@@ -266,7 +266,15 @@ class SimEngineVEX(SimEngine):
                 state.history.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name,
                                     message='unsupported Dirty call')
             except (SimSolverError, SimMemoryAddressError):
-                l.warning("%#x hit an error while analyzing statement %d", successors.addr, stmt_idx, exc_info=True)
+                l.warning("%#x hits an error while analyzing statement %d", successors.addr, stmt_idx, exc_info=True)
+                has_default_exit = False
+                break
+
+            # Terminate block execution early if the guard becomes False
+            if state.solver.is_false(state.scratch.guard):
+                l.debug("%#x hits a branch that must be taken after analyzing statement %d.",
+                          successors.addr, stmt_idx
+                          )
                 has_default_exit = False
                 break
 
