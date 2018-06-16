@@ -67,7 +67,7 @@ class JNISimProcedure(SimProcedure):
 
         return addr
 
-    def load_from_native_memory(self, addr, value_type=None, value_size=None, no_of_elements=1):
+    def load_from_native_memory(self, addr, value_type=None, value_size=None, no_of_elements=1, return_as_list=False):
 
         if addr is not None and self.state.solver.symbolic(addr):
             print "symbolic addr"
@@ -82,7 +82,7 @@ class JNISimProcedure(SimProcedure):
                 value = self.state.project.simos.cast_primitive(value=value, to_type=value_type)
             values.append(value)
 
-        if no_of_elements == 1:
+        if no_of_elements == 1 and not return_as_list:
             return values[0]
         else:
             return values
@@ -150,7 +150,7 @@ jni_functions["FindClass"] = not_implemented
 jni_functions["FromReflectedMethod"] = not_implemented
 jni_functions["FromReflectedField"] = not_implemented
 jni_functions["ToReflectedMethod"] = not_implemented
-jni_functions["GetSuperclass"] = not_implemented
+jni_functions["GetSuperclass"] = "GetSuperclass"
 jni_functions["IsAssignableFrom"] = not_implemented
 jni_functions["ToReflectedField"] = not_implemented
 
@@ -214,39 +214,39 @@ jni_functions["CallVoidMethodV"] = not_implemented
 jni_functions["CallVoidMethodA"] = "CallVoidMethodA"
 
 #Calling Instance Methods of a Superclass
-jni_functions["CallNonvirtualObjectMethod"] = not_implemented
+jni_functions["CallNonvirtualObjectMethod"] = "CallNonvirtualObjectMethod"
 jni_functions["CallNonvirtualObjectMethodV"] = not_implemented
-jni_functions["CallNonvirtualObjectMethodA"] = not_implemented
-jni_functions["CallNonvirtualBooleanMethod"] = not_implemented
+jni_functions["CallNonvirtualObjectMethodA"] = "CallNonvirtualObjectMethodA"
+jni_functions["CallNonvirtualBooleanMethod"] = "CallNonvirtualBooleanMethod"
 jni_functions["CallNonvirtualBooleanMethodV"] = not_implemented
-jni_functions["CallNonvirtualBooleanMethodA"] = not_implemented
-jni_functions["CallNonvirtualByteMethod"] = not_implemented
+jni_functions["CallNonvirtualBooleanMethodA"] = "CallNonvirtualBooleanMethodA"
+jni_functions["CallNonvirtualByteMethod"] = "CallNonvirtualByteMethod"
 jni_functions["CallNonvirtualByteMethodV"] = not_implemented
-jni_functions["CallNonvirtualByteMethodA"] = not_implemented
-jni_functions["CallNonvirtualCharMethod"] = not_implemented
+jni_functions["CallNonvirtualByteMethodA"] = "CallNonvirtualByteMethodA"
+jni_functions["CallNonvirtualCharMethod"] = "CallNonvirtualCharMethod"
 jni_functions["CallNonvirtualCharMethodV"] = not_implemented
-jni_functions["CallNonvirtualCharMethodA"] = not_implemented
-jni_functions["CallNonvirtualShortMethod"] = not_implemented
+jni_functions["CallNonvirtualCharMethodA"] = "CallNonvirtualCharMethodA"
+jni_functions["CallNonvirtualShortMethod"] = "CallNonvirtualShortMethod"
 jni_functions["CallNonvirtualShortMethodV"] = not_implemented
-jni_functions["CallNonvirtualShortMethodA"] = not_implemented
-jni_functions["CallNonvirtualIntMethod"] = not_implemented
+jni_functions["CallNonvirtualShortMethodA"] = "CallNonvirtualShortMethodA"
+jni_functions["CallNonvirtualIntMethod"] = "CallNonvirtualIntMethod"
 jni_functions["CallNonvirtualIntMethodV"] = not_implemented
-jni_functions["CallNonvirtualIntMethodA"] = not_implemented
-jni_functions["CallNonvirtualLongMethod"] = not_implemented
+jni_functions["CallNonvirtualIntMethodA"] = "CallNonvirtualIntMethodA"
+jni_functions["CallNonvirtualLongMethod"] = "CallNonvirtualLongMethod"
 jni_functions["CallNonvirtualLongMethodV"] = not_implemented
-jni_functions["CallNonvirtualLongMethodA"] = not_implemented
+jni_functions["CallNonvirtualLongMethodA"] = "CallNonvirtualLongMethodA"
 jni_functions["CallNonvirtualFloatMethod"] = not_implemented
 jni_functions["CallNonvirtualFloatMethodV"] = not_implemented
 jni_functions["CallNonvirtualFloatMethodA"] = not_implemented
 jni_functions["CallNonvirtualDoubleMethod"] = not_implemented
 jni_functions["CallNonvirtualDoubleMethodV"] = not_implemented
 jni_functions["CallNonvirtualDoubleMethodA"] = not_implemented
-jni_functions["CallNonvirtualVoidMethod"] = not_implemented
+jni_functions["CallNonvirtualVoidMethod"] = "CallNonvirtualVoidMethod"
 jni_functions["CallNonvirtualVoidMethodV"] = not_implemented
-jni_functions["CallNonvirtualVoidMethodA"] = not_implemented
+jni_functions["CallNonvirtualVoidMethodA"] = "CallNonvirtualVoidMethodA"
 
 # Instance Field Access
-jni_functions["GetFieldID"] = "GetFieldID"
+jni_functions["GetFieldID"] = "GetInstanceFieldID"
 jni_functions["GetObjectField"] = "GetObjectField"
 jni_functions["GetBooleanField"] = "GetBooleanField"
 jni_functions["GetByteField"] = "GetByteField"
@@ -267,40 +267,40 @@ jni_functions["SetFloatField"] = not_implemented
 jni_functions["SetDoubleField"] = not_implemented
 
 # Static Method Calls
-jni_functions["GetStaticMethodID"] = not_implemented
-jni_functions["CallStaticObjectMethod"] = not_implemented
+jni_functions["GetStaticMethodID"] = "GetMethodID"
+jni_functions["CallStaticObjectMethod"] = "CallStaticObjectMethod"
 jni_functions["CallStaticObjectMethodV"] = not_implemented
-jni_functions["CallStaticObjectMethodA"] = not_implemented
-jni_functions["CallStaticBooleanMethod"] = not_implemented
+jni_functions["CallStaticObjectMethodA"] = "CallStaticObjectMethodA"
+jni_functions["CallStaticBooleanMethod"] = "CallStaticBooleanMethod"
 jni_functions["CallStaticBooleanMethodV"] = not_implemented
-jni_functions["CallStaticBooleanMethodA"] = not_implemented
-jni_functions["CallStaticByteMethod"] = not_implemented
+jni_functions["CallStaticBooleanMethodA"] = "CallStaticBooleanMethodA"
+jni_functions["CallStaticByteMethod"] = "CallStaticByteMethod"
 jni_functions["CallStaticByteMethodV"] = not_implemented
-jni_functions["CallStaticByteMethodA"] = not_implemented
-jni_functions["CallStaticCharMethod"] = not_implemented
+jni_functions["CallStaticByteMethodA"] = "CallStaticByteMethodA"
+jni_functions["CallStaticCharMethod"] = "CallStaticCharMethod"
 jni_functions["CallStaticCharMethodV"] = not_implemented
-jni_functions["CallStaticCharMethodA"] = not_implemented
-jni_functions["CallStaticShortMethod"] = not_implemented
+jni_functions["CallStaticCharMethodA"] = "CallStaticCharMethodA"
+jni_functions["CallStaticShortMethod"] = "CallStaticShortMethod"
 jni_functions["CallStaticShortMethodV"] = not_implemented
-jni_functions["CallStaticShortMethodA"] = not_implemented
-jni_functions["CallStaticIntMethod"] = not_implemented
+jni_functions["CallStaticShortMethodA"] = "CallStaticShortMethodA"
+jni_functions["CallStaticIntMethod"] = "CallStaticIntMethod"
 jni_functions["CallStaticIntMethodV"] = not_implemented
-jni_functions["CallStaticIntMethodA"] = not_implemented
-jni_functions["CallStaticLongMethod"] = not_implemented
+jni_functions["CallStaticIntMethodA"] = "CallStaticIntMethodA"
+jni_functions["CallStaticLongMethod"] = "CallStaticLongMethod"
 jni_functions["CallStaticLongMethodV"] = not_implemented
-jni_functions["CallStaticLongMethodA"] = not_implemented
+jni_functions["CallStaticLongMethodA"] = "CallStaticLongMethodA"
 jni_functions["CallStaticFloatMethod"] = not_implemented
 jni_functions["CallStaticFloatMethodV"] = not_implemented
 jni_functions["CallStaticFloatMethodA"] = not_implemented
 jni_functions["CallStaticDoubleMethod"] = not_implemented
 jni_functions["CallStaticDoubleMethodV"] = not_implemented
 jni_functions["CallStaticDoubleMethodA"] = not_implemented
-jni_functions["CallStaticVoidMethod"] = not_implemented
+jni_functions["CallStaticVoidMethod"] = "CallStaticVoidMethod"
 jni_functions["CallStaticVoidMethodV"] = not_implemented
-jni_functions["CallStaticVoidMethodA"] = not_implemented
+jni_functions["CallStaticVoidMethodA"] = "CallStaticVoidMethodA"
 
 # Static Field Access
-jni_functions["GetStaticFieldID"] = not_implemented
+jni_functions["GetStaticFieldID"] = "GetStaticFieldID"
 jni_functions["GetStaticObjectField"] = not_implemented
 jni_functions["GetStaticBooleanField"] = not_implemented
 jni_functions["GetStaticByteField"] = not_implemented

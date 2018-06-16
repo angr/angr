@@ -261,14 +261,15 @@ class SimEngineSoot(SimEngine):
         javavm_memory.push_stack_frame()
 
         # setup arguments
-        if isinstance(args[0][0], SimSootValue_ThisRef):
-            this_ref, this_ref_type = args.pop(0)
-            local = SimSootValue_Local("this", this_ref_type)
-            javavm_memory.store(local, this_ref)
+        if args:
+            if isinstance(args[0][0], SimSootValue_ThisRef):
+                this_ref, this_ref_type = args.pop(0)
+                local = SimSootValue_Local("this", this_ref_type)
+                javavm_memory.store(local, this_ref)
 
-        for idx, (value, value_type) in enumerate(args):
-            param_ref = SimSootValue_ParamRef(idx, value_type)
-            javavm_memory.store(param_ref, value)
+            for idx, (value, value_type) in enumerate(args):
+                param_ref = SimSootValue_ParamRef(idx, value_type)
+                javavm_memory.store(param_ref, value)
 
     @staticmethod
     def _is_method_beginning(addr):

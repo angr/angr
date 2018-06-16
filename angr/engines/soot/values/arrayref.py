@@ -70,11 +70,12 @@ class SimSootValue_ArrayRef(SimSootValue):
 
         # exist any valid solutions?
         if not True in idx_stays_within_bounds:
-            raise SimEngineError("Access of %s[%s] (length %s) is always invalid. Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."
+            raise SimEngineError("Access of %s[%s] (length %s) is always invalid. "
+                                 "Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."
                                  % (array.heap_alloc_id, idx, length))
             
         # exist any out-of-bounds solutions?
         if False in idx_stays_within_bounds:
-            l.warning("Possible out-of-bounds access! Index and/or length gets constraint to valid values. (%s[%s], length %s)"
-                      % (array.heap_alloc_id, idx, length))
+            l.warning("Possible out-of-bounds access! Index and/or length gets constraint to "
+                      "valid values. (%s[%s], length %s)" % (array.heap_alloc_id, idx, length))
             state.solver.add(And(length.SGT(idx), zero.SLE(idx)))

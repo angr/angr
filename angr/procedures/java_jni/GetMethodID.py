@@ -1,17 +1,15 @@
 from . import JNISimProcedure
 
-from ...engines.soot.virtual_dispatcher import resolve_method
-from archinfo import ArchSoot
+from archinfo.arch_soot import ArchSoot, SootMethodDescriptor
 
 class GetMethodID(JNISimProcedure):
 
     return_ty = 'reference'
 
-    def run(self, ptr_env, obj_class_, ptr_method_name, ptr_method_sig):
+    def run(self, ptr_env, class_, ptr_method_name, ptr_method_sig):
         
-        # object class name
-        obj_class = self.state.jni_references.lookup(obj_class_)
-        obj_class_name = obj_class.class_name
+        # class name
+        class_name = self.state.jni_references.lookup(class_).class_name
 
         # method name
         method_name = self._load_string_from_native_memory(ptr_method_name)
@@ -20,6 +18,13 @@ class GetMethodID(JNISimProcedure):
         method_sig = self._load_string_from_native_memory(ptr_method_sig)
         params, ret = ArchSoot.decode_method_signature(method_sig)
 
-        # get the SootMethodDescriptor for the method and return a opaque reference to it
-        method_id = resolve_method(self.state, method_name, obj_class_name, params, ret)
+        # create SootMethodDescriptor as id and return a opaque reference to it
+        # Note: we do not resolve the method at this point, because the method id can be 
+        #       used with different objects
+        #       TODO test case
+        #       used both for virtual invokes and special invokes (see invoke expr in Soot
+        #       engine). The actual invoke type gets determined later, based on the type
+        #       of jni function (Call<Type>Method vs. CallNonVirtual<Type>Method)
+        method_id = SootMethodDescriptor(class_name=class_name, name=method_name, 
+                                         params=params, ret=ret)
         return self.state.jni_references.create_new_reference(method_id)
