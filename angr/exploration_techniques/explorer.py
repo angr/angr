@@ -125,12 +125,12 @@ class Explorer(ExplorationTechnique):
                         return self.avoid_stash
                     try:
                         state = self.project.factory.successors(state, num_inst=1).successors[0]
-		    except SimIRSBNoDecodeError as ex:
+                    except SimIRSBNoDecodeError as ex:
                         if state.arch.name.startswith('MIPS'):
                             l.warning('Due to MIPS delay slots, the find address must be executed with other instructions and therefore may not be able to be found' + \
-				' - Trying to find state that includes find address')
+                                ' - Trying to find state that includes find address')
                             if len(rFind.intersection(set(state.block().instruction_addrs))) > 0:
-                        	#there is an address that is both in the block AND in the rFind stat
+                                #there is an address that is both in the block AND in the rFind stat
                                 l.warning('Found state that includes find instruction, this one will be returned')
                                 rFind = rFind.union(set(state.block().instruction_addrs))
                         else:
