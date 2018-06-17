@@ -1974,16 +1974,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if is_syscall:
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
-            succ = self.project.factory.successors(tmp_state).flat_successors[0]
-            try:
-                syscall_stub = self.project.simos.syscall(succ)
-                if syscall_stub:  # can be None if simos is not a subclass of SimUserspac
-                    syscall_addr = syscall_stub.addr
-                    target_addr = syscall_addr
-                else:
-                    target_addr = self._unresolvable_target_addr
-            except AngrUnsupportedSyscallError:
+            # Find the first successor with a syscall jumpkind
+            succ = next(iter(succ for succ in self.project.factory.successors(tmp_state).flat_successors
+                             if succ.jumpkind and succ.jumpkind.startswith("Ijk_Sys")), None)
+            if succ is None:
+                # For some reason, there is no such successor with a syscall jumpkind
                 target_addr = self._unresolvable_target_addr
+            else:
+                try:
+                    syscall_stub = self.project.simos.syscall(succ)
+                    if syscall_stub:  # can be None if simos is not a subclass of SimUserspac
+                        syscall_addr = syscall_stub.addr
+                        target_addr = syscall_addr
+                    else:
+                        target_addr = self._unresolvable_target_addr
+                except AngrUnsupportedSyscallError:
+                    target_addr = self._unresolvable_target_addr
 
         new_function_addr = target_addr
         if irsb is None:
