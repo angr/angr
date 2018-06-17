@@ -413,7 +413,7 @@ class Project(object):
 
         del self._sim_procedures[addr]
 
-    def hook_symbol(self, symbol_name, obj, kwargs=None, replace=None):
+    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace=None):
         """
         Resolve a dependency in a binary. Looks up the address of the given symbol, and then hooks that
         address. If the symbol was not available in the loaded libraries, this address may be provided
@@ -425,7 +425,7 @@ class Project(object):
         functions, in which case it'll do the right thing.
 
         :param symbol_name: The name of the dependency to resolve.
-        :param obj:         The thing with which to satisfy the dependency.
+        :param simproc:     The SimProcedure instance (or function) with which to hook the symbol
         :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
                             arguments that will be passed to the procedure's `run` method
                             eventually.
@@ -435,12 +435,6 @@ class Project(object):
         :returns:           The address of the new symbol.
         :rtype:             int
         """
-        if type(obj) in (int, long):
-            # this is pretty intensely sketchy
-            l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)
-            self.loader.provide_symbol(self.loader.extern_object, symbol_name, AT.from_mva(obj, self.loader.extern_object).to_rva())
-            return obj
-
         if type(symbol_name) not in (int, long):
             sym = self.loader.find_symbol(symbol_name)
             if sym is None:
