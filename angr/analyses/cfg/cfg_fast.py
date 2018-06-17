@@ -333,22 +333,30 @@ class SegmentList(object):
 
         return address
 
-    def next_pos_with_sort_not_in(self, address, sorts):
+    def next_pos_with_sort_not_in(self, address, sorts, max_distance=None):
         """
         Returns the address of the next occupied block whose sort is not one of the specified ones.
 
         :param int address: The address to begin the search with (including itself).
         :param sorts:       A collection of sort strings.
+        :param max_distance:    The maximum distance between `address` and the next position. Search will stop after
+                                we come across an occupied position that is beyond `address` + max_distance. This check
+                                will be disabled if `max_distance` is set to None.
         :return:            The next occupied position whose sort is not one of the specified ones, or None if no such
                             position exists.
         :rtype:             int or None
         """
 
-        idx = self._search(address)
-        if idx < len(self._list):
-            # Occupied
+        list_length = len(self._list)
 
+        idx = self._search(address)
+        if idx < list_length:
+            # Occupied
             block = self._list[idx]
+
+            if max_distance is not None and address + max_distance < block.start:
+                return None
+
             if block.start <= address < block.end:
                 # the address is inside the current block
                 if block.sort not in sorts:
@@ -357,7 +365,9 @@ class SegmentList(object):
                 idx += 1
 
             i = idx
-            while i < len(self._list):
+            while i < list_length:
+                if max_distance is not None and address + max_distance < self._list[i].start:
+                    return None
                 if self._list[i].sort not in sorts:
                     return self._list[i].start
                 i += 1
@@ -3407,7 +3417,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 real_addr = addr
 
             # if possible, check the distance between `addr` and the end of this section
-            distance = None
+            distance = VEX_IRSB_MAX_SIZE
             obj = self.project.loader.find_object_containing(addr)
             if obj:
                 # is there a section?
@@ -3436,7 +3446,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         distance = min(distance, distance_to_func)
 
             # in the end, check the distance between `addr` and the closest occupied region in segment list
-            next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, { "code" })
+            next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, { "code" }, max_distance=distance)
             if next_noncode_addr is not None:
                 distance_to_noncode_addr = next_noncode_addr - addr
                 distance = min(distance, distance_to_noncode_addr)
