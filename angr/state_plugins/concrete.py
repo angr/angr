@@ -1,7 +1,8 @@
-from .plugin import SimStatePlugin
-from angr.errors import ConcreteRegisterError
 import struct
 import logging
+
+from .plugin import SimStatePlugin
+from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
@@ -110,7 +111,7 @@ class Concrete(SimStatePlugin):
                 l.debug("Register: %s value: %x " % (register_name,
                                                      self.state.se.eval(getattr(self.state.regs, register_name),
                                                                         cast_to=int)))
-            except ConcreteRegisterError as exc:
+            except SimConcreteRegisterError as exc:
                 l.debug("Can't set register %s reason: %s, if this register is not used "
                         "this message can be ignored" % (register_name, exc))
 
@@ -133,5 +134,5 @@ class Concrete(SimStatePlugin):
         state.concrete.fs_register_bp = None
 
 
-from angr.sim_state import SimState
+from ..sim_state import SimState
 SimState.register_default('concrete', Concrete)

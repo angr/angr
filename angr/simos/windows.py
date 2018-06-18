@@ -2,6 +2,7 @@ import os
 import logging
 
 import claripy
+from archinfo import ArchX86, ArchAMD64
 
 from ..errors import (
     AngrSimOSError,
@@ -13,7 +14,6 @@ from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
 from .simos import SimOS
-from archinfo import ArchX86, ArchAMD64
 
 _l = logging.getLogger('angr.simos.windows')
 

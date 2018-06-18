@@ -1,9 +1,11 @@
-import angr
-import claripy
-import avatar2 as avatar2
-from angr_targets import AvatarGDBConcreteTarget
 import os
 import nose
+
+import avatar2 as avatar2
+
+import angr
+import claripy
+from angr_targets import AvatarGDBConcreteTarget
 
 binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..','..', '..', 'binaries','tests','x86','windows','not_packed_pe32.exe'))

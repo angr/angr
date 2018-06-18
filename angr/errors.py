@@ -401,12 +401,14 @@ class AngrNoPluginError(AngrError):
 # Concrete Targets Execution errors
 #
 
-class ConcreteMemoryError(AngrError):
+
+class SimConcreteMemoryError(AngrError):
     pass
 
 
-class ConcreteRegisterError(AngrError):
+class SimConcreteRegisterError(AngrError):
     pass
 
-class ConcreteBreakpointError(AngrError):
+
+class SimConcreteBreakpointError(AngrError):
     pass

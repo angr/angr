@@ -1,4 +1,5 @@
 import logging
+
 from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")

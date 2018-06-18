@@ -1,14 +1,14 @@
 import logging
+import struct
 
 import claripy
 from archinfo import ArchMIPS32
-import struct
+
 from ..errors import (
     AngrCallableError,
     AngrCallableMultistateError,
     AngrSimOSError,
 )
-
 from ..sim_state import SimState
 from ..state_plugins import SimSystemPosix
 from ..calling_conventions import DEFAULT_CC
