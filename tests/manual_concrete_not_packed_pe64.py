@@ -8,7 +8,7 @@ import claripy
 from angr_targets import AvatarGDBConcreteTarget
 
 binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          os.path.join('..','..', '..', 'binaries','tests','x86_64','windows','not_packed_pe64.exe'))
+                                          os.path.join('..', '..', 'binaries','tests','x86_64','windows','not_packed_pe64.exe'))
 
 GDB_SERVER_IP = '192.168.56.101'
 GDB_SERVER_PORT = 9999

@@ -27,7 +27,7 @@ FAKE_CC = 0x8048962
 BINARY_EXECUTION_END = 0x8048992
 
 binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                          os.path.join('..','..', '..', 'binaries','tests','i386','not_packed_elf32'))
+                          os.path.join('..','..', 'binaries','tests','i386','not_packed_elf32'))
 
 def setup_x86():
     print("gdbserver %s:%s %s" % (GDB_SERVER_IP,GDB_SERVER_PORT,binary_x86))

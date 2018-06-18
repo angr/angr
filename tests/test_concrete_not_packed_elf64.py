@@ -10,7 +10,7 @@ from angr_targets import AvatarGDBConcreteTarget
 
 
 binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                          os.path.join('..','..', '..', 'binaries','tests','x86_64','not_packed_elf64'))
+                          os.path.join('..','..', 'binaries','tests','x86_64','not_packed_elf64'))
 
 GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
