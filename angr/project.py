@@ -9,7 +9,6 @@ from collections import defaultdict
 
 import archinfo
 import cle
-from cle.address_translator import AT
 
 from .misc.ux import once, deprecated
 
@@ -460,7 +459,7 @@ class Project(object):
 
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
 
-        self.hook(hook_addr, obj, kwargs=kwargs, replace=replace)
+        self.hook(hook_addr, simproc, kwargs=kwargs, replace=replace)
         return hook_addr
 
     def hook_symbol_batch(self, hooks):
