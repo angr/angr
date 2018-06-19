@@ -12,6 +12,58 @@ test_location = str(os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
 
 #
+# JNI Field Access
+#
+
+def test_jni_static_field_access(binary_dir="7"):
+    project = create_project(binary_dir)
+    
+    # test_static_field_access_basic
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_static_field_access_basic"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':0x0, 'i1':0x1, 'i2':0xA, 'i3':0xB, 
+                                     'i4':0x7, 'i5':0xB, 'i6':0x0, 'i7':0x9})
+    
+    # test_jni_static_field_access
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_static_field_access"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':0, 'i1':5})
+    
+    # test_jni_static_field_access_subclass
+    end_state2 = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_jni_static_field_access_subclass"
+    )
+    print_java_memory(end_state2)
+    assert_values(end_state2, values={'i0':1, 'i1':10, 'i2':30, 'i3':1})
+
+
+def test_jni_instance_field_access(binary_dir="7"):
+    project = create_project(binary_dir)
+
+    # test_instance_field_access_0
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_instance_field_access_0"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':0, 'i1':10, 'i2':5, 'i3':5})
+
+    # test_instance_field_access_1
+    end_state = get_last_state_of_method(
+        project=project,
+        method_fullname="MixedJava.test_instance_field_access_1"
+    )
+    print_java_memory(end_state)
+    assert_values(end_state, values={'i0':0, 'i1':1, 'i2':10, 'i3':4, 'i4':4, 'i5':1})
+
+#
 # JNI Method Calls
 #
 
@@ -25,7 +77,7 @@ def test_jni_non_virtual_instance_method_call(binary_dir="6"):
     )
     print_java_memory(end_state)
     assert_values(end_state, values={'i0':5})
-
+ 
 
 def test_jni_instance_method_calls(binary_dir="6"):
     project = create_project(binary_dir)
@@ -505,10 +557,8 @@ def get_winning_path(project, method_fullname):
 
 
 def main():
-    #test_loading_of_native_libs_with_ld_path()
-    #test_loading_of_native_libs_without_ld_path()
-    test_jni_env_get_version()
-    test_primitive_types()
+
+    test_array_out_of_bounds()
 
 
 if __name__ == "__main__":

@@ -1,31 +1,38 @@
 from .plugin import SimStatePlugin
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor, SootAddressTerminator
+
+import logging
+l = logging.getLogger("angr.state_plugins.javavm_classloader")
 
 
 class SimJavaVmClassloader(SimStatePlugin):
-    def __init__(self, classes_loaded=set()):
+    def __init__(self, classes_loaded=None):
         super(SimJavaVmClassloader, self).__init__()
-        self._classes_loaded = classes_loaded
+        self._classes_loaded = set() if classes_loaded is None else classes_loaded
 
     def load_class(self, class_):
 
         if self.is_class_loaded(class_):
+            l.info("Class %s already loaded." % class_.name)
             return
+
+        l.info("Load class %s \n\n" % class_.name)
 
         self.classes_loaded.add(class_.name)
         for method in class_.methods:
             if method.name == "<clinit>":
+                l.info("Run initializer <clinit> ...")
                 entry_state = self.state.copy()
+                entry_state.callstack.ret_addr = SootAddressTerminator()
                 simgr = self.state.project.factory.simgr(entry_state)
                 simgr.active[0].ip = SootAddressDescriptor(SootMethodDescriptor.from_method(method), 0, 0)
                 simgr.run()
-                # if we reach the end of the method the correct state is the deadended state
-                if simgr.deadended:
-                    # The only thing that can change in the <clinit> methods are static fields so
-                    # it can only change the vm_static_table and the heap.
-                    # We need to fix the entry state memory with the new memory state.
-                    self.state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
-                    self.state.memory.heap = simgr.deadended[0].memory.heap.copy()
+                l.info("Run initializer <clinit> ... done \n\n")
+                # The only thing that can change in the <clinit> methods are static fields so
+                # it can only change the vm_static_table and the heap.
+                # We need to fix the entry state memory with the new memory state.
+                self.state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
+                self.state.memory.heap = simgr.deadended[0].memory.heap.copy()
                 break
 
     def is_class_loaded(self, class_):

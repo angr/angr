@@ -1,9 +1,8 @@
-import logging
 
 from .base import SimSootValue
 
+import logging
 l = logging.getLogger('angr.engines.soot.values.staticfieldref')
-
 
 class SimSootValue_StaticFieldRef(SimSootValue):
 
@@ -21,16 +20,20 @@ class SimSootValue_StaticFieldRef(SimSootValue):
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        try:
-            # Programs can access static field before class initialization
-            # If the class hasn't been loaded yet we need to load it
-            class_ = state.project.loader.main_bin.classes[soot_value.field[1]]
-            if not state.javavm_classloader.is_class_loaded(class_):
-                state.javavm_classloader.load_class(class_)
-        except KeyError:
-            l.warning("Trying to get a Static Field not loaded (%r)",
-                      cls._create_unique_id(soot_value.field[1], soot_value.field[0]))
-        return cls(soot_value.field[1], soot_value.field[0], soot_value.type)
+        field_name, field_class_name = soot_value.field
+        field_type = soot_value.type
+        # applications can access static fields before the class was initialized
+        # => if the class hasn't been loaded yet, we need to load it
+        field_class = state.javavm_classloader.get_class(field_class_name)
+        if field_class is not None:
+            state.javavm_classloader.load_class(field_class)
+        else:
+            # show warning, if the class is loaded in CLE
+            l.warning("Trying to access static field {field} from unloaded class {class_name}"
+                      "".format(field=cls._create_unique_id(field_name, field_class), 
+                                class_name=field_class_name))
+        # return field ref
+        return cls(field_class_name, field_name, field_type)
 
     def __repr__(self):
         return self.id

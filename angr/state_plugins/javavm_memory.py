@@ -86,11 +86,24 @@ class SimJavaVmMemory(SimMemory):
             return cstack.load(addr.id, none_if_missing=True)
 
         elif type(addr) is SimSootValue_StaticFieldRef:
-            return self.vm_static_table.load(addr.id, none_if_missing=True)
+            value = self.vm_static_table.load(addr.id, none_if_missing=True)
+            if value is None:
+                # initialize field
+                value = self.state.project.simos.get_default_value_by_type(addr.type)
+                l.debug("Initializing static field {field_ref} with {init_value}."
+                        "".format(field_ref=addr, init_value=value))
+                self.store(addr, value)
+            return value
 
         elif type(addr) is SimSootValue_InstanceFieldRef:
-            return self.heap.load(addr.id, none_if_missing=True)
-
+            value = self.heap.load(addr.id, none_if_missing=True)
+            if value is None:
+                # initialize field
+                value = self.state.project.simos.get_default_value_by_type(addr.type)
+                l.debug("Initializing field {field_ref} with {init_value}."
+                        "".format(field_ref=addr, init_value=value))
+                self.store(addr, value)
+            return value
         else:
             l.error("Unknown addr type %s" % addr)
             return None

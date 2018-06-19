@@ -30,6 +30,9 @@ class JNISimProcedure(SimProcedure):
             self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)
         super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
 
+    @property
+    def javavm_memory(self):
+        return self.state.get_javavm_view_of_plugin("memory")
 
     #
     # Memory
@@ -146,7 +149,7 @@ jni_functions["GetVersion"] = "GetVersion"
 
 # Class and Interface Operations
 jni_functions["DefineClass"] = not_implemented
-jni_functions["FindClass"] = not_implemented
+jni_functions["FindClass"] = "FindClass"
 jni_functions["FromReflectedMethod"] = not_implemented
 jni_functions["FromReflectedField"] = not_implemented
 jni_functions["ToReflectedMethod"] = not_implemented
@@ -246,7 +249,7 @@ jni_functions["CallNonvirtualVoidMethodV"] = not_implemented
 jni_functions["CallNonvirtualVoidMethodA"] = "CallNonvirtualVoidMethodA"
 
 # Instance Field Access
-jni_functions["GetFieldID"] = "GetInstanceFieldID"
+jni_functions["GetFieldID"] = "GetFieldID"
 jni_functions["GetObjectField"] = "GetObjectField"
 jni_functions["GetBooleanField"] = "GetBooleanField"
 jni_functions["GetByteField"] = "GetByteField"
@@ -300,23 +303,23 @@ jni_functions["CallStaticVoidMethodV"] = not_implemented
 jni_functions["CallStaticVoidMethodA"] = "CallStaticVoidMethodA"
 
 # Static Field Access
-jni_functions["GetStaticFieldID"] = "GetStaticFieldID"
-jni_functions["GetStaticObjectField"] = not_implemented
-jni_functions["GetStaticBooleanField"] = not_implemented
-jni_functions["GetStaticByteField"] = not_implemented
-jni_functions["GetStaticCharField"] = not_implemented
-jni_functions["GetStaticShortField"] = not_implemented
-jni_functions["GetStaticIntField"] = not_implemented
-jni_functions["GetStaticLongField"] = not_implemented
+jni_functions["GetStaticFieldID"] = "GetFieldID"
+jni_functions["GetStaticObjectField"] = "GetStaticObjectField"
+jni_functions["GetStaticBooleanField"] = "GetStaticBooleanField"
+jni_functions["GetStaticByteField"] = "GetStaticByteField"
+jni_functions["GetStaticCharField"] = "GetStaticCharField"
+jni_functions["GetStaticShortField"] = "GetStaticShortField"
+jni_functions["GetStaticIntField"] = "GetStaticIntField"
+jni_functions["GetStaticLongField"] = "GetStaticLongField"
 jni_functions["GetStaticFloatField"] = not_implemented
 jni_functions["GetStaticDoubleField"] = not_implemented
-jni_functions["SetStaticObjectField"] = not_implemented
-jni_functions["SetStaticBooleanField"] = not_implemented
-jni_functions["SetStaticByteField"] = not_implemented
-jni_functions["SetStaticCharField"] = not_implemented
-jni_functions["SetStaticShortField"] = not_implemented
-jni_functions["SetStaticIntField"] = not_implemented
-jni_functions["SetStaticLongField"] = not_implemented
+jni_functions["SetStaticObjectField"] = "SetStaticField"
+jni_functions["SetStaticBooleanField"] = "SetStaticField"
+jni_functions["SetStaticByteField"] = "SetStaticField"
+jni_functions["SetStaticCharField"] = "SetStaticField"
+jni_functions["SetStaticShortField"] = "SetStaticField"
+jni_functions["SetStaticIntField"] = "SetStaticField"
+jni_functions["SetStaticLongField"] = "SetStaticField"
 jni_functions["SetStaticFloatField"] = not_implemented
 jni_functions["SetStaticDoubleField"] = not_implemented
 

@@ -25,7 +25,8 @@ class SimStateJNIReferences(SimStatePlugin):
             return self.local_references[opaque_ref_value]
         if opaque_ref_value in self.global_references:
             return self.global_references[opaque_ref_value]
-        raise KeyError("Unknown jni reference %x" % opaque_ref_value)
+        raise KeyError("Unknown jni reference %d. Local references: %s Global references: %s"
+                       "" % (opaque_ref_value, self.local_references, self.global_references))
 
     def lookup_local(self, opaque_ref):
         opaque_ref_value = self._get_reference_value(opaque_ref)
@@ -43,7 +44,8 @@ class SimStateJNIReferences(SimStatePlugin):
 
     def _get_reference_value(self, opaque_ref):
         if self.state.solver.symbolic(opaque_ref):
-            raise NotImplementedError("Opaque reference is symbolic.")
+            raise NotImplementedError("Opaque reference %s is symbolic."
+                                      "" % opaque_ref.to_claripy())
         return self.state.solver.eval(opaque_ref)
 
     def clear_local_references(self):
