@@ -28,10 +28,10 @@ def resolve_method(state, method_name, class_name, params=(), ret=None):
     else:
         # method could not be found
         # => we are executing code that is not loaded (typically library code)
-        # => fallback: use only infos from the invocation, so we can use SimProcedures
+        # => fallback: use only infos from the invocation, so we still can use SimProcedures
         l.warning("Couldn't find method {class_name}.{method_name} "
                   "in class(es) {class_hierarchy}."
                   "".format(class_name=class_name, method_name=method_name, 
-                            class_hierarchy=", ".join([str(c.name) for c in 
-                            state.javavm_classloader.get_class_hierarchy(class_name)])))
+                            class_hierarchy=[str(c.name) for c in 
+                            state.javavm_classloader.get_class_hierarchy(class_name)]))
         return SootMethodDescriptor(class_name, method_name, params)

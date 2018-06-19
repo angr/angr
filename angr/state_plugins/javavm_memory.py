@@ -1,18 +1,22 @@
 
 import binascii
+import logging
 import os
 
-from ..engines.soot.values import SimSootValue_Local, SimSootValue_ArrayRef, SimSootValue_ParamRef, \
-                                  SimSootValue_StaticFieldRef, SimSootValue_InstanceFieldRef
+from angr.sim_state import SimState
 
+from .. import sim_options as options
+from .. import concretization_strategies
+from ..engines.soot.values import (SimSootValue_ArrayRef,
+                                   SimSootValue_InstanceFieldRef,
+                                   SimSootValue_Local, SimSootValue_ParamRef,
+                                   SimSootValue_StaticFieldRef,
+                                   SimSootValue_StringRef)
+from ..errors import SimMemoryAddressError, SimUnsatError
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory
 from .plugin import SimStatePlugin
-from ..errors import SimUnsatError, SimMemoryAddressError
-from .. import concretization_strategies
-from .. import sim_options as options
 
-import logging
 l = logging.getLogger("angr.state_plugins.javavm_memory")
 
 MAX_ARRAY_SIZE = 1000 # FIXME arbitrarily chosen limit
@@ -64,6 +68,10 @@ class SimJavaVmMemory(SimMemory):
             
         elif type(addr) is SimSootValue_InstanceFieldRef:
             self.heap.store(addr.id, data, type_=addr.type)
+
+        elif type(addr) is SimSootValue_StringRef:
+            self.heap.store(addr.id, data, type_=addr.type)
+
         else:
             l.error("Unknown addr type %s" % addr)
 
@@ -104,6 +112,10 @@ class SimJavaVmMemory(SimMemory):
                         "".format(field_ref=addr, init_value=value))
                 self.store(addr, value)
             return value
+
+        elif type(addr) is SimSootValue_StringRef:
+            return self.heap.load(addr.id, none_if_missing=True)
+
         else:
             l.error("Unknown addr type %s" % addr)
             return None
@@ -365,5 +377,4 @@ class SimJavaVmMemory(SimMemory):
         )
 
 
-from angr.sim_state import SimState
 SimState.register_default('javavm_memory', SimJavaVmMemory)

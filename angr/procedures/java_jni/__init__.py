@@ -6,6 +6,7 @@ from archinfo import ArchSoot
 from ...state_plugins.sim_action_object import SimActionObject
 import itertools
 import collections
+from claripy import BVV
 
 import logging
 l = logging.getLogger('angr.procedures.java_jni')
@@ -63,7 +64,7 @@ class JNISimProcedure(SimProcedure):
 
         elif isinstance(data, list):
             if addr is None:
-                addr = self.allocate_native_memory(size=type_size*len(data))
+                addr = self.allocate_native_memory(size=type_size*len(data)/8)
             for idx, value in enumerate(data):
                 memory_addr = addr+idx*type_size/8
                 self.state.memory.store(memory_addr, value, endness=native_memory_endness)
@@ -113,6 +114,25 @@ class JNISimProcedure(SimProcedure):
             chars.append(chr(str_byte))
 
         return "".join(chars)
+
+    def _store_string_in_native_memory(self, string, addr=None):
+
+        if addr is None:
+            addr = self.allocate_native_memory(size=len(string)+1)
+        else:
+            # check if addr is symbolic
+            if self.state.solver.symbolic(addr):
+                l.error("Storing strings at symbolic addresses is not implemented. "
+                        "Continue execution with concretized address.")
+            addr = self.state.solver.eval(addr)
+
+        # store chars one by one
+        for idx, c in enumerate(string):
+            str_byte = BVV(ord(c), 8)
+            self.state.memory.store(addr+idx, str_byte)
+        self.state.memory.store(len(string), BVV(0, 8))
+
+        return addr
 
     #
     # MISC
@@ -328,10 +348,10 @@ jni_functions["NewString"] = not_implemented
 jni_functions["GetStringLength"] = not_implemented
 jni_functions["GetStringChars"] = not_implemented
 jni_functions["ReleaseStringChars"] = not_implemented
-jni_functions["NewStringUTF"] = not_implemented
-jni_functions["GetStringUTFLength"] = not_implemented
-jni_functions["GetStringUTFChars"] = not_implemented
-jni_functions["ReleaseStringUTFChars"] = not_implemented
+jni_functions["NewStringUTF"] = "NewStringUTF"
+jni_functions["GetStringUTFLength"] = "GetStringUTFLength"
+jni_functions["GetStringUTFChars"] = "GetStringUTFChars"
+jni_functions["ReleaseStringUTFChars"] = "ReleaseStringUTFChars"
 
 # Array Operations
 jni_functions["GetArrayLength"] =  "GetArrayLength"

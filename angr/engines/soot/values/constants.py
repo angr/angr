@@ -38,6 +38,5 @@ class SimSootValue_ClassConstant(SimSootValue):
         class_descriptor = 'class "L{cls_name};"'.format(cls_name=fully_qualified_cls_name)
         return cls(value=class_descriptor, type_='java.lang.Class')
 
-
     def __repr__(self):
         return self.value

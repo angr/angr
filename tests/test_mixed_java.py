@@ -12,6 +12,24 @@ test_location = str(os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
 
 #
+# JNI String Operations
+#
+
+def test_jni_string_operations(binary_dir="8"):
+    end_state = get_last_state_of_method(
+        project=create_project(binary_dir),
+        method_fullname="MixedJava.test_jni_string_operations"
+    )
+    print_java_memory(end_state)
+    # check strings
+    str0 = load_string(end_state, 'r0')
+    str1 = load_string(end_state, 'r1')
+    assert end_state.solver.eval_one(str0) == "mum"
+    assert end_state.solver.eval_one(str1) == "himum!"
+    # check string length
+    assert_values(end_state, values={'i0':0x3, 'i1':0x6})
+
+#
 # JNI Field Access
 #
 
@@ -493,7 +511,9 @@ def create_project(binary_dir, load_native_libs=True):
     else:
         return angr.Project(jar_path)
 
-
+def load_string(state, local_name):
+    str_ref = load_value_from_stack(state, local_name)
+    return state.memory.load(str_ref)
 
 def load_value_from_stack(state, symbol_name):
     try:
