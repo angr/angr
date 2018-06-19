@@ -1,8 +1,10 @@
+
 import logging
 
 from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")
+#l.setLevel(logging.DEBUG)
 
 
 class Symbion(ExplorationTechnique):
@@ -16,16 +18,19 @@ class Symbion(ExplorationTechnique):
     """
     def __init__(self, find=[], concretize=[], find_stash='found'):
         super(Symbion, self).__init__()
-        self.find = find
+
+        # need to keep the raw list of addresses to
+        self.breakpoints = find
+        self.find = self._condition_to_lambda(find)
         self.concretize = concretize
         self.find_stash = find_stash
 
     def setup(self, simgr):
-        if not self.find_stash in simgr.stashes:
-            simgr.stashes[self.find_stash] = []
+        # adding the 'found' stash during the setup
+        simgr.stashes[self.find_stash] = []
 
     def step(self, simgr, stash, **kwargs):
-
+        # safe guard
         if not len(simgr.stashes[stash]):
             l.warning("No stashes to step, aborting.")
             return
@@ -38,24 +43,15 @@ class Symbion(ExplorationTechnique):
             l.warning("You are trying to use the Symbion exploration technique on multiple state, "
                       "this is not supported now.")
 
-        return simgr._one_step(stash=stash, **kwargs)
+        return simgr.step(stash=stash, **kwargs)
 
-    def step_state(self, state, **kwargs):
-        """
-        This function will force the step of the state
-        inside an instance of a SimConcreteEngine, passing the breakpoint
-        addresses defined by the user ( aka 'find' ).
-        :param state: the state to step inside the SimConcreteEngine
-        :param kwargs:
-        :return:
-        """
-
+    def step_state(self, simgr, state, successor_func=None, **kwargs):
         ss = self.project.factory.successors(state, engines=['concrete'],
-                                             extra_stop_points=self.find, concretize=self.concretize)
+                                             extra_stop_points=self.breakpoints, concretize=self.concretize)
 
         return {'found': ss.successors}
 
     def complete(self, simgr):
-        l.info("After concrete execution restoring vex engine as default")
+        # We are done if we have hit at least one breakpoint in
+        # the concrete execution
         return len(simgr.stashes[self.find_stash]) >= 1
-
