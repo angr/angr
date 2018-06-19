@@ -19,3 +19,17 @@ class GetSuperclass(JNISimProcedure):
         else:
             l.error("Couldn't identify superclass of %s" % class_name)
             return 0
+
+class FindClass(JNISimProcedure):
+
+    return_ty = 'reference'
+
+    def run(self, ptr_env, name_ptr):
+        class_name = self._load_string_from_native_memory(name_ptr)
+        class_ = self.state.javavm_classloader.get_class(class_name)
+        if class_ is None:
+            l.error("Couldn't find class %s" % class_name)
+            return 0
+        self.state.javavm_classloader.load_class(class_)
+        class_ref = SimSootValue_ClassConstant.from_classname(class_name)
+        return self.state.jni_references.create_new_reference(class_ref) 
