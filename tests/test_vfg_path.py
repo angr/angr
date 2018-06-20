@@ -1,12 +1,12 @@
 import angr
 import logging
 import os
-import nose
+import nose,unittest
 
 l = logging.getLogger("angr_tests")
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                  '../../binaries/tests'))
-
+@unittest.expectedFailure
 def test_vfg_paths():
     p = angr.Project(os.path.join(test_location, "x86_64/track_user_input"))
     main_addr = p.loader.find_symbol("main").rebased_addr
