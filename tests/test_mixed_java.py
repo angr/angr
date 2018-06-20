@@ -12,6 +12,33 @@ test_location = str(os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
 
 #
+# JNI Object Operations
+#
+
+def test_jni_object_operations(binary_dir="10"):
+    project = create_project(binary_dir)
+
+    run_method(project=project,
+               method="MixedJava.test_jni_alloc_object",
+               assert_locals={'i0':0})
+    
+    run_method(project=project,
+               method="MixedJava.test_jni_new_object",
+               assert_locals={'i0':1})
+
+    run_method(project=project,
+               method="MixedJava.test_jni_new_subclass_object",
+               assert_locals={'i0':2})  
+
+    run_method(project=project,
+               method="MixedJava.test_jni_isinstanceof",
+               assert_locals={'i0':1,'i1':1,'i2':0,'i3':1})  
+
+    run_method(project=project,
+               method="MixedJava.test_jni_issameobject",
+               assert_locals={'i0':0,'i1':1})  
+
+#
 # JNI Global and Local References
 #
 
@@ -505,6 +532,11 @@ def test_basic_array_operations(binary_dir="4"):
 #
 # Helper
 #
+
+def run_method(project, method, assert_locals):
+    end_state = get_last_state_of_method(project, method)
+    print_java_memory(end_state)
+    assert_values(end_state, assert_locals)
 
 def print_java_memory(state):
     print "\n##### STACK ##########" + "#"*60

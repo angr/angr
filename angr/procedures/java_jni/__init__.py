@@ -193,15 +193,15 @@ jni_functions["DeleteGlobalRef"] = "DeleteGlobalRef"
 jni_functions["DeleteLocalRef"] = "DeleteLocalRef"
 
 # Object Operations
-jni_functions["IsSameObject"] = not_implemented
-jni_functions["NewLocalRef"] = not_implemented
+jni_functions["IsSameObject"] = "IsSameObject"
+jni_functions["NewLocalRef"] = "NewLocalRef"
 jni_functions["EnsureLocalCapacity"] = not_implemented
-jni_functions["AllocObject"] = not_implemented
-jni_functions["NewObject"] = not_implemented
+jni_functions["AllocObject"] = "AllocObject"
+jni_functions["NewObject"] = "NewObject"
 jni_functions["NewObjectV"] = not_implemented
 jni_functions["NewObjectA"] = not_implemented
 jni_functions["GetObjectClass"] = "GetObjectClass"
-jni_functions["IsInstanceOf"] = not_implemented
+jni_functions["IsInstanceOf"] = "IsInstanceOf"
 
 # Instance Method Calls
 jni_functions["GetMethodID"] = "GetMethodID"

@@ -12,6 +12,12 @@ class SimJavaVmClassloader(SimStatePlugin):
 
     def load_class(self, class_):
 
+        if isinstance(class_, str):
+            class_ = self.get_class(class_)
+            if class_ is None:
+                l.warning("Cannot load class %s; it's not loaded in CLE." % class_.name)
+                return
+
         if self.is_class_loaded(class_):
             l.info("Class %s already loaded." % class_.name)
             return

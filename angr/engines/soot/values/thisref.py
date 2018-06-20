@@ -22,3 +22,9 @@ class SimSootValue_ThisRef(SimSootValue):
 
     def __repr__(self):
         return self.id
+
+    def __eq__(self, other):
+        return isinstance(other, SimSootValue_ThisRef) and \
+               self.id == other.id and \
+               self.heap_alloc_id == other.heap_alloc_id and \
+               self.type == other.type
