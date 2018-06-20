@@ -65,11 +65,12 @@ class UniqueSearch(ExplorationTechnique):
                 update_average(state_a, similarity)
         self.num_deadended = len(simgr.deadended)
 
-        unique_state = min(self.uniqueness.items(), key=lambda e: e[1])[0]
-        del self.uniqueness[unique_state]
+        if self.uniqueness:
+            unique_state = min(self.uniqueness.items(), key=lambda e: e[1])[0]
+            del self.uniqueness[unique_state]
 
-        simgr.move(from_stash=self.deferred_stash, to_stash=stash,
-                   filter_func=lambda s: s is unique_state)
+            simgr.move(from_stash=self.deferred_stash, to_stash=stash,
+                       filter_func=lambda s: s is unique_state)
 
         return simgr
 
