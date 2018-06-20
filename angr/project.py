@@ -529,8 +529,7 @@ class Project(object):
 
     def rehook_symbol(self, new_address, symbol_name):
         """
-        Rehook a symbol in the simprocedures table given a name of the
-        function if it exists.
+        Move the hook for a symbol to a specific address
         :param new_address: the new address that will trigger the SimProc execution
         :param symbol_name: the name of the symbol (f.i. strcmp )
         :return:
