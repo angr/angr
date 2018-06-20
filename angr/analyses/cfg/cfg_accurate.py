@@ -696,6 +696,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
         self._executable_address_ranges = s['_executable_address_ranges']
+        self._iropt_level = s['_iropt_level']
 
     def __getstate__(self):
         s = {
@@ -707,6 +708,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             '_thumb_addrs': self._thumb_addrs,
             '_unresolvable_runs': self._unresolvable_runs,
             '_executable_address_ranges': self._executable_address_ranges,
+            '_iropt_level': self._iropt_level,
         }
 
         return s
