@@ -572,18 +572,27 @@ class SimEngineVEX(SimEngine):
 
         # If that didn't work, try to load from the state
         if size == 0 and state:
+            fallback = True
             if addr in state.memory and addr + max_size - 1 in state.memory:
-                buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=str)
-                size = max_size
-            else:
-                good_addrs = []
+                try:
+                    buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=str)
+                    size = max_size
+                    fallback = False
+                except SimError:
+                    l.warning("Cannot load bytes at %#x. Fallback to the slow path.", addr)
+
+            if fallback:
+                buff_lst = [ ]
                 for i in xrange(max_size):
                     if addr + i in state.memory:
-                        good_addrs.append(addr + i)
+                        try:
+                            buff_lst.append(chr(state.se.eval(state.memory.load(addr + i, 1, inspect=False))))
+                        except SimError:
+                            break
                     else:
                         break
 
-                buff = ''.join(chr(state.se.eval(state.memory.load(i, 1, inspect=False))) for i in good_addrs)
+                buff = ''.join(buff_lst)
                 size = len(buff)
 
         size = min(max_size, size)
