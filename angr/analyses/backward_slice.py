@@ -390,10 +390,10 @@ class BackwardSlice(Analysis):
             # Pick all its data dependencies from data dependency graph
             if self._ddg is not None and tainted_cl in self._ddg:
                 if isinstance(self._ddg, networkx.DiGraph):
-                    predecessors = self._ddg.predecessors(tainted_cl)
+                    predecessors = list(self._ddg.predecessors(tainted_cl))
                 else:
                     # angr.analyses.DDG
-                    predecessors = self._ddg.get_predecessors(tainted_cl)
+                    predecessors = list(self._ddg.get_predecessors(tainted_cl))
                 l.debug("Returned %d predecessors for %s from data dependence graph", len(predecessors), tainted_cl)
 
                 for p in predecessors:
