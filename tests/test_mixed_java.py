@@ -12,6 +12,19 @@ test_location = str(os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
 
 #
+# JNI Global and Local References
+#
+
+def test_jni_global_refs(binary_dir="9"):
+    end_state = get_last_state_of_method(
+        project=create_project(binary_dir),
+        method_fullname="MixedJava.test_jni_global_refs"
+    )
+    print_java_memory(end_state)
+    assert end_state.jni_references.global_refs == {}
+    assert_values(end_state, {'i0':0xa})
+
+#
 # JNI String Operations
 #
 

@@ -188,9 +188,9 @@ jni_functions["FatalError"] = not_implemented
 # Global and Local References
 jni_functions["PushLocalFrame"] = not_implemented
 jni_functions["PopLocalFrame"] = not_implemented
-jni_functions["NewGlobalRef"] = not_implemented
-jni_functions["DeleteGlobalRef"] = not_implemented
-jni_functions["DeleteLocalRef"] = not_implemented
+jni_functions["NewGlobalRef"] = "NewGlobalRef"
+jni_functions["DeleteGlobalRef"] = "DeleteGlobalRef"
+jni_functions["DeleteLocalRef"] = "DeleteLocalRef"
 
 # Object Operations
 jni_functions["IsSameObject"] = not_implemented
@@ -417,8 +417,8 @@ jni_functions["GetPrimitiveArrayCritical"] = "GetArrayElements"
 jni_functions["ReleasePrimitiveArrayCritical"] = "ReleaseArrayElements"
 jni_functions["GetStringCritical"] = not_implemented
 jni_functions["ReleaseStringCritical"] = not_implemented
-jni_functions["NewWeakGlobalRef"] = not_implemented
-jni_functions["DeleteWeakGlobalRef"] = not_implemented
+jni_functions["NewWeakGlobalRef"] = "NewGlobalRef"
+jni_functions["DeleteWeakGlobalRef"] = "DeleteGlobalRef"
 jni_functions["ExceptionCheck"] = not_implemented
 jni_functions["NewDirectByteBuffer"] = not_implemented
 jni_functions["GetDirectBufferAddress"] = not_implemented
