@@ -8,6 +8,7 @@ from .identity import SimSootStmt_Identity
 from .goto import SimSootStmt_Goto
 from .invoke import SimSootStmt_Invoke
 from .if_ import SimSootStmt_If
+from .switch import SimSootStmt_TableSwitch
 
 l = logging.getLogger('angr.engines.soot.statements')
 
