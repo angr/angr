@@ -130,7 +130,7 @@ def test_loop_limiter():
     simgr.run()
 
     nose.tools.assert_true('spinning' in simgr.stashes)
-    nose.tools.assert_equals(simgr.spinning[0].loop_data.trip_counts[0x4005fd][0], 5)
+    nose.tools.assert_equals(simgr.spinning[0].loop_data.trip_counts[0x4005fd][0], 6)
 
 
 if __name__ == "__main__":

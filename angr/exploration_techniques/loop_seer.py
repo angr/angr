@@ -91,10 +91,8 @@ class LoopSeer(ExplorationTechnique):
                 entry = loop.entry_edges[0][0]
                 self.loops[entry.addr] = loop
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         kwargs['successor_func'] = self.normalized_step
-
-        simgr.step(stash=stash, **kwargs)
 
         for state in simgr.stashes[stash]:
             # Processing a currently running loop
@@ -126,7 +124,7 @@ class LoopSeer(ExplorationTechnique):
                     state.loop_data.current_loop.pop()
 
                 if self.bound is not None:
-                    if state.loop_data.trip_counts[header][-1] >= self.bound:
+                    if state.loop_data.trip_counts[header][-1] > self.bound:
                         if self.bound_reached is not None:
                             simgr = self.bound_reached(simgr)
                         else:
@@ -145,6 +143,8 @@ class LoopSeer(ExplorationTechnique):
 
                 state.loop_data.trip_counts[header].append(0)
                 state.loop_data.current_loop.append((loop, exits))
+
+        simgr.step(stash=stash, **kwargs)
 
         return simgr
 
