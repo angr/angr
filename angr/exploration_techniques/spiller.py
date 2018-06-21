@@ -75,7 +75,7 @@ class Spiller(ExplorationTechnique):
             w.make_uuid()
         self._pickled_states += [ (self._get_priority(w.state), w.ana_store()) for w in wrappers ]
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
 
         l.debug("STASH STATUS: active: %d, staging: %d", len(simgr.stashes[self.src_stash]), len(simgr.stashes[self.staging_stash]))

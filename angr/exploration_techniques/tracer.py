@@ -78,9 +78,7 @@ class Tracer(ExplorationTechnique):
 
         return False
 
-    def step(self, simgr, stash=None, **kwargs):
-        stash = stash or 'active'
-
+    def step(self, simgr, stash='active', **kwargs):
         if stash != 'active':
             raise Exception("TODO: tracer doesn't work with stashes other than active")
 
