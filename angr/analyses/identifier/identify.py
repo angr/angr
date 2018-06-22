@@ -588,7 +588,7 @@ class Identifier(Analysis):
                     elif not found_end and stmt.tag == 'Ist_Put':
                         if stmt.offset == self.project.arch.sp_offset:
                             found_end = True
-                            ends.add(a.ins_addr)
+                            ends.add(cur_addr)
                             all_end_addrs.add(cur_addr)
 
         bp_sp_diff = None
