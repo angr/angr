@@ -1,7 +1,7 @@
 import claripy
 from .plugin import SimStatePlugin
 
-from archinfo.arch_soot import SootAddressDescriptor
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -54,8 +54,12 @@ class SimRegNameView(SimStatePlugin):
             inspect = True
             disable_actions = False
 
-        if self.state.javavm_with_jni and k == 'ip':
-            # update flag, so that `state.registers` returns the correct plugin
+        # When simulating a Java Archive, which interacts with native libraries,
+        # we need to update the instruction pointer flag, which toggles between
+        # the native and the Java view on the state.
+        if isinstance(self.state.project.arch, ArchSoot) and \
+           k == 'ip' and \
+           self.state.project.simos.is_javavm_with_jni_support:
             self.state.ip_is_soot_addr = True if isinstance(v, SootAddressDescriptor) else False
     
         try:

@@ -31,10 +31,6 @@ class JNISimProcedure(SimProcedure):
             self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)
         super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
 
-    @property
-    def javavm_memory(self):
-        return self.state.get_javavm_view_of_plugin("memory")
-
     #
     # Memory
     #
@@ -355,9 +351,9 @@ jni_functions["ReleaseStringUTFChars"] = "ReleaseStringUTFChars"
 
 # Array Operations
 jni_functions["GetArrayLength"] =  "GetArrayLength"
-jni_functions["NewObjectArray"] = not_implemented
-jni_functions["GetObjectArrayElement"] = not_implemented
-jni_functions["SetObjectArrayElement"] = not_implemented
+jni_functions["NewObjectArray"] = "NewObjectArray"
+jni_functions["GetObjectArrayElement"] = "GetObjectArrayElement"
+jni_functions["SetObjectArrayElement"] = "SetObjectArrayElement"
 jni_functions["NewBooleanArray"] = "NewBooleanArray"
 jni_functions["NewByteArray"] = "NewByteArray"
 jni_functions["NewCharArray"] = "NewCharArray"
@@ -413,8 +409,8 @@ jni_functions["GetJavaVM"] = not_implemented
 # Misc
 jni_functions["GetStringRegion"] = not_implemented
 jni_functions["GetStringUTFRegion"] = not_implemented
-jni_functions["GetPrimitiveArrayCritical"] = "GetArrayElements"
-jni_functions["ReleasePrimitiveArrayCritical"] = "ReleaseArrayElements"
+jni_functions["GetPrimitiveArrayCritical"] = not_implemented
+jni_functions["ReleasePrimitiveArrayCritical"] = not_implemented
 jni_functions["GetStringCritical"] = not_implemented
 jni_functions["ReleaseStringCritical"] = not_implemented
 jni_functions["NewWeakGlobalRef"] = "NewGlobalRef"

@@ -1,24 +1,54 @@
+
+from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
+                                SootMethodDescriptor)
+
 from . import JNISimProcedure
-
-from ...engines.soot.method_dispatcher import resolve_method
-
-
-from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from ...calling_conventions import SimCCSoot
+from ...engines.soot.method_dispatcher import resolve_method
 from ...engines.soot.values import SimSootValue_Local
 
 import logging
 l = logging.getLogger('angr.procedures.java_jni.callmethod')
 
+#
+# GetMethodID / GetStaticMethodID
+#
+
+class GetMethodID(JNISimProcedure):
+
+    return_ty = 'reference'
+
+    def run(self, ptr_env, class_, ptr_method_name, ptr_method_sig):
+        
+        # class name
+        class_name = self.state.jni_references.lookup(class_).class_name
+
+        # method name
+        method_name = self._load_string_from_native_memory(ptr_method_name)
+
+        # param and return types
+        method_sig = self._load_string_from_native_memory(ptr_method_sig)
+        params, ret = ArchSoot.decode_method_signature(method_sig)
+
+        # create SootMethodDescriptor as id and return a opaque reference to it
+        # Note: we do not resolve the method at this point, because the method id can be 
+        #       used with different objects
+        #       used both for virtual invokes and special invokes (see invoke expr in Soot
+        #       engine). The actual invoke type gets determined later, based on the type
+        #       of jni function (Call<Type>Method vs. CallNonVirtual<Type>Method)
+        method_id = SootMethodDescriptor(class_name=class_name, name=method_name, 
+                                         params=params, ret=ret)
+        return self.state.jni_references.create_new_reference(method_id)
+
+#
+# Call<Type>Method / CallNonvirtual<Type>Method / CallStatic<Type>Method
+#
+
 class CallMethodBase(JNISimProcedure):
 
     return_ty = None
 
-    def _process_invocation(self, method_id_, obj_=None, dynamic_dispatch=True, args_in_array=None):
-
-        # lookup parameters
-        method_id = self.state.jni_references.lookup(method_id_)
-        obj = None if obj_ is None else self.state.jni_references.lookup(obj_)
+    def _invoke(self, method_id, obj=None, dynamic_dispatch=True, args_in_array=None):
 
         # get invoke target
         class_name = obj.type if dynamic_dispatch else method_id.class_name
@@ -38,7 +68,7 @@ class CallMethodBase(JNISimProcedure):
 
         # call java method
         # => after returning, the execution will be continued in _return_result_of_computation
-        self.call(invoke_addr, java_args, "return_result_of_computation", cc=SimCCSoot(ArchSoot()))
+        self.call(invoke_addr, java_args, "return_from_invocation", cc=SimCCSoot(ArchSoot()))
 
 
     def _get_arg_values(self, no_of_args):
@@ -78,65 +108,35 @@ class CallMethodBase(JNISimProcedure):
 
         return args
 
-    def _return_result_of_computation(self):
+    def _return_from_invocation(self):
         if self.return_ty != 'void':
-            ret_value = self.state.get_javavm_view_of_plugin('registers').load('invoke_return_value')
+            ret_value = self.state.javavm_registers.load('invoke_return_value')
             if self.return_ty == 'reference':
                 return self.state.jni_references.create_new_reference(ret_value)
             else:
                 return ret_value
 
+#
 # Call<Type>Method
+#
+
 class CallMethod(CallMethodBase):
     def run(self, ptr_env, obj_, method_id_):
-        self._process_invocation(method_id_, obj_, dynamic_dispatch=True)
+        method_id = self.state.jni_references.lookup(method_id_)
+        obj = self.state.jni_references.lookup(obj_)
+        self._invoke(method_id, obj, dynamic_dispatch=True)
 
-    def return_result_of_computation(self, ptr_env, obj_, method_id_):
-        return self._return_result_of_computation()
+    def return_from_invocation(self, ptr_env, obj_, method_id_):
+        return self._return_from_invocation()
 
-# Call<Type>MethodA
 class CallMethodA(CallMethodBase):
     def run(self, ptr_env, obj_, method_id_, ptr_args):
-        self._process_invocation(method_id_, obj_, dynamic_dispatch=True, args_in_array=ptr_args)
+        method_id = self.state.jni_references.lookup(method_id_)
+        obj = self.state.jni_references.lookup(obj_)
+        self._invoke(method_id, obj, dynamic_dispatch=True, args_in_array=ptr_args)
     
-    def return_result_of_computation(self, ptr_env, obj_, method_id_, ptr_args):
-        return self._return_result_of_computation()
-
-# CallNonVirtual<Type>Method
-class CallNonvirtualMethod(CallMethodBase):
-    def run(self, ptr_env, obj_, class_, method_id_):
-        self._process_invocation(method_id_, obj_, dynamic_dispatch=False)
-
-    def return_result_of_computation(self, ptr_env, obj_, class_, method_id_):
-        return self._return_result_of_computation()
-
-# CallNonVirtual<Type>MethodA
-class CallNonvirtualMethodA(CallMethodBase):
-    def run(self, ptr_env, obj_, method_id_, ptr_args):
-        self._process_invocation(method_id_, obj_, dynamic_dispatch=False, args_in_array=ptr_args)
-    
-    def return_result_of_computation(self, ptr_env, obj_, method_id_, ptr_args):
-        return self._return_result_of_computation()
-
-# CallStatic<Type>Method
-class CallStaticMethod(CallMethodBase):
-    def run(self, ptr_env, class_, method_id_):
-        self._process_invocation(method_id_, dynamic_dispatch=False)
-
-    def return_result_of_computation(self, ptr_env, class_, method_id_):
-        return self._return_result_of_computation()
-
-# CallStatic<Type>MethodA
-class CallStaticMethodA(CallMethodBase):
-    def run(self, ptr_env, obj_, method_id_, ptr_args):
-        self._process_invocation(method_id_, dynamic_dispatch=False, args_in_array=ptr_args)
-    
-    def return_result_of_computation(self, ptr_env, class_, method_id_, ptr_args):
-        return self._return_result_of_computation()
-
-#
-# Call<Type>Method
-#
+    def return_from_invocation(self, ptr_env, obj_, method_id_, ptr_args):
+        return self._return_from_invocation()
 
 class CallObjectMethod(CallMethod):
     return_ty = 'reference'
@@ -175,6 +175,24 @@ class CallVoidMethodA(CallMethodA):
 # CallNonVirtual<Type>Method
 #
 
+class CallNonvirtualMethod(CallMethodBase):
+    def run(self, ptr_env, obj_, class_, method_id_):
+        method_id = self.state.jni_references.lookup(method_id_)
+        obj = self.state.jni_references.lookup(obj_)
+        self._invoke(method_id, obj, dynamic_dispatch=False)
+
+    def return_from_invocation(self, ptr_env, obj_, class_, method_id_):
+        return self._return_from_invocation()
+
+class CallNonvirtualMethodA(CallMethodBase):
+    def run(self, ptr_env, obj_, method_id_, ptr_args):
+        method_id = self.state.jni_references.lookup(method_id_)
+        obj = self.state.jni_references.lookup(obj_)
+        self._invoke(method_id, obj, dynamic_dispatch=False, args_in_array=ptr_args)
+    
+    def return_from_invocation(self, ptr_env, obj_, method_id_, ptr_args):
+        return self._return_from_invocation()
+
 class CallNonvirtualObjectMethod(CallNonvirtualMethod):
     return_ty = 'reference'
 class CallNonvirtualBooleanMethod(CallNonvirtualMethod):
@@ -211,6 +229,22 @@ class CallNonvirtualVoidMethodA(CallNonvirtualMethodA):
 #
 # CallStatic<Type>Method
 #
+
+class CallStaticMethod(CallMethodBase):
+    def run(self, ptr_env, class_, method_id_):
+        method_id = self.state.jni_references.lookup(method_id_)
+        self._invoke(method_id, dynamic_dispatch=False)
+
+    def return_from_invocation(self, ptr_env, class_, method_id_):
+        return self._return_from_invocation()
+
+class CallStaticMethodA(CallMethodBase):
+    def run(self, ptr_env, obj_, method_id_, ptr_args):
+        method_id = self.state.jni_references.lookup(method_id_)
+        self._invoke(method_id, dynamic_dispatch=False, args_in_array=ptr_args)
+    
+    def return_from_invocation(self, ptr_env, class_, method_id_, ptr_args):
+        return self._return_from_invocation()
 
 class CallStaticObjectMethod(CallStaticMethod):
     return_ty = 'reference'

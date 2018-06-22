@@ -23,9 +23,8 @@ class SimSootExpr_NewArray(SimSootExpr):
         size_bounded = SimSootExpr_NewArray._bound_array_size(state, size)
         # arrays are stored on the heap
         # => create a unique reference 
-        javavm_memory = state.get_javavm_view_of_plugin('memory')
         heap_alloc_id = "{uuid}.{base_type}_array".format(base_type=base_type,
-                                                          uuid=javavm_memory.get_new_uuid())
+                                                          uuid=state.javavm_memory.get_new_uuid())
         # return the reference of the base element
         # => elements as such getting lazy initialized in the javavm memory
         return SimSootValue_ArrayRef(heap_alloc_id, 0, base_type, size_bounded)
@@ -34,8 +33,7 @@ class SimSootExpr_NewArray(SimSootExpr):
     def _bound_array_size(state, array_size):
 
         # check if array size can exceed MAX_ARRAY_SIZE
-        javavm_memory = state.get_javavm_view_of_plugin('memory')
-        max_array_size = state.solver.BVV(javavm_memory.max_array_size, 32)
+        max_array_size = state.solver.BVV(state.javavm_memory.max_array_size, 32)
         size_exceeds_maximum = state.solver.eval_upto(
             max_array_size.SGE(array_size), 2
         )

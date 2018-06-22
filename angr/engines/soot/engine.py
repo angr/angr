@@ -29,9 +29,7 @@ class SimEngineSoot(SimEngine):
 
     def __init__(self, project=None, **kwargs):
         super(SimEngineSoot, self).__init__()
-
         self.project = project
-        self.javavm = self.project.simos
 
     def lift(self, addr=None, the_binary=None, **kwargs):
         assert isinstance(addr, SootAddressDescriptor)
@@ -176,7 +174,7 @@ class SimEngineSoot(SimEngine):
                 # The target of the call is a native function
                 # => We need to setup the native call-site
                 l.debug("Invoke has a native target.")
-                invoke_addr = self.javavm.get_clemory_addr_of_native_method(invoke_target)
+                invoke_addr = self.project.simos.get_clemory_addr_of_native_method(invoke_target)
                 invoke_state = self._setup_native_callsite(invoke_addr, invoke_state, invoke_target)
 
             else:
@@ -257,19 +255,18 @@ class SimEngineSoot(SimEngine):
         state.callstack.ret_addr = ret_addr
 
         # push new stack frame
-        javavm_memory = state.get_javavm_view_of_plugin('memory')
-        javavm_memory.push_stack_frame()
+        state.javavm_memory.push_stack_frame()
 
         # setup arguments
         if args:
             if isinstance(args[0][0], SimSootValue_ThisRef):
                 this_ref, this_ref_type = args.pop(0)
                 local = SimSootValue_Local("this", this_ref_type)
-                javavm_memory.store(local, this_ref)
+                state.javavm_memory.store(local, this_ref)
 
             for idx, (value, value_type) in enumerate(args):
                 param_ref = SimSootValue_ParamRef(idx, value_type)
-                javavm_memory.store(param_ref, value)
+                state.javavm_memory.store(param_ref, value)
 
     @staticmethod
     def _is_method_beginning(addr):
@@ -404,8 +401,7 @@ class SimEngineSoot(SimEngine):
         """
 
         ret_state = native_state.copy()
-        ret_addr = ret_state.get_javavm_view_of_plugin("callstack").ret_addr
-        ret_state.regs._ip = ret_addr
+        ret_state.regs._ip = ret_state.callstack.ret_addr
         ret_var = ret_state.callstack.invoke_return_variable
         ret_state.scratch.guard = ret_state.se.true
         ret_state.history.jumpkind = 'Ijk_Ret'
@@ -441,13 +437,15 @@ class SimEngineSoot(SimEngine):
         return [ret_state]
 
     def _setup_native_callsite(self, invoke_addr, invoke_state, invoke_target):
+
+        javavm = self.project.simos
         
         # Step 1: Setup parameter
         native_args = []
 
         # JNI enviroment pointer
-        jni_env = self.javavm.jni_env
-        jni_env_type = self.javavm.get_native_type('reference')
+        jni_env = javavm.jni_env
+        jni_env_type = javavm.get_native_type('reference')
         native_args += [(jni_env, jni_env_type)]
 
         # Handle to the current object or class
@@ -456,14 +454,14 @@ class SimEngineSoot(SimEngine):
             # Instance method call => pass 'this' reference to native code
             this = invoke_state.memory.load(SimSootValue_Local("this", invoke_expr.base.type))
             this_ref = invoke_state.jni_references.create_new_reference(java_ref=this)
-            this_ref_type = self.javavm.get_native_type('reference')
+            this_ref_type = javavm.get_native_type('reference')
             native_args += [(this_ref, this_ref_type)]
         
         else:
             # Static method call => pass 'class' reference to native code
             class_ = SimSootValue_ClassConstant.from_classname(invoke_expr.class_name)
             class_ref = invoke_state.jni_references.create_new_reference(java_ref=class_)
-            class_ref_type = self.javavm.get_native_type('reference')
+            class_ref_type = javavm.get_native_type('reference')
             native_args += [(class_ref, class_ref_type)]
         
         # Function arguments
@@ -480,7 +478,7 @@ class SimEngineSoot(SimEngine):
             elif arg_type in ArchSoot.primitive_types:
                 # Argument has a primitive integral type
                 native_arg_value = arg_value
-                native_arg_type = self.javavm.get_native_type(arg_type)
+                native_arg_type = javavm.get_native_type(arg_type)
 
             else:
                 # Argument has a relative type
@@ -488,15 +486,15 @@ class SimEngineSoot(SimEngine):
                 #    native code to access the Java object through the JNI interface.
                 opaque_ref = invoke_state.jni_references.create_new_reference(java_ref=arg_value)
                 native_arg_value = opaque_ref
-                native_arg_type = self.javavm.get_native_type('reference')
+                native_arg_type = javavm.get_native_type('reference')
 
             native_args += [(native_arg_value, native_arg_type)]
 
         # Step 2: Set return type
-        ret_type = self.javavm.get_native_type(invoke_target.ret)
+        ret_type = javavm.get_native_type(invoke_target.ret)
         
         # Step 3: Create native invoke state
-        invoke_state = self.javavm.state_call(invoke_addr, *native_args, 
+        invoke_state = javavm.state_call(invoke_addr, *native_args, 
                                               base_state=invoke_state, 
                                               ret_type=ret_type)
 

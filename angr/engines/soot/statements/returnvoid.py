@@ -7,5 +7,4 @@ class SimSootStmt_ReturnVoid(SimSootStmt):
         super(SimSootStmt_ReturnVoid, self).__init__(stmt, state)
 
     def _execute(self):
-        print self.state.callstack.ret_addr
-        print self.state.callstack.invoke_return_variable
+        pass

@@ -12,6 +12,21 @@ test_location = str(os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
 
 #
+# JNI Object Arrays
+#
+
+def test_jni_object_arrays(binary_dir="11"):
+    project = create_project(binary_dir)
+
+    run_method(project=project,
+               method="MixedJava.test_jni_access_object_array",
+               assert_locals={'i0':7})
+
+    run_method(project=project,
+               method="MixedJava.test_jni_new_object_array",
+               assert_locals={'i0':10})
+
+#
 # JNI Object Operations
 #
 
@@ -283,8 +298,6 @@ def test_toggling_of_simstate(binary_dir="2"):
     project = create_project(binary_dir)
 
     state = project.factory.entry_state()
-    assert state.javavm_with_jni
-    assert state.javavm
     assert state.ip_is_soot_addr
     assert isinstance(state.arch, ArchSoot)
     assert isinstance(state.memory, SimJavaVmMemory)
@@ -623,7 +636,7 @@ def get_winning_path(project, method_fullname):
 
 def main():
 
-    test_array_out_of_bounds()
+    test_jni_env_get_version()
 
 
 if __name__ == "__main__":

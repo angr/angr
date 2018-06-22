@@ -61,7 +61,7 @@ class SimJavaVmMemory(SimMemory):
             cstack.store(addr.id, data, type_=addr.type)
 
         elif type(addr) is SimSootValue_ArrayRef:
-            self.store_array_elements(array=addr, start_idx=addr.index, data=data)
+            self.store_array_element(addr, addr.index, data)
 
         elif type(addr) is SimSootValue_StaticFieldRef:
             self.vm_static_table.store(addr.id, data, type_=addr.type)
@@ -85,7 +85,7 @@ class SimJavaVmMemory(SimMemory):
             return cstack.load(addr.id, none_if_missing=True)
 
         elif type(addr) is SimSootValue_ArrayRef:
-            return self.load_array_elements(array=addr, start_idx=addr.index, no_of_elements=1)[0]
+            return self.load_array_element(addr, addr.index)
 
         elif type(addr) is SimSootValue_ParamRef:
             cstack = self._stack[-1+(-1*frame)]
@@ -134,6 +134,9 @@ class SimJavaVmMemory(SimMemory):
     #
     # Array // Store
     #
+
+    def store_array_element(self, array, idx, value):
+        self.store_array_elements(array, idx, value)
 
     def store_array_elements(self, array, start_idx, data):
 
@@ -199,6 +202,9 @@ class SimJavaVmMemory(SimMemory):
     #
     # Array // Load
     #
+
+    def load_array_element(self, array, idx):
+        return self.load_array_elements(array, idx, 1)[0]
 
     def load_array_elements(self, array, start_idx, no_of_elements):
 

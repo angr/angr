@@ -30,7 +30,7 @@ class AllocObject(JNISimProcedure):
         # make sure class is loaded
         self.state.javavm_classloader.load_class(obj_class.class_name)
         # return object reference
-        obj = SimSootValue_ThisRef(heap_alloc_id=self.javavm_memory.get_new_uuid(),
+        obj = SimSootValue_ThisRef(heap_alloc_id=self.state.javavm_memory.get_new_uuid(),
                                    type_=obj_class.class_name)
         return self.state.jni_references.create_new_reference(obj)
 
@@ -49,7 +49,7 @@ class NewObject(CallMethodBase):
         # alloc object
         obj_class = self.state.jni_references.lookup(obj_class_)
         self.state.javavm_classloader.load_class(obj_class.class_name)
-        self.obj = SimSootValue_ThisRef(heap_alloc_id=self.javavm_memory.get_new_uuid(),
+        self.obj = SimSootValue_ThisRef(heap_alloc_id=self.state.javavm_memory.get_new_uuid(),
                                    type_=obj_class.class_name)
 
         # call constructor

@@ -18,11 +18,11 @@ class GetStringUTFChars(JNISimProcedure):
     def run(self, ptr_env, str_ref_, ptr_isCopy):
          # get string value
         str_ref = self.state.jni_references.lookup(str_ref_)
-        str_val = self.javavm_memory.load(str_ref)
+        str_val = self.state.javavm_memory.load(str_ref)
 
         # and concretize if it's symbolic
         if self.state.solver.symbolic(str_val):
-            l.warning("Symbolic string is concretized to %s." % str_val)
+            l.warning('Symbolic string is concretized to %s.' % str_val)
         str_val =  self.state.solver.eval(str_val)
 
         # store string in native memory
@@ -59,8 +59,8 @@ class NewStringUTF(JNISimProcedure):
         str_val = self._load_string_from_native_memory(ptr_str_bytes)
 
         # create java string and return opaque reference
-        str_ref = SimSootValue_StringRef(self.javavm_memory.get_new_uuid())
-        self.javavm_memory.store(str_ref, StringV(str_val))
+        str_ref = SimSootValue_StringRef(self.state.javavm_memory.get_new_uuid())
+        self.state.javavm_memory.store(str_ref, StringV(str_val))
         return self.state.jni_references.create_new_reference(str_ref)
 
 #
@@ -73,5 +73,5 @@ class GetStringUTFLength(JNISimProcedure):
 
     def run(self, ptr_env, str_ref_):
         str_ref = self.state.jni_references.lookup(str_ref_)
-        str_val = self.javavm_memory.load(str_ref)
+        str_val = self.state.javavm_memory.load(str_ref)
         return StrLen(str_val, 32)

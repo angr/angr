@@ -81,7 +81,7 @@ class GetStaticField(JNISimProcedure):
                                                 field_name=field_id.name,
                                                 type_=field_id.type)
         # load value from java memory
-        return self.javavm_memory.load(field_ref)
+        return self.state.javavm_memory.load(field_ref)
 
 class GetStaticBooleanField(GetStaticField):
     return_ty = 'boolean'
@@ -118,7 +118,7 @@ class SetStaticField(JNISimProcedure):
         value = self.state.project.simos.cast_primitive(value=value_.to_claripy(), 
                                                         to_type=field_id.type)
         # store value in java memory
-        self.javavm_memory.store(field_ref, value)
+        self.state.javavm_memory.store(field_ref, value)
 
 #
 # Get<Type>Field
@@ -137,7 +137,7 @@ class GetField(JNISimProcedure):
                                                   field_name=field_id.name,
                                                   type_=field_id.type)
         # load value from java memory
-        return self.javavm_memory.load(field_ref)
+        return self.state.javavm_memory.load(field_ref)
 
 class GetBooleanField(GetField):
     return_ty = 'boolean'
@@ -175,4 +175,4 @@ class SetField(JNISimProcedure):
         value = self.state.project.simos.cast_primitive(value=value_.to_claripy(), 
                                                         to_type=field_id.type)
         # store value in java memory
-        self.javavm_memory.store(field_ref, value)
+        self.state.javavm_memory.store(field_ref, value)

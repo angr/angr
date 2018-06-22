@@ -64,7 +64,7 @@ class SimState(PluginHub):
         self.project = project
 
         # Arch
-        if self.javavm_with_jni:
+        if self._is_java_jni_project:
             self._arch = { "soot": project.arch,  
                            "vex" : project.simos.native_simos.arch }
             # This flag indicates whether the current ip is a native address or a soot address descriptor.
@@ -111,7 +111,7 @@ class SimState(PluginHub):
                 self.use_plugin_preset('default')
 
             # Determine memory backend
-            if self.javavm and not self.javavm_with_jni:
+            if self._is_java_project and not self._is_java_jni_project:
                 sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
                 sim_memory = sim_memory_cls(memory_id='mem')
             
@@ -135,15 +135,15 @@ class SimState(PluginHub):
                                             permissions_backer=permissions_backer)
 
             # Add memory plugin
-            if not self.javavm_with_jni:
+            if not self._is_java_jni_project:
                 self.register_plugin('memory', sim_memory)
 
             else:
                 # In case of the JavaVM with JNI support, we add two `memory` plugins; one for modeling the
                 # native memory and another one for the JavaVM memory.
+                native_sim_memory = sim_memory
                 javavm_sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
                 javavm_sim_memory = javavm_sim_memory_cls(memory_id='mem')
-                native_sim_memory = sim_memory
                 self.register_plugin('memory_soot', javavm_sim_memory)
                 self.register_plugin('memory_vex', native_sim_memory)
 
@@ -154,13 +154,13 @@ class SimState(PluginHub):
                 self.use_plugin_preset('default')
 
             # Get register endness
-            if self.javavm_with_jni:
+            if self._is_java_jni_project:
                 register_endness = self._arch['vex'].register_endness
             else:
                 register_endness = self.arch.register_endness
 
             # Determine register backend
-            if self.javavm and not self.javavm_with_jni:
+            if self._is_java_project and not self._is_java_jni_project:
                 sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
                 sim_registers = sim_registers_cls(memory_id='reg')
 
@@ -172,14 +172,14 @@ class SimState(PluginHub):
                 sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
 
             # Add registers plugin
-            if not self.javavm_with_jni:
+            if not self._is_java_jni_project:
                 self.register_plugin('registers', sim_registers)
             
             else:
                 # Analog to memory, we add two registers plugins
+                native_sim_registers = sim_registers
                 javavm_sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
                 javavm_sim_registers = javavm_sim_registers_cls(memory_id='reg')
-                native_sim_registers = sim_registers
                 self.register_plugin('registers_soot', javavm_sim_registers)
                 self.register_plugin('registers_vex', native_sim_registers)
 
@@ -309,25 +309,10 @@ class SimState(PluginHub):
             raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
 
     def arch(self):
-        if self.javavm_with_jni:
+        if self._is_java_jni_project:
             return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
         else:
             return self._arch
-
-    @property
-    def javavm(self):
-        """
-        Returns if this state can be used with a JavaVM SimOS.
-        """
-        return self.project and isinstance(self.project.arch, ArchSoot)
-
-    @property
-    def javavm_with_jni(self):
-        """
-        Returns if this state can be used with a JavaVM SimOS with JNI support.
-        """
-        return self.project and isinstance(self.project.arch, ArchSoot) and self.project.simos.jni_support
-
 
     #
     # Plugin accessors
@@ -349,7 +334,7 @@ class SimState(PluginHub):
     #
 
     def get_plugin(self, name):
-        if self.javavm_with_jni:
+        if self._is_java_jni_project:
             # In case of the JavaVM with JNI support, a state can store the same plugin
             # twice; one for the native and one for the java view of the state.
             suffix = '_soot' if self.ip_is_soot_addr else '_vex'
@@ -372,9 +357,37 @@ class SimState(PluginHub):
             plugin.set_strongref_state(self)
         if not inhibit_init:
             plugin.init_state()
-        
 
-    def get_javavm_view_of_plugin(self, plugin_name):
+
+    #
+    # Java support
+    #
+
+    @property
+    def _is_java_project(self):
+        """
+        Indicates if the project's main binary is a Java Archive.
+        """
+        return self.project and isinstance(self.project.arch, ArchSoot)
+
+    @property
+    def _is_java_jni_project(self):
+        """
+        Indicates if the project's main binary is a Java Archive, which uses the JNI 
+        interface to interact with native libraries.
+        """
+        return self.project and isinstance(self.project.arch, ArchSoot) and \
+               self.project.simos.is_javavm_with_jni_support
+
+    @property
+    def javavm_memory(self):
+        return self._get_javavm_view_of_plugin('memory')
+
+    @property
+    def javavm_registers(self):
+        return self._get_javavm_view_of_plugin('registers')
+
+    def _get_javavm_view_of_plugin(self, plugin_name):
         """
         In case of the JavaVM with JNI support, a state can store the same plugin
         twice; one for the native and one for the java view of the state.
@@ -383,6 +396,7 @@ class SimState(PluginHub):
         """
         plugin_name = plugin_name+"_soot" if self.has_plugin(plugin_name+"_soot") else plugin_name
         return self.get_plugin(plugin_name)
+
 
     #
     # Constraint pass-throughs
@@ -546,7 +560,7 @@ class SimState(PluginHub):
         state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options.copy(),
                          mode=self.mode, os_name=self.os_name)
 
-        if self.javavm_with_jni:
+        if self._is_java_jni_project:
             state.ip_is_soot_addr = self.ip_is_soot_addr
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
