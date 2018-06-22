@@ -25,7 +25,7 @@ class StochasticSearch(ExplorationTechnique):
         self._random.seed(42)
         self.affinity = defaultdict(self._random.random)
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
 
         if not simgr.stashes[stash] or self._random.random() < self.restart_prob:

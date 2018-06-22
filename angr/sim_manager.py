@@ -215,7 +215,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
     #
 
     @ImmutabilityMixin.immutable
-    def explore(self, stash=None, n=None, find=None, avoid=None, find_stash=None, avoid_stash=None, cfg=None,
+    def explore(self, stash='active', n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None,
                 num_find=1, **kwargs):
         """
         Tick stash "stash" forward (up to "n" times or until "num_find" states are found), looking for condition "find",
@@ -231,10 +231,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         any states which cannot possibly reach a success state without going through a failure state will be
         preemptively avoided.
         """
-        stash = stash or 'active'
-        find_stash = find_stash or 'found'
-        avoid_stash = avoid_stash or 'avoid'
-
         num_find += len(self._stashes[find_stash]) if find_stash in self._stashes else 0
         tech = self.use_technique(Explorer(find, avoid, find_stash, avoid_stash, cfg, num_find))
 
@@ -246,7 +242,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return self
 
     @ImmutabilityMixin.immutable
-    def run(self, stash=None, n=None, until=None, **kwargs):
+    def run(self, stash='active', n=None, until=None, **kwargs):
         """
         Run until the SimulationManager has reached a completed state, according to
         the current exploration techniques.
@@ -259,7 +255,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :return:            The resulting SimulationManager.
         :rtype:             SimulationManager
         """
-        stash = stash or 'active'
         for _ in (itertools.count() if n is None else xrange(0, n)):
             if not self.complete() and self._stashes[stash]:
                 self.step(stash=stash, **kwargs)
@@ -275,7 +270,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return self.completion_mode((tech.complete(self) for tech in self._techniques))
 
     @ImmutabilityMixin.immutable
-    def step(self, n=None, selector_func=None, step_func=None, stash=None,
+    def step(self, n=None, selector_func=None, step_func=None, stash='active',
              successor_func=None, until=None, filter_func=None, **run_args):
         """
         Step a stash of states forward and categorize the successors appropriately.
@@ -316,7 +311,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:           The resulting SimulationManager.
         :rtype:             SimulationManager
         """
-        stash = stash or 'active'
         l.info("Stepping %s of %s", stash, self)
         # 8<----------------- Compatibility layer -----------------
         if n is not None or until is not None:
@@ -411,7 +405,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
     #
 
     @ImmutabilityMixin.immutable
-    def prune(self, filter_func=None, from_stash=None, to_stash=None):
+    def prune(self, filter_func=None, from_stash='active', to_stash='pruned'):
         """
         Prune unsatisfiable states from a stash.
 
@@ -424,9 +418,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:           The resulting SimulationManager.
         :rtype:             SimulationManager
         """
-        from_stash = from_stash or 'active'
-        to_stash = to_stash or 'pruned'
-
         def _prune_filter(state):
             to_prune = not filter_func or filter_func(state)
             if to_prune and not state.satisfiable():
@@ -469,7 +460,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         return self.split(stash_splitter, from_stash=from_stash, to_stash=to_stash)
 
     @ImmutabilityMixin.immutable
-    def stash(self, filter_func=None, from_stash=None, to_stash=None):
+    def stash(self, filter_func=None, from_stash='active', to_stash='stashed'):
         """
         Stash some states. This is an alias for move(), with defaults for the stashes.
 
@@ -481,12 +472,10 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:           The resulting SimulationManager
         :rtype:             SimulationManager
         """
-        from_stash = from_stash or 'active'
-        to_stash = to_stash or 'stashed'
         return self.move(from_stash, to_stash, filter_func=filter_func)
 
     @ImmutabilityMixin.immutable
-    def unstash(self, filter_func=None, to_stash=None, from_stash=None):
+    def unstash(self, filter_func=None, to_stash='active', from_stash='stashed'):
         """
         Unstash some states. This is an alias for move(), with defaults for the stashes.
 
@@ -498,12 +487,10 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:            The resulting SimulationManager.
         :rtype:             SimulationManager
         """
-        to_stash = to_stash or 'active'
-        from_stash = from_stash or 'stashed'
         return self.move(from_stash, to_stash, filter_func=filter_func)
 
     @ImmutabilityMixin.immutable
-    def drop(self, filter_func=None, stash=None):
+    def drop(self, filter_func=None, stash='active'):
         """
         Drops states from a stash. This is an alias for move(), with defaults for the stashes.
 
@@ -514,11 +501,10 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:           The resulting SimulationManager
         :rtype:             SimulationManager
         """
-        stash = stash or 'active'
         return self.move(stash, self.DROP, filter_func=filter_func)
 
     @ImmutabilityMixin.immutable
-    def apply(self, state_func=None, stash_func=None, stash=None, to_stash=None):
+    def apply(self, state_func=None, stash_func=None, stash='active', to_stash=None):
         """
         Applies a given function to a given stash.
 
@@ -536,7 +522,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:           The resulting SimulationManager.
         :rtype:             SimulationManager
         """
-        stash = stash or 'active'
         to_stash = to_stash or stash
 
         def _stash_splitter(states):
@@ -560,7 +545,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
 
     @ImmutabilityMixin.immutable
     def split(self, stash_splitter=None, stash_ranker=None, state_ranker=None,
-              limit=8, from_stash=None, to_stash=None):
+              limit=8, from_stash='active', to_stash='stashed'):
         """
         Split a stash of states into two stashes depending on the specified options.
 
@@ -586,8 +571,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:               The resulting SimulationManager.
         :rtype:                 SimulationManager
         """
-        from_stash = from_stash or 'active'
-        to_stash = to_stash or 'stashed'
         states = self._fetch_states(stash=from_stash)
 
         if stash_splitter is not None:
@@ -615,7 +598,7 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
                 set(state.posix.fd) if state.has_plugin('posix') else None)
 
     @ImmutabilityMixin.immutable
-    def merge(self, merge_func=None, merge_key=None, stash=None):
+    def merge(self, merge_func=None, merge_key=None, stash='active'):
         """
         Merge the states in a given stash.
 
@@ -629,7 +612,6 @@ class SimulationManager(ana.Storable, ImmutabilityMixin):
         :returns:           The result SimulationManager.
         :rtype:             SimulationManager
         """
-        stash = 'active' if stash is None else stash
         self.prune(from_stash=stash)
         to_merge = self._fetch_states(stash=stash)
         not_to_merge = []
