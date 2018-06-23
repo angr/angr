@@ -85,13 +85,25 @@ class JumpTableResolver(IndirectJumpResolver):
                 if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
                     # data transferring
                     stmts_to_remove.append(stmt_loc)
-                    stmt_loc = (block_addr, stmt_idx)
+                    continue
+                elif isinstance(stmt.data, pyvex.IRExpr.ITE):
+                    # data transferring
+                    #   t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
+                    # > t44 = ITE(t43,t16,0x0000c844)
+                    stmts_to_remove.append(stmt_loc)
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
-                    stmt_loc = (block_addr, stmt_idx)
                     load_stmt, load_stmt_loc = stmt, stmt_loc
                     stmts_to_remove.append(stmt_loc)
+            elif isinstance(stmt, pyvex.IRStmt.LoadG):
+                # Got it!
+                #
+                # this is how an ARM jump table is translated to VEX
+                # > t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
+                load_stmt, load_stmt_loc = stmt, stmt_loc
+                stmts_to_remove.append(stmt_loc)
+
             break
 
         if load_stmt_loc is None:
@@ -158,13 +170,23 @@ class JumpTableResolver(IndirectJumpResolver):
                 state = all_states[0]  # Just take the first state
 
                 # Parse the memory load statement
-                load_addr_tmp = load_stmt.data.addr.tmp
+                if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
+                    load_addr_tmp = load_stmt.data.addr.tmp
+                elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
+                    load_addr_tmp = load_stmt.addr.tmp
+                else:
+                    raise TypeError("Unsupported address loading statement type %s." % type(load_stmt))
                 if load_addr_tmp not in state.scratch.temps:
                     # the tmp variable is not there... umm...
                     continue
                 jump_addr = state.scratch.temps[load_addr_tmp]
+                all_targets = [ ]
+                if isinstance(load_stmt, pyvex.IRStmt.LoadG):
+                    # LoadG comes with a guard. We should apply this guard to the load expression
+                    guard_tmp = load_stmt.guard.tmp
+                    guard = state.scratch.temps[guard_tmp] != 0
+                    jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
                 total_cases = jump_addr._model_vsa.cardinality
-                all_targets = []
 
                 if total_cases > self._max_targets:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
@@ -261,8 +283,9 @@ class JumpTableResolver(IndirectJumpResolver):
     def _init_registers_on_demand(state):
         # for uninitialized read using a register as the source address, we replace them in memory on demand
         read_addr = state.inspect.mem_read_address
+        cond = state.inspect.mem_read_condition
 
-        if not isinstance(read_addr, (int, long)) and read_addr.uninitialized:
+        if not isinstance(read_addr, (int, long)) and read_addr.uninitialized and cond is None:
 
             read_length = state.inspect.mem_read_length
             if not isinstance(read_length, (int, long)):

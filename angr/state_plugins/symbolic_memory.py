@@ -552,7 +552,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             load_constraint = [ constraint_options[0] ]
 
-        if condition is not None:
+        if condition is not None and fallback is not None:
             read_value = self.state.se.If(condition, read_value, fallback)
             load_constraint = [ self.state.se.Or(self.state.se.And(condition, *load_constraint), self.state.se.Not(condition)) ]
 
