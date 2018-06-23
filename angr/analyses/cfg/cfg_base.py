@@ -23,6 +23,11 @@ l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
 
 class IndirectJump(object):
+
+    __slots__ = [ "addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
+                  "jumptable_addr", "jumptable_entries"
+                  ]
+
     def __init__(self, addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=None, jumptable=False,
                  jumptable_addr=None, jumptable_entries=None):
         self.addr = addr

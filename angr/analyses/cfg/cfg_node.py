@@ -27,10 +27,19 @@ class CFGNodeCreationFailure(object):
     def __hash__(self):
         return hash((self.short_reason, self.long_reason, self.traceback))
 
+
 class CFGNode(object):
     """
     This class stands for each single node in CFG.
     """
+
+    __slots__ = [ 'addr', 'input_state', 'simprocedure_name', 'syscall_name', 'size', 'looping_times', 'no_ret',
+                  'is_syscall', 'syscall', 'function_address', 'block_id', 'callstack', 'depth', 'thumb', 'byte_string',
+                  'creation_failure_info', '_callstack_key', 'name', 'return_target', 'instruction_addrs',
+                  'final_states', 'irsb', 'has_return',
+                  '_cfg',
+                  ]
+
     def __init__(self,
                  addr,
                  size,
