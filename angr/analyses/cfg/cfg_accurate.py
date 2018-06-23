@@ -965,8 +965,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                      add_options=self._state_add_options,
                                                      remove_options=self._state_remove_options,
                                                      )
+            self._initial_state = state
         else:
             # FIXME: self._initial_state is deprecated. This branch will be removed soon
+            # FIXME: ^^^ x86_elf_pic_plt resolver needs self._initial_state. What now?
             state = self._initial_state
             state.history.jumpkind = jumpkind
             self._reset_state_mode(state, 'fastpath')
