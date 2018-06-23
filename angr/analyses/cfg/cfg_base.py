@@ -17,12 +17,17 @@ from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSB
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
-from .cfg_node import CFGNode
+from .cfg_node import CFGNode, CFGNodeA
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
 
 class IndirectJump(object):
+
+    __slots__ = [ "addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
+                  "jumptable_addr", "jumptable_entries",
+                  ]
+
     def __init__(self, addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=None, jumptable=False,
                  jumptable_addr=None, jumptable_entries=None):
         self.addr = addr
@@ -43,7 +48,7 @@ class IndirectJump(object):
             if self.jumptable_addr is not None:
                 status += "@%#08x" % self.jumptable_addr
             if self.jumptable_entries is not None:
-                status += " with %d entries" % self.jumptable_entries
+                status += " with %d entries" % len(self.jumptable_entries)
 
         return "<IndirectJump %#08x - ins %#08x%s>" % (self.addr, self.ins_addr, " " + status if status else "")
 
@@ -52,6 +57,9 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
+
+    tag = None
+
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None):
         self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
@@ -334,7 +342,10 @@ class CFGBase(Analysis):
         #    self._node_lookup_index_warned = True
 
         for n in self.graph.nodes():
-            cond = n.looping_times == 0
+            if self.tag == "CFGAccurate":
+                cond = n.looping_times == 0
+            else:
+                cond = True
             if anyaddr and n.size is not None:
                 cond = cond and (addr >= n.addr and addr < n.addr + n.size)
             else:
@@ -1133,13 +1144,24 @@ class CFGBase(Analysis):
 
             if new_node is None:
                 # Create a new one
-                new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key,
-                                   function_address=n.function_address, block_id=n.block_id,
-                                   instruction_addrs=[i for i in n.instruction_addrs
-                                                      if n.addr <= i <= n.addr + new_size
-                                                      ],
-                                   thumb=n.thumb
-                                   )
+                if self.tag == "CFGFast":
+                    new_node = CFGNode(n.addr, new_size, self,
+                                       function_address=n.function_address, block_id=n.block_id,
+                                       instruction_addrs=tuple([i for i in n.instruction_addrs
+                                                          if n.addr <= i <= n.addr + new_size
+                                                          ]),
+                                       thumb=n.thumb
+                                       )
+                elif self.tag == "CFGAccurate":
+                    new_node = CFGNodeA(n.addr, new_size, self, callstack_key=callstack_key,
+                                        function_address=n.function_address, block_id=n.block_id,
+                                        instruction_addrs=tuple([i for i in n.instruction_addrs
+                                                           if n.addr <= i <= n.addr + new_size
+                                                           ]),
+                                        thumb=n.thumb
+                                        )
+                else:
+                    raise ValueError("Unknown tag %s." % self.tag)
 
                 # Copy instruction addresses
                 new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs

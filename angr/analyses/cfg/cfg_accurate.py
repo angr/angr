@@ -10,7 +10,7 @@ from archinfo import ArchARM
 
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_node import CFGNode
+from .cfg_node import CFGNodeA
 from .cfg_utils import CFGUtils
 from ..forward_analysis import ForwardAnalysis
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
@@ -116,6 +116,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     """
     This class represents a control-flow graph.
     """
+
+    tag = "CFGAccurate"
 
     def __init__(self,
                  context_sensitivity_level=1,
@@ -1866,28 +1868,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Is it really OK?
                 func_addr = self._block_id_addr(node_key)
 
-            if node_key.jump_type == 'syscall':
-                # it's a syscall
-                is_syscall = True
-            else:
-                is_syscall = False
-
+            is_syscall = node_key.jump_type == 'syscall'
             if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
                 is_thumb = True
             else:
                 is_thumb = False
 
-            pt = CFGNode(self._block_id_addr(node_key),
-                         None,
-                         self,
-                         callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
-                         input_state=None,
-                         simprocedure_name="PathTerminator",
-                         function_address=func_addr,
-                         callstack_key=self._block_id_callstack_key(node_key),
-                         is_syscall=is_syscall,
-                         thumb=is_thumb
-                         )
+            pt = CFGNodeA(self._block_id_addr(node_key),
+                          None,
+                          self,
+                          callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
+                          input_state=None,
+                          simprocedure_name="PathTerminator",
+                          function_address=func_addr,
+                          callstack_key=self._block_id_callstack_key(node_key),
+                          is_syscall=is_syscall,
+                          thumb=is_thumb
+                          )
             if self._keep_state:
                 # We don't have an input state available for it (otherwise we won't have to create a
                 # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -2978,38 +2975,38 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if syscall is not None and sa['no_ret']:
                 no_ret = True
 
-            cfg_node = CFGNode(sim_successors.addr,
-                               None,
-                               self,
-                               callstack=call_stack,
-                               input_state=None,
-                               simprocedure_name=simproc_name,
-                               syscall_name=syscall,
-                               no_ret=no_ret,
-                               is_syscall=is_syscall,
-                               syscall=syscall,
-                               function_address=sim_successors.addr,
-                               block_id=block_id,
-                               depth=depth,
-                               creation_failure_info=exception_info,
-                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
-                               )
+            cfg_node = CFGNodeA(sim_successors.addr,
+                                None,
+                                self,
+                                callstack=call_stack,
+                                input_state=None,
+                                simprocedure_name=simproc_name,
+                                syscall_name=syscall,
+                                no_ret=no_ret,
+                                is_syscall=is_syscall,
+                                syscall=syscall,
+                                function_address=sim_successors.addr,
+                                block_id=block_id,
+                                depth=depth,
+                                creation_failure_info=exception_info,
+                                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
+                                )
 
         else:
-            cfg_node = CFGNode(sim_successors.addr,
-                               sa['irsb_size'],
-                               self,
-                               callstack=call_stack,
-                               input_state=None,
-                               is_syscall=is_syscall,
-                               syscall=syscall,
-                               function_address=func_addr,
-                               block_id=block_id,
-                               depth=depth,
-                               irsb=sim_successors.artifacts['irsb'],
-                               creation_failure_info=exception_info,
-                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
-                               )
+            cfg_node = CFGNodeA(sim_successors.addr,
+                                sa['irsb_size'],
+                                self,
+                                callstack=call_stack,
+                                input_state=None,
+                                is_syscall=is_syscall,
+                                syscall=syscall,
+                                function_address=func_addr,
+                                block_id=block_id,
+                                depth=depth,
+                                irsb=sim_successors.artifacts['irsb'],
+                                creation_failure_info=exception_info,
+                                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
+                                )
 
         return cfg_node
 
@@ -3320,7 +3317,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 
-        elif isinstance(begin, CFGNode) and isinstance(end, CFGNode):
+        elif isinstance(begin, CFGNodeA) and isinstance(end, CFGNodeA):
             n_begin = begin
             n_end = end
         else:

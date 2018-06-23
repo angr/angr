@@ -549,6 +549,6 @@ def main():
         run_all()
 
 if __name__ == "__main__":
-    logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
+    # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
 
     main()

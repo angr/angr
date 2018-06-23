@@ -228,8 +228,8 @@ class JumpTableResolver(IndirectJumpResolver):
                 ij = cfg.indirect_jumps[addr]
                 ij.jumptable = True
                 ij.jumptable_addr = state.se.min(jump_addr)
-                ij.jumptable_targets = jump_table
-                ij.jumptable_entries = total_cases
+                ij.resolved_targets = set(jump_table)
+                ij.jumptable_entries = jump_table
 
                 return True, all_targets
 
