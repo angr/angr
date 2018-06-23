@@ -35,21 +35,25 @@ inspect_attributes = {
     'mem_read_address',
     'mem_read_expr',
     'mem_read_length',
+    'mem_read_condition',
 
     # mem_write
     'mem_write_address',
     'mem_write_expr',
     'mem_write_length',
+    'mem_write_condition',
 
     # reg_read
     'reg_read_offset',
     'reg_read_expr',
     'reg_read_length',
+    'reg_read_condition',
 
     # reg_write
     'reg_write_offset',
     'reg_write_expr',
     'reg_write_length',
+    'reg_write_condition',
 
     # tmp_read
     'tmp_read_num',
