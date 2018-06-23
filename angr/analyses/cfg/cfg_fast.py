@@ -684,6 +684,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "")
 
+    tag = "CFGFast"
+
     def __init__(self,
                  binary=None,
                  regions=None,
