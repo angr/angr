@@ -284,3 +284,27 @@ class CFGNodeA(CFGNode):
 
     def __hash__(self):
         return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info))
+
+    def copy(self):
+        return CFGNodeA(
+            self.addr,
+            self.size,
+            self._cfg,
+            simprocedure_name=self.simprocedure_name,
+            no_ret=self.no_ret,
+            function_address=self.function_address,
+            block_id=self.block_id,
+            irsb=self.irsb,
+            instruction_addrs=self.instruction_addrs,
+            thumb=self.thumb,
+            byte_string=self.byte_string,
+            callstack=self.callstack,
+            input_state=self.input_state,
+            syscall_name=self.syscall_name,
+            looping_times=self.looping_times,
+            is_syscall=self.is_syscall,
+            syscall=self.syscall,
+            depth=self.depth,
+            final_states=self.final_states[::],
+            callstack_key=self.callstack_key,
+        )
