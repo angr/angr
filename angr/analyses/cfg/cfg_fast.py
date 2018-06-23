@@ -553,8 +553,8 @@ class PendingJobs(object):
             return self._pop_job(self._jobs.keys()[0])
 
         # Prioritize returning functions
-        for func_addr in self._returning_functions:
-            if func_addr not in self._jobs:
+        for func_addr in self._jobs:
+            if func_addr not in self._returning_functions:
                 continue
             return self._pop_job(func_addr)
 
