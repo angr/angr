@@ -408,7 +408,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         strategies = self.write_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(addr, strategies, 'store')
 
-    def concretize_read_addr(self, addr, strategies=None, condition=None):
+    def concretize_read_addr(self, addr, strategies=None):
         """
         Concretizes an address meant for reading.
 
