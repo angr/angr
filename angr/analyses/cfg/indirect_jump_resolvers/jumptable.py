@@ -180,13 +180,13 @@ class JumpTableResolver(IndirectJumpResolver):
                     # the tmp variable is not there... umm...
                     continue
                 jump_addr = state.scratch.temps[load_addr_tmp]
+                all_targets = [ ]
                 if isinstance(load_stmt, pyvex.IRStmt.LoadG):
                     # LoadG comes with a guard. We should apply this guard to the load expression
                     guard_tmp = load_stmt.guard.tmp
                     guard = state.scratch.temps[guard_tmp] != 0
                     jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
                 total_cases = jump_addr._model_vsa.cardinality
-                all_targets = []
 
                 if total_cases > self._max_targets:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
