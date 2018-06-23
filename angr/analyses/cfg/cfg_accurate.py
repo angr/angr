@@ -294,7 +294,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self.indirect_jump_resolvers = [ ]
         if not indirect_jump_resolvers:
             indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
-        if enable_indirect_jump_resolvers and indirect_jump_resolvers:
+        if self._enable_indirect_jump_resolvers and indirect_jump_resolvers:
             # split them into different groups for the sake of speed
             for ijr in indirect_jump_resolvers:
                 if ijr.timeless:
@@ -2233,16 +2233,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         resolver.base_state = self._base_state
                         if not resolver.filter(self, ij.addr, ij.func_addr, irsb, ij.jumpkind):
                             continue
-                        resolver, targets = resolver.resolve(self, ij.addr, ij.func_addr, irsb, ij.jumpkind)
+                        resolved, targets = resolver.resolve(self, ij.addr, ij.func_addr, irsb, ij.jumpkind)
                         if resolved:
                             all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
                             for t in targets:
                                 a = sim_successors.all_successors[0].copy()
                                 a.ip = t
-                                all_successors.insert(0, a)
+                                successors.insert(0, a)
 
-                                l.debug('The indirect jump is successfully resolved.')
-                                self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                            l.debug('The indirect jump is successfully resolved.')
+                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                            break
                     if not resolved:
                         l.debug('Failed to resolve the indirect jump.')
                         self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
