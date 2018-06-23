@@ -1561,12 +1561,23 @@ class DDG(Analysis):
             return []
 
         consumers = []
-        out_edges = graph.out_edges(var_def, data=True)
-        for _, dst, data in out_edges:
-            if 'type' in data and data['type'] == 'kill':
-                # skip killing edges
-                continue
-            consumers.append(dst)
+        srcs = [var_def]
+        traversed = set()
+
+        while srcs:
+            src = srcs.pop()
+            out_edges = graph.out_edges(src, data=True)
+            for _, dst, data in out_edges:
+                if 'type' in data and data['type'] == 'kill':
+                    # skip killing edges
+                    continue
+                if isinstance(dst.variable, SimTemporaryVariable):
+                    if dst not in traversed:
+                        srcs.append(dst)
+                        traversed.add(dst)
+                else:
+                    if dst not in consumers:
+                        consumers.append(dst)
 
         return consumers
 
