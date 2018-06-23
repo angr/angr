@@ -34,18 +34,16 @@ class CFGNode(object):
     This class stands for each single node in CFG.
     """
 
-    __slots__ = [ 'addr', 'simprocedure_name', 'syscall_name', 'size', 'no_ret',
-                  'is_syscall', 'function_address', 'block_id', 'thumb', 'byte_string',
-                  'name', 'instruction_addrs',
-                  'irsb', 'has_return',
-                  '_cfg',
-                  ]
+    __slots__ = ( 'addr', 'simprocedure_name', 'syscall_name', 'size', 'no_ret', 'is_syscall', 'function_address',
+                  'block_id', 'thumb', 'byte_string', 'name', 'instruction_addrs', 'irsb', 'has_return', '_cfg',
+                  )
 
     def __init__(self,
                  addr,
                  size,
                  cfg,
                  simprocedure_name=None,
+                 is_syscall=False,
                  no_ret=False,
                  function_address=None,
                  block_id=None,
@@ -62,6 +60,7 @@ class CFGNode(object):
         self.simprocedure_name = simprocedure_name
         self.size = size
         self.no_ret = no_ret
+        self.is_syscall = is_syscall
         self._cfg = cfg
         self.function_address = function_address
         self.block_id = block_id
@@ -209,6 +208,7 @@ class CFGNodeA(CFGNode):
 
         super(CFGNodeA, self).__init__(addr, size, cfg,
                                        simprocedure_name=simprocedure_name,
+                                       is_syscall=is_syscall,
                                        no_ret=no_ret,
                                        function_address=function_address,
                                        block_id=block_id,
@@ -222,7 +222,6 @@ class CFGNodeA(CFGNode):
         self.input_state = input_state
         self.syscall_name = syscall_name
         self.looping_times = looping_times
-        self.is_syscall = is_syscall
         self.syscall = syscall
         self.depth = depth
 

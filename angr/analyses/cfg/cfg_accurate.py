@@ -1868,12 +1868,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Is it really OK?
                 func_addr = self._block_id_addr(node_key)
 
-            if node_key.jump_type == 'syscall':
-                # it's a syscall
-                is_syscall = True
-            else:
-                is_syscall = False
-
+            is_syscall = node_key.jump_type == 'syscall'
             if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
                 is_thumb = True
             else:
@@ -3322,7 +3317,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 
-        elif isinstance(begin, CFGNode) and isinstance(end, CFGNode):
+        elif isinstance(begin, CFGNodeA) and isinstance(end, CFGNodeA):
             n_begin = begin
             n_end = end
         else:
