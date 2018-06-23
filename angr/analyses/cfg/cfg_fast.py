@@ -2653,10 +2653,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         next_node_size = a.size - nop_length
                         next_node = CFGNode(next_node_addr, next_node_size, self,
                                             function_address=next_node_addr,
-                                            instruction_addrs=[i for i in a.instruction_addrs
-                                                               if next_node_addr <= i
-                                                                < next_node_addr + next_node_size
-                                                               ],
+                                            instruction_addrs=tuple(i for i in a.instruction_addrs
+                                                                      if next_node_addr <= i
+                                                                      < next_node_addr + next_node_size
+                                                                    ),
                                             thumb=a.thumb,
                                             byte_string=None if a.byte_string is None else a.byte_string[nop_length:],
                                             )
@@ -2812,9 +2812,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Generate the new node
         new_node = CFGNode(node.addr, new_size, self,
                            function_address=None if remove_function else node.function_address,
-                           instruction_addrs=[i for i in node.instruction_addrs
-                                              if node.addr <= i < node.addr + new_size
-                                              ],
+                           instruction_addrs=tuple(i for i in node.instruction_addrs
+                                                     if node.addr <= i < node.addr + new_size
+                                                   ),
                            thumb=node.thumb,
                            byte_string=None if node.byte_string is None else node.byte_string[:new_size]
                            )
@@ -2831,7 +2831,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             successor_size = node.size - new_size
             successor = CFGNode(successor_node_addr, successor_size, self,
                                 function_address=successor_node_addr if remove_function else node.function_address,
-                                instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size],
+                                instruction_addrs=tuple(i for i in node.instruction_addrs if i >= node.addr + new_size),
                                 thumb=node.thumb,
                                 byte_string=None if node.byte_string is None else node.byte_string[new_size:]
                                 )

@@ -85,12 +85,12 @@ class CFGNode(object):
                 offset = addr - function_address
                 self.name = "%s%+#x" % (self.name, offset)
 
-        self.instruction_addrs = instruction_addrs if instruction_addrs is not None else [ ]
+        self.instruction_addrs = instruction_addrs if instruction_addrs is not None else tuple()
 
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
-                self.instruction_addrs = [ s.addr + s.delta for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
+                self.instruction_addrs = tuple(s.addr + s.delta for s in irsb.statements if type(s) is pyvex.IRStmt.IMark)  # pylint:disable=unidiomatic-typecheck
 
         self.irsb = irsb
         self.has_return = False
