@@ -2217,17 +2217,20 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # try resolving it fast
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
             if resolved:
-                # Remove the symbolic successor
+                # Remove all successors
                 # TODO: Now we are removing all symbolic successors. Is it possible
-                # TODO: that there is more than one symbolic successor?
-                all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
+                # that there is more than one symbolic successor?
+                # TODO: It might happen that the concrete successor is not
+                # correct, so remove it here. If it's not the case, we will
+                # still have it in the resolved_targets
+                successors = []
                 for t in resolved_targets:
                     # Insert new successors
                     # We insert new successors in the beginning of all_successors list so that we don't break the
                     # assumption that Ijk_FakeRet is always the last element in the list
                     a = sim_successors.all_successors[0].copy()
                     a.ip = t
-                    all_successors.insert(0, a)
+                    successors.insert(0, a)
 
                     l.debug('The indirect jump is successfully resolved.')
                     self.kb.resolved_indirect_jumps.add(cfg_node.addr)
@@ -2243,11 +2246,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     ij = self.indirect_jumps[addr]
 
                 if ij.resolved_targets:
-                    all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
+                    successors = []
                     for t in ij.resolved_targets:
                         a = sim_successors.all_successors[0].copy()
                         a.ip = t
-                        all_successors.insert(0, a)
+                        successors.insert(0, a)
 
                         l.debug('The indirect jump is successfully resolved.')
                         self.kb.resolved_indirect_jumps.add(cfg_node.addr)
@@ -2260,7 +2263,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             continue
                         resolved, targets = resolver.resolve(self, ij.addr, ij.func_addr, irsb, ij.jumpkind)
                         if resolved:
-                            all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
+                            successors = []
                             for t in targets:
                                 a = sim_successors.all_successors[0].copy()
                                 a.ip = t

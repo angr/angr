@@ -384,7 +384,7 @@ def test_armel_final_missing_block_b():
     blocks = list(cfg.kb.functions['main'].blocks)
 
     nose.tools.assert_equal(len(blocks), 2)
-    nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b78, 0x10bbf })
+    nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b79, 0x10bbf })
 
 
 def test_armel_incorrect_function_detection_caused_by_branch():
