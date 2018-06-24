@@ -217,8 +217,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 for idx, a in enumerate(state.se.eval_upto(jump_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
-                    jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
-                    target = state.se.eval(jump_target)
+                    target = cfg._fast_memory_load_pointer(a)
                     all_targets.append(target)
                     jump_table.append(target)
 
