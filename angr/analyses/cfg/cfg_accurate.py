@@ -2182,6 +2182,29 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         cfg_node = job.cfg_node
         if sim_successors.sort == 'IRSB' and  self._is_indirect_jump(cfg_node, sim_successors):
             l.debug('IRSB %#x has an indirect jump as its default exit', cfg_node.addr)
+
+            # Throw away all current paths whose target doesn't make sense
+            old_successors = successors[::]
+            successors = []
+            for i, suc in enumerate(old_successors):
+                if suc.se.symbolic(suc.ip):
+                    # It's symbolic. Take it, and hopefully we can resolve it later
+                    successors.append(suc)
+
+                else:
+                    # It's concrete. Does it make sense?
+                    ip_int = suc.se.eval_one(suc.ip)
+
+                    if self._is_address_executable(ip_int) or \
+                            self.project.is_hooked(ip_int):
+                        successors.append(suc)
+
+                    else:
+                        l.info('%s: an obviously incorrect successor %d/%d (%#x) is ditched',
+                               cfg_node,
+                               i + 1, len(old_successors),
+                               ip_int)
+
             irsb = job.state.block().vex
             addr = job.addr
             func_addr = job.func_addr
