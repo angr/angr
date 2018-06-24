@@ -141,7 +141,7 @@ def test_additional_edges():
     additional_edges = {
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True, enable_indirect_jump_resolvers=False)
 
     nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
     nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
