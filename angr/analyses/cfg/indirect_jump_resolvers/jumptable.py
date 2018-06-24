@@ -319,7 +319,7 @@ class JumpTableResolver(IndirectJumpResolver):
             for i, stmt in enumerate(irsb.statements):
                 taken = i in stmt_ids
                 s = "%s %x:%02d | " % ("+" if taken else " ", addr, i)
-                s += "%s " % irsb.statements[i].__str__(arch=self.project.arch, tyenv=irsb.tyenv)
+                s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)
                 if taken:
                     s += "IN: %d" % blade.slice.in_degree((addr, i))
                 print s
