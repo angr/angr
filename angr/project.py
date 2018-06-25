@@ -543,7 +543,6 @@ class Project(object):
 
         self._sim_procedures = new_sim_procedures
 
-
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
     #

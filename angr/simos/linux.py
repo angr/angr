@@ -378,3 +378,6 @@ class SimLinux(SimUserland):
             for register in self.arch.register_list:
                 if register.name == 'gs':
                     return register.vex_offset
+
+    def get_binary_header_name(self):
+        return "ELF"

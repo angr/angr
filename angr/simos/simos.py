@@ -357,6 +357,8 @@ class SimOS(object):
         to_ret |= ((base >> 24) & 0xff) << 56
         return struct.pack('<Q', to_ret)
 
+    def get_binary_header_name(self):
+        return ""
 
 class GlobalDescriptorTable(object):
 
