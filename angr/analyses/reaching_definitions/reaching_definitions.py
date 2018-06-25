@@ -56,6 +56,12 @@ class LiveDefinitions(object):
         sp = Register(self.arch.sp_offset, self.arch.bytes)
         sp_def = Definition(sp, None, DataSet(self.arch.initial_sp, self.arch.bits))
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+        if self.arch.name.startswith('MIPS'):
+            if func_addr is None:
+                l.warning("func_addr must not be None to initialize a function in mips")
+            t9 = Register(self.arch.registers['t9'][0],self.arch.bytes)
+            t9_def = Definition(t9, None, DataSet(func_addr,self.arch.bits))
+            self.register_definitions.set_object(t9_def.offset,t9_def,t9_def.size)
 
         if cc is not None:
             for arg in cc.args:
