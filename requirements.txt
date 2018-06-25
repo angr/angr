@@ -12,7 +12,7 @@ futures
 mulpyplexer
 networkx>=2.0
 progressbar
-pyvex>=7.8.6.16
+pyvex>=7.8.6.23
 rpyc
 unicorn
 GitPython

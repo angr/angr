@@ -175,6 +175,8 @@ class SimFile(SimFileBase, SimSymbolicMemory):
 
         if type(self._size) in (int, long):
             self._size = claripy.BVV(self._size, state.arch.bits)
+        elif len(self._size) != state.arch.bits:
+            raise TypeError("SimFile size must be a bitvector of size %d (arch.bits)" % state.arch.bits)
 
     @property
     def size(self):
@@ -293,6 +295,8 @@ class SimFileStream(SimFile):
         super(SimFileStream, self).set_state(state)
         if type(self.pos) in (int, long):
             self.pos = state.solver.BVV(self.pos, state.arch.bits)
+        elif len(self.pos) != state.arch.bits:
+            raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
 
     def read(self, pos, size, **kwargs):
         no_stream = kwargs.pop('no_stream', False)

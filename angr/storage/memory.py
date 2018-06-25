@@ -514,10 +514,13 @@ class SimMemory(SimStatePlugin):
                     BP_BEFORE,
                     reg_write_offset=addr_e,
                     reg_write_length=size_e,
-                    reg_write_expr=data_e)
+                    reg_write_expr=data_e,
+                    reg_write_condition=condition_e,
+                )
                 addr_e = self.state._inspect_getattr('reg_write_offset', addr_e)
                 size_e = self.state._inspect_getattr('reg_write_length', size_e)
                 data_e = self.state._inspect_getattr('reg_write_expr', data_e)
+                condition_e = self.state._inspect_getattr('reg_write_condition', condition_e)
             elif self.category == 'mem':
                 self.state._inspect(
                     'mem_write',
@@ -525,10 +528,12 @@ class SimMemory(SimStatePlugin):
                     mem_write_address=addr_e,
                     mem_write_length=size_e,
                     mem_write_expr=data_e,
+                    mem_write_condition=condition_e,
                 )
                 addr_e = self.state._inspect_getattr('mem_write_address', addr_e)
                 size_e = self.state._inspect_getattr('mem_write_length', size_e)
                 data_e = self.state._inspect_getattr('mem_write_expr', data_e)
+                condition_e = self.state._inspect_getattr('mem_write_condition', condition_e)
 
         # if the condition is false, bail
         if condition_e is not None and self.state.se.is_false(condition_e):
@@ -728,14 +733,20 @@ class SimMemory(SimStatePlugin):
 
         if inspect is True:
             if self.category == 'reg':
-                self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
+                self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e,
+                                    reg_read_condition=condition_e
+                                    )
                 addr_e = self.state._inspect_getattr("reg_read_offset", addr_e)
                 size_e = self.state._inspect_getattr("reg_read_length", size_e)
+                condition_e = self.state._inspect_getattr("reg_read_condition", condition_e)
 
             elif self.category == 'mem':
-                self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
+                self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e,
+                                    mem_read_condition=condition_e
+                                    )
                 addr_e = self.state._inspect_getattr("mem_read_address", addr_e)
                 size_e = self.state._inspect_getattr("mem_read_length", size_e)
+                condition_e = self.state._inspect_getattr("mem_read_condition", condition_e)
 
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and

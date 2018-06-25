@@ -13,7 +13,7 @@ class LoopLimiter(ExplorationTechnique):
         self.count = count
         self.discard_stash = discard_stash
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
         simgr = simgr.move(stash, self.discard_stash, lambda path: path.detect_loops() >= self.count)
         if len(simgr.stashes[stash]) == 0 and len(simgr.stashes[self.discard_stash]) > 0:

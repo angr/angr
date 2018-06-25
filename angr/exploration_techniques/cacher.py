@@ -65,7 +65,7 @@ class Cacher(ExplorationTechnique):
 
         self.project = simgr._project
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         # We cache if any of the states in 'stash' satisfies the condition.
         for s in simgr.stashes[stash]:
             if self._dump_cache and self._dump_cond(s):

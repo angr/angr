@@ -246,17 +246,27 @@ class SimSlicer(object):
 
         return False
 
+    def _backward_handler_stmt_LoadG(self, expr, state):
+
+        if expr.dst not in state.temps:
+            return False
+
+        state.temps.remove(expr.dst)
+
+        self._backward_handler_expr(expr.guard, state)
+        self._backward_handler_expr(expr.addr, state)
+        self._backward_handler_expr(expr.alt, state)
+
+        return True
+
     #
     # Backward slice IRExpr handlers
     #
 
     def _backward_handler_expr(self, expr, state):
         funcname = "_backward_handler_expr_%s" % type(expr).__name__
-        in_slice = False
         if hasattr(self, funcname):
-            in_slice = getattr(self, funcname)(expr, state)
-
-        return in_slice
+            getattr(self, funcname)(expr, state)
 
     def _backward_handler_expr_RdTmp(self, expr, state):
         tmp = expr.tmp
@@ -297,3 +307,9 @@ class SimSlicer(object):
         for arg in expr.args:
             if type(arg) is pyvex.IRExpr.RdTmp:
                 self._backward_handler_expr(arg, state)
+
+    def _backward_handler_expr_ITE(self, expr, state):
+
+        self._backward_handler_expr(expr.cond, state)
+        self._backward_handler_expr(expr.iftrue, state)
+        self._backward_handler_expr(expr.iffalse, state)
