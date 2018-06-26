@@ -239,7 +239,7 @@ class SimSystemPosix(SimStatePlugin):
         simfile = self.state.fs.get(name)
         if simfile is None:
             if not writing:
-                if not options.ALL_FILES_EXIST:
+                if options.ALL_FILES_EXIST not in self.state.options:
                     return None
                 l.warning("Trying to open unknown file %s - created a symbolic file since ALL_FILES_EXIST is set", name)
                 simfile = SimFile(name, size=self.state.solver.BVS('filesize_%s' % name, self.state.arch.bits, key=('file', name, 'filesize'), eternal=True))
