@@ -226,6 +226,10 @@ class SimSystemPosix(SimStatePlugin):
 
         ``mode`` from open(2) is unsupported at present.
         """
+
+        if len(name) == 0:
+            return None
+
         # TODO: speed this up (editor's note: ...really? this is fine)
         fd = None
         if preferred_fd is not None and preferred_fd not in self.fd:
