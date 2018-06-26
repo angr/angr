@@ -477,3 +477,6 @@ class SimWindows(SimOS):
             for register in self.arch.register_list:
                 if register.name == 'fs':
                     return register.vex_offset
+
+    def get_binary_header_name(self):
+        return "PE"
