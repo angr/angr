@@ -177,7 +177,6 @@ from .tracer import Tracer
 from .explorer import Explorer
 from .threading import Threading
 from .dfs import DFS
-from .looplimiter import LoopLimiter
 from .lengthlimiter import LengthLimiter
 from .veritesting import Veritesting
 from .oppologist import Oppologist
