@@ -2,10 +2,10 @@ import logging
 import signal
 import sys
 
-from .engine import SimEngine
-
 from angr_targets.concrete import ConcreteTarget
 
+from .engine import SimEngine
+from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
 #l.setLevel(logging.DEBUG)
@@ -25,12 +25,13 @@ class SimEngineConcrete(SimEngine):
         l.info("Initializing SimEngineConcrete with ConcreteTarget provided.")
         super(SimEngineConcrete, self).__init__()
         self.project = project
-        if isinstance(self.project.concrete_target, ConcreteTarget):
+        if isinstance(self.project.concrete_target, ConcreteTarget) and self.check_concrete_target_methods(self.project.concrete_target):
             self.target = self.project.concrete_target
 
         else:
             l.warn("Error, you must provide an instance of a ConcreteTarget to initialize a SimEngineConcrete.")
             self.target = None
+            sys.exit()
 
         self.segment_registers_already_init = False
         self.unexpected_stop_points_limit = 4
@@ -94,6 +95,7 @@ class SimEngineConcrete(SimEngine):
         l.debug("Entering in SimEngineConcrete: simulated address %s concrete address %s stop points %s" %
                 (hex(state.addr), hex(self.target.read_register("pc")), map(hex, extra_stop_points)))
 
+
         if concretize:
             l.warn("SimEngineConcrete is concretizing variables before resuming the concrete process")
 
@@ -130,7 +132,6 @@ class SimEngineConcrete(SimEngine):
         unexpected_breakpoint_cnt = 0
 
         while self.target.read_register("pc") not in extra_stop_points:
-            print(extra_stop_points)
             unexpected_breakpoint_cnt = unexpected_breakpoint_cnt + 1
             if unexpected_breakpoint_cnt == self.unexpected_stop_points_limit:
                 l.warn("Reached max number of hits of not expected breakpoints. Aborting.")
@@ -149,6 +150,43 @@ class SimEngineConcrete(SimEngine):
         for breakpoint in extra_stop_points:
             l.debug("Removing breakpoint at %s" % hex(breakpoint))
             self.target.remove_breakpoint(breakpoint)
+
+    @staticmethod
+    def check_concrete_target_methods(concrete_target):
+        """
+        Check if the concrete target methods return the correct type of data
+        :return: True if the concrete target is compliant
+        """
+        entry_point = concrete_target.read_register("pc")
+        if not type(entry_point) in (int, long):
+            l.error("read_register result type is %s, should be <type 'int'>" % (type(entry_point)))
+            return False
+
+        mem_read = concrete_target.read_memory(entry_point, 0x4)
+
+        if not type(mem_read) is str:
+            l.error("read_memory result type is %s, should be <type 'str'>" % (type(mem_read)))
+            return False
+
+        try:
+            concrete_target.read_register("not_existent_reg")
+            l.error("read_register should raise a SimConcreteRegisterError when accessing non existent registers")
+            return False
+        except Exception as e:
+            if not type(e) is SimConcreteRegisterError:
+                l.error("read_register raise a %s, should be a SimConcreteRegisterError"%(type(e)))
+                return False
+
+        try:
+            concrete_target.read_memory(0x0, 0x4)
+            l.error("read_memory should raise a SimConcreteMemoryError when accessing non mapped memory")
+            return False
+        except Exception as e:
+            if not type(e) is SimConcreteMemoryError:
+                l.error("read_memory raise a %s, should be a SimConcreteMemoryError"%(type(e)))
+                return False
+
+        return True
 
 
 

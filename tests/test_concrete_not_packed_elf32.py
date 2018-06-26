@@ -114,6 +114,3 @@ def solv_concrete_engine_linux_x86(p,entry_state):
     correct_solution = 0xa000000f9ffffff000000000000000000000000000000000000000000000000
     nose.tools.assert_true(binary_configuration == correct_solution)
 
-
-
-
