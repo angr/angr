@@ -7,35 +7,47 @@ from ....errors import SimEngineError
 import logging
 l = logging.getLogger('angr.engines.soot.values.arrayref')
 
-class SimSootValue_ArrayRef(SimSootValue):
+class SimSootValue_ArrayBaseRef(SimSootValue):
 
-    __slots__ = ['index', 'type', 'size', 'id', 'heap_alloc_id']
+    __slots__ = ['id', 'type', 'heap_alloc_id', 'size']
 
-    def __init__(self, heap_alloc_id, index, type_, size):
-        self.id = self._create_unique_id(heap_alloc_id, index)
+    def __init__(self, heap_alloc_id, element_type, size):
         self.heap_alloc_id = heap_alloc_id
-        self.index = index
-        self.type = type_
+        self.element_type = element_type
+        self.id = self._create_unique_id(self.heap_alloc_id, self.element_type)
         self.size = size
+
+    @staticmethod
+    def _create_unique_id(heap_alloc_id, type_):
+        return "%s.array_%s" % (heap_alloc_id, type_)
 
     def __repr__(self):
         return self.id
 
-    @staticmethod
-    def get_arrayref_for_idx(base, idx):
-        return SimSootValue_ArrayRef(base.heap_alloc_id, idx, base.type, base.size)
-    
+
+class SimSootValue_ArrayRef(SimSootValue):
+
+    __slots__ = ['index', 'type', 'size', 'id', 'heap_alloc_id']
+
+    def __init__(self, base, index):
+        self.id = self._create_unique_id(base.id, index)
+        self.base = base
+        self.index = index
+
+    def __repr__(self):
+        return self.id
+
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        fixed_base = translate_value(soot_value.base, state)
-        array_ref_base = state.memory.load(fixed_base)
+        base_local = translate_value(soot_value.base, state)
+        base = state.memory.load(base_local)
         idx = cls.translate_array_index(soot_value.index, state)
-        cls.check_array_bounds(idx, array_ref_base, state)
-        return cls(array_ref_base.heap_alloc_id, idx, soot_value.type, array_ref_base.size)
+        cls.check_array_bounds(idx, base, state)
+        return cls(base, idx)
 
     @staticmethod
-    def _create_unique_id(heap_alloc_id, index):
-        return "%s[%s]" % (heap_alloc_id, str(index))
+    def _create_unique_id(array_id, index):
+        return "%s[%s]" % (array_id, str(index))
 
     @staticmethod
     def translate_array_index(idx, state):

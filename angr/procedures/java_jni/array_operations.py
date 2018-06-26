@@ -1,6 +1,7 @@
 from . import JNISimProcedure
 
-from ...engines.soot.expressions.newArray import SimSootExpr_NewArray, SimSootValue_ArrayRef
+from ...engines.soot.expressions import SimSootExpr_NewArray
+from ...engines.soot.values import SimSootValue_ArrayBaseRef, SimSootValue_ArrayRef
 
 import logging
 l = logging.getLogger('angr.procedures.java_jni.array_operations')
@@ -23,29 +24,29 @@ class GetArrayLength(JNISimProcedure):
 
 class NewArray(JNISimProcedure):
 
-    array_type = None
+    element_type = None
     return_ty = 'reference'
 
     def run(self, ptr_env, length_):
         length = self._normalize_array_idx(length_)
         # create new array
-        array = SimSootExpr_NewArray.new_array(self.state, self.array_type, length)
+        array = SimSootExpr_NewArray.new_array(self.state, self.element_type, length)
         # map array to a local JNI reference
         opaque_ref = self.state.jni_references.create_new_reference(java_ref=array)
         return opaque_ref
 
 class NewBooleanArray(NewArray):
-    array_type = "boolean"
+    element_type = "boolean"
 class NewByteArray(NewArray):
-    array_type = "byte"
+    element_type = "byte"
 class NewCharArray(NewArray):
-    array_type = "char"
+    element_type = "char"
 class NewShortArray(NewArray):
-    array_type = "short"
+    element_type = "short"
 class NewIntArray(NewArray):
-    array_type = "int"
+    element_type = "int"
 class NewLongArray(NewArray):
-    array_type = "long"
+    element_type = "long"
 
 #
 # NewObjectArray
@@ -140,7 +141,7 @@ class GetArrayElements(JNISimProcedure):
         values = self.state.javavm_memory.load_array_elements(array, start_idx=0, no_of_elements=max_array_length)
 
         # store elements in native memory
-        memory_addr = self.store_in_native_memory(values, array.type)
+        memory_addr = self.store_in_native_memory(values, array.element_type)
 
         # if isCopy is not null, store JNI_TRUE at that address
         if self.state.solver.eval(ptr_isCopy != 0):
@@ -172,7 +173,7 @@ class ReleaseArrayElements(JNISimProcedure):
         # => if size is symbolic, we load the maxmimum number of elements
         max_array_size = self.state.solver.max(array.size)
         elements = self.load_from_native_memory(addr=ptr_elems, 
-                                                value_type=array.type, 
+                                                value_type=array.element_type, 
                                                 no_of_elements=max_array_size)
 
         # store elements in java memory
@@ -204,7 +205,7 @@ class GetArrayRegion(JNISimProcedure):
         elements = self.state.javavm_memory.load_array_elements(array, start_idx, no_of_elements)
 
         # and store them in the native memory
-        self.store_in_native_memory(data=elements, data_type=array.type, addr=ptr_buf)
+        self.store_in_native_memory(data=elements, data_type=array.element_type, addr=ptr_buf)
 
     @staticmethod
     def _concretize_region_length(length, state):
@@ -281,7 +282,7 @@ class SetArrayRegion(JNISimProcedure):
 
         # load elements from native memory
         elements = self.load_from_native_memory(addr=ptr_buf,
-                                                value_type=array.type,
+                                                value_type=array.element_type,
                                                 no_of_elements=no_of_elements)
 
         # and store them in the java memory

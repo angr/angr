@@ -636,7 +636,7 @@ def get_winning_path(project, method_fullname):
 
 def main():
 
-    test_jni_instance_field_access()
+    test_basic_array_operations()
 
 
 if __name__ == "__main__":

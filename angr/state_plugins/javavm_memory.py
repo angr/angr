@@ -61,7 +61,7 @@ class SimJavaVmMemory(SimMemory):
             cstack.store(addr.id, data, type_=addr.type)
 
         elif type(addr) is SimSootValue_ArrayRef:
-            self.store_array_element(addr, addr.index, data)
+            self.store_array_element(addr.base, addr.index, data)
 
         elif type(addr) is SimSootValue_StaticFieldRef:
             self.vm_static_table.store(addr.id, data, type_=addr.type)
@@ -85,7 +85,7 @@ class SimJavaVmMemory(SimMemory):
             return cstack.load(addr.id, none_if_missing=True)
 
         elif type(addr) is SimSootValue_ArrayRef:
-            return self.load_array_element(addr, addr.index)
+            return self.load_array_element(addr.base, addr.index)
 
         elif type(addr) is SimSootValue_ParamRef:
             cstack = self._stack[-1+(-1*frame)]
@@ -163,7 +163,7 @@ class SimJavaVmMemory(SimMemory):
                 self._store_array_element_on_heap(array=array, 
                                           idx=concrete_start_idx+i,
                                           value=value,
-                                          value_type=array.type)
+                                          value_type=array.element_type)
             # constraint the start idx to the concrete one, in case
             # the index was symbolic prior to the concretization
             self.state.solver.add(concrete_start_idx == start_idx)
@@ -182,7 +182,7 @@ class SimJavaVmMemory(SimMemory):
                     self._store_array_element_on_heap(array=array, 
                                                       idx=concrete_start_idx+i,
                                                       value=value,
-                                                      value_type=array.type,
+                                                      value_type=array.element_type,
                                                       store_condition=start_idx_options[-1])
 
             # constraint start_idx, s.t. it evals to one of the concretized indexes
@@ -190,7 +190,7 @@ class SimJavaVmMemory(SimMemory):
             self.state.add_constraints(constraint_on_start_idx)
 
     def _store_array_element_on_heap(self, array, idx, value, value_type, store_condition=None):
-        heap_elem_id = '%s[%d]' % (array.heap_alloc_id, idx)
+        heap_elem_id = '%s[%d]' % (array.id, idx)
         l.debug("Set {heap_elem_id} to {value} with condition {store_condition}".format(
                  heap_elem_id=heap_elem_id, value=value, store_condition=store_condition))
         if store_condition is not None:
@@ -266,11 +266,11 @@ class SimJavaVmMemory(SimMemory):
 
     def _load_array_element_from_heap(self, array, idx):
         # try to load the element
-        heap_elem_id = '%s[%d]' % (array.heap_alloc_id, idx)
+        heap_elem_id = '%s[%d]' % (array.id, idx)
         value = self.heap.load(heap_elem_id, none_if_missing=True)
         # if it's not available, initialize it
         if value is None:
-            value = self.state.project.simos.get_default_value_by_type(array.type)
+            value = self.state.project.simos.get_default_value_by_type(array.element_type)
             l.debug("Init {heap_elem_id} with {value}".format(
                      heap_elem_id=heap_elem_id, value=value))
             self.heap.store(heap_elem_id, value)

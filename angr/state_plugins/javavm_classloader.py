@@ -6,6 +6,10 @@ import logging
 l = logging.getLogger("angr.state_plugins.javavm_classloader")
 
 class SimJavaVmClassloader(SimStatePlugin):
+    """
+    The classloader is an interface for resolving and initializing java classes.
+    """
+
     def __init__(self, initialized_classes=None):
         super(SimJavaVmClassloader, self).__init__()
         self._initialized_classes = set() if initialized_classes is None else initialized_classes

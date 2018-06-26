@@ -6,17 +6,17 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
 from claripy import BVV, BoolV
 
 from ..calling_conventions import DEFAULT_CC
-from ..engines.soot.values.arrayref import SimSootValue_ArrayRef
-from ..engines.soot.values.local import SimSootValue_Local
-from ..engines.soot.values.thisref import SimSootValue_ThisRef
-from ..engines.soot.values.instancefieldref import SimSootValue_InstanceFieldRef
 from ..engines.soot import SimEngineSoot
+from ..engines.soot.expressions import SimSootExpr_NewArray
+from ..engines.soot.values import (SimSootValue_ArrayBaseRef,
+                                   SimSootValue_ArrayRef,
+                                   SimSootValue_InstanceFieldRef,
+                                   SimSootValue_Local, SimSootValue_ThisRef)
 from ..errors import AngrSimOSError
 from ..procedures.java_jni import jni_functions
 from ..sim_state import SimState
 from ..sim_type import SimTypeFunction, SimTypeInt, SimTypeReg
 from .simos import SimOS
-
 
 l = logging.getLogger('angr.simos.JavaVM')
 
@@ -150,19 +150,19 @@ class SimJavaVM(SimOS):
         # Since command line arguments are stored into arrays in Java
         # and arrays are stored on the heap we need to allocate the array on the heap\
         # and return the reference
-        size_ = len(args)
         type_ = "String[]"
-        array_heap_alloc_id = state.memory.get_new_uuid()
+        array_base = SimSootExpr_NewArray.new_array(state=state, 
+                                                    element_type="String", 
+                                                    size=len(args))
         for idx, elem in enumerate(args):
             object_heap_alloc_id = state.memory.get_new_uuid()
             this_ref = SimSootValue_ThisRef(object_heap_alloc_id, type_)
             field_ref = SimSootValue_InstanceFieldRef(object_heap_alloc_id, type_, 'value', type_)
             state.memory.store(field_ref, elem)
-            ref = SimSootValue_ArrayRef(array_heap_alloc_id, idx, type_, size_)
+            ref = SimSootValue_ArrayRef(array_base, idx)
             state.memory.store(ref, this_ref)
-        base_ref = SimSootValue_ArrayRef(array_heap_alloc_id, 0, type_, size_)
         local = SimSootValue_Local("param_0", type_)
-        state.memory.store(local, base_ref)
+        state.memory.store(local, array_base)
 
         # Sometimes classes has a special method called "<clinit> that initialize part
         # of the class such as static field with default value etc.
