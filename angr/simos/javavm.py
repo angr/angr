@@ -170,8 +170,7 @@ class SimJavaVM(SimOS):
         # loading time (loading of the main class in this case) we force the symbolic execution
         # of the method <clinit> and we update the state accordingly.
         manifest = state.project.loader.main_bin.get_manifest()
-        main_cls = state.project.loader.main_bin.get_class(manifest["Main-Class"])
-        state.javavm_classloader.load_class(main_cls)
+        state.javavm_classloader.get_class(manifest["Main-Class"], init_class=True)
 
         return state
 
@@ -182,11 +181,27 @@ class SimJavaVM(SimOS):
         arg_values = tuple(arg for (arg, arg_type) in args)
         # Check if we need to setup a native call site
         if isinstance(addr, SootAddressDescriptor):
-            # TODO:
-            # If no args are provided, create symbolic bit vectors and constrain
-            # the value w.r.t. to the type
-            super(SimJavaVM, self).state_call(addr, *arg_values, **kwargs)
-        
+            state = kwargs.pop('base_state')
+            if state is None:
+                state = self.state_blank(addr=addr, **kwargs)
+            else:
+                state = state.copy()
+                state.regs.ip = addr
+
+            # Add new stack frame
+            state.memory.push_stack_frame()
+
+            # Add new callstack frame
+            ret_addr = kwargs.pop('ret_addr', SootAddressTerminator())
+            state.callstack.push(state.callstack.copy())
+            state.callstack.ret_addr = ret_addr
+            
+            # TODO 
+            # cc = kwargs.pop('cc', DEFAULT_CC[self.arch.name](self.project.arch))
+            # cc.setup_callsite(state, ret_addr, args)
+
+            return state
+
         else:
             # Create function prototype, so the SimCC know how to setup the call-site
             ret_type = kwargs.pop('ret_type')
@@ -216,10 +231,9 @@ class SimJavaVM(SimOS):
                 
         else:
             native_symbols = "\n".join(self.native_symbols.keys())
-            l.error("No native method found that matches the Soot method '%s'.\
-                    \nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
-                    % (soot_method.name, native_symbols))
-            raise AngrSimOSError()
+            raise AngrSimOSError("No native method found that matches the Soot method '%s'.\
+                                 \nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
+                                  % (soot_method.name, native_symbols))
 
     def get_native_type(self, java_type):
         """

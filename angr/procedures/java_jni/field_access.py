@@ -22,9 +22,9 @@ class GetFieldID(JNISimProcedure):
         field_sig = self._load_string_from_native_memory(ptr_field_sig)
         field_type = ArchSoot.decode_type_signature(field_sig)
 
-        return self._get_field_id(field_class.class_name, field_name, field_type)
+        return self._get_field_id(field_class, field_name, field_type)
 
-    def _get_field_id(self, class_name, field_name, field_type):
+    def _get_field_id(self, field_class, field_name, field_type):
 
         """
         Background:
@@ -37,11 +37,11 @@ class GetFieldID(JNISimProcedure):
 
         # Fields can be defined in superclasses (and TODO: superinterfaces)
         # => walk up in class hierarchy
-        class_hierarchy = self.state.javavm_classloader.get_class_hierarchy(class_name)
+        class_hierarchy = self.state.javavm_classloader.get_class_hierarchy(field_class)
         for class_ in class_hierarchy:
             # check for every class, if it contains the field
             if self._class_contains_field(class_, field_name, field_type):
-                self.state.javavm_classloader.load_class(class_)
+                self.state.javavm_classloader.init_class(class_)
                 # if so, create the field_id and return an opaque reference to it
                 field_id = SootFieldDescriptor(class_.name, field_name, field_type)
                 return self.state.jni_references.create_new_reference(field_id)
@@ -50,11 +50,14 @@ class GetFieldID(JNISimProcedure):
             # field couldn't be found 
             # => return null and (TODO:) throw an NoSuchFieldError
             l.debug("Couldn't find field '{field_name}' in classes {class_names}."
-                    "".format(class_names=[str(c.name) for c in class_hierarchy],
+                    "".format(class_names=class_hierarchy,
                               field_name=field_name))
             return 0
 
     def _class_contains_field(self, field_class, field_name, field_type):
+        # check if field is loaded in CLE
+        if not field_class.is_loaded:
+            return False
 
         # check if a field with the given name exists
         if not field_name in field_class.fields:
@@ -111,7 +114,7 @@ class SetStaticField(JNISimProcedure):
         field_class = self.state.jni_references.lookup(field_class_)
         field_id = self.state.jni_references.lookup(field_id_)
         # get field reference
-        field_ref = SimSootValue_StaticFieldRef(class_name=field_class.class_name,
+        field_ref = SimSootValue_StaticFieldRef(class_name=field_class.name,
                                                 field_name=field_id.name,
                                                 type_=field_id.type)
         # cast value to java type

@@ -1,8 +1,8 @@
 
 from .base import SimSootExpr
 from ..values import SimSootValue_InstanceFieldRef, SimSootValue_StringRef
-from ..values.constants import SimSootValue_ClassConstant
-
+#from ..values.constants import SimSootValue_ClassConstant
+from archinfo.arch_soot import SootClassDescriptor
 
 class SimSootExpr_IntConstant(SimSootExpr):
     def __init__(self, expr, state):
@@ -33,5 +33,6 @@ class SimSootExpr_ClassConstant(SimSootExpr):
     def __init__(self, expr, state):
         super(SimSootExpr_ClassConstant, self).__init__(expr, state)
 
-    def _execute(self):        
-        self.expr = SimSootValue_ClassConstant.from_sootvalue(self.state, self.expr)
+    def _execute(self):    
+        class_name = self.expr.value[8:-2]    
+        self.expr = SootClassDescriptor(class_name)

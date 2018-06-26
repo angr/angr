@@ -61,7 +61,7 @@ class NewObjectArray(JNISimProcedure):
         element_type = self.state.jni_references.lookup(element_type_)
 
         # create new array and return a reference to it
-        array = SimSootExpr_NewArray.new_array(self.state, element_type.class_name, length)
+        array = SimSootExpr_NewArray.new_array(self.state, element_type.name, length)
 
         # init array 
         if self.state.solver.eval(initial_element_ != 0):

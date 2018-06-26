@@ -1,77 +1,102 @@
 from .plugin import SimStatePlugin
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor, SootAddressTerminator
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor, SootAddressTerminator, SootClassDescriptor
+from ..engines.soot.method_dispatcher import resolve_method
 
 import logging
 l = logging.getLogger("angr.state_plugins.javavm_classloader")
 
-
 class SimJavaVmClassloader(SimStatePlugin):
-    def __init__(self, classes_loaded=None):
+    def __init__(self, initialized_classes=None):
         super(SimJavaVmClassloader, self).__init__()
-        self._classes_loaded = set() if classes_loaded is None else classes_loaded
+        self._initialized_classes = set() if initialized_classes is None else initialized_classes
 
-    def load_class(self, class_):
+    def get_class(self, class_name, init_class=False):
+        """
+        Get a soot class descriptor for the class.
 
-        if isinstance(class_, str):
-            class_ = self.get_class(class_)
-            if class_ is None:
-                l.warning("Cannot load class %s; it's not loaded in CLE." % class_.name)
-                return
+        :param str class_name: Name of class.
+        :param bool init_class: Whether the class initializer <clinit> should be executed.
+        """
+        # try to get the soot class object from CLE
+        java_binary = self.state.javavm_registers.load('ip_binary')
+        soot_class = java_binary.get_soot_class(class_name, none_if_missing=True)
+        # create class descriptor
+        class_descriptor = SootClassDescriptor(class_name, soot_class)
+        # load/initialize class
+        if init_class:
+            self.init_class(class_descriptor)
+        return class_descriptor
 
-        if self.is_class_loaded(class_):
-            l.info("Class %s already loaded." % class_.name)
+    def get_superclass(self, class_):
+        """
+        Get the superclass of the class.
+        """
+        if not class_.is_loaded or class_.superclass_name is None:
+            l.warning("Failed to get superclass of class %r." % class_)
+            return None
+        return self.get_class(class_.superclass_name)
+
+    def get_class_hierarchy(self, base_class):
+        """
+        Walks up the class hierarchy and returns a list of all classes between
+        base class (inclusive) and java.lang.Object (exclusive).
+        """
+        classes = [base_class]
+        while classes[-1] is not None and classes[-1] != "java.lang.Object":
+            classes.append(self.get_superclass(classes[-1]))
+        return classes[:-1]
+
+    def is_class_initialized(self, class_):
+        """
+        Indicates whether the class' initializing method <clinit> was
+        already executed on this state.
+        """
+        return class_ in self.initialized_classes
+
+    def init_class(self, class_):
+        """
+        If the class is not yet initialized and available in CLE, this runs the class 
+        initializing method <clinit> and updates the state accordingly.
+        """
+
+        if self.is_class_initialized(class_):
             return
 
-        l.info("Load class %s \n\n" % class_.name)
+        if not class_.is_loaded:
+            l.warning("Class %r cannot get initialized. It's not loaded in CLE." % class_)
+            return
 
-        self.classes_loaded.add(class_.name)
-        for method in class_.methods:
-            if method.name == "<clinit>":
-                l.info("Run initializer <clinit> ...")
-                entry_state = self.state.copy()
-                entry_state.callstack.ret_addr = SootAddressTerminator()
-                simgr = self.state.project.factory.simgr(entry_state)
-                simgr.active[0].ip = SootAddressDescriptor(SootMethodDescriptor.from_method(method), 0, 0)
-                simgr.run()
-                l.info("Run initializer <clinit> ... done \n\n")
-                # The only thing that can change in the <clinit> methods are static fields so
-                # it can only change the vm_static_table and the heap.
-                # We need to fix the entry state memory with the new memory state.
-                self.state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
-                self.state.memory.heap = simgr.deadended[0].memory.heap.copy()
-                break
+        l.debug("Initialize class %r\n\n", class_)
+        self.initialized_classes.add(class_)
 
-    def is_class_loaded(self, class_):
-        return class_.name in self._classes_loaded
+        clinit_method = resolve_method(self.state, '<clinit>', class_.name, 
+                                       include_superclasses=False)
+        if clinit_method.is_loaded: 
+            javavm_simos = self.state.project.simos
+            clinit_state = javavm_simos.state_call(addr=SootAddressDescriptor(clinit_method, 0, 0),
+                                                   base_state=self.state,
+                                                   ret_addr=SootAddressTerminator())
+            simgr = self.state.project.factory.simgr(clinit_state)
+            l.info("Run initializer <clinit> ...")
+            simgr.run()
+            l.debug("Run initializer <clinit> ... done \n\n")
+            # The only thing that can change in the class initializer are static fields
+            # => update vm_static_table and the heap
+            self.state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
+            self.state.memory.heap = simgr.deadended[0].memory.heap.copy()
 
-    def get_class(self, name):
-        try:
-            return self.state.project.loader.main_object.classes[name]
-        except KeyError:
-            return None
-    
-    def get_superclass(self, name):
-        base_class  = self.get_class(name)
-        if base_class:
-            return self.get_class(base_class.super_class)
-        return None
-
-    def get_class_hierarchy(self, name):
-        class_ = self.get_class(name)
-        while class_:
-            yield class_
-            class_ = self.get_class(class_.super_class)
-
+    @property
+    def initialized_classes(self):
+        """
+        List of all initialized classes.
+        """
+        return self._initialized_classes
 
     @SimStatePlugin.memo
     def copy(self, memo):
         return SimJavaVmClassloader(
-            classes_loaded=self.classes_loaded.copy()
+            initialized_classes=self.initialized_classes.copy()
         )
-
-    @property
-    def classes_loaded(self):
-        return self._classes_loaded
 
 # FIXME add this to a javavm preset
 SimStatePlugin.register_default('javavm_classloader', SimJavaVmClassloader)

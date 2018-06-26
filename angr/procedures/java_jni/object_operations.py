@@ -1,7 +1,8 @@
 from . import JNISimProcedure
 
-from ...engines.soot.values import SimSootValue_ClassConstant, SimSootValue_ThisRef
+from ...engines.soot.values import SimSootValue_ThisRef
 from method_calls import CallMethodBase
+from archinfo.arch_soot import SootClassDescriptor
 
 #
 # GetObjectClass
@@ -14,7 +15,7 @@ class GetObjectClass(JNISimProcedure):
     def run(self, ptr_env, obj_):
         obj = self.state.jni_references.lookup(obj_)
         # return class constant of object type
-        obj_class = SimSootValue_ClassConstant.from_classname(obj.type)
+        obj_class = self.state.javavm_classloader.get_class(obj.type)
         return self.state.jni_references.create_new_reference(obj_class)
 
 #
@@ -27,11 +28,11 @@ class AllocObject(JNISimProcedure):
 
     def run(self, ptr_env, obj_class_):
         obj_class = self.state.jni_references.lookup(obj_class_)
-        # make sure class is loaded
-        self.state.javavm_classloader.load_class(obj_class.class_name)
+        # make sure class is initialized
+        self.state.javavm_classloader.init_class(obj_class)
         # return object reference
         obj = SimSootValue_ThisRef(heap_alloc_id=self.state.javavm_memory.get_new_uuid(),
-                                   type_=obj_class.class_name)
+                                   type_=obj_class.name)
         return self.state.jni_references.create_new_reference(obj)
 
 #
@@ -48,9 +49,9 @@ class NewObject(CallMethodBase):
 
         # alloc object
         obj_class = self.state.jni_references.lookup(obj_class_)
-        self.state.javavm_classloader.load_class(obj_class.class_name)
+        self.state.javavm_classloader.init_class(obj_class)
         self.obj = SimSootValue_ThisRef(heap_alloc_id=self.state.javavm_memory.get_new_uuid(),
-                                   type_=obj_class.class_name)
+                                        type_=obj_class.name)
 
         # call constructor
         method_id = self.state.jni_references.lookup(method_id_)
@@ -68,11 +69,14 @@ class IsInstanceOf(CallMethodBase):
     return_ty = 'boolean'
 
     def run(self, ptr_env, obj_, target_class_):
-        target_class = self.state.jni_references.lookup(target_class_).class_name
+        target_class = self.state.jni_references.lookup(target_class_)
         obj = self.state.jni_references.lookup(obj_)
+        obj_class = self.state.javavm_classloader.get_class(obj.type)
         # check if target class equals either the object class or one of its superclasses
-        superclasses = [c.name for c in self.state.javavm_classloader.get_class_hierarchy(obj.type)]
-        if target_class in superclasses:
+        class_hierarchy = self.state.javavm_classloader.get_class_hierarchy(obj_class)
+        print target_class, "in", class_hierarchy, target_class in class_hierarchy
+        print 
+        if target_class in class_hierarchy:
             return self.JNI_TRUE
         else:
             return self.JNI_FALSE

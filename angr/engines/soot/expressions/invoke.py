@@ -41,8 +41,7 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
         return resolve_method(state=self.state,
                               method_name=self.expr.method_name,
                               class_name=base_type,
-                              params=self.expr.method_params,
-                              ret=self.expr.type)
+                              params=self.expr.method_params)
 
 
 class SimSootExpr_SpecialInvoke(InvokeBase):
@@ -54,8 +53,7 @@ class SimSootExpr_SpecialInvoke(InvokeBase):
         return resolve_method(state=self.state, 
                               method_name=self.expr.method_name,
                               class_name=self.expr.class_name,
-                              params=self.expr.method_params,
-                              ret=self.expr.type)
+                              params=self.expr.method_params)
 
 
 class SimSootExpr_StaticInvoke(InvokeBase):
@@ -63,5 +61,4 @@ class SimSootExpr_StaticInvoke(InvokeBase):
         return resolve_method(state=self.state, 
                               method_name=self.expr.method_name,
                               class_name=self.expr.class_name,
-                              params=self.expr.method_params,
-                              ret=self.expr.type)
+                              params=self.expr.method_params)

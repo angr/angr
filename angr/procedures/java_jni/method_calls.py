@@ -21,14 +21,14 @@ class GetMethodID(JNISimProcedure):
     def run(self, ptr_env, class_, ptr_method_name, ptr_method_sig):
         
         # class name
-        class_name = self.state.jni_references.lookup(class_).class_name
+        method_class = self.state.jni_references.lookup(class_)
 
         # method name
         method_name = self._load_string_from_native_memory(ptr_method_name)
 
         # param and return types
         method_sig = self._load_string_from_native_memory(ptr_method_sig)
-        params, ret = ArchSoot.decode_method_signature(method_sig)
+        params, _ = ArchSoot.decode_method_signature(method_sig)
 
         # create SootMethodDescriptor as id and return a opaque reference to it
         # Note: we do not resolve the method at this point, because the method id can be 
@@ -36,8 +36,7 @@ class GetMethodID(JNISimProcedure):
         #       used both for virtual invokes and special invokes (see invoke expr in Soot
         #       engine). The actual invoke type gets determined later, based on the type
         #       of jni function (Call<Type>Method vs. CallNonVirtual<Type>Method)
-        method_id = SootMethodDescriptor(class_name=class_name, name=method_name, 
-                                         params=params, ret=ret)
+        method_id = SootMethodDescriptor(method_class.name, method_name, params)
         return self.state.jni_references.create_new_reference(method_id)
 
 #
@@ -52,8 +51,7 @@ class CallMethodBase(JNISimProcedure):
 
         # get invoke target
         class_name = obj.type if dynamic_dispatch else method_id.class_name
-        invoke_target = resolve_method(state=self.state, method_name=method_id.name, class_name=class_name,
-                                       params=method_id.params, ret=method_id.ret)
+        invoke_target = resolve_method(self.state, method_id.name, class_name, method_id.params)
         invoke_addr = SootAddressDescriptor(invoke_target, 0, 0)
 
         # get args

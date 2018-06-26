@@ -2,7 +2,7 @@
 import logging
 
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
-                                SootAddressTerminator, SootMethodDescriptor)
+                                SootAddressTerminator, SootMethodDescriptor, SootClassDescriptor)
 from cle import CLEError
 
 from ... import sim_options as o
@@ -16,7 +16,6 @@ from .statements import (SimSootStmt_Return, SimSootStmt_ReturnVoid,
                          translate_stmt)
 from .values import (SimSootValue_Local, SimSootValue_ParamRef,
                      SimSootValue_ThisRef, translate_value)
-from .values.constants import SimSootValue_ClassConstant
 
 
 l = logging.getLogger('angr.engines.soot.engine')
@@ -90,7 +89,7 @@ class SimEngineSoot(SimEngine):
         binary = state.regs._ip_binary
 
         try:
-            method = binary.get_method(addr.method)
+            method = binary.get_soot_method(addr.method)
         except CLEError:
             l.warning("We ended up in non-loaded Java code %s" % addr)
             successors.processed = False
@@ -137,9 +136,6 @@ class SimEngineSoot(SimEngine):
 
     def _handle_statement(self, state, successors, stmt_idx, stmt):
 
-        #if "fail" in state.addr.method.name:
-        #    import ipdb; ipdb.set_trace()
-
         # Initialize state registers
         state.scratch.jump = False
         state.scratch.jump_targets_with_conditions = None
@@ -147,7 +143,6 @@ class SimEngineSoot(SimEngine):
         state.scratch.invoke_expr = None
         state.scratch.invoke_return_target = None
         state.scratch.invoke_return_variable = None
-        state.scratch.invoke_has_native_target = False
         
         try:
             l.info("Executing statement %s [%s]", stmt, state.addr)
@@ -155,7 +150,6 @@ class SimEngineSoot(SimEngine):
         except SimEngineError as e:
             l.error("Skipping statement: " + str(e))
             return
-        # print state.memory.stack
 
         if state.scratch.invoke:
 
@@ -274,7 +268,7 @@ class SimEngineSoot(SimEngine):
 
     @staticmethod
     def _get_next_linear_instruction(state, addr):
-        method = state.regs._ip_binary.get_method(addr.method)
+        method = state.regs._ip_binary.get_soot_method(addr.method)
         current_bb = method.blocks[addr.block_idx]
         new_stmt_idx = addr.stmt_idx + 1
         if new_stmt_idx < len(current_bb.statements):
@@ -459,7 +453,7 @@ class SimEngineSoot(SimEngine):
         
         else:
             # Static method call => pass 'class' reference to native code
-            class_ = SimSootValue_ClassConstant.from_classname(invoke_expr.class_name)
+            class_ = invoke_state.javavm_classloader.get_class(invoke_expr.class_name, init_class=True)
             class_ref = invoke_state.jni_references.create_new_reference(java_ref=class_)
             class_ref_type = javavm.get_native_type('reference')
             native_args += [(class_ref, class_ref_type)]

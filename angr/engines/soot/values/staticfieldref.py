@@ -23,13 +23,10 @@ class SimSootValue_StaticFieldRef(SimSootValue):
         field_name, field_class_name = soot_value.field
         field_type = soot_value.type
         # applications can access static fields before the class was initialized
-        # => if the class hasn't been loaded yet, we need to load it
-        field_class = state.javavm_classloader.get_class(field_class_name)
-        if field_class is not None:
-            state.javavm_classloader.load_class(field_class)
-        else:
-            # show warning, if the class is loaded in CLE
-            l.warning("Trying to access static field {field} from unloaded class {class_name}"
+        # => if the class hasn't been initialized yet, we need to initialize it
+        field_class = state.javavm_classloader.get_class(field_class_name, init_class=True)
+        if field_class is None:
+            l.warning("Trying to access static field {field} from an unloaded class {class_name}"
                       "".format(field=cls._create_unique_id(field_name, field_class), 
                                 class_name=field_class_name))
         # return field ref

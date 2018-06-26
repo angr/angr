@@ -590,7 +590,7 @@ def assert_values(state, values):
 
 def get_entry_state_of_method(project, method_fullname):
     # get SootAddressDescriptor of method entry
-    soot_method = project.loader.main_object.get_method(method_fullname)
+    soot_method = project.loader.main_object.get_soot_method(method_fullname)
     method = SootMethodDescriptor.from_soot_method(soot_method)
     addr = SootAddressDescriptor(method, 0, 0)
     # create call state
@@ -636,8 +636,18 @@ def get_winning_path(project, method_fullname):
 
 def main():
 
-    test_jni_env_get_version()
+    test_jni_instance_field_access()
 
 
 if __name__ == "__main__":
+    import logging
+    logging.getLogger('archinfo.arch_soot').setLevel("DEBUG")
+    logging.getLogger('angr.procedures.java_jni').setLevel("DEBUG")
+    logging.getLogger("angr.sim_procedure").setLevel("DEBUG")
+    logging.getLogger("angr.engines").setLevel("DEBUG")
+    logging.getLogger('angr.simos.JavaVM').setLevel("DEBUG")
+    logging.getLogger('angr.engines.vex.expressions').setLevel("INFO")
+    logging.getLogger('angr.state_plugins.javavm_memory').setLevel("DEBUG")
+    logging.getLogger('angr.state_plugins.jni_references').setLevel("DEBUG")
+    logging.getLogger("angr.state_plugins.javavm_classloader").setLevel("DEBUG")
     main()
