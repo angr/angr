@@ -4,6 +4,18 @@ from ..method_dispatcher import resolve_method
 from .base import SimSootExpr
 
 
+class JavaArgument(object):
+
+    __slots__ = ['type', 'value']
+
+    def __init__(self, value, type_):
+        self.type = type_
+        self.value = value
+    
+    def __repr__(self):
+        return str(self.value)
+
+
 class InvokeBase(SimSootExpr):
     def __init__(self, expr, state):
         super(InvokeBase, self).__init__(expr, state)
@@ -11,12 +23,34 @@ class InvokeBase(SimSootExpr):
     def _execute(self):
         # the invoke target gets resolved differently based on the invoke type
         # => static vs. virtual vs. special (aka non-virtual)
-        invoke_target = self._resolve_invoke_target(self.expr, self.state)
-        # initialize invocation
-        # => everything else is handled by the engine
-        self.state.scratch.invoke = True
-        self.state.scratch.invoke_target = invoke_target
-        self.state.scratch.invoke_expr = self.expr
+        self.method = self._resolve_invoke_target(self.expr, self.state)
+        # translate arguments
+        self.args = self._translate_args()
+
+    def _translate_args(self):
+        args = []
+        # for instance method calls, add the 'this' reference
+        if isinstance(self, SimSootExpr_StaticInvoke):
+            args += [None]
+        else:
+            this_ref_base = self._translate_value(self.expr.base)
+            this_ref = self.state.memory.load(this_ref_base)
+            this_ref_type = this_ref.type if this_ref is not None else None
+            args += [JavaArgument(this_ref, this_ref_type)]
+
+        # translate function arguments
+        for arg in self.expr.args:
+            if "Constant" in arg.__class__.__name__:
+                # argument is a constant
+                # => translate the expr to get the value
+                arg_value = self._translate_expr(arg).expr
+            else:
+                # argument is a variable
+                # => load value from memory
+                arg_value = self.state.memory.load(self._translate_value(arg))
+            args += [JavaArgument(arg_value, arg.type)]
+
+        return args
 
     def _resolve_invoke_target(self, expr, state):
         NotImplementedError()

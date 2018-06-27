@@ -84,7 +84,7 @@ class GetStaticField(JNISimProcedure):
                                                 field_name=field_id.name,
                                                 type_=field_id.type)
         # load value from java memory
-        return self.state.javavm_memory.load(field_ref)
+        return self.state.javavm_memory.load(field_ref, none_if_missing=True)
 
 class GetStaticBooleanField(GetStaticField):
     return_ty = 'boolean'
@@ -140,7 +140,7 @@ class GetField(JNISimProcedure):
                                                   field_name=field_id.name,
                                                   type_=field_id.type)
         # load value from java memory
-        return self.state.javavm_memory.load(field_ref)
+        return self.state.javavm_memory.load(field_ref, none_if_missing=True)
 
 class GetBooleanField(GetField):
     return_ty = 'boolean'

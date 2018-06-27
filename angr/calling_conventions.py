@@ -540,7 +540,7 @@ class SimCC:
         """
 
         if isinstance(self, SimCCSoot):
-            SimEngineSoot.setup_callsite(state, ret_addr, args)
+            SimEngineSoot.setup_callsite(state, args, ret_addr)
             return
 
         allocator = AllocHelper(alloc_base if alloc_base is not None else state.regs.sp,

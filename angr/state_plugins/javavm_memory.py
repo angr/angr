@@ -52,8 +52,6 @@ class SimJavaVmMemory(SimMemory):
 
         if type(addr) is SimSootValue_Local:
             cstack = self._stack[-1+(-1*frame)]
-            # A local variable
-            # TODO: Implement the stacked stack frames model
             cstack.store(addr.id, data, type_=addr.type)
 
         elif type(addr) is SimSootValue_ParamRef:
@@ -80,21 +78,17 @@ class SimJavaVmMemory(SimMemory):
 
         if type(addr) is SimSootValue_Local:
             cstack = self._stack[-1+(-1*frame)]
-            # Load a local variable
-            # TODO: Implement the stacked stack frames model
-            return cstack.load(addr.id, none_if_missing=True)
+            return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         elif type(addr) is SimSootValue_ArrayRef:
             return self.load_array_element(addr.base, addr.index)
 
         elif type(addr) is SimSootValue_ParamRef:
             cstack = self._stack[-1+(-1*frame)]
-            # Load a local variable
-            # TODO: Implement the stacked stack frames model
-            return cstack.load(addr.id, none_if_missing=True)
+            return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         elif type(addr) is SimSootValue_StaticFieldRef:
-            value = self.vm_static_table.load(addr.id, none_if_missing=True)
+            value = self.vm_static_table.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
                 value = self.state.project.simos.get_default_value_by_type(addr.type)
@@ -104,7 +98,7 @@ class SimJavaVmMemory(SimMemory):
             return value
 
         elif type(addr) is SimSootValue_InstanceFieldRef:
-            value = self.heap.load(addr.id, none_if_missing=True)
+            value = self.heap.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
                 value = self.state.project.simos.get_default_value_by_type(addr.type)
@@ -114,7 +108,7 @@ class SimJavaVmMemory(SimMemory):
             return value
 
         elif type(addr) is SimSootValue_StringRef:
-            return self.heap.load(addr.id, none_if_missing=True)
+            return self.heap.load(addr.id, none_if_missing=none_if_missing)
 
         else:
             l.error("Unknown addr type %s" % addr)

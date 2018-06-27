@@ -8,6 +8,6 @@ class SimSootExpr_ParamRef(SimSootExpr):
     def _execute(self):
         # Parse the expr to get a SimSootValue_ParamRef instance
         ref = self._translate_value(self.expr)
-        self.expr = self.state.memory.load(ref)
+        self.expr = self.state.memory.load(ref, none_if_missing=True)
 
 

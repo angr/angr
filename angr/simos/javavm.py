@@ -174,36 +174,49 @@ class SimJavaVM(SimOS):
 
         return state
 
-
     def state_call(self, addr, *args, **kwargs):
         """
-        :param list args:  List of argument values zipped together with their types.
+        :param list args: List of JavaArgument values.
         """
+        state = kwargs.pop('base_state')
         # check if we need to setup a native or a java call site
         if isinstance(addr, SootAddressDescriptor):
             ret_addr = kwargs.pop('ret_addr', SootAddressTerminator())
             cc = kwargs.pop('cc', SimCCSoot(self.arch))
-            invoke_state = kwargs.pop('base_state')
-            if invoke_state is None:
-                invoke_state = self.state_blank(addr=addr, **kwargs)
+            if state is None:
+                state = self.state_blank(addr=addr, **kwargs)
             else:
-                invoke_state = invoke_state.copy()
-                invoke_state.regs.ip = addr
-            cc.setup_callsite(invoke_state, ret_addr, args)
-            return invoke_state
+                state = state.copy()
+                state.regs.ip = addr
+            cc.setup_callsite(state, ret_addr, args)
+            return state
 
         else:
-            # *args constains values together with their types
-            # => unzip to separate lists
-            arg_values, arg_types= zip(*args)
+            # setup native argument values
+            native_arg_values = []
+            for arg in args:
+                if arg.type in ArchSoot.primitive_types or \
+                   arg.type == "JNIEnv":
+                    # the value of primitive types and the JNIEnv pointer 
+                    # are just getting copied into the native memory
+                    native_arg_value = arg.value
+                else:
+                    # argument has a relative type
+                    # => map Java reference to an opaque reference, which then can be used by the
+                    #    native code to access the Java object through the JNI interface.
+                    native_arg_value = state.jni_references.create_new_reference(java_ref=arg.value)
+                native_arg_values += [native_arg_value]
+
             # create function prototype, so the SimCC know how to setup the call-site
+            arg_types = [ self.get_native_type(arg.type) for arg in args ]
             prototype = SimTypeFunction(args=arg_types, returnty=kwargs.pop('ret_type'))
             native_cc = self.get_native_cc(func_ty=prototype)
+
             # setup native invoke_state
-            invoke_state = self.native_simos.state_call(addr, *arg_values, 
-                                                        ret_addr=self.native_return_hook_addr, 
-                                                        cc=native_cc, **kwargs)
-            return invoke_state
+            return self.native_simos.state_call(addr, *native_arg_values, 
+                                                base_state=state,
+                                                ret_addr=self.native_return_hook_addr, 
+                                                cc=native_cc, **kwargs)
 
     #
     # Helper JNI
@@ -235,11 +248,9 @@ class SimJavaVM(SimOS):
         """
         if java_type in ArchSoot.sizeof.keys():
             jni_type_size = ArchSoot.sizeof[java_type]
-
         else:
             # if it's not a primitive type, treat it as a reference
             jni_type_size = self.native_simos.arch.bits
-
         return SimTypeReg(size=jni_type_size)
 
     def get_native_cc(self, func_ty=None):

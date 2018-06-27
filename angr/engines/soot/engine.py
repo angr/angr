@@ -18,6 +18,7 @@ from .statements import (SimSootStmt_Return, SimSootStmt_ReturnVoid,
                          translate_stmt)
 from .values import (SimSootValue_Local, SimSootValue_ParamRef,
                      SimSootValue_ThisRef, translate_value)
+from .expressions.invoke import JavaArgument
 
 l = logging.getLogger('angr.engines.soot.engine')
 
@@ -128,14 +129,6 @@ class SimEngineSoot(SimEngine):
 
     def _handle_statement(self, state, successors, stmt_idx, stmt):
 
-        # reset state registers
-        state.scratch.jump = False
-        state.scratch.jump_targets_with_conditions = None
-        state.scratch.invoke = False
-        state.scratch.invoke_expr = None
-        state.scratch.invoke_return_target = None
-        state.scratch.invoke_return_variable = None
-
         try:
             l.info("Executing statement %s [%s]", stmt, state.addr)
             s_stmt = translate_stmt(stmt, state)
@@ -143,31 +136,34 @@ class SimEngineSoot(SimEngine):
             l.error("Skipping statement: " + str(e))
             return
 
-        if state.scratch.invoke:
-            l.debug("Invoke exit: %r" % state.scratch.invoke_target)
+        # add invoke exit
+        if s_stmt.has_invoke_target:
             invoke_state = state.copy()
-            ret_addr = self._get_next_linear_instruction(state, stmt_idx)
-            # load arguments from memory
-            args = self._get_args(invoke_state, invoke_state.scratch.invoke_expr)
+            # parse invoke expression
+            invoke_expr = s_stmt.invoke_expr
+            method = invoke_expr.method
+            args = invoke_expr.args
+            ret_var = invoke_expr.ret_var if hasattr(invoke_expr, 'ret_var') else None
             # setup callsite
-            invoke_target = state.scratch.invoke_target
-            if 'NATIVE' in invoke_target.attrs:
+            ret_addr = self._get_next_linear_instruction(state, stmt_idx)
+            if 'NATIVE' in method.attrs:
                 # the target of the call is a native function
                 # => we need to setup a native call-site
-                l.debug("Invoke has a native target.")
-                invoke_addr = self.project.simos.get_addr_of_native_method(invoke_target)
-                invoke_state = self._setup_native_callsite(ret_addr, args, invoke_addr, 
-                                                           invoke_state, invoke_target)
+                l.debug("Native invoke: %r" % method)
+                addr = self.project.simos.get_addr_of_native_method(method)
+                invoke_state = self._setup_native_callsite(invoke_state, addr, method, args, ret_addr, ret_var)
             else:
-                self.setup_callsite(invoke_state, ret_addr, args)
-                invoke_addr = SootAddressDescriptor(invoke_target, 0, 0)
-            # add invoke state as a successor and terminate execution prematurely, because 
-            # Soot does not guarantee that an invoke terminates a block
-            successors.add_successor(invoke_state, invoke_addr, state.se.true, 'Ijk_Call', )
+                l.debug("Invoke: %r" % method)
+                self.setup_callsite(invoke_state, args, ret_addr, ret_var)
+                addr = SootAddressDescriptor(method, 0, 0)
+            # add invoke state as the successor and terminate execution prematurely, since 
+            # Soot does not guarantee that an invoke stmt terminates a block
+            successors.add_successor(invoke_state, addr, state.se.true, 'Ijk_Call', )
             return True
 
-        elif state.scratch.jump:
-            for target, condition in state.scratch.jump_targets_with_conditions:
+        # add jmp exit
+        elif s_stmt.has_jump_targets:
+            for target, condition in s_stmt.jmp_targets_with_conditions:
                 if target is None:
                     computed_target = self._get_next_linear_instruction(state, stmt_idx)
                 else:
@@ -176,6 +172,7 @@ class SimEngineSoot(SimEngine):
                 successors.add_successor(state.copy(), computed_target, condition, 'Ijk_Boring')
             return True
 
+        # add return exit
         elif isinstance(s_stmt, (SimSootStmt_Return, SimSootStmt_ReturnVoid)):
             l.debug("Return exit") 
             ret_state = state.copy()
@@ -185,7 +182,9 @@ class SimEngineSoot(SimEngine):
             successors.processed = True
             return True
 
-        return False
+        # go on linearly
+        else:
+            return False
 
     def _get_sim_procedure(self, addr):
 
@@ -234,44 +233,24 @@ class SimEngineSoot(SimEngine):
                 raise IncorrectLocationException()
 
     @staticmethod
-    def setup_callsite(state, ret_addr, args):
+    def setup_callsite(state, args, ret_addr, ret_var=None):
         # push new callstack frame
         state.callstack.push(state.callstack.copy())
         state.callstack.ret_addr = ret_addr
-        state.callstack.invoke_return_variable = state.scratch.invoke_return_variable
+        state.callstack.invoke_return_variable = ret_var
         # push new memory stack frame
         state.javavm_memory.push_stack_frame()
         # setup arguments
         if args:
             # if available, store the 'this' reference
-            this_ref, this_ref_type = args.pop(0)
+            this_ref = args.pop(0)
             if this_ref != None:
-                local = SimSootValue_Local('this', this_ref_type)
-                state.javavm_memory.store(local, this_ref)
+                local = SimSootValue_Local('this', this_ref.type)
+                state.javavm_memory.store(local, this_ref.value)
             # store all function arguments in memory
-            for idx, (value, value_type) in enumerate(args):
-                param_ref = SimSootValue_ParamRef(idx, value_type)
-                state.javavm_memory.store(param_ref, value)
-
-    @staticmethod
-    def _get_args(state, invoke_expr):
-        # for instance method calls, get the "this" reference
-        is_instance_method = hasattr(invoke_expr, 'base')
-        if is_instance_method:
-            this_ref = state.memory.load(translate_value(invoke_expr.base, state))
-        else:
-            this_ref = None
-        this_ref_type = this_ref.type if this_ref else None
-        args = [ (this_ref, this_ref_type) ]
-        # translate and load all function arguments
-        for arg in invoke_expr.args:
-            arg_cls_name = arg.__class__.__name__
-            if "Constant" not in arg_cls_name:
-                arg_value = state.memory.load(translate_value(arg, state))
-            else:
-                arg_value = translate_expr(arg, state).expr
-            args += [ (arg_value, arg.type) ]
-        return args
+            for idx, arg in enumerate(args):
+                param_ref = SimSootValue_ParamRef(idx, arg.type)
+                state.javavm_memory.store(param_ref, arg.value)
 
     @staticmethod
     def prepare_return_state(state, ret_value=None):
@@ -372,64 +351,37 @@ class SimEngineSoot(SimEngine):
         return [ret_state]
 
     @classmethod
-    def _setup_native_callsite(cls, ret_addr, args, invoke_addr, invoke_state, invoke_target):
+    def _setup_native_callsite(cls, state, native_addr, java_method, args, ret_addr, ret_var):
 
         # Step 1: setup java callsite, but w/o storing the arguments memory
-        cls.setup_callsite(invoke_state, ret_addr, args=None)
+        cls.setup_callsite(state, None, ret_addr, ret_var)
 
         # Step 2: setup native arguments
-        javavm_simos = invoke_state.project.simos
         native_args = []
 
         # JNI enviroment pointer
-        jni_env = javavm_simos.jni_env
-        jni_env_type = javavm_simos.get_native_type('reference')
-        native_args += [(jni_env, jni_env_type)]
+        jni_env = state.project.simos.jni_env
+        native_args += [ JavaArgument(jni_env, "JNIEnv") ]
 
         # handle to the current object or class
-        this, _ = args.pop(0)
-        if this != None:
-            # instance method call => pass 'this' reference to native code
-            this_ref = invoke_state.jni_references.create_new_reference(java_ref=this)
-            this_ref_type = javavm_simos.get_native_type('reference')
-            native_args += [(this_ref, this_ref_type)]
-
+        this_ref = args.pop(0)
+        if this_ref != None:
+            # instance method call
+            # => pass 'this' reference to native code
+            native_args += [ this_ref ]
         else:
-            # static method call => pass 'class' reference to native code
-            class_name = state.scratch.invoke_expr.class_name
-            class_ = invoke_state.javavm_classloader.get_class(class_name, init_class=True)
-            class_ref = invoke_state.jni_references.create_new_reference(java_ref=class_)
-            class_ref_type = javavm_simos.get_native_type('reference')
-            native_args += [(class_ref, class_ref_type)]
+            # static method call
+            # => pass 'class' reference to native code
+            class_ = state.javavm_classloader.get_class(java_method.class_name, init_class=True)
+            native_args += [ JavaArgument(class_, "Class") ]
 
-        # function arguments
-        for arg_value, arg_type in args:
-            
-            if arg_type in ['float', 'double']:
-                # argument has a primitive floating-point type
-                raise NotImplementedError('No support for native floating-point arguments.')
-
-            elif arg_type in ArchSoot.primitive_types:
-                # argument has a primitive integral type
-                native_arg_value = arg_value
-                native_arg_type = javavm_simos.get_native_type(arg_type)
-
-            else:
-                # argument has a relative type
-                # => we map the Java reference to an opaque reference, which then can be used by the
-                #    native code to access the Java object through the JNI interface.
-                opaque_ref = invoke_state.jni_references.create_new_reference(java_ref=arg_value)
-                native_arg_value = opaque_ref
-                native_arg_type = javavm_simos.get_native_type('reference')
-
-            native_args += [(native_arg_value, native_arg_type)]
+        # add function arguments
+        native_args += args
 
         # Step 3: set return type
-        ret_type = javavm_simos.get_native_type(invoke_target.ret)
+        ret_type = state.project.simos.get_native_type(java_method.ret)
         
         # Step 4: create native invoke state
-        invoke_state = javavm_simos.state_call(invoke_addr, *native_args, 
-                                               base_state=invoke_state, 
-                                               ret_type=ret_type)
-
-        return invoke_state
+        return state.project.simos.state_call(native_addr, *native_args, 
+                                              base_state=state, 
+                                              ret_type=ret_type)

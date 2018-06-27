@@ -21,13 +21,9 @@ class SimSootStmt_If(SimSootStmt):
             raise IncorrectLocationException()
         new_addr = SootAddressDescriptor(self.state._ip.method, bb_idx, 0)
 
-        self.state.scratch.jump = True
-
-        self.state.scratch.jump_targets_with_conditions = [
-            (new_addr, condition_expr.expr),
-            # None target means go on linearly (engine will take care of it)
-            (None, condition_expr.expr == False)
-        ]
-
+        self._add_jmp_target(target=new_addr, 
+                             condition=condition_expr.expr)
+        self._add_jmp_target(target=None, # if target is None, engine goes on linearly
+                             condition=(condition_expr.expr==False))
 
 from ..exceptions import IncorrectLocationException

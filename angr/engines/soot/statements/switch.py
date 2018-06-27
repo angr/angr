@@ -13,8 +13,8 @@ class SimSootStmt_TableSwitch(SimSootStmt):
 
     def _execute(self):
 
-        self.state.scratch.jump = True
-        self.state.scratch.jump_targets_with_conditions = []
+        self.is_jump = True
+        self.jump_targets_with_conditions = []
 
         # the key determines the selected entry
         key = self._translate_value(self.stmt.key)
@@ -27,18 +27,14 @@ class SimSootStmt_TableSwitch(SimSootStmt):
         for lookup_value, target in self.stmt.lookup_values_and_targets.items():
             jmp_target = self._get_addr(method, instr_idx=target)
             jmp_condition = (lookup_value == key_val)
-            self.state.scratch.jump_targets_with_conditions.append(
-                (jmp_target, jmp_condition)
-            )
-        
+            self._add_jmp_target(jmp_target, jmp_condition)
+
         # add default target
         # => this is used if the key value is smaller/bigger than the lowest/highest entry
         default_jmp_target = self._get_addr(method, instr_idx=self.stmt.default_target)
-        default_jmp_condition = Or(key_val.SGT(self.stmt.high_index), 
-                                   key_val.SLT(self.stmt.low_index))
-        self.state.scratch.jump_targets_with_conditions.append(
-                (default_jmp_target, default_jmp_condition)
-        )
+        default_jmp_cond = Or(key_val.SGT(self.stmt.high_index), 
+                              key_val.SLT(self.stmt.low_index))
+        self._add_jmp_target(default_jmp_target, default_jmp_cond)
 
 
     def _get_addr(self, method_descriptor, instr_idx):

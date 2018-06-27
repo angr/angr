@@ -6,6 +6,7 @@ from . import JNISimProcedure
 from ...calling_conventions import SimCCSoot
 from ...engines.soot.method_dispatcher import resolve_method
 from ...engines.soot.values import SimSootValue_Local
+from ...engines.soot.expressions.invoke import JavaArgument
 
 import logging
 l = logging.getLogger('angr.procedures.java_jni.callmethod')
@@ -81,7 +82,7 @@ class CallMethodBase(JNISimProcedure):
     def _setup_java_args(self, arg_values, method_id, this_ref=None):
         # if available, add 'this' reference
         this_ref_type = this_ref.type if this_ref else None
-        args = [ (this_ref, this_ref_type) ]
+        args = [ JavaArgument(this_ref, this_ref_type) ]
 
         # function arguments
         for arg_value_, arg_type in zip(arg_values, method_id.params):
@@ -96,7 +97,7 @@ class CallMethodBase(JNISimProcedure):
                 # => lookup java object
                 arg_value = self.state.jni_references.lookup(arg_value_)
             
-            args += [ (arg_value, arg_type) ]
+            args += [ JavaArgument(arg_value, arg_type) ]
 
         return args
 

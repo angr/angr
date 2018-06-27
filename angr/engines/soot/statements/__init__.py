@@ -1,15 +1,13 @@
 
-import logging
-
 from .assign import SimSootStmt_Assign
-from .return_ import SimSootStmt_Return
-from .returnvoid import SimSootStmt_ReturnVoid
+from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid
 from .identity import SimSootStmt_Identity
 from .goto import SimSootStmt_Goto
 from .invoke import SimSootStmt_Invoke
 from .if_ import SimSootStmt_If
 from .switch import SimSootStmt_TableSwitch
 
+import logging
 l = logging.getLogger('angr.engines.soot.statements')
 
 

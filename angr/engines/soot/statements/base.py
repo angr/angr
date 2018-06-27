@@ -12,6 +12,9 @@ class SimSootStmt(object):
         self.stmt = stmt
         self.state = state
 
+        self.invoke_expr = None
+        self.jmp_targets_with_conditions = []
+
     def process(self):
         """
         Process the statement and apply all effects on the state.
@@ -31,3 +34,26 @@ class SimSootStmt(object):
     def _translate_value(self, value):
         value_ = translate_value(value, self.state)
         return value_
+
+    #
+    # Jumps
+    #
+
+    def _add_jmp_target(self, target, condition):
+        self.jmp_targets_with_conditions += [ (target, condition) ]
+
+    @property
+    def has_jump_targets(self):
+        return self.jmp_targets_with_conditions != []
+
+    #
+    # Invocations
+    #
+
+    def _add_invoke_target(self, invoke_expr, ret_var=None):
+        self.invoke_expr = invoke_expr
+        self.invoke_expr.ret_var = ret_var
+    
+    @property
+    def has_invoke_target(self):
+        return self.invoke_expr != None
