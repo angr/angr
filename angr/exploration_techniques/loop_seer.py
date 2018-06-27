@@ -42,7 +42,8 @@ class LoopSeer(ExplorationTechnique):
 
         if type(loops) in (list, tuple) and all(type(l) is Loop for l in loops):
             for loop in loops:
-                self.loops[loop.entry_edges[0][0].addr] = loop
+                if len(loop.entry_edges) > 0:
+                    self.loops[loop.entry_edges[0][0].addr] = loop
 
         elif loops is not None:
             raise TypeError('What type of loop is it?')
@@ -86,10 +87,11 @@ class LoopSeer(ExplorationTechnique):
 
         if not self.loops or func is not None:
             loop_finder = self.project.analyses.LoopFinder(kb=self.cfg.kb, normalize=True, functions=func)
-
+            
             for loop in loop_finder.loops:
-                entry = loop.entry_edges[0][0]
-                self.loops[entry.addr] = loop
+                if len(loop.entry_edges) > 0:
+                    entry = loop.entry_edges[0][0]
+                    self.loops[entry.addr] = loop
 
     def step(self, simgr, stash='active', **kwargs):
         kwargs['successor_func'] = self.normalized_step
