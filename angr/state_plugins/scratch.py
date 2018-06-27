@@ -48,7 +48,6 @@ class SimStateScratch(SimStatePlugin):
         self.invoke_return_variable = None
         self.invoke_return_target = None
         self.invoke_expr = None
-        self.invoke_has_native_target = None
 
         if scratch is not None:
             self.temps.update(scratch.temps)
@@ -78,7 +77,6 @@ class SimStateScratch(SimStatePlugin):
             self.invoke_return_variable = scratch.invoke_return_variable
             self.invoke_return_target = scratch.invoke_return_target
             self.invoke_expr = scratch.invoke_expr
-            self.invoke_has_native_target = scratch.invoke_has_native_target
 
 
         # priveleges

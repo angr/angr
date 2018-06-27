@@ -79,20 +79,14 @@ class CallMethodBase(JNISimProcedure):
         
 
     def _setup_java_args(self, arg_values, method_id, this_ref=None):
-        args = []
-
         # if available, add 'this' reference
-        if this_ref is not None:
-            args += [(this_ref, this_ref.type)]
+        this_ref_type = this_ref.type if this_ref else None
+        args = [ (this_ref, this_ref_type) ]
 
         # function arguments
         for arg_value_, arg_type in zip(arg_values, method_id.params):
 
-            if arg_type in ['float', 'double']:
-                # argument has a primitive floating-point type
-                raise NotImplementedError('No support for floating-point arguments.')
-
-            elif arg_type in ArchSoot.primitive_types:
+            if arg_type in ArchSoot.primitive_types:
                 # argument has a primitive integral type
                 # => cast native value to java type
                 arg_value = self.project.simos.cast_primitive(value=arg_value_, to_type=arg_type)
@@ -102,7 +96,7 @@ class CallMethodBase(JNISimProcedure):
                 # => lookup java object
                 arg_value = self.state.jni_references.lookup(arg_value_)
             
-            args += [(arg_value, arg_type)]
+            args += [ (arg_value, arg_type) ]
 
         return args
 

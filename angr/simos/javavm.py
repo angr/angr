@@ -5,7 +5,7 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootAddressTerminator, SootMethodDescriptor)
 from claripy import BVV, BoolV
 
-from ..calling_conventions import DEFAULT_CC
+from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
 from ..engines.soot.expressions import SimSootExpr_NewArray
 from ..engines.soot.values import (SimSootValue_ArrayBaseRef,
@@ -176,39 +176,30 @@ class SimJavaVM(SimOS):
 
 
     def state_call(self, addr, *args, **kwargs):
-        # *args contains the argument values together with their types
-        # => extract values
-        arg_values = tuple(arg for (arg, arg_type) in args)
-        # Check if we need to setup a native call site
+        """
+        :param list args:  List of argument values zipped together with their types.
+        """
+        # check if we need to setup a native or a java call site
         if isinstance(addr, SootAddressDescriptor):
-            state = kwargs.pop('base_state')
-            if state is None:
-                state = self.state_blank(addr=addr, **kwargs)
-            else:
-                state = state.copy()
-                state.regs.ip = addr
-
-            # Add new stack frame
-            state.memory.push_stack_frame()
-
-            # Add new callstack frame
             ret_addr = kwargs.pop('ret_addr', SootAddressTerminator())
-            state.callstack.push(state.callstack.copy())
-            state.callstack.ret_addr = ret_addr
-            
-            # TODO 
-            # cc = kwargs.pop('cc', DEFAULT_CC[self.arch.name](self.project.arch))
-            # cc.setup_callsite(state, ret_addr, args)
-
-            return state
+            cc = kwargs.pop('cc', SimCCSoot(self.arch))
+            invoke_state = kwargs.pop('base_state')
+            if invoke_state is None:
+                invoke_state = self.state_blank(addr=addr, **kwargs)
+            else:
+                invoke_state = invoke_state.copy()
+                invoke_state.regs.ip = addr
+            cc.setup_callsite(invoke_state, ret_addr, args)
+            return invoke_state
 
         else:
-            # Create function prototype, so the SimCC know how to setup the call-site
-            ret_type = kwargs.pop('ret_type')
-            arg_types = tuple(arg_type for (arg, arg_type) in args)
-            prototype = SimTypeFunction(arg_types, ret_type)
+            # *args constains values together with their types
+            # => unzip to separate lists
+            arg_values, arg_types= zip(*args)
+            # create function prototype, so the SimCC know how to setup the call-site
+            prototype = SimTypeFunction(args=arg_types, returnty=kwargs.pop('ret_type'))
             native_cc = self.get_native_cc(func_ty=prototype)
-            # Setup native invoke_state
+            # setup native invoke_state
             invoke_state = self.native_simos.state_call(addr, *arg_values, 
                                                         ret_addr=self.native_return_hook_addr, 
                                                         cc=native_cc, **kwargs)
@@ -218,7 +209,7 @@ class SimJavaVM(SimOS):
     # Helper JNI
     #
 
-    def get_clemory_addr_of_native_method(self, soot_method):
+    def get_addr_of_native_method(self, soot_method):
         """
         :param soot_method: Soot method descriptor of a native declared function.
         :return:  CLE address of the given method in a native library.
@@ -289,6 +280,9 @@ class SimJavaVM(SimOS):
         """
         Casts the value to the 'cast_to' type.
         """
+
+        if to_type in ['float', 'double']:
+            raise NotImplementedError('No support for floating-point arguments.')
 
         # lookup the type size and extract value
         value_size = ArchSoot.sizeof[to_type] 

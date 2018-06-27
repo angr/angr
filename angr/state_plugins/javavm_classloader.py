@@ -36,7 +36,8 @@ class SimJavaVmClassloader(SimStatePlugin):
         Get the superclass of the class.
         """
         if not class_.is_loaded or class_.superclass_name is None:
-            l.warning("Failed to get superclass of class %r." % class_)
+            if class_.name is not "java.lang.Object":
+                l.warning("Failed to get superclass of class %r." % class_)
             return None
         return self.get_class(class_.superclass_name)
 

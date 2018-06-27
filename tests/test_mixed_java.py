@@ -631,12 +631,12 @@ def get_winning_path(project, method_fullname):
     winning_paths = get_winning_paths(project, method_fullname)
     assert len(winning_paths) != 0
     assert len(winning_paths) == 1
-    return winning_paths[0]
+    return winning_paths[0] 
 
 
 def main():
 
-    test_basic_array_operations()
+    test_jni_non_virtual_instance_method_call()
 
 
 if __name__ == "__main__":
