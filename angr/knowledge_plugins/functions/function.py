@@ -17,6 +17,17 @@ class Function(object):
     """
     A representation of a function and various information about it.
     """
+
+    __slots__ = ('transition_graph', '_local_transition_graph', 'normalized', '_ret_sites', '_jumpout_sites',
+                 '_callout_sites', '_endpoints', '_call_sites', '_retout_sites', 'addr', '_function_manager',
+                 'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'binary_name',
+                 '_argument_registers', '_argument_stack_variables',
+                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
+                 'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
+                 'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
+                 '_local_block_addrs', 'info'
+                 )
+
     def __init__(self, function_manager, addr, name=None, syscall=None):
         """
         Function constructor
@@ -467,7 +478,7 @@ class Function(object):
         :return: The object this function belongs to.
         """
 
-        return self._project.loader.find_object_containing(self.addr)
+        return self._project.loader.find_object_containing(self.addr, membership_check=False)
 
     def add_jumpout_site(self, node):
         """
