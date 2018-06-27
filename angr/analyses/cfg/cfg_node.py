@@ -35,7 +35,8 @@ class CFGNode(object):
     """
 
     __slots__ = ( 'addr', 'simprocedure_name', 'syscall_name', 'size', 'no_ret', 'is_syscall', 'function_address',
-                  'block_id', 'thumb', 'byte_string', 'name', 'instruction_addrs', 'irsb', 'has_return', '_cfg',
+                  'block_id', 'thumb', 'byte_string', '_name', 'instruction_addrs', 'irsb', 'has_return', '_cfg',
+                  '_hash',
                   )
 
     def __init__(self,
@@ -67,32 +68,37 @@ class CFGNode(object):
         self.thumb = thumb
         self.byte_string = byte_string
 
-        self.name = simprocedure_name
-        if self.name is None:
-            sym = cfg.project.loader.find_symbol(addr)
-            if sym is not None:
-                self.name = sym.name
-        if self.name is None and isinstance(cfg.project.arch, archinfo.ArchARM) and addr & 1:
-            sym = cfg.project.loader.find_symbol(addr - 1)
-            if sym is not None:
-                self.name = sym.name
-        if function_address and self.name is None:
-            sym = cfg.project.loader.find_symbol(function_address)
-            if sym is not None:
-                self.name = sym.name
-            if self.name is not None:
-                offset = addr - function_address
-                self.name = "%s%+#x" % (self.name, offset)
-
+        self._name = simprocedure_name
         self.instruction_addrs = instruction_addrs if instruction_addrs is not None else tuple()
 
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
-            if irsb is not None:
+            if irsb is not None and irsb.statements is not None:
                 self.instruction_addrs = tuple(s.addr + s.delta for s in irsb.statements if type(s) is pyvex.IRStmt.IMark)  # pylint:disable=unidiomatic-typecheck
 
-        self.irsb = irsb
+        self.irsb = None #irsb
         self.has_return = False
+        self._hash = None
+
+    @property
+    def name(self):
+        if self._name is None:
+            sym = self._cfg.project.loader.find_symbol(self.addr)
+            if sym is not None:
+                self._name = sym.name
+        if self._name is None and isinstance(self._cfg.project.arch, archinfo.ArchARM) and self.addr & 1:
+            sym = self._cfg.project.loader.find_symbol(self.addr - 1)
+            if sym is not None:
+                self._name = sym.name
+        if self.function_address and self.name is None:
+            sym = self._cfg.project.loader.find_symbol(self.function_address)
+            if sym is not None:
+                self._name = sym.name
+            if self.name is not None:
+                offset = self.addr - self.function_address
+                self._name = "%s%+#x" % (self.name, offset)
+
+        return self._name
 
     @property
     def successors(self):
@@ -156,7 +162,9 @@ class CFGNode(object):
                 )
 
     def __hash__(self):
-        return hash((self.addr, self.simprocedure_name, ))
+        if self._hash is None:
+            self._hash = hash((self.addr, self.simprocedure_name, ))
+        return self._hash
 
     def to_codenode(self):
         if self.is_simprocedure:

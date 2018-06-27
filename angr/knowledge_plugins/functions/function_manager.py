@@ -32,6 +32,12 @@ class FunctionDict(SortedDict):
             self._backref._function_added(t)
             return t
 
+    def __contains__(self, addr):
+        return super(FunctionDict, self).__contains__(addr)
+
+    def get(self, addr):
+        return super(FunctionDict, self).__getitem__(addr)
+
     def floor_addr(self, addr):
         try:
             return next(self.irange(maximum=addr, reverse=True))
@@ -93,7 +99,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None, stmt_idx=None, ins_addr=None,
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None, ins_addr=None,
                      return_to_outside=False):
 
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
@@ -245,6 +251,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         for i in sorted(self._function_map.iterkeys()):
             yield i
 
+    def get_by_addr(self, addr):
+        return self._function_map.get(addr)
+
     def _function_added(self, func):
         """
         A callback method for adding a new function instance to the manager.
@@ -277,7 +286,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
         try:
             next_addr = self._function_map.ceiling_addr(addr)
-            return self._function_map[next_addr]
+            return self._function_map.get(next_addr)
 
         except KeyError:
             return None
