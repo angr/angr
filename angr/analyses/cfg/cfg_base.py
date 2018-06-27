@@ -387,7 +387,10 @@ class CFGBase(Analysis):
         results = [ ]
 
         for cfg_node in self._graph.nodes():
-            if cfg_node.addr == addr or (anyaddr and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)):
+            if cfg_node.addr == addr or (anyaddr and
+                                         cfg_node.size is not None and
+                                         cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
+                                         ):
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
                 elif is_syscall is False and not cfg_node.is_syscall:
