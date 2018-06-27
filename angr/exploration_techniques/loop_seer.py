@@ -42,7 +42,7 @@ class LoopSeer(ExplorationTechnique):
 
         if type(loops) in (list, tuple) and all(type(l) is Loop for l in loops):
             for loop in loops:
-                if len(loop.entry_edges) > 0:
+                if loop.entry_edges:
                     self.loops[loop.entry_edges[0][0].addr] = loop
 
         elif loops is not None:
@@ -87,9 +87,9 @@ class LoopSeer(ExplorationTechnique):
 
         if not self.loops or func is not None:
             loop_finder = self.project.analyses.LoopFinder(kb=self.cfg.kb, normalize=True, functions=func)
-
+            
             for loop in loop_finder.loops:
-                if len(loop.entry_edges) > 0:
+                if loop.entry_edges:
                     entry = loop.entry_edges[0][0]
                     self.loops[entry.addr] = loop
 
