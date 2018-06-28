@@ -358,21 +358,24 @@ class SimEngineSoot(SimEngine):
 
         # Step 2: add JNI specific arguments to *args list
 
-        # add JNI enviroment pointer
-        jni_env = state.project.simos.jni_env
-        args.insert(0, JavaArgument(jni_env, "JNIEnv"))
-
-        # add reference to the current object or class
+        # get JNI enviroment pointer
+        jni_env = JavaArgument(state.project.simos.jni_env, "JNIEnv")
+        
+        # get reference to the current object or class
         this_ref = args.pop(0)
         if this_ref != None:
             # instance method call
             # => pass 'this' reference to native code
+            ref = this_ref
             args.insert(1, this_ref)
         else:
             # static method call
             # => pass 'class' reference to native code
             class_ = state.javavm_classloader.get_class(java_method.class_name, init_class=True)
-            args.insert(1, JavaArgument(class_, "Class"))
+            ref = JavaArgument(class_, "Class")
+
+        # add to args
+        args = [jni_env, ref] + args
         
         # Step 3: create native invoke state
         return state.project.simos.state_call(native_addr, *args,
