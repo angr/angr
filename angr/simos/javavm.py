@@ -176,10 +176,11 @@ class SimJavaVM(SimOS):
 
     def state_call(self, addr, *args, **kwargs):
         """
+        :param addr: Soot or native addr of the invoke target. 
         :param list args: List of JavaArgument values.
         """
         state = kwargs.pop('base_state')
-        # check if we need to setup a native or a java call site
+        # check if we need to setup a native or a java callsite
         if isinstance(addr, SootAddressDescriptor):
             ret_addr = kwargs.pop('ret_addr', SootAddressTerminator())
             cc = kwargs.pop('cc', SimCCSoot(self.arch))
@@ -202,17 +203,21 @@ class SimJavaVM(SimOS):
                     native_arg_value = arg.value
                 else:
                     # argument has a relative type
-                    # => map Java reference to an opaque reference, which then can be used by the
-                    #    native code to access the Java object through the JNI interface.
+                    # => map Java reference to an opaque reference, which the native code 
+                    #    can use to access the Java object through the JNI interface
                     native_arg_value = state.jni_references.create_new_reference(java_ref=arg.value)
                 native_arg_values += [native_arg_value]
 
-            # create function prototype, so the SimCC know how to setup the call-site
+            # setup native return type
+            ret_type = kwargs.pop('ret_type')
+            native_ret_type = self.get_native_type(ret_type)
+
+            # setup function prototype, so the SimCC know how to init the callsite
             arg_types = [ self.get_native_type(arg.type) for arg in args ]
-            prototype = SimTypeFunction(args=arg_types, returnty=kwargs.pop('ret_type'))
+            prototype = SimTypeFunction(args=arg_types, returnty=native_ret_type)
             native_cc = self.get_native_cc(func_ty=prototype)
 
-            # setup native invoke_state
+            # setup native invoke state
             return self.native_simos.state_call(addr, *native_arg_values, 
                                                 base_state=state,
                                                 ret_addr=self.native_return_hook_addr, 

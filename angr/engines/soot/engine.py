@@ -353,35 +353,28 @@ class SimEngineSoot(SimEngine):
     @classmethod
     def _setup_native_callsite(cls, state, native_addr, java_method, args, ret_addr, ret_var):
 
-        # Step 1: setup java callsite, but w/o storing the arguments memory
+        # Step 1: setup java callsite, but w/o storing arguments in memory
         cls.setup_callsite(state, None, ret_addr, ret_var)
 
-        # Step 2: setup native arguments
-        native_args = []
+        # Step 2: add JNI specific arguments to *args list
 
-        # JNI enviroment pointer
+        # add JNI enviroment pointer
         jni_env = state.project.simos.jni_env
-        native_args += [ JavaArgument(jni_env, "JNIEnv") ]
+        args.insert(0, JavaArgument(jni_env, "JNIEnv"))
 
-        # handle to the current object or class
+        # add reference to the current object or class
         this_ref = args.pop(0)
         if this_ref != None:
             # instance method call
             # => pass 'this' reference to native code
-            native_args += [ this_ref ]
+            args.insert(1, this_ref)
         else:
             # static method call
             # => pass 'class' reference to native code
             class_ = state.javavm_classloader.get_class(java_method.class_name, init_class=True)
-            native_args += [ JavaArgument(class_, "Class") ]
-
-        # add function arguments
-        native_args += args
-
-        # Step 3: set return type
-        ret_type = state.project.simos.get_native_type(java_method.ret)
+            args.insert(1, JavaArgument(class_, "Class"))
         
-        # Step 4: create native invoke state
-        return state.project.simos.state_call(native_addr, *native_args, 
-                                              base_state=state, 
-                                              ret_type=ret_type)
+        # Step 3: create native invoke state
+        return state.project.simos.state_call(native_addr, *args,
+                                              base_state=state,
+                                              ret_type=java_method.ret)
