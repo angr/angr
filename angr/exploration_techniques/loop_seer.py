@@ -87,7 +87,7 @@ class LoopSeer(ExplorationTechnique):
 
         if not self.loops or func is not None:
             loop_finder = self.project.analyses.LoopFinder(kb=self.cfg.kb, normalize=True, functions=func)
-            
+
             for loop in loop_finder.loops:
                 if loop.entry_edges:
                     entry = loop.entry_edges[0][0]
