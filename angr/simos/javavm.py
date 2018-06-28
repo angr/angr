@@ -136,7 +136,6 @@ class SimJavaVM(SimOS):
 
         return state
 
-
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
         state = self.state_blank(**kwargs)
 
@@ -284,12 +283,16 @@ class SimJavaVM(SimOS):
         :param type_: string represent the type name
         :return: Default values specified for the type
         """
-        if type_ == "int":
+        if type_ in ['byte', 'char', 'short', 'int']:
             return BVV(0, 32)
         elif type_ == "boolean":
             return BoolV(False)
+        elif type_ == "long":
+            return BVV(0, 64)
         else:
+            l.error("Could not determine the default value for type %s."  % type_)
             return None
+
 
     @staticmethod
     def cast_primitive(value, to_type):
