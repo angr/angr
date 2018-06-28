@@ -61,7 +61,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
                 files={k: v.copy(memo) for k, v in self._files.iteritems()},
                 pathsep=self.pathsep,
                 cwd=self.cwd,
-                mountpoints={k: v.copy(memo) for k, v in self._files.iteritems()}
+                mountpoints={k: v.copy(memo) for k, v in self._mountpoints.iteritems()}
             )
         o._unlinks = list(self._unlinks)
         return o
