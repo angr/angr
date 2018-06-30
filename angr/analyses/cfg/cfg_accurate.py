@@ -1308,6 +1308,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Remove all successors whose IP is symbolic
         successors = [ s for s in successors if not s.ip.symbolic ]
 
+        # Filter successors that do not make sense
+        successors = self._filter_insane_successors(successors)
+
         # Add additional edges supplied by the user
         successors = self._add_additional_edges(input_state, sim_successors, job.cfg_node, successors)
 
@@ -2121,6 +2124,31 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Allow for sp adjustments
                 successors.append(base_state)
                 l.debug("Additional jump target %#x for block %s is appended.", dst, sim_successors.description)
+
+        return successors
+
+    def _filter_insane_successors(self, successors):
+
+        # Throw away all successors whose target doesn't make sense
+
+        old_successors = successors[::]
+        successors = [ ]
+        for i, suc in enumerate(old_successors):
+            if suc.se.symbolic(suc.ip):
+                # It's symbolic. Take it, and hopefully we can resolve it later
+                successors.append(suc)
+            else:
+                # It's concrete. Does it make sense?
+                ip_int = suc.se.eval_one(suc.ip)
+
+            if self._is_address_executable(ip_int) or self.project.is_hooked(ip_int):
+                successors.append(suc)
+            else:
+                l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
+                        i + 1,
+                        len(old_successors),
+                        ip_int
+                        )
 
         return successors
 
