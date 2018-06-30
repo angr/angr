@@ -1281,9 +1281,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if depth >= self._max_steps:
                 return [ ]
 
-        # Get all successors of this block
-        successors = (sim_successors.flat_successors + sim_successors.unsat_successors) \
-            if addr not in self._avoid_runs else [ ]
+        successors = [ ]
+        if sim_successors.sort == 'IRSB' and self._is_indirect_jump(job.cfg_node, sim_successors):
+            # Try to resolve indirect jumps
+            l.debug('IRSB %#x has an indirect jump as its default exit.', job.addr)
+            successors = self._apply_indirect_jump_resolvers(job, successors)
+
+        if not successors:
+            # Get all successors of this block
+            successors = (sim_successors.flat_successors + sim_successors.unsat_successors) \
+                if addr not in self._avoid_runs else []
 
         # Post-process successors
         successors, job.extra_info = self._post_process_successors(input_state, sim_successors, successors)
@@ -1296,17 +1303,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if self._keep_state:
             job.cfg_node.final_states = all_successors[::]
-
-        # Try to resolve indirect jumps
-        successors = self._apply_indirect_jump_resolvers(job, successors)
-        # TODO This is broken
-        #successors = self._resolve_indirect_jumps(sim_successors,
-        #                                          job.cfg_node,
-        #                                          job.func_addr,
-        #                                          successors,
-        #                                          job.exception_info,
-        #                                          self._block_artifacts
-        #                                          )
 
         # Remove all successors whose IP is symbolic
         successors = [ s for s in successors if not s.ip.symbolic ]
@@ -2178,28 +2174,44 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         sim_successors = job.sim_successors
         cfg_node = job.cfg_node
-        if sim_successors.sort == 'IRSB' and  self._is_indirect_jump(cfg_node, sim_successors):
-            l.debug('IRSB %#x has an indirect jump as its default exit', cfg_node.addr)
-            irsb = job.state.block().vex
-            addr = job.addr
-            func_addr = job.func_addr
-            jumpkind = irsb.jumpkind
-            stmt_idx = 'default'
-            for i, stmt in enumerate(irsb.statements):
-                if isinstance(stmt, pyvex.IRStmt.Exit):
-                    stmt_idx = i
+        irsb = job.state.block().vex
+        addr = job.addr
+        func_addr = job.func_addr
+        jumpkind = irsb.jumpkind
 
-            # try resolving it fast
-            resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
-            if resolved:
-                # Remove the symbolic successor
-                # TODO: Now we are removing all symbolic successors. Is it possible
-                # TODO: that there is more than one symbolic successor?
+        all_successors = None
+
+        # try resolving it fast
+        resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
+        if resolved:
+            # Remove the symbolic successor
+            # TODO: Now we are removing all symbolic successors. Is it possible
+            # TODO: that there is more than one symbolic successor?
+            all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
+            for t in resolved_targets:
+                # Insert new successors
+                # We insert new successors in the beginning of all_successors list so that we don't break the
+                # assumption that Ijk_FakeRet is always the last element in the list
+                a = sim_successors.all_successors[0].copy()
+                a.ip = t
+                all_successors.insert(0, a)
+
+                l.debug('The indirect jump is successfully resolved.')
+                self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+        else:
+            # Create an IndirectJump instance
+            if addr not in self.indirect_jumps:
+                tmp_statements = irsb.statements
+                ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                     if isinstance(stmt, pyvex.IRStmt.IMark)), None)
+                ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, 'default', resolved_targets=[])
+                self.indirect_jumps[addr] = ij
+            else:
+                ij = self.indirect_jumps[addr]
+
+            if ij.resolved_targets:
                 all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
-                for t in resolved_targets:
-                    # Insert new successors
-                    # We insert new successors in the beginning of all_successors list so that we don't break the
-                    # assumption that Ijk_FakeRet is always the last element in the list
+                for t in ij.resolved_targets:
                     a = sim_successors.all_successors[0].copy()
                     a.ip = t
                     all_successors.insert(0, a)
@@ -2207,48 +2219,28 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     l.debug('The indirect jump is successfully resolved.')
                     self.kb.resolved_indirect_jumps.add(cfg_node.addr)
             else:
-                # Create an IndirectJump instance
-                if addr not in self.indirect_jumps:
-                    tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[ : stmt_idx]
-                    ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                         if isinstance(stmt, pyvex.IRStmt.IMark)), None)
-                    ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
-                    self.indirect_jumps[addr] = ij
-                else:
-                    ij = self.indirect_jumps[addr]
-
-                if ij.resolved_targets:
-                    all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
-                    for t in ij.resolved_targets:
-                        a = sim_successors.all_successors[0].copy()
-                        a.ip = t
-                        all_successors.insert(0, a)
+                # Process indirect jump
+                resolved = False
+                for resolver in self.indirect_jump_resolvers:
+                    resolver.base_state = self._base_state
+                    if not resolver.filter(self, ij.addr, ij.func_addr, irsb, ij.jumpkind):
+                        continue
+                    resolved, targets = resolver.resolve(self, ij.addr, ij.func_addr, irsb, ij.jumpkind)
+                    if resolved:
+                        all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
+                        for t in targets:
+                            a = sim_successors.all_successors[0].copy()
+                            a.ip = t
+                            all_successors.insert(0, a)
 
                         l.debug('The indirect jump is successfully resolved.')
                         self.kb.resolved_indirect_jumps.add(cfg_node.addr)
-                else:
-                    # Process indirect jump
-                    resolved = False
-                    for resolver in self.indirect_jump_resolvers:
-                        resolver.base_state = self._base_state
-                        if not resolver.filter(self, ij.addr, ij.func_addr, irsb, ij.jumpkind):
-                            continue
-                        resolved, targets = resolver.resolve(self, ij.addr, ij.func_addr, irsb, ij.jumpkind)
-                        if resolved:
-                            all_successors = [suc for suc in successors if not suc.se.symbolic(suc.ip)]
-                            for t in targets:
-                                a = sim_successors.all_successors[0].copy()
-                                a.ip = t
-                                successors.insert(0, a)
+                        break
+                if not resolved:
+                    l.debug('Failed to resolve the indirect jump.')
+                    self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
 
-                            l.debug('The indirect jump is successfully resolved.')
-                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
-                            break
-                    if not resolved:
-                        l.debug('Failed to resolve the indirect jump.')
-                        self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
-
-        return successors
+        return all_successors
 
     def _resolve_indirect_jump_timelessly(self, addr, irsb, func_addr, jumpkind):
         for res in self.timeless_indirect_jump_resolvers:

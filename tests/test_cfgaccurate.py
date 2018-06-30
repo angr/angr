@@ -141,7 +141,11 @@ def test_additional_edges():
     additional_edges = {
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True,
+                                    enable_indirect_jump_resolvers=False,  # For this test case, we need to disable the
+                                                                           # jump table resolving, otherwise CFGAccurate
+                                                                           # can automatically find the node 0x4005ad.
+                                    )
 
     nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
     nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
@@ -384,7 +388,7 @@ def test_armel_final_missing_block_b():
     blocks = list(cfg.kb.functions['main'].blocks)
 
     nose.tools.assert_equal(len(blocks), 2)
-    nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b78, 0x10bbf })
+    nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b79, 0x10bbf })
 
 
 def test_armel_incorrect_function_detection_caused_by_branch():
