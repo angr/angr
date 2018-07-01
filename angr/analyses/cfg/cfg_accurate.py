@@ -1283,10 +1283,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 return [ ]
 
         successors = [ ]
-        if sim_successors.sort == 'IRSB' and self._is_indirect_jump(job.cfg_node, sim_successors):
+        is_indirect_jump = sim_successors.sort == 'IRSB' and self._is_indirect_jump(job.cfg_node, sim_successors)
+        indirect_jump_resolved_by_resolvers = False
+
+        if is_indirect_jump:
             # Try to resolve indirect jumps
             l.debug('IRSB %#x has an indirect jump as its default exit.', job.addr)
             successors = self._apply_indirect_jump_resolvers(job)
+            indirect_jump_resolved_by_resolvers = True
 
         if not successors:
             # Get all successors of this block
@@ -1308,8 +1312,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Remove all successors whose IP is symbolic
         successors = [ s for s in successors if not s.ip.symbolic ]
 
-        # Filter successors that do not make sense
-        successors = self._filter_insane_successors(successors)
+        if is_indirect_jump and not indirect_jump_resolved_by_resolvers:
+            # For indirect jumps, filter successors that do not make sense
+            successors = self._filter_insane_successors(successors)
 
         # Add additional edges supplied by the user
         successors = self._add_additional_edges(input_state, sim_successors, job.cfg_node, successors)
@@ -2128,8 +2133,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return successors
 
     def _filter_insane_successors(self, successors):
+        """
+        Throw away all successors whose target doesn't make sense
 
-        # Throw away all successors whose target doesn't make sense
+        This method is called after an we resolve an indirect jump using an unreliable method (like, not through one of
+        the indirect jump resolvers, but through either pure concrete execution or backward slicing) to filter out the
+        obviously incorrect successors.
+
+        :param list successors: A collection of successors.
+        :return:                A filtered list of successors
+        :rtype:                 list
+        """
 
         old_successors = successors[::]
         successors = [ ]
@@ -2141,7 +2155,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # It's concrete. Does it make sense?
                 ip_int = suc.se.eval_one(suc.ip)
 
-            if self._is_address_executable(ip_int) or self.project.is_hooked(ip_int):
+            if self._is_address_executable(ip_int) or \
+                    self.project.is_hooked(ip_int) or \
+                    self.project.simos.is_syscall_addr(ip_int):
                 successors.append(suc)
             else:
                 l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
