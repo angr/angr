@@ -1,15 +1,16 @@
 
-
 from collections import defaultdict
+from itertools import chain
 import logging
 
-from .. import Analysis
-from cle.backends.cgc import CGC
 from networkx import NetworkXError
+
+from cle.backends.cgc import CGC
 
 from .errors import IdentifierException
 from .functions import Functions
 from .runner import Runner
+from .. import Analysis
 from ... import options
 from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
@@ -761,7 +762,7 @@ class Identifier(Analysis):
 
     def _no_sp_or_bp(self, bl):
         for s in bl.vex.statements:
-            for e in [s] + s.expressions:
+            for e in chain([s], s.expressions):
                 if e.tag == "Iex_Get":
                     reg = self.get_reg_name(self.project.arch, e.offset)
                     if reg == "ebp" or reg == "esp":
