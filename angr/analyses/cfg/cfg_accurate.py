@@ -1290,7 +1290,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Try to resolve indirect jumps
             l.debug('IRSB %#x has an indirect jump as its default exit.', job.addr)
             successors = self._apply_indirect_jump_resolvers(job)
-            indirect_jump_resolved_by_resolvers = True
+            if successors:
+                indirect_jump_resolved_by_resolvers = True
 
         if not successors:
             # Get all successors of this block
