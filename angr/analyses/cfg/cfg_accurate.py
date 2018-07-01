@@ -1292,18 +1292,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             successors = self._apply_indirect_jump_resolvers(job)
             if successors:
                 indirect_jump_resolved_by_resolvers = True
-                if isinstance(self.project.arch, ArchARM):
-                    default_case_appended = False
-                    for s in sim_successors.flat_successors:
-                        if s not in successors:
-                            successors.append(s)
-                            default_case_appended = True
-                            break
-                    if not default_case_appended:
-                        for s in sim_successors.unsat_successors:
-                            if s not in successors:
-                                successors.append(s)
-                                break
 
         if not successors:
             # Get all successors of this block
