@@ -342,7 +342,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return state
 
-    def _parse_load_statement(self, load_stmt, state):
+    @staticmethod
+    def _parse_load_statement(load_stmt, state):
         """
         Parse a memory load VEX statement and get the jump target addresses.
 
