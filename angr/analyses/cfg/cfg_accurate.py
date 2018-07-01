@@ -2137,7 +2137,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Throw away all successors whose target doesn't make sense
 
-        This method is called after an we resolve an indirect jump using an unreliable method (like, not through one of
+        This method is called after we resolve an indirect jump using an unreliable method (like, not through one of
         the indirect jump resolvers, but through either pure concrete execution or backward slicing) to filter out the
         obviously incorrect successors.
 
@@ -2149,12 +2149,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         old_successors = successors[::]
         successors = [ ]
         for i, suc in enumerate(old_successors):
-            if suc.se.symbolic(suc.ip):
-                # It's symbolic. Take it, and hopefully we can resolve it later
-                successors.append(suc)
-            else:
-                # It's concrete. Does it make sense?
-                ip_int = suc.se.eval_one(suc.ip)
+            ip_int = suc.se.eval_one(suc.ip)
 
             if self._is_address_executable(ip_int) or \
                     self.project.is_hooked(ip_int) or \
