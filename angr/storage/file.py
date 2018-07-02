@@ -73,12 +73,26 @@ class SimFileBase(SimStatePlugin):
         self.writable = writable
 
         if ident is None:
-            nice_name = self.name if all(0x20 <= ord(c) <= 0x7f for c in self.name) else '???'
-            self.ident = 'file_%d_%s' % (next(file_counter), nice_name)
+            self.ident = self.make_ident(self.name)
 
         if 'memory_id' in kwargs:
             kwargs['memory_id'] = self.ident
         super(SimFileBase, self).__init__(**kwargs)
+
+    @staticmethod
+    def make_ident(name):
+        def generate():
+            consecutive_bad = 0
+            for ch in name:
+                if 0x20 <= ord(ch) <= 0x7e:
+                    consecutive_bad = 0
+                    yield ch
+                elif consecutive_bad < 3:
+                    consecutive_bad += 1
+                    yield '?'
+
+        nice_name = ''.join(generate())
+        return 'file_%d_%s' % (next(file_counter), nice_name)
 
     def concretize(self, **kwargs):
         """
