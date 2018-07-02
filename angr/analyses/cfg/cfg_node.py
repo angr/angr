@@ -90,13 +90,13 @@ class CFGNode(object):
             sym = self._cfg.project.loader.find_symbol(self.addr - 1)
             if sym is not None:
                 self._name = sym.name
-        if self.function_address and self.name is None:
+        if self.function_address and self._name is None:
             sym = self._cfg.project.loader.find_symbol(self.function_address)
             if sym is not None:
                 self._name = sym.name
-            if self.name is not None:
+            if self._name is not None:
                 offset = self.addr - self.function_address
-                self._name = "%s%+#x" % (self.name, offset)
+                self._name = "%s%+#x" % (self._name, offset)
 
         return self._name
 
