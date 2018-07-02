@@ -1750,8 +1750,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
-                     fast_indirect_jump_resolution=True):
+    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -1780,16 +1779,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         jobs = [ ]
 
         if target_addr is None and (
-                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys'))\
-                and fast_indirect_jump_resolution:
+                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')) and \
+                        self._resolve_indirect_jumps:
             # try resolving it fast
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr,
                                                                                 jumpkind
                                                                                 )
             if resolved:
                 for t in resolved_targets:
-                    ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
-                                            stmt_idx, fast_indirect_jump_resolution=False)
+                    ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx)
                     jobs.extend(ent)
                 return jobs
 
