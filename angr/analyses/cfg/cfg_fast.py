@@ -1886,7 +1886,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._resolve_indirect_jumps:
             # This is an indirect jump. Try to resolve it.
 
-            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, irsb, current_function_addr, stmt_idx)
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
+                                                                             current_function_addr, stmt_idx)
             if resolved:
                 for resolved_target in resolved_targets:
                     edge = FunctionTransitionEdge(cfg_node, resolved_target, current_function_addr,
@@ -2160,7 +2161,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return
 
         # get all instruction addresses
-        instr_addrs = [ (i.addr + i.delta) for i in irsb.statements if isinstance(i, pyvex.IRStmt.IMark) ]
+        instr_addrs = irsb.instruction_addresses
 
         # for each statement, collect all constants that are referenced or used.
         instr_addr = None
@@ -2518,6 +2519,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # restrict this heuristics to ELF files only
             if not any([ addr in obj.reverse_plt for obj in self.project.loader.all_elf_objects ]):
                 return False
+
+        # Make sure the IRSB has statements
+        if not irsb.has_statements:
+            irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
 
         # try to resolve the jump target
         simsucc = self.project.engines.default_engine.process(self._initial_state, irsb, force_addr=addr)
@@ -3345,13 +3350,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if 'lr_saved_on_stack' not in function.info:
             function.info['lr_saved_on_stack'] = False
 
-    def _arm_track_read_lr_from_stack(self, addr, irsb, function):  # pylint:disable=unused-argument
+    def _arm_track_read_lr_from_stack(self, irsb, function):  # pylint:disable=unused-argument
         """
         At the end of a basic block, simulate the very last instruction to see if the return address is read from the
         stack and written in PC. If so, the jumpkind of this IRSB will be set to Ijk_Ret. For detailed explanations,
         please see the documentation of _arm_track_lr_on_stack().
 
-        :param int addr: The address of the basic block.
         :param pyvex.IRSB irsb: The basic block object.
         :param Function function: The function instance.
         :return: None
@@ -3364,11 +3368,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         initial_sp = 0x7fff0000
         last_sp = None
         tmps = {}
-        last_imark = next((stmt for stmt in reversed(irsb.statements)
-                           if isinstance(stmt, pyvex.IRStmt.IMark)
-                           ), 0
-                          )
-        tmp_irsb = self._lift(last_imark.addr + last_imark.delta, opt_level=self._iropt_level).vex
+        tmp_irsb = self._lift(irsb.instruction_addresses[-1], opt_level=self._iropt_level).vex
         # pylint:disable=too-many-nested-blocks
         for stmt in tmp_irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp):
@@ -3586,7 +3586,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         irsb.next is not None and \
                         isinstance(irsb.next, pyvex.IRExpr.RdTmp):
                     # do a bunch of checks to avoid unnecessary simulation from happening
-                    self._arm_track_read_lr_from_stack(addr, irsb, self.functions[func_addr])
+                    self._arm_track_read_lr_from_stack(irsb, self.functions[func_addr])
 
         elif self.project.arch.name == "MIPS32":
             function = self.kb.functions.function(func_addr)

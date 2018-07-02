@@ -2025,13 +2025,14 @@ class CFGBase(Analysis):
         # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
         self.kb.unresolved_indirect_jumps.add(jump.addr)
 
-    def _indirect_jump_encountered(self, addr, irsb, func_addr, stmt_idx='default'):
+    def _indirect_jump_encountered(self, addr, cfg_node, irsb, func_addr, stmt_idx='default'):
         """
         Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
         indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.
 
         :param int addr:                Address of the block containing the indirect jump.
-        :param pyvex.block.IRSB irsb:   IRSB of the block containing the indirect jump.
+        :param cfg_node:                The CFGNode instance of the block that contains the indirect jump.
+        :param pyvex.IRSB irsb:         The IRSB instance of the block that contains the indirect jump.
         :param int func_addr:           Address of the current function.
         :param int or str stmt_idx:     ID of the source statement.
 
@@ -2040,7 +2041,7 @@ class CFGBase(Analysis):
         :rtype:     tuple
         """
 
-        jumpkind = irsb.jumpkind
+        jumpkind = cfg_node.jumpkind
         l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
 
         # try resolving it fast
@@ -2051,22 +2052,10 @@ class CFGBase(Analysis):
         # Add it to our set. Will process it later if user allows.
         # Create an IndirectJump instance
         if addr not in self.indirect_jumps:
-            # We need an IRSB *with* statements
-            if irsb.statements is None:
-                lifted_block = self._lift(addr, size=irsb.size)
-                irsb_with_stmts = lifted_block.vex
+            if self.project.arch.branch_delay_slot:
+                ins_addr = cfg_node.instruction_addrs[-2]
             else:
-                irsb_with_stmts = irsb
-            tmp_statements = irsb_with_stmts.statements if stmt_idx == 'default' else \
-                irsb_with_stmts.statements[: stmt_idx]
-            if jumpkind != "Ijk_Boring" and self.project.arch.branch_delay_slot:
-                ins_addr = next(itertools.islice(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                     if isinstance(stmt, pyvex.IRStmt.IMark)), 1, None
-                                ), None)
-            else:
-                ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                     if type(stmt) is pyvex.IRStmt.IMark), None
-                                )
+                ins_addr = cfg_node.instruction_addrs[-1]
             ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
             self.indirect_jumps[addr] = ij
             resolved = False
