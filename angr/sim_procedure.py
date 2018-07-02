@@ -327,13 +327,7 @@ class SimProcedure:
 
         # Create an exit action
         self._exit_action(self.state, ret_addr)
-<<<<<<< f07f34e9d9880f64d93c17a3d0288a56c3be7cac
         self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
-=======
-
-        # Add a successor
-        self.successors.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
->>>>>>> Preliminary Java support.
 
     def call(self, addr, args, continue_at, cc=None):
         """
@@ -420,18 +414,19 @@ class SimProcedure:
             if state.callstack.top.procedure_data is None:
                 raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
-            saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
+            saved_sp, sim_args, saved_local_vars, saved_lr = state.callstack.top.procedure_data
             state.regs.sp = saved_sp
+            if saved_lr is not None:
+                state.regs.lr = saved_lr
             inst.arguments = sim_args
             inst.use_state_arguments = True
-            inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes,
-                                                      endness=state.arch.register_endness)
+            inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
             for name, val in saved_local_vars:
                 setattr(inst, name, val)
         else:
             if arguments is None:
                 inst.use_state_arguments = True
-                sim_args = [inst.arg(_) for _ in xrange(inst.num_args)]
+                sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
                 inst.arguments = sim_args
             else:
                 inst.use_state_arguments = False
