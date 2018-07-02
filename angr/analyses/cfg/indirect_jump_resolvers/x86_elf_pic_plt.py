@@ -76,7 +76,10 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
             # cannot get the base address of GOT
             return False, [ ]
 
-        state = cfg._initial_state.copy()
+        if cfg._initial_state is not None:
+            state = cfg._initial_state.copy()
+        else:
+            state = self.project.factory.blank_state()
         state.regs.ebx = got_addr
 
         successors = self.project.engines.default_engine.process(state, block, force_addr=addr)
