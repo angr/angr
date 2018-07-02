@@ -343,7 +343,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         new_cfg._keep_state = self._keep_state
-        new_cfg.project = self.project
 
         return new_cfg
 
