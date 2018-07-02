@@ -1779,7 +1779,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         jobs = [ ]
 
         if target_addr is None and (
-                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')):
+                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')) and \
+                        self._resolve_indirect_jumps:
             # try resolving it fast
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr,
                                                                                 jumpkind
