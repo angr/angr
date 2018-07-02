@@ -637,7 +637,7 @@ class CFGJob(object):
                                             CFGUtils.loc_to_str(self.addr),
                                             CFGUtils.loc_to_str(self.func_addr)
                                             )
-
+                                            
     def __eq__(self, other):
         return self.addr == other.addr and \
                 self.func_addr == other.func_addr and \
@@ -792,7 +792,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
 
-        self._regions = None  # type: AVLTree
+        self._regions = None 
         self._regions_size = None  # type: int
         self._initialize_regions(exclude_sparse_regions, skip_specific_regions, force_segment, base_state,
                                  initial_regions=regions)
@@ -829,10 +829,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
-        if int in self.project.arch.address_types:
-            l.debug("CFG recovery covers %d regions:", len(self._regions))
-            for start_addr, end_addr in self._regions.iter_items():
-                l.debug("... %#x - %#x", start_addr, end_addr)
+        l.debug("CFG recovery covers %d regions:", len(self._regions))
+        for start_addr in self._regions:
+            l.debug("... %#x - %#x", start_addr, self._regions[start_addr])
 
         # A mapping between address and the actual data in memory
         self._memory_data = { }
@@ -968,7 +967,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                             force_segment=force_segment
                                             )
         if exclude_sparse_regions:
-            new_regions = []
+            new_regions = [ ]
             for start_, end_ in regions:
                 if not self._is_region_extremely_sparse(start_, end_, base_state=base_state):
                     new_regions.append((start_, end_))
@@ -976,25 +975,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if skip_specific_regions:
             if base_state is not None:
                 l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
-            new_regions = []
+            new_regions = [ ]
             for start_, end_ in regions:
                 if not self._should_skip_region(start_):
                     new_regions.append((start_, end_))
             regions = new_regions
-
         if not regions:
-            raise AngrCFGError(
-                "Regions are empty or all regions are skipped. You may want to manually specify regions."
-            )
-
+            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
         # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
-
         self._regions_size = sum((b - a) for a, b in regions)
-        # initialize self._regions as an AVL tree
-        self._regions = AVLTree()
-        for start_, end_ in regions:
-            self._regions.insert(start_, end_)
+        # initial self._regions as a sorted dict
+        self._regions = SortedDict(regions)
 
     def _inside_regions(self, address):
         """
@@ -1226,6 +1218,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _pre_analysis_common(self):
 
+        # Call _initialize_cfg() before self.functions is used.
+        self._initialize_cfg()
+
         # Initialize variables used during analysis
         self._pending_jobs = PendingJobs(self.functions, self._deregister_analysis_job)
         self._traced_addresses = set()
@@ -1234,12 +1229,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._nodes = {}
         self._nodes_by_addr = defaultdict(list)
 
-        self._initialize_cfg()
-
         self._function_returns = defaultdict(list)
 
     def _pre_analysis(self):
-
+        
         self._pre_analysis_common()
 
         # Sadly, not all calls to functions are explicitly made by call
@@ -1500,8 +1493,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self.project.arch.name != 'Soot':
             self.make_functions()
 
-            # optional: remove functions that must be alignments
-            self.remove_function_alignments()
+        # optional: remove functions that must be alignments
+        self.remove_function_alignments()
 
         # make return edges
         self._make_return_edges()
@@ -1521,9 +1514,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if sec.vaddr not in self.memory_data:
                             self.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown', None, None, None, None)
 
-            r = True
-            while r:
-                r = self._tidy_data_references()
+        r = True
+        while r:
+            r = self._tidy_data_references()
 
         CFGBase._post_analysis(self)
 
