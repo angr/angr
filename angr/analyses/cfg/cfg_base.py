@@ -1,4 +1,5 @@
 
+import itertools
 import logging
 import struct
 from collections import defaultdict
@@ -18,6 +19,7 @@ from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
 from .cfg_node import CFGNode, CFGNodeA
+from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
@@ -60,7 +62,28 @@ class CFGBase(Analysis):
 
     tag = None
 
-    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None):
+    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None,
+                 enable_indirect_jump_resolvers=True, indirect_jump_resolvers=None, indirect_jump_target_limit=100000):
+        """
+        :param str sort:                            'fast' or 'accurate'.
+        :param int context_sensitivity_level:       The level of context-sensitivity of this CFG (see documentation for
+                                                    further details). It ranges from 0 to infinity.
+        :param bool normalize:                      Whether the CFG as well as all Function graphs should be normalized.
+        :param cle.backends.Backend binary:         The binary to recover CFG on. By default the main binary is used.
+        :param bool force_segment:                  Force CFGFast to rely on binary segments instead of sections.
+        :param int iropt_level:                     The optimization level of VEX IR (0, 1, 2). The default level will
+                                                    be used if `iropt_level` is None.
+        :param angr.SimState base_state:            A state to use as a backer for all memory loads.
+        :param bool enable_indirect_jump_resolvers: Whether to try to resolve indirect jumps. This is necessary to resolve jump
+                                                    targets from jump tables, etc.
+        :param list indirect_jump_resolvers:        A custom list of indirect jump resolvers. If this list is None or empty,
+                                                    default indirect jump resolvers specific to this architecture and binary
+                                                    types will be loaded.
+        :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
+
+        :return: None
+        """
+
         self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
 
@@ -97,6 +120,28 @@ class CFGBase(Analysis):
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps = {}
+        self._indirect_jumps_to_resolve = set()
+
+        # Indirect jump resolvers
+        self._indirect_jump_target_limit = indirect_jump_target_limit
+        self._enable_indirect_jump_resolvers = enable_indirect_jump_resolvers
+        self.timeless_indirect_jump_resolvers = [ ]
+        self.indirect_jump_resolvers = [ ]
+        if not indirect_jump_resolvers:
+            indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
+        if self._enable_indirect_jump_resolvers and indirect_jump_resolvers:
+            # split them into different groups for the sake of speed
+            for ijr in indirect_jump_resolvers:
+                if ijr.timeless:
+                    self.timeless_indirect_jump_resolvers.append(ijr)
+                else:
+                    self.indirect_jump_resolvers.append(ijr)
+
+        l.info("Loaded %d indirect jump resolvers (%d timeless, %d generic).",
+               len(self.timeless_indirect_jump_resolvers) + len(self.indirect_jump_resolvers),
+               len(self.timeless_indirect_jump_resolvers),
+               len(self.indirect_jump_resolvers)
+               )
 
         # Get all executable memory regions
         self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
@@ -1926,3 +1971,140 @@ class CFGBase(Analysis):
         if 'backup_state' not in kwargs:
             kwargs['backup_state'] = self._base_state
         return self.project.factory.block(*args, **kwargs)
+
+    #
+    # Indirect jumps processing
+    #
+    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
+        """
+        Checks if MIPS32 and calls MIPS32 check, otherwise false
+
+        :param int addr: irsb address
+        :param pyvex.IRSB block: irsb
+        :param int func_addr: Function address
+        :return: If it was resolved and targets alongside it
+        :rtype: tuple
+        """
+
+        for res in self.timeless_indirect_jump_resolvers:
+            if res.filter(self, addr, func_addr, block, jumpkind):
+                r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
+                if r:
+                    return True, resolved_targets
+        return False, [ ]
+
+    def _indirect_jump_resolved(self, jump, resolved_by, targets, job):
+        """
+        Called when an indirect jump is successfully resolved.
+
+        :param IndirectJump jump:                   The resolved indirect jump.
+        :param IndirectJumpResolver resolved_by:    The resolver used to resolve this indirect jump.
+        :param list targets:                        List of indirect jump targets.
+        :param CFGJob job:                          The job at the start of the block containing the indirect jump.
+
+        :return: None
+        """
+
+        addr = jump.addr if jump is not None else job.addr
+        l.debug('The indirect jump at %#x is successfully resolved.', addr)
+        self.kb.resolved_indirect_jumps.add(addr)
+
+    def _indirect_jump_unresolved(self, jump):
+        """
+        Called when we cannot resolve an indirect jump.
+
+        :param IndirectJump jump: The unresolved indirect jump.
+
+        :return: None
+        """
+
+        l.debug('Failed to resolve the indirect jump at %#x.', jump.addr)
+        # tell KnowledgeBase that it's not resolved
+        # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
+        self.kb.unresolved_indirect_jumps.add(jump.addr)
+
+    def _indirect_jump_encountered(self, addr, irsb, func_addr, stmt_idx='default'):
+        """
+        Called when we encounter an indirect jump.
+
+        :param int addr:                Address of the block containing the indirect jump.
+        :param pyvex.block.IRSB irsb:   IRSB of the block containing the indirect jump.
+        :param int func_addr:           Address of the current function.
+        :param int or str stmt_idx:     ID of the source statement.
+
+        :return: Whether it was resolved fast, the targets if it's the case, or an IndirectJump object.
+        :rtype: tuple
+        """
+
+        jumpkind = irsb.jumpkind
+        stmts = irsb.statements
+        l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
+
+        # try resolving it fast
+        resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
+        if resolved:
+            return True, resolved_targets
+
+        # Add it to our set. Will process it later if user allows.
+        # Create an IndirectJump instance
+        if addr not in self.indirect_jumps:
+            tmp_statements = stmts if stmt_idx == 'default' else stmts[:stmt_idx]
+            if jumpkind != "Ijk_Boring" and self.project.arch.branch_delay_slot:
+                ins_addr = next(itertools.islice(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                     if isinstance(stmt, pyvex.IRStmt.IMark)), 1, None
+                                ), None)
+            else:
+                ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                     if isinstance(stmt, pyvex.IRStmt.IMark)), None
+                                )
+            ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
+            self.indirect_jumps[addr] = ij
+        else:
+            ij = self.indirect_jumps[addr]
+
+        return False, ij
+
+    def _process_indirect_jumps(self, job=None):
+        """
+        Resolve indirect jumps found in previous scanning.
+
+        Currently we support resolving the following types of indirect jumps:
+        - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
+        - Ijk_Boring: jump tables
+        - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
+
+        :param CFGJob job: The job at the start of the block containing the indirect jump.
+
+        :return: List containing the indirect jump targets (addresses for CFGFast/successors for CFGAccurate).
+        :rtype: list
+        """
+
+        all_targets = None
+        l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
+
+        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
+            resolved = False
+            resolved_by = None
+            targets = None
+
+            for resolver in self.indirect_jump_resolvers:
+                resolver.base_state = self._base_state
+                block = self._lift(jump.addr, opt_level=1)
+
+                if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
+                    continue
+
+                resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
+                if resolved:
+                    resolved_by = resolver
+                    break
+
+            if resolved:
+                all_targets = self._indirect_jump_resolved(jump, resolved_by, targets, job)
+            else:
+                all_targets = self._indirect_jump_unresolved(jump)
+
+        self._indirect_jumps_to_resolve.clear()
+
+        return all_targets
+

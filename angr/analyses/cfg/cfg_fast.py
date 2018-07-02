@@ -16,7 +16,6 @@ from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase, IndirectJump
 from .cfg_node import CFGNode
-from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
@@ -768,6 +767,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             base_state=base_state,
             iropt_level=1,  # right now this is a must, since we rely on the VEX optimization to tell us
                             # the concrete jump targets of each block.
+            enable_indirect_jump_resolvers=resolve_indirect_jumps,
+            indirect_jump_resolvers=indirect_jump_resolvers,
+            indirect_jump_target_limit=indirect_jump_target_limit,
         )
 
         # necessary warnings
@@ -813,12 +815,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._regions = SortedDict(regions)
 
         self._pickle_intermediate_results = pickle_intermediate_results
-        self._indirect_jump_target_limit = indirect_jump_target_limit
         self._collect_data_ref = collect_data_references
 
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
-        self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_complete_scan = force_complete_scan
 
         if heuristic_plt_resolving is None:
@@ -862,38 +862,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        self._indirect_jumps_to_resolve = set()
-
         self.jump_tables = { }
 
         self._function_addresses_from_symbols = self._func_addrs_from_symbols()
 
         self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
-
-        #
-        # Indirect jump resolvers
-        #
-        # TODO: make it compatible with CFGAccurate
-
-        self.timeless_indirect_jump_resolvers = [ ]
-        self.indirect_jump_resolvers = [ ]
-        if not indirect_jump_resolvers:
-            indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
-        if indirect_jump_resolvers:
-            # split them into different groups for the sake of speed
-            for ijr in indirect_jump_resolvers:
-                if ijr.timeless:
-                    self.timeless_indirect_jump_resolvers.append(ijr)
-                else:
-                    if self._resolve_indirect_jumps:
-                        self.indirect_jump_resolvers.append(ijr)
-
-        l.info("Loaded %d indirect jump resolvers (%d timeless, %d generic).",
-               len(self.timeless_indirect_jump_resolvers) + len(self.indirect_jump_resolvers),
-               len(self.timeless_indirect_jump_resolvers),
-               len(self.indirect_jump_resolvers)
-               )
 
         #
         # Variables used during analysis
@@ -1381,25 +1355,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return
 
         # Try to see if there is any indirect jump left to be resolved
-        if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
-            jump_targets = list(set(self._process_indirect_jumps()))
-
-            for addr, func_addr, source_addr, jumpkind in jump_targets:
-                to_outside = addr in self.functions
-
-                if not to_outside:
-                    to_outside = not self._addrs_belong_to_same_section(source_addr, addr)
-
-                r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr, to_outside=to_outside)
-                if r:
-                    # TODO: get a better estimate of the function address
-                    target_func_addr = func_addr if not to_outside else addr
-                    job = CFGJob(addr, target_func_addr, jumpkind, last_addr=source_addr,
-                                 src_node=self._nodes[source_addr],
-                                 src_stmt_idx=None,
-                                 )
-                    self._insert_job(job)
-                    self._register_analysis_job(target_func_addr, job)
+        if self._enable_indirect_jump_resolvers and self._indirect_jumps_to_resolve:
+            self._process_indirect_jumps()
 
             if self._job_info_queue:
                 return
@@ -1750,8 +1707,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
-                     fast_indirect_jump_resolution=True):
+    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -1778,20 +1734,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             target_addr = None
 
         jobs = [ ]
-
-        if target_addr is None and (
-                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys'))\
-                and fast_indirect_jump_resolution:
-            # try resolving it fast
-            resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr,
-                                                                                jumpkind
-                                                                                )
-            if resolved:
-                for t in resolved_targets:
-                    ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
-                                            stmt_idx, fast_indirect_jump_resolution=False)
-                    jobs.extend(ent)
-                return jobs
+        is_syscall = jumpkind.startswith("Ijk_Sys")
 
         # Special handling:
         # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring jump
@@ -1802,10 +1745,81 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 target_addr == irsb.addr + irsb.size:
             jumpkind = "Ijk_Boring"
 
-        # pylint: disable=too-many-nested-blocks
-        if jumpkind == 'Ijk_Boring':
-            if target_addr is not None:
+        if target_addr is None and (
+                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')) and \
+                        self._enable_indirect_jump_resolvers:
 
+            resolved, result = self._indirect_jump_encountered(addr, irsb, current_function_addr, stmt_idx)
+            if resolved:
+                for t in result:
+                    ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
+                                            stmt_idx)
+                    jobs.extend(ent)
+                return jobs
+
+            if jumpkind == "Ijk_Boring":
+                # TODO: revisit the logic here
+                # TODO: - put the indirect jump reusing logic into a separate method
+                if result.resolved_targets:
+                    # has been resolved before
+                    # directly create CFGJobs
+                    for resolved_target in result.resolved_targets:
+                        ce = CFGJob(resolved_target, resolved_target, jumpkind, last_addr=resolved_target,
+                                    src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
+                        jobs.append(ce)
+
+                        self._function_add_call_edge(resolved_target, None, None, resolved_target,
+                                                     stmt_idx=stmt_idx, ins_addr=ins_addr
+                                                     )
+                else:
+                    resolved_as_plt = False
+
+                    if irsb and self._heuristic_plt_resolving:
+                        # Test it on the initial state. Does it jump to a valid location?
+                        # It will be resolved only if this is a .plt entry
+                        resolved_as_plt = self._resolve_plt(addr, irsb, result)
+
+                        if resolved_as_plt:
+                            jump_target = next(iter(result.resolved_targets))
+                            target_func_addr = jump_target  # TODO: FIX THIS
+
+                            r = self._function_add_transition_edge(jump_target, cfg_node, current_function_addr,
+                                                                   ins_addr=ins_addr, stmt_idx=stmt_idx,
+                                                                   to_outside=True
+                                                                   )
+                            if r:
+                                ce = CFGJob(jump_target, target_func_addr, jumpkind, last_addr=jump_target,
+                                            src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
+                                jobs.append(ce)
+
+                                self._function_add_call_edge(jump_target, None, None, target_func_addr,
+                                                             stmt_idx=stmt_idx, ins_addr=ins_addr
+                                                             )
+                                resolved_as_plt = True
+
+                    if resolved_as_plt:
+                        # has been resolved as a PLT entry. Remove it from indirect_jumps_to_resolve
+                        if result.addr in self._indirect_jumps_to_resolve:
+                            self._indirect_jumps_to_resolve.remove(result.addr)
+                            self._deregister_analysis_job(current_function_addr, result)
+                    else:
+                        # add it to indirect_jumps_to_resolve
+                        self._indirect_jumps_to_resolve.add(result)
+
+                        # register it as a job for the current function
+                        self._register_analysis_job(current_function_addr, result)
+
+            else:
+                self._indirect_jumps_to_resolve.add(result)
+                self._register_analysis_job(current_function_addr, result)
+
+                self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
+                                      jumpkind, is_syscall=is_syscall
+                                      )
+
+        else:
+            # pylint: disable=too-many-nested-blocks
+            if jumpkind == 'Ijk_Boring':
                 # if the target address is at another section, it has to be jumping to a new function
                 if not self._addrs_belong_to_same_section(addr, target_addr):
                     target_func_addr = target_addr
@@ -1845,120 +1859,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
                 jobs.append(ce)
 
-            else:
-                l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
-                # Add it to our set. Will process it later if user allows.
-                # Create an IndirectJump instance
-                if addr not in self.indirect_jumps:
-                    tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[ : stmt_idx]
-                    ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                         if isinstance(stmt, pyvex.IRStmt.IMark)), None
-                                    )
-                    ij = IndirectJump(addr, ins_addr, current_function_addr, jumpkind, stmt_idx, resolved_targets=[ ])
-                    self.indirect_jumps[addr] = ij
-                else:
-                    ij = self.indirect_jumps[addr]
-
-                # TODO: revisit the logic here
-                # TODO: - put the indirect jump reusing logic into a separate method
-
-                if ij.resolved_targets:
-                    # has been resolved before
-                    # directly create CFGJobs
-                    for resolved_target in ij.resolved_targets:
-                        ce = CFGJob(resolved_target, resolved_target, jumpkind, last_addr=resolved_target,
-                                    src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
-                        jobs.append(ce)
-
-                        self._function_add_call_edge(resolved_target, None, None, resolved_target,
-                                                     stmt_idx=stmt_idx, ins_addr=ins_addr
-                                                     )
-                else:
-                    resolved_as_plt = False
-
-                    if irsb and self._heuristic_plt_resolving:
-                        # Test it on the initial state. Does it jump to a valid location?
-                        # It will be resolved only if this is a .plt entry
-                        resolved_as_plt = self._resolve_plt(addr, irsb, ij)
-
-                        if resolved_as_plt:
-
-                            jump_target = next(iter(ij.resolved_targets))
-                            target_func_addr = jump_target  # TODO: FIX THIS
-
-                            r = self._function_add_transition_edge(jump_target, cfg_node, current_function_addr,
-                                                                   ins_addr=ins_addr, stmt_idx=stmt_idx,
-                                                                   to_outside=True
-                                                                   )
-                            if r:
-                                ce = CFGJob(jump_target, target_func_addr, jumpkind, last_addr=jump_target,
-                                            src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
-                                jobs.append(ce)
-
-                                self._function_add_call_edge(jump_target, None, None, target_func_addr,
-                                                             stmt_idx=stmt_idx, ins_addr=ins_addr
-                                                             )
-                                resolved_as_plt = True
-
-                    if resolved_as_plt:
-                        # has been resolved as a PLT entry. Remove it from indirect_jumps_to_resolve
-                        if ij.addr in self._indirect_jumps_to_resolve:
-                            self._indirect_jumps_to_resolve.remove(ij.addr)
-                            self._deregister_analysis_job(current_function_addr, ij)
-                    else:
-                        # add it to indirect_jumps_to_resolve
-                        self._indirect_jumps_to_resolve.add(ij)
-
-                        # register it as a job for the current function
-                        self._register_analysis_job(current_function_addr, ij)
-
-        elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
-            is_syscall = jumpkind.startswith("Ijk_Sys")
-
-            if target_addr is not None:
+            elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
                 jobs += self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr,
                                               target_addr, jumpkind, is_syscall=is_syscall
                                               )
 
+            elif jumpkind == "Ijk_Ret":
+                if current_function_addr != -1:
+                    self._function_exits[current_function_addr].add(addr)
+                    self._function_add_return_site(addr, current_function_addr)
+                    self.functions[current_function_addr].returning = True
+                    self._add_returning_function(current_function_addr)
+
+                cfg_node.has_return = True
+
             else:
-                l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
-                # Add it to our set. Will process it later if user allows.
-
-                if addr not in self.indirect_jumps:
-                    tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[: stmt_idx]
-                    if self.project.arch.branch_delay_slot:
-                        ins_addr = next(itertools.islice(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                             if isinstance(stmt, pyvex.IRStmt.IMark)), 1, None
-                                        ), None)
-                    else:
-                        ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                          if isinstance(stmt, pyvex.IRStmt.IMark)), None
-                                        )
-                    ij = IndirectJump(addr, ins_addr, current_function_addr, jumpkind, stmt_idx,
-                                      resolved_targets=[])
-                    self.indirect_jumps[addr] = ij
-                else:
-                    ij = self.indirect_jumps[addr]
-
-                self._indirect_jumps_to_resolve.add(ij)
-                self._register_analysis_job(current_function_addr, ij)
-
-                self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
-                                      jumpkind, is_syscall=is_syscall
-                                      )
-
-        elif jumpkind == "Ijk_Ret":
-            if current_function_addr != -1:
-                self._function_exits[current_function_addr].add(addr)
-                self._function_add_return_site(addr, current_function_addr)
-                self.functions[current_function_addr].returning = True
-                self._add_returning_function(current_function_addr)
-
-            cfg_node.has_return = True
-
-        else:
-            # TODO: Support more jumpkinds
-            l.debug("Unsupported jumpkind %s", jumpkind)
+                # TODO: Support more jumpkinds
+                l.debug("Unsupported jumpkind %s", jumpkind)
 
         return jobs
 
@@ -2461,24 +2378,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Indirect jumps processing
 
-    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
-        """
-        Checks if MIPS32 and calls MIPS32 check, otherwise false
-
-        :param int addr: irsb address
-        :param pyvex.IRSB block: irsb
-        :param int func_addr: Function address
-        :return: If it was resolved and targets alongside it
-        :rtype: tuple
-        """
-
-        for res in self.timeless_indirect_jump_resolvers:
-            if res.filter(self, addr, func_addr, block, jumpkind):
-                r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
-                if r:
-                    return True, resolved_targets
-        return False, [ ]
-
     def _resolve_plt(self, addr, irsb, indir_jump):
         """
         Determine if the IRSB at the given address is a PLT stub. If it is, concretely execute the basic block to
@@ -2515,82 +2414,78 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return False
 
-    def _process_indirect_jumps(self):
+    def _indirect_jump_resolved(self, jump, resolved_by, targets, job):
         """
-        Resolve indirect jumps found in previous scanning.
+        Called when an indirect jump is successfully resolved.
 
-        Currently we support resolving the following types of indirect jumps:
-        - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
-        - Ijk_Boring: jump tables
-        - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
+        :param IndirectJump jump:                   The resolved indirect jump.
+        :param IndirectJumpResolver resolved_by:    The resolver used to resolve this indirect jump.
+        :param list targets:                        List of indirect jump targets.
 
-        :return: a set of 4-tuples: (resolved indirect jump target, caller's func addr, caller's basic block addr, jumpkind)
-        :rtype: set
+        :return: List containing the indirect jump target addresses.
+        :rtype: list
         """
 
-        all_targets = set()
-        jumps_resolved = { }
-        l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
+        from .indirect_jump_resolvers.jumptable import JumpTableResolver
+        if isinstance(resolved_by, JumpTableResolver):
+            # Fill in the jump_tables dict
+            self.jump_tables[jump.addr] = jump
 
-        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
-            jumps_resolved[jump] = False
+        jump.resolved_targets = targets
+        all_targets = set([t for t in targets])
+        for addr in all_targets:
+            to_outside = addr in self.functions or not self._addrs_belong_to_same_section(jump.addr, addr)
 
-            resolved = False
-            resolved_by = None
-            targets = None
+            r = self._function_add_transition_edge(addr, self._nodes[jump.addr], jump.func_addr, to_outside=to_outside)
+            if r:
+                # TODO: get a better estimate of the function address
+                target_func_addr = jump.func_addr if not to_outside else addr
+                job = CFGJob(addr, target_func_addr, jump.jumpkind, last_addr=jump.addr,
+                             src_node=self._nodes[jump.addr], src_stmt_idx=None,
+                             )
+                self._insert_job(job)
+                self._register_analysis_job(target_func_addr, job)
 
-            for resolver in self.indirect_jump_resolvers:
-                resolver.base_state = self._base_state
-                block = self._lift(jump.addr, opt_level=1)
+        self._deregister_analysis_job(jump.func_addr, jump)
+        CFGBase._indirect_jump_resolved(self, jump, resolved_by, targets, job)
 
-                if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
-                    continue
+        return list(all_targets)
 
-                resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
-                if resolved:
-                    resolved_by = resolver
-                    break
+    def _indirect_jump_unresolved(self, jump):
+        """
+        Called when we cannot resolve an indirect jump.
 
-            if resolved:
-                from .indirect_jump_resolvers.jumptable import JumpTableResolver
-                if isinstance(resolved_by, JumpTableResolver):
-                    # Fill in the jump_tables dict
-                    self.jump_tables[jump.addr] = jump
+        :param IndirectJump jump: The unresolved indirect jump.
 
-                jumps_resolved[jump] = True
-                jump.resolved_targets = targets
-                all_targets |= set([ (t, jump.func_addr, jump.addr, jump.jumpkind) for t in targets ])
+        :return: An empty list
+        :rtype: list
+        """
 
-        for jump, resolved in jumps_resolved.iteritems():
-            self._indirect_jumps_to_resolve.remove(jump)
-            self._deregister_analysis_job(jump.func_addr, jump)
+        # add a node from this node to the UnresolvableTarget node
+        src_node = self._nodes[jump.addr]
+        dst_node = CFGNode(self._unresolvable_target_addr, 0, self,
+                           function_address=self._unresolvable_target_addr,
+                           simprocedure_name='UnresolvableTarget',
+                           )
 
-            if not resolved:
-                # add a node from this node to the UnresolvableTarget node
-                src_node = self._nodes[jump.addr]
-                dst_node = CFGNode(self._unresolvable_target_addr, 0, self,
-                                   function_address=self._unresolvable_target_addr,
-                                   simprocedure_name='UnresolvableTarget',
-                                   )
+        # add the dst_node to self._nodes
+        if self._unresolvable_target_addr not in self._nodes:
+            self._nodes[self._unresolvable_target_addr] = dst_node
+            self._nodes_by_addr[self._unresolvable_target_addr].append(dst_node)
 
-                # add the dst_node to self._nodes
-                if self._unresolvable_target_addr not in self._nodes:
-                    self._nodes[self._unresolvable_target_addr] = dst_node
-                    self._nodes_by_addr[self._unresolvable_target_addr].append(dst_node)
+        self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.ins_addr, jump.stmt_idx)
+        # mark it as a jumpout site for that function
+        self._function_add_transition_edge(self._unresolvable_target_addr, src_node, jump.func_addr,
+                                           to_outside=True,
+                                           to_function_addr=self._unresolvable_target_addr,
+                                           ins_addr=jump.ins_addr,
+                                           stmt_idx=jump.stmt_idx,
+                                           )
 
-                self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.ins_addr, jump.stmt_idx)
-                # mark it as a jumpout site for that function
-                self._function_add_transition_edge(self._unresolvable_target_addr, src_node, jump.func_addr,
-                                                   to_outside=True,
-                                                   to_function_addr=self._unresolvable_target_addr,
-                                                   ins_addr=jump.ins_addr,
-                                                   stmt_idx=jump.stmt_idx,
-                                                   )
-                # tell KnowledgeBase that it's not resolved
-                # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
-                self.kb.unresolved_indirect_jumps.add(jump.addr)
+        self._deregister_analysis_job(jump.func_addr, jump)
+        CFGBase._indirect_jump_unresolved(self, jump)
 
-        return all_targets
+        return []
 
     # Removers
 
@@ -3602,7 +3497,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         n._collect_data_ref = self._collect_data_ref
         n._use_symbols = self._use_symbols
         n._use_function_prologues = self._use_function_prologues
-        n._resolve_indirect_jumps = self._resolve_indirect_jumps
+        n._enable_indirect_jump_resolvers = self._enable_indirect_jump_resolvers
         n._force_segment = self._force_segment
         n._force_complete_scan = self._force_complete_scan
 

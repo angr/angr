@@ -195,7 +195,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param state_remove_options:                State options that will be removed from the initial state.
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
-        CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
+        CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
+                         enable_indirect_jump_resolvers=enable_indirect_jump_resolvers,
+                         indirect_jump_resolvers=indirect_jump_resolvers,
+                         indirect_jump_target_limit=indirect_jump_target_limit,
+        )
 
         if start is not None:
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
@@ -283,31 +287,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         self._pending_edges = defaultdict(list)
 
-        #
-        # Indirect jump resolvers
-        #
-        # TODO : refactor to CFGBase
-
-        self._indirect_jump_target_limit = indirect_jump_target_limit
-        self._enable_indirect_jump_resolvers = enable_indirect_jump_resolvers
-        self.timeless_indirect_jump_resolvers = [ ]
-        self.indirect_jump_resolvers = [ ]
-        if not indirect_jump_resolvers:
-            indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
-        if self._enable_indirect_jump_resolvers and indirect_jump_resolvers:
-            # split them into different groups for the sake of speed
-            for ijr in indirect_jump_resolvers:
-                if ijr.timeless:
-                    self.timeless_indirect_jump_resolvers.append(ijr)
-                else:
-                    self.indirect_jump_resolvers.append(ijr)
-
-        l.info("Loaded %d indirect jump resolvers (%d timeless, %d generic).",
-               len(self.timeless_indirect_jump_resolvers) + len(self.indirect_jump_resolvers),
-               len(self.timeless_indirect_jump_resolvers),
-               len(self.indirect_jump_resolvers)
-               )
-
         if not no_construct:
             self._initialize_cfg()
             self._analyze()
@@ -326,6 +305,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg = CFGAccurate.__new__(CFGAccurate)
         super(CFGAccurate, self).make_copy(new_cfg)
 
+        new_cfg._indirect_jump_target_limit = self._indirect_jump_target_limit
         new_cfg.named_errors = dict(self.named_errors)
         new_cfg.errors = list(self.errors)
         new_cfg._fail_fast = self._fail_fast
@@ -1274,6 +1254,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         addr = job.addr
         sim_successors = job.sim_successors
+        cfg_node = job.cfg_node
         input_state = job.state
 
         # check step limit
@@ -1288,8 +1269,19 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if is_indirect_jump:
             # Try to resolve indirect jumps
-            l.debug('IRSB %#x has an indirect jump as its default exit.', job.addr)
-            successors = self._apply_indirect_jump_resolvers(job)
+            func_addr = job.func_addr
+            irsb = input_state.block().vex
+
+            resolved, result = self._indirect_jump_encountered(addr, irsb, func_addr, stmt_idx='default')
+            if resolved:
+                successors = self._indirect_jump_resolved(None, None, result, job)
+            else:
+                if result.resolved_targets:
+                    successors = self._indirect_jump_resolved(None, None, result.resolved_targets, job)
+                else:
+                    self._indirect_jumps_to_resolve.add(result)
+                    successors = self._process_indirect_jumps(job)
+
             if successors:
                 indirect_jump_resolved_by_resolvers = True
 
@@ -2203,6 +2195,43 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - resolving indirect jumps
 
+    def _indirect_jump_resolved(self, jump, resolved_by, targets, job):
+        """
+        Called when an indirect jump is successfully resolved.
+
+        :param IndirectJump jump:                   The resolved indirect jump.
+        :param IndirectJumpResolver resolved_by:    The resolver used to resolve this indirect jump.
+        :param list targets:                        List of indirect jump targets.
+        :param CFGJob job:                          The job at the start of the block containing the indirect jump.
+
+        :return: List containing the indirect jump successors.
+        :rtype: list
+        """
+
+        successors = []
+        for t in targets:
+            # Insert new successors
+            a = job.sim_successors.all_successors[0].copy()
+            a.ip = t
+            successors.append(a)
+
+        CFGBase._indirect_jump_resolved(self, jump, resolved_by, targets, job)
+
+        return successors
+
+    def _indirect_jump_unresolved(self, jump):
+        """
+        Called when we cannot resolve an indirect jump.
+
+        :param IndirectJump jump: The unresolved indirect jump.
+
+        :return: None
+        """
+
+        CFGBase._indirect_jump_unresolved(self, jump)
+
+        return []
+
     def _apply_indirect_jump_resolvers(self, job):
         """
         Resolve indirect jumps specified by sim_successors.addr using the indirect jump resolvers.
@@ -2224,14 +2253,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # try resolving it fast
         resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
         if resolved:
-            for t in resolved_targets:
-                # Insert new successors
-                # We insert new successors in the beginning of all_successors list so that we don't break the
-                # assumption that Ijk_FakeRet is always the last element in the list
-                a = sim_successors.all_successors[0].copy()
-                a.ip = t
-                successors.insert(0, a)
-
                 l.debug('The indirect jump is successfully resolved.')
                 self.kb.resolved_indirect_jumps.add(cfg_node.addr)
         else:
@@ -2277,14 +2298,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
 
         return successors
-
-    def _resolve_indirect_jump_timelessly(self, addr, irsb, func_addr, jumpkind):
-        for res in self.timeless_indirect_jump_resolvers:
-            if res.filter(self, addr, func_addr, irsb, jumpkind):
-                r, resolved_targets = res.resolve(self, addr, func_addr, irsb, jumpkind)
-                if r:
-                    return True, resolved_targets
-        return False, []
 
     def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
         """
