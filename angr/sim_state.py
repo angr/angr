@@ -308,6 +308,7 @@ class SimState(PluginHub):
         else:
             raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
 
+    @property
     def arch(self):
         if self._is_java_jni_project:
             return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
