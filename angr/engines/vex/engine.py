@@ -477,8 +477,9 @@ class SimEngineVEX(SimEngine):
             thumb = 0
 
         # phase 3: check cache
-        cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
+        cache_key = None
         if use_cache:
+            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
             if cache_key in self._block_cache:
                 self._block_cache_hits += 1
                 irsb = self._block_cache[cache_key]
