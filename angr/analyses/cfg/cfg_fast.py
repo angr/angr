@@ -14,7 +14,7 @@ from cle.address_translator import AT
 
 from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
-from .cfg_base import CFGBase, IndirectJump
+from .cfg_base import CFGBase
 from .cfg_node import CFGNode
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
@@ -691,7 +691,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  pickle_intermediate_results=False,
                  symbols=True,
                  function_prologues=True,
-                 resolve_indirect_jumps=True,
+                 enable_indirect_jump_resolvers=True,
                  force_segment=False,
                  force_complete_scan=True,
                  indirect_jump_target_limit=100000,
@@ -767,7 +767,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             base_state=base_state,
             iropt_level=1,  # right now this is a must, since we rely on the VEX optimization to tell us
                             # the concrete jump targets of each block.
-            enable_indirect_jump_resolvers=resolve_indirect_jumps,
+            enable_indirect_jump_resolvers=enable_indirect_jump_resolvers,
             indirect_jump_resolvers=indirect_jump_resolvers,
             indirect_jump_target_limit=indirect_jump_target_limit,
         )
