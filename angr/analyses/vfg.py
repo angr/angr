@@ -417,19 +417,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 return n
 
     def irsb_from_node(self, node):
-        return self.project.factory.successors(node.state, addr=node.addr, num_inst=len(node.instruction_addrs))
-
-    def get_paths(self, begin, end):
-        """
-        Get all the simple paths between @begin and @end.
-        Returns: a list of angr.Path instances.
-        """
-        paths = self._get_nx_paths(begin, end)
-        a_paths = []
-        for p in paths:
-            runs = map(self.irsb_from_node, p)
-            a_paths.append(angr.path.make_path(self.project, runs))
-        return a_paths
+        return self.project.factory.successors(node.state, addr=node.addr)
 
     #
     # Operations
