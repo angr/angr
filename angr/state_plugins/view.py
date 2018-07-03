@@ -54,10 +54,11 @@ class SimRegNameView(SimStatePlugin):
             inspect = True
             disable_actions = False
 
-        # When simulating a Java Archive, which interacts with native libraries,
-        # we need to update the instruction pointer flag, which toggles between
-        # the native and the Java view on the state.
-        if isinstance(self.state.project.arch, ArchSoot) and \
+        # When we execute a Java Archive that interacts with native libraries,
+        # we need to update the instruction pointer flag (which toggles between
+        # the native and the Java view on the state).
+        if self.state.project is not None and \
+           isinstance(self.state.project.arch, ArchSoot) and \
            k == 'ip' and \
            self.state.project.simos.is_javavm_with_jni_support:
             self.state.ip_is_soot_addr = True if isinstance(v, SootAddressDescriptor) else False
