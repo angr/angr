@@ -2100,6 +2100,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
+        # FIXME: Move the data-reference-collection logic to PyVEX_C
+        if irsb.statements is None:
+            return
+
         if self.project.arch.name in ('X86', 'AMD64'):
             # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
             # optimization level 0 to preserve as much constant references as possible
@@ -2155,9 +2159,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val,
                                          data_size=data_size, data_type=data_type
                                          )
-
-        if irsb.statements is None:
-            return
 
         # get all instruction addresses
         instr_addrs = irsb.instruction_addresses
