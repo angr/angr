@@ -63,7 +63,7 @@ class CFGBase(Analysis):
     tag = None
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None,
-                 enable_indirect_jump_resolvers=True, indirect_jump_resolvers=None, indirect_jump_target_limit=100000):
+                 resolve_indirect_jumps=True, indirect_jump_resolvers=None, indirect_jump_target_limit=100000):
         """
         :param str sort:                            'fast' or 'accurate'.
         :param int context_sensitivity_level:       The level of context-sensitivity of this CFG (see documentation for
@@ -74,7 +74,7 @@ class CFGBase(Analysis):
         :param int iropt_level:                     The optimization level of VEX IR (0, 1, 2). The default level will
                                                     be used if `iropt_level` is None.
         :param angr.SimState base_state:            A state to use as a backer for all memory loads.
-        :param bool enable_indirect_jump_resolvers: Whether to try to resolve indirect jumps. This is necessary to resolve jump
+        :param bool resolve_indirect_jumps:         Whether to try to resolve indirect jumps. This is necessary to resolve jump
                                                     targets from jump tables, etc.
         :param list indirect_jump_resolvers:        A custom list of indirect jump resolvers. If this list is None or empty,
                                                     default indirect jump resolvers specific to this architecture and binary
@@ -124,12 +124,12 @@ class CFGBase(Analysis):
 
         # Indirect jump resolvers
         self._indirect_jump_target_limit = indirect_jump_target_limit
-        self._enable_indirect_jump_resolvers = enable_indirect_jump_resolvers
+        self._resolve_indirect_jumps = resolve_indirect_jumps
         self.timeless_indirect_jump_resolvers = [ ]
         self.indirect_jump_resolvers = [ ]
         if not indirect_jump_resolvers:
             indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
-        if self._enable_indirect_jump_resolvers and indirect_jump_resolvers:
+        if self._resolve_indirect_jumps and indirect_jump_resolvers:
             # split them into different groups for the sake of speed
             for ijr in indirect_jump_resolvers:
                 if ijr.timeless:

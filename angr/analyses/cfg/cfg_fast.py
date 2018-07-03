@@ -691,7 +691,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  pickle_intermediate_results=False,
                  symbols=True,
                  function_prologues=True,
-                 enable_indirect_jump_resolvers=True,
+                 resolve_indirect_jumps=True,
                  force_segment=False,
                  force_complete_scan=True,
                  indirect_jump_target_limit=100000,
@@ -767,7 +767,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             base_state=base_state,
             iropt_level=1,  # right now this is a must, since we rely on the VEX optimization to tell us
                             # the concrete jump targets of each block.
-            enable_indirect_jump_resolvers=enable_indirect_jump_resolvers,
+            resolve_indirect_jumps=resolve_indirect_jumps,
             indirect_jump_resolvers=indirect_jump_resolvers,
             indirect_jump_target_limit=indirect_jump_target_limit,
         )
@@ -1355,7 +1355,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return
 
         # Try to see if there is any indirect jump left to be resolved
-        if self._enable_indirect_jump_resolvers and self._indirect_jumps_to_resolve:
+        if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
             self._process_indirect_jumps()
 
             if self._job_info_queue:
@@ -1747,7 +1747,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if target_addr is None and (
                         jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')) and \
-                        self._enable_indirect_jump_resolvers:
+                        self._resolve_indirect_jumps:
 
             resolved, result = self._indirect_jump_encountered(addr, irsb, current_function_addr, stmt_idx)
             if resolved:
@@ -3497,7 +3497,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         n._collect_data_ref = self._collect_data_ref
         n._use_symbols = self._use_symbols
         n._use_function_prologues = self._use_function_prologues
-        n._enable_indirect_jump_resolvers = self._enable_indirect_jump_resolvers
+        n._resolve_indirect_jumps = self._resolve_indirect_jumps
         n._force_segment = self._force_segment
         n._force_complete_scan = self._force_complete_scan
 

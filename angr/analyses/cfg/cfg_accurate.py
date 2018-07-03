@@ -130,7 +130,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  starts=None,
                  keep_state=False,
                  indirect_jump_target_limit=100000,
-                 enable_indirect_jump_resolvers=True,
+                 resolve_indirect_jumps=True,
                  enable_advanced_backward_slicing=False,
                  enable_symbolic_back_traversal=False,
                  indirect_jump_resolvers=None,
@@ -163,7 +163,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     jumpkind, or a SimState instance. Unsupported entries in starts will
                                                     lead to an AngrCFGError being raised.
         :param keep_state:                          Whether to keep the SimStates for each CFGNode.
-        :param enable_indirect_jump_resolvers:      Whether to enable the indirect jump resolvers for resolving indirect jumps
+        :param resolve_indirect_jumps:              Whether to enable the indirect jump resolvers for resolving indirect jumps
         :param enable_advanced_backward_slicing:    Whether to enable an intensive technique for resolving indirect jumps
         :param enable_symbolic_back_traversal:      Whether to enable an intensive technique for resolving indirect jumps
         :param list indirect_jump_resolvers:        A custom list of indirect jump resolvers. If this list is None or empty,
@@ -195,7 +195,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
         CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
-                         enable_indirect_jump_resolvers=enable_indirect_jump_resolvers,
+                         resolve_indirect_jumps=resolve_indirect_jumps,
                          indirect_jump_resolvers=indirect_jump_resolvers,
                          indirect_jump_target_limit=indirect_jump_target_limit,
         )
@@ -1265,7 +1265,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         is_indirect_jump = sim_successors.sort == 'IRSB' and self._is_indirect_jump(cfg_node, sim_successors)
         indirect_jump_resolved_by_resolvers = False
 
-        if is_indirect_jump and self._enable_indirect_jump_resolvers:
+        if is_indirect_jump and self._resolve_indirect_jumps:
             # Try to resolve indirect jumps
             func_addr = job.func_addr
             irsb = input_state.block().vex
@@ -2227,7 +2227,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return []
 
-    def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
+    def _try_resolving_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
         """
         Resolve indirect jumps specified by sim_successors.addr.
 
