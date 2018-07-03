@@ -315,6 +315,10 @@ class SimState(PluginHub):
         else:
             return self._arch
 
+    @arch.setter
+    def arch(self, v):
+        self._arch = v
+
     #
     # Plugin accessors
     #
