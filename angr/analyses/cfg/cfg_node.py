@@ -1,6 +1,5 @@
 import traceback
 
-import pyvex
 import archinfo
 
 from ...codenode import BlockNode, HookNode
