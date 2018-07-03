@@ -3594,6 +3594,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # check if gp is being written to
                 last_gp_setting_insn_id = None
                 insn_ctr = 0
+
+                if not irsb.statements:
+                    # Get an IRSB with statements
+                    irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
+
                 for stmt in irsb.statements:
                     if isinstance(stmt, pyvex.IRStmt.IMark):
                         insn_ctr += 1

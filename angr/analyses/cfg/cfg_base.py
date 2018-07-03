@@ -1986,6 +1986,9 @@ class CFGBase(Analysis):
         :rtype: tuple
         """
 
+        if block.statements is None:
+            block = self.project.factory.block(block.addr, size=block.size).vex
+
         for res in self.timeless_indirect_jump_resolvers:
             if res.filter(self, addr, func_addr, block, jumpkind):
                 r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
