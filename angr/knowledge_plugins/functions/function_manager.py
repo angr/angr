@@ -32,9 +32,6 @@ class FunctionDict(SortedDict):
             self._backref._function_added(t)
             return t
 
-    def __contains__(self, addr):
-        return super(FunctionDict, self).__contains__(addr)
-
     def get(self, addr):
         return super(FunctionDict, self).__getitem__(addr)
 

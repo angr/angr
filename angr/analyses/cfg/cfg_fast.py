@@ -667,7 +667,6 @@ class FunctionCallEdge(FunctionEdge):
         return cfg._function_add_call_edge(
             self.dst_addr,
             self.src_node,
-            self.ret_addr,
             self.src_func_addr,
             syscall=self.syscall,
             stmt_idx=self.stmt_idx,
@@ -2949,28 +2948,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if not_returning_function.addr in self._function_returns:
                     for fr in self._function_returns[not_returning_function.addr]:
                         # Remove all those FakeRet edges
-
                         if self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
-
-                        continue
-
-                        # FIXME: Remove the following code
-
-                        # convert them to codenodes
-                        try:
-                            call_site_node = self._to_snippet(self._nodes[fr.call_site_addr])
-                        except KeyError:
-                            call_site_node = fr.call_site_addr
-
-                        # We always use the address instead of the block here, because the first time this fake ret is
-                        # added into the function, we might be using the address, and in that case, the size of the
-                        # block in function.blocks is unknown to us.
-                        return_to = fr.return_to
-                        if type(return_to) in (int, long):
-                            return_to = self._to_snippet(addr=return_to, base_state=self._base_state)
-
-                        # self.kb.functions._remove_fakeret(fr.caller_func_addr, call_site_node, return_to)
 
                     del self._function_returns[not_returning_function.addr]
 
@@ -3152,9 +3131,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except (SimMemoryError, SimEngineError):
             return False
 
-    def _function_add_call_edge(self, addr, src_node, ret_addr, function_addr, syscall=False, stmt_idx=None,
-                                ins_addr=None
-                                ):
+    def _function_add_call_edge(self, addr, src_node, function_addr, syscall=False, stmt_idx=None, ins_addr=None):
         """
         Add a call edge to the function transition map.
 
@@ -3176,15 +3153,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 return_to_outside = False
 
-                # if ret_addr is None:
-                #     ret_snippet = None
-                # else:
-                #     dst_node = self._nodes.get(ret_addr, None)
-                #     if dst_node is None:
-                #         ret_snippet = self._to_snippet(addr=ret_addr, base_state=self._base_state)
-                #     else:
-                #         ret_snippet = self._to_snippet(cfg_node=dst_node)
-                #         return_to_outside = dst_node.function_address != function_addr
                 ret_snippet = None
 
                 self.kb.functions._add_call_to(function_addr, src_snippet, addr, ret_snippet, syscall=syscall,
