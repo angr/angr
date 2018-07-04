@@ -203,12 +203,6 @@ class Concrete(SimStatePlugin):
             if binary_name in self.already_sync_objects_addresses:
                 continue
 
-            if vmmap is None:
-                l.critical("Can't synchronize CLE backend using the ConcreteTarget provided.")
-                self.synchronize_cle = False  # so, deactivate this feature
-                l.debug("CLE synchronization has been deactivated")
-                return
-
             for mmap in vmmap:
                 if self._check_mapping_name(binary_name, mmap.name):
                     l.debug("Match! %s -> %s" % (mmap.name, binary_name))
@@ -230,7 +224,11 @@ class Concrete(SimStatePlugin):
                             # this can happen with PIE binaries and libraries.
                             l.debug("Remapping object %s mapped at address 0x%x at address 0x%x"
                                     % (binary_name, mapped_object.mapped_base, mmap.start_address))
+
+                            old_mapped_base = mapped_object.mapped_base
                             mapped_object.mapped_base = mmap.start_address  # Rebase now!
+                            mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
+                            mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
                             self.already_sync_objects_addresses.append(mmap.name)
                             break
 
