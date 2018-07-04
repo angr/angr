@@ -84,14 +84,14 @@ class Concrete(SimStatePlugin):
 
         if self.synchronize_cle:
             self._sync_cle(target)
-            
+
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
         if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.state.project.loader.main_object.relocs:
                 if reloc.symbol:  # consider only reloc with a symbol
-                    l.debug("Trying to re-hook SimProc %s" % reloc.symbol.name)
+                    l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
                     #l.debug("reloc.rebased_addr: %s " % hex(reloc.rebased_addr))
                     func_address = target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
                     func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
