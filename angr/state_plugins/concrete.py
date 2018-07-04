@@ -227,6 +227,8 @@ class Concrete(SimStatePlugin):
 
                             old_mapped_base = mapped_object.mapped_base
                             mapped_object.mapped_base = mmap.start_address  # Rebase now!
+
+                            # TODO re-write this horrible thing
                             mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
                             mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
                             self.already_sync_objects_addresses.append(mmap.name)
