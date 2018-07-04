@@ -121,6 +121,7 @@ class Concrete(SimStatePlugin):
                                     reloc.resolve(new_func_symbol)
                                     reloc.relocate([])
 
+
         else:
             l.warn("SimProc not restored, you are going to simulate also the code of external libraries!")
 
@@ -187,8 +188,6 @@ class Concrete(SimStatePlugin):
 
     def _sync_cle(self, target):
         l.debug("Synchronizing CLE backend with the concrete process memory mapping")
-        import ipdb
-        ipdb.set_trace()
         try:
             vmmap = target.get_mappings()
         except NotImplementedError:
