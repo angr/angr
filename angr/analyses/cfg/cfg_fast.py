@@ -2100,10 +2100,31 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
-        # FIXME: Move the data-reference-collection logic to PyVEX_C
-        if irsb.statements is None:
-            return
+        if irsb.data_refs:
+            self._process_irsb_data_refs(irsb)
+        elif irsb.statements:
+            irsb = self._unoptimize_irsb(irsb)
+            # for each statement, collect all constants that are referenced or used.
+            self._collect_data_references_by_scanning_stmts(irsb, irsb_addr)
 
+    def _process_irsb_data_refs(self, irsb):
+
+        for ref in irsb.data_refs:
+
+            data_addr, data_size, data_type, stmt_idx, insn_addr = ref
+
+            # Convert data_type from enums to strings
+            data_types = {
+                0x9000: 'unknown',
+                0x9001: 'integer',
+                0x9002: 'fp',
+            }
+            data_type = data_types.get(data_type)
+
+            self._add_data_reference(irsb, irsb.addr, None, stmt_idx, insn_addr, data_addr, data_size=data_size,
+                                     data_type=data_type)
+
+    def _unoptimize_irsb(self, irsb):
         if self.project.arch.name in ('X86', 'AMD64'):
             # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
             # optimization level 0 to preserve as much constant references as possible
@@ -2121,12 +2142,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if empty_insn:
                 # make sure opt_level is 0
-                irsb = self._lift(addr=irsb_addr, size=irsb.size, opt_level=0).vex
+                irsb = self._lift(addr=irsb.addr, size=irsb.size, opt_level=0).vex
+        return irsb
 
-        # for each statement, collect all constants that are referenced or used.
-        self._collect_data_references_core(irsb, irsb_addr)
-
-    def _collect_data_references_core(self, irsb, irsb_addr):
+    def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
 
         # helper methods
         def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
@@ -3460,7 +3479,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb = None
             irsb_string = None
             try:
-                lifted_block = self._lift(addr, size=distance)
+                lifted_block = self._lift(addr, size=distance, collect_data_refs=True)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
@@ -3483,8 +3502,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return addr_0, cfg_node.function_address, cfg_node, irsb
 
                 try:
-                    lifted_block = self._lift(addr_0, size=distance, opt_level=self._iropt_level)
-                    irsb = lifted_block.vex
+                    lifted_block = self._lift(addr_0, size=distance, opt_level=self._iropt_level,
+                                              collect_data_refs=True)
+                    irsb = lifted_block.vex_nostmt
                     irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:
                     nodecode = True
