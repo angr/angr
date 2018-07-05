@@ -218,7 +218,8 @@ class Concrete(SimStatePlugin):
                             l.debug("Object %s is already rebased correctly at 0x%x"
                                     % (binary_name, mapped_object.mapped_base))
                             self.already_sync_objects_addresses.append(mmap.name)
-                            break
+
+                            break  # object has been synchronized, move to the next one!
                         else:
                             # rebase the object if the CLE address doesn't match the real one,
                             # this can happen with PIE binaries and libraries.
@@ -231,8 +232,9 @@ class Concrete(SimStatePlugin):
                             # TODO re-write this horrible thing
                             mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
                             mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
+
                             self.already_sync_objects_addresses.append(mmap.name)
-                            break
+                            break  # object has been synchronized, move to the next one!
 
 from ..sim_state import SimState
 SimState.register_default('concrete', Concrete)
