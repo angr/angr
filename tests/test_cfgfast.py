@@ -508,6 +508,26 @@ def test_blanket_fauxware():
     # a block ends at 0x4005a9 (exclusive)
     nose.tools.assert_equal(cfb.ceiling_addr(0x400581), 0x4005a9)
 
+#
+# Data references
+#
+
+def test_collect_data_references():
+
+    path = os.path.join(test_location, 'x86_64', 'fauxware')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast(collect_data_references=True)
+
+    memory_data = cfg.memory_data
+    # There are at least 3 code references
+    code_ref_count = len([d for d in memory_data.values() if d.sort == 'code reference'])
+    nose.tools.assert_greater_equal(code_ref_count, 3, msg="Missing some code references.")
+
+    # There are at least 2 pointer arrays
+    ptr_array_count = len([d for d in memory_data.values() if d.sort == 'pointer-array'])
+    nose.tools.assert_greater(ptr_array_count, 2, msg="Missing some pointer arrays.")
+
 
 def run_all():
 
@@ -540,14 +560,20 @@ def run_all():
     test_resolve_x86_elf_pic_plt()
     test_function_names_for_unloaded_libraries()
     test_block_instruction_addresses_armhf()
+    test_blanket_fauxware()
+    test_collect_data_references()
 
 
 def main():
     if len(sys.argv) > 1:
         g = globals().copy()
-        for func_and_args in g['test_' + sys.argv[1]]():
-            func, args = func_and_args[0], func_and_args[1:]
-            func(*args)
+
+        r = g['test_' + sys.argv[1]]()
+
+        if r is not None:
+            for func_and_args in r:
+                func, args = func_and_args[0], func_and_args[1:]
+                func(*args)
     else:
         run_all()
 
