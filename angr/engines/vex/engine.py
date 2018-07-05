@@ -392,7 +392,8 @@ class SimEngineVEX(SimEngine):
              thumb=False,
              opt_level=None,
              strict_block_end=None,
-             skip_stmts=False):
+             skip_stmts=False,
+             collect_data_refs=False):
 
         """
         Lift an IRSB.
@@ -461,8 +462,10 @@ class SimEngineVEX(SimEngine):
                     state.options.remove(o.OPTIMIZE_IR)
         if skip_stmts is not True:
             skip_stmts = False
-            use_cache = self._use_cache
-        else:
+
+        use_cache = self._use_cache
+        if skip_stmts or collect_data_refs:
+            # Do not cache the blocks if skip_stmts or collect_data_refs are enabled
             use_cache = False
 
         # phase 2: thumb normalization
@@ -527,6 +530,7 @@ class SimEngineVEX(SimEngine):
                                   opt_level=opt_level,
                                   strict_block_end=strict_block_end,
                                   skip_stmts=skip_stmts,
+                                  collect_data_refs=collect_data_refs,
                                   )
 
                 if subphase == 0 and irsb.statements is not None:
