@@ -2660,6 +2660,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                             )
                         # create edges accordingly
                         all_out_edges = self.graph.out_edges(a, data=True)
+                        if not all_out_edges:
+                            continue
+
                         for _, dst, data in all_out_edges:
                             self.graph.add_edge(next_node, dst, **data)
 
