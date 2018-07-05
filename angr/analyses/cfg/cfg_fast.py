@@ -26,6 +26,7 @@ from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslat
 VEX_IRSB_MAX_SIZE = 400
 
 l = logging.getLogger("angr.analyses.cfg.cfg_fast")
+l.setLevel(logging.DEBUG)
 
 
 class Segment(object):
@@ -2405,7 +2406,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if pointers_count:
             return "pointer-array", pointer_size * pointers_count
 
-        block, block_size = self._fast_memory_load(data_addr)
+        # 4096 is only use with a concrete target. It represents the max
+        # between max_unicode_string_len and max_string_len
+        block, block_size = self._fast_memory_load(data_addr, 4096)
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length

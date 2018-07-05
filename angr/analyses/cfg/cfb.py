@@ -5,6 +5,7 @@ import cle
 from sortedcontainers import SortedDict
 
 from ..analysis import Analysis
+from ...errors import SimConcreteMemoryError
 
 _l = logging.getLogger('angr.analyses.cfg.cfb')
 
@@ -232,9 +233,12 @@ class CFBlanket(Analysis):
                 try:
                     _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
                              obj, section, segment, min_addr)
-                    bytes_ptr, _ = self.project.loader.memory.read_bytes_c(min_addr)
-                    bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size) # type: str
-                except KeyError:
+                    if self.project.concrete_target is None:
+                        bytes_ptr, _ = self.project.loader.memory.read_bytes_c(min_addr)
+                        bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size) # type: str
+                    else:
+                        bytes_ = "".join(self.project.loader.memory.read_bytes(min_addr, size))
+                except (KeyError, SimConcreteMemoryError):
                     # The address does not exist
                     bytes_ = None
             self.add_obj(min_addr,
@@ -268,9 +272,12 @@ class CFBlanket(Analysis):
                         try:
                             _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
                                      obj, section, segment, next_addr)
-                            bytes_ptr, _ = self.project.loader.memory.read_bytes_c(next_addr)
-                            bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size)  # type: str
-                        except KeyError:
+                            if self.project.concrete_target is None:
+                                bytes_ptr, _ = self.project.loader.memory.read_bytes_c(next_addr)
+                                bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size)  # type: str
+                            else:
+                                bytes_ = "".join(self.project.loader.memory.read_bytes(next_addr, size))
+                        except (KeyError, SimConcreteMemoryError):
                             # The address does not exist
                             bytes_ = None
                     self.add_obj(end_addr,

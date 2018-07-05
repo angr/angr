@@ -10,7 +10,7 @@ from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
-                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
+                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError, SimConcreteMemoryError)
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -566,8 +566,12 @@ class SimEngineVEX(SimEngine):
 
         if not smc or not state:
             try:
-                buff, size = clemory.read_bytes_c(addr)
-            except KeyError:
+                if self.project.concrete_target is None:
+                    buff, size = clemory.read_bytes_c(addr)
+                else:
+                    buff = "".join(clemory.read_bytes(addr, max_size))
+                    size = max_size
+            except (KeyError, SimConcreteMemoryError):
                 pass
 
         # If that didn't work, try to load from the state

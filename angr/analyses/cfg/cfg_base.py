@@ -739,7 +739,7 @@ class CFGBase(Analysis):
 
         return self.project.is_hooked(addr) or self.project.simos.is_syscall_addr(addr)
 
-    def _fast_memory_load(self, addr):
+    def _fast_memory_load(self, addr, length):
         """
         Perform a fast memory loading of static content from static regions, a.k.a regions that are mapped to the
         memory by the loader.
@@ -751,8 +751,13 @@ class CFGBase(Analysis):
         """
 
         try:
-            buff, size = self.project.loader.memory.read_bytes_c(addr)
-            return buff, size
+            if self.project.concrete_target is None:
+                buff, size = self.project.loader.memory.read_bytes_c(addr)
+                return buff, size
+            else:
+                buff = "".join(self.project.loader.memory.read_bytes(addr, length))
+                return self._ffi.new("unsigned char [%d]" % len(buff), str(buff)), length
+
 
         except KeyError:
             return None, None
@@ -778,7 +783,7 @@ class CFGBase(Analysis):
         :rtype:          str or None
         """
 
-        buf, size = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr, length)
         if buf is None:
             return None
         if size == 0:
@@ -800,7 +805,7 @@ class CFGBase(Analysis):
         """
 
         pointer_size = self.project.arch.bits / 8
-        buf, size = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr, pointer_size)
         if buf is None:
             return None
 

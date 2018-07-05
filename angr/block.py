@@ -174,6 +174,11 @@ class Block(object):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
+
+            #if there is a concrete target use read_bytes instead of read_bytes_c
+            if self._project.concrete_target:
+                return ''.join(self._project.loader.memory.read_bytes(addr, self.size))
+
             buf, size = self._project.loader.memory.read_bytes_c(addr)
 
             # Make sure it does not go over-bound

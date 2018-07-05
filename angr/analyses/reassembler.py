@@ -15,6 +15,7 @@ from . import Analysis
 
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
+from ..errors import SimConcreteMemoryError
 
 l = logging.getLogger("angr.analyses.reassembler")
 
@@ -2782,8 +2783,13 @@ class Reassembler(Analysis):
     def fast_memory_load(self, addr, size, data_type, endness='Iend_LE'):
 
         try:
-            buff, _ = self.project.loader.memory.read_bytes_c(addr)
-        except KeyError:
+            if self.project.concrete_target is None:
+                buff, _ = self.project.loader.memory.read_bytes_c(addr)
+            else:
+                read_bytes = self.project.loader.memory.read_bytes(addr, size)
+                self._ffi.new("unsigned char [%d]" % len(read_bytes), str(read_bytes)), size
+
+        except (KeyError,SimConcreteMemoryError):
             return None
 
         data = self._ffi.unpack(self._ffi.cast('char*', buff), size)
