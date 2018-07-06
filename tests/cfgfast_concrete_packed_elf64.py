@@ -1,5 +1,6 @@
 import subprocess
 import os
+#import nose
 
 import avatar2 as avatar2
 
@@ -17,7 +18,7 @@ GDB_SERVER_PORT = 9999
 UNPACKING_STUB = 0x45b97f
 UNPACKING_BINARY = 0x85b853
 BINARY_OEP = 0x400b95
-BINARY_DECISION_ADDRESS = 0x400CD6
+BINARY_DECISION_ADDRESS = 0x400CD6 
 DROP_STAGE2_V1 = 0x400D6A
 DROP_STAGE2_V2 = 0x400D99
 VENV_DETECTED = 0x400DA5
@@ -38,6 +39,7 @@ def teardown():
     time.sleep(1)
 
 
+#@nose.with_setup(setup_x64,teardown)
 def test_concrete_engine_linux_x64_no_simprocedures():
     print("test_concrete_engine_linux_x64_no_simprocedures")
     global avatar_gdb
@@ -47,6 +49,7 @@ def test_concrete_engine_linux_x64_no_simprocedures():
     solv_concrete_engine_linux_x64(p,entry_state)
 
 
+#@nose.with_setup(setup_x64,teardown)
 def test_concrete_engine_linux_x64_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
     global avatar_gdb
@@ -73,29 +76,13 @@ def solv_concrete_engine_linux_x64(p,entry_state):
 
     new_concrete_state = execute_concretly(p, new_concrete_state, BINARY_DECISION_ADDRESS, [])
 
-    #arg0 = claripy.BVS('arg0', 8*32)
-    #symbolic_buffer_address = new_concrete_state.regs.rbp-0xc0
-    #new_concrete_state.memory.store(symbolic_buffer_address, arg0)
+    arg0 = claripy.BVS('arg0', 8*32)
+    symbolic_buffer_address = new_concrete_state.regs.rbp-0xc0
+    new_concrete_state.memory.store(symbolic_buffer_address, arg0)
 
-    cfg = p.analyses.CFGFast(base_state=new_concrete_state, function_starts=[BINARY_DECISION_ADDRESS])
-    #cfg = p.analyses.CFGFast()
+    cfg = p.analyses.CFGFast(regions=[(0x400CD6,0x400DE6)],base_state=new_concrete_state, function_starts=[BINARY_DECISION_ADDRESS])
     print(dir(cfg.kb))
     print(cfg.kb.functions())
-    import ipdb; ipdb.set_trace()
-
-    # symbolic exploration
-    simgr = p.factory.simgr(new_concrete_state)
-    print "[2]Symbolically executing binary to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V2) + " ]"
-
-    exploration = simgr.explore(find=DROP_STAGE2_V2, avoid=[DROP_STAGE2_V1, VENV_DETECTED, FAKE_CC ])
-    new_symbolic_state = exploration.stashes['found'][0]
-    print "[3]Executing ary concretely with solution found until the end " + hex(BINARY_EXECUTION_END)
-
-    execute_concretly(p, new_symbolic_state,BINARY_EXECUTION_END,[(symbolic_buffer_address,arg0)])
-    binary_configuration = new_symbolic_state.se.eval(arg0,cast_to=int)
-    print "[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration)
-
-    correct_solution = 0xa00000006000000f6ffffff0000000000000000000000000000000000000000
 
 setup_x64()
 test_concrete_engine_linux_x64_no_simprocedures()
