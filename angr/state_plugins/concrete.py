@@ -3,6 +3,8 @@ import logging
 import os
 import re
 
+import cle
+
 from .plugin import SimStatePlugin
 from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
@@ -80,19 +82,46 @@ class Concrete(SimStatePlugin):
             # finally let's synchronize the whole register
             self._sync_registers([register.name], target)
 
+        if self.synchronize_cle:
+            self._sync_cle(target)
+
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
         if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
             l.info("Restoring SimProc using concrete memory")
             for reloc in self.state.project.loader.main_object.relocs:
-
                 if reloc.symbol:  # consider only reloc with a symbol
-                    l.debug("Trying to re-hook SimProc %s" % reloc.symbol.name)
-                    l.debug("reloc.rebased_addr: %s " % hex(reloc.rebased_addr))
+                    l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
+                    #l.debug("reloc.rebased_addr: %s " % hex(reloc.rebased_addr))
                     func_address = target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
                     func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
-                    l.debug("Function address is now: %s " % hex(func_address))
+                    l.debug("Function address hook is now: %s " % hex(func_address))
                     self.state.project.rehook_symbol(func_address, reloc.symbol.name)
+
+                    if self.synchronize_cle and not self.state.project.loader.main_object.contains_addr(func_address):
+                        old_func_symbol = self.state.project.loader.find_symbol(reloc.symbol.name)
+
+                        if old_func_symbol:  # if we actually have a symbol
+                            owner_obj = old_func_symbol.owner_obj
+
+                            # calculating the new real address
+                            new_relative_address = func_address - owner_obj.mapped_base
+
+                            new_func_symbol = cle.backends.Symbol(owner_obj, old_func_symbol.name, new_relative_address,
+                                                                  old_func_symbol.size, old_func_symbol.type)
+
+                            for reloc in self.state.project.loader.find_relevant_relocations(old_func_symbol.name):
+                                if reloc.symbol.name == new_func_symbol.name and \
+                                        reloc.value != new_func_symbol.rebased_addr:
+
+                                    l.debug("Updating CLE symbols metadata, moving %s from 0x%x to 0x%x"
+                                            % (reloc.symbol.name,
+                                               reloc.value,
+                                               new_func_symbol.rebased_addr))
+                                    reloc.resolve(new_func_symbol)
+                                    reloc.relocate([])
+
+
         else:
             l.warn("SimProc not restored, you are going to simulate also the code of external libraries!")
 
@@ -112,55 +141,7 @@ class Concrete(SimStatePlugin):
 
             l.debug("Set SimInspect breakpoint to the new state!")
 
-        if self.synchronize_cle:
-            l.debug("Synchronizing CLE backend with the concrete process' memory mapping")
 
-            try:
-                vmmap = target.get_mappings()
-            except NotImplementedError:
-                l.critical("Can't synchronize CLE backend without an implementation of "
-                           "the method get_mappings() in the ConcreteTarget.")
-                self.synchronize_cle = False
-                return
-
-            for mapped_object in self.state.project.loader.all_elf_objects:
-                binary_name = os.path.basename(mapped_object.binary)
-
-                # this object has already been sync, skip it.
-                if binary_name in self.already_sync_objects_addresses:
-                    continue
-
-                for mmap in vmmap:
-                    if self._check_mapping_name(binary_name, mmap.name):
-                        l.debug("Match! %s -> %s" %(mmap.name, binary_name))
-
-                        # let's make sure that we have the header at this address to confirm that it is the
-                        # base address.
-                        # That's not a perfect solution, but should work most of the time.
-                        result = target.read_memory(mmap.start_address, 10)
-
-                        if self.state.project.simos.get_binary_header_name() in result:
-                            if mapped_object.mapped_base == mmap.start_address:
-                                # We already have the correct address for this memory mapping
-                                l.debug("Object %s is already rebased correctly at 0x%x"
-                                        % (binary_name, mapped_object.mapped_base))
-                                self.already_sync_objects_addresses.append(mmap.name)
-                                break
-                            else:
-                                # rebase the object if the CLE address doesn't match the real one,
-                                # this can happen with PIE binaries and libraries.
-                                l.debug("Remapping object %s mapped at address 0x%x at address 0x%x"
-                                        % (binary_name, mapped_object.mapped_base, mmap.start_address))
-                                mapped_object.mapped_base = mmap.start_address  # Rebase now!
-                                self.already_sync_objects_addresses.append(mmap.name)
-
-                                # TODO: sync the symbols if we rebase a library.
-                                # Warning: base address is synchronized, but the symbols' relative addresses
-                                # refer to the library used during the loading of the binary with CLE.
-                                # If the library loaded by CLE during startup and the library used in the concrete
-                                # process are different, the absolute addresses of the symbols don't match.
-
-                                break
 
     def _sync_registers(self, register_names, target):
         for register_name in register_names:
@@ -205,6 +186,55 @@ class Concrete(SimStatePlugin):
             else:
                 return False
 
+    def _sync_cle(self, target):
+        l.debug("Synchronizing CLE backend with the concrete process memory mapping")
+        try:
+            vmmap = target.get_mappings()
+        except NotImplementedError:
+            l.critical("Can't synchronize CLE backend using the ConcreteTarget provided.")
+            self.synchronize_cle = False  # so, deactivate this feature
+            l.debug("CLE synchronization has been deactivated")
+            return
+
+        for mapped_object in self.state.project.loader.all_elf_objects:
+            binary_name = os.path.basename(mapped_object.binary)
+
+            # this object has already been sync, skip it.
+            if binary_name in self.already_sync_objects_addresses:
+                continue
+
+            for mmap in vmmap:
+                if self._check_mapping_name(binary_name, mmap.name):
+                    l.debug("Match! %s -> %s" % (mmap.name, binary_name))
+
+                    # let's make sure that we have the header at this address to confirm that it is the
+                    # base address.
+                    # That's not a perfect solution, but should work most of the time.
+                    result = target.read_memory(mmap.start_address, 10)
+
+                    if self.state.project.simos.get_binary_header_name() in result:
+                        if mapped_object.mapped_base == mmap.start_address:
+                            # We already have the correct address for this memory mapping
+                            l.debug("Object %s is already rebased correctly at 0x%x"
+                                    % (binary_name, mapped_object.mapped_base))
+                            self.already_sync_objects_addresses.append(mmap.name)
+
+                            break  # object has been synchronized, move to the next one!
+                        else:
+                            # rebase the object if the CLE address doesn't match the real one,
+                            # this can happen with PIE binaries and libraries.
+                            l.debug("Remapping object %s mapped at address 0x%x at address 0x%x"
+                                    % (binary_name, mapped_object.mapped_base, mmap.start_address))
+
+                            old_mapped_base = mapped_object.mapped_base
+                            mapped_object.mapped_base = mmap.start_address  # Rebase now!
+
+                            # TODO re-write this horrible thing
+                            mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
+                            mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
+
+                            self.already_sync_objects_addresses.append(mmap.name)
+                            break  # object has been synchronized, move to the next one!
 
 from ..sim_state import SimState
 SimState.register_default('concrete', Concrete)

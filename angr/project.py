@@ -108,7 +108,9 @@ class Project(object):
                  **kwargs):
 
         # Step 1: Load the binary
+
         if load_options is None: load_options = {}
+
         load_options.update(kwargs)
 
         if isinstance(thing, cle.Loader):
@@ -126,7 +128,7 @@ class Project(object):
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
             self.filename = thing
-            self.loader = cle.Loader(self.filename, **load_options)
+            self.loader = cle.Loader(self.filename, concrete_target=concrete_target, **load_options)
 
         if self.filename is not None:
             projects[self.filename] = self
@@ -156,9 +158,9 @@ class Project(object):
         self.concrete_target = concrete_target
 
         # It doesn't make any sense to have auto_load_libs
-        # if you have the concrete target
-        auto_load_lib_opt = load_options.get('auto_load_libs', None)
-        if self.concrete_target and auto_load_lib_opt:
+        # if you have the concrete target, let's warn the user about this.
+        if self.concrete_target and load_options.get('auto_load_libs', None):
+
             l.critical("Incompatible options selected for this project, please disable auto_load_libs if "
                        "you want to use a concrete target.")
             raise Exception("Incompatible options for the project")
