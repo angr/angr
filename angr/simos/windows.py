@@ -179,7 +179,16 @@ class SimWindows(SimOS):
             THUNK_SIZE = 0x100
             num_pe_objects = len(self.project.loader.all_pe_objects)
             thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
-            string_alloc_size = sum(len(obj.binary)*2 + 2 for obj in self.project.loader.all_pe_objects)
+            string_alloc_size = 0
+            for obj in self.project.loader.all_pe_objects:
+                bin_name = ""
+                # PE loaded from stream has the binary field = None
+                if obj.binary is None:
+                    if hasattr(obj.binary_stream, "name"):
+                        bin_name = obj.binary_stream.name
+                else:
+                    bin_name = obj.binary
+                string_alloc_size += len(bin_name)*2 + 2
             total_alloc_size = thunk_alloc_size + string_alloc_size
             if total_alloc_size & 0xfff != 0:
                 total_alloc_size += 0x1000 - (total_alloc_size & 0xfff)
@@ -195,7 +204,11 @@ class SimWindows(SimOS):
                 state.mem[addr+0x1C].dword = obj.entry
 
                 # Allocate some space from the same region to store the paths
-                path = obj.binary  # we're in trouble if this is None
+                path = ""
+                if obj.binary is not None:
+                    path = obj.binary  # we're in trouble if this is None
+                elif hasattr(obj.binary_stream, "name"):
+                    path = obj.binary_stream.name # should work when using regular python file streams
                 string_size = len(path) * 2
                 tail_size = len(os.path.basename(path)) * 2
                 state.mem[addr+0x24].short = string_size
