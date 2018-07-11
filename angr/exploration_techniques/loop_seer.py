@@ -94,21 +94,9 @@ class LoopSeer(ExplorationTechnique):
                         counts = state.loop_data.back_edge_trip_counts[header][-1] if not self.use_header else \
                                  state.loop_data.header_trip_counts[header][-1]
                         state.loop_data.back_edge_trip_counts[state.addr][-1] += 1
-                    #   print loop
-                    #   print hex(state.addr)
-                    #   print hex(state.history.addr)
                     state.loop_data.header_trip_counts[state.addr][-1] += 1
 
                 elif state.addr in state.loop_data.current_loop[-1][1]:
-                    for src, dst in loop.continue_edges:
-                        src_block = self.project.factory.block(src.addr)
-                        dst_block = self.project.factory.block(dst.addr)
-                        src_insns = len(src_block.instruction_addrs)
-                        dst_insns = len(dst_block.instruction_addrs)
-                    #   print hex(header), 'src'
-                    #   src_block.pp()
-                    #   print 'dst'
-                    #   dst_block.pp()
                     state.loop_data.current_loop.pop()
 
                 if self.bound is not None:
