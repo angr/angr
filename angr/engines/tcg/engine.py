@@ -13,11 +13,12 @@ from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressE
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
 from ..engine import SimEngine
-# from .statements import translate_stmt
+#from .statements import translate_stmt
 # from .expressions import translate_expr
 
 import logging
 l = logging.getLogger("angr.engines.tcg.engine")
+l.setLevel(logging.DEBUG)
 
 #pylint: disable=arguments-differ
 
@@ -165,24 +166,23 @@ class SimEngineTCG(SimEngine):
 
             #     raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
-            # # check permissions, are we allowed to execute here? Do we care?
-            # if o.STRICT_PAGE_ACCESS in state.options:
-            #     try:
-            #         perms = state.memory.permissions(addr)
-            #     except SimMemoryError:
-            #         raise SimSegfaultError(addr, 'exec-miss')
-            #     else:
-            #         if not perms.symbolic:
-            #             perms = state.se.eval(perms)
-            #             if not perms & 4 and o.ENABLE_NX in state.options:
-            #                 raise SimSegfaultError(addr, 'non-executable')
+            # check permissions, are we allowed to execute here? do we care?
+            if o.STRICT_PAGE_ACCESS in state.options:
+                try:
+                    perms = state.memory.permissions(addr)
+                except simmemoryerror:
+                    raise simsegfaulterror(addr, 'exec-miss')
+                else:
+                    if not perms.symbolic:
+                        perms = state.se.eval(perms)
+                        if not perms & 4 and o.ENABLE_NX in state.options:
+                            raise simsegfaulterror(addr, 'non-executable')
 
-            state.scratch.tyenv = irsb.tyenv
+            #state.scratch.tyenv = irsb.tyenv
             state.scratch.irsb = irsb
 
             try:
-                pass
-                # self._handle_irsb(state, successors, irsb, skip_stmts, last_stmt, whitelist)
+                self._handle_irsb(state, successors, irsb, skip_stmts, last_stmt, whitelist)
             except SimReliftException as e:
                 state = e.state
                 if insn_bytes is not None:
@@ -208,8 +208,6 @@ class SimEngineTCG(SimEngine):
         successors.processed = True
 
     def _handle_irsb(self, state, successors, irsb, skip_stmts, last_stmt, whitelist):
-        # FIXME
-        assert(False)
 
         # shortcut. we'll be typing this a lot
         ss = irsb.statements
@@ -218,8 +216,7 @@ class SimEngineTCG(SimEngine):
         # fill in artifacts
         successors.artifacts['irsb'] = irsb
         successors.artifacts['irsb_size'] = irsb.size
-        successors.artifacts['irsb_direct_next'] = irsb.direct_next
-        successors.artifacts['irsb_default_jumpkind'] = irsb.jumpkind
+        successors.artifacts['irsb_statements'] = irsb.statements
 
         insn_addrs = [ ]
 
@@ -231,7 +228,7 @@ class SimEngineTCG(SimEngine):
         if o.SUPER_FASTPATH in state.options:
             imark_counter = 0
             for i in xrange(len(ss) - 1, -1, -1):
-                if type(ss[i]) is pyvex.IRStmt.IMark:
+                if type(ss[i]) is pytcg.TcgInstructionBoundary:
                     imark_counter += 1
                 if imark_counter >= 4:
                     skip_stmts = max(skip_stmts, i)
@@ -241,8 +238,8 @@ class SimEngineTCG(SimEngine):
         state.scratch.bbl_addr = irsb.addr
 
         for stmt_idx, stmt in enumerate(ss):
-            if isinstance(stmt, pyvex.IRStmt.IMark):
-                insn_addrs.append(stmt.addr + stmt.delta)
+            if isinstance(stmt, pytcg.TcgInstructionBoundary):
+                insn_addrs.append(stmt.addr)
 
             if stmt_idx < skip_stmts:
                 l.debug("Skipping statement %d", stmt_idx)
@@ -348,13 +345,10 @@ class SimEngineTCG(SimEngine):
         This function receives an initial state and imark and processes a list of pyvex.IRStmts
         It annotates the request with a final state, last imark, and a list of SimIRStmts
         """
-        # FIXME
-        assert(False)
 
-        if type(stmt) == pyvex.IRStmt.IMark:
-            ins_addr = stmt.addr + stmt.delta
+        if type(stmt) == pytcg.TcgInstructionBoundary:
+            ins_addr = stmt.addr
             state.scratch.ins_addr = ins_addr
-
             # Raise an exception if we're suddenly in self-modifying code
             for subaddr in xrange(stmt.len):
                 if subaddr + stmt.addr in state.scratch.dirty_addrs:
@@ -599,16 +593,13 @@ class SimEngineTCG(SimEngine):
         Enumerate the imarks in the block. If any of them (after the first one) are at a stop point, returns the address
         of the stop point. None is returned otherwise.
         """
-        # FIXME
-        assert(False)
 
         if self._stop_points is None and self.project is None:
             return None
-
         first_imark = True
         for stmt in irsb.statements:
-            if type(stmt) is pyvex.stmt.IMark:  # pylint: disable=unidiomatic-typecheck
-                addr = stmt.addr + stmt.delta
+            if type(stmt) is pytcg.TcgInstructionBoundary:  # pylint: disable=unidiomatic-typecheck
+                addr = stmt.addr
                 if not first_imark and self.is_stop_point(addr):
                     # could this part be moved by pyvex?
                     return addr

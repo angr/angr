@@ -348,6 +348,8 @@ class SimEngineVEX(SimEngine):
             state.scratch.ins_addr = ins_addr
 
             # Raise an exception if we're suddenly in self-modifying code
+            import IPython
+            IPython.embed()
             for subaddr in xrange(stmt.len):
                 if subaddr + stmt.addr in state.scratch.dirty_addrs:
                     raise SimReliftException(state)
@@ -416,6 +418,7 @@ class SimEngineVEX(SimEngine):
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         """
+
         # phase 0: sanity check
         if not state and not clemory and not insn_bytes:
             raise ValueError("Must provide state or clemory or insn_bytes!")
@@ -589,7 +592,6 @@ class SimEngineVEX(SimEngine):
         """
         if self._stop_points is None and self.project is None:
             return None
-
         first_imark = True
         for stmt in irsb.statements:
             if type(stmt) is pyvex.stmt.IMark:  # pylint: disable=unidiomatic-typecheck
