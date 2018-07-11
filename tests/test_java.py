@@ -5,12 +5,38 @@ import angr
 from angr.state_plugins.javavm_memory import SimJavaVmMemory
 from angr.state_plugins.keyvalue_memory import SimKeyValueMemory
 from angr.state_plugins.symbolic_memory import SimSymbolicMemory
+from angr.engines.soot.values import SimSootValue_ArrayRef
 from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootMethodDescriptor)
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 test_location = str(os.path.join(file_dir, "..", "..", "binaries", "tests", "java"))
+
+strings_analysis_options = [angr.options.STRINGS_ANALYSIS, angr.options.COMPOSITE_SOLVER]
+
+#
+# Command line arguments
+#
+
+def test_cmd_line_args():
+    project = create_project("cmd_line_args", load_native_libs=False)
+    entry = project.factory.entry_state(add_options=strings_analysis_options)
+    simgr = project.factory.simgr(entry)
+    simgr.run()
+    assert len(simgr.deadended) == 2
+    state1, state2 = tuple(simgr.deadended)
+
+    # get symbol of args[0] from memory
+    args = state1.globals['cmd_line_args']
+    args0_arrref = SimSootValue_ArrayRef(args, 0)
+    args0_strref = state1.memory.load(args0_arrref)
+    args0_strval = state1.memory.load(args0_strref)
+
+    # eval args[0] on both states
+    str1 = state1.solver.eval(args0_strval)
+    str2 = state2.solver.eval(args0_strval)
+    assert 'secret_value' in [str1, str2]
 
 #
 # JNI Version Information
@@ -391,8 +417,8 @@ def test_loading():
     )
     # define which libraries to load (+ the load path)
     jni_options = {
-        'native_libs': ['libmixedjava.so'],
-        'native_libs_ld_path': native_libs_ld_path
+        'jni_libs': ['libmixedjava.so'],
+        'jni_libs_ld_path': native_libs_ld_path
     }
     project = angr.Project(jar_path, main_opts=jni_options)
     # check if libmixedjava.so was loaded
@@ -482,11 +508,10 @@ def print_java_memory(state):
 def create_project(binary_dir, load_native_libs=True):
     jar_path = os.path.join(test_location, binary_dir, "mixedjava.jar")
     if load_native_libs:
-        jni_options = {'native_libs': ['libmixedjava.so']}
+        jni_options = {'jni_libs': ['libmixedjava.so']}
         project = angr.Project(jar_path, main_opts=jni_options)
     else:
         project = angr.Project(jar_path)
-    print project.loader.main_object.classes['MixedJava']
     return project
 
 def load_string(state, local_name):
@@ -546,17 +571,22 @@ def get_winning_path(project, method_fullname):
 
 
 def main():
-    test_jni_version_information()
+    test_cmd_line_args()
+    #test_apk_loading()
 
 
 if __name__ == "__main__":
     import logging
+    logging.getLogger('cle.backends.soot').setLevel('DEBUG')
+    logging.getLogger('cle.backends.apk').setLevel('DEBUG')
+    logging.getLogger('cle.backends.jar').setLevel('DEBUG')
+
     logging.getLogger('archinfo.arch_soot').setLevel("DEBUG")
     logging.getLogger('angr.procedures.java_jni').setLevel("DEBUG")
     logging.getLogger("angr.sim_procedure").setLevel("DEBUG")
     logging.getLogger("angr.engines").setLevel("DEBUG")
     logging.getLogger('angr.simos.JavaVM').setLevel("DEBUG")
-    logging.getLogger('angr.engines.vex.expressions').setLevel("INFO")
+    logging.getLogger('angr.engines.vex').setLevel("INFO")
     logging.getLogger('angr.state_plugins.javavm_memory').setLevel("DEBUG")
     logging.getLogger('angr.state_plugins.jni_references').setLevel("DEBUG")
     logging.getLogger("angr.state_plugins.javavm_classloader").setLevel("DEBUG")

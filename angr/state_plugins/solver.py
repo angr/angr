@@ -277,7 +277,10 @@ class SimSolver(SimStatePlugin):
                 our_backend = backend_manager.backends.smtlib_abc
             else:
                 raise ValueError("Could not find suitable string solver!")
-            self._stored_solver = claripy.SolverStrings(backend=our_backend, track=track)
+            if o.COMPOSITE_SOLVER in self.state.options:
+                self._stored_solver = claripy.SolverComposite(
+                    template_solver_string=claripy.SolverCompositeChild(backend=our_backend, track=track)
+                )
         elif o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
         elif o.SYMBOLIC in self.state.options and o.REPLACEMENT_SOLVER in self.state.options:

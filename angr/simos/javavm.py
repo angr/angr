@@ -153,6 +153,7 @@ class SimJavaVM(SimOS):
             cmd_line_args = SimSootExpr_NewArray.new_array(state, "java.lang.String", BVS('argc', 32))
             cmd_line_args.add_default_value_generator(self.create_cmd_line_arg)
             args = [JavaArgument(cmd_line_args, "java.lang.String[]")]
+            state.globals['cmd_line_args'] = cmd_line_args
         # setup arguments
         state = self.state_call(state.addr, *args, base_state=state)
         return state
