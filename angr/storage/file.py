@@ -73,12 +73,26 @@ class SimFileBase(SimStatePlugin):
         self.writable = writable
 
         if ident is None:
-            nice_name = self.name if all(0x20 <= ord(c) <= 0x7f for c in self.name) else '???'
-            self.ident = 'file_%d_%s' % (next(file_counter), nice_name)
+            self.ident = self.make_ident(self.name)
 
         if 'memory_id' in kwargs:
             kwargs['memory_id'] = self.ident
         super(SimFileBase, self).__init__(**kwargs)
+
+    @staticmethod
+    def make_ident(name):
+        def generate():
+            consecutive_bad = 0
+            for ch in name:
+                if 0x20 <= ord(ch) <= 0x7e:
+                    consecutive_bad = 0
+                    yield ch
+                elif consecutive_bad < 3:
+                    consecutive_bad += 1
+                    yield '?'
+
+        nice_name = ''.join(generate())
+        return 'file_%d_%s' % (next(file_counter), nice_name)
 
     def concretize(self, **kwargs):
         """
@@ -175,6 +189,8 @@ class SimFile(SimFileBase, SimSymbolicMemory):
 
         if type(self._size) in (int, long):
             self._size = claripy.BVV(self._size, state.arch.bits)
+        elif len(self._size) != state.arch.bits:
+            raise TypeError("SimFile size must be a bitvector of size %d (arch.bits)" % state.arch.bits)
 
     @property
     def size(self):
@@ -293,6 +309,8 @@ class SimFileStream(SimFile):
         super(SimFileStream, self).set_state(state)
         if type(self.pos) in (int, long):
             self.pos = state.solver.BVV(self.pos, state.arch.bits)
+        elif len(self.pos) != state.arch.bits:
+            raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
 
     def read(self, pos, size, **kwargs):
         no_stream = kwargs.pop('no_stream', False)

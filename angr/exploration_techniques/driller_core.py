@@ -40,7 +40,7 @@ class DrillerCore(ExplorationTechnique):
     def complete(self, simgr):
         return not simgr.active or simgr.one_active.globals['bb_cnt'] >= len(self.trace)
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         simgr.step(stash=stash, **kwargs)
 
         # Mimic AFL's indexing scheme.

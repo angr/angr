@@ -68,6 +68,7 @@ class SimEngineLightVEX(SimEngineLight):
 
             if type(stmt) is pyvex.IRStmt.IMark:
                 self.ins_addr = stmt.addr + stmt.delta
+                continue
 
             self._handle_Stmt(stmt)
 

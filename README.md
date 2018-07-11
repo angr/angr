@@ -2,6 +2,7 @@ angr
 ====
 
 [![Latest Release](https://img.shields.io/pypi/v/angr.svg)](https://pypi.python.org/pypi/angr/)
+[![PyPI Statistics](https://pypistats.com/badge/angr.svg)](https://pypistats.com/package/angr)
 [![Build Status](https://travis-ci.org/angr/angr.svg?branch=master)](https://travis-ci.org/angr/angr)
 [![License](https://img.shields.io/github/license/angr/angr.svg)](https://github.com/angr/angr/blob/master/LICENSE)
 [![Gitbook](https://img.shields.io/badge/docs-gitbook-green.svg)](http://docs.angr.io)

@@ -65,6 +65,19 @@ class VFGJob(CFGJobBase):
         return "//".join(s)
 
 
+class PendingJob(object):
+
+    __slots__ = ('block_id', 'state', 'call_stack', 'src_block_id', 'src_stmt_idx', 'src_ins_addr', )
+
+    def __init__(self, block_id, state, call_stack, src_block_id, src_stmt_idx, src_ins_addr):
+        self.block_id = block_id
+        self.state = state
+        self.call_stack = call_stack
+        self.src_block_id = src_block_id
+        self.src_stmt_idx = src_stmt_idx
+        self.src_ins_addr = src_ins_addr
+
+
 class AnalysisTask(object):
     """
     An analysis task describes a task that should be done before popping this task out of the task stack and discard it.
@@ -404,19 +417,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 return n
 
     def irsb_from_node(self, node):
-        return self.project.factory.successors(node.state, addr=node.addr, num_inst=len(node.instruction_addrs))
-
-    def get_paths(self, begin, end):
-        """
-        Get all the simple paths between @begin and @end.
-        Returns: a list of angr.Path instances.
-        """
-        paths = self._get_nx_paths(begin, end)
-        a_paths = []
-        for p in paths:
-            runs = map(self.irsb_from_node, p)
-            a_paths.append(angr.path.make_path(self.project, runs))
-        return a_paths
+        return self.project.factory.successors(node.state, addr=node.addr)
 
     #
     # Operations
@@ -687,7 +688,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if job.sim_successors.sort == 'IRSB' and state.thumb:
             self._thumb_addrs.update(job.sim_successors.artifacts['insn_addrs'])
 
-        if len(all_successors) == 0:
+        if not all_successors:
             if job.sim_successors.sort == 'SimProcedure' and isinstance(job.sim_successors.artifacts['procedure'],
                     SIM_PROCEDURES["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
@@ -844,7 +845,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             if new_block_id in self._pending_returns:
                 del self._pending_returns[new_block_id]
 
-        # Check if we have reached a fixpoint
+        # Check if we have reached a fix-point
         if jumpkind != 'Ijk_FakeRet' and \
                 new_block_id in self._nodes:
             last_state = self._nodes[new_block_id].state
@@ -855,6 +856,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 l.debug("%s didn't reach a fix-point", new_block_id)
             else:
                 l.debug("%s reaches a fix-point.", new_block_id)
+                job.dbg_exit_status[successor] = "Merged due to reaching a fix-point"
                 return [ ]
 
         new_jobs = self._create_new_jobs(job, successor, new_block_id, new_call_stack)
@@ -989,7 +991,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         merged_state, _ = self._merge_states(state_0, state_1)
 
         new_job = VFGJob(jobs[0].addr, merged_state, self._context_sensitivity_level, jumpkind=jobs[0].jumpkind,
-                         block_id=jobs[0].block_id, call_stack=jobs[0].call_stack
+                         block_id=jobs[0].block_id, call_stack=jobs[0].call_stack, src_block_id=jobs[0].src_block_id,
+                         src_exit_stmt_idx=jobs[0].src_exit_stmt_idx, src_ins_addr=jobs[0].src_ins_addr,
                          )
 
         self._top_function_analysis_task.jobs.append(new_job)
@@ -1040,7 +1043,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # import ipdb; ipdb.set_trace()
 
         new_job = VFGJob(jobs[0].addr, new_state, self._context_sensitivity_level, jumpkind=jobs[0].jumpkind,
-                         block_id=jobs[0].block_id, call_stack=jobs[0].call_stack
+                         block_id=jobs[0].block_id, call_stack=jobs[0].call_stack, src_block_id=jobs[0].src_block_id,
+                         src_exit_stmt_idx=jobs[0].src_exit_stmt_idx, src_ins_addr=jobs[0].src_ins_addr,
                          )
         self._top_function_analysis_task.jobs.append(new_job)
 
@@ -1385,6 +1389,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # TODO: basic block stack is probably useless
 
         jumpkind = successor.history.jumpkind
+        stmt_idx = successor.scratch.stmt_idx
+        ins_addr = successor.scratch.ins_addr
         # Make a copy of the state in case we use it later
         successor_state = successor.copy()
         successor_addr = successor_state.se.eval(successor_state.ip)
@@ -1428,6 +1434,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                  block_id=new_block_id,
                                  jumpkind='Ijk_Ret',
                                  call_stack=new_call_stack,
+                                 src_block_id=job.block_id,
+                                 src_exit_stmt_idx=stmt_idx,
+                                 src_ins_addr=ins_addr,
                                  )
 
                 new_jobs.append(new_job)
@@ -1436,8 +1445,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 job.dbg_exit_status[successor] = "Pending"
 
             else:
-                self._pending_returns[new_block_id] = \
-                    (successor_state, new_call_stack)
+                self._pending_returns[new_block_id] = PendingJob(new_block_id, successor_state, new_call_stack,
+                                                                 job.block_id, stmt_idx, ins_addr)
                 job.dbg_exit_status[successor] = "Pending"
 
         else:
@@ -1473,6 +1482,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                              block_id=new_block_id,
                              jumpkind=successor_state.history.jumpkind,
                              call_stack=new_call_stack,
+                             src_block_id=job.block_id,
+                             src_exit_stmt_idx=stmt_idx,
+                             src_ins_addr=ins_addr,
                              )
 
             if successor.history.jumpkind == 'Ijk_Ret':
@@ -1567,7 +1579,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         l.debug("-  is call jump: %s", job.is_call_jump)
         for suc in successors:
             if suc not in job.dbg_exit_status:
-                # TODO:
                 l.warning("- %s is not found. FIND OUT WHY.", suc)
                 continue
 
@@ -1695,22 +1706,25 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
     def _trace_pending_job(self, job_key):
 
-        state, call_stack = self._pending_returns.pop(job_key)
+        pending_job = self._pending_returns.pop(job_key)  # type: PendingJob
         addr = job_key.addr
 
         # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
-        # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
+        # remove fake returns even if they have been traced - otherwise we cannot come to a fix-point.
 
         block_id = BlockID.new(addr,
-                               call_stack.stack_suffix(self._context_sensitivity_level),
+                               pending_job.call_stack.stack_suffix(self._context_sensitivity_level),
                                'Ijk_Ret'
                                )
         job = VFGJob(addr,
-                     state,
+                     pending_job.state,
                      self._context_sensitivity_level,
                      block_id=block_id,
-                     jumpkind=state.history.jumpkind,
-                     call_stack=call_stack,
+                     jumpkind=pending_job.state.history.jumpkind,
+                     call_stack=pending_job.call_stack,
+                     src_block_id=pending_job.src_block_id,
+                     src_exit_stmt_idx=pending_job.src_stmt_idx,
+                     src_ins_addr=pending_job.src_ins_addr,
                      )
         self._insert_job(job)
         self._top_task.jobs.append(job)
@@ -1718,7 +1732,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     def _get_pending_job(self, func_addr):
 
         pending_ret_key = None
-        for k in self._pending_returns.iterkeys():  # type: BlockID
+        for k in self._pending_returns.keys():  # type: BlockID
             if k.func_addr == func_addr:
                 pending_ret_key = k
                 break

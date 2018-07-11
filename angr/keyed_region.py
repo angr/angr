@@ -299,8 +299,8 @@ class KeyedRegion(object):
         # is there a region item that begins before the start and overlaps with this variable?
         floor_key, floor_item = self._get_container(start)
         if floor_item is not None and floor_key not in overlapping_items:
-                # insert it into the beginningq
-                overlapping_items.insert(0, (floor_key, self._storage[floor_key]))
+                # insert it into the beginning
+                overlapping_items.insert(0, floor_key)
 
         # scan through the entire list of region items, split existing regions and insert new regions as needed
         to_update = {start: RegionObject(start, object_size, {stored_object})}

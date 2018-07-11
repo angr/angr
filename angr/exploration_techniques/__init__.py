@@ -18,7 +18,7 @@ class ExplorationTechniqueMeta(type):
 
     @staticmethod
     def _step_factory(step):
-        def step_wrapped(self, simgr, stash=None, **kwargs):
+        def step_wrapped(self, simgr, stash='active', **kwargs):
             return step(self, simgr, stash, **kwargs)
         return step_wrapped
 
@@ -67,7 +67,7 @@ class ExplorationTechnique(object):
         """
         pass
 
-    def step(self, simgr, stash=None, **kwargs):  # pylint:disable=no-self-use
+    def step(self, simgr, stash='active', **kwargs):  # pylint:disable=no-self-use
         """
         Step this stash of this manager forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the actual
         processing.
@@ -177,7 +177,6 @@ from .tracer import Tracer
 from .explorer import Explorer
 from .threading import Threading
 from .dfs import DFS
-from .looplimiter import LoopLimiter
 from .lengthlimiter import LengthLimiter
 from .veritesting import Veritesting
 from .oppologist import Oppologist

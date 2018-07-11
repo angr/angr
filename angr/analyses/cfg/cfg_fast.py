@@ -553,8 +553,8 @@ class PendingJobs(object):
             return self._pop_job(self._jobs.keys()[0])
 
         # Prioritize returning functions
-        for func_addr in self._returning_functions:
-            if func_addr not in self._jobs:
+        for func_addr in self._jobs:
+            if func_addr not in self._returning_functions:
                 continue
             return self._pop_job(func_addr)
 
@@ -683,6 +683,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "")
+
+    tag = "CFGFast"
 
     def __init__(self,
                  binary=None,
@@ -1748,8 +1750,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
-                     fast_indirect_jump_resolution=True):
+    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -1778,16 +1779,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         jobs = [ ]
 
         if target_addr is None and (
-                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys'))\
-                and fast_indirect_jump_resolution:
+                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')) and \
+                        self._resolve_indirect_jumps:
             # try resolving it fast
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr,
                                                                                 jumpkind
                                                                                 )
             if resolved:
                 for t in resolved_targets:
-                    ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
-                                            stmt_idx, fast_indirect_jump_resolution=False)
+                    ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx)
                     jobs.extend(ent)
                 return jobs
 
@@ -2651,10 +2651,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         next_node_size = a.size - nop_length
                         next_node = CFGNode(next_node_addr, next_node_size, self,
                                             function_address=next_node_addr,
-                                            instruction_addrs=[i for i in a.instruction_addrs
-                                                               if next_node_addr <= i
-                                                                < next_node_addr + next_node_size
-                                                               ],
+                                            instruction_addrs=tuple(i for i in a.instruction_addrs
+                                                                      if next_node_addr <= i
+                                                                      < next_node_addr + next_node_size
+                                                                    ),
                                             thumb=a.thumb,
                                             byte_string=None if a.byte_string is None else a.byte_string[nop_length:],
                                             )
@@ -2810,9 +2810,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Generate the new node
         new_node = CFGNode(node.addr, new_size, self,
                            function_address=None if remove_function else node.function_address,
-                           instruction_addrs=[i for i in node.instruction_addrs
-                                              if node.addr <= i < node.addr + new_size
-                                              ],
+                           instruction_addrs=tuple(i for i in node.instruction_addrs
+                                                     if node.addr <= i < node.addr + new_size
+                                                   ),
                            thumb=node.thumb,
                            byte_string=None if node.byte_string is None else node.byte_string[:new_size]
                            )
@@ -2829,7 +2829,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             successor_size = node.size - new_size
             successor = CFGNode(successor_node_addr, successor_size, self,
                                 function_address=successor_node_addr if remove_function else node.function_address,
-                                instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size],
+                                instruction_addrs=tuple(i for i in node.instruction_addrs if i >= node.addr + new_size),
                                 thumb=node.thumb,
                                 byte_string=None if node.byte_string is None else node.byte_string[new_size:]
                                 )

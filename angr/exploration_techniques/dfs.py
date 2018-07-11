@@ -19,7 +19,7 @@ class DFS(ExplorationTechnique):
         if self.deferred_stash not in simgr.stashes:
             simgr.stashes[self.deferred_stash] = []
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
         if len(simgr.stashes[stash]) > 1:
             self._random.shuffle(simgr.stashes[stash])

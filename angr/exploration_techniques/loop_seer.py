@@ -42,7 +42,8 @@ class LoopSeer(ExplorationTechnique):
 
         if type(loops) in (list, tuple) and all(type(l) is Loop for l in loops):
             for loop in loops:
-                self.loops[loop.entry_edges[0][0].addr] = loop
+                if loop.entry_edges:
+                    self.loops[loop.entry_edges[0][0].addr] = loop
 
         elif loops is not None:
             raise TypeError('What type of loop is it?')
@@ -88,13 +89,12 @@ class LoopSeer(ExplorationTechnique):
             loop_finder = self.project.analyses.LoopFinder(kb=self.cfg.kb, normalize=True, functions=func)
 
             for loop in loop_finder.loops:
-                entry = loop.entry_edges[0][0]
-                self.loops[entry.addr] = loop
+                if loop.entry_edges:
+                    entry = loop.entry_edges[0][0]
+                    self.loops[entry.addr] = loop
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         kwargs['successor_func'] = self.normalized_step
-
-        simgr.step(stash=stash, **kwargs)
 
         for state in simgr.stashes[stash]:
             # Processing a currently running loop
@@ -126,7 +126,7 @@ class LoopSeer(ExplorationTechnique):
                     state.loop_data.current_loop.pop()
 
                 if self.bound is not None:
-                    if state.loop_data.trip_counts[header][-1] >= self.bound:
+                    if state.loop_data.trip_counts[header][-1] > self.bound:
                         if self.bound_reached is not None:
                             simgr = self.bound_reached(simgr)
                         else:
@@ -145,6 +145,8 @@ class LoopSeer(ExplorationTechnique):
 
                 state.loop_data.trip_counts[header].append(0)
                 state.loop_data.current_loop.append((loop, exits))
+
+        simgr.step(stash=stash, **kwargs)
 
         return simgr
 
