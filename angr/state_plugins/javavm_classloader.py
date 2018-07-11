@@ -36,8 +36,6 @@ class SimJavaVmClassloader(SimStatePlugin):
         Get the superclass of the class.
         """
         if not class_.is_loaded or class_.superclass_name is None:
-            if class_.name is not "java.lang.Object":
-                l.warning("Failed to get superclass of class %r." % class_)
             return None
         return self.get_class(class_.superclass_name)
 
@@ -60,35 +58,40 @@ class SimJavaVmClassloader(SimStatePlugin):
 
     def init_class(self, class_):
         """
-        If the class is not yet initialized and available in CLE, this runs the class 
-        initializing method <clinit> and updates the state accordingly.
+        This method simulates the loading of a class by the JVM. During the loading parts
+        of the class, such as static field, are initialized. This is done by running the
+        class initializer method <clinit>.
+        
+        Note: Initialization is skipped, if the class has already been initialized.
         """
-
         if self.is_class_initialized(class_):
+            l.debug("Class %r already initialized.", class_)
             return
 
-        if not class_.is_loaded:
-            l.warning("Class %r cannot get initialized. It's not loaded in CLE." % class_)
-            return
-
-        l.debug("Initialize class %r\n\n", class_)
+        l.debug("Initialize class %r.", class_)
         self.initialized_classes.add(class_)
 
+        if not class_.is_loaded:
+            l.warning("Class %r is not loaded in Cle. Skip initializiation.", class_)
+            return
+
         clinit_method = resolve_method(self.state, '<clinit>', class_.name, 
-                                       include_superclasses=False)
+                                       include_superclasses=False, init_class=False)
         if clinit_method.is_loaded: 
             javavm_simos = self.state.project.simos
             clinit_state = javavm_simos.state_call(addr=SootAddressDescriptor(clinit_method, 0, 0),
                                                    base_state=self.state,
                                                    ret_addr=SootAddressTerminator())
             simgr = self.state.project.factory.simgr(clinit_state)
-            l.info("Run initializer <clinit> ...")
+            l.info(">"*15 + " Run class initializer %r ... " + ">"*15, clinit_method)
             simgr.run()
-            l.debug("Run initializer <clinit> ... done \n\n")
+            l.debug("<"*15 + " Run class initializer %r ... done " + "<"*15, clinit_method)
             # The only thing that can change in the class initializer are static fields
             # => update vm_static_table and the heap
             self.state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
             self.state.memory.heap = simgr.deadended[0].memory.heap.copy()
+        else:
+            l.debug("Class initializer <clinit> is not loaded in Cle. Skip initializiation.")
 
     @property
     def initialized_classes(self):

@@ -24,11 +24,11 @@ class SimSootStmt_Assign(SimSootStmt):
             # => We deal with the invoke assignment, by
             #    1) saving the destination variable
             #    2) executing the function
-            #    3) assign the return value to destination variable, after
-            #       the function returns
+            #    3) assign the return value to destination variable,
+            #       after the function returns
             self._add_invoke_target(invoke_expr=src_expr, ret_var=dst)
             # exit prematurely
             return
         src_val = src_expr.expr
-        l.debug("Assigning %r to %r" % (src_val, dst))
+        l.debug("Assign %r := %r", dst, src_val)
         self.state.memory.store(dst, src_val)

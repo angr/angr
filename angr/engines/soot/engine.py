@@ -82,30 +82,29 @@ class SimEngineSoot(SimEngine):
                 self.project.factory.procedure_engine._process(state, successors, procedure)
                 return
 
-        l.debug("Executing new block %s" % (addr))
-        #if self._is_method_beginning(addr):
-        #    # At the beginning of a method, move some essential variables from regs to callstack
-        #    # These variables will be used again at return sites
-        #    self.handle_method_beginning(state)
+        # by default, we skip the exection for all android system methods
+        if addr.method.class_name.startswith('android'):
+            self._add_return_exit(state, successors)
+            return
 
         binary = state.regs._ip_binary
-        try:
-            method = binary.get_soot_method(addr.method)
-        except CLEError:
-            l.warning("We ended up in non-loaded Java code %s" % addr)
-            successors.processed = False
+        method = binary.get_soot_method(addr.method, none_if_missing=True)
+        if not method:          
             # This means we are executing code that it is not in CLE, typically library code.
             # We may want soot -> pysoot -> cle to export at least the method names of the libraries
             # (soot has a way to deal with this), as of now we just "simulate" a returnvoid.
             # Note that if we have sim procedure, we should not even reach this point.
-            ret_state = state.copy()
-            self.prepare_return_state(ret_state)
-            successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.se.true, 'Ijk_Ret')
-            successors.processed = True
+            l.warning("Try to execute non-loaded code %s. Continue with a return-void.", addr)
+            self._add_return_exit(state, successors)
+            return
+
+        block = method.blocks[addr.block_idx]
+        starting_stmt_idx = addr.stmt_idx
+        if starting_stmt_idx == 0:
+            l.debug("Executing new block %s \n\n%s\n", addr, block)
         else:
-            block = method.blocks[addr.block_idx]
-            starting_stmt_idx = addr.stmt_idx
-            self._handle_block(state, successors, block, starting_stmt_idx, method)
+            l.debug("Continue executing block %s", addr)
+        self._handle_block(state, successors, block, starting_stmt_idx, method)
 
         successors.processed = True
 
@@ -130,7 +129,7 @@ class SimEngineSoot(SimEngine):
     def _handle_statement(self, state, successors, stmt_idx, stmt):
 
         try:
-            l.info("Executing statement %s [%s]", stmt, state.addr)
+            l.debug("Executing statement: %s", stmt)
             s_stmt = translate_stmt(stmt, state)
         except SimEngineError as e:
             l.error("Skipping statement: " + str(e))
@@ -175,16 +174,20 @@ class SimEngineSoot(SimEngine):
         # add return exit
         elif isinstance(s_stmt, (SimSootStmt_Return, SimSootStmt_ReturnVoid)):
             l.debug("Return exit") 
-            ret_state = state.copy()
             return_val = s_stmt.return_value if type(s_stmt) is SimSootStmt_Return else None
-            self.prepare_return_state(ret_state, return_val)
-            successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.se.true, 'Ijk_Ret')
-            successors.processed = True
+            self._add_return_exit(state, successors, return_val)
             return True
 
         # go on linearly
         else:
             return False
+
+    @classmethod
+    def _add_return_exit(cls, state, successors, return_val=None):
+        ret_state = state.copy()
+        cls.prepare_return_state(ret_state, return_val)
+        successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.se.true, 'Ijk_Ret')
+        successors.processed = True
 
     def _get_sim_procedure(self, addr):
 
@@ -209,7 +212,7 @@ class SimEngineSoot(SimEngine):
         self.project._sim_procedures[addr] = proc
 
         return proc
-
+    
     @staticmethod
     def _is_method_beginning(addr):
         return addr.block_idx == 0 and addr.stmt_idx == 0
@@ -244,7 +247,7 @@ class SimEngineSoot(SimEngine):
         if args:
             # if available, store the 'this' reference
             if args[0].is_this_ref:
-            this_ref = args.pop(0)
+                this_ref = args.pop(0)
                 local = SimSootValue_Local('this', this_ref.type)
                 state.javavm_memory.store(local, this_ref.value)
             # store all function arguments in memory
