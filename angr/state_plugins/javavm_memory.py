@@ -111,7 +111,7 @@ class SimJavaVmMemory(SimMemory):
             return self.heap.load(addr.id, none_if_missing=none_if_missing)
 
         else:
-            l.error("Unknown addr type %s" % addr)
+            l.error("Unknown addr type %s", addr)
             return None
 
     def push_stack_frame(self):
@@ -264,7 +264,7 @@ class SimJavaVmMemory(SimMemory):
         value = self.heap.load(heap_elem_id, none_if_missing=True)
         # if it's not available, initialize it
         if value is None:
-            value = self.state.project.simos.get_default_value_by_type(array.element_type)
+            value = array.get_default_value(self.state)
             l.debug("Init {heap_elem_id} with {value}".format(
                      heap_elem_id=heap_elem_id, value=value))
             self.heap.store(heap_elem_id, value)

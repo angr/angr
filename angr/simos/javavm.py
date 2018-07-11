@@ -3,15 +3,17 @@ import logging
 from angr import SIM_PROCEDURES
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootAddressTerminator, SootMethodDescriptor)
-from claripy import BVV, BoolV
+from claripy import BVS, BVV, BoolV, StringS, StringV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
 from ..engines.soot.expressions import SimSootExpr_NewArray
+from ..engines.soot.expressions.invoke import JavaArgument
 from ..engines.soot.values import (SimSootValue_ArrayBaseRef,
                                    SimSootValue_ArrayRef,
                                    SimSootValue_InstanceFieldRef,
-                                   SimSootValue_Local, SimSootValue_ThisRef)
+                                   SimSootValue_Local, SimSootValue_StringRef,
+                                   SimSootValue_ThisRef)
 from ..errors import AngrSimOSError
 from ..procedures.java_jni import jni_functions
 from ..sim_state import SimState
@@ -91,7 +93,7 @@ class SimJavaVM(SimOS):
     # States
     #
 
-    def state_blank(self, addr=None, initial_prefix=None, stack_size=None, **kwargs):
+    def state_blank(self, addr=None, **kwargs):
 
         if not kwargs.get('mode', None): kwargs['mode'] = self.project._default_analysis_mode
         if not kwargs.get('arch', None):  kwargs['arch'] = self.arch
@@ -120,63 +122,50 @@ class SimJavaVM(SimOS):
             # w/o JNI support, we can just use a blank state
             state = SimState(project=self.project, **kwargs)
 
-        ## Soot initializations
+        # init state register
         state.regs._ip = addr if addr else self.project.entry
         state.regs._ip_binary = self.project.loader.main_object
         state.regs._invoke_return_target = None
         state.regs._invoke_return_variable = None
 
-        # Add empty stack frame
+        # add empty stack frame
         state.memory.push_stack_frame()
 
-        # Create bottom of callstack
+        # create bottom of callstack
         new_frame = state.callstack.copy()
         new_frame.ret_addr = SootAddressTerminator()
         state.callstack.push(new_frame)
 
+        # initialize class
+        state.javavm_classloader.get_class(state.addr.method.class_name, 
+                                           init_class=True)
+
         return state
 
-    def state_entry(self, args=None, env=None, argc=None, **kwargs):
+    def state_entry(self, *args, **kwargs):
+        """
+        :param *args: List of JavaArgument values.
+        """
         state = self.state_blank(**kwargs)
-
-        # Push the array of command line arguments on the stack frame
-        if args is None:
-            args = [state.se.StringS("cmd_arg", 1000) for _ in range(1)]
-        # if the user provides only one arguments create a list
-        elif not isinstance(args, list):
-            args = [args]
-
-        # Since command line arguments are stored into arrays in Java
-        # and arrays are stored on the heap we need to allocate the array on the heap\
-        # and return the reference
-        type_ = "String[]"
-        array_base = SimSootExpr_NewArray.new_array(state=state, 
-                                                    element_type="String", 
-                                                    size=len(args))
-        for idx, elem in enumerate(args):
-            object_heap_alloc_id = state.memory.get_new_uuid()
-            this_ref = SimSootValue_ThisRef(object_heap_alloc_id, type_)
-            field_ref = SimSootValue_InstanceFieldRef(object_heap_alloc_id, type_, 'value', type_)
-            state.memory.store(field_ref, elem)
-            ref = SimSootValue_ArrayRef(array_base, idx)
-            state.memory.store(ref, this_ref)
-        local = SimSootValue_Local("param_0", type_)
-        state.memory.store(local, array_base)
-
-        # Sometimes classes has a special method called "<clinit> that initialize part
-        # of the class such as static field with default value etc.
-        # This method would never be executed in a normal exploration so at class
-        # loading time (loading of the main class in this case) we force the symbolic execution
-        # of the method <clinit> and we update the state accordingly.
-        manifest = state.project.loader.main_bin.get_manifest()
-        state.javavm_classloader.get_class(manifest["Main-Class"], init_class=True)
-
+        # create cmdline arguments for Java main method
+        if not args and state.addr.method.name == 'main' and \
+                        state.addr.method.params[0] == 'java.lang.String[]':
+            cmd_line_args = SimSootExpr_NewArray.new_array(state, "java.lang.String", BVS('argc', 32))
+            cmd_line_args.add_default_value_generator(self.create_cmd_line_arg)
+            args = [JavaArgument(cmd_line_args, "java.lang.String[]")]
+        # setup arguments
+        state = self.state_call(state.addr, *args, base_state=state)
         return state
+
+    def create_cmd_line_arg(self, state):
+        str_ref = SimSootValue_StringRef(state.memory.get_new_uuid())
+        state.memory.store(str_ref, StringS("cmd_line_arg", 12))
+        return str_ref
 
     def state_call(self, addr, *args, **kwargs):
         """
-        :param addr: Soot or native addr of the invoke target. 
-        :param list args: List of JavaArgument values.
+        :param addr:  Soot or native addr of the invoke target. 
+        :param *args: List of JavaArgument values.
         """
         state = kwargs.pop('base_state')
         # check if we need to setup a native or a java callsite
@@ -283,16 +272,13 @@ class SimJavaVM(SimOS):
         :param type_: string represent the type name
         :return: Default values specified for the type
         """
-        if type_ in ['byte', 'char', 'short', 'int']:
+        if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
             return BVV(0, 32)
-        elif type_ == "boolean":
-            return BoolV(False)
         elif type_ == "long":
             return BVV(0, 64)
         else:
             l.error("Could not determine the default value for type %s."  % type_)
-            return None
-
+            return None 
 
     @staticmethod
     def cast_primitive(value, to_type):

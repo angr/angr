@@ -9,7 +9,7 @@ l = logging.getLogger('angr.engines.soot.values.arrayref')
 
 class SimSootValue_ArrayBaseRef(SimSootValue):
 
-    __slots__ = ['id', 'type', 'heap_alloc_id', 'size']
+    __slots__ = ['id', 'type', 'heap_alloc_id', 'size', 'default_value_generator']
 
     def __init__(self, heap_alloc_id, element_type, size):
         self.heap_alloc_id = heap_alloc_id
@@ -20,6 +20,25 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
     @staticmethod
     def _create_unique_id(heap_alloc_id, type_):
         return "%s.array_%s" % (heap_alloc_id, type_)
+
+    def get_default_value(self, state):
+        """
+        :return: Default value for an array element.
+        """
+        if hasattr(self, "default_value_generator"):
+            return self.default_value_generator(state)
+        else:
+            return state.project.simos.get_default_value_by_type(self.element_type)
+
+    def add_default_value_generator(self, generator):
+        """
+        Add a generator for overwriting the default behavior of generating array elements.
+
+        :param function generator: A function that get a sim state for input and returns
+                                   a default value for an array element, e.g.
+                                   `generator = lambda state: state.solver.BVV(0, 32)`
+        """
+        self.default_value_generator = generator
 
     def __repr__(self):
         return self.id
