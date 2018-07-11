@@ -80,9 +80,11 @@ class CallMethodBase(JNISimProcedure):
         
 
     def _setup_java_args(self, arg_values, method_id, this_ref=None):
+        args = []
+
         # if available, add 'this' reference
-        this_ref_type = this_ref.type if this_ref else None
-        args = [ JavaArgument(this_ref, this_ref_type) ]
+        if this_ref:
+            args += [ JavaArgument(this_ref, this_ref.type, is_this_ref=True) ]
 
         # function arguments
         for arg_value_, arg_type in zip(arg_values, method_id.params):

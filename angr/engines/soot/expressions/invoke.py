@@ -6,11 +6,18 @@ from .base import SimSootExpr
 
 class JavaArgument(object):
 
-    __slots__ = ['type', 'value']
+    __slots__ = ['value', 'type', 'is_this_ref']
 
-    def __init__(self, value, type_):
-        self.type = type_
+    def __init__(self, value, type_, is_this_ref=False):
+        """
+        :param value:    Value of the argument 
+        :param type_:    Type of the argument
+        :param this_ref: Indicates if argument, is 'this' reference, i.e.
+                         the object on which the method is invoked.
+        """
         self.value = value
+        self.type = type_
+        self.is_this_ref = is_this_ref
     
     def __repr__(self):
         return str(self.value)
@@ -30,13 +37,11 @@ class InvokeBase(SimSootExpr):
     def _translate_args(self):
         args = []
         # for instance method calls, add the 'this' reference
-        if isinstance(self, SimSootExpr_StaticInvoke):
-            args += [None]
-        else:
+        if not isinstance(self, SimSootExpr_StaticInvoke):
             this_ref_base = self._translate_value(self.expr.base)
             this_ref = self.state.memory.load(this_ref_base)
             this_ref_type = this_ref.type if this_ref is not None else None
-            args += [JavaArgument(this_ref, this_ref_type)]
+            args += [JavaArgument(this_ref, this_ref_type, is_this_ref=True)]
 
         # translate function arguments
         for arg in self.expr.args:

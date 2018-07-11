@@ -243,8 +243,8 @@ class SimEngineSoot(SimEngine):
         # setup arguments
         if args:
             # if available, store the 'this' reference
+            if args[0].is_this_ref:
             this_ref = args.pop(0)
-            if this_ref != None:
                 local = SimSootValue_Local('this', this_ref.type)
                 state.javavm_memory.store(local, this_ref.value)
             # store all function arguments in memory
@@ -362,11 +362,10 @@ class SimEngineSoot(SimEngine):
         jni_env = JavaArgument(state.project.simos.jni_env, "JNIEnv")
         
         # get reference to the current object or class
-        this_ref = args.pop(0)
-        if this_ref != None:
+        if args and args[0].is_this_ref:
             # instance method call
             # => pass 'this' reference to native code
-            ref = this_ref
+            ref = this_ref = args.pop(0)
             args.insert(1, this_ref)
         else:
             # static method call
