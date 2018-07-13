@@ -2555,6 +2555,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                             thumb=a.thumb,
                                             byte_string=None if a.byte_string is None else a.byte_string[nop_length:],
                                             )
+                        self.graph.add_node(next_node)
+
                         # create edges accordingly
                         all_out_edges = self.graph.out_edges(a, data=True)
                         for _, dst, data in all_out_edges:
