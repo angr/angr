@@ -211,6 +211,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             else:
                 raise AngrCFGError('Unsupported type of the `starts` argument.')
 
+        if enable_advanced_backward_slicing or enable_symbolic_back_traversal:
+            l.warning("`advanced backward slicing` and `symbolic back traversal` are deprecated.")
+            l.warning("Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead.")
+
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
@@ -1254,6 +1258,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         sim_successors = job.sim_successors
         cfg_node = job.cfg_node
         input_state = job.state
+        func_addr = job.func_addr
 
         # check step limit
         if self._max_steps is not None:
@@ -1267,7 +1272,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if is_indirect_jump and self._resolve_indirect_jumps:
             # Try to resolve indirect jumps
-            func_addr = job.func_addr
             irsb = input_state.block().vex
 
             resolved, result = self._indirect_jump_encountered(addr, irsb, func_addr, stmt_idx='default')
@@ -1300,12 +1304,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if self._keep_state:
             cfg_node.final_states = all_successors[::]
 
-        # Remove all successors whose IP is symbolic
-        successors = [ s for s in successors if not s.ip.symbolic ]
-
         if is_indirect_jump and not indirect_jump_resolved_by_resolvers:
             # For indirect jumps, filter successors that do not make sense
             successors = self._filter_insane_successors(successors)
+
+        successors = self._try_resolving_indirect_jumps(sim_successors,
+                                                        cfg_node,
+                                                        func_addr,
+                                                        successors,
+                                                        job.exception_info,
+                                                        self._block_artifacts)
+        # Remove all successors whose IP is symbolic
+        successors = [ s for s in successors if not s.ip.symbolic ]
 
         # Add additional edges supplied by the user
         successors = self._add_additional_edges(input_state, sim_successors, cfg_node, successors)
@@ -2136,18 +2146,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         old_successors = successors[::]
         successors = [ ]
         for i, suc in enumerate(old_successors):
-            ip_int = suc.se.eval_one(suc.ip)
-
-            if self._is_address_executable(ip_int) or \
-                    self.project.is_hooked(ip_int) or \
-                    self.project.simos.is_syscall_addr(ip_int):
+            if suc.se.symbolic(suc.ip):
+                # It's symbolic. Take it, and hopefully we can resolve it later
                 successors.append(suc)
+
             else:
-                l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
-                        i + 1,
-                        len(old_successors),
-                        ip_int
-                        )
+                ip_int = suc.se.eval_one(suc.ip)
+
+                if self._is_address_executable(ip_int) or \
+                        self.project.is_hooked(ip_int) or \
+                        self.project.simos.is_syscall_addr(ip_int):
+                    successors.append(suc)
+                else:
+                    l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
+                            i + 1,
+                            len(old_successors),
+                            ip_int
+                            )
 
         return successors
 
@@ -2245,29 +2260,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if sim_successors.sort == 'IRSB' and \
                 self._is_indirect_jump(cfg_node, sim_successors):
             l.debug('IRSB %#x has an indirect jump as its default exit', cfg_node.addr)
-
-            # Throw away all current paths whose target doesn't make sense
-            old_successors = successors[::]
-            successors = []
-            for i, suc in enumerate(old_successors):
-
-                if suc.se.symbolic(suc.ip):
-                    # It's symbolic. Take it, and hopefully we can resolve it later
-                    successors.append(suc)
-
-                else:
-                    # It's concrete. Does it make sense?
-                    ip_int = suc.se.eval_one(suc.ip)
-
-                    if self._is_address_executable(ip_int) or \
-                            self.project.is_hooked(ip_int):
-                        successors.append(suc)
-
-                    else:
-                        l.info('%s: an obviously incorrect successor %d/%d (%#x) is ditched',
-                               cfg_node,
-                               i + 1, len(old_successors),
-                               ip_int)
 
             # We need input states to perform backward slicing
             if self._advanced_backward_slicing and self._keep_state:
