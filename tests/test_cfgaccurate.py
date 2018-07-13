@@ -142,9 +142,9 @@ def test_additional_edges():
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
     cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True,
-                                    enable_indirect_jump_resolvers=False,  # For this test case, we need to disable the
-                                                                           # jump table resolving, otherwise CFGAccurate
-                                                                           # can automatically find the node 0x4005ad.
+                                    resolve_indirect_jumps=False,  # For this test case, we need to disable the
+                                                                   # jump table resolving, otherwise CFGAccurate
+                                                                   # can automatically find the node 0x4005ad.
                                     )
 
     nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
