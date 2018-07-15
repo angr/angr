@@ -313,7 +313,7 @@ class Project(object):
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
                 self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
-    
+
     @staticmethod
     def _guess_simlib(f, hint):
         """
