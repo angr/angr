@@ -313,8 +313,9 @@ class Project(object):
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
                 self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
-
-    def _guess_simlib(self, f, hint):
+    
+    @staticmethod
+    def _guess_simlib(f, hint):
         """
         Does symbol name `f` exist as a SIM_PROCEDURE? If so, return it. Else return None
         """
