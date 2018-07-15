@@ -236,7 +236,16 @@ class Project(object):
             if not func.is_function and func.type != cle.backends.symbol.Symbol.TYPE_NONE:
                 continue
             if not reloc.resolved:
-                l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
+                if hasattr(reloc.owner_obj, "guess_simprocs"):
+                    l.debug("Looking for matching SimProcedure for unresolved %s from %s with hint %s",
+                            func.name, reloc.owner_obj, reloc.owner_obj.guess_simprocs)
+                    guessed_simlib = self._guess_simlib(func.name, reloc.owner_obj.guess_simprocs)
+                    if guessed_simlib:
+                        self.hook_symbol(func.relative_addr, guessed_simlib.get(func.name, self.arch))
+                    else:
+                        l.debug("Could not find matching SimProcedure for %s, ignoring.", func.name)
+                else:
+                    l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
                 continue
             export = reloc.resolvedby
             if self.is_hooked(export.rebased_addr):
@@ -304,6 +313,24 @@ class Project(object):
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
                 self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
+
+    def _guess_simlib(self, f, hint):
+        """
+        Does symbol name `f` exist as a SIM_PROCEDURE? If so, return it. Else return None
+        """
+        # First, filter the SIM_LIBRARIES to a reasonable subset based on the hint
+        hinted_libs = []
+        if hint == "win":
+            hinted_libs = filter(lambda lib: lib if lib.endswith(".dll") else None, SIM_LIBRARIES)
+        else:
+            hinted_libs = filter(lambda lib: lib if ".so" in lib else None, SIM_LIBRARIES)
+
+        for lib in hinted_libs:
+            if SIM_LIBRARIES[lib].has_implementation(f):
+                l.debug("Found implementation for %s in %s", f, lib)
+                return SIM_LIBRARIES[lib]
+
+        return None
 
     def _check_user_blacklists(self, f):
         """
