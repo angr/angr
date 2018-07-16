@@ -522,7 +522,7 @@ class SimEngineVEX(SimEngine):
         # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in xrange(2):
-                irsb = pyvex.lift(arch, addr + thumb, buff,
+                irsb = pyvex.lift(buff, addr + thumb, arch,
                                   max_bytes=size,
                                   max_inst=num_inst,
                                   bytes_offset=thumb,
