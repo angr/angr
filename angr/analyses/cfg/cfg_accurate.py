@@ -2214,7 +2214,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Convert each concrete indirect jump target into a SimState.
 
         :param job:                     The CFGJob instance.
-        :param indirect_jump_targets:   A collection of concrte jump targets coming from a resolved indirect jump.
+        :param indirect_jump_targets:   A collection of concrete jump targets resolved from a indirect jump.
         :return:                        A list of SimStates.
         :rtype:                         list
         """
