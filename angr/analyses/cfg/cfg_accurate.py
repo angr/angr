@@ -2209,7 +2209,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - resolving indirect jumps
 
-    def _convert_indirect_jump_targets_to_states(self, job, indirect_jump_targets):
+    @staticmethod
+    def _convert_indirect_jump_targets_to_states(job, indirect_jump_targets):
         """
         Convert each concrete indirect jump target into a SimState.
 
