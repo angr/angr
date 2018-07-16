@@ -1893,7 +1893,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                   to_outside=False, stmt_idx=stmt_idx, ins_addr=ins_addr,
                                                   )
                     ce = CFGJob(resolved_target, current_function_addr, jumpkind,
-                                last_addr=resolved_target, src_node=cfg_node, src_stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                last_addr=resolved_target, src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr,
                                 func_edges=[ edge ],
                                 )
                     jobs.append(ce)
