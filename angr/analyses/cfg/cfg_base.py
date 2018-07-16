@@ -2007,7 +2007,7 @@ class CFGBase(Analysis):
         :return: None
         """
 
-        addr = jump.addr if jump is not None else job.addr
+        addr = jump.addr if jump is not None else jump_addr
         l.debug('The indirect jump at %#x is successfully resolved by %s. It has %d targets.', addr, resolved_by, len(targets))
         self.kb.resolved_indirect_jumps.add(addr)
 
@@ -2123,4 +2123,3 @@ class CFGBase(Analysis):
             self._indirect_jump_unresolved(jump)
 
         return set() if targets is None else set(targets)
-
