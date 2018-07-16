@@ -2108,21 +2108,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._collect_data_references_by_scanning_stmts(irsb, irsb_addr)
 
     def _process_irsb_data_refs(self, irsb):
-
         for ref in irsb.data_refs:
-
-            data_addr, data_size, data_type, stmt_idx, insn_addr = ref
-
-            # Convert data_type from enums to strings
-            data_types = {
-                0x9000: 'unknown',
-                0x9001: 'integer',
-                0x9002: 'fp',
-            }
-            data_type = data_types.get(data_type)
-
-            self._add_data_reference(irsb, irsb.addr, None, stmt_idx, insn_addr, data_addr, data_size=data_size,
-                                     data_type=data_type)
+            self._add_data_reference(
+                    irsb,
+                    irsb.addr,
+                    None,
+                    ref.stmt_idx,
+                    ref.insn_addr,
+                    ref.data_addr,
+                    data_size=ref.data_size,
+                    data_type=ref.data_type_str
+            )
 
     def _unoptimize_irsb(self, irsb):
         if self.project.arch.name in ('X86', 'AMD64'):
