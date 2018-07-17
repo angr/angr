@@ -91,6 +91,12 @@ explicit_attrs = {
         'generic_name': 'Yl2xp1',
         'to_size': 64,
     },
+    'Iop_V256to64_0': { 'generic_name': 'unpack', 'to_size': 64, },
+    'Iop_V256to64_1': { 'generic_name': 'unpack', 'to_size': 64, },
+    'Iop_V256to64_2': { 'generic_name': 'unpack', 'to_size': 64, },
+    'Iop_V256to64_3': { 'generic_name': 'unpack', 'to_size': 64, },
+    'Iop_V256toV128_0': { 'generic_name': 'unpack', 'to_size': 128, },
+    'Iop_V256toV128_1': { 'generic_name': 'unpack', 'to_size': 128, },
 }
 
 for _vec_lanewidth in (8, 16, 32, 64):
@@ -841,6 +847,13 @@ class SimIROp(object):
 
     def _op_Iop_64x4toV256(self, args) :
         return self._op_concat(args)
+
+    def _op_Iop_V256to64_0(self, args): return args[0][63:0]
+    def _op_Iop_V256to64_1(self, args): return args[0][127:0]
+    def _op_Iop_V256to64_2(self, args): return args[0][191:128]
+    def _op_Iop_V256to64_3(self, args): return args[0][255:192]
+    def _op_Iop_V256toV128_0(self, args): return args[0][127:0]
+    def _op_Iop_V256toV128_1(self, args): return args[0][255:128]
 
     def _op_Iop_QNarrowBin16Sto8Ux16(self, args):
         """
