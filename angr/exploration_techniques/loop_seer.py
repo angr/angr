@@ -2,7 +2,6 @@ import logging
 
 from . import ExplorationTechnique
 from ..analyses.loopfinder import Loop
-from ..errors import AngrExplorationTechniqueError
 from ..knowledge_base import KnowledgeBase
 from ..knowledge_plugins.functions import Function
 
@@ -48,7 +47,7 @@ class LoopSeer(ExplorationTechnique):
                     self.loops[loop.entry_edges[0][0].addr] = loop
 
         elif loops is not None:
-            raise AngrExplorationTechniqueError("Invalid type for 'loops' parameter!")
+            raise TypeError("Invalid type for 'loops' parameter!")
 
     def setup(self, simgr):
         if self.cfg is None:
@@ -58,21 +57,23 @@ class LoopSeer(ExplorationTechnique):
             l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...")
             self.cfg.normalize()
 
-        func = []
+        funcs = None
         if type(self.functions) in (str, int, Function):
-            func.extend(self._get_function(self.functions))
+            funcs = [self._get_function(self.functions)]
 
         elif type(self.functions) in (list, tuple) and all(type(f) in (str, int, Function) for f in self.functions):
+            funcs = []
             for f in self.functions:
-                func.extend(self._get_function(f))
+                func = self._get_function(f)
+                if func is not None:
+                    funcs.append(func)
+            funcs = None if not funcs else funcs
 
         elif self.functions is not None:
-            raise AngrExplorationTechniqueError("Invalid type for 'functions' parameter!")
-
-        func = None if not func else func
+            raise TypeError("Invalid type for 'functions' parameter!")
 
         if not self.loops:
-            loop_finder = self.project.analyses.LoopFinder(kb=self.cfg.kb, normalize=True, functions=func)
+            loop_finder = self.project.analyses.LoopFinder(kb=self.cfg.kb, normalize=True, functions=funcs)
 
             for loop in loop_finder.loops:
                 if loop.entry_edges:
@@ -133,6 +134,7 @@ class LoopSeer(ExplorationTechnique):
         return state.step(num_inst=len(node.instruction_addrs) if node is not None else None)
 
     def _get_function(self, func):
+        f = None
         if type(func) is str:
             f = self.cfg.kb.functions.function(name=func)
             if f is None:
@@ -146,4 +148,4 @@ class LoopSeer(ExplorationTechnique):
         elif type(func) is Function:
             f = func
 
-        return [] if f is None else [f]
+        return f
