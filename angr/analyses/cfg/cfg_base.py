@@ -1993,11 +1993,13 @@ class CFGBase(Analysis):
                     return True, resolved_targets
         return False, [ ]
 
-    def _indirect_jump_resolved(self, jump, resolved_by, targets, job):
+    def _indirect_jump_resolved(self, jump, jump_addr, resolved_by, targets):
         """
         Called when an indirect jump is successfully resolved.
 
-        :param IndirectJump jump:                   The resolved indirect jump.
+        :param IndirectJump jump:                   The resolved indirect jump, or None if an IndirectJump instance is
+                                                    not available.
+        :param int jump_addr:                       Address of the resolved indirect jump.
         :param IndirectJumpResolver resolved_by:    The resolver used to resolve this indirect jump.
         :param list targets:                        List of indirect jump targets.
         :param CFGJob job:                          The job at the start of the block containing the indirect jump.
@@ -2005,8 +2007,8 @@ class CFGBase(Analysis):
         :return: None
         """
 
-        addr = jump.addr if jump is not None else job.addr
-        l.debug('The indirect jump at %#x is successfully resolved by %s.It has %d targets.', addr, resolved_by, len(targets))
+        addr = jump.addr if jump is not None else jump_addr
+        l.debug('The indirect jump at %#x is successfully resolved by %s. It has %d targets.', addr, resolved_by, len(targets))
         self.kb.resolved_indirect_jumps.add(addr)
 
     def _indirect_jump_unresolved(self, jump):
@@ -2025,15 +2027,17 @@ class CFGBase(Analysis):
 
     def _indirect_jump_encountered(self, addr, irsb, func_addr, stmt_idx='default'):
         """
-        Called when we encounter an indirect jump.
+        Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
+        indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.
 
         :param int addr:                Address of the block containing the indirect jump.
         :param pyvex.block.IRSB irsb:   IRSB of the block containing the indirect jump.
         :param int func_addr:           Address of the current function.
         :param int or str stmt_idx:     ID of the source statement.
 
-        :return: Whether it was resolved fast, the targets if it's the case, or an IndirectJump object.
-        :rtype: tuple
+        :return:    A 3-tuple of (whether it is resolved or not, all resolved targets, an IndirectJump object
+                    if there is one or None otherwise)
+        :rtype:     tuple
         """
 
         jumpkind = irsb.jumpkind
@@ -2043,7 +2047,7 @@ class CFGBase(Analysis):
         # try resolving it fast
         resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
         if resolved:
-            return True, resolved_targets
+            return True, resolved_targets, None
 
         # Add it to our set. Will process it later if user allows.
         # Create an IndirectJump instance
@@ -2059,51 +2063,63 @@ class CFGBase(Analysis):
                                 )
             ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
             self.indirect_jumps[addr] = ij
+            resolved = False
         else:
-            ij = self.indirect_jumps[addr]
+            ij = self.indirect_jumps[addr]  # type: IndirectJump
+            resolved = len(ij.resolved_targets) > 0
 
-        return False, ij
+        return resolved, ij.resolved_targets, ij
 
-    def _process_indirect_jumps(self, job=None):
+    def _process_unresolved_indirect_jumps(self):
         """
-        Resolve indirect jumps found in previous scanning.
+        Resolve all unresolved indirect jumps found in previous scanning.
 
         Currently we support resolving the following types of indirect jumps:
         - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
         - Ijk_Boring: jump tables
         - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
 
-        :param CFGJob job: The job at the start of the block containing the indirect jump.
-
-        :return: List containing the indirect jump targets (addresses for CFGFast/successors for CFGAccurate).
-        :rtype: list
+        :return:    A set of concrete indirect jump targets (ints).
+        :rtype:     set
         """
 
-        all_targets = None
         l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
+        all_targets = set()
         for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
-            resolved = False
-            resolved_by = None
-            targets = None
-
-            for resolver in self.indirect_jump_resolvers:
-                resolver.base_state = self._base_state
-                block = self._lift(jump.addr, opt_level=1)
-
-                if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
-                    continue
-
-                resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
-                if resolved:
-                    resolved_by = resolver
-                    break
-
-            if resolved:
-                all_targets = self._indirect_jump_resolved(jump, resolved_by, targets, job)
-            else:
-                all_targets = self._indirect_jump_unresolved(jump)
+            all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()
 
         return all_targets
+
+    def _process_one_indirect_jump(self, jump):
+        """
+        Resolve a given indirect jump.
+
+        :param IndirectJump jump:  The IndirectJump instance.
+        :return:        A set of resolved indirect jump targets (ints).
+        """
+
+        resolved = False
+        resolved_by = None
+        targets = None
+
+        for resolver in self.indirect_jump_resolvers:
+            resolver.base_state = self._base_state
+            block = self._lift(jump.addr, opt_level=1)
+
+            if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
+                continue
+
+            resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
+            if resolved:
+                resolved_by = resolver
+                break
+
+        if resolved:
+            self._indirect_jump_resolved(jump, jump.addr, resolved_by, targets)
+        else:
+            self._indirect_jump_unresolved(jump)
+
+        return set() if targets is None else set(targets)

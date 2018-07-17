@@ -1274,18 +1274,22 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Try to resolve indirect jumps
             irsb = input_state.block().vex
 
-            resolved, result = self._indirect_jump_encountered(addr, irsb, func_addr, stmt_idx='default')
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, irsb, func_addr, stmt_idx='default')
             if resolved:
-                successors = self._indirect_jump_resolved(None, None, result, job)
+                successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
+                if ij:
+                    self._indirect_jump_resolved(ij, ij.addr, None, resolved_targets)
             else:
-                if result.resolved_targets:
-                    successors = self._indirect_jump_resolved(None, None, result.resolved_targets, job)
-                else:
-                    self._indirect_jumps_to_resolve.add(result)
-                    successors = self._process_indirect_jumps(job)
+                # Try to resolve this indirect jump using heavier approaches
+                resolved_targets = self._process_one_indirect_jump(ij)
+                successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
 
             if successors:
                 indirect_jump_resolved_by_resolvers = True
+            else:
+                # It's unresolved. Add it to the wait list (but apparently we don't have any better way to resolve it
+                # right now).
+                self._indirect_jumps_to_resolve.add(ij)
 
         if not successors:
             # Get all successors of this block
@@ -2205,42 +2209,24 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - resolving indirect jumps
 
-    def _indirect_jump_resolved(self, jump, resolved_by, targets, job):
+    @staticmethod
+    def _convert_indirect_jump_targets_to_states(job, indirect_jump_targets):
         """
-        Called when an indirect jump is successfully resolved.
+        Convert each concrete indirect jump target into a SimState.
 
-        :param IndirectJump jump:                   The resolved indirect jump.
-        :param IndirectJumpResolver resolved_by:    The resolver used to resolve this indirect jump.
-        :param list targets:                        List of indirect jump targets.
-        :param CFGJob job:                          The job at the start of the block containing the indirect jump.
-
-        :return: List containing the indirect jump successors.
-        :rtype: list
+        :param job:                     The CFGJob instance.
+        :param indirect_jump_targets:   A collection of concrete jump targets resolved from a indirect jump.
+        :return:                        A list of SimStates.
+        :rtype:                         list
         """
 
-        successors = []
-        for t in targets:
+        successors = [ ]
+        for t in indirect_jump_targets:
             # Insert new successors
             a = job.sim_successors.all_successors[0].copy()
             a.ip = t
             successors.append(a)
-
-        CFGBase._indirect_jump_resolved(self, jump, resolved_by, targets, job)
-
         return successors
-
-    def _indirect_jump_unresolved(self, jump):
-        """
-        Called when we cannot resolve an indirect jump.
-
-        :param IndirectJump jump: The unresolved indirect jump.
-
-        :return: None
-        """
-
-        CFGBase._indirect_jump_unresolved(self, jump)
-
-        return []
 
     def _try_resolving_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
         """
