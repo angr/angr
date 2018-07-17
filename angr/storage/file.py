@@ -248,7 +248,10 @@ class SimFile(SimFileBase, SimSymbolicMemory):
             # note: this assumes that constraints cannot be removed
             return self.load(pos, passed_max_size), size, size + pos
 
-    def write(self, pos, data, size=None, **kwargs):
+    def write(self, pos, data, size=None, events=True, **kwargs):
+        if events:
+            self.state.history.add_event('fs_write', filename=self.name, data=data, size=size, pos=pos)
+
         data = _deps_unpack(data)[0]
         if size is None:
             size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
@@ -453,7 +456,7 @@ class SimPackets(SimFileBase):
         self.content.append(packet)
         return packet + (pos+1,)
 
-    def write(self, pos, data, size=None, **kwargs):
+    def write(self, pos, data, size=None, events=True, **kwargs):
         """
         Write a packet to the stream.
 
@@ -462,6 +465,9 @@ class SimPackets(SimFileBase):
         :param size:        The optional size to write. May be symbolic; must be constrained to at most the size of data.
         :return:            The next packet to use after this
         """
+        if events:
+            self.state.history.add_event('fs_write', filename=self.name, data=data, size=size, pos=pos)
+
         # sanity check on read/write modes
         if self.write_mode is None:
             self.write_mode = True
