@@ -154,11 +154,13 @@ class SimActionOperation(SimAction):
     An action representing an operation between variables and/or constants.
     """
 
-    def __init__(self, state, op, exprs):
+    def __init__(self, state, op, exprs, result):
         super(SimActionOperation, self).__init__(state, 'operation')
 
         self.op = op
         self.exprs = exprs
+
+        self.result = result
 
     @property
     def all_objects(self):
@@ -167,6 +169,7 @@ class SimActionOperation(SimAction):
     def _copy_objects(self, c):
         c.op = self.op
         c.exprs = self.exprs[::]
+        c.result = self.result
 
     def _desc(self):
         return "operation/%s" % (self.op)
