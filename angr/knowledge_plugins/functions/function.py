@@ -4,7 +4,7 @@ import logging
 import networkx
 import string
 import itertools
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import claripy
 from ...errors import SimEngineError, SimMemoryError
@@ -335,43 +335,46 @@ class Function(object):
         # reanalyze function with a new initial state
         fresh_state = self._project.factory.blank_state(mode="fastpath")
         fresh_state.regs.ip = self.addr
+        if self._project.arch.name.lower().startswith('mips'):
+            fresh_state.regs.t9 = fresh_state.regs.ip
 
         graph_addrs = set(x.addr for x in self.graph.nodes() if isinstance(x, BlockNode))
 
         # process the nodes in a breadth-first order keeping track of which nodes have already been analyzed
         analyzed = set()
-        q = [fresh_state]
+        q = deque([fresh_state])
         analyzed.add(fresh_state.se.eval(fresh_state.ip))
-        while len(q) > 0:
+        while q:
             state = q.pop()
+            curr_ip = state.se.eval(state.ip)
+
             # make sure its in this function
-            if state.se.eval(state.ip) not in graph_addrs:
+            if curr_ip not in graph_addrs:
                 continue
             # don't trace into simprocedures
-            if self._project.is_hooked(state.se.eval(state.ip)):
+            if self._project.is_hooked(curr_ip):
                 continue
             # don't trace outside of the binary
-            if not self._project.loader.main_object.contains_addr(state.se.eval(state.ip)):
+            if not self._project.loader.main_object.contains_addr(curr_ip):
                 continue
-
-            curr_ip = state.se.eval(state.ip)
 
             # get runtime values from logs of successors
             successors = self._project.factory.successors(state)
             for succ in successors.flat_successors + successors.unsat_successors:
                 for a in succ.history.recent_actions:
-                    for ao in a.all_objects:
-                        if not isinstance(ao.ast, claripy.ast.Base):
-                            constants.add(ao.ast)
-                        elif not ao.ast.symbolic:
-                            constants.add(succ.se.eval(ao.ast))
+                    asts = [sao.ast for sao in a.all_objects] + [a.result]
+                    for ast in asts:
+                        if not isinstance(ast, claripy.ast.Base):
+                            constants.add(ast)
+                        elif not ast.symbolic:
+                            constants.add(succ.se.eval(ast))
 
                 # add successors to the queue to analyze
                 if not succ.se.symbolic(succ.ip):
                     succ_ip = succ.se.eval(succ.ip)
-                    if succ_ip in self and succ_ip not in analyzed:
+                    if succ_ip in self and (succ_ip) not in analyzed:
                         analyzed.add(succ_ip)
-                        q.insert(0, succ)
+                        q.appendleft(succ)
 
             # force jumps to missing successors
             # (this is a slightly hacky way to force it to explore all the nodes in the function)
@@ -391,7 +394,7 @@ class Function(object):
                         succ = all_successors[0].copy()
                         succ.ip = succ_addr
                         analyzed.add(succ_addr)
-                        q.insert(0, succ)
+                        q.appendleft(succ)
                     else:
                         l.warning("Could not reach successor: %#x", succ_addr)
 
