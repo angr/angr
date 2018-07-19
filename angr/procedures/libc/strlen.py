@@ -51,9 +51,11 @@ class strlen(angr.SimProcedure):
             r, c, i = self.state.memory.find(s, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, step=step)
 
             # try doubling the search len and searching again
+            s_new = s
             while all(con.is_false() for con in c):
+                s_new += search_len
                 search_len *= 2
-                r, c, i = self.state.memory.find(s, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, step=step)
+                r, c, i = self.state.memory.find(s_new, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, step=step)
                 # stop searching after some reasonable limit
                 if search_len > 0x10000:
                     raise angr.SimMemoryLimitError("strlen hit limit of 0x10000")
