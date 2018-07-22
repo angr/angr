@@ -242,7 +242,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return len(self._function_map)
 
     def __iter__(self):
-        for i in sorted(self._function_map.iterkeys()):
+        for i in sorted(self._function_map.keys()):
             yield i
 
     def _function_added(self, func):
@@ -327,7 +327,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
                     f.is_syscall=True
                 return f
         elif name is not None:
-            for func in self._function_map.itervalues():
+            for func in self._function_map.values():
                 if func.name == name:
                     if plt is None or func.is_plt == plt:
                         return func
@@ -335,7 +335,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return None
 
     def dbg_draw(self, prefix='dbg_function_'):
-        for func_addr, func in self._function_map.iteritems():
+        for func_addr, func in self._function_map.items():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
 

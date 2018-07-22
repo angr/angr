@@ -139,7 +139,7 @@ class TreePage(BasePage):
         if len(self._storage) == 0:
             return set()
         else:
-            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.itervalues()))
+            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.values()))
 
     def replace_mo(self, state, old_mo, new_mo):
         start, end = self._resolve_range(old_mo)
