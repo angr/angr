@@ -112,13 +112,13 @@ class KeyedRegion(object):
         return len(self._storage)
 
     def __iter__(self):
-        return self._storage.itervalues()
+        return iter(self._storage.values())
 
     def __eq__(self, other):
         if set(self._storage.keys()) != set(other._storage.keys()):
             return False
 
-        for k, v in self._storage.iteritems():
+        for k, v in self._storage.items():
             if v != other._storage[k]:
                 return False
 
@@ -129,7 +129,7 @@ class KeyedRegion(object):
             return KeyedRegion()
 
         kr = KeyedRegion()
-        for key, ro in self._storage.iteritems():
+        for key, ro in self._storage.items():
             kr._storage[key] = ro.copy()
         return kr
 
@@ -162,7 +162,7 @@ class KeyedRegion(object):
             offset_to_vars[key] = variables
 
         s = [ ]
-        for offset, variables in offset_to_vars.iteritems():
+        for offset, variables in offset_to_vars.items():
             s.append("Offset %#x: %s" % (offset, variables))
         return "\n".join(s)
 

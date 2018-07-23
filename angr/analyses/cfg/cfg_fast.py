@@ -1023,7 +1023,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure curr_addr exists in binary
         accepted = False
-        for start, end in self._regions.iteritems():
+        for start, end in self._regions.items():
             if start <= curr_addr < end:
                 # accept
                 accepted = True
