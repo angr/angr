@@ -1,13 +1,12 @@
 import angr
 ######################################
-# htons (yes, really)
+# htonl
 ######################################
 
-class htons(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+class htonl(angr.SimProcedure):
 
     def run(self, to_convert):
         if self.state.arch.memory_endness == "Iend_LE":
-            return to_convert.reversed >> 16
+            return to_convert.reversed
         else:
             return to_convert
