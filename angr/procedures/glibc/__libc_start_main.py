@@ -130,7 +130,7 @@ class __libc_start_main(angr.SimProcedure):
 
         # TODO: __cxa_atexit calls for various at-exit needs
 
-        self.call(self.init, (self.argc, self.argv, self.envp), 'after_init')
+        self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
         if isinstance(self.state.arch, ArchAMD64):
@@ -144,7 +144,7 @@ class __libc_start_main(angr.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath", memory_backer=self.project.loader.memory)
+        blank_state = angr.SimState(project=self.project, mode="fastpath")
         # set up the stack pointer
         blank_state.regs.sp = 0x7fffffff
 
