@@ -1,5 +1,4 @@
 import angr
-import claripy
 from angr.sim_type import SimTypeString, SimTypeInt
 from angr.errors import SimProcedureError
 
@@ -49,7 +48,7 @@ class strtol(angr.SimProcedure):
         # only one of the cases needed to match
         result = state.se.ite_cases(cases[:-1], cases[-1][1])
         expression = state.se.Or(*conditions)
-        num_bytes = state.se.ite_cases(zip(conditions, possible_num_bytes), 0)
+        num_bytes = state.se.ite_cases(zip(conditions, possible_num_bytes), 0) 
         return expression, result, num_bytes
 
     @staticmethod
@@ -59,7 +58,11 @@ class strtol(angr.SimProcedure):
         """
         length = len(prefix)
         read_length = (read_length-length) if read_length else None
-        condition, value, num_bytes = strtol._string_to_int(addr+length, state, region, base, signed, read_length)
+        stoi_addr,stoi_length = strtol._digit_filter(addr+length,state,region,read_length)
+        if stoi_addr is not None:
+            condition, value, num_bytes = strtol._string_to_int(stoi_addr, state, region, base, signed, stoi_length)
+        else: #There is no digit,so we don't care what we read, atoi will finally return 0
+            condition, value, num_bytes = strtol._string_to_int(addr, state, region, base, signed, read_length)
 
         # the prefix must match
         if len(prefix) > 0:
@@ -85,8 +88,8 @@ class strtol(angr.SimProcedure):
         length = state.libc.max_strtol_len if cutoff else read_length
 
         # expression whether or not it was valid at all
-        expression, _ = strtol._char_to_val(region.load(s, 1), base)
-
+        expression, _ = strtol._char_to_val(region.load(s, 1), state, base)
+        
         cases = []
 
         # to detect overflows we keep it in a larger bv and extract it at the end
@@ -95,11 +98,10 @@ class strtol(angr.SimProcedure):
         num_bytes = state.se.BVS("num_bytes", state.arch.bits)
         constraints_num_bytes = []
         conditions = []
-
         # we need all the conditions to hold except the last one to have found a value
         for i in range(length):
             char = region.load(s + i, 1)
-            condition, value = strtol._char_to_val(char, base)
+            condition, value = strtol._char_to_val(char, state, base)
 
             # if it was the end we'll get the current val
             cases.append((num_bytes == i, current_val))
@@ -131,7 +133,7 @@ class strtol(angr.SimProcedure):
         return expression, result, num_bytes
 
     @staticmethod
-    def _char_to_val(char, base):
+    def _char_to_val(char, state, base):
         """
         converts a symbolic char to a number in the given base
         returns expression, result
@@ -140,33 +142,71 @@ class strtol(angr.SimProcedure):
         """
         cases = []
         # 0-9
-        max_digit = claripy.BVV("9", 8)
-        min_digit = claripy.BVV("0", 8)
+        max_digit = state.se.BVV("9", 8)
+        min_digit = state.se.BVV("0", 8)
         if base < 10:
-            max_digit = claripy.BVV(chr(ord("0") + base), 8)
-        is_digit = claripy.And(char >= min_digit, char <= max_digit)
+            max_digit = state.se.BVV(chr(ord("0") + base), 8)
+        is_digit = state.se.And(char >= min_digit, char <= max_digit)
         # return early here so we don't add unnecessary statements
         if base <= 10:
             return is_digit, char - min_digit
 
         # handle alphabetic chars
-        max_char_lower = claripy.BVV(chr(ord("a") + base-10 - 1), 8)
-        max_char_upper = claripy.BVV(chr(ord("A") + base-10 - 1), 8)
-        min_char_lower = claripy.BVV(chr(ord("a")), 8)
-        min_char_upper = claripy.BVV(chr(ord("A")), 8)
+        max_char_lower = state.se.BVV(chr(ord("a") + base-10 - 1), 8)
+        max_char_upper = state.se.BVV(chr(ord("A") + base-10 - 1), 8)
+        min_char_lower = state.se.BVV(chr(ord("a")), 8)
+        min_char_upper = state.se.BVV(chr(ord("A")), 8)
 
         cases.append((is_digit, char - min_digit))
-        is_alpha_lower = claripy.And(char >= min_char_lower, char <= max_char_lower)
+        is_alpha_lower = state.se.And(char >= min_char_lower, char <= max_char_lower)
         cases.append((is_alpha_lower, char - min_char_lower + 10))
-        is_alpha_upper = claripy.And(char >= min_char_upper, char <= max_char_upper)
+        is_alpha_upper = state.se.And(char >= min_char_upper, char <= max_char_upper)
         cases.append((is_alpha_upper, char - min_char_upper + 10))
 
-        expression = claripy.Or(is_digit, is_alpha_lower, is_alpha_upper)
+        expression = state.se.Or(is_digit, is_alpha_lower, is_alpha_upper)
         # use the last case as the default, the expression will encode whether or not it's satisfiable
-        result = claripy.ite_cases(cases[:-1], cases[-1][1])
+        result = state.se.ite_cases(cases[:-1], cases[-1][1])
 
         return expression, result
-
+    @staticmethod
+    def _char_filter(char,state):
+        #atoi only convert legal char(0~9),if there is illeagal char,for example 'a',we need to remove it
+        # 0-9
+        max_digit = state.se.BVV("9", 8)
+        min_digit = state.se.BVV("0", 8)
+        is_digit = state.se.And(char >= min_digit, char <= max_digit)
+        #return boolean
+        return state.solver.eval(is_digit)
+    @staticmethod    
+    def _digit_filter(addr,state,region,read_length):
+        '''
+        param addr:   where we begin filter
+        param state:  Simstate
+        param length: how long we do our filter
+        '''
+        first_digit_order = None
+        # if length wasn't provided, read the maximum bytes
+        cutoff = (read_length == None)
+        length = state.libc.max_strtol_len if cutoff else read_length        
+        for i in range(length):
+            char = region.load(addr + i, 1)
+            is_digit = strtol._char_filter(char,state)
+            if is_digit:
+                first_digit_order = i
+                break
+        for i in range(length):
+            char = region.load(addr + i, 1)
+            is_digit = strtol._char_filter(char,state)
+            if not is_digit:
+                if i > first_digit_order and first_digit_order is not None:#We find a char that is not digit,cut it off!
+                    end_order = i
+                    break
+        if first_digit_order is None:
+            return None,0 # There is no digit for addr to addr + length
+        first_digit_addr = addr + first_digit_order
+        stoi_length = end_order - first_digit_order
+        return first_digit_addr,stoi_length
+        
     def run(self, nptr, endptr, base):
 
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
