@@ -839,12 +839,17 @@ public:
 
 			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
 			uc_mem_read(this->uc, address, instructions.get(), size);
-			IRSB *the_block = vex_lift(this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1);
+			VEXLiftResult *lift_ret = vex_lift(
+			    this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1, 0
+			    );
 
-			if (the_block == NULL) {
+
+			if (lift_ret == NULL) {
 				// TODO: how to handle?
 				return false;
 			}
+
+			IRSB *the_block = lift_ret->irsb;
 
 			for (int i = 0; i < the_block->stmts_used; i++) {
 				if (!this->check_stmt(clobbered_registers, used_registers, the_block->tyenv, the_block->stmts[i])) {

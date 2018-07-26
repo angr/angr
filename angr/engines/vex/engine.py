@@ -381,17 +381,19 @@ class SimEngineVEX(SimEngine):
             state.scratch.guard = claripy.And(state.scratch.guard, cont_condition)
 
     def lift(self,
-            state=None,
-            clemory=None,
-            insn_bytes=None,
-            arch=None,
-            addr=None,
-            size=None,
-            num_inst=None,
-            traceflags=0,
-            thumb=False,
-            opt_level=None,
-            strict_block_end=None):
+             state=None,
+             clemory=None,
+             insn_bytes=None,
+             arch=None,
+             addr=None,
+             size=None,
+             num_inst=None,
+             traceflags=0,
+             thumb=False,
+             opt_level=None,
+             strict_block_end=None,
+             skip_stmts=False,
+             collect_data_refs=False):
 
         """
         Lift an IRSB.
@@ -453,10 +455,18 @@ class SimEngineVEX(SimEngine):
             strict_block_end = self.default_strict_block_end
         if self._support_selfmodifying_code:
             if opt_level > 0:
-                l.warning("Self-modifying code is not always correctly optimized by PyVEX. To guarantee correctness, VEX optimizations have been disabled.")
+                l.warning("Self-modifying code is not always correctly optimized by PyVEX. "
+                          "To guarantee correctness, VEX optimizations have been disabled.")
                 opt_level = 0
                 if state and o.OPTIMIZE_IR in state.options:
                     state.options.remove(o.OPTIMIZE_IR)
+        if skip_stmts is not True:
+            skip_stmts = False
+
+        use_cache = self._use_cache
+        if skip_stmts or collect_data_refs:
+            # Do not cache the blocks if skip_stmts or collect_data_refs are enabled
+            use_cache = False
 
         # phase 2: thumb normalization
         thumb = int(thumb)
@@ -470,32 +480,34 @@ class SimEngineVEX(SimEngine):
             thumb = 0
 
         # phase 3: check cache
-        cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
-        if self._use_cache and cache_key in self._block_cache:
-            self._block_cache_hits += 1
-            irsb = self._block_cache[cache_key]
-            stop_point = self._first_stoppoint(irsb)
-            if stop_point is None:
-                return irsb
-            else:
-                size = stop_point - addr
-                # check the cache again
-                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
-                if cache_key in self._block_cache:
-                    self._block_cache_hits += 1
-                    return self._block_cache[cache_key]
+        cache_key = None
+        if use_cache:
+            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
+            if cache_key in self._block_cache:
+                self._block_cache_hits += 1
+                irsb = self._block_cache[cache_key]
+                stop_point = self._first_stoppoint(irsb)
+                if stop_point is None:
+                    return irsb
                 else:
+                    size = stop_point - addr
+                    # check the cache again
+                    cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
+                    if cache_key in self._block_cache:
+                        self._block_cache_hits += 1
+                        return self._block_cache[cache_key]
+                    else:
+                        self._block_cache_misses += 1
+            else:
+                # a special case: `size` is used as the maximum allowed size
+                tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level, strict_block_end)
+                try:
+                    irsb = self._block_cache[tmp_cache_key]
+                    if irsb.size <= size:
+                        self._block_cache_hits += 1
+                        return self._block_cache[tmp_cache_key]
+                except KeyError:
                     self._block_cache_misses += 1
-        else:
-            # a special case: `size` is used as the maximum allowed size
-            tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level, strict_block_end)
-            try:
-                irsb = self._block_cache[tmp_cache_key]
-                if irsb.size <= size:
-                    self._block_cache_hits += 1
-                    return self._block_cache[tmp_cache_key]
-            except KeyError:
-                self._block_cache_misses += 1
 
         # phase 4: get bytes
         if insn_bytes is not None:
@@ -507,25 +519,28 @@ class SimEngineVEX(SimEngine):
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
 
         # phase 5: call into pyvex
-        l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
+        # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in xrange(2):
-                irsb = pyvex.IRSB(buff, addr + thumb, arch,
-                                  num_bytes=size,
-                                  num_inst=num_inst,
+                irsb = pyvex.lift(buff, addr + thumb, arch,
+                                  max_bytes=size,
+                                  max_inst=num_inst,
                                   bytes_offset=thumb,
                                   traceflags=traceflags,
                                   opt_level=opt_level,
-                                  strict_block_end=strict_block_end)
+                                  strict_block_end=strict_block_end,
+                                  skip_stmts=skip_stmts,
+                                  collect_data_refs=collect_data_refs,
+                                  )
 
-                if subphase == 0:
+                if subphase == 0 and irsb.statements is not None:
                     # check for possible stop points
                     stop_point = self._first_stoppoint(irsb)
                     if stop_point is not None:
                         size = stop_point - addr
                         continue
 
-                if self._use_cache:
+                if use_cache:
                     self._block_cache[cache_key] = irsb
                 return irsb
 
