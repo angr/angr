@@ -5,8 +5,11 @@ import angr
 ######################################
 
 class recvfrom(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ,unused-argument
 
-    def run(self, fd, dst, length, flags, src_addr, addrlen): #pylint:disable=unused-argument
-        bytes_recvd = self.state.posix.read(fd, dst, self.state.se.eval(length))
-        return bytes_recvd
+    def run(self, fd, dst, length, flags, src_addr, addrlen):
+        simfd = self.state.posix.get_fd(fd)
+        if simfd is None:
+            return -1
+
+        return simfd.read(dst, length)
