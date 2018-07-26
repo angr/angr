@@ -520,9 +520,9 @@ def test_collect_data_references():
     cfg = proj.analyses.CFGFast(collect_data_references=True)
 
     memory_data = cfg.memory_data
-    # There are at least 3 code references
+    # There is no code reference
     code_ref_count = len([d for d in memory_data.values() if d.sort == 'code reference'])
-    nose.tools.assert_greater_equal(code_ref_count, 3, msg="Missing some code references.")
+    nose.tools.assert_greater_equal(code_ref_count, 0, msg="There should be no code reference.")
 
     # There are at least 2 pointer arrays
     ptr_array_count = len([d for d in memory_data.values() if d.sort == 'pointer-array'])

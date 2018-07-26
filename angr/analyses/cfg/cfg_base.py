@@ -2044,7 +2044,7 @@ class CFGBase(Analysis):
         :rtype:     tuple
         """
 
-        jumpkind = cfg_node.jumpkind
+        jumpkind = irsb.jumpkind
         l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
 
         # try resolving it fast

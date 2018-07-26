@@ -2114,7 +2114,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     irsb.addr,
                     None,
                     ref.stmt_idx,
-                    ref.insn_addr,
+                    ref.ins_addr,
                     ref.data_addr,
                     data_size=ref.data_size,
                     data_type=ref.data_type_str
@@ -2138,7 +2138,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if empty_insn:
                 # make sure opt_level is 0
-                irsb = self._lift(addr=irsb.addr, size=irsb.size, opt_level=0).vex
+                irsb = self._lift(addr=irsb.addr, size=irsb.size, opt_level=0, collect_data_refs=True).vex
         return irsb
 
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
@@ -3475,7 +3475,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb = None
             irsb_string = None
             try:
-                lifted_block = self._lift(addr, size=distance, collect_data_refs=True)
+                lifted_block = self._lift(addr, size=distance, opt_level=self._iropt_level, collect_data_refs=True)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
