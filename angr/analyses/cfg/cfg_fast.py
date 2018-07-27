@@ -1889,14 +1889,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                              current_function_addr, stmt_idx)
             if resolved:
                 for resolved_target in resolved_targets:
-                    edge = FunctionTransitionEdge(cfg_node, resolved_target, current_function_addr,
-                                                  to_outside=False, stmt_idx=stmt_idx, ins_addr=ins_addr,
-                                                  )
-                    ce = CFGJob(resolved_target, current_function_addr, jumpkind,
-                                last_addr=resolved_target, src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr,
-                                func_edges=[ edge ],
-                                )
-                    jobs.append(ce)
+                    if jumpkind == 'Ijk_Call':
+                        jobs += self._create_job_call(cfg_node.addr, irsb, cfg_node, stmt_idx, ins_addr,
+                                                      current_function_addr, resolved_target, jumpkind)
+                    else:
+                        edge = FunctionTransitionEdge(cfg_node, resolved_target, current_function_addr,
+                                                      to_outside=False, stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                                      )
+                        ce = CFGJob(resolved_target, current_function_addr, jumpkind,
+                                    last_addr=resolved_target, src_node=cfg_node, src_stmt_idx=stmt_idx,
+                                    src_ins_addr=ins_addr, func_edges=[ edge ],
+                                    )
+                        jobs.append(ce)
                 return jobs
 
             if jumpkind == "Ijk_Boring":
@@ -1937,9 +1941,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._indirect_jumps_to_resolve.add(ij)
                 self._register_analysis_job(current_function_addr, ij)
 
-                self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
-                                      jumpkind, is_syscall=is_syscall
-                                      )
+                jobs += self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
+                                              jumpkind, is_syscall=is_syscall
+                                              )
 
         elif target_addr is not None:
             # This is a direct jump with a concrete target.
