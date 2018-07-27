@@ -63,7 +63,6 @@ class SimCGC(SimUserland):
         s.libc.max_str_len = 1000000
         s.libc.max_strtol_len = 10
         s.libc.max_memcpy_size = 0x100000
-        s.libc.max_symbolic_bytes = 100
         s.libc.max_buffer_size = 0x100000
 
         return s
