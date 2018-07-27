@@ -773,7 +773,7 @@ class SimMemory(SimStatePlugin):
         if not self._abstract_backer and \
                 o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
                 self.state.uninitialized_access_handler is not None and \
-                (r.op == 'Reverse' or r.op == 'I') and \
+                (r.op == 'Reverse' or r.op == 'BVV') and \
                 getattr(r._model_vsa, 'uninitialized', False):
             normalized_addresses = self.normalize_address(addr)
             if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
