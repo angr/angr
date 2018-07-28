@@ -1880,70 +1880,82 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 target_addr == irsb.addr + irsb.size:
             jumpkind = "Ijk_Boring"
 
-        if target_addr is None and (
-                jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')) and \
-                self._resolve_indirect_jumps:
-            # This is an indirect jump. Try to resolve it.
+        if target_addr is None:
+            # The target address is not a concrete value
 
-            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
-                                                                             current_function_addr, stmt_idx)
-            if resolved:
-                for resolved_target in resolved_targets:
-                    if jumpkind == 'Ijk_Call':
-                        jobs += self._create_job_call(cfg_node.addr, irsb, cfg_node, stmt_idx, ins_addr,
-                                                      current_function_addr, resolved_target, jumpkind)
-                    else:
-                        edge = FunctionTransitionEdge(cfg_node, resolved_target, current_function_addr,
-                                                      to_outside=False, stmt_idx=stmt_idx, ins_addr=ins_addr,
-                                                      )
-                        ce = CFGJob(resolved_target, current_function_addr, jumpkind,
-                                    last_addr=resolved_target, src_node=cfg_node, src_stmt_idx=stmt_idx,
-                                    src_ins_addr=ins_addr, func_edges=[ edge ],
-                                    )
-                        jobs.append(ce)
-                return jobs
+            if jumpkind == "Ijk_Ret":
+                # This block ends with a return instruction.
+                if current_function_addr != -1:
+                    self._function_exits[current_function_addr].add(addr)
+                    self._function_add_return_site(addr, current_function_addr)
+                    self.functions[current_function_addr].returning = True
+                    self._add_returning_function(current_function_addr)
 
-            if jumpkind == "Ijk_Boring":
-                resolved_as_plt = False
+                cfg_node.has_return = True
 
-                if irsb and self._heuristic_plt_resolving:
-                    # Test it on the initial state. Does it jump to a valid location?
-                    # It will be resolved only if this is a .plt entry
-                    resolved_as_plt = self._resolve_plt(addr, irsb, ij)
+            elif self._resolve_indirect_jumps and \
+                    (jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')):
+                # This is an indirect jump. Try to resolve it.
+
+                resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
+                                                                                 current_function_addr, stmt_idx)
+                if resolved:
+                    for resolved_target in resolved_targets:
+                        if jumpkind == 'Ijk_Call':
+                            jobs += self._create_job_call(cfg_node.addr, irsb, cfg_node, stmt_idx, ins_addr,
+                                                          current_function_addr, resolved_target, jumpkind)
+                        else:
+                            edge = FunctionTransitionEdge(cfg_node, resolved_target, current_function_addr,
+                                                          to_outside=False, stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                                          )
+                            ce = CFGJob(resolved_target, current_function_addr, jumpkind,
+                                        last_addr=resolved_target, src_node=cfg_node, src_stmt_idx=stmt_idx,
+                                        src_ins_addr=ins_addr, func_edges=[ edge ],
+                                        )
+                            jobs.append(ce)
+                    return jobs
+
+                if jumpkind == "Ijk_Boring":
+                    resolved_as_plt = False
+
+                    if irsb and self._heuristic_plt_resolving:
+                        # Test it on the initial state. Does it jump to a valid location?
+                        # It will be resolved only if this is a .plt entry
+                        resolved_as_plt = self._resolve_plt(addr, irsb, ij)
+
+                        if resolved_as_plt:
+                            jump_target = next(iter(ij.resolved_targets))
+                            target_func_addr = jump_target  # TODO: FIX THIS
+
+                            edge = FunctionTransitionEdge(cfg_node, jump_target, current_function_addr,
+                                                          to_outside=True, dst_func_addr=jump_target,
+                                                          stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                                          )
+                            ce = CFGJob(jump_target, target_func_addr, jumpkind, last_addr=jump_target,
+                                        src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr,
+                                        func_edges=[edge],
+                                        )
+                            jobs.append(ce)
 
                     if resolved_as_plt:
-                        jump_target = next(iter(ij.resolved_targets))
-                        target_func_addr = jump_target  # TODO: FIX THIS
+                        # has been resolved as a PLT entry. Remove it from indirect_jumps_to_resolve
+                        if ij.addr in self._indirect_jumps_to_resolve:
+                            self._indirect_jumps_to_resolve.remove(ij.addr)
+                            self._deregister_analysis_job(current_function_addr, ij)
+                    else:
+                        # add it to indirect_jumps_to_resolve
+                        self._indirect_jumps_to_resolve.add(ij)
 
-                        edge = FunctionTransitionEdge(cfg_node, jump_target, current_function_addr,
-                                                      to_outside=True, dst_func_addr=jump_target,
-                                                      stmt_idx=stmt_idx, ins_addr=ins_addr,
-                                                      )
-                        ce = CFGJob(jump_target, target_func_addr, jumpkind, last_addr=jump_target,
-                                    src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr,
-                                    func_edges=[edge],
-                                    )
-                        jobs.append(ce)
+                        # register it as a job for the current function
+                        self._register_analysis_job(current_function_addr, ij)
 
-                if resolved_as_plt:
-                    # has been resolved as a PLT entry. Remove it from indirect_jumps_to_resolve
-                    if ij.addr in self._indirect_jumps_to_resolve:
-                        self._indirect_jumps_to_resolve.remove(ij.addr)
-                        self._deregister_analysis_job(current_function_addr, ij)
-                else:
-                    # add it to indirect_jumps_to_resolve
+                else:  # jumpkind == "Ijk_Call" or jumpkind.startswith('Ijk_Sys')
                     self._indirect_jumps_to_resolve.add(ij)
-
-                    # register it as a job for the current function
                     self._register_analysis_job(current_function_addr, ij)
 
-            else:  # jumpkind == "Ijk_Call" or jumpkind.startswith('Ijk_Sys')
-                self._indirect_jumps_to_resolve.add(ij)
-                self._register_analysis_job(current_function_addr, ij)
-
-                jobs += self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
-                                              jumpkind, is_syscall=is_syscall
-                                              )
+                    jobs += self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
+                                                  jumpkind, is_syscall=is_syscall
+                                                  )
 
         elif target_addr is not None:
             # This is a direct jump with a concrete target.
@@ -1982,15 +1994,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 jobs += self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr,
                                               target_addr, jumpkind, is_syscall=is_syscall
                                               )
-
-            elif jumpkind == "Ijk_Ret":
-                if current_function_addr != -1:
-                    self._function_exits[current_function_addr].add(addr)
-                    self._function_add_return_site(addr, current_function_addr)
-                    self.functions[current_function_addr].returning = True
-                    self._add_returning_function(current_function_addr)
-
-                cfg_node.has_return = True
 
             else:
                 # TODO: Support more jumpkinds
