@@ -2854,7 +2854,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Remove bad constraints
                 # FIXME: This is so hackish...
                 new_state.se._solver.constraints = [c for c in new_state.se.constraints if
-                                                    c.op != 'I' or c.args[0] is not False]
+                                                    c.op != 'BoolV' or c.args[0] is not False]
                 new_state.se._solver._result = None
                 # Swap them
                 saved_state, job.state = job.state, new_state
