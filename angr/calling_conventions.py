@@ -550,8 +550,8 @@ class SimCC(object):
             state.regs.sp -= self.stack_space(arg_locs)
 
             # handle alignment
-            while claripy.is_true((state.regs.sp + self.STACKARG_SP_DIFF) % self.STACK_ALIGNMENT != 0):
-                state.regs.sp -= 1
+            alignment = (state.regs.sp + self.STACKARG_SP_DIFF) % self.STACK_ALIGNMENT
+            state.regs.sp -= alignment
 
         for loc, val in zip(arg_locs, vals):
             if val.length > loc.size * 8:
