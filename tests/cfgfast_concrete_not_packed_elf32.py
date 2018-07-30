@@ -8,7 +8,7 @@ import angr
 import claripy
 
 from angr_targets import AvatarGDBConcreteTarget
-from angrutils import *
+
 
 
 GDB_SERVER_IP = '127.0.0.1'
@@ -109,7 +109,3 @@ def solv_concrete_engine_linux_x86(p,entry_state):
     print "It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges()))
 
 
-
-setup_x86()
-test_concrete_engine_linux_x86_simprocedures()
-teardown()
