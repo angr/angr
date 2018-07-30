@@ -23,7 +23,7 @@ class SimIRExpr_Op(SimIRExpr):
                         action_objects.append(SimActionObject(ex.expr, reg_deps=frozenset({arg.offset})))
                     else:
                         action_objects.append(SimActionObject(ex.expr))
-                r = SimActionOperation(self.state, self._expr.op, action_objects)
+                r = SimActionOperation(self.state, self._expr.op, action_objects, self.expr)
                 self.actions.append(r)
 
         except UnsupportedIROpError as e:

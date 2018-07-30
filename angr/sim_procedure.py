@@ -139,8 +139,10 @@ class SimProcedure(object):
                 if state.callstack.top.procedure_data is None:
                     raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
-                saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
+                saved_sp, sim_args, saved_local_vars, saved_lr = state.callstack.top.procedure_data
                 state.regs.sp = saved_sp
+                if saved_lr is not None:
+                    state.regs.lr = saved_lr
                 inst.arguments = sim_args
                 inst.use_state_arguments = True
                 inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
@@ -341,7 +343,7 @@ class SimProcedure(object):
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars)
+        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars, self.state.regs.lr if self.state.arch.lr_offset is not None else None)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
 

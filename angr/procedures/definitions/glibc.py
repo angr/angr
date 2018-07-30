@@ -16,7 +16,7 @@ _l = logging.getLogger('angr.prototypes.libc')
 
 
 libc = SimLibrary()
-libc.set_library_names('libc.so.6', 'libc.so.0', 'libc.so')
+libc.set_library_names('libc.so.0', 'libc.so.1', 'libc.so.2', 'libc.so.3', 'libc.so.4', 'libc.so.5', 'libc.so.6', 'libc.so.7', 'libc.so')
 libc.add_all_from_dict(P['libc'])
 libc.add_all_from_dict(P['posix'])
 libc.add_all_from_dict(P['glibc'])

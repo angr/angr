@@ -32,7 +32,7 @@ class ManualMergepoint(ExplorationTechnique):
         for state in simgr.stashes[stash]:
             state.globals.pop(self.filter_marker)
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         # ha ha, very funny, if this is being run on a single-step basis our filter probably misfired
         if len(simgr.stashes[self.stash]) == 1 and len(simgr.stashes[stash]) == 0:
             simgr = simgr.move(self.stash, stash)

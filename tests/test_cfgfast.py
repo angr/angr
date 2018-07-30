@@ -268,7 +268,48 @@ def test_cfg_switches():
             (0x4006e1, 0x40073e),
             (0x4006e1, 0x40074f),
             (0x4006e1, 0x40075b),
-        }
+        },
+        'armel': {
+            # jump table 0 in func_0
+            (0x10434, 0x10488),
+            (0x10434, 0x104e8),
+            (0x10434, 0x10498),
+            (0x10434, 0x104a8),
+            (0x10434, 0x104b8),
+            (0x10434, 0x104c8),
+            (0x10434, 0x104d8),
+            (0x10454, 0x104e8), # default case
+            # jump table 0 in func_1
+            (0x10524, 0x105cc),
+            (0x10524, 0x106b4),
+            (0x10524, 0x105d8),
+            (0x10524, 0x105e4),
+            (0x10524, 0x105f0),
+            (0x10524, 0x105fc),
+            (0x10524, 0x10608),
+            (0x10524, 0x10614),
+            (0x10524, 0x10620),
+            (0x10524, 0x1062c),
+            (0x10524, 0x10638),
+            (0x10534, 0x106b4),  # default case
+            # jump table 1 in func_1
+            (0x10650, 0x106a4),  # default case
+            (0x10640, 0x10668),
+            (0x10640, 0x10674),
+            (0x10640, 0x10680),
+            (0x10640, 0x1068c),
+            (0x10640, 0x10698),
+            # jump table 0 in main
+            (0x10734, 0x107fc),
+            (0x10734, 0x10808),
+            (0x10734, 0x10818),
+            (0x10734, 0x10828),
+            (0x10734, 0x10838),
+            (0x10734, 0x10848),
+            (0x10734, 0x10858),
+            (0x10734, 0x10864),
+            (0x10744, 0x10864),  # default case
+        },
     }
 
     arches = edges.keys()
@@ -467,6 +508,26 @@ def test_blanket_fauxware():
     # a block ends at 0x4005a9 (exclusive)
     nose.tools.assert_equal(cfb.ceiling_addr(0x400581), 0x4005a9)
 
+#
+# Data references
+#
+
+def test_collect_data_references():
+
+    path = os.path.join(test_location, 'x86_64', 'fauxware')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast(collect_data_references=True)
+
+    memory_data = cfg.memory_data
+    # There is no code reference
+    code_ref_count = len([d for d in memory_data.values() if d.sort == 'code reference'])
+    nose.tools.assert_greater_equal(code_ref_count, 0, msg="There should be no code reference.")
+
+    # There are at least 2 pointer arrays
+    ptr_array_count = len([d for d in memory_data.values() if d.sort == 'pointer-array'])
+    nose.tools.assert_greater(ptr_array_count, 2, msg="Missing some pointer arrays.")
+
 
 def run_all():
 
@@ -499,18 +560,24 @@ def run_all():
     test_resolve_x86_elf_pic_plt()
     test_function_names_for_unloaded_libraries()
     test_block_instruction_addresses_armhf()
+    test_blanket_fauxware()
+    test_collect_data_references()
 
 
 def main():
     if len(sys.argv) > 1:
         g = globals().copy()
-        for func_and_args in g['test_' + sys.argv[1]]():
-            func, args = func_and_args[0], func_and_args[1:]
-            func(*args)
+
+        r = g['test_' + sys.argv[1]]()
+
+        if r is not None:
+            for func_and_args in r:
+                func, args = func_and_args[0], func_and_args[1:]
+                func(*args)
     else:
         run_all()
 
 if __name__ == "__main__":
-    logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
+    # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
 
     main()

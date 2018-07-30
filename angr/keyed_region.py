@@ -112,13 +112,13 @@ class KeyedRegion(object):
         return len(self._storage)
 
     def __iter__(self):
-        return self._storage.itervalues()
+        return iter(self._storage.values())
 
     def __eq__(self, other):
         if set(self._storage.keys()) != set(other._storage.keys()):
             return False
 
-        for k, v in self._storage.iteritems():
+        for k, v in self._storage.items():
             if v != other._storage[k]:
                 return False
 
@@ -129,7 +129,7 @@ class KeyedRegion(object):
             return KeyedRegion()
 
         kr = KeyedRegion()
-        for key, ro in self._storage.iteritems():
+        for key, ro in self._storage.items():
             kr._storage[key] = ro.copy()
         return kr
 
@@ -162,7 +162,7 @@ class KeyedRegion(object):
             offset_to_vars[key] = variables
 
         s = [ ]
-        for offset, variables in offset_to_vars.iteritems():
+        for offset, variables in offset_to_vars.items():
             s.append("Offset %#x: %s" % (offset, variables))
         return "\n".join(s)
 
@@ -299,8 +299,8 @@ class KeyedRegion(object):
         # is there a region item that begins before the start and overlaps with this variable?
         floor_key, floor_item = self._get_container(start)
         if floor_item is not None and floor_key not in overlapping_items:
-                # insert it into the beginningq
-                overlapping_items.insert(0, (floor_key, self._storage[floor_key]))
+                # insert it into the beginning
+                overlapping_items.insert(0, floor_key)
 
         # scan through the entire list of region items, split existing regions and insert new regions as needed
         to_update = {start: RegionObject(start, object_size, {stored_object})}

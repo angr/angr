@@ -226,6 +226,10 @@ class SimSystemPosix(SimStatePlugin):
 
         ``mode`` from open(2) is unsupported at present.
         """
+
+        if len(name) == 0:
+            return None
+
         # TODO: speed this up (editor's note: ...really? this is fine)
         fd = None
         if preferred_fd is not None and preferred_fd not in self.fd:
@@ -238,13 +242,14 @@ class SimSystemPosix(SimStatePlugin):
 
         simfile = self.state.fs.get(name)
         if simfile is None:
+            ident = SimFile.make_ident(name)
             if not writing:
-                if not options.ALL_FILES_EXIST:
+                if options.ALL_FILES_EXIST not in self.state.options:
                     return None
                 l.warning("Trying to open unknown file %s - created a symbolic file since ALL_FILES_EXIST is set", name)
-                simfile = SimFile(name, size=self.state.solver.BVS('filesize_%s' % name, self.state.arch.bits, key=('file', name, 'filesize'), eternal=True))
+                simfile = SimFile(name, ident=ident, size=self.state.solver.BVS('filesize_%s' % ident, self.state.arch.bits, key=('file', ident, 'filesize'), eternal=True))
             else:
-                simfile = SimFile(name)
+                simfile = SimFile(name, ident=ident)
             if not self.state.fs.insert(name, simfile):
                 return None
 

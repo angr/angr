@@ -552,13 +552,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             load_constraint = [ constraint_options[0] ]
 
-        if condition is not None:
+        if condition is not None and fallback is not None:
             read_value = self.state.se.If(condition, read_value, fallback)
             load_constraint = [ self.state.se.Or(self.state.se.And(condition, *load_constraint), self.state.se.Not(condition)) ]
 
         return addrs, read_value, load_constraint
 
-    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+              disable_actions=False, inspect=True):
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
@@ -573,7 +574,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         chunk_start = 0
         chunk_size = max(0x100, seek_size + 0x80)
-        chunk = self.load(start, chunk_size, endness="Iend_BE")
+        chunk = self.load(start, chunk_size, endness="Iend_BE",
+                          disable_actions=disable_actions, inspect=inspect)
 
         cases = [ ]
         match_indices = [ ]
@@ -591,7 +593,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 l.debug("loading new chunk")
                 chunk_start += chunk_size - seek_size + 1
                 chunk = self.load(start+chunk_start, chunk_size,
-                        endness="Iend_BE", ret_on_segv=True)
+                                  endness="Iend_BE", ret_on_segv=True,
+                                  disable_actions=disable_actions, inspect=inspect)
 
             chunk_off = i-chunk_start
             b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]

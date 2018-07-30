@@ -1,15 +1,16 @@
 
-
 from collections import defaultdict
+from itertools import chain
 import logging
 
-from .. import Analysis
-from cle.backends.cgc import CGC
 from networkx import NetworkXError
+
+from cle.backends.cgc import CGC
 
 from .errors import IdentifierException
 from .functions import Functions
 from .runner import Runner
+from .. import Analysis
 from ... import options
 from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
@@ -262,7 +263,7 @@ class Identifier(Analysis):
         try:
             if not match_func.pre_test(cfg_func, self._runner):
                 return False
-            for i in xrange(NUM_TESTS): #pylint disable=unused-variable
+            for _ in xrange(NUM_TESTS):
                 test_data = match_func.gen_input_output_pair()
                 if test_data is not None and not self._runner.test(cfg_func, test_data):
                     return False
@@ -296,7 +297,7 @@ class Identifier(Analysis):
             for b in f.graph.nodes():
                 self.block_to_func[b.addr] = f
 
-    def do_trace(self, addr_trace, reverse_accesses, func_info): #pylint disable=unused-argument
+    def do_trace(self, addr_trace, reverse_accesses, func_info): #pylint: disable=unused-argument
         # get to the callsite
 
         s = self.make_symbolic_state(self.project, self._reg_list, stack_length=200)
@@ -361,9 +362,8 @@ class Identifier(Analysis):
         calling_func_info = self.func_info[calling_func]
         stack_var_accesses = calling_func_info.stack_var_accesses
         for stack_var, v in stack_var_accesses.items():
-            for addr, type in v:
-                #pylint disable=redefined-builtin
-                reverse_accesses[addr] = (stack_var, type)
+            for addr, ty in v:
+                reverse_accesses[addr] = (stack_var, ty)
 
         # we need to step back as far as possible
         start = calling_func.get_node(callsite)
@@ -444,7 +444,7 @@ class Identifier(Analysis):
         state.regs.bp = input_state.regs.bp
         return state
 
-    def _prefilter_floats(self, func): #pylint disable=no-self-use
+    def _prefilter_floats(self, func): #pylint: disable=no-self-use
 
         # calling _get_block() from `func` respects the size of the basic block
         # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
@@ -588,7 +588,7 @@ class Identifier(Analysis):
                     elif not found_end and stmt.tag == 'Ist_Put':
                         if stmt.offset == self.project.arch.sp_offset:
                             found_end = True
-                            ends.add(a.ins_addr)
+                            ends.add(cur_addr)
                             all_end_addrs.add(cur_addr)
 
         bp_sp_diff = None
@@ -762,7 +762,7 @@ class Identifier(Analysis):
 
     def _no_sp_or_bp(self, bl):
         for s in bl.vex.statements:
-            for e in [s] + s.expressions:
+            for e in chain([s], s.expressions):
                 if e.tag == "Iex_Get":
                     reg = self.get_reg_name(self.project.arch, e.offset)
                     if reg == "ebp" or reg == "esp":

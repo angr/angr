@@ -15,9 +15,7 @@ class Threading(ExplorationTechnique):
         self.threads = threads
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=threads)
 
-    def step(self, simgr, stash=None, **kwargs):
-        stash = stash or 'active'
-
+    def step(self, simgr, stash='active', **kwargs):
         counts = [0]*self.threads
         def counts_of(i):
             out = counts[i]
@@ -41,4 +39,3 @@ class Threading(ExplorationTechnique):
             simgr.populate(stash, tasks[f].threadlocal)
 
         return simgr
-

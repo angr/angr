@@ -384,7 +384,7 @@ class SimSyscallLibrary(SimLibrary):
         name, arch, abi = self._canonicalize(number, arch, abi_list)
         proc = super(SimSyscallLibrary, self).get_stub(name, arch)
         self._apply_numerical_metadata(proc, number, arch, abi)
-        l.warn("unsupported syscall: %s", number)
+        l.debug("unsupported syscall: %s", number)
         return proc
 
     def has_metadata(self, number, arch, abi_list=()):

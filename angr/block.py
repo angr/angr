@@ -12,11 +12,11 @@ class Block(object):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
-                 '_instruction_addrs', '_opt_level'
+                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs'
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 opt_level=None, num_inst=None, traceflags=0, strict_block_end=None):
+                 opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
 
         # set up arch
         if project is not None:
@@ -58,12 +58,16 @@ class Block(object):
                         opt_level=opt_level,
                         num_inst=num_inst,
                         traceflags=traceflags,
-                        strict_block_end=strict_block_end)
+                        strict_block_end=strict_block_end,
+                        collect_data_refs=collect_data_refs,
+                )
                 size = vex.size
 
         self._vex = vex
+        self._vex_nostmt = None
         self._capstone = None
         self.size = size
+        self._collect_data_refs = collect_data_refs
 
         self._instructions = num_inst
         self._instruction_addrs = []
@@ -144,10 +148,33 @@ class Block(object):
                     num_inst=self._instructions,
                     opt_level=self._opt_level,
                     arch=self.arch,
+                    collect_data_refs=self._collect_data_refs,
             )
             self._parse_vex_info()
 
         return self._vex
+
+    @property
+    def vex_nostmt(self):
+        if self._vex_nostmt:
+            return self._vex_nostmt
+
+        if self._vex:
+            return self._vex
+
+        self._vex_nostmt = self._vex_engine.lift(
+            clemory=self._project.loader.memory if self._project is not None else None,
+            insn_bytes=self._bytes,
+            addr=self.addr,
+            thumb=self.thumb,
+            size=self.size,
+            num_inst=self._instructions,
+            opt_level=self._opt_level,
+            arch=self.arch,
+            skip_stmts=True,
+            collect_data_refs=self._collect_data_refs,
+        )
+        return self._vex_nostmt
 
     @property
     def capstone(self):

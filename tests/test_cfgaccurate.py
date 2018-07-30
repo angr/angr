@@ -141,7 +141,11 @@ def test_additional_edges():
     additional_edges = {
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True,
+                                    resolve_indirect_jumps=False,  # For this test case, we need to disable the
+                                                                   # jump table resolving, otherwise CFGAccurate
+                                                                   # can automatically find the node 0x4005ad.
+                                    )
 
     nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
     nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
@@ -410,6 +414,70 @@ def test_armel_incorrect_function_detection_caused_by_branch():
     # All blocks should be there
     block_addrs = sorted([ b.addr for b in resetisr_func.blocks ])
     nose.tools.assert_equal(block_addrs, [0x8009, 0x8011, 0x801f, 0x8027])
+
+
+def test_cfg_switches():
+
+    #logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
+    #logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
+
+    filename = "cfg_switches"
+
+    edges = {
+        'x86_64': {
+            # jump table 0 in func_0
+            (0x40053a, 0x400547),
+            (0x40053a, 0x400552),
+            (0x40053a, 0x40055d),
+            (0x40053a, 0x400568),
+            (0x40053a, 0x400573),
+            (0x40053a, 0x400580),
+            (0x40053a, 0x40058d),
+            # jump table 0 in func_1
+            (0x4005bc, 0x4005c9),
+            (0x4005bc, 0x4005d8),
+            (0x4005bc, 0x4005e7),
+            (0x4005bc, 0x4005f6),
+            (0x4005bc, 0x400605),
+            (0x4005bc, 0x400614),
+            (0x4005bc, 0x400623),
+            (0x4005bc, 0x400632),
+            (0x4005bc, 0x40063e),
+            (0x4005bc, 0x40064a),
+            (0x4005bc, 0x4006b0),
+            # jump table 1 in func_1
+            (0x40065a, 0x400667),
+            (0x40065a, 0x400673),
+            (0x40065a, 0x40067f),
+            (0x40065a, 0x40068b),
+            (0x40065a, 0x400697),
+            (0x40065a, 0x4006a3),
+            # jump table 0 in main
+            (0x4006e1, 0x4006ee),
+            (0x4006e1, 0x4006fa),
+            (0x4006e1, 0x40070b),
+            (0x4006e1, 0x40071c),
+            (0x4006e1, 0x40072d),
+            (0x4006e1, 0x40073e),
+            (0x4006e1, 0x40074f),
+            (0x4006e1, 0x40075b),
+        },
+    }
+
+    arches = edges.keys()
+
+    for arch in arches:
+        path = os.path.join(test_location, arch, filename)
+        proj = angr.Project(path, load_options={'auto_load_libs': False})
+
+        cfg = proj.analyses.CFGAccurate()
+
+        for src, dst in edges[arch]:
+            src_node = cfg.get_any_node(src)
+            dst_node = cfg.get_any_node(dst)
+            nose.tools.assert_in(dst_node, src_node.successors,
+                                 msg="CFG edge %s-%s is not found." % (src_node, dst_node)
+                                 )
 
 
 def run_all():

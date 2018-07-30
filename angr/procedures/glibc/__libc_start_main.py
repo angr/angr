@@ -134,9 +134,11 @@ class __libc_start_main(angr.SimProcedure):
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
         if isinstance(self.state.arch, ArchAMD64):
-            # (rsp+8) must be aligned to 16 as required by System V ABI
-            # ref: http://www.x86-64.org/documentation/abi.pdf , page 16
-            self.state.regs.rsp = (self.state.regs.rsp & 0xfffffffffffffff0) - 8
+            # (rsp+8) must be aligned to 16 as required by System V ABI.
+            # Since call will place a return address (8 bytes) onto the stack,
+            # align rsp to 16 bytes here.
+            # ref: https://raw.githubusercontent.com/wiki/hjl-tools/x86-psABI/x86-64-psABI-1.0.pdf , page 18
+            self.state.regs.rsp = (self.state.regs.rsp & 0xfffffffffffffff0)
         self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
@@ -144,7 +146,7 @@ class __libc_start_main(angr.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath")
+        blank_state = angr.SimState(project=self.project, mode="fastpath", memory_backer=self.project.loader.memory)
         # set up the stack pointer
         blank_state.regs.sp = 0x7fffffff
 

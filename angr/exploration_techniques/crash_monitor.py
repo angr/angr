@@ -52,7 +52,7 @@ class CrashMonitor(ExplorationTechnique):
 
         return False
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         if len(simgr.active) == 1:
             self.last_state = simgr.active[0]
 

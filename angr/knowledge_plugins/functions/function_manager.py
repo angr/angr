@@ -32,6 +32,9 @@ class FunctionDict(SortedDict):
             self._backref._function_added(t)
             return t
 
+    def get(self, addr):
+        return super(FunctionDict, self).__getitem__(addr)
+
     def floor_addr(self, addr):
         try:
             return next(self.irange(maximum=addr, reverse=True))
@@ -93,7 +96,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None, stmt_idx=None, ins_addr=None,
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None, ins_addr=None,
                      return_to_outside=False):
 
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
@@ -242,8 +245,11 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return len(self._function_map)
 
     def __iter__(self):
-        for i in sorted(self._function_map.iterkeys()):
+        for i in sorted(self._function_map.keys()):
             yield i
+
+    def get_by_addr(self, addr):
+        return self._function_map.get(addr)
 
     def _function_added(self, func):
         """
@@ -277,7 +283,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
         try:
             next_addr = self._function_map.ceiling_addr(addr)
-            return self._function_map[next_addr]
+            return self._function_map.get(next_addr)
 
         except KeyError:
             return None
@@ -327,7 +333,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
                     f.is_syscall=True
                 return f
         elif name is not None:
-            for func in self._function_map.itervalues():
+            for func in self._function_map.values():
                 if func.name == name:
                     if plt is None or func.is_plt == plt:
                         return func
@@ -335,7 +341,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return None
 
     def dbg_draw(self, prefix='dbg_function_'):
-        for func_addr, func in self._function_map.iteritems():
+        for func_addr, func in self._function_map.items():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
 
