@@ -23,8 +23,11 @@ class realloc(angr.SimProcedure):
         self.return_type = self.ty_ptr(SimTypeTop(size))
 
         addr = self.state.libc.heap_location
-        v = self.state.memory.load(ptr, size_int)
-        self.state.memory.store(addr, v)
+
+        if self.state.solver.eval(ptr) != 0:
+            v = self.state.memory.load(ptr, size_int)
+            self.state.memory.store(addr, v)
+            
         self.state.libc.heap_location += size_int
 
         return addr
