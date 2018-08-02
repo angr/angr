@@ -17,7 +17,7 @@ class Manager(object):
         self.tyenv = None
 
     def next_atom(self):
-        return self.atom_ctr.next()
+        return next(self.atom_ctr)
 
     def reset(self):
         self.atom_ctr = itertools.count()
