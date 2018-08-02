@@ -10,7 +10,7 @@ class fdwait(angr.SimProcedure):
 
     def run(self, nfds, readfds, writefds, timeout, readyfds):
 
-        run_count = fdcount.next()
+        run_count = next(fdcount)
         total_ready = self.state.se.BVV(0, self.state.arch.bits)
 
         read_fds = [ ]

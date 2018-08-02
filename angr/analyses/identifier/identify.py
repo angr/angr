@@ -203,7 +203,7 @@ class Identifier(Analysis):
         return False
 
     def get_func_info(self, func):
-        if isinstance(func, (int, long)):
+        if isinstance(func, int):
             func = self._cfg.functions[func]
         if func not in self.func_info:
             return None
@@ -231,7 +231,7 @@ class Identifier(Analysis):
         except NetworkXError:
             calls_other_funcs = False
 
-        for name, f in Functions.iteritems():
+        for name, f in Functions.items():
             # check if we should be finding it
             if self.only_find is not None and name not in self.only_find:
                 continue
@@ -263,7 +263,7 @@ class Identifier(Analysis):
         try:
             if not match_func.pre_test(cfg_func, self._runner):
                 return False
-            for _ in xrange(NUM_TESTS):
+            for _ in range(NUM_TESTS):
                 test_data = match_func.gen_input_output_pair()
                 if test_data is not None and not self._runner.test(cfg_func, test_data):
                     return False
@@ -288,7 +288,7 @@ class Identifier(Analysis):
 
         # create inverse callsite map
         self.inv_callsites = defaultdict(set)
-        for c, f in self.callsites.iteritems():
+        for c, f in self.callsites.items():
             self.inv_callsites[f].add(c)
 
         # create map of blocks to the function they reside in
@@ -350,7 +350,7 @@ class Identifier(Analysis):
         return simgr.active[0]
 
     def get_call_args(self, func, callsite):
-        if isinstance(func, (int, long)):
+        if isinstance(func, int):
             func = self._cfg.functions[func]
         func_info = self.func_info[func]
         if len(func_info.stack_args) == 0:
@@ -421,7 +421,7 @@ class Identifier(Analysis):
             return None
 
         original_offset = reg_offset
-        while reg_offset >= 0 and reg_offset >= original_offset - (arch.bits/8):
+        while reg_offset >= 0 and reg_offset >= original_offset - (arch.bytes):
             if reg_offset in arch.register_names:
                 return arch.register_names[reg_offset]
             else:
@@ -459,7 +459,7 @@ class Identifier(Analysis):
         # could also figure out if args are buffers etc
         # doesn't handle dynamically allocated stack, etc
 
-        if isinstance(func, (int, long)):
+        if isinstance(func, int):
             func = self._cfg.functions[func]
 
         self._prefilter_floats(func)
@@ -501,7 +501,7 @@ class Identifier(Analysis):
         elif succ.history.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
             min_sp = initial_state.se.eval(initial_state.regs.sp)
-            for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
+            for i in range(self.project.factory.block(func.startpoint.addr).instructions):
                 succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
                 test_sp = succ.se.eval(succ.regs.sp)
                 if test_sp < min_sp:
@@ -515,7 +515,7 @@ class Identifier(Analysis):
         # find the end of the preamble
         num_preamble_inst = None
         succ = None
-        for i in xrange(0, self.project.factory.block(func.startpoint.addr).instructions):
+        for i in range(0, self.project.factory.block(func.startpoint.addr).instructions):
             if i == 0:
                 succ = initial_state
             if i != 0:

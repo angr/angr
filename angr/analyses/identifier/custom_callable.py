@@ -86,7 +86,7 @@ class IdentifierCallable(object):
             return pg2
 
         caller = self._project.factory.simgr(state, immutable=True)
-        for _ in xrange(self._max_steps):
+        for _ in range(self._max_steps):
             if len(caller.active) == 0:
                 break
             if caller.active[0].history.block_count > 100000:

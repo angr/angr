@@ -1,6 +1,5 @@
 import logging
-from itertools import islice, izip
-
+from itertools import islice
 
 from . import ExplorationTechnique
 
@@ -34,7 +33,7 @@ class DrillerCore(ExplorationTechnique):
         self.project = simgr._project
 
         # Update encounters with known state transitions.
-        self.encounters.update(izip(self.trace, islice(self.trace, 1, None)))
+        self.encounters.update(zip(self.trace, islice(self.trace, 1, None)))
 
 
     def complete(self, simgr):

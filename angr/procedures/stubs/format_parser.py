@@ -174,7 +174,7 @@ class FormatString(object):
                     # this makes z3's job EXTREMELY easy
                     sdata, _ = simfd.read_data(digits, short_reads=False)
                     for i, digit in enumerate(reversed(sdata.chop(8))):
-                        digit_value = (target_variable / (base**i)) % base
+                        digit_value = (target_variable // (base**i)) % base
                         digit_ascii = digit_value + ord('0')
                         if base > 10:
                             digit_ascii = claripy.If(digit_value >= 10, digit_value + (-10 + ord('a')), digit_ascii)
@@ -185,7 +185,7 @@ class FormatString(object):
                             if i == digits - 1:
                                 neg_digit_ascii = ord('-')
                             else:
-                                neg_digit_value = (-target_variable / (base**i)) % base
+                                neg_digit_value = (-target_variable // (base**i)) % base
                                 neg_digit_ascii = neg_digit_value + ord('0')
                                 if base > 10:
                                     neg_digit_ascii = claripy.If(neg_digit_value >= 10, neg_digit_value + (-10 + ord('a')), neg_digit_ascii)
@@ -237,7 +237,7 @@ class FormatString(object):
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, ohc, ohi = region.find(position, self.parser.state.se.BVV('\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
+                    ohr, ohc, ohi = region.find(position, self.parser.state.se.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
 
                     # if no newline is found, mm is position + max_strlen
                     # If-branch will really only happen for format specifiers with a length
@@ -382,7 +382,7 @@ class FormatParser(SimProcedure):
         """
         mod_spec={}
 
-        for mod, sizes in self.int_len_mod.iteritems():
+        for mod, sizes in self.int_len_mod.items():
 
             for conv in self.int_sign['signed']:
                 mod_spec[mod + conv] = sizes[0]
@@ -444,7 +444,7 @@ class FormatParser(SimProcedure):
                     typeobj = sim_type.parse_type(nugtype).with_arch(self.state.arch)
                 except:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
-                return FormatSpecifier(original_nugget, length_spec, typeobj.size / 8, typeobj.signed)
+                return FormatSpecifier(original_nugget, length_spec, typeobj.size // 8, typeobj.signed)
 
         return None
 
@@ -537,7 +537,7 @@ class FormatParser(SimProcedure):
         fmt_xpr = self.state.memory.load(fmtstr_ptr, length)
 
         fmt = [ ]
-        for i in xrange(fmt_xpr.size(), 0, -8):
+        for i in range(fmt_xpr.size(), 0, -8):
             char = fmt_xpr[i - 1 : i - 8]
             try:
                 conc_char = self.state.solver.eval_one(char)

@@ -79,15 +79,15 @@ def run_fauxware(arch, threads):
     total_active = len(pg_c.active)
 
     # test special stashes
-    nose.tools.assert_equals(len(pg_c.stashes['stashed']), 0)
+    nose.tools.assert_equal(len(pg_c.stashes['stashed']), 0)
     pg_d = pg_c.stash(filter_func=lambda p: p is pg_c.active[1], to_stash='asdf')
-    nose.tools.assert_equals(len(pg_d.stashes['stashed']), 0)
-    nose.tools.assert_equals(len(pg_d.asdf), 1)
-    nose.tools.assert_equals(len(pg_d.active), total_active-1)
+    nose.tools.assert_equal(len(pg_d.stashes['stashed']), 0)
+    nose.tools.assert_equal(len(pg_d.asdf), 1)
+    nose.tools.assert_equal(len(pg_d.active), total_active-1)
     pg_e = pg_d.stash(from_stash=pg_d.ALL, to_stash='fdsa')
-    nose.tools.assert_equals(len(pg_e.asdf), 0)
-    nose.tools.assert_equals(len(pg_e.active), 0)
-    nose.tools.assert_equals(len(pg_e.fdsa), total_active)
+    nose.tools.assert_equal(len(pg_e.asdf), 0)
+    nose.tools.assert_equal(len(pg_e.active), 0)
+    nose.tools.assert_equal(len(pg_e.fdsa), total_active)
     pg_f = pg_e.stash(from_stash=pg_e.ALL, to_stash=pg_e.DROP)
     nose.tools.assert_true(all(len(s) == 0 for s in pg_f.stashes.values()))
 

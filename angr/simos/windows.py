@@ -65,7 +65,7 @@ class SimWindows(SimOS):
         # Prepare argc
         if argc is None:
             argc = claripy.BVV(len(args), state.arch.bits)
-        elif type(argc) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        elif type(argc) is int:  # pylint: disable=unidiomatic-typecheck
             argc = claripy.BVV(argc, state.arch.bits)
 
         # Make string table for args and env
@@ -77,20 +77,22 @@ class SimWindows(SimOS):
         cmdline = claripy.BVV(0, 0)
         for arg in args:
             if cmdline.length != 0:
-                cmdline = cmdline.concat(claripy.BVV(' '))
+                cmdline = cmdline.concat(claripy.BVV(b' '))
 
             if type(arg) is str:
-                if '"' in arg or '\0' in arg:
+                arg = arg.encode()
+            if type(arg) is bytes:
+                if b'"' in arg or b'\0' in arg:
                     raise AngrSimOSError("Can't handle windows args with quotes or nulls in them")
                 arg = claripy.BVV(arg)
             elif isinstance(arg, claripy.ast.BV):
                 for byte in arg.chop(8):
-                    state.solver.add(byte != claripy.BVV('"'))
+                    state.solver.add(byte != claripy.BVV(b'"'))
                     state.solver.add(byte != claripy.BVV(0, 8))
             else:
-                raise TypeError("Argument must be str or bitvector")
+                raise TypeError("Argument must be str or bytes or bitvector")
 
-            cmdline = cmdline.concat(claripy.BVV('"'), arg, claripy.BVV('"'))
+            cmdline = cmdline.concat(claripy.BVV(b'"'), arg, claripy.BVV(b'"'))
         cmdline = cmdline.concat(claripy.BVV(0, 8))
         wcmdline = claripy.Concat(*(x.concat(0, 8) for x in cmdline.chop(8)))
 
@@ -102,11 +104,11 @@ class SimWindows(SimOS):
         stack_ptr -= 16
         state.memory.store(stack_ptr, claripy.BVV(0, 8*16))
 
-        stack_ptr -= cmdline.length / 8
+        stack_ptr -= cmdline.length // 8
         state.memory.store(stack_ptr, cmdline)
         state.mem[self.acmdln_ptr].long = stack_ptr
 
-        stack_ptr -= wcmdline.length / 8
+        stack_ptr -= wcmdline.length // 8
         state.memory.store(stack_ptr, wcmdline)
         state.mem[self.wcmdln_ptr].long = stack_ptr
 
@@ -272,20 +274,20 @@ class SimWindows(SimOS):
 
         return state
 
-    def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
+    def handle_exception(self, successors, engine, exception):
         # don't bother handling non-vex exceptions
         if engine is not self.project.factory.default_engine:
-            raise exc_type, exc_value, exc_traceback
+            raise exception
         # don't bother handling symbolic-address exceptions
-        if exc_type is SimSegfaultException:
-            if exc_value.original_addr is not None and exc_value.original_addr.symbolic:
-                raise exc_type, exc_value, exc_traceback
+        if type(exception) is SimSegfaultException:
+            if exception.original_addr is not None and exception.original_addr.symbolic:
+                raise exception
 
-        _l.debug("Handling exception from block at %#x: %r", successors.addr, exc_value)
+        _l.debug("Handling exception from block at %#x: %r", successors.addr, exception)
 
         # If our state was just living out the rest of an unsatisfiable guard, discard it
         # it's possible this is incomplete because of implicit constraints added by memory or ccalls...
-        if not successors.initial_state.satisfiable(extra_constraints=(exc_value.guard,)):
+        if not successors.initial_state.satisfiable(extra_constraints=(exception.guard,)):
             _l.debug("... NOT handling unreachable exception")
             successors.processed = True
             return
@@ -293,19 +295,19 @@ class SimWindows(SimOS):
         # we'll need to wind up to the exception to get the correct state to resume from...
         # exc will be a SimError, for sure
         # executed_instruction_count is incremented when we see an imark BUT it starts at -1, so this is the correct val
-        num_inst = exc_value.executed_instruction_count
+        num_inst = exception.executed_instruction_count
         if num_inst >= 1:
             # scary...
             try:
                 r = self.project.factory.default_engine.process(successors.initial_state, num_inst=num_inst)
                 if len(r.flat_successors) != 1:
-                    if exc_value.guard.is_true():
+                    if exception.guard.is_true():
                         _l.error("Got %d successors while re-executing %d instructions at %#x "
                                  "for unconditional exception windup",
                                  len(r.flat_successors), num_inst, successors.initial_state.addr)
-                        raise exc_type, exc_value, exc_traceback
+                        raise exception
                     # Try to figure out which successor is ours...
-                    _, _, canon_guard = exc_value.guard.canonicalize()
+                    _, _, canon_guard = exception.guard.canonicalize()
                     for possible_succ in r.flat_successors:
                         _, _, possible_guard = possible_succ.recent_events[-1].constraint.canonicalize()
                         if canon_guard is possible_guard:
@@ -315,7 +317,7 @@ class SimWindows(SimOS):
                         _l.error("None of the %d successors while re-executing %d instructions at %#x "
                                  "for conditional exception windup matched guard",
                                  len(r.flat_successors), num_inst, successors.initial_state.addr)
-                        raise exc_type, exc_value, exc_traceback
+                        raise exception
 
                 else:
                     exc_state = r.flat_successors[0]
@@ -323,7 +325,7 @@ class SimWindows(SimOS):
                 # lol no
                 _l.error("Got some weirdo error while re-executing %d instructions at %#x "
                          "for exception windup", num_inst, successors.initial_state.addr)
-                raise exc_type, exc_value, exc_traceback
+                raise exception
         else:
             # duplicate the history-cycle code here...
             exc_state = successors.initial_state.copy()
@@ -337,13 +339,13 @@ class SimWindows(SimOS):
         tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
             _l.debug("... no handlers registered")
-            exc_value.args = ('Unhandled exception: %r' % exc_value,)
-            raise exc_type, exc_value, exc_traceback
+            exception.args = ('Unhandled exception: %r' % exception,)
+            raise exception
         # catch nested exceptions here with magic value
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
             _l.debug("... nested exception")
-            exc_value.args = ('Unhandled exception: %r' % exc_value,)
-            raise exc_type, exc_value, exc_traceback
+            exception.args = ('Unhandled exception: %r' % exception,)
+            raise exception
 
         # serialize the thread context and set up the exception record...
         self._dump_regs(exc_state, exc_state.regs._esp - 0x300)
@@ -354,18 +356,18 @@ class SimWindows(SimOS):
         exc_state.mem[record + 0x4].uint32_t = 0  # flags = continuable
         exc_state.mem[record + 0x8].uint32_t = 0  # FUCK chained exceptions
         exc_state.mem[record + 0xc].uint32_t = exc_state.regs._eip  # exceptionaddress
-        for i in xrange(16):  # zero out the arg count and args array
+        for i in range(16):  # zero out the arg count and args array
             exc_state.mem[record + 0x10 + 4*i].uint32_t = 0
         # TOTAL SIZE: 0x50
 
         # the rest of the parameters have to be set per-exception type
         # https://msdn.microsoft.com/en-us/library/cc704588.aspx
-        if exc_type is SimSegfaultException:
+        if type(exception) is SimSegfaultException:
             exc_state.mem[record].uint32_t = 0xc0000005  # STATUS_ACCESS_VIOLATION
             exc_state.mem[record + 0x10].uint32_t = 2
-            exc_state.mem[record + 0x14].uint32_t = 1 if exc_value.reason.startswith('write-') else 0
-            exc_state.mem[record + 0x18].uint32_t = exc_value.addr
-        elif exc_type is SimZeroDivisionException:
+            exc_state.mem[record + 0x14].uint32_t = 1 if exception.reason.startswith('write-') else 0
+            exc_state.mem[record + 0x18].uint32_t = exception.addr
+        elif type(exception) is SimZeroDivisionException:
             exc_state.mem[record].uint32_t = 0xC0000094  # STATUS_INTEGER_DIVIDE_BY_ZERO
             exc_state.mem[record + 0x10].uint32_t = 0
 

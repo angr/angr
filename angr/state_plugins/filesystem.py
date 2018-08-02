@@ -58,10 +58,10 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
     @SimStatePlugin.memo
     def copy(self, memo):
         o = SimFilesystem(
-                files={k: v.copy(memo) for k, v in self._files.iteritems()},
+                files={k: v.copy(memo) for k, v in self._files.items()},
                 pathsep=self.pathsep,
                 cwd=self.cwd,
-                mountpoints={k: v.copy(memo) for k, v in self._mountpoints.iteritems()}
+                mountpoints={k: v.copy(memo) for k, v in self._mountpoints.items()}
             )
         o._unlinks = list(self._unlinks)
         return o
@@ -74,7 +74,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
                 raise SimMergeError("Can't merge filesystems with disparate cwds")
             if len(o._mountpoints) != len(self._mountpoints):
                 raise SimMergeError("Can't merge filesystems with disparate mountpoints")
-            if map(id, o.unlinks) != map(id, self.unlinks):
+            if list(map(id, o.unlinks)) != list(map(id, self.unlinks)):
                 raise SimMergeError("Can't merge filesystems with disparate unlinks")
 
         for fname in self._mountpoints:
@@ -214,7 +214,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         :return: A tuple of the mount and a list of path elements traversing from the mountpoint to the specified file.
         """
         path_chunks = self._normalize_path(path)
-        for i in xrange(len(path_chunks)):
+        for i in range(len(path_chunks)):
             partial_path = self._join_chunks(path_chunks[:-i])
             if partial_path in self._mountpoints:
                 mountpoint = self._mountpoints[partial_path]
@@ -407,7 +407,7 @@ class SimHostFilesystem(SimMount):
 #                return False
 #            return self
 #
-#        for fname, simfile in self.files.iteritems():
+#        for fname, simfile in self.files.items():
 #            if path.startswith(fname):
 #                if len(path) == len(fname):
 #                    if writing and not simfile.writable:
@@ -490,17 +490,17 @@ class SimHostFilesystem(SimMount):
 #    @SimStatePlugin.memo
 #    def copy(self, memo):
 #        return SimDirectory(
-#                files={x: y.copy(memo) for x, y in self.files.iteritems()},
+#                files={x: y.copy(memo) for x, y in self.files.items()},
 #                writable=self.writable,
 #                parent=self.parent.copy(memo),
 #                pathsep=self.pathsep)
 #
 #    def merge(self, others, conditions, ancestor=None):
-#        new_files = {path: (simfile, [], []) for path, simfile in self.files.iteritems() if path not in ('.', '..')}
+#        new_files = {path: (simfile, [], []) for path, simfile in self.files.items() if path not in ('.', '..')}
 #        for other, condition in zip(others, conditions):
 #            if type(other) is not type(self):
 #                raise SimMergeError("Can't merge filesystem elements of disparate types")
-#            for path, simfile in other.files.iteritems():
+#            for path, simfile in other.files.items():
 #                if path in ('.', '..'):
 #                    continue
 #                if path not in new_files:
@@ -518,11 +518,11 @@ class SimHostFilesystem(SimMount):
 #        self.files = new_files
 #
 #    def widen(self, others):
-#        new_files = {path: [simfile] for path, simfile in self.files.iteritems() if path not in ('.', '..')}
+#        new_files = {path: [simfile] for path, simfile in self.files.items() if path not in ('.', '..')}
 #        for other in others:
 #            if type(other) is not type(self):
 #                raise SimMergeError("Can't merge filesystem elements of disparate types")
-#            for path, simfile in other.files.iteritems():
+#            for path, simfile in other.files.items():
 #                if path in ('.', '..'):
 #                    continue
 #                if path not in new_files:

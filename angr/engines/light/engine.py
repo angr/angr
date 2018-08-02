@@ -255,7 +255,7 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
         try:
-            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+            if isinstance(expr_0, int) and isinstance(expr_1, int):
                 # self.tyenv is not used
                 mask = (1 << expr.result_size(self.tyenv)) - 1
                 return (expr_0 + expr_1) & mask
@@ -275,7 +275,7 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
         try:
-            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+            if isinstance(expr_0, int) and isinstance(expr_1, int):
                 # self.tyenv is not used
                 mask = (1 << expr.result_size(self.tyenv)) - 1
                 return (expr_0 - expr_1) & mask
@@ -310,7 +310,7 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
         try:
-            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+            if isinstance(expr_0, int) and isinstance(expr_1, int):
                 # self.tyenv is not used
                 mask = (1 << expr.result_size(self.tyenv)) - 1
                 return (expr_0 << expr_1) & mask

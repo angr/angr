@@ -245,7 +245,7 @@ class SimOS(object):
             basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
         return basic_addr, basic_addr
 
-    def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback): # pylint: disable=no-self-use,unused-argument
+    def handle_exception(self, successors, engine, exception): # pylint: disable=no-self-use,unused-argument
         """
         Perform exception handling. This method will be called when, during execution, a SimException is thrown.
         Currently, this can only indicate a segfault, but in the future it could indicate any unexpected exceptional
@@ -259,7 +259,7 @@ class SimOS(object):
         :param exc_value:       The value of sys.exc_info()[1] from the error, the actual exception object
         :param exc_traceback:   The value of sys.exc_info()[2] from the error, the traceback from the exception
         """
-        raise exc_type, exc_value, exc_traceback
+        raise exception
     # Dummy stuff to allow this API to be used freely
 
     # pylint: disable=unused-argument, no-self-use

@@ -50,7 +50,7 @@ class VFGJob(CFGJobBase):
 
     def callstack_repr(self, kb=None):
         s = [ ]
-        for i in xrange(0, len(self.call_stack_suffix), 2):
+        for i in range(0, len(self.call_stack_suffix), 2):
             call_site, func_addr = self.call_stack_suffix[i], self.call_stack_suffix[i + 1]  # pylint:disable=unsubscriptable-object
             if func_addr is None:
                 continue
@@ -591,7 +591,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 raise AngrSkipJobNotice()
             else:
                 # unwind the stack till the target, unless we see any pending jobs for each new top task
-                for i in xrange(unwind_count):
+                for i in range(unwind_count):
                     if isinstance(self._top_task, FunctionAnalysis):
                         # are there any pending job belonging to the current function that we should handle first?
                         pending_job_key = self._get_pending_job(self._top_task.function_address)
@@ -919,7 +919,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # pop all finished tasks from the task stack
 
-        pending_task_func_addrs = set(k.func_addr for k in self._pending_returns.iterkeys())
+        pending_task_func_addrs = set(k.func_addr for k in self._pending_returns.keys())
         while True:
             task = self._top_task
 
@@ -1610,7 +1610,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             reg_sp_val = successor_state.se.eval(reg_sp_expr)
             reg_sp_si = successor_state.se.SI(to_conv=reg_sp_expr)
             reg_sp_si = reg_sp_si._model_vsa
-        elif type(reg_sp_expr._model_vsa) in (int, long):  # pylint:disable=unidiomatic-typecheck
+        elif type(reg_sp_expr._model_vsa) is int:  # pylint:disable=unidiomatic-typecheck
             reg_sp_val = reg_sp_expr._model_vsa
             reg_sp_si = successor_state.se.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
             reg_sp_si = reg_sp_si._model_vsa
@@ -1752,7 +1752,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         Input: addresses or node instances
         Return: a list of lists of nodes representing paths.
         """
-        if type(begin) in (int, long) and type(end) in (int, long):  # pylint:disable=unidiomatic-typecheck
+        if type(begin) is int and type(end) is int:  # pylint:disable=unidiomatic-typecheck
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 

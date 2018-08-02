@@ -77,7 +77,7 @@ class MemoryRegion(object):
         """
 
         ret = [ ]
-        for aloc in self._alocs.itervalues():
+        for aloc in self._alocs.values():
             for seg in aloc.segments:
                 if seg.offset >= addr and seg.offset < addr + size:
                     ret.append(aloc)
@@ -133,7 +133,7 @@ class MemoryRegion(object):
         Helper function for merging.
         """
         merging_occurred = False
-        for aloc_id, aloc in other_region.alocs.iteritems():
+        for aloc_id, aloc in other_region.alocs.items():
             if aloc_id not in self.alocs:
                 self.alocs[aloc_id] = aloc.copy()
                 merging_occurred = True
@@ -168,11 +168,11 @@ class MemoryRegion(object):
         """
         Print out debugging information
         """
-        print "%sA-locs:" % (" " * indent)
+        print("%sA-locs:" % (" " * indent))
         for aloc_id, aloc in self._alocs.items():
-            print "%s<0x%x> %s" % (" " * (indent + 2), aloc_id, aloc)
+            print("%s<0x%x> %s" % (" " * (indent + 2), aloc_id, aloc))
 
-        print "%sMemory:" % (" " * indent)
+        print("%sMemory:" % (" " * indent))
         self.memory.dbg_print(indent=indent + 2)
 
 class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
@@ -344,7 +344,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if condition is not None:
             addr = self._apply_condition_to_symbolic_addr(addr, condition)
 
-        if type(addr) in (int, long):
+        if type(addr) is int:
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
         addr_with_regions = self._normalize_address_type(addr)
@@ -436,11 +436,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             l.warning('_load(): size %s is a ValueSet. Something is wrong.', size)
             if self.state.scratch.ins_addr is not None:
                 var_name = 'invalid_read_%d_%#x' % (
-                    invalid_read_ctr.next(),
+                    next(invalid_read_ctr),
                     self.state.scratch.ins_addr
                 )
             else:
-                var_name = 'invalid_read_%d_None' % invalid_read_ctr.next()
+                var_name = 'invalid_read_%d_None' % next(invalid_read_ctr)
 
             return address_wrappers, self.state.se.Unconstrained(var_name, 32), [True]
 
@@ -498,7 +498,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return data
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
-        if type(addr) in (int, long):
+        if type(addr) is int:
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
         addr = self._normalize_address_type(addr)
@@ -632,7 +632,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return widening_occurred
 
     def __contains__(self, dst):
-        if type(dst) in (int, long):
+        if type(dst) is int:
             dst = self.state.se.BVV(dst, self.state.arch.bits)
 
         addrs = self._normalize_address_type(dst)
@@ -667,7 +667,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     def was_written_to(self, dst):
 
-        if type(dst) in (int, long):
+        if type(dst) is int:
             dst = self.state.se.BVV(dst, self.state.arch.bits)
 
         addrs = self._normalize_address_type(dst)
@@ -684,7 +684,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         Print out debugging information
         """
         for region_id, region in self.regions.items():
-            print "Region [%s]:" % region_id
+            print("Region [%s]:" % region_id)
             region.dbg_print(indent=2)
 
 

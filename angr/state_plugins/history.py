@@ -7,6 +7,7 @@ import claripy
 from .plugin import SimStatePlugin
 from .. import sim_options
 from ..state_plugins.sim_action import SimActionObject
+from ..misc.ux import deprecated
 
 l = logging.getLogger("angr.state_plugins.history")
 
@@ -201,7 +202,7 @@ class SimStateHistory(SimStatePlugin):
         #    stmts = self.state.project.factory.block(bbl_addr).vex.statements
         #    if stmt_idx >= len(stmts):
         #        return None
-        #    for i in reversed(xrange(stmt_idx + 1)):
+        #    for i in reversed(range(stmt_idx + 1)):
         #        if stmts[i].tag == 'Ist_IMark':
         #            return stmts[i].addr + stmts[i].delta
         #    return None
@@ -364,12 +365,12 @@ class SimStateHistory(SimStatePlugin):
     def ins_addrs(self):
         return LambdaIterIter(self, operator.attrgetter('recent_ins_addrs'))
     @property
+    @deprecated('.descriptions')
     def trace(self):
-        print ".trace is deprecated: please use .descriptions"
         return self.descriptions
     @property
+    @deprecated('.bbl_addrs')
     def addr_trace(self):
-        print ".addr_trace is deprecated: please use .bbl_addrs"
         return self.bbl_addrs
     @property
     def stack_actions(self):

@@ -857,7 +857,7 @@ class CFGBase(Analysis):
         :rtype:          int
         """
 
-        pointer_size = self.project.arch.bits / 8
+        pointer_size = self.project.arch.bytes
         buf, size = self._fast_memory_load(addr)
         if buf is None:
             return None
@@ -1113,7 +1113,7 @@ class CFGBase(Analysis):
 
         while end_addresses_to_nodes:
             key_to_find = (None, None)
-            for tpl, x in end_addresses_to_nodes.iteritems():
+            for tpl, x in end_addresses_to_nodes.items():
                 if len(x) > 1:
                     key_to_find = tpl
                     break
@@ -1140,13 +1140,13 @@ class CFGBase(Analysis):
             if not end_addresses_to_nodes:
                 # find if there are still overlapping blocks
                 sorted_smallest_nodes = defaultdict(list)  # callstack_key is the key of this dict
-                for k, node in smallest_nodes.iteritems():
+                for k, node in smallest_nodes.items():
                     _, callstack_key = k
                     sorted_smallest_nodes[callstack_key].append(node)
-                for k in sorted_smallest_nodes.iterkeys():
+                for k in sorted_smallest_nodes.keys():
                     sorted_smallest_nodes[k] = sorted(sorted_smallest_nodes[k], key=lambda node: node.addr)
 
-                for callstack_key, lst in sorted_smallest_nodes.iteritems():
+                for callstack_key, lst in sorted_smallest_nodes.items():
                     lst_len = len(lst)
                     for i, node in enumerate(lst):
                         if i == lst_len - 1:
@@ -1306,7 +1306,7 @@ class CFGBase(Analysis):
         """
 
         finished_func_addrs = [ ]
-        for func_addr, all_jobs in self._jobs_to_analyze_per_function.iteritems():
+        for func_addr, all_jobs in self._jobs_to_analyze_per_function.items():
             if not all_jobs:
                 # great! we have finished analyzing this function!
                 finished_func_addrs.append(func_addr)
@@ -1494,7 +1494,7 @@ class CFGBase(Analysis):
             del self.kb.functions[addr]
 
         # Update CFGNode.function_address
-        for node in self._nodes.itervalues():
+        for node in self._nodes.values():
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
@@ -1538,7 +1538,7 @@ class CFGBase(Analysis):
 
         functions_can_be_removed = set(functions.keys()) - set(predetermined_function_addrs)
 
-        for func_addr, function in functions.iteritems():
+        for func_addr, function in functions.items():
 
             if func_addr in functions_to_remove:
                 continue
@@ -1645,7 +1645,7 @@ class CFGBase(Analysis):
                 functions_to_remove[f_addr] = func_addr
 
         # merge all functions
-        for to_remove, merge_with in functions_to_remove.iteritems():
+        for to_remove, merge_with in functions_to_remove.items():
             func_merge_with = self._addr_to_function(merge_with, blockaddr_to_function, functions)
 
             for block_addr in functions[to_remove].block_addrs:

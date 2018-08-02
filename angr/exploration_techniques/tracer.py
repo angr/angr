@@ -253,7 +253,7 @@ class Tracer(ExplorationTechnique):
 
         if args is not None:
             d = {'addr': syscall_addr}
-            for i in xrange(4):
+            for i in range(4):
                 d['arg_%d' % i] = args[i]
                 d['arg_%d_symbolic' % i] = args[i].symbolic
             self._syscalls.append(d)

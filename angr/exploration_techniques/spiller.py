@@ -60,7 +60,8 @@ class Spiller(ExplorationTechnique):
         self._pickled_states[:n] = [ ]
         self._ever_unpickled += len(unpickled)
         if self.unpickle_callback:
-            map(self.unpickle_callback, unpickled)
+            for u in unpickled:
+                self.unpickle_callback(u)
         return unpickled
 
     def _get_priority(self, state):
@@ -68,7 +69,8 @@ class Spiller(ExplorationTechnique):
 
     def _pickle(self, states):
         if self.pickle_callback:
-            map(self.pickle_callback, states)
+            for s in states:
+                self.pickle_callback(s)
         wrappers = [ SpilledState(state) for state in states ]
         self._ever_pickled += len(states)
         for w in wrappers:

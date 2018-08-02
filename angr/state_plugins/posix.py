@@ -167,7 +167,7 @@ class SimSystemPosix(SimStatePlugin):
 
     def set_brk(self, new_brk):
         # arch word size is not available at init for some reason, fix that here
-        if isinstance(self.brk, (int, long)):
+        if isinstance(self.brk, int):
             self.brk = self.state.solver.BVV(self.brk, self.state.arch.bits)
 
         if new_brk.symbolic:
@@ -209,7 +209,7 @@ class SimSystemPosix(SimStatePlugin):
         self.stderr.set_state(state)
 
     def _pick_fd(self):
-        for fd in xrange(0, 8192):
+        for fd in range(0, 8192):
             if fd not in self.fd:
                 return fd
         raise SimPosixError('exhausted file descriptors')

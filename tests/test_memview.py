@@ -64,13 +64,13 @@ def test_array_concrete():
     nose.tools.assert_equal(s.mem[addr].dword.array(2).array(2).concrete, [[0x1, 0x2], [0x3, 0x4]])
 
     s.mem[addr].dword.array(5)[3] = 10
-    nose.tools.assert_equals(s.se.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int), 10)
+    nose.tools.assert_equal(s.se.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int), 10)
 
     s.mem[addr].dword.array(5).store([20,2,3,4,5])
-    nose.tools.assert_equals(s.mem[addr].dword.array(4).concrete, [20,2,3,4])
+    nose.tools.assert_equal(s.mem[addr].dword.array(4).concrete, [20,2,3,4])
 
     s.mem[addr].dword.array(2).array(2).store([[1,2], [4,3]])
-    nose.tools.assert_equals(s.mem[addr].dword.array(4).concrete, [1,2,4,3])
+    nose.tools.assert_equal(s.mem[addr].dword.array(4).concrete, [1,2,4,3])
 
 def test_pointer_concrete():
     s = SimState(arch="AMD64")

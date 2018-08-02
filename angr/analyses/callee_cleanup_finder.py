@@ -9,7 +9,7 @@ class CalleeCleanupFinder(Analysis):
         self.results = {}
 
         if starts is None:
-            starts = [imp.resolvedby.rebased_addr for imp in self.project.loader.main_object.imports.itervalues()]
+            starts = [imp.resolvedby.rebased_addr for imp in self.project.loader.main_object.imports.values()]
 
         for addr in starts:
             with self._resilience():
@@ -20,7 +20,7 @@ class CalleeCleanupFinder(Analysis):
                     self.results[addr] = size
 
         if hook_all:
-            for addr, size in self.results.iteritems():
+            for addr, size in self.results.items():
                 if self.project.is_hooked(addr):
                     continue
                 if size % self.project.arch.bytes != 0:

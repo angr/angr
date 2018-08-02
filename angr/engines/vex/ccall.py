@@ -20,7 +20,7 @@ def calc_paritybit(state, p, msb=7, lsb=0):
         p_part = p
 
     b = state.se.BVV(1, 1)
-    for i in xrange(p_part.size()):
+    for i in range(p_part.size()):
         b = b ^ p_part[i]
     return b
 
@@ -231,7 +231,7 @@ data['X86']['OpTypes']['G_CC_OP_ADCQ'] = None
 data['X86']['OpTypes']['G_CC_OP_SUBQ'] = None
 data['X86']['OpTypes']['G_CC_OP_ADDQ'] = None
 
-data_inverted = { k_arch: { k_data_class: {y:x for (x,y) in d_data_class.iteritems()} for k_data_class, d_data_class in d_arch.iteritems() } for k_arch,d_arch in data.iteritems() }
+data_inverted = { k_arch: { k_data_class: {y:x for (x,y) in d_data_class.items()} for k_data_class, d_data_class in d_arch.items() } for k_arch,d_arch in data.items() }
 
 data['AMD64']['size'] = 64
 data['X86']['size'] = 32
@@ -429,7 +429,7 @@ def pc_actions_SMULQ(*args, **kwargs):
 
 def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=None):
     # sanity check
-    if not isinstance(cc_op, (int, long)):
+    if not isinstance(cc_op, int):
         cc_op = flag_concretize(state, cc_op)
 
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
@@ -752,7 +752,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
     # Extract the condition
     cond = None
     # TODO: Convert it to a table-lookup later
-    for key, cond_val in data[platform]['CondTypes'].iteritems():
+    for key, cond_val in data[platform]['CondTypes'].items():
         if cond_val == v:
             cond = key
             break

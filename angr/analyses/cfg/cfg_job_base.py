@@ -29,7 +29,7 @@ class BlockID(object):
 
         s = [ ]
         format_addr = lambda addr: 'None' if addr is None else hex(addr)
-        for i in xrange(0, len(self.callsite_tuples), 2):
+        for i in range(0, len(self.callsite_tuples), 2):
             s.append('@'.join(map(format_addr, self.callsite_tuples[i:i+2])))
         return " -> ".join(s)
 
@@ -84,7 +84,7 @@ class FunctionKey(object):
 
         s = []
         format_addr = lambda addr: 'None' if addr is None else hex(addr)
-        for i in xrange(0, len(self.callsite_tuples), 2):
+        for i in range(0, len(self.callsite_tuples), 2):
             s.append('@'.join(map(format_addr, self.callsite_tuples[i:i + 2])))
         return " -> ".join(s)
 

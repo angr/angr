@@ -178,7 +178,7 @@ class Function(object):
         :return: angr.lifter.Block instances.
         """
 
-        for block_addr, block in self._local_blocks.iteritems():
+        for block_addr, block in self._local_blocks.items():
             try:
                 yield self._get_block(block_addr, size=block.size,
                                       byte_string=block.bytestr if isinstance(block, BlockNode) else None)
@@ -193,7 +193,7 @@ class Function(object):
         :return: block addresses.
         """
 
-        return self._local_blocks.iterkeys()
+        return self._local_blocks.keys()
 
     @property
     def block_addrs_set(self):
@@ -420,7 +420,7 @@ class Function(object):
         return len(self._argument_registers) + len(self._argument_stack_variables)
 
     def __contains__(self, val):
-        if isinstance(val, (int, long)):
+        if isinstance(val, int):
             return val in self._block_sizes
         else:
             return False
@@ -790,7 +790,7 @@ class Function(object):
         g = networkx.DiGraph()
         if self.startpoint is not None:
             g.add_node(self.startpoint)
-        for block in self._local_blocks.itervalues():
+        for block in self._local_blocks.values():
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges(data=True):
             if 'type' in data:
@@ -817,7 +817,7 @@ class Function(object):
         blocks = []
         block_addr_to_insns = {}
 
-        for b in self._local_blocks.itervalues():
+        for b in self._local_blocks.values():
             # TODO: should I call get_blocks?
             block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
@@ -843,7 +843,7 @@ class Function(object):
                 last_instr = block_addr_to_insns[src.addr][-1]
                 g.add_edge(last_instr, insns[0])
 
-            for i in xrange(0, len(insns) - 1):
+            for i in range(0, len(insns) - 1):
                 g.add_edge(insns[i], insns[i + 1])
 
         return g
@@ -949,9 +949,9 @@ class Function(object):
                 end_addr = block.addr + block.size
                 end_addresses[end_addr].append(block)
 
-        while any(len(x) > 1 for x in end_addresses.itervalues()):
+        while any(len(x) > 1 for x in end_addresses.values()):
             end_addr, all_nodes = \
-                next((end_addr, x) for (end_addr, x) in end_addresses.iteritems() if len(x) > 1)
+                next((end_addr, x) for (end_addr, x) in end_addresses.items() if len(x) > 1)
 
             all_nodes = sorted(all_nodes, key=lambda node: node.size)
             smallest_node = all_nodes[0]

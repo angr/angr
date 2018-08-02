@@ -19,7 +19,7 @@ class random(angr.SimProcedure):
                     return self.state.cgc.EFAULT
 
                 max_count = self.state.se.eval_one(count)
-                random_num = self.state.se.Unconstrained('random_%d' % rand_count.next(), max_count * 8)
+                random_num = self.state.se.Unconstrained('random_%d' % next(rand_count), max_count * 8)
                 self.state.memory.store(buf, random_num, size=count)
                 if self.state.se.is_true(rnd_bytes != 0):
                     self.state.memory.store(rnd_bytes, count, endness='Iend_LE')
@@ -34,7 +34,7 @@ class random(angr.SimProcedure):
             ), self.state.se.BVV(0, self.state.arch.bits))
 
         if self.state.satisfiable(extra_constraints=[count!=0]):
-            self.state.memory.store(buf, self.state.se.Unconstrained('random_%d' % rand_count.next(), self.state.se.max_int(count*8), key=('syscall', 'random')), size=count)
+            self.state.memory.store(buf, self.state.se.Unconstrained('random_%d' % next(rand_count), self.state.se.max_int(count*8), key=('syscall', 'random')), size=count)
         self.state.memory.store(rnd_bytes, count, endness='Iend_LE', condition=rnd_bytes != 0)
 
         return r

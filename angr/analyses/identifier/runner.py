@@ -201,7 +201,7 @@ class Runner(object):
                 mapped_input.append(curr_buf_loc)
                 curr_buf_loc += max(len(i), 0x1000)
             else:
-                if not isinstance(i, (int, long)):
+                if not isinstance(i, int):
                     raise Exception("Expected int/long got %s" % type(i))
                 mapped_input.append(i)
 
@@ -224,7 +224,7 @@ class Runner(object):
                     mapped_input.append(curr_buf_loc)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
+                    if not isinstance(i, int):
                         raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
         else:
@@ -234,7 +234,7 @@ class Runner(object):
                     mapped_input.append(curr_buf_loc+off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
+                    if not isinstance(i, int):
                         raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
 
@@ -272,7 +272,7 @@ class Runner(object):
                 l.info("symbolic memory output")
                 return False
             else:
-                outputs.append(result_state.se.eval(out, cast_to=str))
+                outputs.append(result_state.se.eval(out, cast_to=bytes))
 
         if outputs != test_data.expected_output_args:
             # print map(lambda x: x.encode('hex'), [a for a in outputs if a is not None]), map(lambda x: x.encode('hex'), [a for a in test_data.expected_output_args if a is not None])
@@ -301,7 +301,7 @@ class Runner(object):
             if stdout.symbolic:
                 l.info("symbolic stdout")
                 return False
-            stdout = result_state.se.eval(stdout, cast_to=str)
+            stdout = result_state.se.eval(stdout, cast_to=bytes)
 
         if stdout != test_data.expected_stdout:
             l.info("mismatch stdout")
@@ -321,7 +321,7 @@ class Runner(object):
                     mapped_input.append(curr_buf_loc)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
+                    if not isinstance(i, int):
                         raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
 
@@ -332,7 +332,7 @@ class Runner(object):
                     mapped_input.append(curr_buf_loc+off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
+                    if not isinstance(i, int):
                         raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
 

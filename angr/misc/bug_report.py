@@ -42,7 +42,7 @@ def print_versions():
         except ImportError:
             print("Python could not find " + m)
             continue
-        except Exception, e:
+        except Exception as e:
             print("An error occured importing %s: %s" % (m, e.message))
         print("Python found it in %s" % (python_filename))
         try:
@@ -83,7 +83,7 @@ def print_system_info():
 
 
 def print_native_info():
-    print "######### Native Module Info ##########"
+    print("######### Native Module Info ##########")
     for module, path in native_modules.items():
         try:
             import_module(module)

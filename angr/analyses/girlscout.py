@@ -305,14 +305,14 @@ class GirlScout(Analysis):
         s_path = self.project.factory.path(state)
         try:
             s_run = s_path.next_run
-        except SimIRSBError, ex:
+        except SimIRSBError as ex:
             l.debug(ex)
             return
-        except AngrError, ex:
+        except AngrError as ex:
             # "No memory at xxx"
             l.debug(ex)
             return
-        except (SimValueError, SimSolverModeError), ex:
+        except (SimValueError, SimSolverModeError) as ex:
             # Cannot concretize something when executing the SimRun
             l.debug(ex)
             return
@@ -477,7 +477,7 @@ class GirlScout(Analysis):
         """
 
         function_starts = set()
-        print "We have %d indirect jumps" % len(self._indirect_jumps)
+        l.info("We have %d indirect jumps", len(self._indirect_jumps))
 
         for jumpkind, irsb_addr in self._indirect_jumps:
             # First execute the current IRSB in concrete mode
@@ -490,7 +490,7 @@ class GirlScout(Analysis):
                                                     add_options={o.SYMBOLIC_INITIAL_VALUES}
                                                    )
                 path = self.project.factory.path(state)
-                print hex(irsb_addr)
+                l.debug(hex(irsb_addr))
 
                 try:
                     r = (path.next_run.successors + path.next_run.unsat_successors)[0]
@@ -513,11 +513,7 @@ class GirlScout(Analysis):
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
                     irsb = self.project.factory.block(addr).vex
                     stmts = irsb.statements
-                    print "%x: %d | " % (addr, stmt_idx),
-                    print "%s" % stmts[stmt_idx],
-                    print "%d" % b.slice.in_degree((addr, stmt_idx))
-
-                print ""
+                    l.debug("%x: %d | %s %d", (addr, stmt_idx), stmts[stmt_idx], b.slice.in_degree((addr, stmt_idx)))
 
                 # Get all sources
                 sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -589,7 +585,7 @@ class GirlScout(Analysis):
                     base_addr_ctr[base_addr] = ctr
 
         if len(base_addr_ctr):
-            base_addr, hits = sorted([(k, v) for k, v in base_addr_ctr.iteritems()], key=lambda x: x[1], reverse=True)[0]
+            base_addr, hits = sorted([(k, v) for k, v in base_addr_ctr.items()], key=lambda x: x[1], reverse=True)[0]
 
             return base_addr
         else:
@@ -758,7 +754,7 @@ class GirlScout(Analysis):
         entropy = 0
         if size is None: size = len(data)
         data = str(pyvex.ffi.buffer(data, size))
-        for x in xrange(0, 256):
+        for x in range(0, 256):
             p_x = float(data.count(chr(x)))/size
             if p_x > 0:
                 entropy += - p_x * math.log(p_x, 2)

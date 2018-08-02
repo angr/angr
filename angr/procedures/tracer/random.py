@@ -15,7 +15,7 @@ class random(angr.SimProcedure):
 
         if self.state.satisfiable(extra_constraints=[count!=0]):
             self.state.memory.store(buf,
-                                    claripy.BVV('A' * self.state.se.max_int(count)),
+                                    claripy.BVV(b'A' * self.state.se.max_int(count)),
                                     size=count)
 
         self.state.memory.store(rnd_bytes,

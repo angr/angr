@@ -27,7 +27,7 @@ class free(Func):
 
     def try_match(self, func, identifier, runner): #pylint disable=no-self-use
         malloc = None
-        for k, v in identifier.matches.iteritems():
+        for k, v in identifier.matches.items():
             if v[0] == "malloc":
                 malloc = k
         if malloc is None:

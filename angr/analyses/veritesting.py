@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from functools import cmp_to_key
 
 import networkx
 
@@ -403,7 +404,7 @@ class Veritesting(Analysis):
                 # merge the loop_ctrs
                 new_loop_ctrs = defaultdict(int)
                 for m in manager.merge_tmp:
-                    for head_addr, looping_times in m.globals['loop_ctrs'].iteritems():
+                    for head_addr, looping_times in m.globals['loop_ctrs'].items():
                         new_loop_ctrs[head_addr] = max(
                             looping_times,
                             m.globals['loop_ctrs'][head_addr]
@@ -423,7 +424,7 @@ class Veritesting(Analysis):
                     manager.move('merge_tmp', 'active')
                 elif any(
                     loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
-                    manager.one_merge_tmp.globals['loop_ctrs'].itervalues()
+                    manager.one_merge_tmp.globals['loop_ctrs'].values()
                 ):
                     l.debug("... merged state is overlooping")
                     manager.move('merge_tmp', 'deadended')
@@ -609,10 +610,10 @@ class Veritesting(Analysis):
         nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0 ]
 
         # Reorder nodes based on post-dominance relations
-        nodes = sorted(nodes, cmp=lambda n1, n2: (
+        nodes = sorted(nodes, key=cmp_to_key(lambda n1, n2: (
             1 if self._post_dominate(reversed_cyclic_graph, n1, n2)
             else (-1 if self._post_dominate(reversed_cyclic_graph, n2, n1) else 0)
-        ))
+        )))
 
         return [ (n.addr, n.looping_times) for n in nodes ]
 

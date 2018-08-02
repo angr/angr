@@ -49,7 +49,7 @@ class Blade(object):
         self._ignored_regs = set()
         if ignored_regs:
             for r in ignored_regs:
-                if isinstance(r, (int, long)):
+                if isinstance(r, int):
                     self._ignored_regs.add(r)
                 else:
                     self._ignored_regs.add(self.project.arch.registers[r][0])
@@ -130,7 +130,7 @@ class Blade(object):
         if isinstance(v, CFGNode):
             v = v.addr
 
-        if type(v) in (int, long):
+        if type(v) is int:
             # Generate an IRSB from self._project
 
             if v in self._run_cache:
@@ -167,7 +167,7 @@ class Blade(object):
 
         if isinstance(v, CFGNode):
             return v.addr
-        elif type(v) in (int, long):
+        elif type(v) is int:
             return v
         else:
             raise AngrBladeError('Unsupported SimRun argument type %s' % type(v))

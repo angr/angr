@@ -26,7 +26,7 @@ class ProcessorState(object):
         # whether we have met the initial stack pointer adjustment
         self.sp_adjusted = None
         # how many bytes are subtracted from the stack pointer
-        self.sp_adjustment = arch.bits / 8 if arch.call_pushes_ret else 0
+        self.sp_adjustment = arch.bytes if arch.call_pushes_ret else 0
         # whether the base pointer is used as the stack base of the stack frame or not
         self.bp_as_base = None
         # content of the base pointer
@@ -538,8 +538,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
                                           )
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
-            ret_addr_offset = self.project.arch.bits / 8
-            ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bits / 8, base='bp', name='ret_addr',
+            ret_addr_offset = self.project.arch.bytes
+            ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bytes, base='bp', name='ret_addr',
                                             region=self.function.addr, category='return_address',
                                             )
             state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
@@ -608,7 +608,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     def _post_analysis(self):
         self.variable_manager.initialize_variable_names()
 
-        for addr, state in self._node_to_state.iteritems():
+        for addr, state in self._node_to_state.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,
                                                                          state.register_region,
                                                                          state.stack_region

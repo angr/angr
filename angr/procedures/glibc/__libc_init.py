@@ -18,8 +18,8 @@ class __libc_init(angr.SimProcedure):
     local_vars = ('main', 'argc', 'argv', 'envp')
 
     def run(self, raw_args, unused, slingshot, structors):
-        offset = self.state.arch.bits / 8
-        readlen = self.state.arch.bits / 8
+        offset = self.state.arch.bytes
+        readlen = self.state.arch.bytes
         endness = self.state.arch.memory_endness
         self.main = slingshot
         self.argc = self.state.memory.load(raw_args + 0 * offset, readlen, endness=endness)

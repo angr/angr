@@ -22,7 +22,7 @@ def _all_objects(a):
     if type(a) is SimActionObject:
         yield a
     elif type(a) is dict:
-        for b in a.itervalues():
+        for b in a.values():
             for o in _all_objects(b):
                 yield o
     elif type(a) is (tuple, list, set, frozenset):

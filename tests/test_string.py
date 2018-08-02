@@ -193,12 +193,12 @@ def test_inline_strncmp():
     s_match = s.copy()
     s_match.add_constraints(c == 0)
     nose.tools.assert_false(s_match.satisfiable())
-    #nose.tools.assert_equals(s_match.se.min_int(maxlen), 3)
+    #nose.tools.assert_equal(s_match.se.min_int(maxlen), 3)
 
     s_nomatch = s.copy()
     s_nomatch.add_constraints(c != 0)
     nose.tools.assert_true(s_nomatch.satisfiable())
-    #nose.tools.assert_equals(s_nomatch.se.max_int(maxlen), 2)
+    #nose.tools.assert_equal(s_nomatch.se.max_int(maxlen), 2)
 
     l.info("zero-length")
     s = SimState(arch="AMD64", mode="symbolic")
@@ -374,13 +374,13 @@ def test_memcpy():
     s1 = s.copy()
     s1.add_constraints(cpylen == 1)
     nose.tools.assert_true(s1.se.unique(s1.memory.load(dst_addr+1, 3)))
-    nose.tools.assert_equals(len(s1.se.eval_upto(s1.memory.load(dst_addr, 1), 300)), 256)
+    nose.tools.assert_equal(len(s1.se.eval_upto(s1.memory.load(dst_addr, 1), 300)), 256)
 
     s2 = s.copy()
     s2.add_constraints(cpylen == 2)
-    nose.tools.assert_equals(len(s2.se.eval_upto(result[31:24], 300)), 256)
-    nose.tools.assert_equals(len(s2.se.eval_upto(result[23:16], 300)), 256)
-    nose.tools.assert_equals(s2.se.eval_upto(result[15:0], 300, cast_to=str), [ 'AA' ])
+    nose.tools.assert_equal(len(s2.se.eval_upto(result[31:24], 300)), 256)
+    nose.tools.assert_equal(len(s2.se.eval_upto(result[23:16], 300)), 256)
+    nose.tools.assert_equal(s2.se.eval_upto(result[15:0], 300, cast_to=str), [ 'AA' ])
 
     l.info("concrete src, concrete dst, symbolic len")
     dst = s2.se.BVV(0x41414141, 32)
@@ -426,7 +426,7 @@ def test_memcmp():
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
     r = memcmp(s, arguments=[dst_addr, src_addr, s.se.BVV(0, 64)])
-    nose.tools.assert_equals(s.se.eval_upto(r, 2), [ 0 ])
+    nose.tools.assert_equal(s.se.eval_upto(r, 2), [ 0 ])
 
     l.info("symbolic src, concrete dst, concrete len")
     s = SimState(arch="AMD64", mode="symbolic")
@@ -471,14 +471,14 @@ def test_memcmp():
     l.debug("... simplifying")
     s1.se._solver.simplify()
     l.debug("... solving")
-    nose.tools.assert_equals(s1.se.eval_upto(src[31:24], 2), [ 0x41 ])
+    nose.tools.assert_equal(s1.se.eval_upto(src[31:24], 2), [ 0x41 ])
     nose.tools.assert_false(s1.se.unique(src[31:16]))
     l.debug("... solved")
 
     s2 = s.copy()
     s2.add_constraints(cmplen == 2)
     s2.add_constraints(r == 0)
-    nose.tools.assert_equals(s2.se.eval_upto(s2.memory.load(src_addr, 2), 2), [ 0x4141 ])
+    nose.tools.assert_equal(s2.se.eval_upto(s2.memory.load(src_addr, 2), 2), [ 0x4141 ])
     nose.tools.assert_false(s2.se.unique(s2.memory.load(src_addr, 3)))
 
     s2u = s.copy()
@@ -552,11 +552,11 @@ def test_strncpy():
 
     s_match = s.copy()
     s_match.add_constraints(c == 0)
-    nose.tools.assert_equals(s_match.se.min_int(maxlen), 3)
+    nose.tools.assert_equal(s_match.se.min_int(maxlen), 3)
 
     s_nomatch = s.copy()
     s_nomatch.add_constraints(c != 0)
-    nose.tools.assert_equals(s_nomatch.se.max_int(maxlen), 2)
+    nose.tools.assert_equal(s_nomatch.se.max_int(maxlen), 2)
 
     l.info("concrete src, concrete dst, symbolic len")
     l.debug("... full copy")
@@ -662,7 +662,7 @@ def test_memset():
 
     s.memory.store(dst_addr, dst)
     memset(s, arguments=[dst_addr, char, s.se.BVV(3, 32)])
-    nose.tools.assert_equals(s.se.eval(s.memory.load(dst_addr, 4)), 0x41414100)
+    nose.tools.assert_equal(s.se.eval(s.memory.load(dst_addr, 4)), 0x41414100)
 
     l.debug("Symbolic length")
     s = SimState(arch="PPC32", mode="symbolic")
@@ -673,17 +673,17 @@ def test_memset():
     l.debug("Trying 2")
     s_two = s.copy()
     s_two.add_constraints(length == 2)
-    nose.tools.assert_equals(s_two.se.eval(s_two.memory.load(dst_addr, 4)), 0x50500000)
+    nose.tools.assert_equal(s_two.se.eval(s_two.memory.load(dst_addr, 4)), 0x50500000)
 
     l.debug("Trying 0")
     s_zero = s.copy()
     s_zero.add_constraints(length == 0)
-    nose.tools.assert_equals(s_zero.se.eval(s_zero.memory.load(dst_addr, 4)), 0x00000000)
+    nose.tools.assert_equal(s_zero.se.eval(s_zero.memory.load(dst_addr, 4)), 0x00000000)
 
     l.debug("Trying 5")
     s_five = s.copy()
     s_five.add_constraints(length == 5)
-    nose.tools.assert_equals(s_five.se.eval(s_five.memory.load(dst_addr, 6)), 0x505050505000)
+    nose.tools.assert_equal(s_five.se.eval(s_five.memory.load(dst_addr, 6)), 0x505050505000)
 
 #@nose.tools.timed(10)
 def test_strchr():

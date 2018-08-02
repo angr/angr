@@ -73,11 +73,11 @@ def test_locale():
 
 
 if __name__ == '__main__':
-    print 'locale'
+    print('locale')
     test_locale()
     for func, a, b, c, d in test_emulation():
-        print a.filename
+        print(a.filename)
         func(a, b, c, d)
     for func, a, b, c, d in test_windows():
-        print a.filename
+        print(a.filename)
         func(a, b, c, d)

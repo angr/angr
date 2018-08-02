@@ -3,7 +3,7 @@ from pyvex.const import get_type_size
 
 def translate_irconst(state, c):
     size = get_type_size(c.type)
-    if isinstance(c.value, (int, long)):
+    if isinstance(c.value, int):
         return state.se.BVV(c.value, size)
     elif isinstance(c.value, float):
         if options.SUPPORT_FLOATING_POINT not in state.options:

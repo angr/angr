@@ -235,7 +235,7 @@ class SimInspector(SimStatePlugin):
         and fires the ones whose conditions match.
         """
         l.debug("Event %s (%s) firing...", event_type, when)
-        for k,v in kwargs.iteritems():
+        for k,v in kwargs.items():
             if k not in inspect_attributes:
                 raise ValueError("Invalid inspect attribute %s passed in. Should be one of: %s" % (k, inspect_attributes))
             #l.debug("... %s = %r", k, v)
@@ -301,7 +301,7 @@ class SimInspector(SimStatePlugin):
         for i in inspect_attributes:
             setattr(c, i, getattr(self, i))
 
-        for t,a in self._breakpoints.iteritems():
+        for t,a in self._breakpoints.items():
             c._breakpoints[t].extend(a)
         return c
 

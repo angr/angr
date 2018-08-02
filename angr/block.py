@@ -112,7 +112,7 @@ class Block(object):
         return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
 
     def __setstate__(self, data):
-        for k, v in data.iteritems():
+        for k, v in data.items():
             setattr(self, k, v)
 
     def __hash__(self):
@@ -242,7 +242,7 @@ class CapstoneBlock(object):
         self.arch = arch
 
     def pp(self):
-        print str(self)
+        print(str(self))
 
     def __str__(self):
         return '\n'.join(map(str, self.insns))

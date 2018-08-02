@@ -89,7 +89,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         true_target = self._expr(stmt.true_target)  # pylint:disable=unused-variable
         false_target = self._expr(stmt.false_target)  # pylint:disable=unused-variable
 
-        ip = Register(self.arch.ip_offset, self.arch.bits / 8)
+        ip = Register(self.arch.ip_offset, self.arch.bytes)
         self.state.kill_definitions(ip, self._codeloc(), )
 
         # kill all cc_ops
@@ -102,7 +102,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def _ail_handle_Call(self, stmt):
         target = self._expr(stmt.target)  # pylint:disable=unused-variable
 
-        ip = Register(self.arch.ip_offset, self.arch.bits / 8)
+        ip = Register(self.arch.ip_offset, self.arch.bytes)
 
         self.state.kill_definitions(ip, self._codeloc())
 
@@ -222,7 +222,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             return None
 
         ip_addr = ip_data.get_first_element()
-        if not isinstance(ip_addr, (int, long)):
+        if not isinstance(ip_addr, int):
             l.error('Invalid type %s for IP.', type(ip_addr).__name__)
             return None
 

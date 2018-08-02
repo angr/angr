@@ -19,10 +19,10 @@ def test_copy():
     s.add_constraints(s.se.ULT(x, 10))
     s.memory.copy_contents(0x200, 0x100, x)
 
-    nose.tools.assert_equals(sorted(s.se.eval_upto(x, 100)), range(10))
+    nose.tools.assert_equal(sorted(s.se.eval_upto(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
-    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
-    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
+    nose.tools.assert_equal(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
+    nose.tools.assert_equal(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
     s = SimState(arch="AMD64")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content='ABCDEFGHIJKLMNOP', has_end=True)))
@@ -31,10 +31,10 @@ def test_copy():
     s.add_constraints(s.se.ULT(x, 10))
 
     s.posix.get_fd(0).read(0x200, x)
-    nose.tools.assert_equals(sorted(s.se.eval_upto(x, 100)), range(10))
+    nose.tools.assert_equal(sorted(s.se.eval_upto(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
-    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
-    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
+    nose.tools.assert_equal(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
+    nose.tools.assert_equal(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
     s = SimState(arch="AMD64")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content='ABCDEFGHIJKLMNOP')))
@@ -44,13 +44,13 @@ def test_copy():
 
     read_proc = SIM_PROCEDURES['posix']['read']()
     ret_x = read_proc.execute(s, arguments=(0, 0x200, x)).ret_expr
-    nose.tools.assert_equals(sorted(s.se.eval_upto(x, 100)), range(10))
+    nose.tools.assert_equal(sorted(s.se.eval_upto(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
-    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
-    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
+    nose.tools.assert_equal(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
+    nose.tools.assert_equal(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
-    nose.tools.assert_equals(sorted(s.se.eval_upto(ret_x, 100)), range(10))
-    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[ret_x==3])), [ "ABCXX" ])
+    nose.tools.assert_equal(sorted(s.se.eval_upto(ret_x, 100)), range(10))
+    nose.tools.assert_equal(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[ret_x==3])), [ "ABCXX" ])
 
 def _concrete_memory_tests(s):
     # Store a 4-byte variable to memory directly...
@@ -488,7 +488,7 @@ def test_registers():
     s.registers.store('rax', 0x31)
     expr = s.registers.load('rax')
     nose.tools.assert_false(s.se.symbolic(expr))
-    nose.tools.assert_equals(s.se.eval(expr), 0x00000031)
+    nose.tools.assert_equal(s.se.eval(expr), 0x00000031)
 
 def test_fullpage_write():
 

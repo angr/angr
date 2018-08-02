@@ -53,7 +53,7 @@ def test_concretization_strategies():
 #   print "... done"
 #
 #   vv = s.native_env.vexecute(pyvex.IRExpr.Load("Iend_BE", "Ity_I32", pyvex.IRExpr.Const(pyvex.IRConst.U64(0x1000))))
-#   nose.tools.assert_equals(vv.str[:4], 'ABC\x00')
+#   nose.tools.assert_equal(vv.str[:4], 'ABC\x00')
 #   s.native_env.vexecute(pyvex.IRSB(bytes='\xb8\x41\x42\x43\x44'))
 #
 #   #import IPython; IPython.embed()
@@ -61,7 +61,7 @@ def test_concretization_strategies():
 #   s.set_native(False)
 #   print "... done"
 #
-#   nose.tools.assert_equals(s.reg_value(16).se.eval(), 0x44434241)
+#   nose.tools.assert_equal(s.reg_value(16).se.eval(), 0x44434241)
 #   print "YEAH"
 
 #@nose.tools.timed(10)
@@ -70,7 +70,7 @@ def broken_symbolic_write():
 
     addr = s.se.BVS('addr', 64)
     s.add_constraints(s.se.Or(addr == 10, addr == 20, addr == 30))
-    nose.tools.assert_equals(len(s.se.eval_upto(addr, 10)), 3)
+    nose.tools.assert_equal(len(s.se.eval_upto(addr, 10)), 3)
 
     s.memory.store(10, s.se.BVV(1, 8))
     s.memory.store(20, s.se.BVV(2, 8))
@@ -85,11 +85,11 @@ def broken_symbolic_write():
     s.memory.store(addr, s.se.BVV(255, 8))
     nose.tools.assert_true(s.satisfiable())
     print "GO TIME"
-    nose.tools.assert_equals(len(s.se.eval_upto(addr, 10)), 3)
+    nose.tools.assert_equal(len(s.se.eval_upto(addr, 10)), 3)
     nose.tools.assert_items_equal(s.se.eval_upto(s.memory.load(10, 1), 3), [ 1, 255 ])
     nose.tools.assert_items_equal(s.se.eval_upto(s.memory.load(20, 1), 3), [ 2, 255 ])
     nose.tools.assert_items_equal(s.se.eval_upto(s.memory.load(30, 1), 3), [ 3, 255 ])
-    nose.tools.assert_equals(len(s.se.eval_upto(addr, 10)), 3)
+    nose.tools.assert_equal(len(s.se.eval_upto(addr, 10)), 3)
 
     # see if it works when constraining the write address
     sa = s.copy()

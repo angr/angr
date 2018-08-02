@@ -290,7 +290,7 @@ CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 
 _g = globals().copy()
 for k, v in _g.items():
-    if all([ char in string.uppercase + "_" + string.digits for char in k ]) and type(v) is str:
+    if all([ char in string.ascii_uppercase + "_" + string.digits for char in k ]) and type(v) is str:
         if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY"):
             # UNKNOWN_FILES_HAVE_EOF == FILES_HAVE_EOF
             # CGC_ZERO_FILL_UNCONSTRAINED_MEMORY == ZERO_FILL_UNCONSTRAINED_MEMORY

@@ -151,7 +151,7 @@ class SimProcedure(object):
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
-                    sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
+                    sim_args = [ inst.arg(_) for _ in range(inst.num_args) ]
                     inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
@@ -274,7 +274,7 @@ class SimProcedure(object):
         :param sim_kwargs:      Any additional keyword args will be passed as sim_kwargs to the
                                 procedure construtor
         """
-        e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
+        e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments ]
         p = procedure(project=self.project, **kwargs)
         return p.execute(self.state, None, arguments=e_args)
 
@@ -342,7 +342,7 @@ class SimProcedure(object):
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
         simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars, self.state.regs.lr if self.state.arch.lr_offset is not None else None)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
@@ -381,7 +381,7 @@ class SimProcedure(object):
         self.state.options.discard(o.AST_DEPS)
         self.state.options.discard(o.AUTO_REFS)
 
-        if isinstance(exit_code, (int, long)):
+        if isinstance(exit_code, int):
             exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
         self.state.history.add_event('terminate', exit_code=exit_code)
         self.successors.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')

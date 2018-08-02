@@ -449,11 +449,10 @@ class Surveyor(object):
     ### State explosion control (spilling paths).
     ###
 
-    def path_comparator(self, a, b):  # pylint: disable=W0613,R0201
+    def path_key(self, a):  # pylint: disable=W0613,R0201
         """
-        This function should compare paths a and b, to determine which should
-        have a higher priority in the analysis. It's used as the cmp argument
-        to sort.
+        This function should take a path and return a value that can be compared against other paths
+        to determine its relative priority.
         """
         return 0
 
@@ -464,7 +463,7 @@ class Surveyor(object):
         priority paths first.
         """
 
-        paths.sort(cmp=self.path_comparator)
+        paths.sort(key=self.path_key)
         return paths
 
     def spill_paths(self, active, spilled):  # pylint: disable=R0201

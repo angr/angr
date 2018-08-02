@@ -24,7 +24,7 @@ class __libc_start_main(angr.SimProcedure):
         """
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         table = self.inline_call(malloc, 768).ret_expr
-        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
             # Each entry is 2 bytes
@@ -39,7 +39,7 @@ class __libc_start_main(angr.SimProcedure):
         table += 256
         self.state.memory.store(table_ptr,
                                 table,
-                                size=self.state.arch.bits / 8,
+                                size=self.state.arch.bytes,
                                 endness=self.state.arch.memory_endness,
                                 inspect=False,
                                 disable_actions=True,
@@ -56,7 +56,7 @@ class __libc_start_main(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
-        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
@@ -70,7 +70,7 @@ class __libc_start_main(angr.SimProcedure):
         table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
-                                size=self.state.arch.bits / 8,
+                                size=self.state.arch.bytes,
                                 endness=self.state.arch.memory_endness,
                                 inspect=False,
                                 disable_actions=True,
@@ -87,7 +87,7 @@ class __libc_start_main(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
-        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
@@ -101,7 +101,7 @@ class __libc_start_main(angr.SimProcedure):
         table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
-                                size=self.state.arch.bits / 8,
+                                size=self.state.arch.bytes,
                                 endness=self.state.arch.memory_endness,
                                 inspect=False,
                                 disable_actions=True,
@@ -162,7 +162,7 @@ class __libc_start_main(angr.SimProcedure):
                 break
 
         cc = angr.DEFAULT_CC[self.arch.name](self.arch)
-        args = [ cc.arg(state, _) for _ in xrange(5) ]
+        args = [ cc.arg(state, _) for _ in range(5) ]
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [

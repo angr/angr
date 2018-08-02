@@ -320,7 +320,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         if len(self.observed_results) != 1:
             raise ValueError("More than one results are available.")
 
-        return next(self.observed_results.itervalues())
+        return next(self.observed_results.values())
 
     def observe(self, ins_addr, stmt, block, state, ob_type):
         if self._observation_points is not None and (ins_addr, ob_type) in self._observation_points:

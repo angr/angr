@@ -8,7 +8,7 @@ from ..func import Func, TestData
 BASES = [8, 10, 16]
 
 
-digs = string.digits + string.letters
+digs = string.digits + string.ascii_letters
 
 
 def int2base(x, base):
@@ -57,8 +57,8 @@ class based_atoi(Func):
 
     def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
-            return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
-        return "".join(random.choice(byte_list) for _ in xrange(length))
+            return "".join(chr(random.randint(0, 255)) for _ in range(length))
+        return "".join(random.choice(byte_list) for _ in range(length))
 
     def num_args(self):
         return OneTwoOrThree()

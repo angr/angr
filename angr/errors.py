@@ -168,6 +168,9 @@ class SimMergeError(SimStateError):
 class SimMemoryError(SimStateError):
     pass
 
+class SimMemoryMissingError(SimMemoryError):
+    pass
+
 class SimAbstractMemoryError(SimMemoryError):
     pass
 

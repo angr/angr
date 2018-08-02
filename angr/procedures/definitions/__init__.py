@@ -148,7 +148,7 @@ class SimLibrary(object):
         :param dictionary:  A mapping from name to procedure class, i.e. the first two arguments to add()
         :param kwargs:      Any additional kwargs will be passed to the constructors of _each_ procedure class
         """
-        for name, procedure in dictionary.iteritems():
+        for name, procedure in dictionary.items():
             self.add(name, procedure, **kwargs)
 
     def add_alias(self, name, *alt_names):

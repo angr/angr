@@ -10,9 +10,10 @@ import logging
 import pyvex
 import claripy
 import time
+import binascii
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
-from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
+from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
 
@@ -236,9 +237,8 @@ def _load_native():
 
         return h
     except (OSError, AttributeError) as e:
-        e_type, value, traceback = sys.exc_info()
-        l.warning('failed loading "%s", unicorn support disabled (%s: %s)', libfile, e, value)
-        raise ImportError, ("Unable to import native SimUnicorn support.", e_type, value), traceback
+        l.warning('failed loading "%s", unicorn support disabled (%s)', libfile, e)
+        raise ImportError("Unable to import native SimUnicorn support") from e
 
 try:
     _UC_NATIVE = _load_native()
@@ -773,11 +773,8 @@ class Unicorn(SimStatePlugin):
                     perms.add(perm.args[0] | 4)
                 else:
                     perms.add(perm.args[0])
-            except SimMemoryError as e:
-                if e.message == "page does not exist at given address":  # FIXME: direct string comparison is bad
-                    missing_pages.append(addr)
-                else:
-                    raise
+            except SimMemoryMissingError:
+                missing_pages.append(addr)
 
             addr += PAGE_SIZE
 
@@ -843,7 +840,7 @@ class Unicorn(SimStatePlugin):
                 #print "TAINT: %x, %d" % (mo_addr, chunk_size)
                 _taint(mo_addr, chunk_size)
             else:
-                s = self.state.se.eval(d, cast_to=str)
+                s = self.state.se.eval(d, cast_to=bytes)
                 data[mo_addr-start:mo_addr-start+chunk_size] = s
             last_missing = mo_addr - 1
 
@@ -857,13 +854,13 @@ class Unicorn(SimStatePlugin):
         if not taint and not perm & 2:
             # page is non-writable, handle it with native code
             l.debug('caching non-writable page')
-            out = _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
+            out = _UC_NATIVE.cache_page(self._uc_state, start, length, bytes(data), perm)
             return out
         else:
             # if the memory range has already been mapped, or it somehow fails sanity checks, mem_map() may fail with
             # a unicorn.UcError raised. THe exception will be caught outside.
             uc.mem_map(start, length, perm)
-            uc.mem_write(start, str(data))
+            uc.mem_write(start, bytes(data))
             self._mapped += 1
             _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
             return True
@@ -973,8 +970,8 @@ class Unicorn(SimStatePlugin):
             if 0x1000 <= address < 0x2000:
                 l.warning("Emulation touched fake GDT at 0x1000, discarding changes")
             else:
-                s = str(self.uc.mem_read(address, int(length)))
-                l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, s.encode('hex'))
+                s = bytes(self.uc.mem_read(address, int(length)))
+                l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, binascii.hexlify(s))
                 self.state.memory.store(address, s)
 
             p_update = update.next
@@ -1092,7 +1089,7 @@ class Unicorn(SimStatePlugin):
             gs = self.state.se.eval(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
 
-        for r, c in self._uc_regs.iteritems():
+        for r, c in self._uc_regs.items():
             if r in self.reg_blacklist:
                 continue
             v = self._process_value(getattr(self.state.regs, r), 'reg')
@@ -1116,7 +1113,7 @@ class Unicorn(SimStatePlugin):
             vex_offset = self.state.arch.registers['fpu_regs'][0]
             vex_tag_offset = self.state.arch.registers['fpu_tags'][0]
             tag_word = 0
-            for _ in xrange(8):
+            for _ in range(8):
                 tag = self.state.se.eval(self.state.registers.load(vex_tag_offset, size=1))
                 tag_word <<= 2
                 if tag == 0:
@@ -1210,7 +1207,7 @@ class Unicorn(SimStatePlugin):
 
     # do NOT call either of these functions in a callback, lmao
     def read_msr(self, msr=0xC0000100):
-        setup_code = '\x0f\x32'
+        setup_code = b'\x0f\x32'
         BASE = 0x100B000000
 
         uc = self.uc
@@ -1225,7 +1222,7 @@ class Unicorn(SimStatePlugin):
         return (d << 32) + a
 
     def write_msr(self, val, msr=0xC0000100):
-        setup_code = '\x0f\x30'
+        setup_code = b'\x0f\x30'
         BASE = 0x100B000000
 
         uc = self.uc
@@ -1267,7 +1264,7 @@ class Unicorn(SimStatePlugin):
                 ))
 
         # now we sync registers out of unicorn
-        for r, c in self._uc_regs.iteritems():
+        for r, c in self._uc_regs.items():
             if r in self.reg_blacklist:
                 continue
             v = self.uc.reg_read(c)
@@ -1299,7 +1296,7 @@ class Unicorn(SimStatePlugin):
             vex_tag_offset = self.state.arch.registers['fpu_tags'][0] + 7
             tag_word = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPTAG)
 
-            for _ in xrange(8):
+            for _ in range(8):
                 if tag_word & 3 == 3:
                     self.state.registers.store(vex_tag_offset, 0, size=1)
                 else:
@@ -1344,7 +1341,7 @@ class Unicorn(SimStatePlugin):
 
     def _check_registers(self, report=True):
         ''' check if this state might be used in unicorn (has no concrete register)'''
-        for r in self.state.arch.uc_regs.iterkeys():
+        for r in self.state.arch.uc_regs.keys():
             v = getattr(self.state.regs, r)
             processed_v = self._process_value(v, 'reg')
             if processed_v is None or processed_v.symbolic:

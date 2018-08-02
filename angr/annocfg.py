@@ -75,7 +75,7 @@ class AnnotatedCFG(object):
     def get_addr(self, run):
         if isinstance(run, CFGNode):
             return run.addr
-        elif type(run) in (int, long):
+        elif type(run) is int:
             return run
         else:
             raise AngrAnnotatedCFGError("Unknown type '%s' of the 'run' argument" % type(run))
@@ -220,7 +220,7 @@ class AnnotatedCFG(object):
                 line = "-"
             line += "[% 3d] " % i
             # We cannot get data returned by pp(). WTF?
-            print line,
+            print(line, end='')
             statements[i].pp()
 
     #
@@ -323,5 +323,5 @@ class AnnotatedCFG(object):
             l.debug("A loop is found. %d", ctr)
             ctr += 1
             loop = (tuple([x[-1] for x in loop_lst]))
-            print " => ".join(["0x%08x" % x for x in loop])
+            print(" => ".join(["0x%08x" % x for x in loop]))
             self.add_loop(loop)

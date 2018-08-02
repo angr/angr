@@ -24,7 +24,7 @@ class allocate(angr.SimProcedure):
 
         aligned_length = ((length + 0xfff) / 0x1000) * 0x1000
 
-        if isinstance(self.state.cgc.allocation_base, (int, long)):
+        if isinstance(self.state.cgc.allocation_base, int):
             self.state.cgc.allocation_base = self.state.se.BVV(self.state.cgc.allocation_base, self.state.arch.bits)
 
         chosen = sinkhole_chosen = self.state.cgc.get_max_sinkhole(aligned_length)

@@ -68,7 +68,7 @@ class DataSet(object):
             else:
                 try:
                     tmp = op(s)
-                    if isinstance(tmp, (int, long)):
+                    if isinstance(tmp, int):
                         tmp &= self._mask
                     res.add(tmp)
                 except TypeError as e:
@@ -92,7 +92,7 @@ class DataSet(object):
                 else:
                     try:
                         tmp = op(s, o)
-                        if isinstance(tmp, (int, long)):
+                        if isinstance(tmp, int):
                             tmp &= self._mask
                         res.add(tmp)
                     except TypeError as e:

@@ -169,7 +169,7 @@ class SimLinux(SimUserland):
 
         if fs is None: fs = {}
         for name in fs:
-            if type(fs[name]) is unicode:
+            if type(fs[name]) is str:
                 fs[name] = fs[name].encode('utf-8')
             if type(fs[name]) is bytes:
                 fs[name] = claripy.BVV(fs[name])
@@ -202,7 +202,7 @@ class SimLinux(SimUserland):
         # Prepare argc
         if argc is None:
             argc = claripy.BVV(len(args), state.arch.bits)
-        elif type(argc) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        elif type(argc) is int:  # pylint: disable=unidiomatic-typecheck
             argc = claripy.BVV(argc, state.arch.bits)
 
         # Make string table for args/env/auxv
@@ -217,10 +217,10 @@ class SimLinux(SimUserland):
         # Prepare the auxiliary vector and add it to the end of the string table
         # TODO: Actually construct a real auxiliary vector
         # current vector is an AT_RANDOM entry where the "random" value is 0xaec0aec0aec0...
-        aux = [(25, ("AEC0" * 8).decode('hex'))]
+        aux = [(25, b"\xAE\xC0" * 8)]
         for a, b in aux:
             table.add_pointer(a)
-            if isinstance(b, str):
+            if isinstance(b, bytes):
                 table.add_string(b)
             else:
                 table.add_pointer(b)
@@ -255,8 +255,8 @@ class SimLinux(SimUserland):
         return state
 
     def set_entry_register_values(self, state):
-        for reg, val in state.arch.entry_register_values.iteritems():
-            if isinstance(val, (int, long)):
+        for reg, val in state.arch.entry_register_values.items():
+            if isinstance(val, int):
                 state.registers.store(reg, val, size=state.arch.bytes)
             elif isinstance(val, (str,)):
                 if val == 'argc':

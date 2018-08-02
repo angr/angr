@@ -7,8 +7,8 @@ from ..state_plugins.plugin import SimStatePlugin
 
 l = logging.getLogger("angr.storage.memory")
 
-stn_map = { 'st%d' % n: n for n in xrange(8) }
-tag_map = { 'tag%d' % n: n for n in xrange(8) }
+stn_map = { 'st%d' % n: n for n in range(8) }
+tag_map = { 'tag%d' % n: n for n in range(8) }
 
 DUMMY_SYMBOLIC_READ_VALUE = 0xc0deb4be
 
@@ -398,11 +398,11 @@ class SimMemory(SimStatePlugin):
         """
         Make an AST out of concrete @data_e
         """
-        if type(data_e) is str:
+        if type(data_e) is bytes:
             # Convert the string into a BVV, *regardless of endness*
             bits = len(data_e) * self.state.arch.byte_width
             data_e = self.state.se.BVV(data_e, bits)
-        elif type(data_e) in (int, long):
+        elif type(data_e) is int:
             data_e = self.state.se.BVV(data_e, size_e*self.state.arch.byte_width if size_e is not None
                                        else self.state.arch.bits)
         else:
@@ -453,7 +453,7 @@ class SimMemory(SimStatePlugin):
         if region_id not in region_ids:
             return region_id
         else:
-            for i in xrange(0, 2000):
+            for i in range(0, 2000):
                 new_region_id = region_id + '_%d' % i
                 if new_region_id not in region_ids:
                     return new_region_id
@@ -495,14 +495,14 @@ class SimMemory(SimStatePlugin):
                 size_e = size
 
         # store everything as a BV
-        data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, (int, long)) else None)
+        data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, int) else None)
 
         # zero extend if size is greater than len(data_e)
-        stored_size = size_e*self.state.arch.byte_width if isinstance(size_e, (int, long)) else self.state.arch.bits
+        stored_size = size_e*self.state.arch.byte_width if isinstance(size_e, int) else self.state.arch.bits
         if size_e is not None and self.category == 'reg' and len(data_e) < stored_size:
             data_e = data_e.zero_extend(stored_size - len(data_e))
 
-        if type(size_e) in (int, long):
+        if type(size_e) is int:
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)
         elif size_e is None:
             size_e = self.state.se.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
@@ -857,7 +857,7 @@ class SimMemory(SimStatePlugin):
         what = _raw_ast(what)
         default = _raw_ast(default)
 
-        if isinstance(what, str):
+        if isinstance(what, bytes):
             # Convert it to a BVV
             what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
 

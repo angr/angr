@@ -250,7 +250,7 @@ class JumpTableResolver(IndirectJumpResolver):
         read_addr = state.inspect.mem_read_address
         read_length = state.inspect.mem_read_length
 
-        if not isinstance(read_addr, (int, long)) and read_addr.symbolic:
+        if not isinstance(read_addr, int) and read_addr.symbolic:
             # don't touch it
             return
 
@@ -266,7 +266,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if not state.memory.was_written_to(concrete_read_addr):
             # it was never written to before. we overwrite it with unconstrained bytes
-            for i in xrange(0, concrete_read_length, self.project.arch.bits / 8):
+            for i in range(0, concrete_read_length, self.project.arch.bytes):
                 state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.project.arch.bits))
 
                 # job done :-)
@@ -277,10 +277,10 @@ class JumpTableResolver(IndirectJumpResolver):
         read_addr = state.inspect.mem_read_address
         cond = state.inspect.mem_read_condition
 
-        if not isinstance(read_addr, (int, long)) and read_addr.uninitialized and cond is None:
+        if not isinstance(read_addr, int) and read_addr.uninitialized and cond is None:
 
             read_length = state.inspect.mem_read_length
-            if not isinstance(read_length, (int, long)):
+            if not isinstance(read_length, int):
                 read_length = read_length._model_vsa.upper_bound
             if read_length > 16:
                 return
@@ -305,9 +305,9 @@ class JumpTableResolver(IndirectJumpResolver):
             stmt_ids = stmts[addr]
             irsb = self.project.factory.block(addr, backup_state=self.base_state).vex
 
-            print "  ####"
-            print "  #### Block %#x" % addr
-            print "  ####"
+            print("  ####")
+            print("  #### Block %#x" % addr)
+            print("  ####")
 
             for i, stmt in enumerate(irsb.statements):
                 taken = i in stmt_ids
@@ -315,14 +315,14 @@ class JumpTableResolver(IndirectJumpResolver):
                 s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)
                 if taken:
                     s += "IN: %d" % blade.slice.in_degree((addr, i))
-                print s
+                print(s)
 
             # the default exit
             default_exit_taken = 'default' in stmt_ids
             s = "%s %x:default | PUT(%s) = %s; %s" % ("+" if default_exit_taken else " ", addr, irsb.offsIP, irsb.next,
                                                       irsb.jumpkind
                                                       )
-            print s
+            print(s)
 
     def _initial_state(self, src_irsb):
 

@@ -187,7 +187,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         if self.has_end is None:
             self.has_end = sim_options.FILES_HAVE_EOF in state.options
 
-        if type(self._size) in (int, long):
+        if type(self._size) is int:
             self._size = claripy.BVV(self._size, state.arch.bits)
         elif len(self._size) != state.arch.bits:
             raise TypeError("SimFile size must be a bitvector of size %d (arch.bits)" % state.arch.bits)
@@ -310,7 +310,7 @@ class SimFileStream(SimFile):
 
     def set_state(self, state):
         super(SimFileStream, self).set_state(state)
-        if type(self.pos) in (int, long):
+        if type(self.pos) is int:
             self.pos = state.solver.BVV(self.pos, state.arch.bits)
         elif len(self.pos) != state.arch.bits:
             raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
@@ -422,7 +422,7 @@ class SimPackets(SimFileBase):
             return self.content[pos] + (pos+1,)
 
         # typecheck
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # The read is on the frontier. let's generate a new packet.
@@ -479,7 +479,7 @@ class SimPackets(SimFileBase):
             data = claripy.BVV(data)
         if size is None:
             size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # sanity check on packet number and determine if data is already present
@@ -768,7 +768,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
         if not self.file.seekable:
             return claripy.false
 
-        if type(offset) in (int, long):
+        if type(offset) is int:
             offset = self.state.solver.BVV(offset, self.state.arch.bits)
 
         if whence == 'start':
@@ -983,7 +983,7 @@ class SimPacketsSlots(SimFileBase):
         self.read_data = []
 
     def concretize(self, **kwargs):
-        return [self.state.solver.eval(var, cast_to=str, **kwargs) for var in self.read_data]
+        return [self.state.solver.eval(var, cast_to=bytes, **kwargs) for var in self.read_data]
 
     def read(self, pos, size, **kwargs):
         if not self.read_sizes:

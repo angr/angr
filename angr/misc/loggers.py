@@ -22,7 +22,7 @@ class Loggers(object):
 
         Adds attributes to this instance of each registered logger, replacing '.' with '_'
         """
-        for name, logger in logging.Logger.manager.loggerDict.iteritems():
+        for name, logger in logging.Logger.manager.loggerDict.items():
             if any(name.startswith(x + '.') or name == x for x in self.IN_SCOPE):
                 self._loggers[name] = logger
 

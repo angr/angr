@@ -20,7 +20,7 @@ class receive(angr.SimProcedure):
             # Special case for CFG generation
             if not self.state.se.symbolic(count):
                 data = self.state.se.Unconstrained(
-                    'receive_data_%d' % fastpath_data_counter.next(),
+                    'receive_data_%d' % next(fastpath_data_counter),
                     self.state.se.eval_one(count) * 8
                 )
                 self.state.memory.store(buf, data)

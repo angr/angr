@@ -286,7 +286,7 @@ class LiveDefinitions(object):
 
         return live_def_locs
 
-    def iteritems(self):
+    def items(self):
         """
         An iterator that returns all live definitions.
 
@@ -294,7 +294,7 @@ class LiveDefinitions(object):
         :rtype: iter
         """
 
-        return self._defs.iteritems()
+        return self._defs.items()
 
     def itervariables(self):
         """
@@ -304,7 +304,7 @@ class LiveDefinitions(object):
         :rtype: iter
         """
 
-        return self._defs.iterkeys()
+        return self._defs.keys()
 
 
 class DDGViewItem(object):
@@ -436,7 +436,7 @@ class DDGView(object):
         self._project = self._ddg.project
 
     def __getitem__(self, key):
-        if isinstance(key, (int, long)):
+        if isinstance(key, int):
             # instruction address
             return DDGViewInstruction(self._cfg, self._ddg, key, simplified=self._simplified)
 
@@ -552,7 +552,7 @@ class DDG(Analysis):
         """
         # TODO: make it prettier
         for src, dst, data in self.graph.edges(data=True):
-            print "%s <-- %s, %s" % (src, dst, data)
+            print("%s <-- %s, %s" % (src, dst, data))
 
     def dbg_repr(self):
         """
@@ -778,7 +778,7 @@ class DDG(Analysis):
                         defs_for_next_node = LiveDefinitions()
                         live_defs_per_node[successing_node] = defs_for_next_node
 
-                    for var, code_loc_set in suc_new_defs.iteritems():
+                    for var, code_loc_set in suc_new_defs.items():
                         # l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
                         changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
@@ -987,7 +987,7 @@ class DDG(Analysis):
             self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_addr')
             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
             prev_defs = self._def_lookup(reg_variable)
-            for loc, _ in prev_defs.iteritems():
+            for loc, _ in prev_defs.items():
                 v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                 self._data_graph_add_edge(v, prog_var, type='mem_addr')
 
@@ -1009,7 +1009,7 @@ class DDG(Analysis):
                 self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_data')
                 reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
                 prev_defs = self._def_lookup(reg_variable)
-                for loc, _ in prev_defs.iteritems():
+                for loc, _ in prev_defs.items():
                     v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                     self._data_graph_add_edge(v, prog_var, type='mem_data')
 
@@ -1032,7 +1032,7 @@ class DDG(Analysis):
 
             if defs:
                 # for each definition, create an edge on the graph
-                for definition_location, labels in defs.iteritems():
+                for definition_location, labels in defs.items():
                     self._stmt_graph_add_edge(definition_location, code_location, **labels)
                     pv = ProgramVariable(variable, definition_location, arch=self.project.arch)
                     variables.append(pv)
@@ -1087,7 +1087,7 @@ class DDG(Analysis):
         definitions = self._def_lookup(variable)
 
         # add edges to the statement dependence graph
-        for definition_location, labels in definitions.iteritems():
+        for definition_location, labels in definitions.items():
             self._stmt_graph_add_edge(definition_location, location, **labels)
 
             # record the edge
@@ -1354,7 +1354,7 @@ class DDG(Analysis):
 
             data = graph[src][dst]
 
-            for k, v in new_labels.iteritems():
+            for k, v in new_labels.items():
                 if k in data:
                     if v not in data[k]:
                         data[k] = data[k] + (v,)
@@ -1466,7 +1466,7 @@ class DDG(Analysis):
         # Group all dependencies first
 
         block_addr_to_func = { }
-        for _, func in self.kb.functions.iteritems():
+        for _, func in self.kb.functions.items():
             for block in func.blocks:
                 block_addr_to_func[block.addr] = func
 
@@ -1499,7 +1499,7 @@ class DDG(Analysis):
         # TODO: make definition killing architecture independent and calling convention independent
         # TODO: use information from a calling convention analysis
         filtered_defs = LiveDefinitions()
-        for variable, locs in defs.iteritems():
+        for variable, locs in defs.items():
             if isinstance(variable, SimRegisterVariable):
                 if self.project.arch.name == 'X86':
                     if variable.reg in (self.project.arch.registers['eax'][0],

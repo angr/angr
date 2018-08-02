@@ -380,7 +380,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        for cfg_node in self._nodes.itervalues():
+        for cfg_node in self._nodes.values():
             cfg_node.downsize()
 
     def unroll_loops(self, max_loop_unrolling_times):
@@ -391,7 +391,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        if not isinstance(max_loop_unrolling_times, (int, long)) or \
+        if not isinstance(max_loop_unrolling_times, int) or \
                         max_loop_unrolling_times < 0:
             raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
                                'loop unrolling is enabled.')
@@ -446,7 +446,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        if not isinstance(max_loop_unrolling_times, (int, long)) or \
+        if not isinstance(max_loop_unrolling_times, int) or \
                         max_loop_unrolling_times < 0:
             raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
                                'loop unrolling is enabled.')
@@ -466,7 +466,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         while True:
             cycles_iter = networkx.simple_cycles(graph_copy)
             try:
-                cycle = cycles_iter.next()
+                cycle = next(cycles_iter)
             except StopIteration:
                 break
 
@@ -503,7 +503,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             # postdoms = self.immediate_postdominators(new_end_node, target_graph=graph_copy)
             # reverse_postdoms = defaultdict(list)
-            # for k, v in postdoms.iteritems():
+            # for k, v in postdoms.items():
             #    reverse_postdoms[v].append(k)
 
             # Find all loop bodies
@@ -816,7 +816,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         raise AngrCFGError('Unsupported item in "starts": %s' % str(item))
 
                     new_starts.append(item)
-                elif isinstance(item, (int, long)):
+                elif isinstance(item, int):
                     new_starts.append((item, None))
 
                 elif isinstance(item, SimState):
@@ -1056,7 +1056,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._update_function_callsites(functions_do_not_return)
 
         # Create all pending edges
-        for _, edges in self._pending_edges.iteritems():
+        for _, edges in self._pending_edges.items():
             for src_node, dst_node, data in edges:
                 self._graph_add_edge(src_node, dst_node, **data)
 
@@ -1565,7 +1565,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         pending_exits_to_remove = [ ]
 
-        for block_id, pe in self._pending_jobs.iteritems():
+        for block_id, pe in self._pending_jobs.items():
             if pe.returning_source is None:
                 # The original call failed. This pending exit must be followed.
                 continue
@@ -2568,7 +2568,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             path_length += 1
             queue = [cfg_node]
             avoid = set()
-            for _ in xrange(path_length):
+            for _ in range(path_length):
                 new_queue = []
                 for n in queue:
                     successors = list(temp_cfg.successors(n))
@@ -3172,7 +3172,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         regs_overwritten.add(ac.offset)
                     elif ac.type == "mem" and ac.action == "write":
                         addr = se.eval_one(ac.addr.ast, default=0)
-                        if (self.project.arch.call_pushes_ret and addr >= sp + self.project.arch.bits / 8) or \
+                        if (self.project.arch.call_pushes_ret and addr >= sp + self.project.arch.bytes) or \
                                 (not self.project.arch.call_pushes_ret and addr >= sp):
                             offset = addr - sp
                             stack_overwritten.add(offset)
@@ -3389,7 +3389,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Input: addresses or node instances
         Return: a list of lists of nodes representing paths.
         """
-        if isinstance(begin, (int, long)) and isinstance(end, (int, long)):
+        if isinstance(begin, int) and isinstance(end, int):
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 

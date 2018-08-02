@@ -83,13 +83,13 @@ class SimStateCGC(SimStatePlugin):
 
         concrete_allocation_base = (
             self.allocation_base
-            if type(self.allocation_base) in (int, long) else
+            if type(self.allocation_base) is int else
             self.state.se.eval(self.allocation_base)
         )
 
         concrete_new_allocation_base = (
             new_allocation_base
-            if type(new_allocation_base) in (int, long) else
+            if type(new_allocation_base) is int else
             self.state.se.eval(new_allocation_base)
         )
 

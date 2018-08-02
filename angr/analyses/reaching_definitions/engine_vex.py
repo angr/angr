@@ -196,7 +196,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         data = set()
         for a in addr:
-            if isinstance(a, (int, long)):
+            if isinstance(a, int):
                 current_defs = self.state.memory_definitions.get_objects_by_offset(a)
                 if current_defs:
                     for current_def in current_defs:
@@ -263,7 +263,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         for a in arg_0:
             if type(a) is Undefined:
                 pass
-            elif isinstance(a, (int, long)):
+            elif isinstance(a, int):
                 mask = 2 ** bits - 1
                 a &= mask
             elif type(a) is Parameter:
@@ -285,7 +285,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         if len(expr_0) == 1:
             e0 = expr_0.get_first_element()
-            if isinstance(e0, (int, long)):
+            if isinstance(e0, int):
                 return DataSet(e0 != 1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -297,7 +297,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         if len(expr_0) == 1:
             e0 = expr_0.get_first_element()
-            if isinstance(e0, (int, long)):
+            if isinstance(e0, int):
                 return DataSet(e0 == 0, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -336,7 +336,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 == e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -350,7 +350,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 != e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -364,7 +364,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 < e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -379,7 +379,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 if e0 < e1:
                     return DataSet(0x08, expr.result_size(self.tyenv))
                 elif e0 > e1:
@@ -413,7 +413,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             return None
 
         ip_addr = ip_data.get_first_element()
-        if not isinstance(ip_addr, (int, long)):
+        if not isinstance(ip_addr, int):
             l.error('Invalid type %s for IP.', type(ip_addr).__name__)
             return None
 
@@ -471,7 +471,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 raise ValueError('Invalid number of values for SP')
 
             sp_addr = next(iter(sp_data))
-            if not isinstance(sp_addr, (int, long)):
+            if not isinstance(sp_addr, int):
                 raise TypeError('Invalid type %s for SP' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)

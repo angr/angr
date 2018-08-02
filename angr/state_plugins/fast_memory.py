@@ -218,7 +218,7 @@ class SimFastMemory(SimMemory):
         changes = set()
 
         l.warning("FastMemory.changed_bytes(): This implementation is very slow and only for debug purposes.")
-        for addr,v in self._contents.iteritems():
+        for addr,v in self._contents.items():
             for i in range(self.width):
                 other_byte = other.load(addr+i, 1)
                 our_byte = v.get_byte(i)

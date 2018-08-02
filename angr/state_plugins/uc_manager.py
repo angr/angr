@@ -46,7 +46,7 @@ class SimUCManager(SimStatePlugin):
         ptr = self.state.se.BVV(abs_addr, self.state.arch.bits)
         self._pos += self._region_size
 
-        self._alloc_depth_map[(abs_addr - self._region_base) / self._region_size] = dst_addr_ast.uc_alloc_depth
+        self._alloc_depth_map[(abs_addr - self._region_base) // self._region_size] = dst_addr_ast.uc_alloc_depth
 
         l.debug("Assigned new memory region %s", ptr)
         return ptr
@@ -56,7 +56,7 @@ class SimUCManager(SimStatePlugin):
         return SimUCManager(man=self)
 
     def get_alloc_depth(self, addr):
-        block_pos = (addr - self._region_base) / self._region_size
+        block_pos = (addr - self._region_base) // self._region_size
 
         if block_pos not in self._alloc_depth_map:
             return None

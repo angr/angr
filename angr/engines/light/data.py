@@ -12,12 +12,12 @@ class RegisterOffset(object):
         return "%s%s" % (self.reg, '' if self.offset == 0 else '%+x' % self.offset)
 
     def __add__(self, other):
-        if type(other) in (int, long):
+        if type(other) is int:
             return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset + other))
         raise TypeError()
 
     def __sub__(self, other):
-        if type(other) in (int, long):
+        if type(other) is int:
             return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset - other))
         raise TypeError()
 
@@ -36,12 +36,12 @@ class SpOffset(RegisterOffset):
         return "%s%s" % ('BP' if self.is_base else 'SP', '' if self.offset == 0 else '%+x' % self.offset)
 
     def __add__(self, other):
-        if type(other) in (int, long):
+        if type(other) is int:
             return SpOffset(self._bits, self._to_signed(self.offset + other))
         raise TypeError()
 
     def __sub__(self, other):
-        if type(other) in (int, long):
+        if type(other) is int:
             return SpOffset(self._bits, self._to_signed(self.offset - other))
         raise TypeError()
 

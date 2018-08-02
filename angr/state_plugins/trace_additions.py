@@ -124,7 +124,7 @@ class FormatInfoDontConstrain(FormatInfo):
 
 
 def int2base(x, base):
-    digs = string.digits + string.letters
+    digs = string.digits + string.ascii_letters
     if x < 0:
         sign = -1
     elif x == 0:
@@ -188,7 +188,7 @@ def end_info_hook(state):
     if pending_info.get_type() == "StrToInt":
         # mark the input
         input_val = state.mem[pending_info.input_val].string.resolved
-        result = state.se.BVV(state.se.eval(state.regs.eax, cast_to=str))
+        result = state.se.BVV(state.se.eval(state.regs.eax, cast_to=bytes))
         real_len = chall_resp_plugin.get_real_len(input_val, pending_info.input_base,
                                                   result, pending_info.allows_negative)
 
@@ -213,7 +213,7 @@ def end_info_hook(state):
         chall_resp_plugin.replacement_pairs.append((input_bvs, input_val))
     elif pending_info.get_type() == "IntToStr":
         # result constraint
-        result = state.se.BVV(state.se.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=str))
+        result = state.se.BVV(state.se.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=bytes))
         if result is None or result.size() == 0:
             l.warning("zero len string")
             chall_resp_plugin.pop_from_backup()
@@ -413,7 +413,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         possible_len = self.get_possible_len(input_val, base, allows_negative)
         if possible_len == 0:
             return 0
-        input_s = self.state.se.eval(input_val, cast_to=str)
+        input_s = self.state.se.eval(input_val, cast_to=bytes)
         try:
             for i in range(possible_len):
                 if input_s[:i+1] == "-":
@@ -427,7 +427,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
 
     def get_possible_len(self, input_val, base, allows_negative):
         state = self.state
-        input_s = state.se.eval(input_val, cast_to=str)
+        input_s = state.se.eval(input_val, cast_to=bytes)
         nums = "0123456789abcdef"
         still_whitespace=True
         for i, c in enumerate(input_s):
@@ -494,7 +494,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
             solns = solns[0]
 
             # now make the real stdin
-            stdin = state.se.eval(state.se.BVV(solns[0], pos * 8), cast_to=str)
+            stdin = state.se.eval(state.se.BVV(solns[0], pos * 8), cast_to=bytes)
 
             stdin_replacements = []
             for soln, (_, int_var) in zip(solns[1:], chall_resp_plugin.str_to_int_pairs):

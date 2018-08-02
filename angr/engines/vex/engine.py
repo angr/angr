@@ -227,7 +227,7 @@ class SimEngineVEX(SimEngine):
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:
             imark_counter = 0
-            for i in xrange(len(ss) - 1, -1, -1):
+            for i in range(len(ss) - 1, -1, -1):
                 if type(ss[i]) is pyvex.IRStmt.IMark:
                     imark_counter += 1
                 if imark_counter >= 4:
@@ -350,7 +350,7 @@ class SimEngineVEX(SimEngine):
             state.scratch.ins_addr = ins_addr
 
             # Raise an exception if we're suddenly in self-modifying code
-            for subaddr in xrange(stmt.len):
+            for subaddr in range(stmt.len):
                 if subaddr + stmt.addr in state.scratch.dirty_addrs:
                     raise SimReliftException(state)
             state._inspect('instruction', BP_AFTER)
@@ -521,7 +521,7 @@ class SimEngineVEX(SimEngine):
         # phase 5: call into pyvex
         # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
-            for subphase in xrange(2):
+            for subphase in range(2):
                 irsb = pyvex.lift(buff, addr + thumb, arch,
                                   max_bytes=size,
                                   max_inst=num_inst,
@@ -545,14 +545,13 @@ class SimEngineVEX(SimEngine):
                 return irsb
 
         # phase x: error handling
-        except pyvex.PyVEXError:
+        except pyvex.PyVEXError as e:
             l.debug("VEX translation error at %#x", addr)
             if isinstance(buff, str):
                 l.debug('Using bytes: %r', buff)
             else:
                 l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
-            e_type, value, traceback = sys.exc_info()
-            raise SimTranslationError, ("Translation error", e_type, value), traceback
+            raise SimTranslationError("Unable to translate bytecode") from e
 
     def _load_bytes(self, addr, max_size, state=None, clemory=None):
         if not clemory:
@@ -590,7 +589,7 @@ class SimEngineVEX(SimEngine):
             fallback = True
             if addr in state.memory and addr + max_size - 1 in state.memory:
                 try:
-                    buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=str)
+                    buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
                     size = max_size
                     fallback = False
                 except SimError:
@@ -598,7 +597,7 @@ class SimEngineVEX(SimEngine):
 
             if fallback:
                 buff_lst = [ ]
-                for i in xrange(max_size):
+                for i in range(max_size):
                     if addr + i in state.memory:
                         try:
                             buff_lst.append(chr(state.se.eval(state.memory.load(addr + i, 1, inspect=False))))

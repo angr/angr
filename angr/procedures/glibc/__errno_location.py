@@ -10,7 +10,7 @@ class __errno_location(angr.SimProcedure):
 
         if self.state.libc._errno_location is None:
             malloc = angr.SIM_PROCEDURES['libc']['malloc']
-            errno_loc = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+            errno_loc = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
             self.state.libc._errno_location = errno_loc
 

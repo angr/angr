@@ -400,7 +400,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             :returns:               A list of concrete addresses.
         """
 
-        if isinstance(addr, (int, long)):
+        if isinstance(addr, int):
             return [ addr ]
         elif not self.state.se.symbolic(addr):
             return [ self.state.se.eval(addr) ]
@@ -417,7 +417,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             :returns:               A list of concrete addresses.
         """
 
-        if isinstance(addr, (int, long)):
+        if isinstance(addr, int):
             return [ addr ]
         elif not self.state.se.symbolic(addr):
             return [ self.state.se.eval(addr) ]
@@ -563,7 +563,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
-        if isinstance(start, (int, long)):
+        if isinstance(start, int):
             start = self.state.se.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
@@ -650,7 +650,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return r, constraints, match_indices
 
     def __contains__(self, dst):
-        if isinstance(dst, (int, long)):
+        if isinstance(dst, int):
             addr = dst
         elif self.state.se.symbolic(dst):
             l.warning("Currently unable to do SimMemory.__contains__ on symbolic variables.")
@@ -660,7 +660,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return addr in self.mem
 
     def was_written_to(self, dst):
-        if isinstance(dst, (int, long)):
+        if isinstance(dst, int):
             addr = dst
         elif self.state.se.symbolic(dst):
             l.warning("Currently unable to do SimMemory.was_written_to on symbolic variables.")
@@ -712,7 +712,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        if type(req.addr) not in (int, long) and req.addr.symbolic:
+        if type(req.addr) is not int and req.addr.symbolic:
             conditional_constraint = self.state.solver.Or(*[ req.addr == a for a in req.actual_addresses ])
             if (conditional_constraint.symbolic or  # if the constraint is symbolic
                     conditional_constraint.is_false()):  # if it makes the state go unsat
@@ -767,7 +767,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self.mem.store_memory_object(mo)
 
     def _store_fully_concrete(self, address, size, data, endness, condition):
-        if type(size) not in (int, long):
+        if type(size) is not int:
             size = self.state.solver.eval(size)
         if size < data.length//self.state.arch.byte_width:
             data = data[len(data)-1:len(data)-size*self.state.arch.byte_width:]
@@ -975,7 +975,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 elif can_be_reversed(old_val):
                     cnt = cnt.args[0]
                     reverse_it = True
-            if isinstance(old_val, (int, long, claripy.bv.BVV)):
+            if isinstance(old_val, (int, claripy.bv.BVV)):
                 merged_val = self.state.se.SI(bits=len(old_val), to_conv=old_val)
             else:
                 merged_val = old_val
@@ -1015,7 +1015,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return self.state._special_memory_filler(name, bits, self.state)
         else:
             if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                if source is not None and type(source) in (int, long):
+                if source is not None and type(source) is int:
                     alloc_depth = self.state.uc_manager.get_alloc_depth(source)
                     kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
             r = self.state.se.Unconstrained(name, bits, key=key, inspect=inspect, events=events, **kwargs)
@@ -1079,7 +1079,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         lst = []
         more_data = False
-        for i, addr in enumerate(self.mem.iterkeys()):
+        for i, addr in enumerate(self.mem.keys()):
             lst.append(addr)
             if i >= 20:
                 more_data = True
@@ -1089,11 +1089,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             data = self.mem[addr]
             if isinstance(data, SimMemoryObject):
                 memobj = data
-                print "%s%xh: (%s)[%d]" % (" " * indent, addr, memobj, addr - memobj.base)
+                print("%s%xh: (%s)[%d]" % (" " * indent, addr, memobj, addr - memobj.base))
             else:
-                print "%s%xh: <default data>" % (" " * indent, addr)
+                print("%s%xh: <default data>" % (" " * indent, addr))
         if more_data:
-            print "%s..." % (" " * indent)
+            print("%s..." % (" " * indent))
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
                       disable_actions=False):

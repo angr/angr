@@ -2,7 +2,7 @@ import logging
 import os
 import types
 import weakref
-import StringIO
+from io import BytesIO, IOBase
 import pickle
 import string
 from collections import defaultdict
@@ -32,7 +32,7 @@ def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
     :param load_address:    The address to place the data in memory (default 0)
     """
     return Project(
-            StringIO.StringIO(shellcode),
+            BytesIO(shellcode),
             main_opts={
                 'backend': 'blob',
                 'custom_arch': arch,
@@ -118,7 +118,7 @@ class Project(object):
             l.info("Loading binary from stream")
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
-        elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
+        elif not isinstance(thing, str) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
             # use angr's loader, provided by cle
@@ -228,7 +228,7 @@ class Project(object):
         # If it's IGNORED, mark it for stubbing
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
-        for reloc in obj.imports.itervalues():
+        for reloc in obj.imports.values():
             # Step 2.1: Quick filter on symbols we really don't care about
             func = reloc.symbol
             if func is None:
@@ -365,7 +365,7 @@ class Project(object):
             # point of the project.
             @proj.hook(proj.entry)
             def my_hook(state):
-                print "Welcome to execution!"
+                print("Welcome to execution!")
 
         :param addr:        The address to hook.
         :param hook:        A :class:`angr.project.Hook` describing a procedure to run at the
@@ -465,7 +465,7 @@ class Project(object):
         :returns:           The address of the new symbol.
         :rtype:             int
         """
-        if type(symbol_name) not in (int, long):
+        if type(symbol_name) is not int:
             sym = self.loader.find_symbol(symbol_name)
             if sym is None:
                 # it could be a previously unresolved weak symbol..?
@@ -611,21 +611,21 @@ class Project(object):
                 try:
                     pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
                 except RuntimeError as e: # maximum recursion depth can be reached here
-                    l.error("Unable to store Project, '%s' during pickling", e.message)
+                    l.error("Unable to store Project: '%s' during pickling", e)
 
         # If container is an open file.
-        elif isinstance(container, file):
+        elif isinstance(container, IOBase):
             try:
                 pickle.dump(self, container, pickle.HIGHEST_PROTOCOL)
             except RuntimeError as e: # maximum recursion depth can be reached here
-                l.error("Unable to store Project, '%s' during pickling", e.message)
+                l.error("Unable to store Project: '%s' during pickling", e)
 
         # If container is just a variable.
         else:
             try:
                 container = pickle.dumps(self, pickle.HIGHEST_PROTOCOL)
             except RuntimeError as e: # maximum recursion depth can be reached here
-                l.error("Unable to store Project, '%s' during pickling", e.message)
+                l.error("Unable to store Project: '%s' during pickling", e)
 
     @staticmethod
     def _load(container):
@@ -640,7 +640,7 @@ class Project(object):
                 return pickle.loads(container)
 
         # If container is an open file
-        elif isinstance(container, file):
+        elif isinstance(container, IOBase):
             return pickle.load(container)
 
         # What else could it be?

@@ -77,9 +77,9 @@ class SimState(PluginHub, ana.Storable):
             self.use_plugin_preset(plugin_preset)
 
         if plugins is not None:
-            for n,p in plugins.iteritems():
+            for n,p in plugins.items():
                 self.register_plugin(n, p, inhibit_init=True)
-            for p in plugins.itervalues():
+            for p in plugins.values():
                 p.init_state()
 
         if not self.has_plugin('memory'):
@@ -146,8 +146,8 @@ class SimState(PluginHub, ana.Storable):
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
-        s = { k:v for k,v in s.iteritems() if k not in ('inspect', 'regs', 'mem')}
-        s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].iteritems() if k not in ('inspect', 'regs', 'mem') }
+        s = { k:v for k,v in s.items() if k not in ('inspect', 'regs', 'mem')}
+        s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].items() if k not in ('inspect', 'regs', 'mem') }
         return s
 
     def _ana_setstate(self, s):
@@ -420,7 +420,7 @@ class SimState(PluginHub, ana.Storable):
     def _copy_plugins(self):
         memo = {}
         out = {}
-        for n, p in self._active_plugins.iteritems():
+        for n, p in self._active_plugins.items():
             if id(p) in memo:
                 out[n] = memo[id(p)]
             else:
@@ -476,7 +476,7 @@ class SimState(PluginHub, ana.Storable):
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-            merge_flag = self.solver.BVS("state_merge_%d" % merge_counter.next(), 16)
+            merge_flag = self.solver.BVS("state_merge_%d" % next(merge_counter), 16)
             merge_values = range(len(others)+1)
             merge_conditions = [ merge_flag == b for b in merge_values ]
         else:
@@ -611,7 +611,7 @@ class SimState(PluginHub, ana.Storable):
         """
         sp = self.regs.sp
         self.regs.sp = sp - self.arch.stack_change
-        return self.memory.load(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
+        return self.memory.load(sp, self.arch.bytes, endness=self.arch.memory_endness)
 
     @arch_overrideable
     def stack_read(self, offset, length, bp=False):
@@ -630,7 +630,7 @@ class SimState(PluginHub, ana.Storable):
     ###############################
 
     def make_concrete_int(self, expr):
-        if isinstance(expr, (int, long)):
+        if isinstance(expr, int):
             return expr
 
         if not self.solver.symbolic(expr):
@@ -674,7 +674,7 @@ class SimState(PluginHub, ana.Storable):
         current stack frame (from sp to bp) will be printed out.
         """
 
-        var_size = self.arch.bits / 8
+        var_size = self.arch.bytes
         sp_sim = self.regs._sp
         bp_sim = self.regs._bp
         if self.solver.symbolic(sp_sim) and sp is None:
@@ -691,9 +691,9 @@ class SimState(PluginHub, ana.Storable):
                 result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth is None:
                 # bp_value cannot be None here
-                depth = (bp_value - sp_value) / var_size + 1 # Print one more value
+                depth = (bp_value - sp_value) // var_size + 1 # Print one more value
             pointer_value = sp_value
-            for i in xrange(depth):
+            for i in range(depth):
                 # For AbstractMemory, we wanna utilize more information from VSA
                 stack_values = [ ]
 

@@ -131,7 +131,7 @@ class ExplorationTechnique(object):
             condition_function = lambda p: default
             condition_function.addrs = set()
 
-        elif isinstance(condition, (int, long)):
+        elif isinstance(condition, int):
             return self._condition_to_lambda((condition,))
 
         elif isinstance(condition, (tuple, set, list)):

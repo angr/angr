@@ -12,21 +12,21 @@ def test_memmove():
     explorer = angr.surveyors.Explorer(memmove_amd64, find=[0x4005D7]).run()
     s = explorer.found[0]
     result = s.se.eval(s.memory.load(s.registers.load(16), 13), cast_to=str)
-    nose.tools.assert_equals(result, 'very useful.\x00')
+    nose.tools.assert_equal(result, 'very useful.\x00')
 
 def test_memcpy():
     memcpy_amd64 = angr.Project(test_location + "/x86_64/memcpy", load_options={'auto_load_libs': True}, exclude_sim_procedures_list=['memcpy'])
     explorer = angr.surveyors.Explorer(memcpy_amd64, find=[0x40065A]).run()
     s = explorer.found[0]
     result = s.se.eval(s.memory.load(s.registers.load(16), 19), cast_to=str)
-    nose.tools.assert_equals(result, "let's test memcpy!\x00")
+    nose.tools.assert_equal(result, "let's test memcpy!\x00")
 
 def test_memset():
     memset_amd64 = angr.Project(test_location + "/x86_64/memset", load_options={'auto_load_libs': True}, exclude_sim_procedures_list=['memset'])
     explorer = angr.surveyors.Explorer(memset_amd64, find=[0x400608]).run()
     s = explorer.found[0]
     result = s.se.eval(s.memory.load(s.registers.load(16), 50), cast_to=str)
-    nose.tools.assert_equals(result, 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\x00')
+    nose.tools.assert_equal(result, 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\x00')
 
 if __name__ == "__main__":
     test_memmove()

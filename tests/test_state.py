@@ -17,20 +17,20 @@ binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 def test_state():
     s = SimState(arch='AMD64')
     s.registers.store('sp', 0x7ffffffffff0000)
-    nose.tools.assert_equals(s.se.eval(s.registers.load('sp')), 0x7ffffffffff0000)
+    nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7ffffffffff0000)
 
     s.stack_push(s.se.BVV("ABCDEFGH"))
-    nose.tools.assert_equals(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff8)
+    nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff8)
     s.stack_push(s.se.BVV("IJKLMNOP"))
-    nose.tools.assert_equals(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff0)
+    nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff0)
 
     a = s.stack_pop()
-    nose.tools.assert_equals(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff8)
-    nose.tools.assert_equals(s.se.eval(a, cast_to=str), "IJKLMNOP")
+    nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff8)
+    nose.tools.assert_equal(s.se.eval(a, cast_to=str), "IJKLMNOP")
 
     b = s.stack_pop()
-    nose.tools.assert_equals(s.se.eval(s.registers.load('sp')), 0x7ffffffffff0000)
-    nose.tools.assert_equals(s.se.eval(b, cast_to=str), "ABCDEFGH")
+    nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7ffffffffff0000)
+    nose.tools.assert_equal(s.se.eval(b, cast_to=str), "ABCDEFGH")
 
 #@nose.tools.timed(10)
 def test_state_merge():
@@ -63,7 +63,7 @@ def test_state_merge():
     #logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.WARNING)
 
     nose.tools.assert_true(merging_occurred)
-    #nose.tools.assert_equals(sorted(m.se.eval_upto(merge_flag, 10)), [ 0,1,2 ])
+    #nose.tools.assert_equal(sorted(m.se.eval_upto(merge_flag, 10)), [ 0,1,2 ])
     assert len(merge_conditions) == 3
 
     # the byte at 2 should now *not* be unique for a
@@ -220,7 +220,7 @@ def test_state_pickle():
     del s
     gc.collect()
     s = pickle.loads(sp)
-    nose.tools.assert_equals(s.se.eval(s.memory.load(100, 10), cast_to=str), "AAABAABABC")
+    nose.tools.assert_equal(s.se.eval(s.memory.load(100, 10), cast_to=str), "AAABAABABC")
 
 def test_global_condition():
     s = SimState(arch="AMD64")
@@ -250,10 +250,10 @@ def test_global_condition():
     nose.tools.assert_is_not(s.se.BVV(30, s.arch.bits), s.regs.rax)
 
     with s.with_condition(s.regs.rbx == 0):
-        nose.tools.assert_equals(s.se.eval_upto(s.regs.rbx, 10), [ 0 ])
+        nose.tools.assert_equal(s.se.eval_upto(s.regs.rbx, 10), [ 0 ])
         nose.tools.assert_items_equal(s.se.eval_upto(s.regs.rax, 10), [ 30 ])
     with s.with_condition(s.regs.rbx == 1):
-        nose.tools.assert_equals(s.se.eval_upto(s.regs.rbx, 10), [ 1 ])
+        nose.tools.assert_equal(s.se.eval_upto(s.regs.rbx, 10), [ 1 ])
         nose.tools.assert_items_equal(s.se.eval_upto(s.regs.rax, 10), [ 25 ])
 
 
