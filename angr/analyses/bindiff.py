@@ -205,7 +205,7 @@ def compare_statement_dict(statement_1, statement_2):
         return []
 
     # constants
-    if isinstance(statement_1, (int, long, float, str)):
+    if isinstance(statement_1, (int, long, float, str, unicode)):
         if isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2):
             return []
         elif statement_1 == statement_2:
