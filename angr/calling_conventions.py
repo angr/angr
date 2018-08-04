@@ -662,8 +662,8 @@ class SimCC(object):
 
         elif isinstance(arg, (str, bytes)):
             if type(arg) is str:
-                arg += '\0'
                 arg = arg.encode()
+            arg += b'\0'
             ref = False
             if check:
                 if isinstance(ty, SimTypePointer) and \
@@ -689,7 +689,7 @@ class SimCC(object):
                     arg = arg.ljust(ty.length + 1, b'\0')
                 else:
                     raise TypeError("Type mismatch: Expected %s, got char*" % ty.name)
-            val = SimCC._standardize_value([ord(i) for i in arg], SimTypeFixedSizeArray(SimTypeChar(), len(arg)), state, alloc)
+            val = SimCC._standardize_value(list(arg), SimTypeFixedSizeArray(SimTypeChar(), len(arg)), state, alloc)
             if ref:
                 val = alloc(val, state)
             return val

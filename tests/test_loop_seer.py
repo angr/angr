@@ -140,7 +140,7 @@ if __name__ == "__main__":
     else:
         g = globals().copy()
 
-        for k, v in g.iteritems():
+        for k, v in g.items():
             if k.startswith("test_") and hasattr(v, '__call__'):
-                print k
+                print(k)
                 v()

@@ -599,9 +599,8 @@ class CFGBase(Analysis):
             if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
                 can_produce_exits.add(cs_insn.address)
 
-        successors_filtered = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
-                                        get_exit_stmt_idx(suc) == 'default',
-                                     successors)
+        successors_filtered = [suc for suc in successors
+                               if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == 'default']
 
         return successors_filtered
 
@@ -1106,7 +1105,7 @@ class CFGBase(Analysis):
             # add the new item
             end_addresses_to_nodes[key].add(n)
 
-        for key in end_addresses_to_nodes.keys():
+        for key in list(end_addresses_to_nodes.keys()):
             if len(end_addresses_to_nodes[key]) == 1:
                 smallest_nodes[key] = next(iter(end_addresses_to_nodes[key]))
                 del end_addresses_to_nodes[key]
@@ -1243,9 +1242,7 @@ class CFGBase(Analysis):
             # Update nodes dict
             self._nodes[n.block_id] = new_node
             if n in self._nodes_by_addr[n.addr]:
-                self._nodes_by_addr[n.addr] = filter(lambda x,the_node=n: x is not the_node,
-                                                     self._nodes_by_addr[n.addr]
-                                                     )
+                self._nodes_by_addr[n.addr] = [node for node in self._nodes_by_addr if node is not n]
                 self._nodes_by_addr[n.addr].append(new_node)
 
             for p, _, data in original_predecessors:

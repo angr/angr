@@ -23,9 +23,9 @@ class ExplorationTechniqueMeta(type):
         return step_wrapped
 
     @staticmethod
-    def _filter_factory(filter):  # pylint:disable=redefined-builtin
+    def _filter_factory(func):  # pylint:disable=redefined-builtin
         def filter_wrapped(self, simgr, state, filter_func=None):
-            result = filter(self, state)  # pylint:disable=no-value-for-parameter
+            result = func(self, state)  # pylint:disable=no-value-for-parameter
             if result is None:
                 result = simgr.filter(state, filter_func=filter_func)
             return result

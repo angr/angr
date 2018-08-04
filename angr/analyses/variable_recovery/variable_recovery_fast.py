@@ -42,7 +42,7 @@ class ProcessorState(object):
 
     def merge(self, other):
         if not self == other:
-            l.warn("Inconsistent merge: %s %s ", self, other)
+            l.warning("Inconsistent merge: %s %s ", self, other)
 
         # FIXME: none of the following logic makes any sense...
         if other.sp_adjusted is True:
@@ -104,13 +104,13 @@ def get_engine(base_engine):
         def _handle_Put(self, stmt):
             offset = stmt.offset
             data = self._expr(stmt.data)
-            size = stmt.data.result_size(self.tyenv) / 8
+            size = stmt.data.result_size(self.tyenv) // 8
 
             self._assign_to_register(offset, data, size)
 
         def _handle_Store(self, stmt):
             addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) / 8
+            size = stmt.data.result_size(self.tyenv) // 8
             data = self._expr(stmt.data)
 
             self._store(addr, data, size)
@@ -120,14 +120,14 @@ def get_engine(base_engine):
 
         def _handle_Get(self, expr):
             reg_offset = expr.offset
-            reg_size = expr.result_size(self.tyenv) / 8
+            reg_size = expr.result_size(self.tyenv) // 8
 
             return self._read_from_register(reg_offset, reg_size)
 
 
         def _handle_Load(self, expr):
             addr = self._expr(expr.addr)
-            size = expr.result_size(self.tyenv) / 8
+            size = expr.result_size(self.tyenv) // 8
 
             return self._load(addr, size)
 
@@ -143,7 +143,7 @@ def get_engine(base_engine):
             if dst_type is ailment.Expr.Register:
                 offset = stmt.dst.reg_offset
                 data = self._expr(stmt.src)
-                size = stmt.src.bits / 8
+                size = stmt.src.bits // 8
 
                 self._assign_to_register(offset, data, size)
 
@@ -161,7 +161,7 @@ def get_engine(base_engine):
         def _ail_handle_Store(self, stmt):
             addr = self._expr(stmt.addr)
             data = self._expr(stmt.data)
-            size = stmt.data.bits / 8
+            size = stmt.data.bits // 8
 
             self._store(addr, data, size)
 
@@ -178,7 +178,7 @@ def get_engine(base_engine):
 
         def _ail_handle_Register(self, expr):
             offset = expr.reg_offset
-            size = expr.bits / 8
+            size = expr.bits // 8
 
             return self._read_from_register(offset, size)
 

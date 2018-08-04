@@ -22,7 +22,7 @@ try:
     with open(flag_loc, "rb") as f:
         FLAG_DATA = f.read()
 except IOError:
-    FLAG_DATA = "A"*0x1000
+    FLAG_DATA = b"A"*0x1000
 
 assert len(FLAG_DATA) == 0x1000
 
@@ -96,10 +96,10 @@ class Runner(object):
             out_state.history.jumpkind = "Ijk_Boring"
             return out_state
         except SimError as e:
-            l.warning("SimError in get recv state %s", e.message)
+            l.warning("SimError in get recv state %s", e)
             return self.project.factory.entry_state()
         except AngrError as e:
-            l.warning("AngrError in get recv state %s", e.message)
+            l.warning("AngrError in get recv state %s", e)
             return self.project.factory.entry_state()
 
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
@@ -196,13 +196,13 @@ class Runner(object):
         s = self.setup_state(function, test_data, initial_state, concrete_rand=concrete_rand)
 
         for i in test_data.input_args:
-            if isinstance(i, (str, claripy.ast.BV)):
+            if isinstance(i, (bytes, claripy.ast.BV)):
                 s.memory.store(curr_buf_loc, i)
                 mapped_input.append(curr_buf_loc)
                 curr_buf_loc += max(len(i), 0x1000)
             else:
                 if not isinstance(i, int):
-                    raise Exception("Expected int/long got %s" % type(i))
+                    raise Exception("Expected int/bytes got %s" % type(i))
                 mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -219,23 +219,23 @@ class Runner(object):
 
         if custom_offs is None:
             for i in test_data.input_args:
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/long got %s" % type(i))
+                        raise Exception("Expected int/str got %s" % type(i))
                     mapped_input.append(i)
         else:
             for i, off in zip(test_data.input_args, custom_offs):
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc+off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/long got %s" % type(i))
+                        raise Exception("Expected int/str got %s" % type(i))
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -247,16 +247,16 @@ class Runner(object):
             result = call(*mapped_input)
             result_state = call.result_state
         except AngrCallableMultistateError as e:
-            l.info("multistate error: %s", e.message)
+            l.info("multistate error: %s", e)
             return False
         except AngrCallableError as e:
-            l.info("other callable error: %s", e.message)
+            l.info("other callable error: %s", e)
             return False
 
         # check matches
         outputs = []
         for i, out in enumerate(test_data.expected_output_args):
-            if isinstance(out, str):
+            if isinstance(out, bytes):
                 if len(out) == 0:
                     raise Exception("len 0 out")
                 outputs.append(result_state.memory.load(mapped_input[i], len(out)))
@@ -316,24 +316,24 @@ class Runner(object):
 
         if custom_offs is None:
             for i in test_data.input_args:
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/long got %s" % type(i))
+                        raise Exception("Expected int/bytes got %s" % type(i))
                     mapped_input.append(i)
 
         else:
             for i, off in zip(test_data.input_args, custom_offs):
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc+off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/long got %s" % type(i))
+                        raise Exception("Expected int/bytes got %s" % type(i))
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -345,10 +345,10 @@ class Runner(object):
             _ = call(*mapped_input)
             result_state = call.result_state
         except AngrCallableMultistateError as e:
-            l.info("multistate error: %s", e.message)
+            l.info("multistate error: %s", e)
             return None
         except AngrCallableError as e:
-            l.info("other callable error: %s", e.message)
+            l.info("other callable error: %s", e)
             return None
 
         return result_state

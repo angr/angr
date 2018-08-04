@@ -60,8 +60,7 @@ class Identifier(Analysis):
         self._bp_reg = a.register_names[a.bp_offset]
         self._ip_reg = a.register_names[a.ip_offset]
         self._reg_list = a.default_symbolic_registers
-        self._reg_list = filter(lambda r: r != self._sp_reg, self._reg_list)
-        self._reg_list = filter(lambda r: r != self._ip_reg, self._reg_list)
+        self._reg_list = [r for r in self._reg_list if r not in (self._sp_reg, self._ip_reg)]
 
         self.matches = dict()
 
@@ -99,11 +98,11 @@ class Identifier(Analysis):
                 func_info = self.find_stack_vars_x86(f)
                 self.func_info[f] = func_info
             except (SimEngineError, SimMemoryError) as e:
-                l.debug("angr translation error: %s", e.message)
+                l.debug("angr translation error: %s", e)
             except IdentifierException as e:
-                l.debug("Identifier error: %s", e.message)
+                l.debug("Identifier error: %s", e)
             except SimError as e:
-                l.debug("Simulation error: %s", e.message)
+                l.debug("Simulation error: %s", e)
 
     def _too_large(self):
         if len(self._cfg.functions) > 400:
@@ -745,7 +744,7 @@ class Identifier(Analysis):
     @staticmethod
     def _is_bt(bl):
         # vex does really weird stuff with bit test instructions
-        if bl.bytes.startswith("\x0f\xa3"):
+        if bl.bytes.startswith(b"\x0f\xa3"):
             return True
         return False
 

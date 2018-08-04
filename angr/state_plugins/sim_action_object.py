@@ -15,6 +15,8 @@ def _raw_ast(a):
         return { k:_raw_ast(a[k]) for k in a }
     elif type(a) in (tuple, list, set, frozenset):
         return type(a)((_raw_ast(b) for b in a))
+    elif type(a) in (zip, filter, map):
+        return (_raw_ast(i) for i in a)
     else:
         return a
 

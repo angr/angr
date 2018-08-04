@@ -19,8 +19,8 @@ def perf_unicorn_0():
     sm_unicorn.run()
     elapsed = time.time() - start
 
-    print "Elapsed %f sec" % elapsed
-    print sm_unicorn.one_deadended
+    print("Elapsed %f sec" % elapsed)
+    print(sm_unicorn.one_deadended)
 
 def perf_unicorn_1():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'x86_64', 'perf_unicorn_1'))
@@ -33,18 +33,17 @@ def perf_unicorn_1():
     sm_unicorn.run()
     elapsed = time.time() - start
 
-    print "Elapsed %f sec" % elapsed
-    print sm_unicorn.one_deadended
+    print("Elapsed %f sec" % elapsed)
+    print(sm_unicorn.one_deadended)
 
 if __name__ == "__main__":
-
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
-            print 'perf_' + arg
+            print('perf_' + arg)
             globals()['perf_' + arg]()
 
     else:
         for fk, fv in globals().items():
             if fk.startswith('perf_') and callable(fv):
-                print fk
+                print(fk)
                 res = fv()

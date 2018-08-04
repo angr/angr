@@ -45,7 +45,7 @@ def test_ctype_b_loc():
 
     state = main.found[0]
     b_loc_array_ptr = ctype_b_loc(state, []).ret_expr
-    table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
+    table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
     result = ''
     for i in range(-128, 256):
@@ -98,7 +98,7 @@ def test_ctype_tolower_loc():
 
     state = main.found[0]
     tolower_loc_array_ptr = ctype_tolower_loc(state, []).ret_expr
-    table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
+    table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
     result = ''
     for i in range(-128, 256):
@@ -150,7 +150,7 @@ def test_ctype_toupper_loc():
 
     state = main.found[0]
     toupper_loc_array_ptr = ctype_toupper_loc(state, []).ret_expr
-    table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
+    table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
     result = ''
     for i in range(-128, 256):
@@ -165,6 +165,6 @@ def test_ctype_toupper_loc():
 
 if __name__ == '__main__':
     g = globals().copy()
-    for func_name, func in g.iteritems():
+    for func_name, func in g.items():
         if func_name.startswith("test_") and hasattr(func, "__call__"):
             func()

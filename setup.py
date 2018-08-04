@@ -41,7 +41,7 @@ def _build_native():
                 ('PYVEX_LIB_FILE', 'pyvex', 'lib\\pyvex.lib'))
     for var, pkg, fnm in env_data:
         try:
-            env[var] = pkg_resources.resource_filename(pkg, fnm).encode('ascii', 'ignore')
+            env[var] = pkg_resources.resource_filename(pkg, fnm)
         except KeyError:
             pass
 

@@ -547,7 +547,7 @@ class SimEngineVEX(SimEngine):
         # phase x: error handling
         except pyvex.PyVEXError as e:
             l.debug("VEX translation error at %#x", addr)
-            if isinstance(buff, str):
+            if isinstance(buff, bytes):
                 l.debug('Using bytes: %r', buff)
             else:
                 l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
@@ -564,7 +564,7 @@ class SimEngineVEX(SimEngine):
                 # symbolic memory
                 clemory = state.memory.mem._memory_backer
 
-        buff, size = "", 0
+        buff, size = b"", 0
 
         # Load from the clemory if we can
         smc = self._support_selfmodifying_code
@@ -600,13 +600,13 @@ class SimEngineVEX(SimEngine):
                 for i in range(max_size):
                     if addr + i in state.memory:
                         try:
-                            buff_lst.append(chr(state.se.eval(state.memory.load(addr + i, 1, inspect=False))))
+                            buff_lst.append(state.se.eval(state.memory.load(addr + i, 1, inspect=False)))
                         except SimError:
                             break
                     else:
                         break
 
-                buff = ''.join(buff_lst)
+                buff = bytes(buff_lst)
                 size = len(buff)
 
         size = min(max_size, size)

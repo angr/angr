@@ -33,20 +33,20 @@ def test_string_concrete():
     addr = 0xba5e0
 
     def check_read(val):
-        nose.tools.assert_equal(s.se.eval(s.memory.load(addr, len(val)), cast_to=str), val)
+        nose.tools.assert_equal(s.se.eval(s.memory.load(addr, len(val)), cast_to=bytes), val)
         nose.tools.assert_equal(s.se.eval(s.memory.load(addr + len(val), 1), cast_to=int), 0)
 
         nose.tools.assert_equal(s.mem[addr].string.concrete, val)
 
     s.memory.store(addr, "a string!\0")
-    check_read("a string!")
+    check_read(b"a string!")
 
     # not supported yet
     # s.mem[addr].string = "shorter"
-    # check_read("shorter")
+    # check_read(b"shorter")
 
     # s.mem[addr].string = "a longer string"
-    # check_read("a longer string")
+    # check_read(b"a longer string")
 
 def test_array_concrete():
     s = SimState(arch="AMD64")
@@ -97,7 +97,7 @@ struct abcd {
 
     s.mem[0x8000].struct.abcd = {'a': 10, 'b': 20}
     assert s.mem[0x8000].struct.abcd.a.concrete == 10
-    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=str) == '0a000000000000001400000000000000'.decode('hex')
+    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes) == bytes.fromhex('0a000000000000001400000000000000')
 
 
 if __name__ == '__main__':

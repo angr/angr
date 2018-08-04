@@ -27,7 +27,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         super(SimFilesystem, self).__init__()
 
         if files is None: files = {}
-        if pathsep is None: pathsep = '/'
+        if pathsep is None: pathsep = b'/'
         if cwd is None: cwd = pathsep
         if mountpoints is None: mountpoints = {}
 
@@ -113,7 +113,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
 
     def widen(self, others): # pylint: disable=unused-argument
         if once('fs_widen_warning'):
-            l.warn("Filesystems can't be widened yet - beware unsoundness")
+            l.warning("Filesystems can't be widened yet - beware unsoundness")
 
     def _normalize_path(self, path):
         """
@@ -124,11 +124,11 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         keys = path.split(self.pathsep)
         i = 0
         while i < len(keys):
-            if keys[i] == '':
+            if keys[i] == b'':
                 keys.pop(i)
-            elif keys[i] == '.':
+            elif keys[i] == b'.':
                 keys.pop(i)
-            elif keys[i] == '..':
+            elif keys[i] == b'..':
                 keys.pop(i)
                 if i != 0:
                     keys.pop(i-1)

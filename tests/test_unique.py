@@ -13,7 +13,7 @@ find = {
 }
 
 criteria = {
-    'veritesting_a': lambda input_found: input_found.count('B') == 10
+    'veritesting_a': lambda input_found: input_found.count(b'B') == 10
 }
 
 def run_unique(binary, arch):

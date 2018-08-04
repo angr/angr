@@ -1,4 +1,3 @@
-
 import logging
 
 from ..func import Func, TestData

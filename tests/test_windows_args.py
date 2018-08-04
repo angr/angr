@@ -26,7 +26,7 @@ def test_i386():
     nose.tools.assert_equal(len(simgr.avoid), 0)
     nose.tools.assert_greater(len(simgr.found), 0)
     for f in simgr.found:
-        nose.tools.assert_in("ok", f.posix.dumps(1))
+        nose.tools.assert_in(b"ok", f.posix.dumps(1))
 
 if __name__ == "__main__":
     test_i386()

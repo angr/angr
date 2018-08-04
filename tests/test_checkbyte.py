@@ -16,7 +16,7 @@ def run_checkbyte(arch):
     assert len(results.deadended) == 2
     one = results.deadended[0].posix.dumps(1)
     two = results.deadended[1].posix.dumps(1)
-    assert set((one, two)) == set(("First letter good\n", "First letter bad\n"))
+    assert {one, two} == {b"First letter good\n", b"First letter bad\n"}
 
 def test_checkbyte():
     for arch in arches:

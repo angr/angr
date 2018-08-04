@@ -11,23 +11,23 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def check_state_1(state):
     # Need to dump file.txt by path because program closes it
-    return state.posix.dump_file_by_path('file.txt') == "testing abcdef" and \
-           state.posix.dumps(0)[:4] == "xyz\n" and \
-           state.posix.dumps(1) == "good1\n" and \
-           state.posix.dumps(2) == ""
+    return state.posix.dump_file_by_path('file.txt') == b"testing abcdef" and \
+           state.posix.dumps(0)[:4] == b"xyz\n" and \
+           state.posix.dumps(1) == b"good1\n" and \
+           state.posix.dumps(2) == b""
 
 
 def check_state_2(state):
-    return state.posix.dump_file_by_path('file.txt') == "testing abcdef" and \
-           state.posix.dumps(0)[:4] == "wxyz" and \
-           state.posix.dumps(1) == "" and \
-           state.posix.dumps(2) == "good2\n"
+    return state.posix.dump_file_by_path('file.txt') == b"testing abcdef" and \
+           state.posix.dumps(0)[:4] == b"wxyz" and \
+           state.posix.dumps(1) == b"" and \
+           state.posix.dumps(2) == b"good2\n"
 
 
 def check_state_3(state):
-    return state.posix.dump_file_by_path('file.txt') == "testing abcdef" and \
-           state.posix.dumps(1) == "" and \
-           state.posix.dumps(2) == ""
+    return state.posix.dump_file_by_path('file.txt') == b"testing abcdef" and \
+           state.posix.dumps(1) == b"" and \
+           state.posix.dumps(2) == b""
 
 
 def test_file_struct_funcs():

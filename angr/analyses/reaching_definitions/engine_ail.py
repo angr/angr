@@ -70,7 +70,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             self.tmps[dst.tmp_idx] = src
 
         elif type(dst) is ailment.Register:
-            reg = Register(dst.reg_offset, dst.bits / 8)
+            reg = Register(dst.reg_offset, dst.bits // 8)
             self.state.kill_and_add_definition(reg, self._codeloc(), src)
 
         else:
@@ -141,7 +141,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         reg_offset = expr.reg_offset
         bits = expr.bits
 
-        self.state.add_use(Register(reg_offset, bits / 8), self._codeloc())
+        self.state.add_use(Register(reg_offset, bits // 8), self._codeloc())
 
         if reg_offset == self.arch.sp_offset:
             return SpOffset(bits, 0)
@@ -153,7 +153,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
             if not defs:
                 # define it right away as an external dependency
-                self.state.kill_and_add_definition(Register(reg_offset, bits / 8), self._external_codeloc(),
+                self.state.kill_and_add_definition(Register(reg_offset, bits // 8), self._external_codeloc(),
                                                    data=expr
                                                    )
                 defs = self.state.register_definitions.get_objects_by_offset(reg_offset)

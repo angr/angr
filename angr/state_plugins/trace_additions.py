@@ -393,7 +393,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         byte_indices = set()
         for int_val, str_val in self.int_to_str_pairs:
             if variable in int_val.variables:
-                num_bytes = str_val.size()/8
+                num_bytes = str_val.size()//8
                 if stdout.op != "Concat":
                     l.warning("stdout is not concat!")
                     continue
@@ -401,7 +401,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
                 for arg in stdout.args:
                     if arg is str_val:
                         byte_indices.update(range(stdout_pos, stdout_pos+num_bytes))
-                    stdout_pos += arg.size()/8
+                    stdout_pos += arg.size()//8
         return byte_indices
 
     def get_real_len(self, input_val, base, result_bv, allows_negative):
@@ -447,7 +447,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         for str_var, int_var in self.str_to_int_pairs:
             int_var_name = list(int_var.variables)[0]
             base = int(int_var_name.split("_")[1], 10)
-            original_len = str_var.size()/8
+            original_len = str_var.size()//8
             abs_max = (1 << int_var.size())-1
             if str_var.cache_key in self.allows_negative_bvs:
                 abs_max = (1 << (int_var.size()-1))-1

@@ -28,11 +28,11 @@ def run_fauxware(arch, threads):
     # step until the backdoor split occurs
     pg2 = pg.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune())
     nose.tools.assert_equal(len(pg2.active), 2)
-    nose.tools.assert_true(any("SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items))
-    nose.tools.assert_false(all("SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items))
+    nose.tools.assert_true(any(b"SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items))
+    nose.tools.assert_false(all(b"SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items))
 
     # separate out the backdoor and normal paths
-    pg3 = pg2.stash(lambda path: "SOSNEAKY" in path.posix.dumps(0), to_stash="backdoor").move('active', 'auth')
+    pg3 = pg2.stash(lambda path: b"SOSNEAKY" in path.posix.dumps(0), to_stash="backdoor").move('active', 'auth')
     nose.tools.assert_equal(len(pg3.active), 0)
     nose.tools.assert_equal(len(pg3.backdoor), 1)
     nose.tools.assert_equal(len(pg3.auth), 1)
@@ -125,11 +125,11 @@ def test_explore_with_cfg():
 
 if __name__ == "__main__":
     logging.getLogger('angr.sim_manager').setLevel('DEBUG')
-    print 'explore_with_cfg'
+    print('explore_with_cfg')
     test_explore_with_cfg()
-    print 'find_to_middle'
+    print('find_to_middle')
     test_find_to_middle()
 
     for func, march, threads in test_fauxware():
-        print 'testing ' + march
+        print('testing ' + march)
         func(march, threads)

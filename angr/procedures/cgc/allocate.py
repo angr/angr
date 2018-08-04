@@ -22,7 +22,7 @@ class allocate(angr.SimProcedure):
                 (self.state.cgc.addr_invalid(addr), self.state.cgc.EFAULT),
             ), self.state.se.BVV(0, self.state.arch.bits))
 
-        aligned_length = ((length + 0xfff) / 0x1000) * 0x1000
+        aligned_length = ((length + 0xfff) // 0x1000) * 0x1000
 
         if isinstance(self.state.cgc.allocation_base, int):
             self.state.cgc.allocation_base = self.state.se.BVV(self.state.cgc.allocation_base, self.state.arch.bits)

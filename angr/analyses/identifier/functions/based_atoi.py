@@ -81,7 +81,7 @@ class based_atoi(Func):
 
         num = abs(num)
         s = int2base(num, self.base)
-        test_input = [s, 30, "foo"]
+        test_input = [s, 30, b"foo"]
         test_output = [s, None, None]
         return_val = num
         max_steps = 10

@@ -163,7 +163,7 @@ class SimSystemPosix(SimStatePlugin):
     def init_state(self):
         if self.dev_fs is None:
             self.dev_fs = PosixDevFS()
-            self.state.fs.mount("/dev", self.dev_fs)
+            self.state.fs.mount(b"/dev", self.dev_fs)
 
     def set_brk(self, new_brk):
         # arch word size is not available at init for some reason, fix that here
@@ -229,6 +229,8 @@ class SimSystemPosix(SimStatePlugin):
 
         if len(name) == 0:
             return None
+        if type(name) is str:
+            name = name.encode()
 
         # TODO: speed this up (editor's note: ...really? this is fine)
         fd = None
@@ -493,7 +495,7 @@ class SimSystemPosix(SimStatePlugin):
         if 0 <= fd <= 2:
             data = [self.stdin, self.stdout, self.stderr][fd].concretize(**kwargs)
             if type(data) is list:
-                data = ''.join(data)
+                data = b''.join(data)
             return data
         return self.get_fd(fd).concretize(**kwargs)
 

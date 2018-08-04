@@ -81,7 +81,7 @@ def run_vfg_0(arch):
     final_state_main = function_final_states[main.addr].values()[0]
     stdout = final_state_main.posix.dumps(1)
 
-    nose.tools.assert_equal(stdout[:6], "i = 64")
+    nose.tools.assert_equal(stdout[:6], b"i = 64")
     # the following does not work without affine relation analysis
     # nose.tools.assert_equal(stdout, "i = 64, j = 63")
 
@@ -189,4 +189,4 @@ if __name__ == "__main__":
                 for test_func, arch_ in func():
                     test_func(arch_)
             else:
-                print '"%s" does not exist, or is not a callable' % f
+                print('"%s" does not exist, or is not a callable' % f)

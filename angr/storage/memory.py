@@ -494,6 +494,10 @@ class SimMemory(SimStatePlugin):
                 size = named_size
                 size_e = size
 
+        if isinstance(data_e, str):
+            data_e = data_e.encode()
+            l.warning("Storing unicode string encoded as utf-8. Did you mean to use a bytestring?")
+
         # store everything as a BV
         data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, int) else None)
 

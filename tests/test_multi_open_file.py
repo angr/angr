@@ -20,7 +20,7 @@ def test_multi_open_file():
     # See the source file in binaries/tests_src/test_multi_open_file.c
     # for the tests run
     for p in pg.deadended:
-        nose.tools.assert_true(p.posix.dumps(2) == "")
+        nose.tools.assert_true(p.posix.dumps(2) == b"")
 
         # Check that the temp file was deleted
         nose.tools.assert_equal(p.fs._files, {})

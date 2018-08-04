@@ -137,8 +137,8 @@ class LoopFinder(Analysis):
                     else:
                         subg.add_edge(subloop, exit_edge[1])
                         removed_exits[exit_edge] = subloop
-                subg = filter(lambda g: entry_node in g.nodes(),
-                        networkx.weakly_connected_component_subgraphs(subg))[0]
+                subg = next(filter(lambda g: entry_node in g.nodes(),
+                        networkx.weakly_connected_component_subgraphs(subg)))
 
         me = Loop(entry_node,
              entry_edges,

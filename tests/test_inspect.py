@@ -83,7 +83,7 @@ def test_inspect():
     s.inspect.b('statement', when=BP_AFTER, action=act_statement)
     s.inspect.b('instruction', when=BP_AFTER, action=act_instruction, instruction=1001)
     s.inspect.b('instruction', when=BP_AFTER, action=act_instruction, instruction=1000)
-    irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64(), opt_level=0)
+    irsb = pyvex.IRSB(b"\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64(), opt_level=0)
     irsb.pp()
     SimEngineVEX().process(s, irsb)
     nose.tools.assert_equal(counts.reg_write, 7)
@@ -121,7 +121,7 @@ def test_inspect_exit():
         counts.exit_after += 1
 
     s = SimState(arch="AMD64", mode="symbolic")
-    irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64())
+    irsb = pyvex.IRSB(b"\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64())
 
     # break on exit
     s.inspect.b('exit', BP_BEFORE, action=handle_exit_before)
@@ -211,7 +211,7 @@ def test_inspect_concretization():
             self.state = state
 
     def abort_unconstrained(state):
-        print state.inspect.address_concretization_strategy, state.inspect.address_concretization_result
+        print(state.inspect.address_concretization_strategy, state.inspect.address_concretization_result)
         if (
             isinstance(
                 state.inspect.address_concretization_strategy,
@@ -233,7 +233,7 @@ def test_inspect_concretization():
 
     try:
         s.memory.store(x, 'A')
-        print "THIS SHOULD NOT BE REACHED"
+        print("THIS SHOULD NOT BE REACHED")
         assert False
     except UnconstrainedAbort as e:
         assert e.state.memory is s.memory
@@ -248,8 +248,8 @@ def test_inspect_engine_process():
         nose.tools.assert_equal(len(succ_addr), 2)
         nose.tools.assert_in('0x400692L', succ_addr)
         nose.tools.assert_in('0x400699L', succ_addr)
-        print 'Fork after:', hex(state.addr)
-        print 'Successors:', succ_addr
+        print('Fork after:', hex(state.addr))
+        print('Successors:', succ_addr)
 
     def check_second_symbolic_fork(state):
         succs = state.inspect.sim_successors.successors
@@ -257,8 +257,8 @@ def test_inspect_engine_process():
         nose.tools.assert_equal(len(succ_addr), 2)
         nose.tools.assert_in('0x4006dfL', succ_addr)
         nose.tools.assert_in('0x4006e6L', succ_addr)
-        print 'Fork after:', hex(state.addr)
-        print 'Successors:', succ_addr
+        print('Fork after:', hex(state.addr))
+        print('Successors:', succ_addr)
 
     def first_symbolic_fork(state):
         return hex(state.addr) == '0x40068eL' \

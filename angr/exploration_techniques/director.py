@@ -337,7 +337,7 @@ class CallFunctionGoal(BaseGoal):
         if isinstance(expected, str):
             # convert it to an AST
             expected = state.se.BVV(expected)
-        length = expected.size() / 8
+        length = expected.size() // 8
         real_string = state.memory.load(ptr, length, endness='Iend_BE')
 
         if real_string.symbolic:

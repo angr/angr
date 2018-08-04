@@ -149,7 +149,7 @@ class SimLinux(SimUserland):
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
-            cwd='/home/user', pathsep='/', **kwargs):
+            cwd=b'/home/user', pathsep=b'/', **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs)
 
         if self.project.loader.tls_object is not None:

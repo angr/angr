@@ -190,7 +190,7 @@ def disabled_cfg_5():
 def test_cfg_6():
     function_addresses = [0xfa630, 0xfa683, 0xfa6d4, 0xfa707, 0xfa754, 0xfa779, 0xfa7a9, 0xfa7d6, 0xfa844, 0xfa857,
                           0xfa8d9, 0xfa92f, 0xfa959, 0xfa9fb, 0xfabd6, 0xfac61, 0xfacc2, 0xfad29, 0xfaf94, 0xfbd07,
-                          0xfc100L, 0xfc101, 0xfc14fL, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42fL, 0xfc4a3, 0xfc4cf,
+                          0xfc100, 0xfc101, 0xfc14f, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42f, 0xfc4a3, 0xfc4cf,
                           0xfc4db, 0xfc5ba, 0xfc5ef, 0xfc5fe, 0xfc611, 0xfc682, 0xfc6b7, 0xfc7fc, 0xfc8a8, 0xfc8e7,
                           0xfcb42, 0xfcb50, 0xfcb72, 0xfcc3b, 0xfcc7a, 0xfcc8b, 0xfccdc, 0xfd1a3, 0xff06e]
 
@@ -340,7 +340,7 @@ def test_max_steps():
             depth_map[dst] = depth_map[src] + 1
         depth_map[dst] = max(depth_map[src] + 1, depth_map[dst])
 
-    nose.tools.assert_less_equal(max(depth_map.itervalues()), 5)
+    nose.tools.assert_less_equal(max(depth_map.values()), 5)
 
 
 def test_armel_final_missing_block():
@@ -482,10 +482,10 @@ def test_cfg_switches():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
-            print f
+            print(f)
             all_functions[f]()
 
 if __name__ == "__main__":

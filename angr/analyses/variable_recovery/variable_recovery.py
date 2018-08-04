@@ -179,7 +179,7 @@ class VariableRecoveryState(object):
             return
 
         reg_write_expr = state.inspect.reg_write_expr
-        reg_write_length = len(reg_write_expr) / 8
+        reg_write_length = len(reg_write_expr) // 8
 
         # annotate it
         # reg_write_expr = reg_write_expr.annotate(VariableSourceAnnotation.from_state(state))
@@ -269,7 +269,7 @@ class VariableRecoveryState(object):
 
         mem_write_address = state.inspect.mem_write_address
         mem_write_expr = state.inspect.mem_write_expr
-        mem_write_length = len(mem_write_expr) / 8
+        mem_write_length = len(mem_write_expr) // 8
 
         stack_offset = self._addr_to_stack_offset(mem_write_address)
 

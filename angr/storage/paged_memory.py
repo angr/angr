@@ -3,6 +3,7 @@ import claripy
 import cffi
 import cle
 from sortedcontainers import SortedDict
+import logging
 
 from ..errors import SimMemoryError, SimSegfaultError, SimMemoryMissingError
 from .. import sim_options as options
@@ -10,9 +11,8 @@ from .memory_object import SimMemoryObject
 from claripy.ast.bv import BV
 
 _ffi = cffi.FFI()
-
-import logging
 l = logging.getLogger("angr.storage.paged_memory")
+
 
 class BasePage(object):
     """

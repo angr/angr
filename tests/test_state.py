@@ -26,11 +26,11 @@ def test_state():
 
     a = s.stack_pop()
     nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff8)
-    nose.tools.assert_equal(s.se.eval(a, cast_to=str), "IJKLMNOP")
+    nose.tools.assert_equal(s.se.eval(a, cast_to=bytes), b"IJKLMNOP")
 
     b = s.stack_pop()
     nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7ffffffffff0000)
-    nose.tools.assert_equal(s.se.eval(b, cast_to=str), "ABCDEFGH")
+    nose.tools.assert_equal(s.se.eval(b, cast_to=bytes), b"ABCDEFGH")
 
 #@nose.tools.timed(10)
 def test_state_merge():
@@ -174,7 +174,7 @@ def test_state_merge_optimal_nostrongrefstate():
     s = sm.one_found
     culprit = s.mem[var_addr].dword.resolved
 
-    for i in xrange(8, 11):
+    for i in range(8, 11):
         assert i, s.solver.satisfiable(extra_constraints=(culprit == i,))
 
     assert not s.solver.satisfiable(extra_constraints=(culprit == 12, ))
@@ -197,7 +197,7 @@ def test_state_merge_optimal():
     s = sm.one_found
     culprit = s.mem[var_addr].dword.resolved
 
-    for i in xrange(8, 11):
+    for i in range(8, 11):
         assert i, s.solver.satisfiable(extra_constraints=(culprit == i,))
 
     assert not s.solver.satisfiable(extra_constraints=(culprit == 12, ))
@@ -220,7 +220,7 @@ def test_state_pickle():
     del s
     gc.collect()
     s = pickle.loads(sp)
-    nose.tools.assert_equal(s.se.eval(s.memory.load(100, 10), cast_to=str), "AAABAABABC")
+    nose.tools.assert_equal(s.se.eval(s.memory.load(100, 10), cast_to=bytes), b"AAABAABABC")
 
 def test_global_condition():
     s = SimState(arch="AMD64")

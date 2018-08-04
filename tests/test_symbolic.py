@@ -23,14 +23,14 @@ def test_concretization_strategies():
     s = angr.SimState(arch='AMD64', memory_backer=initial_memory)
 
     # sanity check
-    nose.tools.assert_equal(s.se.eval_upto(s.memory.load(3, 1), 2, cast_to=str), ['D'])
+    nose.tools.assert_equal(s.se.eval_upto(s.memory.load(3, 1), 2, cast_to=bytes), [b'D'])
 
     x = s.se.BVS('x', s.arch.bits)
     s.add_constraints(x >= 1)
     s.add_constraints(x <= 3)
 
     ss = s.copy()
-    nose.tools.assert_equal(tuple(sorted(ss.se.eval_upto(ss.memory.load(x, 1), 10, cast_to=str))), ('B', 'C', 'D'))
+    nose.tools.assert_equal(tuple(sorted(ss.se.eval_upto(ss.memory.load(x, 1), 10, cast_to=bytes))), (b'B', b'C', b'D'))
 
     ss = s.copy()
     x = s.se.BVS('x', s.arch.bits)
@@ -84,7 +84,7 @@ def broken_symbolic_write():
     #s.memory.store(addr, s.se.BVV(255, 8), strategy=['symbolic','any'], limit=100)
     s.memory.store(addr, s.se.BVV(255, 8))
     nose.tools.assert_true(s.satisfiable())
-    print "GO TIME"
+
     nose.tools.assert_equal(len(s.se.eval_upto(addr, 10)), 3)
     nose.tools.assert_items_equal(s.se.eval_upto(s.memory.load(10, 1), 3), [ 1, 255 ])
     nose.tools.assert_items_equal(s.se.eval_upto(s.memory.load(20, 1), 3), [ 2, 255 ])
@@ -127,9 +127,7 @@ def broken_symbolic_write():
     for i in range(8):
         ss = s.copy()
         ss.add_constraints(length == i)
-        nose.tools.assert_equal(ss.se.eval(s.memory.load(0, 8), cast_to=str), "B"*i + "A"*(8-i))
-
-    print "GROOVY"
+        nose.tools.assert_equal(ss.se.eval(s.memory.load(0, 8), cast_to=bytes), b"B"*i + b"A"*(8-i))
 
 def test_unsat_core():
 

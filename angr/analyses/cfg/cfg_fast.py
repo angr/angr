@@ -106,7 +106,7 @@ class SegmentList(object):
         end = len(self._list)
 
         while start != end:
-            mid = (start + end) / 2
+            mid = (start + end) // 2
 
             segment = self._list[mid]
             if addr < segment.start:
@@ -551,7 +551,7 @@ class PendingJobs(object):
             return None
 
         if not returning:
-            return self._pop_job(self._jobs.keys()[0])
+            return self._pop_job(next(iter(self._jobs.keys())))
 
         # Prioritize returning functions
         for func_addr in self._jobs:
@@ -809,7 +809,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # TODO: Move arch_options to CFGBase, and add those logic to CFGAccurate as well.
     # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
-    PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "")
+    PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
 
     tag = "CFGFast"
 
@@ -1030,9 +1030,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if size is None:
             size = len(data)
 
-        data = str(pyvex.ffi.buffer(data, size))
+        data = bytes(pyvex.ffi.buffer(data, size))
         for x in range(0, 256):
-            p_x = float(data.count(chr(x))) / size
+            p_x = float(data.count(x)) / size
             if p_x > 0:
                 entropy += - p_x * math.log(p_x, 2)
         return entropy
@@ -1190,7 +1190,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_for_printable_strings(self, start_addr):
         addr = start_addr
-        sz = ""
+        sz = b""
         is_sz = True
 
         # Get data until we meet a null-byte
@@ -1199,7 +1199,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             val = self._load_a_byte_as_int(addr)
             if val is None:
                 break
-            if val == '\x00':
+            if val == b'\x00':
                 if len(sz) < 4:
                     is_sz = False
                 break
@@ -2198,7 +2198,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    size = stmt.data.result_size(irsb.tyenv) / 8 # convert to bytes
+                    size = stmt.data.result_size(irsb.tyenv) // 8 # convert to bytes
                     _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
                              data_size=size, data_type='integer'
                              )
@@ -2352,6 +2352,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if boundary is not None:
                     data.max_size = boundary - data_addr
 
+                if data.max_size is None:
+                    print('wtf')
+
         keys = sorted(self._memory_data.keys())
 
         new_data_found = False
@@ -2489,7 +2492,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block_size >= 4 and block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
+        if block_size >= 4 and block[1] == 0 and block[3] == 0 and bytes([block[0]]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             try:
                 unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)

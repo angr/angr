@@ -54,7 +54,7 @@ class HookedMethod(object):
             if self.pending:
                 next_hook = self.pending.pop()
                 self.pulled.append(next_hook)
-                result = next_hook(self.func.im_self, *args, **kwargs)
+                result = next_hook(self.func.__self__, *args, **kwargs)
 
             else:
                 result = self.func(*args, **kwargs)

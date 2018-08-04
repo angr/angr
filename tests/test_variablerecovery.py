@@ -75,7 +75,7 @@ def run_variable_recovery_analysis(project, func, groundtruth, is_fast):
 
     variable_manager = vr.variable_manager[func.addr]
 
-    for insn_addr, variables in groundtruth.iteritems():
+    for insn_addr, variables in groundtruth.items():
         for var_info in variables:
             var_sort = var_info['sort']
             vars_and_offset = variable_manager.find_variables_by_insn(insn_addr, var_sort)
@@ -150,16 +150,16 @@ def test_variable_analysis_fast():
         }
     }
 
-    for func_name, truth in groundtruth.iteritems():
+    for func_name, truth in groundtruth.items():
         yield run_variable_recovery_analysis, project, cfg.kb.functions[func_name], truth, True
 
 
 def main():
 
     g = globals()
-    for func_name, func in g.iteritems():
+    for func_name, func in g.items():
         if func_name.startswith('test_') and hasattr(func, '__call__'):
-            print func_name
+            print(func_name)
             for testfunc_and_args in func():
                 testfunc, args = testfunc_and_args[0], testfunc_and_args[1:]
                 testfunc(*args)

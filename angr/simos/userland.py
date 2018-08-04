@@ -95,7 +95,7 @@ class SimUserland(SimOS):
         if addr % self.syscall_addr_alignment != 0:
             return False
 
-        addr /= self.syscall_addr_alignment
+        addr //= self.syscall_addr_alignment
         return addr <= self.unknown_syscall_number
 
     def syscall_from_addr(self, addr, allow_unsupported=True):

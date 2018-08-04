@@ -14,6 +14,6 @@ class vsnprintf(angr.SimProcedure):
         if self.state.se.eval(size) == 0:
             return size
         
-        self.state.memory.store(str_ptr, "\x00")
+        self.state.memory.store(str_ptr, b"\x00")
 
         return size - 1

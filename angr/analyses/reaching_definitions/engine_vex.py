@@ -59,7 +59,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
         reg_offset = stmt.offset
-        size = stmt.data.result_size(self.tyenv) / 8
+        size = stmt.data.result_size(self.tyenv) // 8
         reg = Register(reg_offset, size)
         data = self._expr(stmt.data)
 
@@ -74,7 +74,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     def _handle_Store(self, stmt):
 
         addr = self._expr(stmt.addr)
-        size = stmt.data.result_size(self.tyenv) / 8
+        size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
 
         for a in addr:
@@ -99,7 +99,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         else:
             # guard.data == {True, False}
             addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) / 8
+            size = stmt.data.result_size(self.tyenv) // 8
 
             # get current data
             load_end = stmt.end
@@ -192,7 +192,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     # caution: Is also called from StoreG
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
-        size = expr.result_size(self.tyenv) / 8
+        size = expr.result_size(self.tyenv) // 8
 
         data = set()
         for a in addr:
@@ -217,7 +217,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                             fmt += "I"
 
                         if size in [4, 8] and size == len(mem):
-                            mem_str = ''.join(mem)
+                            mem_str = bytes(mem)
                             data.add(struct.unpack(fmt, mem_str)[0])
 
                 # FIXME: _add_memory_use() iterates over the same loop
@@ -268,7 +268,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 a &= mask
             elif type(a) is Parameter:
                 if type(a.value) is Register:
-                    a.value.size = bits / 8
+                    a.value.size = bits // 8
                 elif type(a.value) is SpOffset:
                     a.value.bits = bits
                 else:

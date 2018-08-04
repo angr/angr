@@ -81,12 +81,15 @@ class SimFileBase(SimStatePlugin):
 
     @staticmethod
     def make_ident(name):
+        if type(name) is str:
+            name = name.encode()
+
         def generate():
             consecutive_bad = 0
             for ch in name:
-                if 0x20 <= ord(ch) <= 0x7e:
+                if 0x20 <= ch <= 0x7e:
                     consecutive_bad = 0
-                    yield ch
+                    yield chr(ch)
                 elif consecutive_bad < 3:
                     consecutive_bad += 1
                     yield '?'
@@ -157,8 +160,8 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         content = _deps_unpack(content)[0]
         if type(content) is bytes:
             content = claripy.BVV(content)
-        elif type(content) is unicode:
-            content = claripy.BVV(content.encode('utf-8'))
+        elif type(content) is str:
+            content = claripy.BVV(content.encode())
         elif content is None:
             pass
         elif isinstance(content, claripy.Bits):

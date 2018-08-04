@@ -81,15 +81,15 @@ def test_inline_strlen():
 
     one_s = s.copy()
     one_s.add_constraints(c_len == 1)
-    nose.tools.assert_equal(one_s.se.eval(str_c, cast_to=str).index('\x00'), 1)
+    nose.tools.assert_equal(one_s.se.eval(str_c, cast_to=bytes).index(b'\x00'), 1)
     str_test = one_s.memory.load(c_addr, 2, endness='Iend_BE')
-    nose.tools.assert_equal(len(one_s.se.eval_upto(str_test, 300, cast_to=str)), 255)
+    nose.tools.assert_equal(len(one_s.se.eval_upto(str_test, 300, cast_to=bytes)), 255)
 
     for i in range(16):
         test_s = s.copy()
         test_s.add_constraints(c_len == i)
         str_test = test_s.memory.load(c_addr, i + 1, endness='Iend_BE')
-        nose.tools.assert_equal(test_s.se.eval(str_test, cast_to=str).index('\x00'), i)
+        nose.tools.assert_equal(test_s.se.eval(str_test, cast_to=bytes).index(b'\x00'), i)
         for j in range(i):
             nose.tools.assert_false(test_s.se.unique(test_s.memory.load(c_addr+j, 1)))
 
@@ -114,7 +114,7 @@ def test_inline_strcmp():
 
     nose.tools.assert_true(s_match.se.unique(str_b))
     nose.tools.assert_false(s_nomatch.se.unique(str_b))
-    nose.tools.assert_equal(s_match.se.eval(str_b, cast_to=str), "AAA\x00")
+    nose.tools.assert_equal(s_match.se.eval(str_b, cast_to=bytes), b"AAA\x00")
 
     s_ncmp = s.copy()
     ncmpres = strncmp(s_ncmp, arguments=[a_addr, b_addr, s.se.BVV(2, s.arch.bits)])
@@ -300,7 +300,7 @@ def test_strstr_inconsistency():
     #print "LENN:", s.se.eval_upto(sln_res, 100)
 
     nose.tools.assert_false(s.se.unique(ss_res))
-    nose.tools.assert_items_equal(s.se.eval_upto(ss_res, 100), [0] + range(0x10, 0x10 + s.libc.buf_symbolic_bytes - 1))
+    nose.tools.assert_items_equal(s.se.eval_upto(ss_res, 100), [0] + list(range(0x10, 0x10 + s.libc.buf_symbolic_bytes - 1)))
 
     s.add_constraints(ss_res != 0)
     ss2 = strstr(s, arguments=[addr_haystack, addr_needle])
@@ -321,7 +321,7 @@ def test_memcpy():
     s.memory.store(src_addr, src)
     memcpy(s, arguments=[dst_addr, src_addr, s.se.BVV(4, 64)])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    nose.tools.assert_equal(s.se.eval_upto(new_dst, 2, cast_to=str), [ "BBBB" ])
+    nose.tools.assert_equal(s.se.eval_upto(new_dst, 2, cast_to=bytes), [ b"BBBB" ])
 
     l.info("giant copy")
     s = SimState(arch="AMD64", mode="symbolic", remove_options=angr.options.simplification)
@@ -339,7 +339,7 @@ def test_memcpy():
     s.memory.store(src_addr, src)
     memcpy(s, arguments=[dst_addr, src_addr, s.se.BVV(2, 64)])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    nose.tools.assert_equal(s.se.eval_upto(new_dst, 2, cast_to=str), [ "BBAA" ])
+    nose.tools.assert_equal(s.se.eval_upto(new_dst, 2, cast_to=bytes), [ b"BBAA" ])
 
     l.info("symbolic src, concrete dst, concrete len")
     s = SimState(arch="AMD64", mode="symbolic")
@@ -380,7 +380,7 @@ def test_memcpy():
     s2.add_constraints(cpylen == 2)
     nose.tools.assert_equal(len(s2.se.eval_upto(result[31:24], 300)), 256)
     nose.tools.assert_equal(len(s2.se.eval_upto(result[23:16], 300)), 256)
-    nose.tools.assert_equal(s2.se.eval_upto(result[15:0], 300, cast_to=str), [ 'AA' ])
+    nose.tools.assert_equal(s2.se.eval_upto(result[15:0], 300, cast_to=bytes), [ b'AA' ])
 
     l.info("concrete src, concrete dst, symbolic len")
     dst = s2.se.BVV(0x41414141, 32)
@@ -396,7 +396,7 @@ def test_memcpy():
     s.add_constraints(s.se.ULE(cpylen, 4))
     memcpy(s, arguments=[dst_addr, src_addr, cpylen])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    nose.tools.assert_items_equal(s.se.eval_upto(new_dst, 300, cast_to=str), [ 'AAAA', 'BAAA', 'BBAA', 'BBBA', 'BBBB' ])
+    nose.tools.assert_items_equal(s.se.eval_upto(new_dst, 300, cast_to=bytes), [ b'AAAA', b'BAAA', b'BBAA', b'BBBA', b'BBBB' ])
 
 #@nose.tools.timed(10)
 def test_memcmp():
@@ -500,7 +500,7 @@ def test_strncpy():
     s.memory.store(src_addr, src)
     strncpy(s, arguments=[dst_addr, src_addr, s.se.BVV(3, 64)])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    nose.tools.assert_equal(s.se.eval(new_dst, cast_to=str), "BB\x00\x00")
+    nose.tools.assert_equal(s.se.eval(new_dst, cast_to=bytes), b"BB\x00\x00")
 
     l.debug("... partial copy")
     s = SimState(arch="AMD64", mode="symbolic")
@@ -508,7 +508,7 @@ def test_strncpy():
     s.memory.store(src_addr, src)
     strncpy(s, arguments=[dst_addr, src_addr, s.se.BVV(2, 64)])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    nose.tools.assert_equal(s.se.eval_upto(new_dst, 2, cast_to=str), [ "BBA\x00" ])
+    nose.tools.assert_equal(s.se.eval_upto(new_dst, 2, cast_to=bytes), [ b"BBA\x00" ])
 
     l.info("symbolic src, concrete dst, concrete len")
     s = SimState(arch="AMD64", mode="symbolic")
@@ -572,8 +572,8 @@ def test_strncpy():
     s.memory.store(src_addr, src)
     strncpy(s, arguments=[dst_addr, src_addr, maxlen])
     r = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    #print repr(r.se.eval_upto(r, 10, cast_to=str))
-    nose.tools.assert_items_equal(s.se.eval_upto(r, 10, cast_to=str), [ "AAA\x00", 'BAA\x00', 'BBA\x00', 'BB\x00\x00' ] )
+    #print repr(r.se.eval_upto(r, 10, cast_to=bytes))
+    nose.tools.assert_items_equal(s.se.eval_upto(r, 10, cast_to=bytes), [ b"AAA\x00", b'BAA\x00', b'BBA\x00', b'BB\x00\x00' ] )
 
 
 #@nose.tools.timed(10)
@@ -590,7 +590,7 @@ def test_strcpy():
     s.memory.store(src_addr, src)
     strcpy(s, arguments=[dst_addr, src_addr])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    nose.tools.assert_equal(s.se.eval(new_dst, cast_to=str), "BB\x00\x00")
+    nose.tools.assert_equal(s.se.eval(new_dst, cast_to=bytes), b"BB\x00\x00")
 
 
 
@@ -615,7 +615,7 @@ def test_strcpy():
     s.add_constraints(ln == 15)
     #readsize = 16
     #both_strs = s.se.Concat(*[ s.memory.load(dst_addr, readsize, endness='Iend_BE'), s.memory.load(src_addr, readsize, endness='Iend_BE') ])
-    #for i in s.se.eval_upto(both_strs, 50, cast_to=str):
+    #for i in s.se.eval_upto(both_strs, 50, cast_to=bytes):
 
     #print c.se.eval_upto(10)
     #nose.tools.assert_items_equal(c.se.eval_upto(10), [0])
@@ -642,13 +642,13 @@ def broken_sprintf():
         j = random.randint(10**i, 10**(i+1))
         s2 = s.copy()
         s2.add_constraints(arg == j)
-        #print s2.se.eval_upto(s2.memory.load(dst_addr, i+2), 2, cast_to=str), repr("%d\x00" % j)
-        nose.tools.assert_equal(s2.se.eval_upto(s2.memory.load(dst_addr, i+2), 2, cast_to=str), ["%d\x00" % j])
+        #print s2.se.eval_upto(s2.memory.load(dst_addr, i+2), 2, cast_to=bytes), repr(b"%d\x00" % j)
+        nose.tools.assert_equal(s2.se.eval_upto(s2.memory.load(dst_addr, i+2), 2, cast_to=bytes), [b"%d\x00" % j])
 
     s2 = s.copy()
     s2.add_constraints(arg == 0)
-    #print s2.se.eval_upto(s2.memory.load(dst_addr, 2), 2, cast_to=str), repr("%d\x00" % 0)
-    nose.tools.assert_equal(s2.se.eval_upto(s2.memory.load(dst_addr, 2), 2, cast_to=str), ["%d\x00" % 0])
+    #print s2.se.eval_upto(s2.memory.load(dst_addr, 2), 2, cast_to=bytes), repr(b"%d\x00" % 0)
+    nose.tools.assert_equal(s2.se.eval_upto(s2.memory.load(dst_addr, 2), 2, cast_to=bytes), [b"%d\x00" % 0])
 
 #@nose.tools.timed(10)
 def test_memset():
@@ -819,7 +819,6 @@ def broken_strtok_r():
     nose.tools.assert_equal(s.se.eval_upto(st5, 10), [0])
     nose.tools.assert_equal(s.se.eval_upto(s.memory.load(3000, s.arch.bytes, endness=s.arch.memory_endness), 10), [1009])
 
-    print "LIGHT FULLY SYMBOLIC TEST"
     s = SimState(arch='AMD64', mode='symbolic')
     str_ptr = s.se.BVV(100, s.arch.bits)
     delim_ptr = s.se.BVV(200, s.arch.bits)
@@ -833,7 +832,7 @@ def broken_strtok_r():
 
 
 def test_getc():
-    s = make_state_with_stdin('1234')
+    s = make_state_with_stdin(b'1234')
     stdin = s.posix.get_fd(0)
     s.mem[0x1000 + 0x70].int = 0
 
@@ -858,7 +857,7 @@ def test_getc():
 
 
 def test_getchar():
-    s = make_state_with_stdin('1234')
+    s = make_state_with_stdin(b'1234')
     stdin = s.posix.get_fd(0)
 
     nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [0])
@@ -879,10 +878,10 @@ def test_getchar():
     nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [4])
 
 def test_scanf():
-    s = make_state_with_stdin('Hello\n')
-    s.memory.store(0x2000, "%1s\0")
+    s = make_state_with_stdin(b'Hello\n')
+    s.memory.store(0x2000, b"%1s\0")
     scanf(s, [0x2000, 0x1000])
-    assert s.se.eval_upto(s.memory.load(0x1000, 2), 2, cast_to=str) == [ "H\x00" ]
+    assert s.se.eval_upto(s.memory.load(0x1000, 2), 2, cast_to=bytes) == [ b"H\x00" ]
 
 def test_strcmp():
     l.info("concrete a, concrete b")
@@ -890,8 +889,8 @@ def test_strcmp():
     a_addr = s.se.BVV(0x10, 64)
     b_addr = s.se.BVV(0xb0, 64)
 
-    s.memory.store(a_addr, "heck\x00")
-    s.memory.store(b_addr, "heck\x00")
+    s.memory.store(a_addr, b"heck\x00")
+    s.memory.store(b_addr, b"heck\x00")
 
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.se.eval_upto(r, 2), [0])
@@ -901,8 +900,8 @@ def test_strcmp():
     a_addr = s.se.BVV(0x10, 64)
     b_addr = s.se.BVV(0xb0, 64)
 
-    s.memory.store(a_addr, "heck\x00")
-    s.memory.store(b_addr, "\x00")
+    s.memory.store(a_addr, b"heck\x00")
+    s.memory.store(b_addr, b"\x00")
 
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.se.eval_upto(r, 2), [1])
@@ -912,8 +911,8 @@ def test_strcmp():
     a_addr = s.se.BVV(0x10, 64)
     b_addr = s.se.BVV(0xb0, 64)
 
-    s.memory.store(a_addr, "\x00")
-    s.memory.store(b_addr, "heck\x00")
+    s.memory.store(a_addr, b"\x00")
+    s.memory.store(b_addr, b"heck\x00")
 
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.se.eval_upto(r, 2), [0xffffffffffffffff])
@@ -923,8 +922,8 @@ def test_strcmp():
     a_addr = s.se.BVV(0x10, 64)
     b_addr = s.se.BVV(0xb0, 64)
 
-    s.memory.store(a_addr, "\x00")
-    s.memory.store(b_addr, "\x00")
+    s.memory.store(a_addr, b"\x00")
+    s.memory.store(b_addr, b"\x00")
 
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.se.eval_upto(r, 2), [0])

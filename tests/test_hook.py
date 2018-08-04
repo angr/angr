@@ -20,7 +20,7 @@ def test_mips():
     def hook2(state):
         output.append(2)
         num = state.se.eval(state.regs.a1)
-        string = '%d ' % num
+        string = b'%d ' % num
         state.posix.get_fd(1).write_data(state.se.BVV(string))
 
     # a manual hook
@@ -30,7 +30,7 @@ def test_mips():
     s.run()
 
     nose.tools.assert_equal(len(s.found), 1)
-    nose.tools.assert_equal(s.found[0].posix.dumps(1), ''.join('%d ' % x for x in xrange(100)) + '\n')
+    nose.tools.assert_equal(s.found[0].posix.dumps(1), b''.join(b'%d ' % x for x in range(100)) + b'\n')
     nose.tools.assert_equal(output, [1]*100 + [2]*100)
     # print 'Executed %d blocks' % len(s._f.trace)
 

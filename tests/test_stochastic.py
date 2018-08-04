@@ -1,7 +1,5 @@
 import os
-
 import nose
-
 import angr
 
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
@@ -13,7 +11,7 @@ find = {
 }
 
 criteria = {
-    'veritesting_a': lambda input_found: input_found.count('B') == 10
+    'veritesting_a': lambda input_found: input_found.count(b'B') == 10
 }
 
 def run_stochastic(binary, arch):

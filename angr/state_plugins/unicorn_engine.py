@@ -822,7 +822,7 @@ class Unicorn(SimStatePlugin):
             if options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
                 _taint(pos, chunk_size)
             else:
-                data[pos-start:pos-start+chunk_size] = "\0"*chunk_size
+                data[pos-start:pos-start+chunk_size] = b"\0"*chunk_size
 
         # fill out the data in reverse
         last_missing = start + length - 1

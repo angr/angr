@@ -92,9 +92,9 @@ def run_longinit(arch):
     pg.explore()
     s = pg.deadended[0]
     (first, _), (second, _) = s.posix.stdin.content
-    s.add_constraints(first == s.se.BVV('A'*9))
-    s.add_constraints(second == s.se.BVV('B'*9))
-    nose.tools.assert_equal(s.posix.dumps(1), "You entered AAAAAAAAA and BBBBBBBBB!\n")
+    s.add_constraints(first == s.se.BVV(b'A'*9))
+    s.add_constraints(second == s.se.BVV(b'B'*9))
+    nose.tools.assert_equal(s.posix.dumps(1), b"You entered AAAAAAAAA and BBBBBBBBB!\n")
 
 def test_longinit_i386():
     run_longinit('i386')
@@ -109,9 +109,9 @@ def test_fauxware():
 
     assert all("Unicorn" in ''.join(p.history.descriptions.hardcopy) for p in pg.deadended)
     nose.tools.assert_equal(sorted(pg.mp_deadended.posix.dumps(1).mp_items), sorted((
-        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
-        'Username: \nPassword: \nGo away!',
-        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
+        b'Username: \nPassword: \nGo away!',
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
     )))
 
 def test_fauxware_aggressive():
@@ -191,9 +191,9 @@ def test_unicorn_pickle():
     pg2.explore()
 
     nose.tools.assert_equal(sorted(pg2.mp_deadended.posix.dumps(1).mp_items), sorted((
-        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
-        'Username: \nPassword: \nGo away!',
-        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
+        b'Username: \nPassword: \nGo away!',
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
     )))
 
     # test the pickling of SimUnicorn itself
@@ -209,20 +209,20 @@ def test_unicorn_pickle():
     pg2.explore()
 
     nose.tools.assert_equal(sorted(pg2.mp_deadended.posix.dumps(1).mp_items), sorted((
-        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
-        'Username: \nPassword: \nGo away!',
-        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
+        b'Username: \nPassword: \nGo away!',
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
     )))
 
 def test_concrete_transmits():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/PIZZA_00001'))
-    inp = "320a310a0100000005000000330a330a340a".decode('hex')
+    inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, stdin=inp, flag_page='\0'*4096)
     pg_unicorn = p.factory.simgr(s_unicorn)
     pg_unicorn.run(n=10)
 
-    nose.tools.assert_equal(pg_unicorn.one_active.posix.dumps(1), '1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
+    nose.tools.assert_equal(pg_unicorn.one_active.posix.dumps(1), b'1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
 
 def test_inspect():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
@@ -320,22 +320,22 @@ if __name__ == '__main__':
     import sys
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
-            print 'test_' + arg
+            print('test_' + arg)
             res = globals()['test_' + arg]()
             if hasattr(res, '__iter__'):
                 for ft in res:
                     fo = ft[0]
                     fa = ft[1:]
-                    print '...', fa
+                    print('...', fa)
                     fo(*fa)
     else:
         for fk, fv in globals().items():
             if fk.startswith('test_') and callable(fv):
-                print fk
+                print(fk)
                 res = fv()
                 if hasattr(res, '__iter__'):
                     for ft in res:
                         fo = ft[0]
                         fa = ft[1:]
-                        print '...', fa
+                        print('...', fa)
                         fo(*fa)

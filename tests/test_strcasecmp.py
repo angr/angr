@@ -13,15 +13,15 @@ def test_i386():
     sm = p.factory.simulation_manager(s)
     sm.explore()
 
-    sm.move('deadended', 'found', filter_func=lambda s: "Welcome" in s.posix.dumps(1))
+    sm.move('deadended', 'found', filter_func=lambda s: b"Welcome" in s.posix.dumps(1))
 
     nose.tools.assert_equal(len(sm.found), 1)
 
     f = sm.found[0]
-    sol = f.solver.eval(arg1, cast_to=str)
-    nose.tools.assert_in('\x00', sol)
-    nose.tools.assert_equal(sol[:sol.index('\x00')].lower(), 'letmein')
-    nose.tools.assert_in('wchar works', f.posix.dumps(1))
+    sol = f.solver.eval(arg1, cast_to=bytes)
+    nose.tools.assert_in(b'\x00', sol)
+    nose.tools.assert_equal(sol[:sol.index(b'\x00')].lower(), b'letmein')
+    nose.tools.assert_in(b'wchar works', f.posix.dumps(1))
 
 if __name__ == "__main__":
     test_i386()

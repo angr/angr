@@ -36,8 +36,8 @@ def run_cgc(binary_name):
     categorization = project.analyses.FunctionCategorizationAnalysis()
 
     tag_manager = categorization.function_tag_manager
-    print "INPUT:", map(hex, tag_manager.input_functions())
-    print "OUTPUT:", map(hex, tag_manager.output_functions())
+    #print "INPUT:", map(hex, tag_manager.input_functions())
+    #print "OUTPUT:", map(hex, tag_manager.output_functions())
 
 
 def test_fauxware():
@@ -62,7 +62,7 @@ def test_fauxware():
         ],
     }
 
-    for arch, lst in args.iteritems():
+    for arch, lst in args.items():
         yield run_fauxware, arch, lst
 
 

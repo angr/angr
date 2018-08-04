@@ -967,10 +967,10 @@ class DDG(Analysis):
             if addr_tmp in self._temp_register_symbols:
                 # it must be a stack variable
                 sort, offset = self._temp_register_symbols[addr_tmp]
-                variable = SimStackVariable(offset, action.size.ast / 8, base=sort, base_addr=addr - offset)
+                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=addr - offset)
 
         if variable is None:
-            variable = SimMemoryVariable(addr, action.size.ast / 8)
+            variable = SimMemoryVariable(addr, action.size.ast // 8)
 
         return variable
 
@@ -1081,7 +1081,7 @@ class DDG(Analysis):
     def _handle_reg_read(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         reg_offset = action.offset
-        variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
+        variable = SimRegisterVariable(reg_offset, action.data.ast.size() // 8)
 
         # What do we want to do?
         definitions = self._def_lookup(variable)
@@ -1109,7 +1109,7 @@ class DDG(Analysis):
     def _handle_reg_write(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         reg_offset = action.offset
-        variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
+        variable = SimRegisterVariable(reg_offset, action.data.ast.size() // 8)
 
         self._kill(variable, location)
 

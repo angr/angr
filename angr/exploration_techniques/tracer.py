@@ -223,8 +223,8 @@ class Tracer(ExplorationTechnique):
                 if self.project.arch.name == 'X86' or self.project.arch.name == 'AMD64':
 
                     # does it looks like a rep? rep ret doesn't count!
-                    if self.project.factory.block(target).bytes.startswith("\xf3") and \
-                       not self.project.factory.block(target).bytes.startswith("\xf3\xc3"):
+                    if self.project.factory.block(target).bytes.startswith(b"\xf3") and \
+                       not self.project.factory.block(target).bytes.startswith(b"\xf3\xc3"):
 
                         l.info("rep discrepency detected, repairing...")
                         # swap the stashes

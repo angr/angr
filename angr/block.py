@@ -77,8 +77,8 @@ class Block(object):
         if byte_string is None:
             if backup_state is not None:
                 self._bytes = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)[0]
-                if type(self._bytes) is not str:
-                    self._bytes = str(pyvex.ffi.buffer(self._bytes, size))
+                if type(self._bytes) is not bytes:
+                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:

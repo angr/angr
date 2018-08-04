@@ -201,7 +201,7 @@ class FormatString(object):
 
         # TODO: we only support one format specifier in interpretation for now
 
-        format_specifier_count = len(filter(lambda x: isinstance(x, FormatSpecifier), self.components))
+        format_specifier_count = sum(1 for x in self.components if isinstance(x, FormatSpecifier))
         if format_specifier_count > 1:
             l.warning("We don't support more than one format specifiers in format strings.")
 

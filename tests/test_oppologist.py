@@ -27,7 +27,7 @@ def test_fauxware_oppologist():
     pg = _ultra_oppologist(p, s)
     assert len(pg.deadended) == 1
     assert len(pg.deadended[0].posix.dumps(0)) == 18
-    assert pg.deadended[0].posix.dumps(1).count("\n") == 3
+    assert pg.deadended[0].posix.dumps(1).count(b"\n") == 3
 
 def test_cromu_70():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/CROMU_00070'))
@@ -46,10 +46,10 @@ def test_cromu_70():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
-            print f
+            print(f)
             all_functions[f]()
 
 

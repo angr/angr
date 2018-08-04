@@ -24,7 +24,7 @@ class DrillerCore(ExplorationTechnique):
 
         super(DrillerCore, self).__init__()
         self.trace = trace
-        self.fuzz_bitmap = fuzz_bitmap or "\xff" * 65536
+        self.fuzz_bitmap = fuzz_bitmap or b"\xff" * 65536
 
         # Set of encountered basic block transitions.
         self.encounters = set()

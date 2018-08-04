@@ -24,7 +24,8 @@ def test_mips():
     nose.tools.assert_equal(len(xpl.found), 0)
 
     # symbolic command line argument
-    s = arger_mips.factory.entry_state(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
+    arg = claripy.BVS('arg_2', 50*8)
+    s = arger_mips.factory.entry_state(args = ['aaa', arg], env ={"HOME": "/home/angr"})
     xpl = arger_mips.surveyors.Explorer(find=[r_addr], start=s)
     xpl.run()
 

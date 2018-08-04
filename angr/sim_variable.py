@@ -302,6 +302,9 @@ class SimStackVariable(SimMemoryVariable):
                self.size == other.size and \
                self.phi == other.phi
 
+    def __hash__(self):
+        return hash((self.ident, self.name, self.base, self.offset, self.size, self.phi))
+
 
 class SimStackVariablePhi(SimStackVariable):
 
