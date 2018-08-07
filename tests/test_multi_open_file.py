@@ -29,7 +29,7 @@ def test_multi_open_file():
         for event in p.history.events:
             if event.type == 'fs_unlink':
                 simfile = p.fs.unlinks[event.objects['unlink_idx']][1]
-                nose.tools.assert_equal(simfile.concretize(), 'foobar and baz')
+                nose.tools.assert_equal(simfile.concretize(), b'foobar and baz')
                 break
         else:
             assert False

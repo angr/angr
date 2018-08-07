@@ -119,7 +119,10 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         """
         Takes a path and returns a simple absolute path as a list of directories from the root
         """
-        if path[0] != self.pathsep:
+        if type(path) is str:
+            path = path.encode()
+
+        if path[0:1] != self.pathsep:
             path = self.cwd + self.pathsep + path
         keys = path.split(self.pathsep)
         i = 0

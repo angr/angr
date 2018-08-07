@@ -213,7 +213,7 @@ def test_store_simplification():
     state.regs.ebp = state.se.BVS('base_pointer', 32)
     state.regs.eax = state.se.BVS('base_eax', 32)
 
-    irsb = pyvex.IRSB('PT]\xc2\x10\x00', 0x4000, state.arch)
+    irsb = pyvex.IRSB(b'PT]\xc2\x10\x00', 0x4000, state.arch)
     sim_successors = SimEngineVEX().process(state.copy(), irsb)
     exit_state = sim_successors.all_successors[0]
 

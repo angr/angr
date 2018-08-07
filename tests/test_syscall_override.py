@@ -24,11 +24,11 @@ avoid_addrs = {
 }
 
 corrupt_addrs = {
-    'i386': [ 0x80486B6, 'bO\xcc', lambda s: s.memory.store(s.regs.esp, s.regs.eax) ],
-    'x86_64': [ 0x400742, '\xd4&\xb0[\x41', lambda s: s.registers.store('rdx', 8) ],
-    'ppc': [ 0x100006B8, '\x05\xad\xc2\xea', lambda s: s.registers.store('r5', 8) ],
-    'armel': [ 0x8678, '\xbdM\xec3', lambda s: s.registers.store('r2', 8) ],
-    'mips': [ 0x400918, '[\xf8\x96@'[::-1], lambda s: s.registers.store('a2', 8) ]
+    'i386': [ 0x80486B6, b'bO\xcc', lambda s: s.memory.store(s.regs.esp, s.regs.eax) ],
+    'x86_64': [ 0x400742, b'\xd4&\xb0[\x41', lambda s: s.registers.store('rdx', 8) ],
+    'ppc': [ 0x100006B8, b'\x05\xad\xc2\xea', lambda s: s.registers.store('r5', 8) ],
+    'armel': [ 0x8678, b'\xbdM\xec3', lambda s: s.registers.store('r2', 8) ],
+    'mips': [ 0x400918, b'[\xf8\x96@'[::-1], lambda s: s.registers.store('a2', 8) ]
 }
 
 def run_fauxware_override(arch):
@@ -36,7 +36,7 @@ def run_fauxware_override(arch):
     s = p.factory.full_init_state()
 
     def overwrite_str(state):
-        state.posix.get_fd(1).write_data("HAHA\0")
+        state.posix.get_fd(1).write_data(b"HAHA\0")
 
     #s.posix.queued_syscall_returns = [ ] #[ lambda s,run: __import__('ipdb').set_trace() ] * 1000
     s.posix.queued_syscall_returns.append(None) # let the mmap run

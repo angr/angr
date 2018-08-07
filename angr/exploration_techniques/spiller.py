@@ -86,7 +86,7 @@ class Spiller(ExplorationTechnique):
         staged_states = simgr.stashes.setdefault(self.staging_stash, [ ]) if self.staging_stash else [ ]
 
         if len(states) < self.min:
-            missing = (self.max + self.min) / 2 - len(states)
+            missing = (self.max + self.min) // 2 - len(states)
             l.debug("Too few states (%d/%d) in stash %s.", len(states), self.min, self.src_stash)
             if self.staging_stash:
                 l.debug("... retrieving states from staging stash (%s)", self.staging_stash)
@@ -106,7 +106,7 @@ class Spiller(ExplorationTechnique):
         # if we have too few staged states, unpickle up to halfway between max and min
         if len(staged_states) < self.staging_min:
             l.debug("Too few states in staging stash (%s)", self.staging_stash)
-            staged_states += self._unpickle((self.staging_min + self.staging_max) / 2 - len(staged_states))
+            staged_states += self._unpickle((self.staging_min + self.staging_max) // 2 - len(staged_states))
 
         if len(staged_states) > self.staging_max:
             l.debug("Too many states in staging stash (%s)", self.staging_stash)

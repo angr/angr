@@ -620,8 +620,7 @@ class CFGBase(Analysis):
         if base_state is not None:
             all_bytes = base_state.memory.load(start, end - start + 1)
             try:
-                n = base_state.se.eval(all_bytes)
-                all_bytes = hex(n)[2:].strip('L').decode("hex")
+                all_bytes = base_state.se.eval(all_bytes, cast_to=bytes)
             except SimError:
                 all_bytes = None
 

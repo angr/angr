@@ -8,15 +8,15 @@ from . import io_file_data_for_arch
 
 def mode_to_flag(mode):
     # TODO improve this: handle mode = strings
-    if mode[-1] == 'b': # lol who uses windows
+    if mode[-1] == b'b': # lol who uses windows
         mode = mode[:-1]
     all_modes = {
-        "r"  : angr.storage.file.Flags.O_RDONLY,
-        "r+" : angr.storage.file.Flags.O_RDWR,
-        "w"  : angr.storage.file.Flags.O_WRONLY | angr.storage.file.Flags.O_CREAT,
-        "w+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT,
-        "a"  : angr.storage.file.Flags.O_WRONLY | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND,
-        "a+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND
+        b"r"  : angr.storage.file.Flags.O_RDONLY,
+        b"r+" : angr.storage.file.Flags.O_RDWR,
+        b"w"  : angr.storage.file.Flags.O_WRONLY | angr.storage.file.Flags.O_CREAT,
+        b"w+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT,
+        b"a"  : angr.storage.file.Flags.O_WRONLY | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND,
+        b"a+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND
         }
     if mode not in all_modes:
         raise angr.SimProcedureError('unsupported file open mode %s' % mode)

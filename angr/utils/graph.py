@@ -151,6 +151,9 @@ class ContainerNode(object):
             return self._obj == other._obj and self.index == other.index
         return False
 
+    def __hash__(self):
+        return 1  # I have genuinely no idea why defining a normal hash function makes everything break but it does
+
 
 class PostDominators(object):
 

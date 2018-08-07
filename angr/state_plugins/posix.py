@@ -479,7 +479,10 @@ class SimSystemPosix(SimStatePlugin):
         :param kwargs: passed to state.se.eval
         :return: file contents as string
         """
-        return self.state.fs.get(path).concretize(**kwargs)
+        file = self.state.fs.get(path)
+        if file is None:
+            return None
+        return file.concretize(**kwargs)
 
     def dumps(self, fd, **kwargs):
         """

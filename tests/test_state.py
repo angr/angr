@@ -19,9 +19,9 @@ def test_state():
     s.registers.store('sp', 0x7ffffffffff0000)
     nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7ffffffffff0000)
 
-    s.stack_push(s.se.BVV("ABCDEFGH"))
+    s.stack_push(s.se.BVV(b"ABCDEFGH"))
     nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff8)
-    s.stack_push(s.se.BVV("IJKLMNOP"))
+    s.stack_push(s.se.BVV(b"IJKLMNOP"))
     nose.tools.assert_equal(s.se.eval(s.registers.load('sp')), 0x7fffffffffefff0)
 
     a = s.stack_pop()
@@ -73,7 +73,7 @@ def test_state_merge():
     nose.tools.assert_true(c.se.unique(c.memory.load(2, 1)))
 
     # the byte at 2 should have the three values
-    nose.tools.assert_items_equal(m.se.eval_upto(m.memory.load(2, 1), 10), (43, 84, 21))
+    nose.tools.assert_sequence_equal(sorted(m.se.eval_upto(m.memory.load(2, 1), 10)), (21, 43, 84))
 
     # we should be able to select them by adding constraints
     a_a = m.copy()
@@ -251,10 +251,10 @@ def test_global_condition():
 
     with s.with_condition(s.regs.rbx == 0):
         nose.tools.assert_equal(s.se.eval_upto(s.regs.rbx, 10), [ 0 ])
-        nose.tools.assert_items_equal(s.se.eval_upto(s.regs.rax, 10), [ 30 ])
+        nose.tools.assert_sequence_equal(s.se.eval_upto(s.regs.rax, 10), [ 30 ])
     with s.with_condition(s.regs.rbx == 1):
         nose.tools.assert_equal(s.se.eval_upto(s.regs.rbx, 10), [ 1 ])
-        nose.tools.assert_items_equal(s.se.eval_upto(s.regs.rax, 10), [ 25 ])
+        nose.tools.assert_sequence_equal(s.se.eval_upto(s.regs.rax, 10), [ 25 ])
 
 
 if __name__ == '__main__':

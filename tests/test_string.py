@@ -54,7 +54,7 @@ def test_inline_strlen():
     s.memory.store(b_addr, b_str, endness="Iend_BE")
     b_len = strlen(s, arguments=[b_addr])
     nose.tools.assert_equal(s.se.max_int(b_len), 3)
-    nose.tools.assert_items_equal(s.se.eval_upto(b_len, 10), (0,1,2,3))
+    nose.tools.assert_sequence_equal(sorted(s.se.eval_upto(b_len, 10)), (0,1,2,3))
 
     l.info("fully unconstrained")
     u_addr = s.se.BVV(0x50, 64)
@@ -271,7 +271,7 @@ def broken_inline_strstr():
     s_nomatch.add_constraints(ss_res == 0)
 
     match_cmp = strncmp(s_match, arguments=[ss_res, addr_needle, len_needle])
-    nose.tools.assert_items_equal(s_match.se.eval_upto(match_cmp, 10), [0])
+    nose.tools.assert_sequence_equal(s_match.se.eval_upto(match_cmp, 10), [0])
 
     r_mm = strstr(s_match, arguments=[addr_haystack, addr_needle])
     s_match.add_constraints(r_mm == 0)
@@ -300,7 +300,7 @@ def test_strstr_inconsistency():
     #print "LENN:", s.se.eval_upto(sln_res, 100)
 
     nose.tools.assert_false(s.se.unique(ss_res))
-    nose.tools.assert_items_equal(s.se.eval_upto(ss_res, 100), [0] + list(range(0x10, 0x10 + s.libc.buf_symbolic_bytes - 1)))
+    nose.tools.assert_sequence_equal(sorted(s.se.eval_upto(ss_res, 100)), [0] + list(range(0x10, 0x10 + s.libc.buf_symbolic_bytes - 1)))
 
     s.add_constraints(ss_res != 0)
     ss2 = strstr(s, arguments=[addr_haystack, addr_needle])
@@ -396,7 +396,7 @@ def test_memcpy():
     s.add_constraints(s.se.ULE(cpylen, 4))
     memcpy(s, arguments=[dst_addr, src_addr, cpylen])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    nose.tools.assert_items_equal(s.se.eval_upto(new_dst, 300, cast_to=bytes), [ b'AAAA', b'BAAA', b'BBAA', b'BBBA', b'BBBB' ])
+    nose.tools.assert_sequence_equal(sorted(s.se.eval_upto(new_dst, 300, cast_to=bytes)), [ b'AAAA', b'BAAA', b'BBAA', b'BBBA', b'BBBB' ])
 
 #@nose.tools.timed(10)
 def test_memcmp():
@@ -532,7 +532,7 @@ def test_strncpy():
     nose.tools.assert_true(s.satisfiable())
     c = strcmp(s, arguments=[dst_addr, src_addr])
 
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 10), [0])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 10), [0])
 
     l.info("symbolic src, concrete dst, symbolic len")
     s = SimState(arch="AMD64", mode="symbolic")
@@ -573,7 +573,7 @@ def test_strncpy():
     strncpy(s, arguments=[dst_addr, src_addr, maxlen])
     r = s.memory.load(dst_addr, 4, endness='Iend_BE')
     #print repr(r.se.eval_upto(r, 10, cast_to=bytes))
-    nose.tools.assert_items_equal(s.se.eval_upto(r, 10, cast_to=bytes), [ b"AAA\x00", b'BAA\x00', b'BBA\x00', b'BB\x00\x00' ] )
+    nose.tools.assert_sequence_equal(sorted(s.se.eval_upto(r, 10, cast_to=bytes)), [ b"AAA\x00", b'BAA\x00', b'BB\x00\x00', b'BBA\x00' ] )
 
 
 #@nose.tools.timed(10)
@@ -618,7 +618,7 @@ def test_strcpy():
     #for i in s.se.eval_upto(both_strs, 50, cast_to=bytes):
 
     #print c.se.eval_upto(10)
-    #nose.tools.assert_items_equal(c.se.eval_upto(10), [0])
+    #nose.tools.assert_sequence_equal(c.se.eval_upto(10), [0])
     #nose.tools.assert_true(s.se.solution(s.memory.load(dst_addr, 4, endness='Iend_BE'), 0x42434400))
     #nose.tools.assert_true(s.se.solution(s.memory.load(dst_addr, 4, endness='Iend_BE'), 0x42434445))
     #nose.tools.assert_true(s.se.solution(s.memory.load(dst_addr, 4, endness='Iend_BE'), 0x00414100))
@@ -719,13 +719,13 @@ def test_strchr():
     nose.tools.assert_true(s_nomatch.satisfiable())
     nose.tools.assert_equal(len(s_match.se.eval_upto(chr_needle, 300)), 3)
     nose.tools.assert_equal(len(s_nomatch.se.eval_upto(chr_needle, 300)), 253)
-    nose.tools.assert_items_equal(s_match.se.eval_upto(ss_res, 300), [ 0x10, 0x11, 0x12 ])
-    nose.tools.assert_items_equal(s_match.se.eval_upto(chr_needle, 300), [ 0x41, 0x42, 0x43 ])
+    nose.tools.assert_sequence_equal(sorted(s_match.se.eval_upto(ss_res, 300)), [ 0x10, 0x11, 0x12 ])
+    nose.tools.assert_sequence_equal(sorted(s_match.se.eval_upto(chr_needle, 300)), [ 0x41, 0x42, 0x43 ])
 
     s_match.memory.store(ss_res, s_match.se.BVV(0x44, 8))
-    nose.tools.assert_items_equal(s_match.se.eval_upto(s_match.memory.load(0x10, 1), 300), [ 0x41, 0x44 ])
-    nose.tools.assert_items_equal(s_match.se.eval_upto(s_match.memory.load(0x11, 1), 300), [ 0x42, 0x44 ])
-    nose.tools.assert_items_equal(s_match.se.eval_upto(s_match.memory.load(0x12, 1), 300), [ 0x43, 0x44 ])
+    nose.tools.assert_sequence_equal(sorted(s_match.se.eval_upto(s_match.memory.load(0x10, 1), 300)), [ 0x41, 0x44 ])
+    nose.tools.assert_sequence_equal(sorted(s_match.se.eval_upto(s_match.memory.load(0x11, 1), 300)), [ 0x42, 0x44 ])
+    nose.tools.assert_sequence_equal(sorted(s_match.se.eval_upto(s_match.memory.load(0x12, 1), 300)), [ 0x43, 0x44 ])
 
     return
 
@@ -749,7 +749,7 @@ def test_strchr():
 
     #match_cmp = strncmp(s_match, inline=True, arguments=[ss_res, addr_needle, len_needle])
     #match_cmp_val = s_match.expr_value(match_cmp)
-    #nose.tools.assert_items_equal(match_cmp_val.se.eval_upto(10), [0])
+    #nose.tools.assert_sequence_equal(match_cmp_val.se.eval_upto(10), [0])
 
     #r_mm = strstr(s_match, inline=True, arguments=[addr_haystack, addr_needle])
     #s_match.add_constraints(r_mm == 0)
@@ -840,42 +840,42 @@ def test_getc():
 
     # The argument of getc should be a FILE *
     c = getc(s, [0x1000])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x31])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [1])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x31])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [1])
 
     c = getc(s, arguments=[0])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x32])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [2])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x32])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [2])
 
     c = getc(s, arguments=[0])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x33])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [3])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x33])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [3])
 
     c = getc(s, arguments=[0])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x34])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [4])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x34])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [4])
 
 
 def test_getchar():
     s = make_state_with_stdin(b'1234')
     stdin = s.posix.get_fd(0)
 
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [0])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [0])
     c = getchar(s, arguments=[])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x31])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [1])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x31])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [1])
 
     c = getchar(s, arguments=[])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x32])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [2])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x32])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [2])
 
     c = getchar(s, arguments=[])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x33])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [3])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x33])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [3])
 
     c = getchar(s, arguments=[])
-    nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x34])
-    nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [4])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(c, 300), [0x34])
+    nose.tools.assert_sequence_equal(s.se.eval_upto(stdin.tell(), 300), [4])
 
 def test_scanf():
     s = make_state_with_stdin(b'Hello\n')

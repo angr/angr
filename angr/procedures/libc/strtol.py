@@ -32,9 +32,9 @@ class strtol(angr.SimProcedure):
             raise SimProcedureError("base should be in the range [2,36]")
 
         # order matters here since we will use an if then else tree, and -0x will have precedence over -
-        prefixes = ["-", "+", ""]
+        prefixes = [b"-", b"+", b""]
         if base == 16:
-            prefixes = ["0x", "-0x", "+0x"] + prefixes
+            prefixes = [b"0x", b"-0x", b"+0x"] + prefixes
 
         cases = []
         conditions = []
@@ -68,7 +68,7 @@ class strtol(angr.SimProcedure):
         total_num_bytes = num_bytes + length
 
         # negatives
-        if prefix.startswith("-"):
+        if prefix.startswith(b"-"):
             value = state.se.BVV(0, state.arch.bits) - value
         return condition, value, total_num_bytes
 
@@ -143,17 +143,17 @@ class strtol(angr.SimProcedure):
         max_digit = claripy.BVV(b"9")
         min_digit = claripy.BVV(b"0")
         if base < 10:
-            max_digit = claripy.BVV(chr(ord("0") + base), 8)
+            max_digit = claripy.BVV(ord("0") + base, 8)
         is_digit = claripy.And(char >= min_digit, char <= max_digit)
         # return early here so we don't add unnecessary statements
         if base <= 10:
             return is_digit, char - min_digit
 
         # handle alphabetic chars
-        max_char_lower = claripy.BVV(chr(ord("a") + base-10 - 1), 8)
-        max_char_upper = claripy.BVV(chr(ord("A") + base-10 - 1), 8)
-        min_char_lower = claripy.BVV(chr(ord("a")), 8)
-        min_char_upper = claripy.BVV(chr(ord("A")), 8)
+        max_char_lower = claripy.BVV(ord("a") + base-10 - 1, 8)
+        max_char_upper = claripy.BVV(ord("A") + base-10 - 1, 8)
+        min_char_lower = claripy.BVV(ord("a"), 8)
+        min_char_upper = claripy.BVV(ord("A"), 8)
 
         cases.append((is_digit, char - min_digit))
         is_alpha_lower = claripy.And(char >= min_char_lower, char <= max_char_lower)
@@ -186,14 +186,14 @@ class strtol(angr.SimProcedure):
             # in this case the base is 16 if it starts with 0x, 8 if it starts with 0, 10 otherwise
             # here's the possibilities
             base_16_pred = self.state.se.Or(
-                self.state.memory.load(nptr, 2) == self.state.se.BVV("0x"),
-                self.state.memory.load(nptr, 3) == self.state.se.BVV("+0x"),
-                self.state.memory.load(nptr, 3) == self.state.se.BVV("-0x"))
+                self.state.memory.load(nptr, 2) == self.state.se.BVV(b"0x"),
+                self.state.memory.load(nptr, 3) == self.state.se.BVV(b"+0x"),
+                self.state.memory.load(nptr, 3) == self.state.se.BVV(b"-0x"))
             base_8_pred = self.state.se.And(
                 self.state.se.Or(
-                    self.state.memory.load(nptr, 1) == self.state.se.BVV("0"),
-                    self.state.memory.load(nptr, 2) == self.state.se.BVV("+0"),
-                    self.state.memory.load(nptr, 2) == self.state.se.BVV("-0")),
+                    self.state.memory.load(nptr, 1) == self.state.se.BVV(b"0"),
+                    self.state.memory.load(nptr, 2) == self.state.se.BVV(b"+0"),
+                    self.state.memory.load(nptr, 2) == self.state.se.BVV(b"-0")),
                 self.state.se.Not(base_16_pred))
             base_10_pred = self.state.se.And(
                 self.state.se.Not(base_16_pred),

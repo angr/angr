@@ -13,7 +13,7 @@ def test_simple_concrete():
     def check_read(val):
         nose.tools.assert_equal(s.se.eval(s.memory.load(addr, 8, endness=Endness.LE), cast_to=int), val)
 
-        nose.tools.assert_equal(s.mem[addr].char.concrete, chr(val & 0xFF))
+        nose.tools.assert_equal(s.mem[addr].char.concrete, chr(val & 0xFF).encode())
         nose.tools.assert_equal(s.mem[addr].byte.concrete, val & 0xFF)
 
         nose.tools.assert_equal(s.mem[addr].int16_t.concrete, ctypes.c_int16(val & 0xFFFF).value)
@@ -38,7 +38,7 @@ def test_string_concrete():
 
         nose.tools.assert_equal(s.mem[addr].string.concrete, val)
 
-    s.memory.store(addr, "a string!\0")
+    s.memory.store(addr, b"a string!\0")
     check_read(b"a string!")
 
     # not supported yet
@@ -78,9 +78,9 @@ def test_pointer_concrete():
     ptraddr = 0xcd0
 
     s.memory.store(ptraddr, claripy.BVV(addr, 64), endness=Endness.LE)
-    s.memory.store(addr, "abcdef\0")
+    s.memory.store(addr, b"abcdef\0")
 
-    nose.tools.assert_equal(s.mem[ptraddr].deref.string.concrete, "abcdef")
+    nose.tools.assert_equal(s.mem[ptraddr].deref.string.concrete, b"abcdef")
     s.mem[ptraddr].deref.dword = 123954
     nose.tools.assert_equal(s.se.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int), 123954)
     nose.tools.assert_equal(s.mem[ptraddr].deref.dword.concrete, 123954)

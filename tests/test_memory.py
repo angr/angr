@@ -155,7 +155,7 @@ def test_memory():
     nose.tools.assert_equal(set(s2.memory.addrs_for_hash(hash(y))), {0x2000, 0x2001})
 
     s.memory.store(0x3000, s.se.BVS('replace_old', 32, explicit_name=True))
-    s.memory.store(0x3001, s.se.BVV('AB'))
+    s.memory.store(0x3001, s.se.BVV(b'AB'))
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), {0x3000, 0x3003})
     nose.tools.assert_equal(s.se.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
 
@@ -262,7 +262,7 @@ def test_cased_store():
 
     # and now with a fallback
     y = s.se.BVS('y', 32)
-    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV('XXXX'))
+    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV(b'XXXX'))
     for i,v in enumerate(values):
         v = b'' if v is None else s.se.eval(v, cast_to=bytes)
         w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[y==i])
@@ -270,7 +270,7 @@ def test_cased_store():
 
     # and now with endness
     y = s.se.BVS('y', 32)
-    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV('XXXX'), endness="Iend_LE")
+    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV(b'XXXX'), endness="Iend_LE")
     for i,v in enumerate(values):
         v = b'' if v is None else s.se.eval(v, cast_to=bytes)
         w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[y==i])
@@ -287,7 +287,7 @@ def test_cased_store():
 
     # and all Nones with a fallback
     u = s.se.BVS('w', 32)
-    s.memory.store_cases(0, [ None, None, None ], [ u == 0, u == 1, u == 2], fallback=s.se.BVV('WWWW'))
+    s.memory.store_cases(0, [ None, None, None ], [ u == 0, u == 1, u == 2], fallback=s.se.BVV(b'WWWW'))
     for i,v in enumerate(values):
         w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[u==i])
         nose.tools.assert_equal(w, [b'WWWW'])
@@ -457,7 +457,7 @@ def test_abstract_memory_find():
     nose.tools.assert_equal(list(r_model.regions.keys()), [ 'global' ])
     nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
-    r, _, _ = s.memory.find(to_vs('global', 1), BVV('B'))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'B'))
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=2))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))

@@ -206,7 +206,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         size = self.state.solver.min(self._size, **kwargs)
         data = self.load(0, size)
 
-        kwargs['cast_to'] = kwargs.get('cast_to', str)
+        kwargs['cast_to'] = kwargs.get('cast_to', bytes)
         kwargs['extra_constraints'] = tuple(kwargs.get('extra_constraints', ())) + (self._size == size,)
         return self.state.solver.eval(data, **kwargs)
 
@@ -391,7 +391,7 @@ class SimPackets(SimFileBase):
         """
         lengths = [self.state.solver.eval(x[1], **kwargs) for x in self.content]
         kwargs['cast_to'] = bytes
-        return ['' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
+        return [b'' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
 
     def read(self, pos, size, **kwargs):
         """

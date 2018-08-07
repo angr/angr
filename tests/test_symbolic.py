@@ -18,7 +18,7 @@ import nose
 #   nose.tools.assert_raises(ConcretizingException, zero.eval_exactly, 102)
 
 def test_concretization_strategies():
-    initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
+    initial_memory = {0: b'A', 1: b'B', 2: b'C', 3: b'D'}
 
     s = angr.SimState(arch='AMD64', memory_backer=initial_memory)
 
@@ -37,7 +37,7 @@ def test_concretization_strategies():
     s.add_constraints(x >= 1)
     ss.options.add(angr.options.CONSERVATIVE_READ_STRATEGY)
     ss.memory._create_default_read_strategies()
-    nose.tools.assert_true('symbolic' in next(iter(ss.memory.load(x, 1).variables)))
+    nose.tools.assert_true(b'symbolic' in next(iter(ss.memory.load(x, 1).variables)))
 
 #def test_concretization():
 #   s = angr.SimState(arch="AMD64", mode="symbolic")
@@ -156,9 +156,10 @@ def test_compatibility_layer():
     y = s.se.BVS('y', 72)
     s.add_constraints(y == 0x696c6f766563617400)
 
-    nose.tools.assert_true(s.se.any_str(y) == 'ilovecat\x00')
-    nose.tools.assert_true(s.se.any_n_str(y, 2) == ['ilovecat\x00'])
+    nose.tools.assert_true(s.se.any_str(y) == b'ilovecat\x00')
+    nose.tools.assert_true(s.se.any_n_str(y, 2) == [b'ilovecat\x00'])
 
 if __name__ == '__main__':
-    # test_concretization_strategies()
+    test_unsat_core()
+    test_concretization_strategies()
     test_compatibility_layer()

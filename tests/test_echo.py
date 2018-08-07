@@ -23,7 +23,7 @@ def run_echo_haha(arch):
     assert len(pg.deadended) == 1
     assert len(pg.active) == 0
     # Need to dump by path because the program closes stdout
-    assert pg.deadended[0].posix.stdout.concretize() == ['haha\n']
+    assert pg.deadended[0].posix.stdout.concretize() == [b'haha\n']
 
 def test_echo_haha():
     for arch in target_arches:
