@@ -78,7 +78,7 @@ class FILE(object):
     def __init__(self, state, ptr):
         self.state = state
         self.ptr = ptr
-        self.offsets = io_file_data_for_arch(state.arch.name)
+        self.offsets = io_file_data_for_arch(state.arch)
 
     @staticmethod
     def max_size(arch):
@@ -87,61 +87,62 @@ class FILE(object):
 
     @property
     def fd(self):
-        return self.state.mem[self.offsets['fd']].int.resolved
+        return self.state.mem[self.ptr + self.offsets['fd']].int.resolved
     @fd.setter
     def fd(self, val):
-        self.state.mem[self.offsets['fd']].int = val
+        self.state.mem[self.ptr + self.offsets['fd']].int = val
 
     @property
     def ungetc(self):
-        if self.state.solver.is_true(self.state.mem[self.offsets['ungetc'] + 1].char.resolved == 0):
+        if self.state.solver.is_true(self.state.mem[self.ptr + self.offsets['ungetc'] + 1].char.resolved != 0x99):
             return None
-        return self.state.mem[self.offsets['ungetc']].char.resolved
+        return self.state.mem[self.ptr + self.offsets['ungetc']].char.resolved
     @ungetc.setter
     def ungetc(self, val):
         if val is None:
-            self.state.mem[self.offsets['ungetc'] + 1].char = 0
+            self.state.mem[self.ptr + self.offsets['ungetc'] + 1].char = 0
         else:
-            self.state.mem[self.offsets['ungetc'] + 1].char = 1
-            self.state.mem[self.offsets['ungetc']].char = val
+            self.state.mem[self.ptr + self.offsets['ungetc'] + 1].char = 0x99
+            self.state.mem[self.ptr + self.offsets['ungetc']].char = val
 
 
 class FileProcedure(angr.SimProcedure):
     def __init__(self, *args, **kwargs):
         super(FileProcedure, self).__init__(*args, **kwargs)
 
-        self._stdin_addr = self._get_addr('stdin')
-        self._stdout_addr = self._get_addr('stdin')
-        self._stderr_addr = self._get_addr('stdin')
+        self._stdin_addr = self._get_addr('stdin', 0)
+        self._stdout_addr = self._get_addr('stdout', 1)
+        self._stderr_addr = self._get_addr('stderr', 2)
 
     def get_file(self, ptr):
         return FILE(self.state, ptr)
 
-    def _get_addr(self, name):
+    def _get_addr(self, name, default_fd):
         if self.project is None:
             return None
         symbol = self.project.loader.find_symbol(name)
         if symbol is None:
             size = FILE.max_size(self.project.arch)
             symbol = self.project.loader.extern_object.make_extern(name, size=size)
+            self.project.memory.write_addr_at(symbol.rebased_addr, default_fd)
         return symbol.rebased_addr
 
     @property
     def stdin_addr(self):
         if self._stdin_addr is None:
-            self._stdin_addr = self._get_addr('stdin')
+            self._stdin_addr = self._get_addr('stdin', 0)
         return self.get_file(self._stdin_addr)
 
     @property
     def stdout_addr(self):
         if self._stdout_addr is None:
-            self._stdout_addr = self._get_addr('stdout')
+            self._stdout_addr = self._get_addr('stdout', 1)
         return self.get_file(self._stdout_addr)
 
     @property
     def stderr_addr(self):
         if self._stderr_addr is None:
-            self._stderr_addr = self._get_addr('stderr')
+            self._stderr_addr = self._get_addr('stderr', 2)
         return self._stderr_addr
 
 
@@ -243,6 +244,7 @@ class fgets(FileProcedure):
             self.state.memory.store(dst, b'\0')
             return 1
 
+        import ipdb; ipdb.set_trace()
         fp = self.get_file(file_ptr)
         simfd = self.state.posix.get_fd(fp.fd)
         if simfd is None:
