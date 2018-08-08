@@ -230,7 +230,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def set_state(self, state):
         super(SimSymbolicMemory, self).set_state(state)
-        self.mem.state = state
+        self.mem.state = state._get_weakref()
 
         if self.state is not None:
             if self.read_strategies is None:
