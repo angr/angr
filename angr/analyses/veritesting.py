@@ -575,7 +575,7 @@ class Veritesting(Analysis):
         :returns bool:                           True/False.
         """
 
-        ds = networkx.dominating_set(reversed_graph, n1)
+        ds = networkx.immediate_dominators(reversed_graph, n1)
         return n2 in ds
 
     def _get_all_merge_points(self, cfg, graph_with_loops):
