@@ -202,5 +202,3 @@ class __libc_start_main(angr.SimProcedure):
             fini_ = state.mem[state.regs.r8 + 24:].long.resolved
 
         return main_, argc_, argv_, init_, fini_
-
-from archinfo import ArchAMD64
