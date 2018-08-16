@@ -85,6 +85,8 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         pos = 0
         for write in content:
+            if type(write) is int:
+                write = bytes([write])
             data, length, pos = simfile.read(pos, len(write), short_reads=False)
             if not claripy.is_true(length == len(write)):
                 raise AngrError("Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file")

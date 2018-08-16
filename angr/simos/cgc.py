@@ -47,7 +47,7 @@ class SimCGC(SimUserland):
         if flag_page is None:
             flag_page = [s.solver.BVS("cgc-flag-byte-%d" % i, 8, key=('flag', i), eternal=True) for i in range(0x1000)]
         elif type(flag_page) is bytes:
-            flag_page = [s.solver.BVV(c) for c in flag_page]
+            flag_page = [s.solver.BVV(c, 8) for c in flag_page]
         elif type(flag_page) is list:
             pass
         else:
