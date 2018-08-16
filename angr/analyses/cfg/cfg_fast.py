@@ -420,7 +420,7 @@ class SegmentList(object):
         :return: None
         """
 
-        if size <= 0:
+        if size is None or size <= 0:
             # Cannot occupy a non-existent block
             return
 
@@ -2730,7 +2730,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # append all new nodes to sorted nodes
         if nodes_to_append:
-            sorted_nodes = sorted(sorted_nodes + nodes_to_append.values(), key=lambda n: n.addr if n is not None else 0)
+            sorted_nodes = sorted(sorted_nodes + list(nodes_to_append.values()), key=lambda n: n.addr if n is not None else 0)
 
         removed_nodes = set()
 

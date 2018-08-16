@@ -8,7 +8,7 @@ from . import io_file_data_for_arch
 
 def mode_to_flag(mode):
     # TODO improve this: handle mode = strings
-    if mode[-1] == b'b': # lol who uses windows
+    if mode[-1] == ord('b'): # lol who uses windows
         mode = mode[:-1]
     all_modes = {
         b"r"  : angr.storage.file.Flags.O_RDONLY,

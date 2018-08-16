@@ -11,6 +11,7 @@ from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
+from ...misc.ux import once
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -455,8 +456,9 @@ class SimEngineVEX(SimEngine):
             strict_block_end = self.default_strict_block_end
         if self._support_selfmodifying_code:
             if opt_level > 0:
-                l.warning("Self-modifying code is not always correctly optimized by PyVEX. "
-                          "To guarantee correctness, VEX optimizations have been disabled.")
+                if once('vex-engine-smc-opt-warning'):
+                    l.warning("Self-modifying code is not always correctly optimized by PyVEX. "
+                              "To guarantee correctness, VEX optimizations have been disabled.")
                 opt_level = 0
                 if state and o.OPTIMIZE_IR in state.options:
                     state.options.remove(o.OPTIMIZE_IR)
