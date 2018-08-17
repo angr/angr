@@ -22,7 +22,7 @@ def int2base(x, base):
     digits = []
     while x:
         digits.append(digs[x % base])
-        x /= base
+        x //= base
     if sign < 0:
         digits.append('-')
     digits.reverse()

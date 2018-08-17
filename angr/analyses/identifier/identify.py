@@ -306,7 +306,7 @@ class Identifier(Analysis):
         s.options.discard(options.LAZY_SOLVES)
 
         func_info = self.func_info[self.block_to_func[addr_trace[0]]]
-        for i in range(func_info.frame_size/self.project.arch.bytes+5):
+        for i in range(func_info.frame_size//self.project.arch.bytes+5):
             s.stack_push(s.se.BVS("var_" + hex(i), self.project.arch.bits))
 
         if func_info.bp_based:

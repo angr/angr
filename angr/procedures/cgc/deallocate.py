@@ -24,13 +24,13 @@ class deallocate(angr.SimProcedure):
 
         # into a page
         page_size = self.state.memory.mem._page_size
-        base_page_num = addr / page_size
+        base_page_num = addr // page_size
 
         if self.state.se.symbolic(length):
             l.warning("Concretizing symbolic length passed to deallocate to max_int")
 
         length = self.state.se.max_int(length)
-        aligned_length = ((length + 0xfff) / 0x1000) * 0x1000
+        aligned_length = ((length + 0xfff) // 0x1000) * 0x1000
 
         # only add sinkholes and unmap on success
         if self.state.se.max_int(r) == 0:

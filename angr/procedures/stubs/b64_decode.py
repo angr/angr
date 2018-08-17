@@ -16,7 +16,7 @@ class b64_decode(angr.SimProcedure):
 #         ln = length.se.any()
 #         full_str = self.state.memory.load(src, ln)
 #
-#         for i in range(ln/4):
+#         for i in range(ln//4):
 #             part = se.Extract(ln*8 - i*4*8 - 1, ln*8 - (i+1)*4*8, full_str)
 #
 #

@@ -110,7 +110,7 @@ class SimUserland(SimOS):
         if not self.is_syscall_addr(addr):
             return None
 
-        number = (addr - self.kernel_base) / self.syscall_addr_alignment
+        number = (addr - self.kernel_base) // self.syscall_addr_alignment
         for abi in self.syscall_abis:
             baseno, minno, maxno = self.syscall_abis[abi]
             if baseno <= number <= baseno + maxno - minno:

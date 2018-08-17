@@ -151,7 +151,7 @@ class SimFastMemory(SimMemory):
         if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
             data = data.reversed
         addr = self._translate_addr(req.addr)
-        size = self._translate_addr(req.size) if req.size is not None else data.length/self.state.arch.byte_width
+        size = self._translate_addr(req.size) if req.size is not None else data.length//self.state.arch.byte_width
 
         #
         # simplify

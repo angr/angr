@@ -26,7 +26,7 @@ class CalleeCleanupFinder(Analysis):
                 if size % self.project.arch.bytes != 0:
                     l.error("Function at %#x has a misaligned return?", addr)
                     continue
-                args = size / self.project.arch.bytes
+                args = size // self.project.arch.bytes
                 cc = self.project.factory.cc_from_arg_kinds([False]*args)
                 cc.CALLEE_CLEANUP = True
                 sym = self.project.loader.find_symbol(addr)

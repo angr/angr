@@ -1252,7 +1252,7 @@ class Unicorn(SimStatePlugin):
             for i in sorted(symbolic_list[:num_regs]):
                 if cur_group is None:
                     cur_group = i
-                elif i != last + 1 or cur_group/self.state.arch.bytes != i/self.state.arch.bytes:
+                elif i != last + 1 or cur_group//self.state.arch.bytes != i//self.state.arch.bytes:
                     saved_registers.append((
                         cur_group, self.state.registers.load(cur_group, last-cur_group+1)
                     ))

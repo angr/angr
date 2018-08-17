@@ -218,7 +218,7 @@ def test_concrete_transmits():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/PIZZA_00001'))
     inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
 
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, stdin=inp, flag_page='\0'*4096)
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, stdin=inp, flag_page=b'\0'*4096)
     pg_unicorn = p.factory.simgr(s_unicorn)
     pg_unicorn.run(n=10)
 
@@ -329,7 +329,7 @@ if __name__ == '__main__':
                     print('...', fa)
                     fo(*fa)
     else:
-        for fk, fv in globals().items():
+        for fk, fv in list(globals().items()):
             if fk.startswith('test_') and callable(fv):
                 print(fk)
                 res = fv()

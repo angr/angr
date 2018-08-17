@@ -1042,7 +1042,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
     r_AH = (flags_and_AX >> 8) & 0xFF
 
     if opcode == 0xD4:  # AAM
-        r_AH = r_AL / 10
+        r_AH = r_AL // 10
         r_AL = r_AL % 10
     elif opcode == 0xD5: # AAD
         r_AL = ((r_AH * 10) + r_AL) & 0xff
@@ -1093,7 +1093,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     # TODO Read/write/exec bit handling
     def bad(msg):
         if msg:
-            l.warning("x86g_use_seg_selector: " + msg)
+            l.warning("x86g_use_seg_selector: %s", msg)
         return state.se.BVV(1 << 32, state.arch.bits).zero_extend(32), ()
 
     if state.se.is_true(seg_selector & ~0xFFFF != 0):
@@ -1160,7 +1160,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         return bad("virtual_addr >= limit")
 
     r = (base + virtual_addr).zero_extend(32)
-    l.debug("x86g_use_seg_selector: addr=" + str(r))
+    l.debug("x86g_use_seg_selector: addr=%s", str(r))
 
     return r, ()
 
@@ -1689,6 +1689,7 @@ def _get_flags(state):
         return arm64g_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     else:
         l.warning("No such thing as a flags register for arch %s", state.arch.name)
+        return None
 
 def _concat_flags(nbits, flags_vec):
     """
