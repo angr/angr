@@ -13,7 +13,7 @@ from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressE
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
 from ..engine import SimEngine
-#from .statements import translate_stmt
+from .statements import translate_stmt
 # from .expressions import translate_expr
 
 import logging
@@ -366,7 +366,7 @@ class SimEngineTCG(SimEngine):
 
         # for the exits, put *not* taking the exit on the list of constraints so
         # that we can continue on. Otherwise, add the constraints
-        if type(stmt) == pyvex.IRStmt.Exit:
+        if stmt.__name__ == 'exit_tb':
             l.debug("%s adding conditional exit", self)
 
             # Produce our successor state!

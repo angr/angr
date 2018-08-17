@@ -1,4 +1,6 @@
 import logging
+from functools import reduce
+from pytcg import TcgOp, TcgCall
 from pyvex.const import get_type_size
 l = logging.getLogger("angr.engines.vex.statements.base")
 
@@ -12,6 +14,40 @@ class SimIRStmt(object):
         # references by the statement
         self.actions = []
         self._constraints = [ ]
+        # initialize args
+        self._init_args(self)
+
+    @staticmethod
+    def _init_args(self):
+        if type(self.stmt) == TcgOp:
+            iargs = self.stmt.iargs
+            cargs = self.stmt.cargs
+
+            if len(iargs):
+                # get iargs values in t1-tn
+                for i in range(len(iargs)):
+                    if 'tmp' in iargs[i]:
+                        setattr(self, 't'+str(i+1), self.state.scratch.temps[iargs[i][3:]])
+                    else:
+                        setattr(self, 't'+str(i+1), getattr(self.state.regs, iargs[i]))
+
+            elif len(cargs):
+                # get cargs values
+                for i in range(len(cargs)):
+                    setattr(self, 't'+str(i+1), int(cargs[i]))
+            # get oargs value
+            self.t0 = self.stmt.oargs[0]
+
+        elif type(self.stmt) == TcgCall:
+            self.cc_src = self.state.regs.cc_src
+            self.cc_src2 = self.state.regs.cc_src2
+            self.cc_op = self.state.regs.cc_op
+            self.cc_dst = self.state.regs.cc_dst
+            self.helper = 'helper_' + self.stmt.helper
+
+        else:
+            pass
+
 
     def size_bits(self, ty=None):
         if not ty:
@@ -35,6 +71,12 @@ class SimIRStmt(object):
         """
         # this is where we would choose between different analysis modes
         self._execute()
+
+    def _set_value(self, v):
+        if 'tmp' in self.t0:
+            self.state.scratch.temps[self.t0[3:]] = v
+        else:
+            setattr(self.state.regs, self.t0, v)
 
     def _execute(self):
         raise NotImplementedError()
@@ -65,4 +107,3 @@ class SimIRStmt(object):
         self.state.scratch.store_tmp(tmp, v, reg_deps, tmp_deps)
 
 
-from ..expressions import translate_expr
