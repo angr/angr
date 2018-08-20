@@ -327,9 +327,11 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             if isinstance(stmt, pyvex.IRStmt.IRStmt):
                 # it's an angr block
                 vex_block = block.vex
-                # OP_BEFORE: stmt has to be IMark
-                if ob_type == OP_BEFORE and type(stmt) is pyvex.IRStmt.IMark:
-                    self.observed_results[(ins_addr, ob_type)] = state.copy()
+                # OP_BEFORE: stmt has to be first statement after IMark
+                if ob_type == OP_BEFORE:
+                    idx = vex_block.statements.index(stmt)
+                    if idx == 1:
+                        self.observed_results[(ins_addr, ob_type)] = state.copy()
                 # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
                 elif ob_type == OP_AFTER:
                     idx = vex_block.statements.index(stmt)
