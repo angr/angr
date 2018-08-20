@@ -236,7 +236,17 @@ class Project(object):
             if not func.is_function and func.type != cle.backends.symbol.Symbol.TYPE_NONE:
                 continue
             if not reloc.resolved:
-                l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
+                # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency
+                # library names. The backend creates the Relocation objects, but leaves them unresolved so that
+                # we can try to guess them here. Once the Binary Ninja API starts supplying the dependencies,
+                # The if/else, along with Project._guess_simprocedure() can be removed if it has no other utility,
+                # just leave behind the 'unresolved' debug statement from the else clause.
+                if reloc.owner_obj.guess_simprocs:
+                    l.debug("Looking for matching SimProcedure for unresolved %s from %s with hint %s",
+                            func.name, reloc.owner_obj, reloc.owner_obj.guess_simprocs_hint)
+                    self._guess_simprocedure(func, reloc.owner_obj.guess_simprocs_hint)
+                else:
+                    l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
                 continue
             export = reloc.resolvedby
             if self.is_hooked(export.rebased_addr):
@@ -304,6 +314,27 @@ class Project(object):
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
                 self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
+
+    def _guess_simprocedure(self, f, hint):
+        """
+        Does symbol name `f` exist as a SIM_PROCEDURE? If so, return it, else return None.
+        Narrows down the set of libraries to search based on hint.
+        Part of the hack to enable Binary Ninja support. Remove if _register_objects() stops using it.
+        """
+        # First, filter the SIM_LIBRARIES to a reasonable subset based on the hint
+        hinted_libs = []
+        if hint == "win":
+            hinted_libs = filter(lambda lib: lib if lib.endswith(".dll") else None, SIM_LIBRARIES)
+        else:
+            hinted_libs = filter(lambda lib: lib if ".so" in lib else None, SIM_LIBRARIES)
+
+        for lib in hinted_libs:
+            if SIM_LIBRARIES[lib].has_implementation(f.name):
+                l.debug("Found implementation for %s in %s", f, lib)
+                self.hook_symbol(f.relative_addr, (SIM_LIBRARIES[lib].get(f.name, self.arch)))
+                break
+        else:
+            l.debug("Could not find matching SimProcedure for %s, ignoring.", f.name)
 
     def _check_user_blacklists(self, f):
         """

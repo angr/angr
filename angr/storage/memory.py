@@ -773,7 +773,7 @@ class SimMemory(SimStatePlugin):
         if not self._abstract_backer and \
                 o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
                 self.state.uninitialized_access_handler is not None and \
-                (r.op == 'Reverse' or r.op == 'I') and \
+                (r.op == 'Reverse' or r.op == 'BVV') and \
                 getattr(r._model_vsa, 'uninitialized', False):
             normalized_addresses = self.normalize_address(addr)
             if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
@@ -826,7 +826,7 @@ class SimMemory(SimStatePlugin):
                 self.state.add_constraints(addr_e == mem_region)
             l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
-    def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
+    def normalize_address(self, addr, is_write=False):  # pylint:disable=no-self-use,unused-argument
         """
         Normalize `addr` for use in static analysis (with the abstract memory model). In non-abstract mode, simply
         returns the address in a single-element list.
@@ -836,7 +836,8 @@ class SimMemory(SimStatePlugin):
     def _load(self, _addr, _size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         raise NotImplementedError()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+             disable_actions=False, inspect=True):
         """
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
         value, this search could cause the state to go unsat if no possible matching byte exists.
@@ -846,6 +847,9 @@ class SimMemory(SimStatePlugin):
         :param max_search:          Search at most this many bytes.
         :param max_symbolic_bytes:  Search through at most this many symbolic bytes.
         :param default:             The default value, if what you're looking for wasn't found.
+        :param step:                The stride that the search should use while scanning memory
+        :param disable_actions:     Whether to inhibit the creation of SimActions for memory access
+        :param inspect:             Whether to trigger SimInspect breakpoints
 
         :returns:                   An expression representing the address of the matching byte.
         """
@@ -858,13 +862,14 @@ class SimMemory(SimStatePlugin):
             what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
-                           step=step)
+                           step=step, disable_actions=disable_actions, inspect=inspect)
         if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+              disable_actions=False, inspect=True):
         raise NotImplementedError()
 
     def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,

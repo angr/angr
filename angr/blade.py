@@ -245,7 +245,7 @@ class Blade(object):
                            target_stack_offsets=None,
                            inslice_callback=self._inslice_callback,
                            inslice_callback_infodict={
-                               'irsb_addr':  self._get_irsb(self._dst_run)._addr,
+                               'irsb_addr':  self._get_irsb(self._dst_run).addr,
                                'prev': prev,
                            })
         regs = slicer.final_regs

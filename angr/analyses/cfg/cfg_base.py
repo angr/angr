@@ -111,7 +111,7 @@ class CFGBase(Analysis):
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
-        self._changed_functions = None
+        self._updated_nonreturning_functions = None
 
         self._normalize = normalize
         # Flag, whether the CFG has been normalized or not
@@ -660,8 +660,7 @@ class CFGBase(Analysis):
         :rtype:                  bool
         """
 
-
-        obj = self.project.loader.find_object_containing(region_start)
+        obj = self.project.loader.find_object_containing(region_start, membership_check=False)
         if obj is None:
             return False
         if isinstance(obj, PE):
@@ -768,11 +767,11 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        obj = self.project.loader.find_object_containing(addr_a)
+        obj = self.project.loader.find_object_containing(addr_a, membership_check=False)
 
         if obj is None:
             # test if addr_b also does not belong to any object
-            obj_b = self.project.loader.find_object_containing(addr_b)
+            obj_b = self.project.loader.find_object_containing(addr_b, membership_check=False)
             if obj_b is None:
                 return True
             return False
@@ -913,20 +912,21 @@ class CFGBase(Analysis):
             'functions_do_not_return': []
         }
 
-        if self._changed_functions is not None:
-            all_functions = self._changed_functions
-            caller_functions = set()
+        if self._updated_nonreturning_functions is not None:
+            all_func_addrs = self._updated_nonreturning_functions
+            caller_func_addrs = set()
 
-            for func_addr in self._changed_functions:
+            for func_addr in self._updated_nonreturning_functions:
                 if func_addr not in self.kb.functions.callgraph:
                     continue
                 callers = self.kb.functions.callgraph.predecessors(func_addr)
                 for f in callers:
-                    caller_functions.add(f)
+                    caller_func_addrs.add(f)
 
-            all_functions |= caller_functions
-
-            all_functions = [ self.kb.functions.function(addr=f) for f in all_functions if f in self.kb.functions ]
+            # Add callers
+            all_func_addrs |= caller_func_addrs
+            # Convert addresses to objects
+            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs ]
 
         else:
             all_functions = self.kb.functions.values()
@@ -1986,6 +1986,9 @@ class CFGBase(Analysis):
         :rtype: tuple
         """
 
+        if block.statements is None:
+            block = self.project.factory.block(block.addr, size=block.size).vex
+
         for res in self.timeless_indirect_jump_resolvers:
             if res.filter(self, addr, func_addr, block, jumpkind):
                 r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
@@ -2025,13 +2028,14 @@ class CFGBase(Analysis):
         # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
         self.kb.unresolved_indirect_jumps.add(jump.addr)
 
-    def _indirect_jump_encountered(self, addr, irsb, func_addr, stmt_idx='default'):
+    def _indirect_jump_encountered(self, addr, cfg_node, irsb, func_addr, stmt_idx='default'):
         """
         Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
         indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.
 
         :param int addr:                Address of the block containing the indirect jump.
-        :param pyvex.block.IRSB irsb:   IRSB of the block containing the indirect jump.
+        :param cfg_node:                The CFGNode instance of the block that contains the indirect jump.
+        :param pyvex.IRSB irsb:         The IRSB instance of the block that contains the indirect jump.
         :param int func_addr:           Address of the current function.
         :param int or str stmt_idx:     ID of the source statement.
 
@@ -2041,7 +2045,6 @@ class CFGBase(Analysis):
         """
 
         jumpkind = irsb.jumpkind
-        stmts = irsb.statements
         l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
 
         # try resolving it fast
@@ -2052,15 +2055,10 @@ class CFGBase(Analysis):
         # Add it to our set. Will process it later if user allows.
         # Create an IndirectJump instance
         if addr not in self.indirect_jumps:
-            tmp_statements = stmts if stmt_idx == 'default' else stmts[:stmt_idx]
-            if jumpkind != "Ijk_Boring" and self.project.arch.branch_delay_slot:
-                ins_addr = next(itertools.islice(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                     if isinstance(stmt, pyvex.IRStmt.IMark)), 1, None
-                                ), None)
+            if self.project.arch.branch_delay_slot:
+                ins_addr = cfg_node.instruction_addrs[-2]
             else:
-                ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                     if isinstance(stmt, pyvex.IRStmt.IMark)), None
-                                )
+                ins_addr = cfg_node.instruction_addrs[-1]
             ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
             self.indirect_jumps[addr] = ij
             resolved = False
@@ -2105,9 +2103,10 @@ class CFGBase(Analysis):
         resolved_by = None
         targets = None
 
+        block = self._lift(jump.addr, opt_level=1)
+
         for resolver in self.indirect_jump_resolvers:
             resolver.base_state = self._base_state
-            block = self._lift(jump.addr, opt_level=1)
 
             if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
                 continue

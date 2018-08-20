@@ -1274,7 +1274,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Try to resolve indirect jumps
             irsb = input_state.block().vex
 
-            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, irsb, func_addr, stmt_idx='default')
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr, stmt_idx='default')
             if resolved:
                 successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
                 if ij:
@@ -2854,7 +2854,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Remove bad constraints
                 # FIXME: This is so hackish...
                 new_state.se._solver.constraints = [c for c in new_state.se.constraints if
-                                                    c.op != 'I' or c.args[0] is not False]
+                                                    c.op != 'BoolV' or c.args[0] is not False]
                 new_state.se._solver._result = None
                 # Swap them
                 saved_state, job.state = job.state, new_state

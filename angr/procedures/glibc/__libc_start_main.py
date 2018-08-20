@@ -133,10 +133,6 @@ class __libc_start_main(angr.SimProcedure):
         self.call(self.init, (self.argc, self.argv, self.envp), 'after_init')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
-        if isinstance(self.state.arch, ArchAMD64):
-            # (rsp+8) must be aligned to 16 as required by System V ABI
-            # ref: http://www.x86-64.org/documentation/abi.pdf , page 16
-            self.state.regs.rsp = (self.state.regs.rsp & 0xfffffffffffffff0) - 8
         self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
@@ -206,5 +202,3 @@ class __libc_start_main(angr.SimProcedure):
             fini_ = state.mem[state.regs.r8 + 24:].long.resolved
 
         return main_, argc_, argv_, init_, fini_
-
-from archinfo import ArchAMD64
