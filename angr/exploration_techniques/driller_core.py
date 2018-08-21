@@ -56,7 +56,7 @@ class DrillerCore(ExplorationTechnique):
                 cur_loc = (cur_loc >> 4) ^ (cur_loc << 8)
                 cur_loc &= len(self.fuzz_bitmap) - 1
 
-                hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
+                hit = bool(self.fuzz_bitmap[cur_loc ^ prev_loc] ^ 0xff)
 
                 transition = (prev_addr, state.addr)
                 mapped_to = self.project.loader.find_object_containing(state.addr).binary

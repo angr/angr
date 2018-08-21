@@ -253,7 +253,7 @@ class SimTypeInt(SimTypeReg):
             return out
         n = state.se.eval(out)
         if self.signed and n >= 1 << (self.size-1):
-            n -= 1 << (self.size)
+            n -= 1 << self.size
         return n
 
     def _init_str(self):
@@ -262,6 +262,20 @@ class SimTypeInt(SimTypeReg):
             self.signed,
             '"%s"' % self.label if self.label is not None else "None",
         )
+
+    def _refine_dir(self):
+        return ['signed', 'unsigned']
+
+    def _refine(self, view, k):
+        if k == 'signed':
+            ty = copy.copy(self)
+            ty.signed = True
+        elif k == 'unsigned':
+            ty = copy.copy(self)
+            ty.signed = False
+        else:
+            raise KeyError(k)
+        return view._deeper(ty=ty)
 
 
 class SimTypeShort(SimTypeInt):
@@ -778,7 +792,7 @@ class SimStruct(SimType):
         return max(val.alignment for val in self.fields.values())
 
     def _refine_dir(self):
-        return self.fields.keys()
+        return list(self.fields.keys())
 
     def _refine(self, view, k):
         offset = self.offsets[k]

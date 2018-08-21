@@ -155,15 +155,15 @@ class Identifier(Analysis):
                     result = func.try_match(f, self, self._runner)
                 except IdentifierException as e:
                     l.warning('Encountered IdentifierException trying to analyze %#x, reason: %s',
-                            f.addr, e.message)
+                            f.addr, e)
                     continue
                 except SimSegfaultError:
                     continue
                 except SimError as e:
-                    l.warning("SimError %s", e.message)
+                    l.warning("SimError %s", e)
                     continue
                 except AngrError as e:
-                    l.warning("AngrError %s", e.message)
+                    l.warning("AngrError %s", e)
                     continue
 
                 if result:
@@ -270,10 +270,10 @@ class Identifier(Analysis):
         except SimSegfaultError:
             return False
         except SimError as e:
-            l.warning("SimError %s", e.message)
+            l.warning("SimError %s", e)
             return False
         except AngrError as e:
-            l.warning("AngrError %s", e.message)
+            l.warning("AngrError %s", e)
             return False
 
     def map_callsites(self):
@@ -627,7 +627,7 @@ class Identifier(Analysis):
             # we can get stack variables via memory actions
             for a in succ.history.recent_actions:
                 if a.type == "mem":
-                    if "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variables):
+                    if b"sym_sp" in a.addr.ast.variables or (bp_based and b"sym_bp" in a.addr.ast.variables):
                         possible_stack_vars.append((addr, a.addr.ast, a.action))
                 if a.type == "reg" and a.action == "write":
                     # stack variables can also be if a stack addr is loaded into a register, eg lea
@@ -639,12 +639,12 @@ class Identifier(Analysis):
                     if reg_name not in self._reg_list:
                         continue
                     # check if it was a stack var
-                    if "sym_sp" in a.data.ast.variables or (bp_based and "sym_bp" in a.data.ast.variables):
+                    if b"sym_sp" in a.data.ast.variables or (bp_based and b"sym_bp" in a.data.ast.variables):
                         possible_stack_vars.append((addr, a.data.ast, "load"))
                     written_regs.add(reg_name)
 
         for addr, ast, action in possible_stack_vars:
-            if "sym_sp" in ast.variables:
+            if b"sym_sp" in ast.variables:
                 # constrain all to be zero so we detect the base address of buffers
                 simplified = succ.se.simplify(ast - sp)
                 if succ.se.symbolic(simplified):
@@ -735,7 +735,7 @@ class Identifier(Analysis):
         diff = state.regs.sp - succ.regs.bp
         if not diff.symbolic:
             return True
-        if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
+        if len(diff.variables) > 1 or any(b"ebp" in v for v in diff.variables):
             return False
         if len(succ.se.eval_upto((state.regs.sp - succ.regs.bp), 2)) == 1:
             return True

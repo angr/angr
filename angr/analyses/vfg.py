@@ -1228,7 +1228,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         cfg = networkx.DiGraph()
         # The corner case: add a node to the graph if there is only one block
         if len(self._nodes) == 1:
-            cfg.add_node(self._nodes[self._nodes.keys()[0]])
+            cfg.add_node(self._nodes[next(iter(self._nodes.keys()))])
 
         # Adding edges
         for tpl, targets in self._exit_targets.items():
@@ -1472,7 +1472,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                         reg_sp_si = reg_sp_expr._model_vsa
                         reg_sp_val = reg_sp_si.min
                     elif isinstance(reg_sp_expr._model_vsa, claripy.vsa.ValueSet):
-                        reg_sp_si = reg_sp_expr._model_vsa.items()[0][1]
+                        reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]
                         reg_sp_val = reg_sp_si.min
                         # TODO: Finish it!
 
@@ -1618,7 +1618,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             reg_sp_si = reg_sp_expr._model_vsa
             reg_sp_val = reg_sp_si.min
         else:
-            reg_sp_si = reg_sp_expr._model_vsa.items()[0][1]
+            reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]
             reg_sp_val = reg_sp_si.min
 
         reg_sp_val = reg_sp_val - successor_state.arch.bytes  # TODO: Is it OK?

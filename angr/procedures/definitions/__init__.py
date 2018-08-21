@@ -125,7 +125,7 @@ class SimLibrary(object):
         parsed_decl = parsed[0]
         if not parsed_decl:
             raise ValueError('Cannot parse the function prototype.')
-        func_name, func_proto = parsed_decl.items()[0]
+        func_name, func_proto = next(iter(parsed_decl.items()))
 
         self.set_prototype(func_name, func_proto)
 

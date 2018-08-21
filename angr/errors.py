@@ -114,20 +114,16 @@ class AngrDDGError(AngrAnalysisError):
 #
 
 class AngrExplorationTechniqueError(AngrError):
-    def __str__(self):
-        return "<OtiegnqwvkError %s>" % self.message
+    pass
 
 class AngrExplorerError(AngrExplorationTechniqueError):
-    def __str__(self):
-        return "<OtiegnqwvkExplorerError %s>" % self.message
+    pass
 
 class AngrDirectorError(AngrExplorationTechniqueError):
-    def __str__(self):
-        return "<OtiegnqwvkDirectorError %s>" % self.message
+    pass
 
 class AngrTracerError(AngrExplorationTechniqueError):
-    def __str__(self):
-        return "<OtiegnqwvkTracerError %s>" % self.message
+    pass
 
 #
 # Tracer

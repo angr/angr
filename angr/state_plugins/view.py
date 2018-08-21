@@ -228,7 +228,7 @@ class SimMemView(SimStatePlugin):
             raise ValueError("Trying to dereference pointer without addr defined")
         ptr = self.state.memory.load(self._addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
         if ptr.symbolic:
-            l.warn("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.se.eval(self._addr))
+            l.warning("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.se.eval(self._addr))
         ptr = self.state.se.eval(ptr)
 
         return self._deeper(ty=self._type.pts_to if isinstance(self._type, SimTypePointer) else None, addr=ptr)

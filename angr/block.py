@@ -208,7 +208,7 @@ class Block(object):
                 self._bytes = pyvex.ffi.unpack(pyvex.ffi.cast('char*', buf), self.size)
             else:
                 # fall back to the slow path
-                self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
+                self._bytes = bytes(self._project.loader.memory.read_bytes(addr, self.size))
         return self._bytes
 
     @property

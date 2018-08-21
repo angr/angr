@@ -78,7 +78,7 @@ def run_vfg_0(arch):
     function_final_states = vfg._function_final_states
     nose.tools.assert_in(main.addr, function_final_states)
 
-    final_state_main = function_final_states[main.addr].values()[0]
+    final_state_main = next(iter(function_final_states[main.addr].values()))
     stdout = final_state_main.posix.dumps(1)
 
     nose.tools.assert_equal(stdout[:6], b"i = 64")
@@ -144,7 +144,7 @@ def run_vfg_1(arch):
     nose.tools.assert_true(authenticate.addr in vfg.function_final_states)
     authenticate_final_states = vfg.function_final_states[authenticate.addr]
     nose.tools.assert_equal(len(authenticate_final_states), 1)
-    authenticate_final_state = authenticate_final_states.values()[0]
+    authenticate_final_state = next(iter(authenticate_final_states.values()))
     nose.tools.assert_is_not_none(authenticate_final_state)
     nose.tools.assert_equal(authenticate_final_state.se.eval_upto(authenticate_final_state.regs.rax, 3), [0, 1])
 
@@ -174,16 +174,14 @@ if __name__ == "__main__":
         # TODO: Actually run all tests
         # Run all tests
 
-        g = globals()
-
-        for f in g.keys():
-            if f.startswith('test_') and hasattr(g[f], '__call__'):
+        for f in list(globals().keys()):
+            if f.startswith('test_') and hasattr(globals()[f], '__call__'):
                 for test_func, arch_name in globals()[f]():
                     test_func(arch_name)
 
     else:
         f = 'test_' + sys.argv[1]
-        if f in globals():
+        if f in list(globals()):
             func = globals()[f]
             if hasattr(func, '__call__'):
                 for test_func, arch_ in func():

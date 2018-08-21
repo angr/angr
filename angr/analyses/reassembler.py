@@ -1375,15 +1375,15 @@ class Data(object):
                 if len(addr_to_labels) == 0:
                     show_integer = True
                 elif len(addr_to_labels) == 1:
-                    if self.addr is not None and addr_to_labels.keys()[0] == self.addr:
+                    if self.addr is not None and next(iter(addr_to_labels.keys())) == self.addr:
                         show_integer = True
-                    elif self.addr is None and addr_to_labels.keys()[0] == 0:
+                    elif self.addr is None and next(iter(addr_to_labels.keys())) == 0:
                         show_integer = True
 
                 if directive is not None and show_integer:
                     # nice, we should display it as an integer
                     if addr_to_labels:
-                        for label in addr_to_labels.values()[0]:
+                        for label in next(iter(addr_to_labels.values())):
                             content += [ "%s" % str(label) ]
 
                     integer = struct.unpack(fmt_str, self.content[0])[0]

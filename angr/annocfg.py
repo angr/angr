@@ -95,7 +95,7 @@ class AnnotatedCFG(object):
         else:
             self._run_statement_whitelist[addr].extend(stmt_ids)
             self._run_statement_whitelist[addr] = \
-                sorted(list(set(self._run_statement_whitelist[addr])))
+                sorted(set(self._run_statement_whitelist[addr]), key=lambda v: v if type(v) is int else float('inf'))
 
     def add_exit_to_whitelist(self, run_from, run_to):
         addr_from = self.get_addr(run_from)
@@ -159,7 +159,7 @@ class AnnotatedCFG(object):
         if addr in self._addr_to_last_stmt_id:
             return self._addr_to_last_stmt_id[addr]
         elif addr in self._run_statement_whitelist:
-            return max(self._run_statement_whitelist[addr])
+            return max(self._run_statement_whitelist[addr], key=lambda v: v if type(v) is int else float('inf'))
         return None
 
     def get_loops(self):

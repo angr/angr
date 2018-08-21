@@ -527,7 +527,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
 
             return stdin
         except Exception as e: # pylint: disable=broad-except
-            l.error("Exception %s during atoi_dumps!!", e.message)
+            l.error("Exception %s during atoi_dumps!!", e)
             return state.posix.dumps(0)
 
     @staticmethod

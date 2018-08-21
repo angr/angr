@@ -1518,7 +1518,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         target_funcs = [ self.functions.function(addr=func_addr)
                                          for func_addr in callsites_to_functions[src.addr]
                                          ]
-                        if target_funcs and all([ t is not None and t.returning is False for t in target_funcs ]):
+                        if target_funcs and all(t is not None and t.returning is False for t in target_funcs):
                             # Remove this edge
                             edges_to_remove.append((src, dst))
                         else:
@@ -2492,7 +2492,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block_size >= 4 and block[1] == 0 and block[3] == 0 and bytes([block[0]]) in self.PRINTABLES:
+        if block_size >= 4 and block[1] == 0 and block[3] == 0 and block[0] in self.PRINTABLES:
             max_unicode_string_len = 1024
             try:
                 unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
@@ -2501,7 +2501,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 unicode_str = u''
 
             if (len(unicode_str) and  # pylint:disable=len-as-condition
-                    all([ c in self.PRINTABLES for c in unicode_str])):
+                    all([ ord(c) < 256 and ord(c) in self.PRINTABLES for c in unicode_str])):
                 if content_holder is not None:
                     content_holder.append(unicode_str)
                 return "unicode", (len(unicode_str) + 1) * 2
@@ -3012,7 +3012,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     @staticmethod
     def _get_return_endpoints(func):
         all_endpoints = func.endpoints_with_type
-        return all_endpoints.get('return', [ ])
+        return all_endpoints.get('return', [])
 
     def _get_jumpout_targets(self, func):
         jumpout_targets = set()

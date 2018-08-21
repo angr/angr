@@ -47,12 +47,9 @@ def test_ctype_b_loc():
     b_loc_array_ptr = ctype_b_loc(state, []).ret_expr
     table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-    result = ''
+    result = b''
     for i in range(-128, 256):
-        # Each entry is 2 bytes
-        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*2),
-                                                                        2,
-                                                                        endness='Iend_BE')))
+        result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*2].short.unsigned.concrete)
 
     # Check output of compiled C program that uses ctype_b_loc()
     output = subprocess.check_output(bin_path, shell=True)
@@ -100,11 +97,9 @@ def test_ctype_tolower_loc():
     tolower_loc_array_ptr = ctype_tolower_loc(state, []).ret_expr
     table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-    result = ''
+    result = b''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*4),
-                                                                        4,
-                                                                        endness=state.arch.memory_endness)))
+        result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*4].int.unsigned.concrete)
 
     # Check output of compiled C program that uses ctype_tolower_loc()
     output = subprocess.check_output(bin_path, shell=True)
@@ -152,11 +147,9 @@ def test_ctype_toupper_loc():
     toupper_loc_array_ptr = ctype_toupper_loc(state, []).ret_expr
     table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-    result = ''
+    result = b''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*4),
-                                                                        4,
-                                                                        endness=state.arch.memory_endness)))
+        result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*4].int.unsigned.concrete)
 
     # Check output of compiled C program that uses ctype_toupper_loc()
     output = subprocess.check_output(bin_path, shell=True)

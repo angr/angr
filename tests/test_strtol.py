@@ -21,8 +21,8 @@ def run_strtol(threads):
     pg = b.factory.simgr(thing=initial_state, immutable=False, threads=threads)
 
     # find the end of main
-    expected_outputs = {"base 8 worked\n", "base +8 worked\n", "0x worked\n", "+0x worked\n", "base +10 worked\n",
-                        "base 10 worked\n", "base -8 worked\n", "-0x worked\n", "base -10 worked\n", "Nope\n"}
+    expected_outputs = {b"base 8 worked\n", b"base +8 worked\n", b"0x worked\n", b"+0x worked\n", b"base +10 worked\n",
+                        b"base 10 worked\n", b"base -8 worked\n", b"-0x worked\n", b"base -10 worked\n", b"Nope\n"}
     pg.explore(find=0x400804, num_find=len(expected_outputs))
     nose.tools.assert_equal(len(pg.found), len(expected_outputs))
 
@@ -46,4 +46,4 @@ def test_strtol():
     # yield run_strtol, 8
 
 if __name__ == "__main__":
-    run_strtol(4)
+    run_strtol(None)

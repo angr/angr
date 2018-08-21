@@ -30,7 +30,6 @@ class __libc_start_main(angr.SimProcedure):
             # Each entry is 2 bytes
             self.state.memory.store(table + (pos*2),
                                     self.state.se.BVV(c, 16),
-                                    endness=self.state.arch.memory_endness,
                                     inspect=False,
                                     disable_actions=True,
                                     )

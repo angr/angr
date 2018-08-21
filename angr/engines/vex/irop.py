@@ -375,8 +375,8 @@ class SimIROp(object):
 
         try:
             return self.extend_size(self._calculate(args))
-        except (ZeroDivisionError, claripy.ClaripyZeroDivisionError):
-            raise SimZeroDivisionException("divide by zero!")
+        except (ZeroDivisionError, claripy.ClaripyZeroDivisionError) as e:
+            raise SimZeroDivisionException("divide by zero!") from e
         except (TypeError, ValueError, SimValueError, claripy.ClaripyError) as e:
             raise SimOperationError("%s._calculate() raised exception" % self.name) from e
 
