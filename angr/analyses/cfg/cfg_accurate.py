@@ -2,8 +2,10 @@ import itertools
 import logging
 import sys
 from collections import defaultdict, OrderedDict
+from functools import reduce
 
 import claripy
+import angr
 import networkx
 import pyvex
 from archinfo import ArchARM

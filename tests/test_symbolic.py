@@ -37,7 +37,7 @@ def test_concretization_strategies():
     s.add_constraints(x >= 1)
     ss.options.add(angr.options.CONSERVATIVE_READ_STRATEGY)
     ss.memory._create_default_read_strategies()
-    nose.tools.assert_true(b'symbolic' in next(iter(ss.memory.load(x, 1).variables)))
+    nose.tools.assert_true('symbolic' in next(iter(ss.memory.load(x, 1).variables)))
 
 #def test_concretization():
 #   s = angr.SimState(arch="AMD64", mode="symbolic")

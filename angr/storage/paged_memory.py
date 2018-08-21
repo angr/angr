@@ -912,9 +912,6 @@ class SimPagedMemory(object):
         """
         Returns addresses that contain expressions that contain a variable named `n`.
         """
-        # encode names to preserve the illusion that our variables are actually unicode strings
-        if type(n) is str:
-            n = n.encode()
         if n not in self._name_mapping:
             return
 
