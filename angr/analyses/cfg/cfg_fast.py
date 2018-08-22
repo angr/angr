@@ -2496,6 +2496,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             max_unicode_string_len = 1024
             try:
                 unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
+                list(unicode_str)  # this will trigger a value error in some weird cases I don't understand
             except ValueError:
                 # cffi fails to interpret the bytes as unicode
                 unicode_str = u''
