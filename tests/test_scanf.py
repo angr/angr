@@ -4,8 +4,6 @@ import string
 import angr
 import logging
 
-from nose.plugins.attrib import attr
-
 l = logging.getLogger('angr.tests.scanf')
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
@@ -42,7 +40,7 @@ class Checker(object):
         if self._dummy:
             return True
 
-        stdin_input = path.posix.files[0].content.load(1, 11) # skip the first char used in switch
+        stdin_input = path.posix.stdin.content[1][0] # skip the first char used in switch
         some_strings = path.se.eval_upto(stdin_input, 1000, cast_to=str)
 
         check_passes = False
@@ -60,11 +58,11 @@ class Checker(object):
 
         return check_passes
 
-def run_scanf(threads):
+def test_scanf():
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/scanf_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.simgr(immutable=False, threads=threads)
+    pg = b.factory.simgr(immutable=False)
 
     # find the end of main
     expected_outputs = {
@@ -72,10 +70,10 @@ def run_scanf(threads):
         "%%07x and negative numbers\n": Checker(lambda s: int(s, 16) == -0xcdcd, length=7, base=16),
         "nope 0\n":                     Checker(None, dummy=True),
         "%%d\n":                        Checker(lambda s: int(s) == 133337),
-        "%%d and negative numbers\n":   Checker(lambda s: int(s) == -1337),
+        "%%d and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 1337),
         "nope 1\n":                     Checker(None, dummy=True),
         "%%u\n":                        Checker(lambda s: int(s) == 0xaaaa),
-        "%%u and negative numbers\n":   Checker(lambda s: int(s) == -0xcdcd),
+        "%%u and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 0xcdcd),
         "nope 2\n":                     Checker(None, dummy=True),
         "Unsupported switch\n":         Checker(None, dummy=True),
     }
@@ -94,10 +92,5 @@ def run_scanf(threads):
     # check that all of the outputs were seen
     nose.tools.assert_equal(total_outputs, len(expected_outputs))
 
-@attr(speed='slow')
-def test_scanf():
-    yield run_scanf, None
-    # yield run_scanf, 8
-
 if __name__ == "__main__":
-    run_scanf(1)
+    test_scanf()

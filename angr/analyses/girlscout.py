@@ -11,7 +11,7 @@ import cle
 import networkx
 import progressbar
 import pyvex
-from . import Analysis, register_analysis
+from . import Analysis
 
 from .. import options as o
 from ..annocfg import AnnotatedCFG
@@ -807,7 +807,8 @@ class GirlScout(Analysis):
 
         return lst
 
-register_analysis(GirlScout, 'GirlScout')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('GirlScout', GirlScout)
 
 from ..blade import Blade
 from ..errors import AngrGirlScoutError

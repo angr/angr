@@ -1,6 +1,7 @@
 import os
 import string
 import hashlib
+import tempfile
 import logging
 
 from . import ExplorationTechnique
@@ -12,6 +13,8 @@ l = logging.getLogger("angr.exploration_techniques.cacher")
 class Cacher(ExplorationTechnique):
     """
     An exploration technique that caches states during symbolic execution.
+
+    DO NOT USE THIS - THIS IS FOR ARCHIVAL PURPOSES ONLY
     """
 
     def __init__(self, when=None, dump_cache=True, load_cache=True, container=None,
@@ -19,16 +22,15 @@ class Cacher(ExplorationTechnique):
         """
         :param dump_cache: Whether to dump data to cache.
         :param load_cache: Whether to load data from cache.
-        :param container : Data container.
-        :param when      : If provided, should be a function that takes a SimulationManager and returns
+        :param container:  Data container.
+        :param when:       If provided, should be a function that takes a SimulationManager and returns
                            a Boolean, or the address of the state to be cached.
-        :param lookup    : A function that returns True if cache hit and False otherwise.
-        :param dump_func : If provided, should be a function that defines how Cacher should cache the
+        :param lookup:     A function that returns True if cache hit and False otherwise.
+        :param dump_func:  If provided, should be a function that defines how Cacher should cache the
                            SimulationManager. Default to caching the active stash.
-        :param load_func : If provided, should be a function that defines how Cacher should uncache the
+        :param load_func:  If provided, should be a function that defines how Cacher should uncache the
                            SimulationManager. Default to uncaching the stash to be stepped.
         """
-
         super(Cacher, self).__init__()
         self._dump_cond = self._condition_to_lambda(when)
         self._dump_cache = dump_cache
@@ -44,9 +46,10 @@ class Cacher(ExplorationTechnique):
         binary = simgr._project.filename
         binhash = hashlib.md5(open(binary).read()).hexdigest()
 
-        # By default, we dump data to a file in under /tmp/.
         if self.container is None:
-            self.container = os.path.join("/tmp", "%s-%s.cache" % (os.path.basename(binary), binhash))
+            # Create a temporary directory to hold the cache files
+            tmp_directory = tempfile.mkdtemp(prefix="angr_cacher_container")
+            self.container = os.path.join(tmp_directory, "%s-%s.cache" % (os.path.basename(binary), binhash))
 
         # Container is the file name.
         elif isinstance(self.container, str) and not self.container_pickle_str:
@@ -62,7 +65,7 @@ class Cacher(ExplorationTechnique):
 
         self.project = simgr._project
 
-    def step(self, simgr, stash, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         # We cache if any of the states in 'stash' satisfies the condition.
         for s in simgr.stashes[stash]:
             if self._dump_cache and self._dump_cond(s):

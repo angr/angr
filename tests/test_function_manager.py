@@ -9,8 +9,6 @@ import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_amd64():
-    logging.getLogger('angr.analyses.cfg').setLevel(logging.DEBUG)
-
     fauxware_amd64 = angr.Project(test_location + "/x86_64/fauxware")
 
     EXPECTED_FUNCTIONS = { 0x4004e0, 0x400510, 0x400520, 0x400530, 0x400540, 0x400550, 0x400560, 0x400570,
@@ -81,5 +79,7 @@ def test_call_to():
     nose.tools.assert_in(0x400420, project.kb.functions.keys())
 
 if __name__ == "__main__":
+    logging.getLogger('angr.analyses.cfg').setLevel(logging.DEBUG)
+
     test_call_to()
     test_amd64()

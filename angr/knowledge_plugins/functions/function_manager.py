@@ -1,7 +1,6 @@
 import logging
 import collections
-
-import bintrees
+from sortedcontainers import SortedDict
 import networkx
 
 from ...errors import SimEngineError
@@ -12,39 +11,41 @@ from .function import Function
 l = logging.getLogger("angr.knowledge.function_manager")
 
 
-class FunctionDict(dict):
+class FunctionDict(SortedDict):
     """
     FunctionDict is a dict where the keys are function starting addresses and
     map to the associated :class:`Function`.
     """
     def __init__(self, backref, *args, **kwargs):
         self._backref = backref
-        self._avltree = bintrees.AVLTree()
         super(FunctionDict, self).__init__(*args, **kwargs)
 
-    def __missing__(self, key):
-        if isinstance(key, (int, long)):
-            addr = key
-        else:
-            raise ValueError("FunctionDict.__missing__ only supports int as key type")
+    def __getitem__(self, addr):
+        try:
+            return super(FunctionDict, self).__getitem__(addr)
+        except KeyError:
+            if not isinstance(addr, (int, long)):
+                raise TypeError("FunctionDict only supports int as key type")
 
-        t = Function(self._backref, addr)
-        self[addr] = t
-        return t
+            t = Function(self._backref, addr)
+            self[addr] = t
+            self._backref._function_added(t)
+            return t
 
-    def __setitem__(self, addr, func):
-        self._avltree[addr] = func
-        super(FunctionDict, self).__setitem__(addr, func)
-
-    def __delitem__(self, addr):
-        del self._avltree[addr]
-        super(FunctionDict, self).__delitem__(addr)
+    def get(self, addr):
+        return super(FunctionDict, self).__getitem__(addr)
 
     def floor_addr(self, addr):
-        return self._avltree.floor_key(addr)
+        try:
+            return next(self.irange(maximum=addr, reverse=True))
+        except StopIteration:
+            raise KeyError(addr)
 
     def ceiling_addr(self, addr):
-        return self._avltree.ceiling_key(addr)
+        try:
+            return next(self.irange(minimum=addr, reverse=False))
+        except StopIteration:
+            raise KeyError(addr)
 
 
 class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
@@ -95,7 +96,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None, stmt_idx=None, ins_addr=None,
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None, ins_addr=None,
                      return_to_outside=False):
 
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
@@ -200,10 +201,22 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     # Dict methods
     #
 
+    def __contains__(self, item):
+
+        if type(item) in (int, long):
+            # this is an address
+            return item in self._function_map
+
+        try:
+            _ = self[item]
+            return True
+        except KeyError:
+            return False
+
     def __getitem__(self, k):
-        if isinstance(k, (int, long)):
+        if type(k) in (int, long):
             f = self.function(addr=k)
-        elif isinstance(k, str):
+        elif type(k) is str:
             f = self.function(name=k)
         else:
             raise ValueError("FunctionManager.__getitem__ deos not support keys of type %s" % type(k))
@@ -216,6 +229,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     def __setitem__(self, k, v):
         if isinstance(k, (int, long)):
             self._function_map[k] = v
+            self._function_added(v)
         else:
             raise ValueError("FunctionManager.__setitem__ keys must be an int")
 
@@ -231,8 +245,22 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return len(self._function_map)
 
     def __iter__(self):
-        for i in sorted(self._function_map.iterkeys()):
+        for i in sorted(self._function_map.keys()):
             yield i
+
+    def get_by_addr(self, addr):
+        return self._function_map.get(addr)
+
+    def _function_added(self, func):
+        """
+        A callback method for adding a new function instance to the manager.
+
+        :param Function func:   The Function instance being added.
+        :return:                None
+        """
+
+        # make sure all functions exist in the call graph
+        self.callgraph.add_node(func.addr)
 
     def contains_addr(self, addr):
         """
@@ -255,7 +283,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
         try:
             next_addr = self._function_map.ceiling_addr(addr)
-            return self._function_map[next_addr]
+            return self._function_map.get(next_addr)
 
         except KeyError:
             return None
@@ -299,11 +327,13 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
             elif create:
                 # the function is not found
                 f = self._function_map[addr]
+                if name is not None:
+                    f.name = name
                 if syscall:
                     f.is_syscall=True
                 return f
         elif name is not None:
-            for func in self._function_map.itervalues():
+            for func in self._function_map.values():
                 if func.name == name:
                     if plt is None or func.is_plt == plt:
                         return func
@@ -311,7 +341,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return None
 
     def dbg_draw(self, prefix='dbg_function_'):
-        for func_addr, func in self._function_map.iteritems():
+        for func_addr, func in self._function_map.items():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
 

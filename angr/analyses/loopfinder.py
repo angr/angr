@@ -1,7 +1,7 @@
 import logging
 
 import networkx
-from . import Analysis, register_analysis
+from . import Analysis
 
 l = logging.getLogger("angr.analyses.loopfinder")
 
@@ -169,4 +169,5 @@ class LoopFinder(Analysis):
                 outtop.append(thisloop)
         return outtop, outall
 
-register_analysis(LoopFinder, 'LoopFinder')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('LoopFinder', LoopFinder)

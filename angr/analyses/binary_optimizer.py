@@ -3,7 +3,7 @@ import logging
 import re
 from collections import defaultdict
 
-from . import Analysis, register_analysis
+from . import Analysis
 
 from ..knowledge_base import KnowledgeBase
 from .. import SIM_PROCEDURES
@@ -645,4 +645,5 @@ class BinaryOptimizer(Analysis):
                 da = DeadAssignment(reg)
                 self.dead_assignments.append(da)
 
-register_analysis(BinaryOptimizer, 'BinaryOptimizer')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('BinaryOptimizer', BinaryOptimizer)

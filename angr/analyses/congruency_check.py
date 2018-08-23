@@ -2,7 +2,7 @@ import logging
 
 import claripy
 
-from . import Analysis, register_analysis
+from . import Analysis
 
 l = logging.getLogger("angr.analyses.congruency_check")
 #l.setLevel(logging.DEBUG)
@@ -68,10 +68,10 @@ class CongruencyCheck(Analysis):
             return simgr
         if len(simgr.left) == 0 and len(simgr.right) != 0:
             l.debug("... left is deadended; stepping right %s times", max_steps)
-            npg = simgr.step(stash='right', n=max_steps)
+            npg = simgr.run(stash='right', n=max_steps)
         elif len(simgr.right) == 0 and len(simgr.left) != 0:
             l.debug("... right is deadended; stepping left %s times", max_steps)
-            npg = simgr.step(stash='left', n=max_steps)
+            npg = simgr.run(stash='left', n=max_steps)
         elif len(simgr.right) == 0 and len(simgr.left) == 0:
             l.debug("... both deadended.")
             return simgr
@@ -297,7 +297,7 @@ class CongruencyCheck(Analysis):
         reg_diff = sr.registers.changed_bytes(sl.registers)
 
         # this is only for unicorn
-        if "UNICORN" in sl.options | sr.options:
+        if "UNICORN" in sl.options or "UNICORN" in sr.options:
             if sl.arch.name == "X86":
                 reg_diff -= set(range(40, 52)) #ignore cc psuedoregisters
                 reg_diff -= set(range(320, 324)) #some other VEX weirdness
@@ -353,4 +353,5 @@ class CongruencyCheck(Analysis):
         return True
 
 from ..errors import AngrIncongruencyError
-register_analysis(CongruencyCheck, 'CongruencyCheck')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CongruencyCheck', CongruencyCheck)

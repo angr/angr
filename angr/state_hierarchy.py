@@ -182,10 +182,14 @@ class StateHierarchy(object):
     def unreachable_history(self, h):
         href = self.get_ref(h)
 
-        l.debug("Pruning tree given unreachable %s", h)
-        root = self._find_root_unreachable(href)
-        l.debug("... root is %s", root)
-        self._prune_subtree(href)
+        try:
+            l.debug("Pruning tree given unreachable %s", h)
+            root = self._find_root_unreachable(href)
+        except networkx.NetworkXError:
+            l.debug("... not present in graph")
+        else:
+            l.debug("... root is %s", root)
+            self._prune_subtree(root)
 
     #
     # Smart merging support

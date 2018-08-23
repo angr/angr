@@ -61,7 +61,8 @@ class SimStateCGC(SimStatePlugin):
     def addr_invalid(self, a):
         return not self.state.se.solution(a != 0, True)
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         c = SimStateCGC()
         c.allocation_base = self.allocation_base
         c.time = self.time
@@ -98,7 +99,7 @@ class SimStateCGC(SimStatePlugin):
 
         return merging_occured
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return self._combine(others)
 
     def widen(self, others):
@@ -147,4 +148,6 @@ class SimStateCGC(SimStatePlugin):
 
         self.sinkholes.add((address, length))
 
-SimStatePlugin.register_default('cgc', SimStateCGC)
+
+from angr.sim_state import SimState
+SimState.register_default('cgc', SimStateCGC)

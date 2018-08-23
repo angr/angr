@@ -10,7 +10,7 @@ from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
-                       SimMemoryError, SimIRSBNoDecodeError)
+                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -28,14 +28,16 @@ class SimEngineVEX(SimEngine):
     Execution engine based on VEX, Valgrind's IR.
     """
 
-    def __init__(self, stop_points=None,
-            use_cache=True,
-            cache_size=10000,
+    def __init__(self, project=None,
+            stop_points=None,
+            use_cache=None,
+            cache_size=50000,
             default_opt_level=1,
-            support_selfmodifying_code=False,
-            single_step=False):
+            support_selfmodifying_code=None,
+            single_step=False,
+            default_strict_block_end=False):
 
-        super(SimEngineVEX, self).__init__()
+        super(SimEngineVEX, self).__init__(project)
 
         self._stop_points = stop_points
         self._use_cache = use_cache
@@ -43,18 +45,37 @@ class SimEngineVEX(SimEngine):
         self._support_selfmodifying_code = support_selfmodifying_code
         self._single_step = single_step
         self._cache_size = cache_size
+        self.default_strict_block_end = default_strict_block_end
 
+        if self._use_cache is None:
+            if project is not None:
+                self._use_cache = project._translation_cache
+            else:
+                self._use_cache = False
+        if self._support_selfmodifying_code is None:
+            if project is not None:
+                self._support_selfmodifying_code = project._support_selfmodifying_code
+            else:
+                self._support_selfmodifying_code = False
+
+        # block cache
         self._block_cache = None
-        self._cache_hit_count = 0
-        self._cache_miss_count = 0
+        self._block_cache_hits = 0
+        self._block_cache_misses = 0
 
         self._initialize_block_cache()
 
+    def is_stop_point(self, addr):
+        if self.project is not None and addr in self.project._sim_procedures:
+            return True
+        elif self._stop_points is not None and addr in self._stop_points:
+            return True
+        return False
 
     def _initialize_block_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
-        self._cache_hit_count = 0
-        self._cache_miss_count = 0
+        self._block_cache_hits = 0
+        self._block_cache_misses = 0
 
     def process(self, state,
             irsb=None,
@@ -87,6 +108,19 @@ class SimEngineVEX(SimEngine):
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         :returns:           A SimSuccessors object categorizing the block's successors
         """
+        if 'insn_text' in kwargs:
+
+            if insn_bytes is not None:
+                raise SimEngineError("You cannot provide both 'insn_bytes' and 'insn_text'!")
+
+            insn_bytes = \
+                self.project.arch.asm(kwargs['insn_text'], addr=kwargs.get('addr', 0),
+                                      thumb=kwargs.get('thumb', False), as_bytes=True)
+
+            if insn_bytes is None:
+                raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
+                                        " string is correct.")
+
         return super(SimEngineVEX, self).process(state, irsb,
                 skip_stmts=skip_stmts,
                 last_stmt=last_stmt,
@@ -347,16 +381,19 @@ class SimEngineVEX(SimEngine):
             state.scratch.guard = claripy.And(state.scratch.guard, cont_condition)
 
     def lift(self,
-            state=None,
-            clemory=None,
-            insn_bytes=None,
-            arch=None,
-            addr=None,
-            size=None,
-            num_inst=None,
-            traceflags=0,
-            thumb=False,
-            opt_level=None):
+             state=None,
+             clemory=None,
+             insn_bytes=None,
+             arch=None,
+             addr=None,
+             size=None,
+             num_inst=None,
+             traceflags=0,
+             thumb=False,
+             opt_level=None,
+             strict_block_end=None,
+             skip_stmts=False,
+             collect_data_refs=False):
 
         """
         Lift an IRSB.
@@ -383,6 +420,7 @@ class SimEngineVEX(SimEngine):
         :param size:            The maximum size of the block, in bytes.
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
+        :param strict_block_end:   Whether to force blocks to end at all conditional branches (default: false)
         """
         # phase 0: sanity check
         if not state and not clemory and not insn_bytes:
@@ -413,12 +451,22 @@ class SimEngineVEX(SimEngine):
                 opt_level = 1
             else:
                 opt_level = self._default_opt_level
+        if strict_block_end is None:
+            strict_block_end = self.default_strict_block_end
         if self._support_selfmodifying_code:
             if opt_level > 0:
-                l.warning("Self-modifying code is not always correctly optimized by PyVEX. To guarantee correctness, VEX optimizations have been disabled.")
+                l.warning("Self-modifying code is not always correctly optimized by PyVEX. "
+                          "To guarantee correctness, VEX optimizations have been disabled.")
                 opt_level = 0
                 if state and o.OPTIMIZE_IR in state.options:
                     state.options.remove(o.OPTIMIZE_IR)
+        if skip_stmts is not True:
+            skip_stmts = False
+
+        use_cache = self._use_cache
+        if skip_stmts or collect_data_refs:
+            # Do not cache the blocks if skip_stmts or collect_data_refs are enabled
+            use_cache = False
 
         # phase 2: thumb normalization
         thumb = int(thumb)
@@ -432,24 +480,34 @@ class SimEngineVEX(SimEngine):
             thumb = 0
 
         # phase 3: check cache
-        cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
-        if self._use_cache and cache_key in self._block_cache:
-            self._cache_hit_count += 1
-            irsb = self._block_cache[cache_key]
-            stop_point = self._first_stoppoint(irsb)
-            if stop_point is None:
-                return irsb
-            else:
-                size = stop_point - addr
-                # check the cache again
-                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
-                if cache_key in self._block_cache:
-                    self._cache_hit_count += 1
-                    return self._block_cache[cache_key]
+        cache_key = None
+        if use_cache:
+            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
+            if cache_key in self._block_cache:
+                self._block_cache_hits += 1
+                irsb = self._block_cache[cache_key]
+                stop_point = self._first_stoppoint(irsb)
+                if stop_point is None:
+                    return irsb
                 else:
-                    self._cache_miss_count += 1
-        else:
-            self._cache_miss_count += 1
+                    size = stop_point - addr
+                    # check the cache again
+                    cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
+                    if cache_key in self._block_cache:
+                        self._block_cache_hits += 1
+                        return self._block_cache[cache_key]
+                    else:
+                        self._block_cache_misses += 1
+            else:
+                # a special case: `size` is used as the maximum allowed size
+                tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level, strict_block_end)
+                try:
+                    irsb = self._block_cache[tmp_cache_key]
+                    if irsb.size <= size:
+                        self._block_cache_hits += 1
+                        return self._block_cache[tmp_cache_key]
+                except KeyError:
+                    self._block_cache_misses += 1
 
         # phase 4: get bytes
         if insn_bytes is not None:
@@ -461,24 +519,28 @@ class SimEngineVEX(SimEngine):
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
 
         # phase 5: call into pyvex
-        l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
+        # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in xrange(2):
-                irsb = pyvex.IRSB(buff, addr + thumb, arch,
-                                  num_bytes=size,
-                                  num_inst=num_inst,
+                irsb = pyvex.lift(buff, addr + thumb, arch,
+                                  max_bytes=size,
+                                  max_inst=num_inst,
                                   bytes_offset=thumb,
                                   traceflags=traceflags,
-                                  opt_level=opt_level)
+                                  opt_level=opt_level,
+                                  strict_block_end=strict_block_end,
+                                  skip_stmts=skip_stmts,
+                                  collect_data_refs=collect_data_refs,
+                                  )
 
-                if subphase == 0:
+                if subphase == 0 and irsb.statements is not None:
                     # check for possible stop points
                     stop_point = self._first_stoppoint(irsb)
                     if stop_point is not None:
                         size = stop_point - addr
                         continue
 
-                if self._use_cache:
+                if use_cache:
                     self._block_cache[cache_key] = irsb
                 return irsb
 
@@ -486,9 +548,9 @@ class SimEngineVEX(SimEngine):
         except pyvex.PyVEXError:
             l.debug("VEX translation error at %#x", addr)
             if isinstance(buff, str):
-                l.debug('Using bytes: ' + buff)
+                l.debug('Using bytes: %r', buff)
             else:
-                l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))
+                l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
             e_type, value, traceback = sys.exc_info()
             raise SimTranslationError, ("Translation error", e_type, value), traceback
 
@@ -525,18 +587,27 @@ class SimEngineVEX(SimEngine):
 
         # If that didn't work, try to load from the state
         if size == 0 and state:
+            fallback = True
             if addr in state.memory and addr + max_size - 1 in state.memory:
-                buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=str)
-                size = max_size
-            else:
-                good_addrs = []
+                try:
+                    buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=str)
+                    size = max_size
+                    fallback = False
+                except SimError:
+                    l.warning("Cannot load bytes at %#x. Fallback to the slow path.", addr)
+
+            if fallback:
+                buff_lst = [ ]
                 for i in xrange(max_size):
                     if addr + i in state.memory:
-                        good_addrs.append(addr + i)
+                        try:
+                            buff_lst.append(chr(state.se.eval(state.memory.load(addr + i, 1, inspect=False))))
+                        except SimError:
+                            break
                     else:
                         break
 
-                buff = ''.join(chr(state.se.eval(state.memory.load(i, 1, inspect=False))) for i in good_addrs)
+                buff = ''.join(buff_lst)
                 size = len(buff)
 
         size = min(max_size, size)
@@ -547,16 +618,19 @@ class SimEngineVEX(SimEngine):
         Enumerate the imarks in the block. If any of them (after the first one) are at a stop point, returns the address
         of the stop point. None is returned otherwise.
         """
-        if self._stop_points is None:
+        if self._stop_points is None and self.project is None:
             return None
 
         first_imark = True
         for stmt in irsb.statements:
-            if isinstance(stmt, pyvex.stmt.IMark):
+            if type(stmt) is pyvex.stmt.IMark:  # pylint: disable=unidiomatic-typecheck
                 addr = stmt.addr + stmt.delta
-                if not first_imark and addr in self._stop_points:
-                    # could this part be moved by pyvex?
-                    return addr
+                if not first_imark:
+                    if self.is_stop_point(addr):
+                        # could this part be moved by pyvex?
+                        return addr
+                    if stmt.delta != 0 and self.is_stop_point(stmt.addr):
+                        return addr
 
                 first_imark = False
         return None
@@ -564,34 +638,35 @@ class SimEngineVEX(SimEngine):
     def clear_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
 
-        self._cache_hit_count = 0
-        self._cache_miss_count = 0
+        self._block_cache_hits = 0
+        self._block_cache_misses = 0
 
     #
     # Pickling
     #
 
     def __setstate__(self, state):
-        super(SimEngineVEX, self).__setstate__(state)
-
+        self.project = state['project']
         self._stop_points = state['_stop_points']
         self._use_cache = state['_use_cache']
         self._default_opt_level = state['_default_opt_level']
         self._support_selfmodifying_code = state['_support_selfmodifying_code']
         self._single_step = state['_single_step']
         self._cache_size = state['_cache_size']
+        self.default_strict_block_end = state['default_strict_block_end']
 
         # rebuild block cache
         self._initialize_block_cache()
 
     def __getstate__(self):
-        s = super(SimEngineVEX, self).__getstate__()
-
+        s = {}
+        s['project'] = self.project
         s['_stop_points'] = self._stop_points
         s['_use_cache'] = self._use_cache
         s['_default_opt_level'] = self._default_opt_level
         s['_support_selfmodifying_code'] = self._support_selfmodifying_code
         s['_single_step'] = self._single_step
         s['_cache_size'] = self._cache_size
+        s['default_strict_block_end'] = self.default_strict_block_end
 
         return s

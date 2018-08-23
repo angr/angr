@@ -1,16 +1,13 @@
 import logging
 
 from .engine import SimEngine
+from .successors import SimSuccessors
 
 l = logging.getLogger("angr.engines.hook")
 
 
-# pylint: disable=abstract-method,unused-argument
+# pylint: disable=abstract-method,unused-argument,arguments-differ
 class SimEngineHook(SimEngine):
-    def __init__(self, project):
-        super(SimEngineHook, self).__init__()
-        self.project = project
-
     def _check(self, state, procedure=None, **kwargs):
         # we have not yet entered the next step - we should check the "current" jumpkind
         if state.history.jumpkind == 'Ijk_NoHook':
@@ -22,6 +19,8 @@ class SimEngineHook(SimEngine):
 
         if procedure is None:
             if state.addr not in self.project._sim_procedures:
+                if state.arch.name.startswith('ARM') and state.addr & 1 == 1 and state.addr - 1 in self.project._sim_procedures:
+                    return True
                 return False
 
         return True
@@ -41,22 +40,12 @@ class SimEngineHook(SimEngine):
 
         if procedure is None:
             if addr not in self.project._sim_procedures:
-                return
+                if state.arch.name.startswith('ARM') and addr & 1 == 1 and addr - 1 in self.project._sim_procedures:
+                    procedure = self.project._sim_procedures[addr - 1]
+                else:
+                    return SimSuccessors.failure()
             else:
                 procedure = self.project._sim_procedures[addr]
 
         l.debug("Running %s (originally at %#x)", repr(procedure), addr)
         return self.project.factory.procedure_engine.process(state, procedure, force_addr=force_addr, **kwargs)
-
-    #
-    # Pickling
-    #
-
-    def __setstate__(self, state):
-        super(SimEngineHook, self).__setstate__(state)
-        self.project = state['project']
-
-    def __getstate__(self):
-        s = super(SimEngineHook, self).__getstate__()
-        s['project'] = self.project
-        return s

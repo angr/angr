@@ -9,6 +9,9 @@ l = logging.getLogger("angr.procedures.libc.sprintf")
 ######################################
 
 class sprintf(FormatParser):
+
+    ARGS_MISMATCH = True
+
     #pylint:disable=arguments-differ
 
     def run(self, dst_ptr):

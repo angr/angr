@@ -48,6 +48,7 @@ class SimProcedure(object):
         self.display_name = type(self).__name__ if display_name is None else display_name
         self.library_name = library_name
         self.syscall_number = None
+        self.abi = None
         self.symbolic_return = symbolic_return
 
         # types
@@ -138,8 +139,10 @@ class SimProcedure(object):
                 if state.callstack.top.procedure_data is None:
                     raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
-                saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
+                saved_sp, sim_args, saved_local_vars, saved_lr = state.callstack.top.procedure_data
                 state.regs.sp = saved_sp
+                if saved_lr is not None:
+                    state.regs.lr = saved_lr
                 inst.arguments = sim_args
                 inst.use_state_arguments = True
                 inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
@@ -159,7 +162,7 @@ class SimProcedure(object):
             l.debug("Executing %s%s%s%s with %s, %s",
                     inst.display_name,
                     ' (syscall)' if inst.is_syscall else '',
-                    ' (inline)' if inst.use_state_arguments else '',
+                    ' (inline)' if not inst.use_state_arguments else '',
                     ' (stub)' if inst.is_stub else '',
                     sim_args,
                     inst.kwargs)
@@ -189,6 +192,9 @@ class SimProcedure(object):
     ADDS_EXITS = False      # set this to true if you do any control flow other than returning
     IS_SYSCALL = False      # self-explanatory.
     IS_FUNCTION = True      # does this procedure simulate a function?
+    ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
+                            # function specification? This may happen when we manually extract arguments in the run()
+                            # method of a SimProcedure.
 
     local_vars = ()         # if you use self.call(), set this to a list of all the local variable
                             # names in your class. They will be restored on return.
@@ -337,7 +343,7 @@ class SimProcedure(object):
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars)
+        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars, self.state.regs.lr if self.state.arch.lr_offset is not None else None)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
 

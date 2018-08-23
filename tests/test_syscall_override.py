@@ -36,7 +36,7 @@ def run_fauxware_override(arch):
     s = p.factory.full_init_state()
 
     def overwrite_str(state):
-        state.posix.write(1, state.se.BVV("HAHA\0"), 5)
+        state.posix.get_fd(1).write_data("HAHA\0")
 
     #s.posix.queued_syscall_returns = [ ] #[ lambda s,run: __import__('ipdb').set_trace() ] * 1000
     s.posix.queued_syscall_returns.append(None) # let the mmap run

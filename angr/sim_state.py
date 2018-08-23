@@ -9,7 +9,10 @@ l = logging.getLogger("angr.sim_state")
 import claripy
 import ana
 from archinfo import arch_from_id
+
 from .misc.ux import deprecated
+from .misc.plugins import PluginHub, PluginPreset
+from .sim_state_options import SimStateOptions
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -21,12 +24,11 @@ def arch_overrideable(f):
             return f(self, *args, **kwargs)
     return wrapped_f
 
-from .state_plugins import default_plugins
-
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
-class SimState(ana.Storable): # pylint: disable=R0904
+# pylint: disable=not-callable
+class SimState(PluginHub, ana.Storable):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
@@ -39,6 +41,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     :ivar log:          Information about the state's history
     :ivar scratch:      Information about the current execution step
     :ivar posix:        MISNOMER: information about the operating system or environment model
+    :ivar fs:           The current state of the simulated filesystem
     :ivar libc:         Information about the standard library we are emulating
     :ivar cgc:          Information about the cgc environment
     :ivar uc_manager:   Control of under-constrained symbolic execution
@@ -46,7 +49,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
     """
 
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
+                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default'):
+        super(SimState, self).__init__()
         self.project = project
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
@@ -60,41 +64,68 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 mode = "symbolic"
             options = o.modes[mode]
 
-        options = set(options)
+        if isinstance(options, (set, list)):
+            options = SimStateOptions(options)
         if add_options is not None:
             options |= add_options
         if remove_options is not None:
             options -= remove_options
-        self.options = options
+        self._options = options
         self.mode = mode
 
-        # plugins
-        self.plugins = { }
+        if plugin_preset is not None:
+            self.use_plugin_preset(plugin_preset)
+
         if plugins is not None:
             for n,p in plugins.iteritems():
-                self.register_plugin(n, p)
+                self.register_plugin(n, p, inhibit_init=True)
+            for p in plugins.itervalues():
+                p.init_state()
 
         if not self.has_plugin('memory'):
-            # we don't set the memory endness because, unlike registers, it's hard to understand
-            # which endness the data should be read
+            # We don't set the memory endness because, unlike registers, it's hard to understand
+            # which endness the data should be read.
+
+            # If they didn't provide us with either a memory plugin or a plugin preset to use,
+            # we have no choice but to use the 'default' plugin preset.
+            if self.plugin_preset is None:
+                self.use_plugin_preset('default')
 
             if o.ABSTRACT_MEMORY in self.options:
-                # We use SimAbstractMemory in static mode
-                # Convert memory_backer into 'global' region
+                # We use SimAbstractMemory in static mode.
+                # Convert memory_backer into 'global' region.
                 if memory_backer is not None:
                     memory_backer = {'global': memory_backer}
 
                 # TODO: support permissions backer in SimAbstractMemory
-                self.register_plugin('memory', SimAbstractMemory(memory_backer=memory_backer, memory_id="mem"))
+                sim_memory_cls = self.plugin_preset.request_plugin('abs_memory')
+                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+
             elif o.FAST_MEMORY in self.options:
-                self.register_plugin('memory', SimFastMemory(memory_backer=memory_backer, memory_id="mem"))
+                sim_memory_cls = self.plugin_preset.request_plugin('fast_memory')
+                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+
             else:
-                self.register_plugin('memory', SimSymbolicMemory(memory_backer=memory_backer, permissions_backer=permissions_backer, memory_id="mem"))
+                sim_memory_cls = self.plugin_preset.request_plugin('sym_memory')
+                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem',
+                                            permissions_backer=permissions_backer)
+
+            self.register_plugin('memory', sim_memory)
+
         if not self.has_plugin('registers'):
+
+            # Same as for 'memory' plugin.
+            if self.plugin_preset is None:
+                self.use_plugin_preset('default')
+
             if o.FAST_REGISTERS in self.options:
-                self.register_plugin('registers', SimFastMemory(memory_id="reg", endness=self.arch.register_endness))
+                sim_registers_cls = self.plugin_preset.request_plugin('fast_memory')
+                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
             else:
-                self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
+                sim_registers_cls = self.plugin_preset.request_plugin('sym_memory')
+                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
+
+            self.register_plugin('registers', sim_registers)
 
         # OS name
         self.os_name = os_name
@@ -115,13 +146,14 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
-        s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k not in ('inspector', 'regs', 'mem') }
+        s = { k:v for k,v in s.iteritems() if k not in ('inspect', 'regs', 'mem')}
+        s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].iteritems() if k not in ('inspect', 'regs', 'mem') }
         return s
 
     def _ana_setstate(self, s):
         ana.Storable._ana_setstate(self, s)
         for p in self.plugins.values():
-            p.set_state(self._get_weakref() if not isinstance(p, SimAbstractMemory) else self)
+            p.set_state(self)
             if p.STRONGREF_STATE:
                 p.set_strongref_state(self)
 
@@ -142,6 +174,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
     #
     # Easier access to some properties
     #
+
+    @property
+    def plugins(self):
+        # TODO: This shouldn't be access directly.
+        return self._active_plugins
+
+    @property
+    def se(self):
+        # TODO: Deprecate this
+        return self.get_plugin('solver')
 
     @property
     def ip(self):
@@ -186,100 +228,31 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :return: an int
         """
 
-        return self.se.eval_one(self.regs._ip)
+        return self.solver.eval_one(self.regs._ip)
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, v):
+        if isinstance(v, (set, list)):
+            self._options = SimStateOptions(v)
+        elif isinstance(v, SimStateOptions):
+            self._options = v
+        else:
+            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
 
     #
     # Plugin accessors
     #
 
-    def __getattr__(self, v):
-        try:
-            return self.get_plugin(v)
-        except KeyError:
-            raise AttributeError(v)
-
-    @property
-    def memory(self):
-        return self.get_plugin('memory')
-
-    @property
-    def registers(self):
-        return self.get_plugin('registers')
-
-    @property
-    def se(self):
-        return self.get_plugin('solver_engine')
-
-    @property
-    def solver(self):
-        return self.get_plugin('solver_engine')
-
-    @property
-    def inspect(self):
-        return self.get_plugin('inspector')
-
-    @property
-    def log(self):
-        return self.get_plugin('log')
-
-    @property
-    def scratch(self):
-        return self.get_plugin('scratch')
-
-    @property
-    def history(self):
-        return self.get_plugin('history')
-
-    @property
-    def posix(self):
-        return self.get_plugin('posix')
-
-    @property
-    def libc(self):
-        return self.get_plugin('libc')
-
-    @property
-    def cgc(self):
-        return self.get_plugin('cgc')
-
-    @property
-    def regs(self):
-        return self.get_plugin('regs')
-
-    @property
-    def mem(self):
-        return self.get_plugin('mem')
-
-    @property
-    def gdb(self):
-        return self.get_plugin('gdb')
-
-    @property
-    def globals(self):
-        return self.get_plugin('globals')
-
-    @property
-    def uc_manager(self):
-        return self.get_plugin('uc_manager')
-
-    @property
-    def unicorn(self):
-        return self.get_plugin('unicorn')
-
-    @property
-    def preconstrainer(self):
-        return self.get_plugin('preconstrainer')
-    
-    @property
-    def callstack(self):
-        return self.get_plugin('callstack')
-
     def _inspect(self, *args, **kwargs):
-        if self.has_plugin('inspector'):
+        if self.has_plugin('inspect'):
             self.inspect.action(*args, **kwargs)
 
     def _inspect_getattr(self, attr, default_value):
-        if self.has_plugin('inspector'):
+        if self.has_plugin('inspect'):
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
 
@@ -289,28 +262,22 @@ class SimState(ana.Storable): # pylint: disable=R0904
     # Plugins
     #
 
-    def has_plugin(self, name):
-        return name in self.plugins
-
-    def get_plugin(self, name):
-        if name not in self.plugins:
-            p = default_plugins[name]()
-            self.register_plugin(name, p)
-            return p
-        return self.plugins[name]
-
-    def register_plugin(self, name, plugin):
+    def register_plugin(self, name, plugin, inhibit_init=False): # pylint: disable=arguments-differ
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
-        plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
-        if plugin.STRONGREF_STATE:
-            plugin.set_strongref_state(self)
-        self.plugins[name] = plugin
-        plugin.init_state()
+        self._set_plugin_state(plugin, inhibit_init=inhibit_init)
+        return super(SimState, self).register_plugin(name, plugin)
+
+    def _init_plugin(self, plugin_cls):
+        plugin = plugin_cls()
+        self._set_plugin_state(plugin)
         return plugin
 
-    def release_plugin(self, name):
-        if name in self.plugins:
-            del self.plugins[name]
+    def _set_plugin_state(self, plugin, inhibit_init=False):
+        plugin.set_state(self)
+        if plugin.STRONGREF_STATE:
+            plugin.set_strongref_state(self)
+        if not inhibit_init:
+            plugin.init_state()
 
     #
     # Constraint pass-throughs
@@ -320,7 +287,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         """
         Simplify this state's constraints.
         """
-        return self.se.simplify(*args)
+        return self.solver.simplify(*args)
 
     def add_constraints(self, *args, **kwargs):
         """
@@ -339,7 +306,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
             self._inspect('constraints', BP_BEFORE, added_constraints=constraints)
             constraints = self._inspect_getattr("added_constraints", constraints)
-            added = self.se.add(*constraints)
+            added = self.solver.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
             # add actions for the added constraints
@@ -354,17 +321,17 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 o.TRACK_CONSTRAINT_ACTIONS in self.options and len(args) > 0
             ):
                 for arg in args:
-                    if self.se.symbolic(arg):
+                    if self.solver.symbolic(arg):
                         sac = SimActionConstraint(self, arg)
                         self.history.add_action(sac)
 
         if o.ABSTRACT_SOLVER in self.options and len(args) > 0:
             for arg in args:
-                if self.se.is_false(arg):
+                if self.solver.is_false(arg):
                     self._satisfiable = False
                     return
 
-                if self.se.is_true(arg):
+                if self.solver.is_true(arg):
                     continue
 
                 # `is_true` and `is_false` does not use VSABackend currently (see commits 97a75366 and 2dfba73e in
@@ -382,12 +349,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
                 # then replace each original SI the intersection of original SI and the constrained one.
 
-                _, converted = self.se.constraint_to_si(arg)
+                _, converted = self.solver.constraint_to_si(arg)
 
                 for original_expr, constrained_si in converted:
                     if not original_expr.variables:
-                        l.error('Incorrect original_expression to replace in add_constraints(). ' +
-                                'This is due to defects in VSA logics inside claripy. Please report ' +
+                        l.error('Incorrect original_expression to replace in add_constraints(). '
+                                'This is due to defects in VSA logics inside claripy. Please report '
                                 'to Fish and he will fix it if he\'s free.')
                         continue
 
@@ -399,7 +366,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     l.debug("SimState.add_constraints: Applied to final state.")
         elif o.SYMBOLIC not in self.options and len(args) > 0:
             for arg in args:
-                if self.se.is_false(arg):
+                if self.solver.is_false(arg):
                     self._satisfiable = False
                     return
 
@@ -410,20 +377,20 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if o.ABSTRACT_SOLVER in self.options or o.SYMBOLIC not in self.options:
             extra_constraints = kwargs.pop('extra_constraints', ())
             for e in extra_constraints:
-                if self.se.is_false(e):
+                if self.solver.is_false(e):
                     return False
 
             return self._satisfiable
         else:
-            return self.se.satisfiable(**kwargs)
+            return self.solver.satisfiable(**kwargs)
 
     def downsize(self):
         """
         Clean up after the solver engine. Calling this when a state no longer needs to be solved on will reduce memory
         usage.
         """
-        if 'solver_engine' in self.plugins:
-            self.se.downsize()
+        if 'solver' in self.plugins:
+            self.solver.downsize()
 
     #
     # State branching operations
@@ -453,11 +420,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def _copy_plugins(self):
         memo = {}
         out = {}
-        for n, p in self.plugins.iteritems():
+        for n, p in self._active_plugins.iteritems():
             if id(p) in memo:
                 out[n] = memo[id(p)]
             else:
-                out[n] = p.copy()
+                out[n] = p.copy(memo)
                 memo[id(p)] = out[n]
 
         return out
@@ -471,7 +438,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
             raise SimStateError("global condition was not cleared before state.copy().")
 
         c_plugins = self._copy_plugins()
-        state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options, mode=self.mode, os_name=self.os_name)
+        state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options.copy(),
+                         mode=self.mode, os_name=self.os_name)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler
@@ -508,12 +476,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-            merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
+            merge_flag = self.solver.BVS("state_merge_%d" % merge_counter.next(), 16)
             merge_values = range(len(others)+1)
             merge_conditions = [ merge_flag == b for b in merge_values ]
         else:
             merge_conditions = [
-                (self.se.true if len(mc) == 0 else self.se.And(*mc)) for mc in merge_conditions
+                (self.solver.true if len(mc) == 0 else self.solver.And(*mc)) for mc in merge_conditions
             ]
 
         if len(set(o.arch.name for o in others)) != 1:
@@ -569,7 +537,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 l.debug('Merging occurred in %s', p)
                 merging_occurred = True
 
-        merged.add_constraints(merged.se.Or(*merge_conditions))
+        merged.add_constraints(merged.solver.Or(*merge_conditions))
         return merged, merge_conditions, merging_occurred
 
     def widen(self, *others):
@@ -589,7 +557,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         # plugins
         for p in self.plugins:
-            if p in ('solver_engine', 'unicorn'):
+            if p in ('solver', 'unicorn'):
                 continue
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
             if plugin_state_widened:
@@ -608,9 +576,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         raises a SimValueError.
         """
         e = self.registers.load(*args, **kwargs)
-        if self.se.symbolic(e):
+        if self.solver.symbolic(e):
             raise SimValueError("target of reg_concrete is symbolic!")
-        return self.se.eval(e)
+        return self.solver.eval(e)
 
     def mem_concrete(self, *args, **kwargs):
         """
@@ -618,9 +586,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         raises a SimValueError.
         """
         e = self.memory.load(*args, **kwargs)
-        if self.se.symbolic(e):
+        if self.solver.symbolic(e):
             raise SimValueError("target of mem_concrete is symbolic!")
-        return self.se.eval(e)
+        return self.solver.eval(e)
 
     ###############################
     ### Stack operation helpers ###
@@ -665,10 +633,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if isinstance(expr, (int, long)):
             return expr
 
-        if not self.se.symbolic(expr):
-            return self.se.eval(expr)
+        if not self.solver.symbolic(expr):
+            return self.solver.eval(expr)
 
-        v = self.se.eval(expr)
+        v = self.solver.eval(expr)
         self.add_constraints(expr == v)
         return v
 
@@ -688,10 +656,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         strings = [ ]
         for stack_value in stack_values:
-            if self.se.symbolic(stack_value):
+            if self.solver.symbolic(stack_value):
                 concretized_value = "SYMBOLIC - %s" % repr(stack_value)
             else:
-                if len(self.se.eval_upto(stack_value, 2)) == 2:
+                if len(self.solver.eval_upto(stack_value, 2)) == 2:
                     concretized_value = repr(stack_value)
                 else:
                     concretized_value = repr(stack_value)
@@ -709,17 +677,17 @@ class SimState(ana.Storable): # pylint: disable=R0904
         var_size = self.arch.bits / 8
         sp_sim = self.regs._sp
         bp_sim = self.regs._bp
-        if self.se.symbolic(sp_sim) and sp is None:
+        if self.solver.symbolic(sp_sim) and sp is None:
             result = "SP is SYMBOLIC"
-        elif self.se.symbolic(bp_sim) and depth is None:
+        elif self.solver.symbolic(bp_sim) and depth is None:
             result = "BP is SYMBOLIC"
         else:
-            sp_value = sp if sp is not None else self.se.eval(sp_sim)
-            if self.se.symbolic(bp_sim):
+            sp_value = sp if sp is not None else self.solver.eval(sp_sim)
+            if self.solver.symbolic(bp_sim):
                 result = "SP = 0x%08x, BP is symbolic\n" % (sp_value)
                 bp_value = None
             else:
-                bp_value = self.se.eval(bp_sim)
+                bp_value = self.solver.eval(bp_sim)
                 result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth is None:
                 # bp_value cannot be None here
@@ -760,7 +728,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def set_mode(self, mode):
         self.mode = mode
-        self.options = set(o.modes[mode])
+        self.options = SimStateOptions(o.modes[mode])
 
     @property
     def thumb(self):
@@ -774,7 +742,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return new_state.satisfiable()
 
         else:
-            concrete_ip = self.se.eval(self.regs.ip)
+            concrete_ip = self.solver.eval(self.regs.ip)
             return concrete_ip % 2 == 1
 
     #
@@ -787,7 +755,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         def ctx(c):
             old_condition = self._global_condition
             try:
-                new_condition = c if old_condition is None else self.se.And(old_condition, c)
+                new_condition = c if old_condition is None else self.solver.And(old_condition, c)
                 self._global_condition = new_condition
                 yield
             finally:
@@ -801,7 +769,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         elif c is None:
             return self._global_condition
         else:
-            return self.se.And(self._global_condition, c)
+            return self.solver.And(self._global_condition, c)
 
     def _adjust_condition_list(self, conditions):
         if self._global_condition is None:
@@ -809,7 +777,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         elif len(conditions) == 0:
             return conditions.__class__((self._global_condition,))
         else:
-            return conditions.__class__((self._adjust_condition(self.se.And(*conditions)),))
+            return conditions.__class__((self._adjust_condition(self.solver.And(*conditions)),))
 
     #
     # Compatibility layer
@@ -825,7 +793,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @property
     def jumpkind(self):
-        return self.scratch.jumpkind
+        return self.history.jumpkind
 
     @property
     def last_actions(self):
@@ -867,15 +835,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def reachable(self):
         return self.history.reachable()
 
-    @deprecated
+    @deprecated()
     def trim_history(self):
         self.history.trim()
 
-from .state_plugins.symbolic_memory import SimSymbolicMemory
-from .state_plugins.fast_memory import SimFastMemory
-from .state_plugins.abstract_memory import SimAbstractMemory
+default_state_plugin_preset = PluginPreset()
+SimState.register_preset('default', default_state_plugin_preset)
+
 from .state_plugins.history import SimStateHistory
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
+
 from . import sim_options as o
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, AngrNoPluginError

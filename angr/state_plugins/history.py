@@ -59,9 +59,7 @@ class SimStateHistory(SimStatePlugin):
 
         self.strongref_state = None if clone is None else clone.strongref_state
 
-    def set_state(self, state):
-        super(SimStateHistory, self).set_state(state)
-
+    def init_state(self):
         self.successor_ip = self.state._ip
 
     def __getstate__(self):
@@ -137,18 +135,19 @@ class SimStateHistory(SimStatePlugin):
 
         return True
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         l.warning("history widening is not implemented!")
         return # TODO
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimStateHistory(clone=self)
 
     def trim(self):
         """
         Discard the ancestry of this state.
         """
-        new_hist = self.copy()
+        new_hist = self.copy({})
         new_hist.parent = None
         self.state.register_plugin('history', new_hist)
 
@@ -196,18 +195,16 @@ class SimStateHistory(SimStatePlugin):
                 write_type = 'mem'
                 write_offset = write_to
 
-        """
-        def addr_of_stmt(bbl_addr, stmt_idx):
-            if stmt_idx is None:
-                return None
-            stmts = self.state.project.factory.block(bbl_addr).vex.statements
-            if stmt_idx >= len(stmts):
-                return None
-            for i in reversed(xrange(stmt_idx + 1)):
-                if stmts[i].tag == 'Ist_IMark':
-                    return stmts[i].addr + stmts[i].delta
-            return None
-        """
+        #def addr_of_stmt(bbl_addr, stmt_idx):
+        #    if stmt_idx is None:
+        #        return None
+        #    stmts = self.state.project.factory.block(bbl_addr).vex.statements
+        #    if stmt_idx >= len(stmts):
+        #        return None
+        #    for i in reversed(xrange(stmt_idx + 1)):
+        #        if stmts[i].tag == 'Ist_IMark':
+        #            return stmts[i].addr + stmts[i].delta
+        #    return None
 
         def action_reads(action):
             if action.type != read_type:
@@ -522,6 +519,10 @@ class LambdaIterIter(LambdaAttrIter):
             for a in reversed(self._f(hist)) if self._reverse else self._f(hist):
                 yield a
 
-SimStateHistory.register_default('history', SimStateHistory)
+
+from angr.sim_state import SimState
+SimState.register_default('history', SimStateHistory)
+
+
 from .sim_action import SimAction, SimActionConstraint
 from .sim_event import SimEvent

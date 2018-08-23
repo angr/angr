@@ -45,6 +45,8 @@ try:
     signal.signal(signal.SIGUSR2, handler)
 except AttributeError:
     l.info("Platform doesn't support SIGUSR")
+except ValueError:
+    l.info("angr imported from non-main thread")
 
 # function that produces unpredictable results that should appease pylint's
 # static analysis and stop giving us those awful errors!!!!
@@ -517,4 +519,4 @@ class Surveyor(object):
 from ..errors import AngrError, PathUnreachableError, SimUnsatError, SimError
 from ..state_hierarchy import StateHierarchy
 from . import all_surveyors
-from ..manager import ErrorRecord
+from ..sim_manager import ErrorRecord

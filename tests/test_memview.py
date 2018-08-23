@@ -4,6 +4,7 @@ import ctypes
 
 from archinfo import Endness
 from angr import SimState
+from angr.sim_type import register_types, parse_types
 
 def test_simple_concrete():
     s = SimState(arch="AMD64")
@@ -83,6 +84,20 @@ def test_pointer_concrete():
     s.mem[ptraddr].deref.dword = 123954
     nose.tools.assert_equal(s.se.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int), 123954)
     nose.tools.assert_equal(s.mem[ptraddr].deref.dword.concrete, 123954)
+
+def test_structs():
+    s = SimState(arch='AMD64')
+
+    register_types(parse_types("""
+struct abcd {
+  int a;
+  long b;
+};
+"""))
+
+    s.mem[0x8000].struct.abcd = {'a': 10, 'b': 20}
+    assert s.mem[0x8000].struct.abcd.a.concrete == 10
+    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=str) == '0a000000000000001400000000000000'.decode('hex')
 
 
 if __name__ == '__main__':

@@ -106,7 +106,7 @@ class Blade(object):
                 else:
                     stmt_str = str(stmt)
 
-                block_str += "%02s: %s\n" % ("+" if i in included_stmts else "-",
+                block_str += "%02s: %s\n" % ("+" if i in included_stmts else " ",
                                    stmt_str
                                    )
 
@@ -245,7 +245,7 @@ class Blade(object):
                            target_stack_offsets=None,
                            inslice_callback=self._inslice_callback,
                            inslice_callback_infodict={
-                               'irsb_addr':  self._get_irsb(self._dst_run)._addr,
+                               'irsb_addr':  self._get_irsb(self._dst_run).addr,
                                'prev': prev,
                            })
         regs = slicer.final_regs
@@ -267,6 +267,9 @@ class Blade(object):
 
             for pred, _, data in in_edges:
                 if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
+                    continue
+                if self.project.is_hooked(pred.addr):
+                    # Skip SimProcedures
                     continue
                 self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev,
                                                data.get('stmt_idx', None)
@@ -336,6 +339,9 @@ class Blade(object):
 
             for pred, _, data in in_edges:
                 if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
+                    continue
+                if self.project.is_hooked(pred.addr):
+                    # Stop at SimProcedures
                     continue
 
                 self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))

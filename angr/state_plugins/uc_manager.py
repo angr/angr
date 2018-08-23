@@ -39,11 +39,8 @@ class SimUCManager(SimStatePlugin):
         """
 
         if dst_addr_ast.uc_alloc_depth > self._max_alloc_depth:
-            raise SimUCManagerAllocationError(
-                'Current allocation depth %d is greater than the cap (%d)',
-                dst_addr_ast.uc_alloc_depth,
-                self._max_alloc_depth
-            )
+            raise SimUCManagerAllocationError('Current allocation depth %d is greater than the cap (%d)' % \
+                (dst_addr_ast.uc_alloc_depth, self._max_alloc_depth))
 
         abs_addr = self._region_base + self._pos
         ptr = self.state.se.BVV(abs_addr, self.state.arch.bits)
@@ -54,7 +51,8 @@ class SimUCManager(SimStatePlugin):
         l.debug("Assigned new memory region %s", ptr)
         return ptr
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimUCManager(man=self)
 
     def get_alloc_depth(self, addr):
@@ -75,8 +73,10 @@ class SimUCManager(SimStatePlugin):
 
         return len(ast.variables.intersection(self.state.se._solver.variables)) != 0
 
-    def set_state(self, s):
-        SimStatePlugin.set_state(self, s)
+    def set_state(self, state):
+        super(SimUCManager, self).set_state(state)
         self._region_base = 0xd0 << (self.state.arch.bits - 8)
 
-SimStatePlugin.register_default('uc_manager', SimUCManager)
+
+from angr.sim_state import SimState
+SimState.register_default('uc_manager', SimUCManager)

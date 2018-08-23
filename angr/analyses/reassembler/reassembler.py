@@ -1480,4 +1480,5 @@ class Reassembler(Analysis):
         else:
             return data
 
-register_analysis(Reassembler, 'Reassembler')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('Reassembler', Reassembler)

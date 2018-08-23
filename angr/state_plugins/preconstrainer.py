@@ -1,8 +1,9 @@
 import logging
+import claripy
 
 from .plugin import SimStatePlugin
 from .. import sim_options as o
-from ..storage.file import SimDialogue
+from ..errors import AngrError
 
 
 l = logging.getLogger("angr.state_plugins.preconstrainer")
@@ -10,44 +11,31 @@ l = logging.getLogger("angr.state_plugins.preconstrainer")
 
 class SimStatePreconstrainer(SimStatePlugin):
     """
-    This state plugin handles preconstraints for tracer (or maybe for something else as well).
+    This state plugin manages the concept of preconstraining - adding constraints which you would like to remove later.
+
+    :param constrained_addrs : Addresses which have had constraints applied to them and should not be removed.
     """
 
-    def __init__(self, input_content=None, magic_content=None, preconstrain_input=True,
-                 preconstrain_flag=True, constrained_addrs=None):
-        """
-        :param input_content     : Concrete input to feed to binary.
-        :param magic_content     : CGC magic flag page.
-        :param preconstrain_input: Should the path be preconstrained to the provided input?
-        :param preconstrain_flag : Should the path have the CGC flag page preconstrained?
-        :param constrained_addrs : Addresses which have had constraints applied to them and should not be removed.
-        """
+    def __init__(self, constrained_addrs=None):
         SimStatePlugin.__init__(self)
 
-        self.input_content = input_content
-        self._magic_content = magic_content
-        self._preconstrain_input = preconstrain_input
-        self._preconstrain_flag = preconstrain_flag
         # map of variable string names to preconstraints, for re-applying constraints.
         self.variable_map = {}
         self.preconstraints = []
         self._constrained_addrs = [] if constrained_addrs is None else constrained_addrs
         self.address_concretization = []
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         l.warning("Merging is not implemented for preconstrainer!")
         return False
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         l.warning("Widening is not implemented for preconstrainer!")
         return False
 
-    def copy(self):
-        c = SimStatePreconstrainer(input_content=self.input_content,
-                                   magic_content=self._magic_content,
-                                   preconstrain_input=self._preconstrain_input,
-                                   preconstrain_flag=self._preconstrain_flag,
-                                   constrained_addrs=self._constrained_addrs)
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
+        c = SimStatePreconstrainer(constrained_addrs=self._constrained_addrs)
 
         c.variable_map = dict(self.variable_map)
         c.preconstraints = list(self.preconstraints)
@@ -55,72 +43,74 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         return c
 
-    def _preconstrain(self, b, v):
-        b_bvv = self.state.se.BVV(b)
-        c = (v == b_bvv)
+    def preconstrain(self, value, variable):
+        """
+        Add a preconstraint that ``variable == value`` to the state.
+
+        :param value:       The concrete value. Can be a bitvector or a bytestring or an integer.
+        :param variable:    The BVS to preconstrain.
+        """
+        if not isinstance(value, claripy.ast.Base):
+            value = self.state.solver.BVV(value, len(variable))
+        elif value.op != 'BVV':
+            raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
+
+        constraint = variable == value
+        l.debug("Preconstraint: %s", constraint)
+
         # add the constraint for reconstraining later
-        self.variable_map[list(v.variables)[0]] = c
-        self.preconstraints.append(c)
+        self.variable_map[next(iter(variable.variables))] = constraint
+        self.preconstraints.append(constraint)
         if o.REPLACEMENT_SOLVER in self.state.options:
-            self.state.se._solver.add_replacement(v, b_bvv, invalidate_cache=False)
+            self.state.solver._solver.add_replacement(variable, value, invalidate_cache=False)
+        else:
+            self.state.add_constraints(*self.preconstraints)
+        if not self.state.satisfiable():
+            l.warning("State went unsat while adding preconstraints")
 
-    def preconstrain_state(self):
+    def preconstrain_file(self, content, simfile, set_length=False):
         """
-        Preconstrain the entry state to the input.
+        Preconstrain the contents of a file.
+
+        :param content:     The content to preconstrain the file to. Can be a bytestring or a list thereof.
+        :param simfile:     The actual simfile to preconstrain
         """
-
-        if not self._preconstrain_input:
-            return
-
-        l.debug("Preconstrain input is %r", self.input_content)
-
         repair_entry_state_opts = False
         if o.TRACK_ACTION_HISTORY in self.state.options:
             repair_entry_state_opts = True
             self.state.options -= {o.TRACK_ACTION_HISTORY}
 
-        stdin = self.state.posix.get_file(0)
-        if type(self.input_content) is str: # not a PoV, just raw input
-            for b in self.input_content:
-                self._preconstrain(b, stdin.read_from(1))
+        if set_length: # disable read bounds
+            simfile.has_end = False
 
-        elif type(self.input_content.getattr('stdin', None)) is SimDialogue: # a PoV, need to navigate the dialogue
-            for write in self.input_content.writes:
-                for b in write:
-                    self._preconstrain(b, stdin.read_from(1))
-        else:
-            l.error("Preconstrainer currently only supports a string or a TracerPoV as input content.")
-            return
+        pos = 0
+        for write in content:
+            data, length, pos = simfile.read(pos, len(write), short_reads=False)
+            if not claripy.is_true(length == len(write)):
+                raise AngrError("Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file")
+            self.preconstrain(write, data)
 
-        stdin.seek(0)
+        # if the file is a stream, reset its position
+        if simfile.pos is not None:
+            simfile.pos = 0
+
+        if set_length: # enable read bounds; size is now maximum size
+            simfile.has_end = True
 
         if repair_entry_state_opts:
             self.state.options |= {o.TRACK_ACTION_HISTORY}
 
-        # add the preconstraints to the actual constraints on the state if we aren't replacing
-        if o.REPLACEMENT_SOLVER not in self.state.options:
-            self.state.add_constraints(*self.preconstraints)
-
-    def preconstrain_flag_page(self):
+    def preconstrain_flag_page(self, magic_content):
         """
         Preconstrain the data in the flag page.
+
+        :param magic_content:   The content of the magic page as a bytestring.
         """
-
-        if not self._preconstrain_flag:
-            return
-
-        if self._magic_content is None:
-            e_msg = "Trying to preconstrain flag page without CGC magic content. "
-            e_msg += "You should have set record_magic flag for Runner dynamic tracing. "
-            e_msg += "For now, nothing will happen."
-            l.warning(e_msg)
-            return
-
-        for b in range(0x1000):
-            self._preconstrain(self._magic_content[b], self.state.cgc.flag_bytes[b])
+        for m, v in zip(magic_content, self.state.cgc.flag_bytes):
+            self.preconstrain(m, v)
 
     def remove_preconstraints(self, to_composite_solver=True, simplify=True):
-        if not (self._preconstrain_input or self._preconstrain_flag):
+        if not self.preconstraints:
             return
 
         # cache key set creation
@@ -143,18 +133,18 @@ class SimStatePreconstrainer(SimStatePlugin):
             self.state.options.discard(o.REPLACEMENT_SOLVER)
             self.state.options.add(o.COMPOSITE_SOLVER)
 
-        self.state.release_plugin('solver_engine')
+        self.state.release_plugin('solver')
         self.state.add_constraints(*new_constraints)
 
         l.debug("downsizing unpreconstrained state")
         self.state.downsize()
 
         if simplify:
-            l.debug("simplifying solver")
-            self.state.se.simplify()
-            l.debug("simplification done")
+            l.debug("simplifying solver...")
+            self.state.solver.simplify()
+            l.debug("...simplification done")
 
-        self.state.se._solver.result = None
+        self.state.solver._solver.result = None
 
     def reconstrain(self):
         """
@@ -163,7 +153,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         """
 
         # test all solver splits
-        subsolvers = self.state.se._solver.split()
+        subsolvers = self.state.solver._solver.split()
 
         for solver in subsolvers:
             solver.timeout = 1000 * 10  # 10 seconds
@@ -175,4 +165,5 @@ class SimStatePreconstrainer(SimStatePlugin):
                         l.warning("var %s not found in self.variable_map", var)
 
 
-SimStatePlugin.register_default('preconstrainer', SimStatePreconstrainer)
+from angr.sim_state import SimState
+SimState.register_default('preconstrainer', SimStatePreconstrainer)

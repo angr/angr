@@ -12,11 +12,9 @@ class SimEngineUnicorn(SimEngine):
     """
     Concrete execution in the Unicorn Engine, a fork of qemu.
     """
-    def __init__(self, base_stop_points=None):
-
-        super(SimEngineUnicorn, self).__init__()
-
-        self.base_stop_points = base_stop_points
+    def __init__(self, project):
+        super(SimEngineUnicorn, self).__init__(project)
+        self.base_stop_points = project._sim_procedures
 
     def process(self, state,
             step=None,
@@ -96,7 +94,7 @@ class SimEngineUnicorn(SimEngine):
         successors.sort = 'Unicorn'
 
         # add all instruction breakpoints as extra_stop_points
-        if state.has_plugin('inspector'):
+        if state.has_plugin('inspect'):
             for bp in state.inspect._breakpoints['instruction']:
                 # if there is an instruction breakpoint on every instruction, it does not make sense
                 # to use unicorn.
@@ -135,7 +133,7 @@ class SimEngineUnicorn(SimEngine):
         state.history.recent_description = description
 
         # this can be expensive, so check first
-        if state.has_plugin('inspector'):
+        if state.has_plugin('inspect'):
             for bp in state.inspect._breakpoints['irsb']:
                 if bp.check(state, BP_AFTER):
                     for bbl_addr in state.history.recent_bbl_addrs:
@@ -156,19 +154,6 @@ class SimEngineUnicorn(SimEngine):
         state.unicorn.countdown_symbolic_memory -= 1
         state.unicorn.countdown_symbolic_memory -= 1
         state.unicorn.countdown_stop_point -= 1
-
-    #
-    # Pickling
-    #
-
-    def __setstate__(self, state):
-        super(SimEngineUnicorn, self).__setstate__(state)
-        self.base_stop_points = state['base_stop_points']
-
-    def __getstate__(self):
-        s = super(SimEngineUnicorn, self).__getstate__()
-        s['base_stop_points'] = self.base_stop_points
-        return s
 
 from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
 from .. import sim_options as o

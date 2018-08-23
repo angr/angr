@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import networkx
 import pyvex
-from . import Analysis, register_analysis
+from . import Analysis
 
 from .code_location import CodeLocation
 from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
@@ -1561,12 +1561,23 @@ class DDG(Analysis):
             return []
 
         consumers = []
-        out_edges = graph.out_edges(var_def, data=True)
-        for _, dst, data in out_edges:
-            if 'type' in data and data['type'] == 'kill':
-                # skip killing edges
-                continue
-            consumers.append(dst)
+        srcs = [var_def]
+        traversed = set()
+
+        while srcs:
+            src = srcs.pop()
+            out_edges = graph.out_edges(src, data=True)
+            for _, dst, data in out_edges:
+                if 'type' in data and data['type'] == 'kill':
+                    # skip killing edges
+                    continue
+                if isinstance(dst.variable, SimTemporaryVariable):
+                    if dst not in traversed:
+                        srcs.append(dst)
+                        traversed.add(dst)
+                else:
+                    if dst not in consumers:
+                        consumers.append(dst)
 
         return consumers
 
@@ -1636,4 +1647,5 @@ class DDG(Analysis):
 
         return sources
 
-register_analysis(DDG, 'DDG')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('DDG', DDG)

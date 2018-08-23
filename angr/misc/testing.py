@@ -11,7 +11,7 @@ def detect_test_env():
 
         if frame_module == '__main__' or frame_module == '__console__':
             return False
-        elif frame_module is not None and frame_module.startswith('nose.'):
+        elif frame_module is not None and (frame_module.startswith('nose.') or frame_module.startswith('nose2.')):
             return True
 
 is_testing = detect_test_env()

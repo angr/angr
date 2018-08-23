@@ -92,12 +92,13 @@ class MemoryRegion(object):
         self._state = state
         self._memory.set_state(state)
 
-    def copy(self):
+    @SimMemory.memo
+    def copy(self, memo):
         r = MemoryRegion(self._id, self.state,
                          is_stack=self._is_stack,
                          related_function_addr=self._related_function_addr,
                          init_memory=False, endness=self._endness)
-        r._memory = self.memory.copy()
+        r._memory = self.memory.copy(memo)
         r._alocs = copy.deepcopy(self._alocs)
         return r
 
@@ -327,7 +328,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                                                      )
             self._temp_backer = None
 
-    def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None): #pylint:disable=arguments-differ
+    def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None, condition=None): #pylint:disable=arguments-differ
         """
         Convert a ValueSet object into a list of addresses.
 
@@ -338,6 +339,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param target_region: Which region to normalize the address to. To leave the decision to SimuVEX, set it to None
         :return: A list of AddressWrapper or ValueSet objects
         """
+
+        # Apply the condition if necessary
+        if condition is not None:
+            addr = self._apply_condition_to_symbolic_addr(addr, condition)
 
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
@@ -424,7 +429,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     def _load(self, addr, size, condition=None, fallback=None,
             inspect=True, events=True, ret_on_segv=False):
-        address_wrappers = self.normalize_address(addr, is_write=False)
+        address_wrappers = self.normalize_address(addr, is_write=False, condition=condition)
 
         if isinstance(size, claripy.ast.BV) and isinstance(size._model_vsa, ValueSet):
             # raise Exception('Unsupported type %s for size' % type(size._model_vsa))
@@ -447,7 +452,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         for aw in address_wrappers:
             new_val = self._do_load(aw.address, size, aw.region,
-                                 is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
+                                    is_stack=aw.is_on_stack,
+                                    related_function_addr=aw.function_address,
+                                    )
 
             if val is None:
                 if KEEP_MEMORY_READS_DISCRETE in self.state.options:
@@ -469,6 +476,13 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             self.create_region(key, self.state, is_stack, related_function_addr, self.endness)
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
+
+    def _apply_condition_to_symbolic_addr(self, addr, condition):
+
+        _, converted = self.state.solver.constraint_to_si(condition)
+        for original_expr, constrained_expr in converted:
+            addr = addr.replace(original_expr, constrained_expr)
+        return addr
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
                       disable_actions=False):
@@ -570,7 +584,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             # The region doesn't exist. Then there is only one segment!
             return [ size ]
 
-    def copy(self):
+    @SimMemory.memo
+    def copy(self, memo):
         """
         Make a copy of this SimAbstractMemory object
         :return:
@@ -582,7 +597,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             generic_region_map=self._generic_region_map
         )
         for region_id, region in self._regions.items():
-            am._regions[region_id] = region.copy()
+            am._regions[region_id] = region.copy(memo)
         am._stack_size = self._stack_size
         return am
 
@@ -671,3 +686,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for region_id, region in self.regions.items():
             print "Region [%s]:" % region_id
             region.dbg_print(indent=2)
+
+
+from ..sim_state import SimState
+SimState.register_default('abs_memory', SimAbstractMemory)

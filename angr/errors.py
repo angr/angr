@@ -55,6 +55,9 @@ class AngrSyscallError(AngrError):
 class AngrSimOSError(AngrError):
     pass
 
+class AngrAssemblyError(AngrError):
+    pass
+
 # Congruency check failure
 class AngrIncongruencyError(AngrAnalysisError):
     pass
@@ -183,10 +186,17 @@ class SimFastMemoryError(SimMemoryError):
 class SimEventError(SimStateError):
     pass
 
-class SimFileError(SimMemoryError):
+class SimPosixError(SimStateError):
     pass
 
-class SimPosixError(SimStateError):
+
+class SimFilesystemError(SimError):
+    pass
+
+class SimSymbolicFilesystemError(SimFilesystemError):
+    pass
+
+class SimFileError(SimMemoryError, SimFilesystemError):
     pass
 
 #
@@ -351,6 +361,13 @@ class SimEmptyCallStackError(SimError):
     pass
 
 #
+# SimStateOptions Errors
+#
+
+class SimStateOptionsError(SimError):
+    pass
+
+#
 # Errors that may be handled by exception handling
 #
 
@@ -374,4 +391,8 @@ class SimSegfaultException(SimException, SimMemoryError):
 SimSegfaultError = SimSegfaultException
 
 class SimZeroDivisionException(SimException, SimOperationError):
+    pass
+
+
+class AngrNoPluginError(AngrError):
     pass

@@ -772,7 +772,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             r = globals()[cond_funcname](state, cc_expr)
         else:
             l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
-            raise KeyError('Operation %s with condition %s not found.' % (op, cond))
+            raise SimCCallError('Operation %s with condition %s not found.' % (op, cond))
 
     return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
 
@@ -1375,7 +1375,7 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     l.error("Unknown cc_op %s (armg_calculate_flag_v)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
-def armg_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
     # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
     # created.
@@ -1684,7 +1684,7 @@ def _get_flags(state):
     elif state.arch.name == 'AMD64':
         return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name in ('ARMEL', 'ARMHF', 'ARM'):
-        return armg_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+        return armg_calculate_flags_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AARCH64':
         return arm64g_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     else:

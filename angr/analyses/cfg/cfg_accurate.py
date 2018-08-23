@@ -6,12 +6,11 @@ from collections import defaultdict, OrderedDict
 import claripy
 import networkx
 import pyvex
-from .. import register_analysis
 from archinfo import ArchARM
 
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_node import CFGNode
+from .cfg_node import CFGNodeA
 from .cfg_utils import CFGUtils
 from ..forward_analysis import ForwardAnalysis
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
@@ -118,6 +117,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     This class represents a control-flow graph.
     """
 
+    tag = "CFGAccurate"
+
     def __init__(self,
                  context_sensitivity_level=1,
                  start=None,
@@ -128,8 +129,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  initial_state=None,
                  starts=None,
                  keep_state=False,
+                 indirect_jump_target_limit=100000,
+                 resolve_indirect_jumps=True,
                  enable_advanced_backward_slicing=False,
                  enable_symbolic_back_traversal=False,
+                 indirect_jump_resolvers=None,
                  additional_edges=None,
                  no_construct=False,
                  normalize=False,
@@ -159,8 +163,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     jumpkind, or a SimState instance. Unsupported entries in starts will
                                                     lead to an AngrCFGError being raised.
         :param keep_state:                          Whether to keep the SimStates for each CFGNode.
-        :param enable_advanced_backward_slicing:    Whether to enable an intensive technique for resolving direct jumps
+        :param resolve_indirect_jumps:              Whether to enable the indirect jump resolvers for resolving indirect jumps
+        :param enable_advanced_backward_slicing:    Whether to enable an intensive technique for resolving indirect jumps
         :param enable_symbolic_back_traversal:      Whether to enable an intensive technique for resolving indirect jumps
+        :param list indirect_jump_resolvers:        A custom list of indirect jump resolvers. If this list is None or empty,
+                                                    default indirect jump resolvers specific to this architecture and binary
+                                                    types will be loaded.
         :param additional_edges:                    A dict mapping addresses of basic blocks to addresses of
                                                     successors to manually include and analyze forward from.
         :param bool no_construct:                   Skip the construction procedure. Only used in unit-testing.
@@ -186,7 +194,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param state_remove_options:                State options that will be removed from the initial state.
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
-        CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
+        CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
+                         resolve_indirect_jumps=resolve_indirect_jumps,
+                         indirect_jump_resolvers=indirect_jump_resolvers,
+                         indirect_jump_target_limit=indirect_jump_target_limit,
+        )
 
         if start is not None:
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
@@ -198,6 +210,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self._starts = starts
             else:
                 raise AngrCFGError('Unsupported type of the `starts` argument.')
+
+        if enable_advanced_backward_slicing or enable_symbolic_back_traversal:
+            l.warning("`advanced backward slicing` and `symbolic back traversal` are deprecated.")
+            l.warning("Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead.")
 
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
@@ -211,6 +227,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._max_steps = max_steps
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
+
+        # add the track_memory_option if the enable function hint flag is set
+        if self._enable_function_hints and o.TRACK_MEMORY_ACTIONS not in self._state_add_options:
+            self._state_add_options.add(o.TRACK_MEMORY_ACTIONS)
 
         # more initialization
 
@@ -288,6 +308,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg = CFGAccurate.__new__(CFGAccurate)
         super(CFGAccurate, self).make_copy(new_cfg)
 
+        new_cfg._indirect_jump_target_limit = self._indirect_jump_target_limit
         new_cfg.named_errors = dict(self.named_errors)
         new_cfg.errors = list(self.errors)
         new_cfg._fail_fast = self._fail_fast
@@ -305,7 +326,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         new_cfg._keep_state = self._keep_state
-        new_cfg.project = self.project
 
         return new_cfg
 
@@ -520,7 +540,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         # will lose some edges in this way, but in general it is acceptable.
                         new_dst.looping_times <= max_loop_unrolling_times):
                     # Log all successors of the dst node
-                    dst_successors = graph_copy.successors(dst)
+                    dst_successors = list(graph_copy.successors(dst))
                     # Add new_dst to the graph
                     edge_data = graph_copy.get_edge_data(src, dst)
                     graph_copy.add_edge(src, new_dst, **edge_data)
@@ -686,6 +706,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def __setstate__(self, s):
         self.project = s['project']
+        self.indirect_jumps = s['indirect_jumps']
         self._graph = s['graph']
         self._loop_back_edges = s['_loop_back_edges']
         self._nodes = s['_nodes']
@@ -693,10 +714,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
         self._executable_address_ranges = s['_executable_address_ranges']
+        self._iropt_level = s['_iropt_level']
 
     def __getstate__(self):
         s = {
             'project': self.project,
+            "indirect_jumps": self.indirect_jumps,
             'graph': self._graph,
             '_loop_back_edges': self._loop_back_edges,
             '_nodes': self._nodes,
@@ -704,6 +727,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             '_thumb_addrs': self._thumb_addrs,
             '_unresolvable_runs': self._unresolvable_runs,
             '_executable_address_ranges': self._executable_address_ranges,
+            '_iropt_level': self._iropt_level,
         }
 
         return s
@@ -923,6 +947,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                      add_options=self._state_add_options,
                                                      remove_options=self._state_remove_options,
                                                      )
+            self._initial_state = state
         else:
             # FIXME: self._initial_state is deprecated. This branch will be removed soon
             state = self._initial_state
@@ -1194,7 +1219,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
         # any duplication with existing jumping targets
         if self._enable_function_hints:
-            if sim_successors.sort == 'IRSB':
+            if sim_successors.sort == 'IRSB' and sim_successors.all_successors:
                 function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
                 for f in function_hints:
                     self._pending_function_hints.add(f)
@@ -1231,17 +1256,45 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         addr = job.addr
         sim_successors = job.sim_successors
+        cfg_node = job.cfg_node
         input_state = job.state
+        func_addr = job.func_addr
 
         # check step limit
         if self._max_steps is not None:
-            depth = job.cfg_node.depth
+            depth = cfg_node.depth
             if depth >= self._max_steps:
                 return [ ]
 
-        # Get all successors of this block
-        successors = (sim_successors.flat_successors + sim_successors.unsat_successors) \
-            if addr not in self._avoid_runs else [ ]
+        successors = [ ]
+        is_indirect_jump = sim_successors.sort == 'IRSB' and self._is_indirect_jump(cfg_node, sim_successors)
+        indirect_jump_resolved_by_resolvers = False
+
+        if is_indirect_jump and self._resolve_indirect_jumps:
+            # Try to resolve indirect jumps
+            irsb = input_state.block().vex
+
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr, stmt_idx='default')
+            if resolved:
+                successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
+                if ij:
+                    self._indirect_jump_resolved(ij, ij.addr, None, resolved_targets)
+            else:
+                # Try to resolve this indirect jump using heavier approaches
+                resolved_targets = self._process_one_indirect_jump(ij)
+                successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
+
+            if successors:
+                indirect_jump_resolved_by_resolvers = True
+            else:
+                # It's unresolved. Add it to the wait list (but apparently we don't have any better way to resolve it
+                # right now).
+                self._indirect_jumps_to_resolve.add(ij)
+
+        if not successors:
+            # Get all successors of this block
+            successors = (sim_successors.flat_successors + sim_successors.unsat_successors) \
+                if addr not in self._avoid_runs else []
 
         # Post-process successors
         successors, job.extra_info = self._post_process_successors(input_state, sim_successors, successors)
@@ -1253,19 +1306,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                          [ suc for suc in all_successors if suc.history.jumpkind == 'Ijk_FakeRet' ]
 
         if self._keep_state:
-            job.cfg_node.final_states = all_successors[::]
+            cfg_node.final_states = all_successors[::]
 
-        # Try to resolve indirect jumps
-        successors = self._resolve_indirect_jumps(sim_successors,
-                                                  job.cfg_node,
-                                                  job.func_addr,
-                                                  successors,
-                                                  job.exception_info,
-                                                  self._block_artifacts
-                                                  )
+        if is_indirect_jump and not indirect_jump_resolved_by_resolvers:
+            # For indirect jumps, filter successors that do not make sense
+            successors = self._filter_insane_successors(successors)
 
-        # Ad additional edges supplied by the user
-        successors = self._add_additional_edges(input_state, sim_successors, job.cfg_node, successors)
+        successors = self._try_resolving_indirect_jumps(sim_successors,
+                                                        cfg_node,
+                                                        func_addr,
+                                                        successors,
+                                                        job.exception_info,
+                                                        self._block_artifacts)
+        # Remove all successors whose IP is symbolic
+        successors = [ s for s in successors if not s.ip.symbolic ]
+
+        # Add additional edges supplied by the user
+        successors = self._add_additional_edges(input_state, sim_successors, cfg_node, successors)
 
         # if base graph is used, add successors implied from the graph
         if self._base_graph:
@@ -1309,17 +1366,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         False
                     )  # You can never return to a syscall
 
-                    if not job.cfg_node.instruction_addrs:
+                    if not cfg_node.instruction_addrs:
                         ret_ins_addr = None
                     else:
                         if self.project.arch.branch_delay_slot:
-                            if len(job.cfg_node.instruction_addrs) > 1:
-                                ret_ins_addr = job.cfg_node.instruction_addrs[-2]
+                            if len(cfg_node.instruction_addrs) > 1:
+                                ret_ins_addr = cfg_node.instruction_addrs[-2]
                             else:
-                                l.error('At %s: expecting more than one instruction. Only got one.', job.cfg_node)
+                                l.error('At %s: expecting more than one instruction. Only got one.', cfg_node)
                                 ret_ins_addr = None
                         else:
-                            ret_ins_addr = job.cfg_node.instruction_addrs[-1]
+                            ret_ins_addr = cfg_node.instruction_addrs[-1]
 
                     # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
@@ -1338,8 +1395,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                                       )
 
             else:
-                # Well, there is just no successors. What can you expect?
-                pass
+                # There are no successors, but we still want to update the function graph
+                artifacts = job.sim_successors.artifacts
+                if 'irsb' in artifacts and 'insn_addrs' in artifacts and artifacts['insn_addrs']:
+                    the_irsb = artifacts['irsb']
+                    insn_addrs = artifacts['insn_addrs']
+                    self._handle_job_without_successors(job, the_irsb, insn_addrs)
 
         # TODO: replace it with a DDG-based function IO analysis
         # handle all actions
@@ -1642,7 +1703,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            target_addr = self.project.simos.syscall(new_state).addr
+            syscall_proc = self.project.simos.syscall(new_state)
+            if syscall_proc is not None:
+                target_addr = syscall_proc.addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
@@ -1753,6 +1816,41 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return [ pw ]
 
+    def _handle_job_without_successors(self, job, irsb, insn_addrs):
+        """
+        A block without successors should still be handled so it can be added to the function graph correctly.
+
+        :param CFGJob job:  The current job that do not have any successor.
+        :param IRSB irsb:   The related IRSB.
+        :param insn_addrs:  A list of instruction addresses of this IRSB.
+        :return: None
+        """
+
+        # it's not an empty block
+
+        # handle all conditional exits
+        ins_addr = job.addr
+        for stmt_idx, stmt in enumerate(irsb.statements):
+            if type(stmt) is pyvex.IRStmt.IMark:
+                ins_addr = stmt.addr + stmt.delta
+            elif type(stmt) is pyvex.IRStmt.Exit:
+                successor_jumpkind = stmt.jk
+                self._update_function_transition_graph(
+                    job.block_id, None,
+                    jumpkind = successor_jumpkind,
+                    ins_addr=ins_addr,
+                    stmt_idx=stmt_idx,
+                )
+
+        # handle the default exit
+        successor_jumpkind = irsb.jumpkind
+        successor_last_ins_addr = insn_addrs[-1]
+        self._update_function_transition_graph(job.block_id, None,
+                                               jumpkind=successor_jumpkind,
+                                               ins_addr=successor_last_ins_addr,
+                                               stmt_idx='default',
+                                               )
+
     # SimAction handling
 
     def _handle_actions(self, state, current_run, func, sp_addr, accessed_registers):
@@ -1779,7 +1877,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if a.type == "mem" and a.action == "read":
                     try:
                         addr = se.eval_one(a.addr.ast, default=0)
-                    except claripy.ClaripyError:
+                    except (claripy.ClaripyError, SimSolverModeError):
                         continue
                     if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or \
                             (not self.project.arch.call_pushes_ret and addr >= new_sp_addr):
@@ -1817,28 +1915,20 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Is it really OK?
                 func_addr = self._block_id_addr(node_key)
 
-            if node_key.jump_type == 'syscall':
-                # it's a syscall
-                is_syscall = True
-            else:
-                is_syscall = False
+            is_syscall = node_key.jump_type == 'syscall'
+            is_thumb = isinstance(self.project.arch, ArchARM) and addr % 2 == 1
 
-            if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
-                is_thumb = True
-            else:
-                is_thumb = False
-
-            pt = CFGNode(self._block_id_addr(node_key),
-                         None,
-                         self,
-                         callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
-                         input_state=None,
-                         simprocedure_name="PathTerminator",
-                         function_address=func_addr,
-                         callstack_key=self._block_id_callstack_key(node_key),
-                         is_syscall=is_syscall,
-                         thumb=is_thumb
-                         )
+            pt = CFGNodeA(self._block_id_addr(node_key),
+                          None,
+                          self,
+                          callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
+                          input_state=None,
+                          simprocedure_name="PathTerminator",
+                          function_address=func_addr,
+                          callstack_key=self._block_id_callstack_key(node_key),
+                          is_syscall=is_syscall,
+                          thumb=is_thumb
+                          )
             if self._keep_state:
                 # We don't have an input state available for it (otherwise we won't have to create a
                 # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -1887,10 +1977,22 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
+        if dst_node_key is not None:
+            dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
+            dst_node_addr = dst_node.addr
+            dst_codenode = dst_node.to_codenode()
+            dst_node_func_addr = dst_node.function_address
+        else:
+            dst_node = None
+            dst_node_addr = None
+            dst_codenode = None
+            dst_node_func_addr = None
+
         if src_node_key is None:
+            if dst_node is None:
+                raise ValueError("Either src_node_key or dst_node_key must be specified.")
             self.kb.functions.function(dst_node.function_address, create=True)._register_nodes(True,
-                                                                                               dst_node.to_codenode()
+                                                                                               dst_codenode
                                                                                                )
             return
 
@@ -1907,7 +2009,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_addr=dst_node.addr,
+                to_addr=dst_node_addr,
                 retn_node=ret_node,
                 syscall=False,
                 ins_addr=ins_addr,
@@ -1919,7 +2021,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_addr=dst_node.addr,
+                to_addr=dst_node_addr,
                 retn_node=src_node.to_codenode(),  # For syscalls, they are returning to the address of themselves
                 syscall=True,
                 ins_addr=ins_addr,
@@ -1931,32 +2033,33 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self.kb.functions._add_return_from(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_node=dst_node.to_codenode(),
+                to_node=dst_codenode,
             )
 
-            # Create a returning edge in the caller function
-            self.kb.functions._add_return_from_call(
-                function_addr=dst_node.function_address,
-                src_function_addr=src_node.function_address,
-                to_node=dst_node.to_codenode()
-            )
+            if dst_node is not None:
+                # Create a returning edge in the caller function
+                self.kb.functions._add_return_from_call(
+                    function_addr=dst_node_func_addr,
+                    src_function_addr=src_node.function_address,
+                    to_node=dst_codenode,
+                )
 
         elif jumpkind == 'Ijk_FakeRet':
             self.kb.functions._add_fakeret_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_node=dst_node.to_codenode(),
+                to_node=dst_codenode,
                 confirmed=confirmed,
             )
 
         elif jumpkind == 'Ijk_Boring':
 
             src_obj = self.project.loader.find_object_containing(src_node.addr)
-            dest_obj = self.project.loader.find_object_containing(dst_node.addr)
+            dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
 
             if src_obj is dest_obj:
                 # Jump/branch within the same object. Might be an outside jump.
-                to_outside = src_node.function_address != dst_node.function_address
+                to_outside = src_node.function_address != dst_node_func_addr
             else:
                 # Jump/branch between different objects. Must be an outside jump.
                 to_outside = True
@@ -1965,7 +2068,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self.kb.functions._add_transition_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
-                    to_node=dst_node.to_codenode(),
+                    to_node=dst_codenode,
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                 )
@@ -1974,8 +2077,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self.kb.functions._add_outside_transition_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
-                    to_node=dst_node.to_codenode(),
-                    to_function_addr=dst_node.function_address,
+                    to_node=dst_codenode,
+                    to_function_addr=dst_node_func_addr,
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                 )
@@ -2031,6 +2134,42 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors
 
+    def _filter_insane_successors(self, successors):
+        """
+        Throw away all successors whose target doesn't make sense
+
+        This method is called after we resolve an indirect jump using an unreliable method (like, not through one of
+        the indirect jump resolvers, but through either pure concrete execution or backward slicing) to filter out the
+        obviously incorrect successors.
+
+        :param list successors: A collection of successors.
+        :return:                A filtered list of successors
+        :rtype:                 list
+        """
+
+        old_successors = successors[::]
+        successors = [ ]
+        for i, suc in enumerate(old_successors):
+            if suc.se.symbolic(suc.ip):
+                # It's symbolic. Take it, and hopefully we can resolve it later
+                successors.append(suc)
+
+            else:
+                ip_int = suc.se.eval_one(suc.ip)
+
+                if self._is_address_executable(ip_int) or \
+                        self.project.is_hooked(ip_int) or \
+                        self.project.simos.is_syscall_addr(ip_int):
+                    successors.append(suc)
+                else:
+                    l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
+                            i + 1,
+                            len(old_successors),
+                            ip_int
+                            )
+
+        return successors
+
     def _remove_non_return_edges(self):
         """
         Remove those return_from_call edges that actually do not return due to
@@ -2070,7 +2209,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - resolving indirect jumps
 
-    def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
+    @staticmethod
+    def _convert_indirect_jump_targets_to_states(job, indirect_jump_targets):
+        """
+        Convert each concrete indirect jump target into a SimState.
+
+        :param job:                     The CFGJob instance.
+        :param indirect_jump_targets:   A collection of concrete jump targets resolved from a indirect jump.
+        :return:                        A list of SimStates.
+        :rtype:                         list
+        """
+
+        successors = [ ]
+        for t in indirect_jump_targets:
+            # Insert new successors
+            a = job.sim_successors.all_successors[0].copy()
+            a.ip = t
+            successors.append(a)
+        return successors
+
+    def _try_resolving_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
         """
         Resolve indirect jumps specified by sim_successors.addr.
 
@@ -2088,29 +2246,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if sim_successors.sort == 'IRSB' and \
                 self._is_indirect_jump(cfg_node, sim_successors):
             l.debug('IRSB %#x has an indirect jump as its default exit', cfg_node.addr)
-
-            # Throw away all current paths whose target doesn't make sense
-            old_successors = successors[::]
-            successors = []
-            for i, suc in enumerate(old_successors):
-
-                if suc.se.symbolic(suc.ip):
-                    # It's symbolic. Take it, and hopefully we can resolve it later
-                    successors.append(suc)
-
-                else:
-                    # It's concrete. Does it make sense?
-                    ip_int = suc.se.eval_one(suc.ip)
-
-                    if self._is_address_executable(ip_int) or \
-                            self.project.is_hooked(ip_int):
-                        successors.append(suc)
-
-                    else:
-                        l.info('%s: an obviously incorrect successor %d/%d (%#x) is ditched',
-                               cfg_node,
-                               i + 1, len(old_successors),
-                               ip_int)
 
             # We need input states to perform backward slicing
             if self._advanced_backward_slicing and self._keep_state:
@@ -2344,7 +2479,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                                endness=self.project.arch.register_endness)
 
                 # Clear the constraints!
-                base_state.release_plugin('solver_engine')
+                base_state.release_plugin('solver')
                 p = self.project.factory.path(base_state)
 
             # For speed concerns, we are limiting the timeout for z3 solver to 5 seconds. It will be restored afterwards
@@ -2682,7 +2817,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # instantiate the stub
                     new_stub_inst = new_stub(display_name=old_name)
 
-                    sim_successors = SimEngineProcedure().process(
+                    sim_successors = self.project.engines.procedure_engine.process(
                         state,
                         new_stub_inst,
                         force_addr=addr,
@@ -2719,7 +2854,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Remove bad constraints
                 # FIXME: This is so hackish...
                 new_state.se._solver.constraints = [c for c in new_state.se.constraints if
-                                                    c.op != 'I' or c.args[0] is not False]
+                                                    c.op != 'BoolV' or c.args[0] is not False]
                 new_state.se._solver._result = None
                 # Swap them
                 saved_state, job.state = job.state, new_state
@@ -2916,38 +3051,38 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if syscall is not None and sa['no_ret']:
                 no_ret = True
 
-            cfg_node = CFGNode(sim_successors.addr,
-                               None,
-                               self,
-                               callstack=call_stack,
-                               input_state=None,
-                               simprocedure_name=simproc_name,
-                               syscall_name=syscall,
-                               no_ret=no_ret,
-                               is_syscall=is_syscall,
-                               syscall=syscall,
-                               function_address=sim_successors.addr,
-                               block_id=block_id,
-                               depth=depth,
-                               creation_failure_info=exception_info,
-                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
-                               )
+            cfg_node = CFGNodeA(sim_successors.addr,
+                                None,
+                                self,
+                                callstack=call_stack,
+                                input_state=None,
+                                simprocedure_name=simproc_name,
+                                syscall_name=syscall,
+                                no_ret=no_ret,
+                                is_syscall=is_syscall,
+                                syscall=syscall,
+                                function_address=sim_successors.addr,
+                                block_id=block_id,
+                                depth=depth,
+                                creation_failure_info=exception_info,
+                                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
+                                )
 
         else:
-            cfg_node = CFGNode(sim_successors.addr,
-                               sa['irsb_size'],
-                               self,
-                               callstack=call_stack,
-                               input_state=None,
-                               is_syscall=is_syscall,
-                               syscall=syscall,
-                               function_address=func_addr,
-                               block_id=block_id,
-                               depth=depth,
-                               irsb=sim_successors.artifacts['irsb'],
-                               creation_failure_info=exception_info,
-                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
-                               )
+            cfg_node = CFGNodeA(sim_successors.addr,
+                                sa['irsb_size'],
+                                self,
+                                callstack=call_stack,
+                                input_state=None,
+                                is_syscall=is_syscall,
+                                syscall=syscall,
+                                function_address=func_addr,
+                                block_id=block_id,
+                                depth=depth,
+                                irsb=sim_successors.artifacts['irsb'],
+                                creation_failure_info=exception_info,
+                                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
+                                )
 
         return cfg_node
 
@@ -3258,7 +3393,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 
-        elif isinstance(begin, CFGNode) and isinstance(end, CFGNode):
+        elif isinstance(begin, CFGNodeA) and isinstance(end, CFGNodeA):
             n_begin = begin
             n_end = end
         else:
@@ -3304,4 +3439,5 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
-register_analysis(CFGAccurate, 'CFGAccurate')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CFGAccurate', CFGAccurate)

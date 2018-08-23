@@ -1,4 +1,5 @@
 
+import itertools
 import logging
 import struct
 from collections import defaultdict
@@ -8,7 +9,7 @@ import networkx
 
 import pyvex
 from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
+from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
@@ -17,12 +18,18 @@ from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSB
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
-from .cfg_node import CFGNode
+from .cfg_node import CFGNode, CFGNodeA
+from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
 
 class IndirectJump(object):
+
+    __slots__ = [ "addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
+                  "jumptable_addr", "jumptable_entries",
+                  ]
+
     def __init__(self, addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=None, jumptable=False,
                  jumptable_addr=None, jumptable_entries=None):
         self.addr = addr
@@ -43,7 +50,7 @@ class IndirectJump(object):
             if self.jumptable_addr is not None:
                 status += "@%#08x" % self.jumptable_addr
             if self.jumptable_entries is not None:
-                status += " with %d entries" % self.jumptable_entries
+                status += " with %d entries" % len(self.jumptable_entries)
 
         return "<IndirectJump %#08x - ins %#08x%s>" % (self.addr, self.ins_addr, " " + status if status else "")
 
@@ -52,7 +59,31 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None):
+
+    tag = None
+
+    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None,
+                 resolve_indirect_jumps=True, indirect_jump_resolvers=None, indirect_jump_target_limit=100000):
+        """
+        :param str sort:                            'fast' or 'accurate'.
+        :param int context_sensitivity_level:       The level of context-sensitivity of this CFG (see documentation for
+                                                    further details). It ranges from 0 to infinity.
+        :param bool normalize:                      Whether the CFG as well as all Function graphs should be normalized.
+        :param cle.backends.Backend binary:         The binary to recover CFG on. By default the main binary is used.
+        :param bool force_segment:                  Force CFGFast to rely on binary segments instead of sections.
+        :param int iropt_level:                     The optimization level of VEX IR (0, 1, 2). The default level will
+                                                    be used if `iropt_level` is None.
+        :param angr.SimState base_state:            A state to use as a backer for all memory loads.
+        :param bool resolve_indirect_jumps:         Whether to try to resolve indirect jumps. This is necessary to resolve jump
+                                                    targets from jump tables, etc.
+        :param list indirect_jump_resolvers:        A custom list of indirect jump resolvers. If this list is None or empty,
+                                                    default indirect jump resolvers specific to this architecture and binary
+                                                    types will be loaded.
+        :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
+
+        :return: None
+        """
+
         self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
 
@@ -80,7 +111,7 @@ class CFGBase(Analysis):
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
-        self._changed_functions = None
+        self._updated_nonreturning_functions = None
 
         self._normalize = normalize
         # Flag, whether the CFG has been normalized or not
@@ -89,6 +120,28 @@ class CFGBase(Analysis):
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps = {}
+        self._indirect_jumps_to_resolve = set()
+
+        # Indirect jump resolvers
+        self._indirect_jump_target_limit = indirect_jump_target_limit
+        self._resolve_indirect_jumps = resolve_indirect_jumps
+        self.timeless_indirect_jump_resolvers = [ ]
+        self.indirect_jump_resolvers = [ ]
+        if not indirect_jump_resolvers:
+            indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
+        if self._resolve_indirect_jumps and indirect_jump_resolvers:
+            # split them into different groups for the sake of speed
+            for ijr in indirect_jump_resolvers:
+                if ijr.timeless:
+                    self.timeless_indirect_jump_resolvers.append(ijr)
+                else:
+                    self.indirect_jump_resolvers.append(ijr)
+
+        l.info("Loaded %d indirect jump resolvers (%d timeless, %d generic).",
+               len(self.timeless_indirect_jump_resolvers) + len(self.indirect_jump_resolvers),
+               len(self.timeless_indirect_jump_resolvers),
+               len(self.indirect_jump_resolvers)
+               )
 
         # Get all executable memory regions
         self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
@@ -334,7 +387,10 @@ class CFGBase(Analysis):
         #    self._node_lookup_index_warned = True
 
         for n in self.graph.nodes():
-            cond = n.looping_times == 0
+            if self.tag == "CFGAccurate":
+                cond = n.looping_times == 0
+            else:
+                cond = True
             if anyaddr and n.size is not None:
                 cond = cond and (addr >= n.addr and addr < n.addr + n.size)
             else:
@@ -376,7 +432,10 @@ class CFGBase(Analysis):
         results = [ ]
 
         for cfg_node in self._graph.nodes():
-            if cfg_node.addr == addr or (anyaddr and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)):
+            if cfg_node.addr == addr or (anyaddr and
+                                         cfg_node.size is not None and
+                                         cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
+                                         ):
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
                 elif is_syscall is False and not cfg_node.is_syscall:
@@ -601,8 +660,7 @@ class CFGBase(Analysis):
         :rtype:                  bool
         """
 
-
-        obj = self.project.loader.find_object_containing(region_start)
+        obj = self.project.loader.find_object_containing(region_start, membership_check=False)
         if obj is None:
             return False
         if isinstance(obj, PE):
@@ -652,6 +710,16 @@ class CFGBase(Analysis):
                     if section.is_executable:
                         tpl = (section.min_addr, section.max_addr)
                         memory_regions.append(tpl)
+
+            elif isinstance(b, MachO):
+                if b.segments:
+                    # Get all executable segments
+                    for seg in b.segments:
+                        if seg.is_executable:
+                            # Take all sections from this segment (MachO style)
+                            for section in seg.sections:
+                                tpl = (section.min_addr, section.max_addr)
+                                memory_regions.append(tpl)
 
             elif isinstance(b, Blob):
                 # a blob is entirely executable
@@ -737,11 +805,11 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        obj = self.project.loader.find_object_containing(addr_a)
+        obj = self.project.loader.find_object_containing(addr_a, membership_check=False)
 
         if obj is None:
             # test if addr_b also does not belong to any object
-            obj_b = self.project.loader.find_object_containing(addr_b)
+            obj_b = self.project.loader.find_object_containing(addr_b, membership_check=False)
             if obj_b is None:
                 return True
             return False
@@ -755,54 +823,6 @@ class CFGBase(Analysis):
             return False
 
         return src_section.contains_addr(addr_b)
-
-    def _addr_next_section(self, addr):
-        """
-        Return the next section object after the given address.
-
-        :param int addr: The address to test
-        :return: The next section that goes after the given address, or None if there is no section after the address,
-                 or if section information is not available.
-        :rtype: cle.Section
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a special CLE section
-            return None
-
-        for section in obj.sections:
-            start = section.vaddr
-
-            if addr < start:
-                return section
-
-        return None
-
-    def _addr_belongs_to_segment(self, addr):
-        """
-        Return the section object that the address belongs to.
-
-        :param int addr: The address to test
-        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
-                section information is not available.
-        :rtype: cle.Segment
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a section allocated by angr.
-            return None
-
-        return obj.find_segment_containing(addr)
 
     def _addr_hooked_or_syscall(self, addr):
         """
@@ -930,20 +950,21 @@ class CFGBase(Analysis):
             'functions_do_not_return': []
         }
 
-        if self._changed_functions is not None:
-            all_functions = self._changed_functions
-            caller_functions = set()
+        if self._updated_nonreturning_functions is not None:
+            all_func_addrs = self._updated_nonreturning_functions
+            caller_func_addrs = set()
 
-            for func_addr in self._changed_functions:
+            for func_addr in self._updated_nonreturning_functions:
                 if func_addr not in self.kb.functions.callgraph:
                     continue
                 callers = self.kb.functions.callgraph.predecessors(func_addr)
                 for f in callers:
-                    caller_functions.add(f)
+                    caller_func_addrs.add(f)
 
-            all_functions |= caller_functions
-
-            all_functions = [ self.kb.functions.function(addr=f) for f in all_functions if f in self.kb.functions ]
+            # Add callers
+            all_func_addrs |= caller_func_addrs
+            # Convert addresses to objects
+            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs ]
 
         else:
             all_functions = self.kb.functions.values()
@@ -959,10 +980,15 @@ class CFGBase(Analysis):
             if func.has_return:
                 changes['functions_return'].append(func)
                 func.returning = True
+                self._add_returning_function(func.addr)
                 continue
 
             # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
             # blocks of it.
+
+            if not func.block_addrs_set:
+                # the function is empty. skip
+                continue
 
             # Let's first see if it's a known SimProcedure that does not return
             if self.project.is_hooked(func.addr):
@@ -979,6 +1005,7 @@ class CFGBase(Analysis):
                     changes['functions_do_not_return'].append(func)
                 else:
                     func.returning = True
+                    self._add_returning_function(func.addr)
                     changes['functions_return'].append(func)
                 continue
 
@@ -992,6 +1019,7 @@ class CFGBase(Analysis):
                 # the error will be corrected during post-processing. In fact at this moment we cannot say anything
                 # about whether this function returns or not. We always assume it returns.
                 func.returning = True
+                self._add_returning_function(func.addr)
                 changes['functions_return'].append(func)
                 continue
 
@@ -1039,6 +1067,7 @@ class CFGBase(Analysis):
                 target_func = self.kb.functions[goout_target.addr]
                 if target_func.returning is True:
                     func.returning = True
+                    self._add_returning_function(func.addr)
                     changes['functions_return'].append(func)
                     bail_out = True
                 elif target_func.returning is None:
@@ -1079,6 +1108,18 @@ class CFGBase(Analysis):
                 break
 
         return changes
+
+    def _real_address(self, arch, addr):
+        """
+        Obtain the real address of an instruction. ARM architectures are supported.
+
+        :param Arch arch:   The Arch object.
+        :param int addr:    The instruction address.
+        :return:            The real address of an instruction.
+        :rtype:             int
+        """
+
+        return ((addr >> 1) << 1) if arch.name in ('ARMEL', 'ARMHF') else addr
 
     def normalize(self):
         """
@@ -1189,13 +1230,24 @@ class CFGBase(Analysis):
 
             if new_node is None:
                 # Create a new one
-                new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key,
-                                   function_address=n.function_address, block_id=n.block_id,
-                                   instruction_addrs=[i for i in n.instruction_addrs
-                                                      if n.addr <= i <= n.addr + new_size
-                                                      ],
-                                   thumb=n.thumb
-                                   )
+                if self.tag == "CFGFast":
+                    new_node = CFGNode(n.addr, new_size, self,
+                                       function_address=n.function_address, block_id=n.block_id,
+                                       instruction_addrs=tuple([i for i in n.instruction_addrs
+                                                          if n.addr <= i <= n.addr + new_size
+                                                          ]),
+                                       thumb=n.thumb
+                                       )
+                elif self.tag == "CFGAccurate":
+                    new_node = CFGNodeA(n.addr, new_size, self, callstack_key=callstack_key,
+                                        function_address=n.function_address, block_id=n.block_id,
+                                        instruction_addrs=tuple([i for i in n.instruction_addrs
+                                                           if n.addr <= i <= n.addr + new_size
+                                                           ]),
+                                        thumb=n.thumb
+                                        )
+                else:
+                    raise ValueError("Unknown tag %s." % self.tag)
 
                 # Copy instruction addresses
                 new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs
@@ -1332,12 +1384,19 @@ class CFGBase(Analysis):
     # Function identification and such
     #
 
+    def _add_returning_function(self, func_addr):
+        pass
+
     def remove_function_alignments(self):
         """
         Remove all function alignments.
 
         :return: None
         """
+
+        # This function requires Capstone engine support
+        if not self.project.arch.capstone_support:
+            return
 
         for func_addr in self.kb.functions.keys():
             function = self.kb.functions[func_addr]
@@ -1553,7 +1612,7 @@ class CFGBase(Analysis):
             # sanity check: startpoint of the function should be greater than its endpoint
             if startpoint_addr >= endpoint_addr:
                 continue
-            if max_unresolved_jump_addr >= endpoint_addr:
+            if max_unresolved_jump_addr <= startpoint_addr or max_unresolved_jump_addr >= endpoint_addr:
                 continue
 
             # scan forward from the endpoint to include any function tail jumps
@@ -1622,7 +1681,6 @@ class CFGBase(Analysis):
 
             for f_addr in functions_to_merge:
                 functions_to_remove[f_addr] = func_addr
-                continue
 
         # merge all functions
         for to_remove, merge_with in functions_to_remove.iteritems():
@@ -1951,3 +2009,154 @@ class CFGBase(Analysis):
         if 'backup_state' not in kwargs:
             kwargs['backup_state'] = self._base_state
         return self.project.factory.block(*args, **kwargs)
+
+    #
+    # Indirect jumps processing
+    #
+    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
+        """
+        Checks if MIPS32 and calls MIPS32 check, otherwise false
+
+        :param int addr: irsb address
+        :param pyvex.IRSB block: irsb
+        :param int func_addr: Function address
+        :return: If it was resolved and targets alongside it
+        :rtype: tuple
+        """
+
+        if block.statements is None:
+            block = self.project.factory.block(block.addr, size=block.size).vex
+
+        for res in self.timeless_indirect_jump_resolvers:
+            if res.filter(self, addr, func_addr, block, jumpkind):
+                r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
+                if r:
+                    return True, resolved_targets
+        return False, [ ]
+
+    def _indirect_jump_resolved(self, jump, jump_addr, resolved_by, targets):
+        """
+        Called when an indirect jump is successfully resolved.
+
+        :param IndirectJump jump:                   The resolved indirect jump, or None if an IndirectJump instance is
+                                                    not available.
+        :param int jump_addr:                       Address of the resolved indirect jump.
+        :param IndirectJumpResolver resolved_by:    The resolver used to resolve this indirect jump.
+        :param list targets:                        List of indirect jump targets.
+        :param CFGJob job:                          The job at the start of the block containing the indirect jump.
+
+        :return: None
+        """
+
+        addr = jump.addr if jump is not None else jump_addr
+        l.debug('The indirect jump at %#x is successfully resolved by %s. It has %d targets.', addr, resolved_by, len(targets))
+        self.kb.resolved_indirect_jumps.add(addr)
+
+    def _indirect_jump_unresolved(self, jump):
+        """
+        Called when we cannot resolve an indirect jump.
+
+        :param IndirectJump jump: The unresolved indirect jump.
+
+        :return: None
+        """
+
+        l.debug('Failed to resolve the indirect jump at %#x.', jump.addr)
+        # tell KnowledgeBase that it's not resolved
+        # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
+        self.kb.unresolved_indirect_jumps.add(jump.addr)
+
+    def _indirect_jump_encountered(self, addr, cfg_node, irsb, func_addr, stmt_idx='default'):
+        """
+        Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
+        indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.
+
+        :param int addr:                Address of the block containing the indirect jump.
+        :param cfg_node:                The CFGNode instance of the block that contains the indirect jump.
+        :param pyvex.IRSB irsb:         The IRSB instance of the block that contains the indirect jump.
+        :param int func_addr:           Address of the current function.
+        :param int or str stmt_idx:     ID of the source statement.
+
+        :return:    A 3-tuple of (whether it is resolved or not, all resolved targets, an IndirectJump object
+                    if there is one or None otherwise)
+        :rtype:     tuple
+        """
+
+        jumpkind = irsb.jumpkind
+        l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
+
+        # try resolving it fast
+        resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
+        if resolved:
+            return True, resolved_targets, None
+
+        # Add it to our set. Will process it later if user allows.
+        # Create an IndirectJump instance
+        if addr not in self.indirect_jumps:
+            if self.project.arch.branch_delay_slot:
+                ins_addr = cfg_node.instruction_addrs[-2]
+            else:
+                ins_addr = cfg_node.instruction_addrs[-1]
+            ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
+            self.indirect_jumps[addr] = ij
+            resolved = False
+        else:
+            ij = self.indirect_jumps[addr]  # type: IndirectJump
+            resolved = len(ij.resolved_targets) > 0
+
+        return resolved, ij.resolved_targets, ij
+
+    def _process_unresolved_indirect_jumps(self):
+        """
+        Resolve all unresolved indirect jumps found in previous scanning.
+
+        Currently we support resolving the following types of indirect jumps:
+        - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
+        - Ijk_Boring: jump tables
+        - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
+
+        :return:    A set of concrete indirect jump targets (ints).
+        :rtype:     set
+        """
+
+        l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
+
+        all_targets = set()
+        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
+            all_targets |= self._process_one_indirect_jump(jump)
+
+        self._indirect_jumps_to_resolve.clear()
+
+        return all_targets
+
+    def _process_one_indirect_jump(self, jump):
+        """
+        Resolve a given indirect jump.
+
+        :param IndirectJump jump:  The IndirectJump instance.
+        :return:        A set of resolved indirect jump targets (ints).
+        """
+
+        resolved = False
+        resolved_by = None
+        targets = None
+
+        block = self._lift(jump.addr, opt_level=1)
+
+        for resolver in self.indirect_jump_resolvers:
+            resolver.base_state = self._base_state
+
+            if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
+                continue
+
+            resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
+            if resolved:
+                resolved_by = resolver
+                break
+
+        if resolved:
+            self._indirect_jump_resolved(jump, jump.addr, resolved_by, targets)
+        else:
+            self._indirect_jump_unresolved(jump)
+
+        return set() if targets is None else set(targets)

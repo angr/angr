@@ -1,7 +1,7 @@
 
 import logging
 
-import simuvex
+from ..sim_procedure import SimProcedure
 
 l = logging.getLogger("angr.analyses.datagraph_meta")
 
@@ -65,7 +65,7 @@ class DataGraphMeta(object):
         irsb = self._irsb(node.state)
         path = path + " -> " + hex(irsb.addr)
 
-        if isinstance(irsb, simuvex.SimProcedure):
+        if isinstance(irsb, SimProcedure):
             self._simproc_map[irsb.addr] = repr(irsb)
 
         l.debug("--> Branch: running block 0x%x" % irsb.addr)

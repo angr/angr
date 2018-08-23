@@ -5,7 +5,7 @@ import types
 from collections import deque
 
 import networkx
-from . import Analysis, register_analysis
+from . import Analysis
 
 from ..errors import SimEngineError, SimMemoryError
 
@@ -205,7 +205,7 @@ def compare_statement_dict(statement_1, statement_2):
         return []
 
     # constants
-    if isinstance(statement_1, (int, long, float, str)):
+    if isinstance(statement_1, (int, long, float, str, unicode)):
         if isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2):
             return []
         elif statement_1 == statement_2:
@@ -1204,4 +1204,5 @@ class BinDiff(Analysis):
 
         return matches
 
-register_analysis(BinDiff, 'BinDiff')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('BinDiff', BinDiff)

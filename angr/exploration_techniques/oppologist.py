@@ -26,7 +26,7 @@ class Oppologist(ExplorationTechnique):
     def _restore_state(old, new):
         new.release_plugin('unicorn')
         new.register_plugin('unicorn', old.unicorn.copy())
-        new.options = set(old.options)
+        new.options = old.options.copy()
         return new
 
     def _oppologize(self, state, pn, **kwargs):
@@ -72,7 +72,7 @@ class Oppologist(ExplorationTechnique):
         results += map(functools.partial(self._oppologize, state, **kwargs), need_oppologizing)
         return self._combine_results(*results)
 
-    def step_state(self, state, **kwargs):
+    def step_state(self, simgr, state, successor_func=None, **kwargs):
         try:
             kwargs.pop('throw', None)
             ss = self.project.factory.successors(state, **kwargs)
@@ -80,7 +80,6 @@ class Oppologist(ExplorationTechnique):
             return {'active': ss.flat_successors,
                     'unconstrained': ss.unconstrained_successors,
                     'unsat': ss.unsat_successors,
-                    'orig': state,
                     }
         except (SimUnsupportedError, SimCCallError) as e:
             l.debug("Errored on path %s after %d instructions", state, e.executed_instruction_count)
@@ -91,7 +90,7 @@ class Oppologist(ExplorationTechnique):
                     return self._oppologize(state, state.copy(), **kwargs)
             except exc_list: #pylint:disable=broad-except
                 l.error("Oppologizer hit an error.", exc_info=True)
-                return None
+                return simgr.step_state(state, **kwargs)
         except exc_list: #pylint:disable=broad-except
             l.error("Original block hit an error.", exc_info=True)
-            return None
+            return simgr.step_state(state, **kwargs)

@@ -114,6 +114,10 @@ class SimSuccessors(object):
         state.scratch.exit_ins_addr = exit_ins_addr
 
         self._preprocess_successor(state, add_guard=add_guard)
+
+        if state.history.jumpkind == 'Ijk_SigFPE_IntDiv' and o.PRODUCE_ZERODIV_SUCCESSORS not in state.options:
+            return
+
         self._categorize_successor(state)
         state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
         state.inspect.downsize()
@@ -170,18 +174,29 @@ class SimSuccessors(object):
             if new_func_addr is not None and not claripy.is_true(new_func_addr == state.regs._ip):
                 state.regs._ip = new_func_addr
 
-            if state.arch.call_pushes_ret:
-                ret_addr = state.mem[state.regs._sp].long.concrete
-            else:
-                ret_addr = state.se.eval(state.regs._lr)
+            try:
+                if state.arch.call_pushes_ret:
+                    ret_addr = state.mem[state.regs._sp].long.concrete
+                else:
+                    ret_addr = state.se.eval(state.regs._lr)
+            except SimSolverModeError:
+                # Use the address for UnresolvableTarget instead.
+                ret_addr = state.project.simos.unresolvable_target
+
             try:
                 state_addr = state.addr
-            except SimValueError:
+            except (SimValueError, SimSolverModeError):
                 state_addr = None
+
+            try:
+                stack_ptr = state.se.eval(state.regs._sp)
+            except SimSolverModeError:
+                stack_ptr = 0
+
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
                     func_addr=state_addr,
-                    stack_ptr=state.se.eval(state.regs._sp),
+                    stack_ptr=stack_ptr,
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
             state.callstack.push(new_frame)
@@ -269,33 +284,42 @@ class SimSuccessors(object):
 
         else:
             # a successor with a symbolic IP
+            _max_targets = state.options.symbolic_ip_max_targets
+            _max_jumptable_targets = state.options.jumptable_symbolic_ip_max_targets
             try:
                 if o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
-                    addrs = s.eval(target, 257, extra_constraints=tuple(state.ip_constraints))
-                    if len(addrs) > 256:
+                    addrs = s.eval(target, _max_targets + 1, extra_constraints=tuple(state.ip_constraints))
+                    if len(addrs) > _max_targets:
                         # It is not a library
                         l.debug("It is not a Library")
-                        addrs = state.se.eval_upto(target, 257)
-                        if len(addrs) == 1:
-                            state.add_constraints(target == addrs[0])
+                        addrs = state.se.eval_upto(target, _max_targets + 1)
                         l.debug("addrs :%s", addrs)
+                    cond_and_targets = [ (target == addr, addr) for addr in addrs ]
+                    max_targets = _max_targets
                 else:
-                    addrs = state.se.eval_upto(target, 257)
+                    cond_and_targets = self._eval_target_jumptable(state, target, _max_jumptable_targets + 1)
+                    if cond_and_targets is None:
+                        # Fallback to the traditional and slow method
+                        cond_and_targets = self._eval_target_brutal(state, target, _max_targets + 1)
+                        max_targets = _max_targets
+                    else:
+                        max_targets = _max_jumptable_targets
 
-                if len(addrs) > 256:
+                if len(cond_and_targets) > max_targets:
                     l.warning(
-                        "Exit state has over 257 possible solutions. Likely unconstrained; skipping. %s",
+                        "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
+                        max_targets,
                         target.shallow_repr()
                     )
                     self.unconstrained_successors.append(state)
                 else:
-                    for a in addrs:
+                    for cond, a in cond_and_targets:
                         split_state = state.copy()
                         if o.KEEP_IP_SYMBOLIC in split_state.options:
                             split_state.regs.ip = target
                         else:
-                            split_state.add_constraints(target == a, action=True)
+                            split_state.add_constraints(cond, action=True)
                             split_state.regs.ip = a
                         split_state.inspect.downsize()
                         self.flat_successors.append(split_state)
@@ -368,10 +392,117 @@ class SimSuccessors(object):
         if len(self.flat_successors) == 1 and len(self.unconstrained_successors) == 0:
             self.flat_successors[0].scratch.avoidable = False
 
+    @staticmethod
+    def _eval_target_jumptable(state, ip, limit):
+        """
+        A *very* fast method to evaluate symbolic jump targets if they are a) concrete targets, or b) targets coming
+        from jump tables.
+
+        :param state:   A SimState instance.
+        :param ip:      The AST of the instruction pointer to evaluate.
+        :param limit:   The maximum number of concrete IPs.
+        :return:        A list of conditions and the corresponding concrete IPs, or None which indicates fallback is
+                        necessary.
+        :rtype:         list or None
+        """
+
+        if ip.symbolic is False:
+            return [ (claripy.ast.bool.true, ip) ]  # concrete
+
+        # Detect whether ip is in the form of "if a == 1 then addr_0 else if a == 2 then addr_1 else ..."
+        cond_and_targets = [ ]  # tuple of (condition, target)
+
+        ip_ = ip
+        # Handle the outer Reverse
+        outer_reverse = False
+        if ip_.op == "Reverse":
+            ip_ = ip_.args[0]
+            outer_reverse = True
+
+        fallback = False
+        target_variable = None
+        concretes = set()
+        reached_sentinel = False
+
+        for cond, target in claripy.reverse_ite_cases(ip_):
+            # We must fully unpack the entire AST to make sure it indeed complies with the form above
+            if reached_sentinel:
+                # We should not have any other value beyond the sentinel - maybe one of the possible targets happens to
+                # be the same as the sentinel value?
+                fallback = True
+                break
+
+            if target.symbolic is False and state.solver.eval(target) == DUMMY_SYMBOLIC_READ_VALUE:
+                # Ignore the dummy value, which acts as the sentinel of this ITE tree
+                reached_sentinel = True
+                continue
+
+            if cond.op != "__eq__":
+                # We only support equivalence right now. Fallback
+                fallback = True
+                break
+
+            if cond.args[0].symbolic is True and cond.args[1].symbolic is False:
+                variable, value = cond.args
+            elif cond.args[0].symbolic is False and cond.args[1].symbolic is True:
+                value, variable = cond.args
+            else:
+                # Cannot determine variable and value. Fallback
+                fallback = True
+                break
+
+            if target_variable is None:
+                target_variable = variable
+            elif target_variable is not variable:
+                # it's checking a different variable. Fallback
+                fallback = True
+                break
+
+            # Make sure the conditions are mutually exclusive
+            value_concrete = state.solver.eval(value)
+            if value_concrete in concretes:
+                # oops... the conditions are not mutually exclusive
+                fallback = True
+                break
+            concretes.add(value_concrete)
+
+            if target.symbolic is True:
+                # Cannot handle symbolic targets. Fallback
+                fallback = True
+                break
+
+            cond_and_targets.append((cond, target if not outer_reverse else state.solver.Reverse(target)))
+
+        if reached_sentinel is False:
+            # huh?
+            fallback = True
+
+        if fallback:
+            return None
+        else:
+            return cond_and_targets[ : limit]
+
+    @staticmethod
+    def _eval_target_brutal(state, ip, limit):
+        """
+        The traditional way of evaluating symbolic jump targets.
+
+        :param state:   A SimState instance.
+        :param ip:      The AST of the instruction pointer to evaluate.
+        :param limit:   The maximum number of concrete IPs.
+        :return:        A list of conditions and the corresponding concrete IPs.
+        :rtype:         list
+        """
+
+        addrs = state.se.eval_upto(ip, limit)
+
+        return [ (ip == addr, addr) for addr in addrs ]
+
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
+from ..storage.memory import DUMMY_SYMBOLIC_READ_VALUE
 from .. import sim_options as o

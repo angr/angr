@@ -194,6 +194,7 @@ class SimStateLibc(SimStatePlugin):
         self.max_buffer_size = 48
         self.max_strtol_len = 11 # len(str(2**31)) + 1
         self.max_memcpy_size = 4096
+        self.max_packet_size = 256
 
         # strtok
         self.strtok_heap = [ ]
@@ -217,7 +218,8 @@ class SimStateLibc(SimStatePlugin):
 
         self._errno_location = None
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         c = SimStateLibc()
         c.heap_location = self.heap_location
         c.mmap_base = self.mmap_base
@@ -250,7 +252,7 @@ class SimStateLibc(SimStatePlugin):
         else:
             return False
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return self._combine(others)
 
     def widen(self, others):
@@ -266,7 +268,8 @@ class SimStateLibc(SimStatePlugin):
             self.state.memory.map_region(HEAP_LOCATION, 4096*64, 3)
 
 
-SimStatePlugin.register_default('libc', SimStateLibc)
+from angr.sim_state import SimState
+SimState.register_default('libc', SimStateLibc)
 
 from ..errors import SimMemoryError
 from .. import sim_options as o

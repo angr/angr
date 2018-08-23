@@ -1,4 +1,4 @@
-
+import os
 import logging
 
 import claripy
@@ -6,10 +6,11 @@ from cle import MetaELF
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
-from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
-from ..state_plugins import SimStateSystem
+from ..state_plugins import SimFilesystem, SimHostFilesystem
+from ..storage.file import SimFile, SimFileBase
+from ..errors import AngrSyscallError
 from .userland import SimUserland
 
 _l = logging.getLogger('angr.simos.linux')
@@ -21,7 +22,11 @@ class SimLinux(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super(SimLinux, self).__init__(project, syscall_library=L['linux'], name="Linux", **kwargs)
+        super(SimLinux, self).__init__(project,
+                syscall_library=L['linux'],
+                syscall_addr_alignment=project.arch.instruction_alignment,
+                name="Linux",
+                **kwargs)
 
         self._loader_addr = None
         self._loader_lock_addr = None
@@ -29,7 +34,7 @@ class SimLinux(SimUserland):
         self._error_catch_tsd_addr = None
         self._vsyscall_addr = None
 
-    def configure_project(self):
+    def configure_project(self): # pylint: disable=arguments-differ
         self._loader_addr = self.project.loader.extern_object.allocate()
         self._loader_lock_addr = self.project.loader.extern_object.allocate()
         self._loader_unlock_addr = self.project.loader.extern_object.allocate()
@@ -80,7 +85,7 @@ class SimLinux(SimUserland):
 
         # Only set up ifunc resolution if we are using the ELF backend on AMD64
         if isinstance(self.project.loader.main_object, MetaELF):
-            if isinstance(self.project.arch, ArchAMD64):
+            if isinstance(self.project.arch, (ArchAMD64, ArchX86)):
                 for binary in self.project.loader.all_objects:
                     if not isinstance(binary, MetaELF):
                         continue
@@ -107,10 +112,44 @@ class SimLinux(SimUserland):
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                         self.project.loader.memory.write_addr_at(gotaddr, randaddr)
 
-        super(SimLinux, self).configure_project()
+        # maybe move this into archinfo?
+        if self.arch.name == 'X86':
+            syscall_abis = ['i386']
+        elif self.arch.name == 'AMD64':
+            syscall_abis = ['i386', 'amd64']
+        elif self.arch.name.startswith('ARM'):
+            syscall_abis = ['arm']
+            if self.arch.name == 'ARMHF':
+                syscall_abis.append('armhf')
+        elif self.arch.name == 'AARCH64':
+            syscall_abis = ['aarch64']
+        # https://www.linux-mips.org/wiki/WhatsWrongWithO32N32N64
+        elif self.arch.name == 'MIPS32':
+            syscall_abis = ['mips-o32']
+        elif self.arch.name == 'MIPS64':
+            syscall_abis = ['mips-n32', 'mips-n64']
+        elif self.arch.name == 'PPC32':
+            syscall_abis = ['ppc']
+        elif self.arch.name == 'PPC64':
+            syscall_abis = ['ppc64']
+        else:
+            syscall_abis = [] # ?
+
+        super(SimLinux, self).configure_project(syscall_abis)
+
+    def syscall_abi(self, state):
+        if state.arch.name != 'AMD64':
+            return None
+        if state.history.jumpkind == 'Ijk_Sys_int128':
+            return 'i386'
+        elif state.history.jumpkind == 'Ijk_Sys_syscall':
+            return 'amd64'
+        else:
+            raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
 
     # pylint: disable=arguments-differ
-    def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):
+    def state_blank(self, fs=None, concrete_fs=False, chroot=None,
+            cwd='/home/user', pathsep='/', **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs)
 
         if self.project.loader.tls_object is not None:
@@ -127,10 +166,23 @@ class SimLinux(SimUserland):
             elif isinstance(state.arch, ArchAArch64):
                 state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
 
-        last_addr = self.project.loader.main_object.max_addr
-        brk = last_addr - last_addr % 0x1000 + 0x1000
 
-        state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot, brk=brk))
+        if fs is None: fs = {}
+        for name in fs:
+            if type(fs[name]) is unicode:
+                fs[name] = fs[name].encode('utf-8')
+            if type(fs[name]) is bytes:
+                fs[name] = claripy.BVV(fs[name])
+            if isinstance(fs[name], claripy.Bits):
+                fs[name] = SimFile(name, content=fs[name])
+            if not isinstance(fs[name], SimFileBase):
+                raise TypeError("Provided fs initializer with unusable type %r" % type(fs[name]))
+
+        mounts = {}
+        if concrete_fs:
+            mounts[pathsep] = SimHostFilesystem(chroot if chroot is not None else os.path.sep)
+
+        state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
         if self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
@@ -232,35 +284,6 @@ class SimLinux(SimUserland):
     def state_full_init(self, **kwargs):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
-
-    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
-                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
-        _l.warning("Tracer has been heavily tested only for CGC. "
-                   "If you find it buggy for Linux binaries, we are sorry!")
-
-        options = kwargs.get('add_options', set())
-        options.add(o.BYPASS_UNSUPPORTED_SYSCALL)
-
-        kwargs['add_options'] = options
-
-        kwargs['remove_options'] = kwargs.get('remove_options', set())
-
-        kwargs['concrete_fs'] = kwargs.get('concrete_fs', True)
-
-        state = super(SimLinux, self).state_tracer(input_content=input_content,
-                                                   magic_content=magic_content,
-                                                   preconstrain_input=preconstrain_input,
-                                                   preconstrain_flag=preconstrain_flag,
-                                                   constrained_addrs=constrained_addrs,
-                                                   **kwargs)
-
-        state.preconstrainer.preconstrain_state()
-
-        # Increase size of libc limits
-        state.libc.buf_symbolic_bytes = 1024
-        state.libc.max_str_len = 1024
-
-        return state
 
     def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """

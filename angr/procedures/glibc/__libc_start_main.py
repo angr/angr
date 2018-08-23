@@ -133,10 +133,6 @@ class __libc_start_main(angr.SimProcedure):
         self.call(self.init, (self.argc, self.argv, self.envp), 'after_init')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
-        if isinstance(self.state.arch, ArchAMD64):
-            # (rsp+8) must be aligned to 16 as required by System V ABI
-            # ref: http://www.x86-64.org/documentation/abi.pdf , page 16
-            self.state.regs.rsp = (self.state.regs.rsp & 0xfffffffffffffff0) - 8
         self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
@@ -144,7 +140,7 @@ class __libc_start_main(angr.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath")
+        blank_state = angr.SimState(project=self.project, mode="fastpath", memory_backer=self.project.loader.memory)
         # set up the stack pointer
         blank_state.regs.sp = 0x7fffffff
 
@@ -152,7 +148,7 @@ class __libc_start_main(angr.SimProcedure):
         state = blank_state
         for b in blocks:
             # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = angr.SimEngineVEX().process(state, b,
+            irsb = self.project.engines.default_engine.process(state, b,
                     force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
             if irsb.successors:
                 state = irsb.successors[0]
@@ -206,5 +202,3 @@ class __libc_start_main(angr.SimProcedure):
             fini_ = state.mem[state.regs.r8 + 24:].long.resolved
 
         return main_, argc_, argv_, init_, fini_
-
-from archinfo import ArchAMD64

@@ -32,7 +32,7 @@ def run_fauxware(arch, threads):
     nose.tools.assert_false(all("SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items))
 
     # separate out the backdoor and normal paths
-    pg3 = pg2.stash(lambda path: "SOSNEAKY" in path.posix.dumps(0), to_stash="backdoor").stash_all(to_stash="auth")
+    pg3 = pg2.stash(lambda path: "SOSNEAKY" in path.posix.dumps(0), to_stash="backdoor").move('active', 'auth')
     nose.tools.assert_equal(len(pg3.active), 0)
     nose.tools.assert_equal(len(pg3.backdoor), 1)
     nose.tools.assert_equal(len(pg3.auth), 1)
@@ -46,14 +46,14 @@ def run_fauxware(arch, threads):
     nose.tools.assert_equal(len(pg4.auth), 1)
 
     # now step the real path until the real authentication paths return to the same place
-    pg5 = pg4.explore(find=main_addr, num_find=2, stash='auth').unstash_all(from_stash='found', to_stash='auth')
+    pg5 = pg4.explore(find=main_addr, num_find=2, stash='auth').move('found', 'auth')
 
     nose.tools.assert_equal(len(pg5.active), 0)
     nose.tools.assert_equal(len(pg5.backdoor), 1)
     nose.tools.assert_equal(len(pg5.auth), 2)
 
     # now unstash everything
-    pg6 = pg5.unstash_all(from_stash='backdoor').unstash_all(from_stash='auth')
+    pg6 = pg5.unstash(from_stash='backdoor').unstash(from_stash='auth')
     nose.tools.assert_equal(len(pg6.active), 3)
     nose.tools.assert_equal(len(pg6.backdoor), 0)
     nose.tools.assert_equal(len(pg6.auth), 0)
@@ -62,7 +62,7 @@ def run_fauxware(arch, threads):
 
     # now merge them!
     pg7 = pg6.merge()
-    nose.tools.assert_equal(len(pg7.active), 1)
+    nose.tools.assert_equal(len(pg7.active), 2)
     nose.tools.assert_equal(len(pg7.backdoor), 0)
     nose.tools.assert_equal(len(pg7.auth), 0)
 
@@ -73,8 +73,8 @@ def run_fauxware(arch, threads):
     pg_a = p.factory.simgr(immutable=True)
     pg_b = pg_a.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     pg_c = pg_b.step(selector_func=lambda p: p is pg_b.active[0], step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
-    nose.tools.assert_is(pg_b.active[1], pg_c.active[0])
-    nose.tools.assert_is_not(pg_b.active[0], pg_c.active[1])
+    nose.tools.assert_is(pg_b.active[1], pg_c.active[1])
+    nose.tools.assert_is_not(pg_b.active[0], pg_c.active[0])
 
     total_active = len(pg_c.active)
 
@@ -124,6 +124,7 @@ def test_explore_with_cfg():
     nose.tools.assert_equal(pg.avoid[0].addr, 0x4007C9)
 
 if __name__ == "__main__":
+    logging.getLogger('angr.sim_manager').setLevel('DEBUG')
     print 'explore_with_cfg'
     test_explore_with_cfg()
     print 'find_to_middle'

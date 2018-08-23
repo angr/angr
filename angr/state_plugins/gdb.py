@@ -1,11 +1,11 @@
 import os
 import re
-from .plugin import SimStatePlugin
-from ..errors import SimStateError
-import libc as libc
 import logging
 import claripy
 import binascii
+
+from .plugin import SimStatePlugin
+from ..errors import SimStateError
 
 l = logging.getLogger("angr.state_plugins.gdb")
 
@@ -44,7 +44,7 @@ class GDB(SimStatePlugin):
         data = self._read_data(stack_dump)
         self.real_stack_top = stack_top
         addr = stack_top - len(data) # Address of the bottom of the stack
-        l.info("Setting stack from 0x%x up to 0x%x" % (addr, stack_top))
+        l.info("Setting stack from 0x%x up to %#x", addr, stack_top)
         #FIXME: we should probably make we don't overwrite other stuff loaded there
         self._write(addr, data)
 
@@ -62,7 +62,7 @@ class GDB(SimStatePlugin):
         data = self._read_data(heap_dump)
         self.state.libc.heap_location = heap_base + len(data)
         addr = heap_base
-        l.info("Set heap from 0x%x to 0x%x" % (addr, addr+len(data)))
+        l.info("Set heap from 0x%x to %#x", addr, addr+len(data))
         #FIXME: we should probably make we don't overwrite other stuff loaded there
         self._write(addr, data)
 
@@ -71,7 +71,7 @@ class GDB(SimStatePlugin):
         Update any data range (most likely use is the data segments of loaded objects)
         """
         data = self._read_data(data_dump)
-        l.info("Set data from 0x%x to 0x%x" % (addr, addr+len(data)))
+        l.info("Set data from 0x%x to %#x", addr, addr+len(data))
         self._write(addr, data)
 
     def set_regs(self, regs_dump):
@@ -96,7 +96,7 @@ class GDB(SimStatePlugin):
                 self.state.registers.store(reg, claripy.BVV(val, self.state.arch.bits))
             # Some registers such as cs, ds, eflags etc. aren't supported in angr
             except KeyError as e:
-                l.warning("Reg %s was not set" % str(e))
+                l.warning("Reg %s was not set", e)
 
         self._adjust_regs()
 
@@ -117,7 +117,8 @@ class GDB(SimStatePlugin):
         if not self.omit_fp:
             self.state.registers.store(bp, self.state.regs.bp + stack_shift)
 
-    def _read_data(self, path):
+    @staticmethod
+    def _read_data(path):
         if not os.path.exists(path):
             raise SimStateError("File does not exist")
         f = open(path, "rb")
@@ -128,12 +129,16 @@ class GDB(SimStatePlugin):
             self.state.memory.store(addr, d, size=1)
             addr = addr + 1
 
-    def _to_bvv(self, data):
+    @staticmethod
+    def _to_bvv(data):
         sz = len(data)
         num = int(binascii.hexlify(data), 16)
         return claripy.BVV(num, sz)
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return GDB()
 
-SimStatePlugin.register_default('gdb', GDB)
+
+from angr.sim_state import SimState
+SimState.register_default('gdb', GDB)

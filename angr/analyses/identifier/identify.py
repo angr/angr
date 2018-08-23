@@ -1,14 +1,16 @@
 
-import logging
 from collections import defaultdict
+from itertools import chain
+import logging
 
-from .. import Analysis, register_analysis
-from cle.backends.cgc import CGC
 from networkx import NetworkXError
+
+from cle.backends.cgc import CGC
 
 from .errors import IdentifierException
 from .functions import Functions
 from .runner import Runner
+from .. import Analysis
 from ... import options
 from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
@@ -16,6 +18,7 @@ l = logging.getLogger("identifier.identify")
 
 
 NUM_TESTS = 5
+
 
 class FuncInfo(object):
     def __init__(self):
@@ -38,8 +41,6 @@ class Identifier(Analysis):
     _special_case_funcs = ["free"]
 
     def __init__(self, cfg=None, require_predecessors=True, only_find=None):
-        from angrop import rop_utils
-
         # self.project = project
         if not isinstance(self.project.loader.main_object, CGC):
             l.critical("The identifier currently works only on CGC binaries. Results may be completely unexpected.")
@@ -75,7 +76,7 @@ class Identifier(Analysis):
             l.warning("Too large")
             return
 
-        self.base_symbolic_state = rop_utils.make_symbolic_state(self.project, self._reg_list)
+        self.base_symbolic_state = self.make_symbolic_state(self.project, self._reg_list)
         self.base_symbolic_state.options.discard(options.SUPPORT_FLOATING_POINT)
         self.base_symbolic_state.regs.bp = self.base_symbolic_state.se.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
 
@@ -262,7 +263,7 @@ class Identifier(Analysis):
         try:
             if not match_func.pre_test(cfg_func, self._runner):
                 return False
-            for i in xrange(NUM_TESTS): #pylint disable=unused-variable
+            for _ in xrange(NUM_TESTS):
                 test_data = match_func.gen_input_output_pair()
                 if test_data is not None and not self._runner.test(cfg_func, test_data):
                     return False
@@ -296,11 +297,10 @@ class Identifier(Analysis):
             for b in f.graph.nodes():
                 self.block_to_func[b.addr] = f
 
-    def do_trace(self, addr_trace, reverse_accesses, func_info): #pylint disable=unused-argument
+    def do_trace(self, addr_trace, reverse_accesses, func_info): #pylint: disable=unused-argument
         # get to the callsite
-        from angrop import rop_utils
 
-        s = rop_utils.make_symbolic_state(self.project, self._reg_list, stack_length=200)
+        s = self.make_symbolic_state(self.project, self._reg_list, stack_length=200)
         s.options.discard(options.AVOID_MULTIVALUED_WRITES)
         s.options.discard(options.AVOID_MULTIVALUED_READS)
         s.options.add(options.UNDER_CONSTRAINED_SYMEXEC)
@@ -346,7 +346,7 @@ class Identifier(Analysis):
         # step one last time to the call
         simgr.step()
         if len(simgr.active) == 0:
-            IdentifierException("Didn't succeed call")
+            raise IdentifierException("Didn't succeed call")
         return simgr.active[0]
 
     def get_call_args(self, func, callsite):
@@ -362,9 +362,8 @@ class Identifier(Analysis):
         calling_func_info = self.func_info[calling_func]
         stack_var_accesses = calling_func_info.stack_var_accesses
         for stack_var, v in stack_var_accesses.items():
-            for addr, type in v:
-                #pylint disable=redefined-builtin
-                reverse_accesses[addr] = (stack_var, type)
+            for addr, ty in v:
+                reverse_accesses[addr] = (stack_var, ty)
 
         # we need to step back as far as possible
         start = calling_func.get_node(callsite)
@@ -445,7 +444,7 @@ class Identifier(Analysis):
         state.regs.bp = input_state.regs.bp
         return state
 
-    def _prefilter_floats(self, func): #pylint disable=no-self-use
+    def _prefilter_floats(self, func): #pylint: disable=no-self-use
 
         # calling _get_block() from `func` respects the size of the basic block
         # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
@@ -589,7 +588,7 @@ class Identifier(Analysis):
                     elif not found_end and stmt.tag == 'Ist_Put':
                         if stmt.offset == self.project.arch.sp_offset:
                             found_end = True
-                            ends.add(a.ins_addr)
+                            ends.add(cur_addr)
                             all_end_addrs.add(cur_addr)
 
         bp_sp_diff = None
@@ -763,7 +762,7 @@ class Identifier(Analysis):
 
     def _no_sp_or_bp(self, bl):
         for s in bl.vex.statements:
-            for e in [s] + s.expressions:
+            for e in chain([s], s.expressions):
                 if e.tag == "Iex_Get":
                     reg = self.get_reg_name(self.project.arch, e.offset)
                     if reg == "ebp" or reg == "esp":
@@ -793,4 +792,43 @@ class Identifier(Analysis):
                 return True
             return False
 
-register_analysis(Identifier, 'Identifier')
+    @staticmethod
+    def make_initial_state(project, stack_length):
+        """
+        :return: an initial state with a symbolic stack and good options for rop
+        """
+        initial_state = project.factory.blank_state(
+            add_options={options.AVOID_MULTIVALUED_READS, options.AVOID_MULTIVALUED_WRITES,
+                         options.NO_SYMBOLIC_JUMP_RESOLUTION, options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH,
+                         options.NO_SYMBOLIC_SYSCALL_RESOLUTION, options.TRACK_ACTION_HISTORY},
+            remove_options=options.resilience | options.simplification)
+        initial_state.options.discard(options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+        initial_state.options.update({options.TRACK_REGISTER_ACTIONS, options.TRACK_MEMORY_ACTIONS,
+                                      options.TRACK_JMP_ACTIONS, options.TRACK_CONSTRAINT_ACTIONS})
+        symbolic_stack = initial_state.se.BVS("symbolic_stack", project.arch.bits * stack_length)
+        initial_state.memory.store(initial_state.regs.sp, symbolic_stack)
+        if initial_state.arch.bp_offset != initial_state.arch.sp_offset:
+            initial_state.regs.bp = initial_state.regs.sp + 20 * initial_state.arch.bytes
+        initial_state.se._solver.timeout = 500  # only solve for half a second at most
+        return initial_state
+
+    @staticmethod
+    def make_symbolic_state(project, reg_list, stack_length=80):
+        """
+        converts an input state into a state with symbolic registers
+        :return: the symbolic state
+        """
+        input_state = Identifier.make_initial_state(project, stack_length)
+        symbolic_state = input_state.copy()
+        # overwrite all registers
+        for reg in reg_list:
+            symbolic_state.registers.store(reg, symbolic_state.se.BVS("sreg_" + reg + "-", project.arch.bits))
+        # restore sp
+        symbolic_state.regs.sp = input_state.regs.sp
+        # restore bp
+        symbolic_state.regs.bp = input_state.regs.bp
+        return symbolic_state
+
+
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('Identifier', Identifier)

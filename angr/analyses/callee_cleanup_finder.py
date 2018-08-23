@@ -1,4 +1,4 @@
-from . import Analysis, register_analysis
+from . import Analysis
 from .. import SIM_PROCEDURES
 
 import logging
@@ -61,4 +61,5 @@ class CalleeCleanupFinder(Analysis):
 
         return None
 
-register_analysis(CalleeCleanupFinder, 'CalleeCleanupFinder')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CalleeCleanupFinder', CalleeCleanupFinder)

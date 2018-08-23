@@ -25,7 +25,7 @@ class DrillerCore(ExplorationTechnique):
 
         super(DrillerCore, self).__init__()
         self.trace = trace
-        self.fuzz_bitmap = fuzz_bitmap or "\xff" * 65535
+        self.fuzz_bitmap = fuzz_bitmap or "\xff" * 65536
 
         # Set of encountered basic block transitions.
         self.encounters = set()
@@ -40,8 +40,8 @@ class DrillerCore(ExplorationTechnique):
     def complete(self, simgr):
         return not simgr.active or simgr.one_active.globals['bb_cnt'] >= len(self.trace)
 
-    def step(self, simgr, stash, **kwargs):
-        simgr._one_step(stash, **kwargs)
+    def step(self, simgr, stash='active', **kwargs):
+        simgr.step(stash=stash, **kwargs)
 
         # Mimic AFL's indexing scheme.
         if 'missed' in simgr.stashes and simgr.missed:
@@ -60,10 +60,11 @@ class DrillerCore(ExplorationTechnique):
                 hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
                 transition = (prev_addr, state.addr)
+                mapped_to = self.project.loader.find_object_containing(state.addr).binary
 
                 l.debug("Found %#x -> %#x transition.", transition[0], transition[1])
 
-                if not hit and transition not in self.encounters and not self._has_false(state):
+                if not hit and transition not in self.encounters and not self._has_false(state) and mapped_to != 'cle##externs':
                     state.preconstrainer.remove_preconstraints()
 
                     if state.satisfiable():
@@ -74,6 +75,9 @@ class DrillerCore(ExplorationTechnique):
 
                     else:
                         l.debug("State at %#x is not satisfiable.", transition[1])
+
+                elif self._has_false(state):
+                    l.debug("State at %#x is not satisfiable even remove preconstraints.", transition[1])
 
                 else:
                     l.debug("%#x -> %#x transition has already been encountered.", transition[0], transition[1])

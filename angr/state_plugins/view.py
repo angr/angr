@@ -5,9 +5,6 @@ import logging
 l = logging.getLogger("angr.state_plugins.view")
 
 class SimRegNameView(SimStatePlugin):
-    def __init__(self):
-        super(SimRegNameView, self).__init__()
-
     def __getattr__(self, k):
         """
         Get the value of a register.
@@ -67,13 +64,14 @@ class SimRegNameView(SimStatePlugin):
             return self.state.arch.registers.keys() + ['flags']
         return self.state.arch.registers.keys()
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimRegNameView()
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         return False
 
     def get(self, reg_name):
@@ -177,13 +175,15 @@ class SimMemView(SimStatePlugin):
                                       addr)
 
     def __dir__(self):
-        return self._type._refine_dir() if self._type else [x for x in SimMemView.types if ' ' not in x]
+        return self._type._refine_dir() if self._type else [x for x in SimMemView.types if ' ' not in x] + ['struct']
 
     def __getattr__(self, k):
         if k in ('concrete', 'deref', 'resolvable', 'resolved', 'state', 'array', 'store', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
         if self._type and k in self._type._refine_dir():
             return self._type._refine(self, k)
+        if k == 'struct':
+            return StructMode(self)
         if k in SimMemView.types:
             return self._deeper(ty=SimMemView.types[k].with_arch(self.state.arch))
         raise AttributeError(k)
@@ -191,18 +191,19 @@ class SimMemView(SimStatePlugin):
     def __setattr__(self, k, v):
         if k in ('state', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
-        self.__getattr__(k).store(v)
+        return self.__getattr__(k).store(v)
 
     def __cmp__(self, other):
         raise ValueError("Trying to compare SimMemView is not what you want to do")
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimMemView()
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         return False
 
     @property
@@ -249,8 +250,28 @@ class SimMemView(SimStatePlugin):
 
         return self._type.store(self.state, self._addr, value)
 
+
+class StructMode(object):
+    def __init__(self, view):
+        self._view = view
+
+    def __dir__(self):
+        return [x[7:] for x in SimMemView.types if x.startswith('struct ')]
+
+    def __getattr__(self, k):
+        assert k != '_view'
+        return self._view._deeper(ty=SimMemView.types['struct ' + k].with_arch(self._view.state.arch))
+
+    def __setattr__(self, k, v):
+        if k == '_view':
+            object.__setattr__(self, k, v)
+        else:
+            self.__getattr__(k).store(v)
+
 from ..sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
 SimMemView.types = ALL_TYPES # identity purposefully here
 
-SimStatePlugin.register_default('regs', SimRegNameView)
-SimStatePlugin.register_default('mem', SimMemView)
+
+from angr.sim_state import SimState
+SimState.register_default('mem', SimMemView)
+SimState.register_default('regs', SimRegNameView)

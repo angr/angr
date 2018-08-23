@@ -1,7 +1,4 @@
-
 import sys
-
-from .. import register_analysis
 
 from .cfg_fast import CFGFast
 
@@ -11,9 +8,9 @@ class OutdatedError(Exception):
 
 class CFG(CFGFast):     # pylint: disable=abstract-method
     """
-    tl;dr  CFG is just a wrapper around CFGFast for compatibility issues. It will be fully replaced by CFGFast in future
-      releases. Feel free to use CFG if you intend to use CFGFast. Please use CFGAccurate if you *have to* use the old,
-      slow, but more accurate version of CFG.
+    tl;dr: CFG is just a wrapper around CFGFast for compatibility issues. It will be fully replaced by CFGFast in future
+    releases. Feel free to use CFG if you intend to use CFGFast. Please use CFGAccurate if you *have to* use the old,
+    slow, but more accurate version of CFG.
 
     For multiple historical reasons, angr's CFG is accurate but slow, which does not meet what most people expect. We
     developed CFGFast for light-speed CFG recovery, and renamed the old CFG class to CFGAccurate. For compability
@@ -21,10 +18,10 @@ class CFG(CFGFast):     # pylint: disable=abstract-method
 
     However, so many new users of angr would load up a binary and generate a CFG immediately after running
     "pip install angr", and draw the conclusion that "angr's CFG is so slow - angr must be unusable!" Therefore, we made
-    the hard decision:
-                            CFG will be an alias to CFGFast, instead of CFGAccurate.
+    the hard decision: CFG will be an alias to CFGFast, instead of CFGAccurate.
 
     To ease the transition of your existing code and script, the following changes are made:
+
     - A CFG class, which is a sub class of CFGFast, is created.
     - You will see both a warning message printed out to stderr and an exception raised by angr if you are passing CFG
       any parameter that only CFGAccurate supports. This exception is not a sub class of AngrError, so you wouldn't
@@ -57,4 +54,5 @@ class CFG(CFGFast):     # pylint: disable=abstract-method
         # Now initializes CFGFast :-)
         CFGFast.__init__(self, **kwargs)
 
-register_analysis(CFG, 'CFG')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('CFG', CFG)

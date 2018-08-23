@@ -60,7 +60,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         gp_offset = project.arch.registers['gp'][0]
         if 'gp' not in func.info:
-            sec = cfg._addr_belongs_to_section(func.addr)
+            sec = project.loader.find_section_containing(func.addr)
             if sec is None or sec.name != '.plt':
                 # this might a special case: gp is only used once in this function, and it can be initialized right before
                 # its use site.

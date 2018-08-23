@@ -14,5 +14,9 @@ class fread(angr.SimProcedure):
 
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fd = self.state.mem[file_ptr + fd_offset:].int.resolved
-        ret = self.state.posix.read(fd, dst, size * nm)
+        simfd = self.state.posix.get_fd(fd)
+        if simfd is None:
+            return -1
+
+        ret = simfd.read(dst, size * nm)
         return self.state.se.If(self.state.se.Or(size == 0, nm == 0), 0, ret / size)

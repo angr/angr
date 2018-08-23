@@ -10,7 +10,7 @@ import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
-def run_signed_div():
+def test_signed_div():
     if not sys.platform.startswith('linux'):
         raise nose.SkipTest()   # this is not technically required, the run result could just be inlined
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/test_signed_div")
@@ -24,8 +24,5 @@ def run_signed_div():
 
     nose.tools.assert_equal(out_angr, stdout_real)
 
-def test_signed_div():
-    yield run_signed_div
-
 if __name__ == "__main__":
-    run_signed_div()
+    test_signed_div()

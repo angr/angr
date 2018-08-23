@@ -5,18 +5,18 @@ import pyvex
 from archinfo import ArchARM
 from .engines import SimEngineVEX
 
-DEFAULT_VEX_ENGINE = SimEngineVEX()  # this is only used when Block is not initialized with a project
+DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
 
 
 class Block(object):
     BLOCK_MAX_SIZE = 4096
 
-    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', 'instructions',
-                 '_instruction_addrs', '_opt_level'
+    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
+                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs'
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 opt_level=None, num_inst=None, traceflags=0):
+                 opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
 
         # set up arch
         if project is not None:
@@ -30,7 +30,7 @@ class Block(object):
         if isinstance(self.arch, ArchARM):
             if addr & 1 == 1:
                 thumb = True
-            if thumb:
+            elif thumb:
                 addr |= 1
         else:
             thumb = False
@@ -57,14 +57,19 @@ class Block(object):
                         thumb=thumb,
                         opt_level=opt_level,
                         num_inst=num_inst,
-                        traceflags=traceflags)
+                        traceflags=traceflags,
+                        strict_block_end=strict_block_end,
+                        collect_data_refs=collect_data_refs,
+                )
                 size = vex.size
 
         self._vex = vex
+        self._vex_nostmt = None
         self._capstone = None
         self.size = size
+        self._collect_data_refs = collect_data_refs
 
-        self.instructions = num_inst
+        self._instructions = num_inst
         self._instruction_addrs = []
 
         self._parse_vex_info()
@@ -76,7 +81,7 @@ class Block(object):
                     self._bytes = str(pyvex.ffi.buffer(self._bytes, size))
             else:
                 self._bytes = None
-        elif type(byte_string) is str:
+        elif type(byte_string) is bytes:
             if self.size is not None:
                 self._bytes = byte_string[:self.size]
             else:
@@ -89,7 +94,7 @@ class Block(object):
     def _parse_vex_info(self):
         vex = self._vex
         if vex is not None:
-            self.instructions = vex.instructions
+            self._instructions = vex.instructions
             self._instruction_addrs = []
             self.size = vex.size
 
@@ -140,13 +145,36 @@ class Block(object):
                     addr=self.addr,
                     thumb=self.thumb,
                     size=self.size,
-                    num_inst=self.instructions,
+                    num_inst=self._instructions,
                     opt_level=self._opt_level,
                     arch=self.arch,
+                    collect_data_refs=self._collect_data_refs,
             )
             self._parse_vex_info()
 
         return self._vex
+
+    @property
+    def vex_nostmt(self):
+        if self._vex_nostmt:
+            return self._vex_nostmt
+
+        if self._vex:
+            return self._vex
+
+        self._vex_nostmt = self._vex_engine.lift(
+            clemory=self._project.loader.memory if self._project is not None else None,
+            insn_bytes=self._bytes,
+            addr=self.addr,
+            thumb=self.thumb,
+            size=self.size,
+            num_inst=self._instructions,
+            opt_level=self._opt_level,
+            arch=self.arch,
+            skip_stmts=True,
+            collect_data_refs=self._collect_data_refs,
+        )
+        return self._vex_nostmt
 
     @property
     def capstone(self):
@@ -173,8 +201,23 @@ class Block(object):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
-            self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
+            buf, size = self._project.loader.memory.read_bytes_c(addr)
+
+            # Make sure it does not go over-bound
+            if buf is not None and self.size <= size:
+                self._bytes = pyvex.ffi.unpack(pyvex.ffi.cast('char*', buf), self.size)
+            else:
+                # fall back to the slow path
+                self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
         return self._bytes
+
+    @property
+    def instructions(self):
+        if not self._instructions and self._vex is None:
+            # initialize from VEX
+            _ = self.vex
+
+        return self._instructions
 
     @property
     def instruction_addrs(self):
@@ -183,6 +226,7 @@ class Block(object):
             _ = self.vex
 
         return self._instruction_addrs
+
 
 class CapstoneBlock(object):
     """

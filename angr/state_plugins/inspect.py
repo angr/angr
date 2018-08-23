@@ -35,21 +35,25 @@ inspect_attributes = {
     'mem_read_address',
     'mem_read_expr',
     'mem_read_length',
+    'mem_read_condition',
 
     # mem_write
     'mem_write_address',
     'mem_write_expr',
     'mem_write_length',
+    'mem_write_condition',
 
     # reg_read
     'reg_read_offset',
     'reg_read_expr',
     'reg_read_length',
+    'reg_read_condition',
 
     # reg_write
     'reg_write_offset',
     'reg_write_expr',
     'reg_write_length',
+    'reg_write_condition',
 
     # tmp_read
     'tmp_read_num',
@@ -121,7 +125,7 @@ class BP(object):
     A breakpoint.
     """
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
-        if len(set([ k.replace("_unique", "") for k in kwargs.keys()]) - set(inspect_attributes)) != 0:
+        if len(set([ k.replace("_unique", "") for k in kwargs]) - set(inspect_attributes)) != 0:
             raise ValueError("Invalid inspect attribute(s) %s passed in. Should be one of %s, or their _unique option." % (kwargs, inspect_attributes))
 
         self.kwargs = kwargs
@@ -144,7 +148,7 @@ class BP(object):
             return ok
         l.debug("... after enabled and when: %s", ok)
 
-        for a in [ _ for _ in self.kwargs.keys() if not _.endswith("_unique") ]:
+        for a in [ _ for _ in self.kwargs if not _.endswith("_unique") ]:
             current_expr = getattr(state.inspect, a)
             needed = self.kwargs.get(a, None)
 
@@ -291,7 +295,8 @@ class SimInspector(SimStatePlugin):
             # the breakpoint is not found
             l.error('remove_breakpoint(): Breakpoint %s (type %s) is not found.', bp, event_type)
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         c = SimInspector()
         for i in inspect_attributes:
             setattr(c, i, getattr(self, i))
@@ -327,10 +332,12 @@ class SimInspector(SimStatePlugin):
                         seen.add(id(b))
         return False
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return self._combine(others)
 
     def widen(self, others):
         return self._combine(others)
 
-SimInspector.register_default('inspector', SimInspector)
+
+from angr.sim_state import SimState
+SimState.register_default('inspect', SimInspector)

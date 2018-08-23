@@ -281,7 +281,7 @@ def test_inspect_engine_process():
                     when=BP_AFTER,
                     action=check_first_symbolic_fork,
                     condition=first_symbolic_fork)
-    pg.step(until=lambda lpg: len(lpg.active) == 0)
+    pg.run()
 
     state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
     pg = p.factory.simgr(state)
@@ -293,7 +293,7 @@ def test_inspect_engine_process():
                     when=BP_AFTER,
                     action=check_second_symbolic_fork,
                     condition=second_symbolic_fork)
-    pg.step(until=lambda lpg: len(lpg.active) == 0)
+    pg.run()
 
 if __name__ == '__main__':
     test_inspect_concretization()

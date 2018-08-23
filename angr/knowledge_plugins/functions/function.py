@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import claripy
 from ...errors import SimEngineError, SimMemoryError
+from ...procedures import SIM_LIBRARIES
 
 l = logging.getLogger("angr.knowledge.function")
 
@@ -16,7 +17,18 @@ class Function(object):
     """
     A representation of a function and various information about it.
     """
-    def __init__(self, function_manager, addr, name=None, syscall=False):
+
+    __slots__ = ('transition_graph', '_local_transition_graph', 'normalized', '_ret_sites', '_jumpout_sites',
+                 '_callout_sites', '_endpoints', '_call_sites', '_retout_sites', 'addr', '_function_manager',
+                 'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'binary_name',
+                 '_argument_registers', '_argument_stack_variables',
+                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
+                 'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
+                 'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
+                 '_local_block_addrs', 'info'
+                 )
+
+    def __init__(self, function_manager, addr, name=None, syscall=None):
         """
         Function constructor
 
@@ -49,6 +61,10 @@ class Function(object):
 
         self.is_plt = False
         self.is_simprocedure = False
+
+        if self.is_syscall is None:
+            # Determine whether this function is a syscall or not
+            self.is_syscall = self._project.simos.is_syscall_addr(addr)
 
         if project.is_hooked(addr):
             self.is_simprocedure = True
@@ -107,8 +123,20 @@ class Function(object):
         # Calling convention
         self.calling_convention = None
 
+        # Function prototype
+        self.prototype = None
+
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
+
+        # Determine returning status for SimProcedures and Syscalls
+        hooker = None
+        if self.is_simprocedure:
+            hooker = project.hooked_by(addr)
+        elif self.is_syscall:
+            hooker = project.simos.syscall_from_addr(addr)
+        if hooker and hasattr(hooker, 'NO_RET'):
+            self.returning = not hooker.NO_RET
 
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
@@ -450,7 +478,7 @@ class Function(object):
         :return: The object this function belongs to.
         """
 
-        return self._project.loader.find_object_containing(self.addr)
+        return self._project.loader.find_object_containing(self.addr, membership_check=False)
 
     def add_jumpout_site(self, node):
         """
@@ -522,15 +550,20 @@ class Function(object):
 
         if outside:
             self._register_nodes(True, from_node)
-            self._register_nodes(False, to_node)
+            if to_node is not None:
+                self._register_nodes(False, to_node)
 
             self._jumpout_sites.add(from_node)
         else:
-            self._register_nodes(True, from_node, to_node)
+            if to_node is not None:
+                self._register_nodes(True, from_node, to_node)
+            else:
+                self._register_nodes(True, from_node)
 
-        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
-                                       stmt_idx=stmt_idx
-                                       )
+        if to_node is not None:
+            self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
+                                           stmt_idx=stmt_idx
+                                           )
 
         if outside:
             # this node is an endpoint of the current function
@@ -762,10 +795,10 @@ class Function(object):
         for src, dst, data in self.transition_graph.edges(data=True):
             if 'type' in data:
                 if data['type']  == 'transition' and ('outside' not in data or data['outside'] is False):
-                    g.add_edge(src, dst, attr_dict=data)
+                    g.add_edge(src, dst, **data)
                 elif data['type'] == 'fake_return' and 'confirmed' in data and \
                         ('outside' not in data or data['outside'] is False):
-                    g.add_edge(src, dst, attr_dict=data)
+                    g.add_edge(src, dst, **data)
 
         self._local_transition_graph = g
 
@@ -1005,6 +1038,49 @@ class Function(object):
 
         self.normalized = True
 
+    def find_declaration(self):
+        """
+        Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
+        and update self.calling_convention with the declaration.
 
-from ...codenode import BlockNode
+        :return: None
+        """
+
+        # determine the library name
+
+        if not self.is_plt:
+            binary_name = self.binary_name
+            if binary_name not in SIM_LIBRARIES:
+                return
+        else:
+            binary_name = None
+            # PLT entries must have the same declaration as their jump targets
+            # Try to determine which library this PLT entry will jump to
+            edges = self.transition_graph.edges()
+            if len(edges) == 1 and type(next(iter(edges))[1]) is HookNode:
+                target = next(iter(edges))[1].addr
+                if target in self._function_manager:
+                    target_func = self._function_manager[target]
+                    binary_name = target_func.binary_name
+
+        if binary_name is None:
+            return
+
+        library = SIM_LIBRARIES.get(binary_name, None)
+
+        if library is None:
+            return
+
+        if not library.has_prototype(self.name):
+            return
+
+        proto = library.prototypes[self.name]
+
+        self.prototype = proto
+        if self.calling_convention is not None:
+            self.calling_convention.args = None
+            self.calling_convention.func_ty = proto
+
+
+from ...codenode import BlockNode, HookNode
 from ...errors import AngrValueError

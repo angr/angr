@@ -18,12 +18,12 @@ def run_echo_haha(arch):
     p = angr.Project(os.path.join(test_location, arch, 'echo'), use_sim_procedures=False)
     s = p.factory.full_init_state(mode='symbolic_approximating', args=['echo', 'haha'], add_options={angr.options.STRICT_PAGE_ACCESS})
     pg = p.factory.simgr(s)
-    pg.step(until=lambda lpg: len(lpg.active) != 1)
+    pg.run(until=lambda lpg: len(lpg.active) != 1)
 
     assert len(pg.deadended) == 1
     assert len(pg.active) == 0
     # Need to dump by path because the program closes stdout
-    assert pg.deadended[0].posix.dump_file_by_path('/dev/stdout') == 'haha\n'
+    assert pg.deadended[0].posix.stdout.concretize() == ['haha\n']
 
 def test_echo_haha():
     for arch in target_arches:

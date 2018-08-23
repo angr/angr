@@ -6,9 +6,11 @@ import itertools
 l = logging.getLogger("angr.state_plugins.symbolic_memory")
 
 import claripy
-from ..storage.memory import SimMemory
+
+from ..storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
 from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
+from ..sim_state_options import SimStateOptions
 
 DEFAULT_MAX_SEARCH = 8
 
@@ -59,7 +61,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Lifecycle management
     #
 
-    def copy(self):
+    @SimMemory.memo
+    def copy(self, _):
         """
         Return a copy of the SimMemory.
         """
@@ -89,7 +92,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return changed_bytes
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         """
         Merge this SimMemory with the other SimMemory
         """
@@ -225,9 +228,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return merged_bytes
 
-    def set_state(self, s):
-        SimMemory.set_state(self, s)
-        self.mem.state = s
+    def set_state(self, state):
+        super(SimSymbolicMemory, self).set_state(state)
+        self.mem.state = state._get_weakref()
 
         if self.state is not None:
             if self.read_strategies is None:
@@ -430,7 +433,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _fill_missing(self, addr, num_bytes, inspect=True, events=True):
-        name = "%s_%x" % (self.id, addr)
+        if self.category == 'reg':
+            name = "reg_%s" % (self.state.arch.translate_register_name(addr))
+        else:
+            name = "%s_%x" % (self.id, addr)
         all_missing = [
             self.get_unconstrained_bytes(
                 name,
@@ -525,14 +531,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        read_value = self._read_from(addrs[0], size, inspect=inspect,
-                events=events, ret_on_segv=ret_on_segv)
-        constraint_options = [ dst == addrs[0] ]
+        constraint_options = [ ]
 
-        for a in addrs[1:]:
-            read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
-                                          read_value)
-            constraint_options.append(dst == a)
+        if len(addrs) == 1:
+            # It's not an conditional reaed
+            constraint_options.append(dst == addrs[0])
+            read_value = self._read_from(addrs[0], size, inspect=inspect, events=events)
+        else:
+            read_value = DUMMY_SYMBOLIC_READ_VALUE  # it's a sentinel value and should never be touched
+
+            for a in addrs:
+                read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
+                                              read_value)
+                constraint_options.append(dst == a)
 
         if len(constraint_options) > 1:
             load_constraint = [ self.state.se.Or(*constraint_options) ]
@@ -541,13 +552,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             load_constraint = [ constraint_options[0] ]
 
-        if condition is not None:
+        if condition is not None and fallback is not None:
             read_value = self.state.se.If(condition, read_value, fallback)
             load_constraint = [ self.state.se.Or(self.state.se.And(condition, *load_constraint), self.state.se.Not(condition)) ]
 
         return addrs, read_value, load_constraint
 
-    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+              disable_actions=False, inspect=True):
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
@@ -562,7 +574,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         chunk_start = 0
         chunk_size = max(0x100, seek_size + 0x80)
-        chunk = self.load(start, chunk_size, endness="Iend_BE")
+        chunk = self.load(start, chunk_size, endness="Iend_BE",
+                          disable_actions=disable_actions, inspect=inspect)
 
         cases = [ ]
         match_indices = [ ]
@@ -580,12 +593,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 l.debug("loading new chunk")
                 chunk_start += chunk_size - seek_size + 1
                 chunk = self.load(start+chunk_start, chunk_size,
-                        endness="Iend_BE", ret_on_segv=True)
+                                  endness="Iend_BE", ret_on_segv=True,
+                                  disable_actions=disable_actions, inspect=inspect)
 
             chunk_off = i-chunk_start
             b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
-            cases.append([b == what, start + i])
-            match_indices.append(i)
+            condition = b == what
+            if not self.state.solver.is_false(condition):
+                cases.append([b == what, claripy.BVV(i, len(start))])
+                match_indices.append(i)
 
             if self.state.mode == 'static':
                 si = b._model_vsa
@@ -630,7 +646,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
 
             #l.debug("running ite_cases %s, %s", cases, default)
-            r = self.state.se.ite_cases(cases, default)
+            r = self.state.se.ite_cases(cases, default - start) + start
             return r, constraints, match_indices
 
     def __contains__(self, dst):
@@ -754,7 +770,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if type(size) not in (int, long):
             size = self.state.solver.eval(size)
         if size < data.length//self.state.arch.byte_width:
-            data = data[size*self.state.arch.byte_width-1:]
+            data = data[len(data)-1:len(data)-size*self.state.arch.byte_width:]
         if condition is not None:
             try:
                 original_value = self._read_from(address, size)
@@ -982,6 +998,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def get_unconstrained_bytes(self, name, bits, source=None, key=None, inspect=True, events=True, **kwargs):
         """
         Get some consecutive unconstrained bytes.
+
         :param name: Name of the unconstrained variable
         :param bits: Size of the unconstrained variable
         :param source: Where those bytes are read from. Currently it is only used in under-constrained symbolic
@@ -1055,17 +1072,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 merged_val = self.state.se.If(fv, tm, merged_val)
 
         return merged_val
-
-    def concrete_parts(self):
-        """
-        Return a dict containing the concrete values in memory.
-        """
-        d = { }
-        for k,v in self.mem.iteritems():
-            if not self.state.se.symbolic(v):
-                d[k] = self.state.se.simplify(v)
-
-        return d
 
     def dbg_print(self, indent=0):
         """
@@ -1190,6 +1196,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
         :param init_zero: Initialize page with zeros
         """
+        l.info("Mapping [%#x, %#x] as %s", addr, addr + length - 1, permissions)
         return self.mem.map_region(addr, length, permissions, init_zero=init_zero)
 
     def unmap_region(self, addr, length):
@@ -1200,8 +1207,23 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         return self.mem.unmap_region(addr, length)
 
-SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
-SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
+
+# Register state options
+SimStateOptions.register_option("symbolic_ip_max_targets", int,
+                                default=256,
+                                description="The maximum number of concrete addresses a symbolic instruction pointer "
+                                            "can be concretized to."
+                                )
+SimStateOptions.register_option("jumptable_symbolic_ip_max_targets", int,
+                                default=16384,
+                                description="The maximum number of concrete addresses a symbolic instruction pointer "
+                                            "can be concretized to if it is part of a jump table."
+                                )
+
+
+from angr.sim_state import SimState
+SimState.register_default('sym_memory', SimSymbolicMemory)
+
 from ..errors import SimUnsatError, SimMemoryError, SimMemoryLimitError, SimMemoryAddressError, SimMergeError
 from .. import sim_options as options
 from .inspect import BP_AFTER, BP_BEFORE

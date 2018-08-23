@@ -49,7 +49,8 @@ class SimStateLog(SimStatePlugin):
         # pylint: disable=no-member
         return [ev.constraint.ast for ev in self.events if isinstance(ev, SimActionConstraint)]
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimStateLog(log=self)
 
     def _combine(self, others):
@@ -57,7 +58,7 @@ class SimStateLog(SimStatePlugin):
         self.events = [ SimEvent(self.state, 'merge', event_lists=all_events) ]
         return False
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return self._combine(others)
 
     def widen(self, others):
@@ -76,4 +77,6 @@ from ..errors import SimEventError
 from .sim_event import SimEvent
 from .sim_action import SimAction, SimActionConstraint
 
-SimStateLog.register_default('log', SimStateLog)
+
+from angr.sim_state import SimState
+SimState.register_default('log', SimStateLog)

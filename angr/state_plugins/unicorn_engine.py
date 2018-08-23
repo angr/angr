@@ -60,6 +60,7 @@ class STOP(object): # stop_t
         for item in dir(STOP):
             if item.startswith('STOP_') and getattr(STOP, item) == num:
                 return item
+        raise ValueError(num)
 
 #
 # Memory mapping errors - only used internally
@@ -284,6 +285,7 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Boring'
         self.error = None
         self.errno = 0
+        self.trap_ip = None
 
         self.cache_key = hash(self) if cache_key is None else cache_key
 
@@ -349,7 +351,8 @@ class Unicorn(SimStatePlugin):
 
         self.time = None
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, _memo):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
@@ -376,7 +379,7 @@ class Unicorn(SimStatePlugin):
         u._uncache_pages = list(self._uncache_pages)
         return u
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         self.cooldown_nonunicorn_blocks = max(
             self.cooldown_nonunicorn_blocks,
             max(o.cooldown_nonunicorn_blocks for o in others)
@@ -439,6 +442,9 @@ class Unicorn(SimStatePlugin):
 
         # I guess always lie to the static analysis?
         return False
+
+    def widen(self, others): # pylint: disable=unused-argument
+        l.warning("Can't widen the unicorn plugin!")
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -807,11 +813,11 @@ class Unicorn(SimStatePlugin):
             raise FetchingZeroPageError()
 
         data = bytearray(length)
-        taint = [ ] # this is a list to get around python's scoping craziness
+        taint = [ ] # this is a list to reference a nonlocal variable. we're using the list like an Option<c array>
 
         def _taint(pos, chunk_size):
             if not taint:
-                taint.append(ctypes.create_string_buffer(length))
+                taint.append(ctypes.create_string_buffer(int(length)))
             offset = ctypes.cast(ctypes.addressof(taint[0]) + pos - start, ctypes.POINTER(ctypes.c_char))
             ctypes.memset(offset, 0x2, chunk_size) # mark them as TAINT_SYMBOLIC
 
@@ -967,7 +973,7 @@ class Unicorn(SimStatePlugin):
             if 0x1000 <= address < 0x2000:
                 l.warning("Emulation touched fake GDT at 0x1000, discarding changes")
             else:
-                s = str(self.uc.mem_read(address, length))
+                s = str(self.uc.mem_read(address, int(length)))
                 l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, s.encode('hex'))
                 self.state.memory.store(address, s)
 
@@ -982,13 +988,15 @@ class Unicorn(SimStatePlugin):
 
         # process the concrete transmits
         i = 0
+        stdout = self.state.posix.get_fd(1)
+
         while True:
             record = _UC_NATIVE.process_transmit(self._uc_state, i)
             if not bool(record):
                 break
 
             string = ctypes.string_at(record.contents.data, record.contents.count)
-            self.state.posix.write(1, string, record.contents.count)
+            stdout.write_data(string)
             i += 1
 
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL):
@@ -1361,4 +1369,6 @@ class Unicorn(SimStatePlugin):
 
 from ..engines.vex import ccall
 from .. import sim_options as options
-SimStatePlugin.register_default('unicorn', Unicorn)
+
+from angr.sim_state import SimState
+SimState.register_default('unicorn', Unicorn)

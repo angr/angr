@@ -1,13 +1,17 @@
 import logging
+import claripy
+from sortedcontainers import SortedDict
+
+from ..state_plugins.plugin import SimStatePlugin
+
 
 l = logging.getLogger("angr.storage.memory")
 
-import claripy
-from ..state_plugins.plugin import SimStatePlugin
-from ..engines.vex.ccall import _get_flags
-
 stn_map = { 'st%d' % n: n for n in xrange(8) }
 tag_map = { 'tag%d' % n: n for n in xrange(8) }
+
+DUMMY_SYMBOLIC_READ_VALUE = 0xc0deb4be
+
 
 class AddressWrapper(object):
     """
@@ -79,8 +83,8 @@ class RegionMap(object):
         """
         self.is_stack = is_stack
 
-        # An AVLTree, which maps stack addresses to region IDs
-        self._address_to_region_id = AVLTree()
+        # A sorted list, which maps stack addresses to region IDs
+        self._address_to_region_id = SortedDict()
         # A dict, which maps region IDs to memory address ranges
         self._region_id_to_address = { }
 
@@ -102,7 +106,7 @@ class RegionMap(object):
         if not self.is_stack:
             raise SimRegionMapError('Calling "stack_base" on a non-stack region map.')
 
-        return self._address_to_region_id.max_key()
+        return next(self._address_to_region_id.irange(reverse=True))
 
     @property
     def region_ids(self):
@@ -112,14 +116,12 @@ class RegionMap(object):
     # Public methods
     #
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         r = RegionMap(is_stack=self.is_stack)
 
         # A shallow copy should be enough, since we never modify any RegionDescriptor object in-place
-        if len(self._address_to_region_id) > 0:
-            # TODO: There is a bug in bintrees 2.0.2 that prevents us from copying a non-empty AVLTree object
-            # TODO: Consider submit a pull request
-            r._address_to_region_id = self._address_to_region_id.copy()
+        r._address_to_region_id = self._address_to_region_id.copy()
         r._region_id_to_address = self._region_id_to_address.copy()
 
         return r
@@ -142,13 +144,13 @@ class RegionMap(object):
             # Remove all stack regions that are lower than the one to add
             while True:
                 try:
-                    addr = self._address_to_region_id.floor_key(absolute_address)
+                    addr = next(self._address_to_region_id.irange(maximum=absolute_address, reverse=True))
                     descriptor = self._address_to_region_id[addr]
                     # Remove this mapping
                     del self._address_to_region_id[addr]
                     # Remove this region ID from the other mapping
                     del self._region_id_to_address[descriptor.region_id]
-                except KeyError:
+                except StopIteration:
                     break
 
         else:
@@ -216,13 +218,13 @@ class RegionMap(object):
         if target_region_id is None:
             if self.is_stack:
                 # Get the base address of the stack frame it belongs to
-                base_address = self._address_to_region_id.ceiling_key(absolute_address)
+                base_address = next(self._address_to_region_id.irange(minimum=absolute_address, reverse=False))
 
             else:
                 try:
-                    base_address = self._address_to_region_id.floor_key(absolute_address)
+                    base_address = next(self._address_to_region_id.irange(maximum=absolute_address, reverse=True))
 
-                except KeyError:
+                except StopIteration:
                     # Not found. It belongs to the global region then.
                     return 'global', absolute_address, None
 
@@ -363,6 +365,10 @@ class SimMemory(SimStatePlugin):
                 self._generic_region_map = None
 
     def _resolve_location_name(self, name, is_write=False):
+
+        # Delayed load so SimMemory does not rely on SimEngines
+        from ..engines.vex.ccall import _get_flags
+
         if self.category == 'reg':
             if self.state.arch.name in ('X86', 'AMD64'):
                 if name in stn_map:
@@ -508,10 +514,13 @@ class SimMemory(SimStatePlugin):
                     BP_BEFORE,
                     reg_write_offset=addr_e,
                     reg_write_length=size_e,
-                    reg_write_expr=data_e)
+                    reg_write_expr=data_e,
+                    reg_write_condition=condition_e,
+                )
                 addr_e = self.state._inspect_getattr('reg_write_offset', addr_e)
                 size_e = self.state._inspect_getattr('reg_write_length', size_e)
                 data_e = self.state._inspect_getattr('reg_write_expr', data_e)
+                condition_e = self.state._inspect_getattr('reg_write_condition', condition_e)
             elif self.category == 'mem':
                 self.state._inspect(
                     'mem_write',
@@ -519,10 +528,12 @@ class SimMemory(SimStatePlugin):
                     mem_write_address=addr_e,
                     mem_write_length=size_e,
                     mem_write_expr=data_e,
+                    mem_write_condition=condition_e,
                 )
                 addr_e = self.state._inspect_getattr('mem_write_address', addr_e)
                 size_e = self.state._inspect_getattr('mem_write_length', size_e)
                 data_e = self.state._inspect_getattr('mem_write_expr', data_e)
+                condition_e = self.state._inspect_getattr('mem_write_condition', condition_e)
 
         # if the condition is false, bail
         if condition_e is not None and self.state.se.is_false(condition_e):
@@ -574,7 +585,7 @@ class SimMemory(SimStatePlugin):
 
         if priv is not None: self.state.scratch.pop_priv()
 
-    def _store(self, request):
+    def _store(self, _request):
         raise NotImplementedError()
 
     def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, endness=None, action=None):
@@ -722,14 +733,20 @@ class SimMemory(SimStatePlugin):
 
         if inspect is True:
             if self.category == 'reg':
-                self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
+                self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e,
+                                    reg_read_condition=condition_e
+                                    )
                 addr_e = self.state._inspect_getattr("reg_read_offset", addr_e)
                 size_e = self.state._inspect_getattr("reg_read_length", size_e)
+                condition_e = self.state._inspect_getattr("reg_read_condition", condition_e)
 
             elif self.category == 'mem':
-                self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
+                self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e,
+                                    mem_read_condition=condition_e
+                                    )
                 addr_e = self.state._inspect_getattr("mem_read_address", addr_e)
                 size_e = self.state._inspect_getattr("mem_read_length", size_e)
+                condition_e = self.state._inspect_getattr("mem_read_condition", condition_e)
 
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
@@ -756,9 +773,8 @@ class SimMemory(SimStatePlugin):
         if not self._abstract_backer and \
                 o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
                 self.state.uninitialized_access_handler is not None and \
-                (r.op == 'Reverse' or r.op == 'I') and \
-                hasattr(r._model_vsa, 'uninitialized') and \
-                r._model_vsa.uninitialized:
+                (r.op == 'Reverse' or r.op == 'BVV') and \
+                getattr(r._model_vsa, 'uninitialized', False):
             normalized_addresses = self.normalize_address(addr)
             if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
                 normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
@@ -810,17 +826,18 @@ class SimMemory(SimStatePlugin):
                 self.state.add_constraints(addr_e == mem_region)
             l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
-    def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
+    def normalize_address(self, addr, is_write=False):  # pylint:disable=no-self-use,unused-argument
         """
         Normalize `addr` for use in static analysis (with the abstract memory model). In non-abstract mode, simply
         returns the address in a single-element list.
         """
         return [ addr ]
 
-    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
+    def _load(self, _addr, _size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         raise NotImplementedError()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+             disable_actions=False, inspect=True):
         """
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
         value, this search could cause the state to go unsat if no possible matching byte exists.
@@ -830,6 +847,9 @@ class SimMemory(SimStatePlugin):
         :param max_search:          Search at most this many bytes.
         :param max_symbolic_bytes:  Search through at most this many symbolic bytes.
         :param default:             The default value, if what you're looking for wasn't found.
+        :param step:                The stride that the search should use while scanning memory
+        :param disable_actions:     Whether to inhibit the creation of SimActions for memory access
+        :param inspect:             Whether to trigger SimInspect breakpoints
 
         :returns:                   An expression representing the address of the matching byte.
         """
@@ -842,13 +862,14 @@ class SimMemory(SimStatePlugin):
             what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
-                           step=step)
+                           step=step, disable_actions=disable_actions, inspect=inspect)
         if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+              disable_actions=False, inspect=True):
         raise NotImplementedError()
 
     def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
@@ -875,11 +896,10 @@ class SimMemory(SimStatePlugin):
         return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory, dst_memory=dst_memory,
                                    inspect=inspect, disable_actions=disable_actions)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
+    def _copy_contents(self, _dst, _src, _size, condition=None, src_memory=None, dst_memory=None, inspect=True,
                       disable_actions=False):
         raise NotImplementedError()
 
-from bintrees import AVLTree
 from .. import sim_options as o
 from ..state_plugins.sim_action import SimActionData
 from ..state_plugins.sim_action_object import SimActionObject, _raw_ast

@@ -127,13 +127,14 @@ class SimStateScratch(SimStatePlugin):
 
         self.state._inspect('tmp_write', BP_AFTER)
 
-    def copy(self):
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimStateScratch(scratch=self)
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):
+    def widen(self, others): # pylint: disable=unused-argument
         return False
 
     def clear(self):
@@ -147,4 +148,6 @@ from .sim_action import SimActionObject, SimActionData
 from ..errors import SimValueError
 from .. import sim_options as o
 from .inspect import BP_AFTER, BP_BEFORE
-SimStateScratch.register_default('scratch', SimStateScratch)
+
+from angr.sim_state import SimState
+SimState.register_default('scratch', SimStateScratch)

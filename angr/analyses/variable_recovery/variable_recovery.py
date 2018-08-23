@@ -2,7 +2,7 @@
 import logging
 from collections import defaultdict
 
-from .. import Analysis, register_analysis
+from .. import Analysis
 
 from .annotations import StackLocationAnnotation
 from ..code_location import CodeLocation
@@ -503,4 +503,5 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
                                                                          )
 
 
-register_analysis(VariableRecovery, 'VariableRecovery')
+from angr.analyses import AnalysesHub
+AnalysesHub.register_default('VariableRecovery', VariableRecovery)

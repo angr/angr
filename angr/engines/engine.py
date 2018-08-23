@@ -1,6 +1,7 @@
 import sys
 import logging
 
+
 l = logging.getLogger("angr.engines.engine")
 
 
@@ -9,8 +10,8 @@ class SimEngine(object):
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.
     """
 
-    def __init__(self, **kwargs):
-        self._check_failed = kwargs.get('check_failed')
+    def __init__(self, project=None):
+        self.project = project
 
     def process(self, state, *args, **kwargs):
         """
@@ -66,6 +67,14 @@ class SimEngine(object):
         #if o.TRACK_ACTION_HISTORY not in old_state.options:
         #    old_state.history.recent_events = []
 
+        # fix up the descriptions...
+        description = str(successors)
+        l.info("Ticked state: %s", description)
+        for succ in successors.all_successors:
+            succ.history.recent_description = description
+        for succ in successors.flat_successors:
+            succ.history.recent_description = description
+
         return successors
 
     def check(self, state, *args, **kwargs):
@@ -82,32 +91,13 @@ class SimEngine(object):
         :return:                       True if the state can be handled by the current engine, False otherwise.
         """
 
-        r = self._check(state, *args, **kwargs)
-
-        if not r:
-            if self._check_failed is not None:
-                self._check_failed(state, *args, **kwargs)
-
-        return r
+        return self._check(state, *args, **kwargs)
 
     def _check(self, state, *args, **kwargs):
         raise NotImplementedError()
 
     def _process(self, new_state, successors, *args, **kwargs):
         raise NotImplementedError
-
-    #
-    # Pickling
-    #
-
-    # CPython cannot pickle methods, which is why we have special handlers here to avoid pickling callback registered
-    # with SimEngine.
-
-    def __setstate__(self, state):
-        self._check_failed = None
-
-    def __getstate__(self):
-        return { }
 
 from .. import sim_options as o
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
