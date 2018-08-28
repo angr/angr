@@ -3389,7 +3389,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         last_sp = tmps[stmt.data.tmp]
 
         if last_sp is not None and isinstance(tmp_irsb.next, pyvex.IRExpr.RdTmp):
-            val = tmps[tmp_irsb.next.tmp]
+            val = tmps.get(tmp_irsb.next.tmp, None)
+            # val being None means there are statements that we do not handle
             if isinstance(val, tuple) and val[0] == 'load':
                 # the value comes from memory
                 memory_addr = val[1]
@@ -3530,7 +3531,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     irsb_size = irsb.size if irsb.size > 0 else 1
                 self._seg_list.occupy(addr, irsb_size, 'nodecode')
-                l.error("Decoding error occurred at address %#x of function %#x.", addr, current_function_addr)
+                l.error("Decoding error occurred at basic block address %#x of function %#x.",
+                        addr,
+                        current_function_addr
+                        )
                 return None, None, None, None
 
             is_thumb = False

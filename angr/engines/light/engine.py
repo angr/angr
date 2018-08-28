@@ -67,8 +67,9 @@ class SimEngineLightVEX(SimEngineLight):
             self.stmt_idx = stmt_idx
 
             if type(stmt) is pyvex.IRStmt.IMark:
+                # Note that we cannot skip IMarks as they are used later to trigger observation events
+                # The bug caused by skipping IMarks is reported at https://github.com/angr/angr/pull/1150
                 self.ins_addr = stmt.addr + stmt.delta
-                continue
 
             self._handle_Stmt(stmt)
 

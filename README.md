@@ -37,7 +37,7 @@ project = angr.Project("angr-doc/examples/defcamp_r100/r100", auto_load_libs=Fal
 
 @project.hook(0x400844)
 def print_flag(state):
-    print("FLAG SHOULD BE:", state.posix.dump_fd(0))
+    print("FLAG SHOULD BE:", state.posix.dumps(0))
     project.terminate_execution()
 
 project.execute()

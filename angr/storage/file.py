@@ -133,9 +133,10 @@ class SimFileBase(SimStatePlugin):
         """
         raise NotImplementedError
 
+
 class SimFile(SimFileBase, SimSymbolicMemory):
     """
-    The normal SimFile is meant to files on disk. It subclasses SimSymbolicMemory so loads and stores to/from
+    The normal SimFile is meant to model files on disk. It subclasses SimSymbolicMemory so loads and stores to/from
     it are very simple.
 
     :param name:        The name of the file
@@ -736,6 +737,7 @@ class SimFileDescriptorBase(SimStatePlugin):
 
         return size
 
+
 class SimFileDescriptor(SimFileDescriptorBase):
     """
     A simple file descriptor forwarding reads and writes to a SimFile. Contains information about
@@ -859,6 +861,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
 
+
 class SimFileDescriptorDuplex(SimFileDescriptorBase):
     """
     A file descriptor that refers to two file storage mechanisms, one to read from and one to write to. As a result,
@@ -966,6 +969,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
 
+
 class SimPacketsSlots(SimFileBase):
     """
     SimPacketsSlots is the new SimDialogue, if you've ever seen that before.
@@ -1039,5 +1043,6 @@ class SimPacketsSlots(SimFileBase):
 
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
+
 
 from ..errors import SimMergeError, SimFileError, SimSolverError

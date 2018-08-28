@@ -59,7 +59,7 @@ class CallStack(SimStatePlugin):
         return n
 
     def set_state(self, state):
-        self.state = state
+        super(CallStack, self).set_state(state)
         # make the stack pointer as large as possible as soon as we know how large that actually is
         if self.stack_ptr == 0:
             self.stack_ptr = 2**(state.arch.bits) - 1
