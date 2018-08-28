@@ -131,6 +131,9 @@ class DataSet(object):
         else:
             return False
 
+    def __hash__(self):
+        return hash((self._bits, self._mask))
+
     def __iter__(self):
         return iter(self.data)
 

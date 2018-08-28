@@ -20,6 +20,9 @@ class Definition(object):
     def __repr__(self):
         return 'Definition %#x {Atom: %s, Codeloc: %s, Data: %s}' % (id(self), self.atom, self.codeloc, self.data)
 
+    def __hash__(self):
+        return hash((self.atom, self.codeloc, self.data))
+
     @property
     def offset(self):
         if type(self.atom) is MemoryLocation:

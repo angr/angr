@@ -49,6 +49,9 @@ class SpOffset(RegisterOffset):
         return type(other) is SpOffset and self._bits == other.bits and self.reg == other.reg and \
                self.offset == other.offset and self.is_base is other.is_base
 
+    def __hash__(self):
+        return hash((self._bits, self.reg, self.offset, self.is_base))
+
     def __lt__(self, other):
         if type(other) is not SpOffset or self.reg != other.reg:
             return NotImplemented
