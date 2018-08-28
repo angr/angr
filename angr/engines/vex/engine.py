@@ -1,4 +1,4 @@
-import sys
+
 from cachetools import LRUCache
 
 import pyvex
@@ -223,7 +223,7 @@ class SimEngineVEX(SimEngine):
 
         # if we've told the block to truncate before it ends, it will definitely have a default
         # exit barring errors
-        has_default_exit = num_stmts <= last_stmt
+        has_default_exit = last_stmt == 'default' or num_stmts <= last_stmt
 
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:
@@ -245,7 +245,7 @@ class SimEngineVEX(SimEngine):
             if stmt_idx < skip_stmts:
                 l.debug("Skipping statement %d", stmt_idx)
                 continue
-            if last_stmt is not None and stmt_idx > last_stmt:
+            if last_stmt is not None and last_stmt != 'default' and stmt_idx > last_stmt:
                 l.debug("Truncating statement %d", stmt_idx)
                 continue
             if whitelist is not None and stmt_idx not in whitelist:
