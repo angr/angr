@@ -2004,7 +2004,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         jobs = [ ]
-
         if is_syscall:
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
@@ -2046,6 +2045,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         callee_might_return = True
         callee_function = None
+
         if new_function_addr is not None:
             callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
             if callee_function is not None:
@@ -2059,22 +2059,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     func_edges.append(fakeret_edge)
                     ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
                     func_edges.append(ret_edge)
-
+                    # Also, keep tracing from the return site
+                    ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                                src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
+                                syscall=is_syscall, func_edges=func_edges)
+                    self._pending_jobs.add_job(ce)
+                    # register this job to this function
+                    self._register_analysis_job(current_function_addr, ce)
+                elif callee_function is not None and callee_function.returning is False:
+                    pass # Don't go past a call that does not return!
                 else:
+                    # HACK: We don't know where we are jumping.  Let's assume we fakeret to the
+                    # next instruction after the block
+                    # TODO: FIXME: There are arch-specific hints to give the correct ret site
+                    # Such as looking for constant values of LR in this block for ARM stuff.
                     fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=None)
                     func_edges.append(fakeret_edge)
                     fr = FunctionReturn(new_function_addr, current_function_addr, addr, return_site)
                     if fr not in self._function_returns[new_function_addr]:
                         self._function_returns[new_function_addr].add(fr)
+                    ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                                src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
+                                syscall=is_syscall, func_edges=func_edges)
+                    self._pending_jobs.add_job(ce)
+                    # register this job to this function
+                    self._register_analysis_job(current_function_addr, ce)
 
-            if return_site is not None:
-                # Also, keep tracing from the return site
-                ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                            src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
-                            syscall=is_syscall, func_edges=func_edges)
-                self._pending_jobs.add_job(ce)
-                # register this job to this function
-                self._register_analysis_job(current_function_addr, ce)
 
         return jobs
 

@@ -1698,7 +1698,6 @@ class CFGBase(Analysis):
 
         src_addr = src.addr
         src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
-
         if src_addr not in src_function.block_addrs_set:
             n = self.get_any_node(src_addr)
             if n is None: node = src_addr
@@ -1727,7 +1726,6 @@ class CFGBase(Analysis):
         stmt_idx = data.get('stmt_idx', None)
 
         if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
-
             is_syscall = jumpkind.startswith('Ijk_Sys')
 
             # It must be calling a function
@@ -1735,11 +1733,22 @@ class CFGBase(Analysis):
 
             n = self.get_any_node(src_addr)
             if n is None: src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
-            else: src_snippet = self._to_snippet(cfg_node=n)
+            else:
+                src_snippet = self._to_snippet(cfg_node=n)
 
-            fakeret_node = None if not all_edges else self._one_fakeret_node(all_edges)
-            if fakeret_node is None: fakeret_snippet = None
-            else: fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
+            # HACK: FIXME: We need a better way of representing unresolved calls and whether they return.
+            # For now, assume UnresolvedTarget returns if we're calling to it
+
+            # If the function doesn't return, don't add a fakeret!
+            if not all_edges or (dst_function.returning is False and not dst_function.name == b'UnresolvableTarget'):
+                fakeret_node = None
+            else:
+                fakeret_node = self._one_fakeret_node(all_edges)
+
+            if fakeret_node is None:
+                fakeret_snippet = None
+            else:
+                fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
 
             self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
@@ -1755,8 +1764,10 @@ class CFGBase(Analysis):
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
                 n = self.get_any_node(returning_target)
-                if n is None: returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
-                else: returning_snippet = self._to_snippet(cfg_node=n)
+                if n is None:
+                    returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                else:
+                    returning_snippet = self._to_snippet(cfg_node=n)
 
                 self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
                                                   to_outside=to_outside
@@ -1806,12 +1817,17 @@ class CFGBase(Analysis):
 
             # convert src_addr and dst_addr to CodeNodes
             n = self.get_any_node(src_addr)
-            if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            if n is None:
+                src_node = src_addr
+            else:
+                src_node = self._to_snippet(n)
 
             n = self.get_any_node(dst_addr)
-            if n is None: dst_node = dst_addr
-            else: dst_node = self._to_snippet(n)
+            if n is None:
+                dst_node = dst_addr
+            else:
+                dst_node = self._to_snippet(n)
+
 
             if dst_addr not in blockaddr_to_function:
                 if dst_addr not in known_functions:
@@ -1822,8 +1838,23 @@ class CFGBase(Analysis):
             else:
                 target_function = blockaddr_to_function[dst_addr]
 
+            # Figure out if the function called (not the function retted-to) returns.
+            # We may have determined that this does not happen, since the time this path
+            # was scheduled for exploration
+            called_function = None
+            # Try to find the call that this fakeret goes with
+            for _, d, e in all_edges:
+                if e['jumpkind'] == 'Ijk_Call':
+                    if d.addr in blockaddr_to_function:
+                        called_function = blockaddr_to_function[d.addr]
+                        break
+            # We may have since figured out that the called function doesn't ret.
+            if called_function is not None and called_function.returning is False:
+                return
+
             to_outside = not target_function is src_function
 
+            # FIXME: Not sure we should confirm this fakeret or not.
             self.kb.functions._add_fakeret_to(src_function.addr, src_node, dst_node, confirmed=True,
                                               to_outside=to_outside, to_function_addr=target_function.addr
                                               )
