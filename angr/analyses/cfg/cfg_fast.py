@@ -1605,7 +1605,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
                         if self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position)
-
+        l.info("Found %d functions with prologue scanning." % len(unassured_functions))
         return unassured_functions
 
     # Basic block scanning
@@ -1879,7 +1879,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             elif self._resolve_indirect_jumps and \
                     (jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')):
                 # This is an indirect jump. Try to resolve it.
-
+                # FIXME: in some cases, a statementless irsb will be missing its instr addresses
+                # and this next part will fail. Use the real IRSB instead
+                irsb = cfg_node.block.vex
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
                                                                                  current_function_addr, stmt_idx)
                 if resolved:
@@ -3547,8 +3549,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._seg_list.occupy(real_addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
-                               irsb=irsb, thumb=is_thumb, byte_string=irsb_string,
+            cfg_node = CFGNode(addr, irsb.size, self,
+                               function_address=current_function_addr,
+                               block_id=addr,
+                               irsb=irsb,
+                               thumb=is_thumb,
+                               byte_string=irsb_string,
                                )
 
             self._nodes[addr] = cfg_node
