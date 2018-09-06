@@ -2020,7 +2020,7 @@ class CFGBase(Analysis):
                     if there is one or None otherwise)
         :rtype:     tuple
         """
-       jumpkind = irsb.jumpkind
+        jumpkind = irsb.jumpkind
         l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
 
         # try resolving it fast
