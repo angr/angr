@@ -448,6 +448,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 eternal=False) # :(
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
+        if all_missing:
+            if self.category == 'reg':
+                l.warning("Fill offset %#x with %d unconstrained bytes.", addr, num_bytes)
+            elif self.category == 'mem':
+                l.warning("Fill address %#x with %d unconstrained bytes.", addr, num_bytes)
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
