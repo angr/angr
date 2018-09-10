@@ -1707,7 +1707,7 @@ def _concat_flags(nbits, flags_vec):
 
     result = claripy.BVV(0, 0)
     for offset, bit in flags_vec:
-        current_position = 31 - result.length
+        current_position = nbits - 1 - result.length
         result = result.concat(claripy.BVV(0, current_position - offset), bit)
     result = result.concat(claripy.BVV(0, nbits - result.length))
     return result
