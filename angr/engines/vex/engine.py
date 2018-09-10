@@ -423,6 +423,7 @@ class SimEngineVEX(SimEngine):
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         :param strict_block_end:   Whether to force blocks to end at all conditional branches (default: false)
         """
+
         # phase 0: sanity check
         if not state and not clemory and not insn_bytes:
             raise ValueError("Must provide state or clemory or insn_bytes!")

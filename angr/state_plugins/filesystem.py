@@ -302,14 +302,14 @@ class SimHostFilesystem(SimMount):
             return SimFile(name='file://' + path, content=content, size=len(content))
 
     def insert(self, path_elements, simfile):
-        path = self.pathsep.join(path_elements)
+        path = self.pathsep.join(x.decode() for x in path_elements)
         simfile.set_state(self.state)
         self.cache[path] = simfile
         self.deleted_list.discard(path)
         return True
 
     def delete(self, path_elements):
-        path = self.pathsep.join(path_elements)
+        path = self.pathsep.join(x.decode() for x in path_elements)
         self.deleted_list.add(path)
         return self.cache.pop(path, None) is not None
 
