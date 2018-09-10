@@ -199,6 +199,8 @@ class Project(object):
         # Step 5: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self.simos = simos(self) #pylint:disable=invalid-name
+        elif isinstance(simos, str):
+            self.simos = os_mapping[simos](self)
         elif simos is None:
             self.simos = os_mapping[self.loader.main_object.os](self)
         else:
