@@ -1538,7 +1538,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._normalize:
             # Normalize the control flow graph first before rediscovering all functions
             self.normalize()
-
         self.make_functions()
         # optional: remove functions that must be alignments
         self.remove_function_alignments()
@@ -1882,6 +1881,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # FIXME: in some cases, a statementless irsb will be missing its instr addresses
                 # and this next part will fail. Use the real IRSB instead
                 irsb = cfg_node.block.vex
+                cfg_node.instruction_addrs = irsb.instruction_addresses
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
                                                                                  current_function_addr, stmt_idx)
                 if resolved:
@@ -3361,7 +3361,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if 'lr_saved_on_stack' not in function.info or not function.info['lr_saved_on_stack']:
             return
-
+        
         sp_offset = self.project.arch.sp_offset
         initial_sp = 0x7fff0000
         last_sp = None
