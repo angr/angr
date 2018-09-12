@@ -583,9 +583,14 @@ class SimEngineVEX(SimEngine):
 
         if not smc or not state:
             try:
-                buff, size = clemory.read_bytes_c(addr)
-            except KeyError:
+                start, backer = next(clemory.backers(addr))
+            except StopIteration:
                 pass
+            else:
+                if start <= addr:
+                    offset = addr - start
+                    buff = pyvex.ffi.from_buffer(backer) + offset
+                    size = len(backer) - offset
 
         # If that didn't work, try to load from the state
         if size == 0 and state:

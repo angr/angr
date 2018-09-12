@@ -1,6 +1,5 @@
 import cooldict
 import claripy
-import cffi
 import cle
 from sortedcontainers import SortedDict
 import logging
@@ -8,13 +7,11 @@ import logging
 from ..errors import SimMemoryError, SimSegfaultError, SimMemoryMissingError
 from .. import sim_options as options
 from .memory_object import SimMemoryObject
-from claripy.ast.bv import BV
 
-_ffi = cffi.FFI()
 l = logging.getLogger("angr.storage.paged_memory")
 
 
-class BasePage(object):
+class BasePage:
     """
     Page object, allowing for more flexibility than just a raw dict.
     """
@@ -324,7 +321,7 @@ Page = ListPage
 
 #pylint:disable=unidiomatic-typecheck
 
-class SimPagedMemory(object):
+class SimPagedMemory:
     """
     Represents paged memory.
     """
@@ -485,43 +482,44 @@ class SimPagedMemory(object):
         if self._memory_backer is None:
             pass
         elif isinstance(self._memory_backer, cle.Clemory):
-            # first, find the right clemory backer
-            for addr, backer in self._memory_backer.cbackers if self.byte_width == 8 else ((x, y) for x, _, y in self._memory_backer.stride_repr):
-                start_backer = new_page_addr - addr
-                if isinstance(start_backer, BV):
-                    continue
-                if start_backer < 0 and abs(start_backer) >= self._page_size:
-                    continue
-                if start_backer >= len(backer):
-                    continue
+            # find permission backer associated with the address
+            # fall back to read-write if we can't find any...
+            flags = Page.PROT_READ | Page.PROT_WRITE
+            for start, end in self._permission_map:
+                if start <= new_page_addr < end:
+                    flags = self._permission_map[(start, end)]
+                    break
+            new_page.permissions = claripy.BVV(flags, 3)
 
-                # find permission backer associated with the address
-                # fall back to read-write if we can't find any...
-                flags = Page.PROT_READ | Page.PROT_WRITE
-                for start, end in self._permission_map:
-                    if start <= new_page_addr < end:
-                        flags = self._permission_map[(start, end)]
-                        break
+            # for each clemory backer which intersects with the page, apply its relevant data
+            for backer_addr, backer in self._memory_backer.backers(new_page_addr):
+                if backer_addr >= new_page_addr + self._page_size:
+                    break
 
-                snip_start = max(0, start_backer)
-                write_start = max(new_page_addr, addr + snip_start)
-                write_size = self._page_size - write_start%self._page_size
+                relevant_region_start = max(new_page_addr, backer_addr)
+                relevant_region_end = min(new_page_addr + self._page_size, backer_addr + len(backer))
+                slice_start = relevant_region_start - backer_addr
+                slice_end = relevant_region_end - backer_addr
 
                 if self.byte_width == 8:
-                    snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
-                    mo = SimMemoryObject(claripy.BVV(snip), write_start, byte_width=self.byte_width)
-                    self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                    relevant_data = bytes(memoryview(backer)[slice_start:slice_end])
+                    mo = SimMemoryObject(
+                            claripy.BVV(relevant_data),
+                            relevant_region_start,
+                            byte_width=self.byte_width)
+                    self._apply_object_to_page(new_page_addr, mo, page=new_page)
                 else:
-                    for i, byte in enumerate(backer):
-                        mo = SimMemoryObject(claripy.BVV(byte, self.byte_width), write_start + i, byte_width=self.byte_width)
-                        self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                    for i, byte in enumerate(backer[slice_start:slice_end]):
+                        mo = SimMemoryObject(claripy.BVV(byte, self.byte_width),
+                                relevant_region_start + i,
+                                byte_width=self.byte_width)
+                        self._apply_object_to_page(new_page_addr, mo, page=new_page)
 
-                new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
 
         elif len(self._memory_backer) <= self._page_size:
             for i in self._memory_backer:
-                if new_page_addr <= i and i <= new_page_addr + self._page_size:
+                if new_page_addr <= i <= new_page_addr + self._page_size:
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
                         backer = self._memory_backer[i]
                     elif isinstance(self._memory_backer[i], bytes):
@@ -952,14 +950,14 @@ class SimPagedMemory(object):
         This is useful for replacing those values in one fell swoop with :func:`replace_memory_object()`, even if
         they have been partially overwritten.
         """
-        return set([ self[i] for i in self.addrs_for_name(n)])
+        return {self[i] for i in self.addrs_for_name(n)}
 
     def memory_objects_for_hash(self, n):
         """
         Returns a set of :class:`SimMemoryObjects` that contain expressions that contain a variable with the hash
         `h`.
         """
-        return set([ self[i] for i in self.addrs_for_hash(n)])
+        return {self[i] for i in self.addrs_for_hash(n)}
 
     def permissions(self, addr, permissions=None):
         """

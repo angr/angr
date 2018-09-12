@@ -734,7 +734,7 @@ class CFGBase(Analysis):
                 memory_regions.append(tpl)
 
         if not memory_regions:
-            memory_regions = [(start, start + len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers]
+            memory_regions = [(start, start + len(backer)) for start, backer in self.project.loader.memory.backers()]
 
         memory_regions = sorted(memory_regions, key=lambda x: x[0])
 
@@ -795,56 +795,34 @@ class CFGBase(Analysis):
 
         return self.project.is_hooked(addr) or self.project.simos.is_syscall_addr(addr)
 
-    def _fast_memory_load(self, addr):
-        """
-        Perform a fast memory loading of static content from static regions, a.k.a regions that are mapped to the
-        memory by the loader.
-
-        :param int addr: Address to read from.
-        :return: A tuple of the data (cffi.CData) and the max size in the current continuous block, or (None, None) if
-                 the address does not exist.
-        :rtype: tuple
-        """
-
-        try:
-            buff, size = self.project.loader.memory.read_bytes_c(addr)
-            return buff, size
-
-        except KeyError:
-            return None, None
-
     def _fast_memory_load_byte(self, addr):
         """
         Perform a fast memory loading of a byte.
 
         :param int addr: Address to read from.
         :return:         A char or None if the address does not exist.
-        :rtype:          str or None
+        :rtype:          int or None
         """
 
-        return self._fast_memory_load_bytes(addr, 1)
+        try:
+            return self.project.loader.memory[addr]
+        except KeyError:
+            return None
 
     def _fast_memory_load_bytes(self, addr, length):
         """
-        Perform a fast memory loading of a byte.
+        Perform a fast memory loading of some data.
 
         :param int addr: Address to read from.
         :param int length: Size of the string to load.
         :return:         A string or None if the address does not exist.
-        :rtype:          str or None
+        :rtype:          bytes or None
         """
 
-        buf, size = self._fast_memory_load(addr)
-        if buf is None:
+        try:
+            return self.project.loader.memory.load(addr, length)
+        except KeyError:
             return None
-        if size == 0:
-            return None
-
-        # Make sure it does not go over-bound
-        length = min(length, size)
-
-        char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
-        return char_str
 
     def _fast_memory_load_pointer(self, addr):
         """
@@ -855,35 +833,10 @@ class CFGBase(Analysis):
         :rtype:          int
         """
 
-        pointer_size = self.project.arch.bytes
-        buf, size = self._fast_memory_load(addr)
-        if buf is None:
+        try:
+            return self.project.loader.memory.unpack_word(addr)
+        except KeyError:
             return None
-
-        if self.project.arch.memory_endness == 'Iend_LE':
-            fmt = "<"
-        else:
-            fmt = ">"
-
-        if pointer_size == 8:
-            if size >= 8:
-                fmt += "Q"
-            else:
-                # Insufficient bytes left in the current block for making an 8-byte pointer
-                return None
-        elif pointer_size == 4:
-            if size >= 4:
-                fmt += "I"
-            else:
-                # Insufficient bytes left in the current block for making a 4-byte pointer.
-                return None
-        else:
-            raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
-
-        ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf), pointer_size)
-        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
-
-        return ptr
 
     #
     # Analyze function features

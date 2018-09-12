@@ -27,7 +27,7 @@ VEX_IRSB_MAX_SIZE = 400
 l = logging.getLogger("angr.analyses.cfg.cfg_fast")
 
 
-class Segment(object):
+class Segment:
     """
     Representing a memory block. This is not the "Segment" in ELF memory model
     """
@@ -70,7 +70,7 @@ class Segment(object):
         return Segment(self.start, self.end, self.sort)
 
 
-class SegmentList(object):
+class SegmentList:
     """
     SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
     blocks or not, and obtain the exact block(segment) that the address belongs to.
@@ -474,7 +474,7 @@ class SegmentList(object):
         return len(self._list) > 0
 
 
-class FunctionReturn(object):
+class FunctionReturn:
     """
     FunctionReturn describes a function call in a specific location and its return location. Hashable and equatable
     """
@@ -503,7 +503,7 @@ class FunctionReturn(object):
         return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
 
 
-class PendingJobs(object):
+class PendingJobs:
     """
     A collection of pending jobs during CFG recovery.
     """
@@ -617,7 +617,7 @@ class PendingJobs(object):
 #
 
 
-class FunctionEdge(object):
+class FunctionEdge:
     __slots__ = ('src_func_addr', 'stmt_idx', 'ins_addr',)
 
     def apply(self, cfg):
@@ -715,7 +715,7 @@ class FunctionReturnEdge(FunctionEdge):
 #
 
 
-class CFGJob(object):
+class CFGJob:
     """
     Defines a job to work on during the CFG recovery
     """
@@ -963,12 +963,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._extra_cross_references = extra_cross_references
 
-        try:
-            self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
-                                                                                              **extra_arch_options
-                                                                                              )
-        except KeyError:
-            raise
+        self._arch_options = arch_options if arch_options is not None else CFGArchOptions(
+                self.project.arch, **extra_arch_options)
 
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
@@ -1177,7 +1173,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _load_a_byte_as_int(self, addr):
         if self._base_state is not None:
             try:
-                val = chr(self._base_state.mem_concrete(addr, 1, inspect=False, disable_actions=True))
+                val = self._base_state.mem_concrete(addr, 1, inspect=False, disable_actions=True)
             except SimValueError:
                 # Not concretizable
                 l.debug("Address %#x is not concretizable!", addr)
@@ -1190,7 +1186,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_for_printable_strings(self, start_addr):
         addr = start_addr
-        sz = b""
+        sz = []
         is_sz = True
 
         # Get data until we meet a null-byte
@@ -1199,18 +1195,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             val = self._load_a_byte_as_int(addr)
             if val is None:
                 break
-            if val == b'\x00':
+            if val == 0:
                 if len(sz) < 4:
                     is_sz = False
                 break
             if val not in self.PRINTABLES:
                 is_sz = False
                 break
-            sz += val
+            sz.append(val)
             addr += 1
 
         if sz and is_sz:
-            l.debug("Got a string of %d chars: [%s]", len(sz), sz)
+            l.debug("Got a string of %d chars: [%s]", len(sz), bytes(sz).decode())
             string_length = len(sz) + 1
             return string_length
 
@@ -1606,14 +1602,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             regexes.append(r)
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_object. An interface
-        # TODO: to that would be awesome.
-
-        strides = self._binary.memory.stride_repr
-
         unassured_functions = []
 
-        for start_, _, bytes_ in strides:
+        for start_, bytes_ in self._binary.memory.backers():
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes_):
@@ -2488,35 +2479,43 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if pointers_count:
             return "pointer-array", pointer_size * pointers_count
 
-        block, block_size = self._fast_memory_load(data_addr)
+        try:
+            data = self.project.loader.memory.load(data_addr, 1024)
+        except KeyError:
+            data = b''
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block_size >= 4 and block[1] == 0 and block[3] == 0 and block[0] in self.PRINTABLES:
-            max_unicode_string_len = 1024
-            try:
-                unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
-                list(unicode_str)  # this will trigger a value error in some weird cases I don't understand
-            except ValueError:
-                # cffi fails to interpret the bytes as unicode
-                unicode_str = u''
+        if len(data) >= 4 and data[1] == 0 and data[3] == 0 and data[0] in self.PRINTABLES:
+            def can_decode(n):
+                try:
+                    data[:n*2].decode('utf_16_le')
+                except UnicodeDecodeError:
+                    return False
+                return True
+            if can_decode(4) or can_decode(5) or can_decode(6):
+                running_failures = 0
+                last_success = 4
+                for i in range(4, len(data)):
+                    if can_decode(i):
+                        last_success = i
+                        running_failures = 0
+                        if data[i*2-2] == 0 and data[i*2-1] == 0:
+                            break
+                    else:
+                        running_failures += 1
+                        if running_failures > 3:
+                            break
 
-            if (len(unicode_str) and  # pylint:disable=len-as-condition
-                    all([ ord(c) < 256 and ord(c) in self.PRINTABLES for c in unicode_str])):
-                if content_holder is not None:
-                    content_holder.append(unicode_str)
-                return "unicode", (len(unicode_str) + 1) * 2
+                return "unicode", last_success
 
-        # Is it a null-terminated printable string?
-        max_string_len = min([ block_size, max_size, 4096 ])
-        s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
-        if len(s):  # pylint:disable=len-as-condition
-            if all([ c in self.PRINTABLES for c in s ]):
+        if data:
+            if all(c in self.PRINTABLES for c in data):
                 # it's a string
                 # however, it may not be terminated
                 if content_holder is not None:
-                    content_holder.append(s)
-                return "string", min(len(s) + 1, max_string_len)
+                    content_holder.append(data)
+                return "string", min(len(data) + 1, 1024)
 
         for handler in self._data_type_guessing_handlers:
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)

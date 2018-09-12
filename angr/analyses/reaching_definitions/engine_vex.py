@@ -204,21 +204,10 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                     if any(type(d) is Undefined for d in data):
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                 else:
-                    mem = self.state.loader.memory.read_bytes(a, size)
-                    if mem:
-                        if self.arch.memory_endness == 'Iend_LE':
-                            fmt = "<"
-                        else:
-                            fmt = ">"
-
-                        if size == 8:
-                            fmt += "Q"
-                        elif size == 4:
-                            fmt += "I"
-
-                        if size in [4, 8] and size == len(mem):
-                            mem_str = bytes(mem)
-                            data.add(struct.unpack(fmt, mem_str)[0])
+                    try:
+                        data.add(self.state.loader.memory.unpack_word(a, size=size))
+                    except struct.error:
+                        pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
                 self.state.add_use(MemoryLocation(a, size), self._codeloc())

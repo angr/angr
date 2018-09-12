@@ -292,7 +292,7 @@ class Function(object):
                 # check that the address isn't an pointing to known executable code
                 # and that it isn't an indirect pointer to known executable code
                 try:
-                    possible_pointer = memory.read_addr_at(addr)
+                    possible_pointer = memory.unpack_word(addr)
                     if addr not in known_executable_addresses and possible_pointer not in known_executable_addresses:
                         # build string
                         stn = ""

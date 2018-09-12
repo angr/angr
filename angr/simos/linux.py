@@ -60,9 +60,9 @@ class SimLinux(SimUserland):
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
                 if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
-                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
-                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
 
             # TODO: what the hell is this
             _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
@@ -76,10 +76,10 @@ class SimLinux(SimUserland):
         tls_obj = self.project.loader.tls_object
         if tls_obj is not None:
             if isinstance(self.project.arch, ArchAMD64):
-                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
-                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
             elif isinstance(self.project.arch, ArchX86):
-                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
             elif isinstance(self.project.arch, ArchARM):
                 self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
@@ -98,7 +98,7 @@ class SimLinux(SimUserland):
                         except AttributeError:
                             continue
                         gotaddr = reloc.rebased_addr
-                        gotvalue = self.project.loader.memory.read_addr_at(gotaddr)
+                        gotvalue = self.project.loader.memory.unpack_word(gotaddr)
                         if self.project.is_hooked(gotvalue):
                             continue
                         # Replace it with a ifunc-resolve simprocedure!
@@ -110,7 +110,7 @@ class SimLinux(SimUserland):
                         # TODO: should this be replaced with hook_symbol?
                         randaddr = self.project.loader.extern_object.allocate()
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
-                        self.project.loader.memory.write_addr_at(gotaddr, randaddr)
+                        self.project.loader.memory.pack_word(gotaddr, randaddr)
 
         # maybe move this into archinfo?
         if self.arch.name == 'X86':
@@ -294,12 +294,12 @@ class SimLinux(SimUserland):
         """
         if self.project.loader.main_object.is_ppc64_abiv1:
             if basic_addr is not None:
-                pointer = self.project.loader.memory.read_addr_at(basic_addr)
+                pointer = self.project.loader.memory.unpack_word(basic_addr)
                 return pointer, basic_addr
 
             pseudo_hookaddr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
             pseudo_toc = self.project.loader.extern_object.allocate(size=0x18)
-            self.project.loader.extern_object.memory.write_addr_at(
+            self.project.loader.extern_object.memory.pack_word(
                 AT.from_mva(pseudo_toc, self.project.loader.extern_object).to_rva(), pseudo_hookaddr)
             return pseudo_hookaddr, pseudo_toc
         else:

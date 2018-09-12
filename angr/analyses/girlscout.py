@@ -45,9 +45,7 @@ class GirlScout(Analysis):
 
         # Valid memory regions
         self._valid_memory_regions = sorted(
-            [ (start, start+len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers ],
-            key=lambda x: x[0]
-        )
+            (start, start+len(backer)) for start, backer in self.project.loader.memory.backers())
         self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])
 
         # Size of each basic block
@@ -449,12 +447,8 @@ class GirlScout(Analysis):
         # TODO: Make sure self._start is aligned
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_object. An interface
-        # to that would be awesome.
 
-        strides = self.project.loader.main_object.memory.stride_repr
-
-        for start_, end_, bytes in strides:
+        for start_, bytes_ in self.project.loader.main_object.memory.backers():
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes):

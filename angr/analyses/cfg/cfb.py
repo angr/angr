@@ -232,8 +232,7 @@ class CFBlanket(Analysis):
                 try:
                     _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
                              obj, section, segment, min_addr)
-                    bytes_ptr, _ = self.project.loader.memory.read_bytes_c(min_addr)
-                    bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size) # type: str
+                    bytes_ = self.project.loader.memory.load(min_addr, size)
                 except KeyError:
                     # The address does not exist
                     bytes_ = None
@@ -268,8 +267,7 @@ class CFBlanket(Analysis):
                         try:
                             _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
                                      obj, section, segment, next_addr)
-                            bytes_ptr, _ = self.project.loader.memory.read_bytes_c(next_addr)
-                            bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size)  # type: str
+                            bytes_ = self.project.loader.memory.load(next_addr, size)
                         except KeyError:
                             # The address does not exist
                             bytes_ = None

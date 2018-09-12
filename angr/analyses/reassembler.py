@@ -2780,32 +2780,16 @@ class Reassembler(Analysis):
         return False
 
     def fast_memory_load(self, addr, size, data_type, endness='Iend_LE'):
+        if data_type is int:
+            try:
+                return self.project.loader.memory.unpack_word(addr, size=size, endness=endness)
+            except KeyError:
+                return None
 
         try:
-            buff, _ = self.project.loader.memory.read_bytes_c(addr)
+            return self.project.loader.memory.load(addr, size)
         except KeyError:
             return None
-
-        data = self._ffi.unpack(self._ffi.cast('char*', buff), size)
-
-        if data_type is int:
-            if endness == 'Iend_LE':
-
-                if endness == 'Iend_LE':
-                    fmt = "<"
-                else:
-                    fmt = ">"
-                if size == 8:
-                    fmt += "Q"
-                elif size == 4:
-                    fmt += "I"
-                else:
-                    raise BinaryError("Pointer size of %d is not supported" % size)
-
-                return struct.unpack(fmt, data)[0]
-
-        else:
-            return data
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('Reassembler', Reassembler)
