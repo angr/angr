@@ -2,26 +2,21 @@
 import logging
 
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
-                                SootAddressTerminator, SootClassDescriptor,
+                                SootAddressTerminator, SootArgument,
                                 SootMethodDescriptor)
-from cle import CLEError
 
 from ... import sim_options as o
-from ...errors import SimEngineError, SimTranslationError
-from ...sim_type import SimTypeReg
+from ...errors import SimEngineError
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ..engine import SimEngine
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
-from .expressions import (SimSootExpr_SpecialInvoke, SimSootExpr_VirtualInvoke,
-                          translate_expr)
 from .statements import (SimSootStmt_Return, SimSootStmt_ReturnVoid,
                          translate_stmt)
-from .values import (SimSootValue_Local, SimSootValue_ParamRef,
-                     SimSootValue_ThisRef, translate_value)
-from .expressions.invoke import JavaArgument
+from .values import SimSootValue_Local, SimSootValue_ParamRef
 
 l = logging.getLogger('angr.engines.soot.engine')
 
+# pylint: disable=arguments-differ
 
 class SimEngineSoot(SimEngine):
     """
@@ -29,42 +24,44 @@ class SimEngineSoot(SimEngine):
     """
 
     def __init__(self, project=None, **kwargs):
-        super(SimEngineSoot, self).__init__()
+        super(SimEngineSoot, self).__init__(**kwargs)
         self.project = project
 
-    def lift(self, addr=None, the_binary=None, **kwargs):
-        assert isinstance(addr, SootAddressDescriptor)
+    # FIXME where is this method used?
+    # from ...errors import SimTranslationError
+    # from cle import CLEError
+    # def lift(self, addr=None, the_binary=None, **kwargs):
+    #     assert isinstance(addr, SootAddressDescriptor)
 
-        method, stmt_idx = addr.method, addr.stmt_idx
+    #     method, stmt_idx = addr.method, addr.stmt_idx
 
-        try:
-            method = the_binary.get_method(method)
-        except CLEError as ex:
-            raise SimTranslationError("CLE error: " + ex.message)
+    #     try:
+    #         method = the_binary.get_method(method)
+    #     except CLEError as ex:
+    #         raise SimTranslationError("CLE error: " + ex.message)
 
-        if stmt_idx is None:
-            return method.blocks[0] if method.blocks else None
-        else:
-            #try:
-            #    _, block = method.block_by_label.floor_item(stmt_idx)
-            #except KeyError:
-            #    return None
-            #return block
-            # TODO: Re-enable the above code once bintrees are used
+    #     if stmt_idx is None:
+    #         return method.blocks[0] if method.blocks else None
+    #     else:
+    #         #try:
+    #         #    _, block = method.block_by_label.floor_item(stmt_idx)
+    #         #except KeyError:
+    #         #    return None
+    #         #return block
+    #         # TODO: Re-enable the above code once bintrees are used
 
-
-            # FIXME: stmt_idx does not index from the start of the method but from the start
-            #        of the block therefore it always returns the block with label 0 indipendently
-            #        of where we are
-            # block = method.block_by_label.get(stmt_idx, None)
-            # if block is not None:
-            #     return block
-            # Slow path
-            for block_idx, block in enumerate(method.blocks):
-                # if block.label <= stmt_idx < block.label + len(block.statements):
-                if block_idx == addr.block_idx:
-                    return block
-            return None
+    #         # FIXME: stmt_idx does not index from the start of the method but from the start
+    #         #        of the block therefore it always returns the block with label 0 indipendently
+    #         #        of where we are
+    #         # block = method.block_by_label.get(stmt_idx, None)
+    #         # if block is not None:
+    #         #     return block
+    #         # Slow path
+    #         for block_idx, block in enumerate(method.blocks):
+    #             # if block.label <= stmt_idx < block.label + len(block.statements):
+    #             if block_idx == addr.block_idx:
+    #                 return block
+    #         return None
 
     def _check(self, state, *args, **kwargs):
         return isinstance(state._ip, SootAddressDescriptor)
@@ -82,18 +79,18 @@ class SimEngineSoot(SimEngine):
                 self.project.factory.procedure_engine._process(state, successors, procedure)
                 return
 
-        # by default, we skip the exection for all android system methods
+        # skip android system methods (-> use sim procedures)
         if addr.method.class_name.startswith('android'):
             self._add_return_exit(state, successors)
             return
 
         binary = state.regs._ip_binary
         method = binary.get_soot_method(addr.method, none_if_missing=True)
-        if not method:          
-            # This means we are executing code that it is not in CLE, typically library code.
+        if not method:
+            # This means we are executing code that is not in CLE, typically library code.
             # We may want soot -> pysoot -> cle to export at least the method names of the libraries
-            # (soot has a way to deal with this), as of now we just "simulate" a returnvoid.
-            # Note that if we have sim procedure, we should not even reach this point.
+            # (soot has a way to deal with this), as of now we just "simulate" a return.
+            # Note: If we have a sim procedure, we should not reach this point.
             l.warning("Try to execute non-loaded code %s. Continue with a return-void.", addr)
             self._add_return_exit(state, successors)
             return
@@ -122,17 +119,17 @@ class SimEngineSoot(SimEngine):
                 return
             if method is not None:
                 next_addr = self._get_next_linear_instruction(state, stmt_idx)
-                l.debug("Advancing execution linearly to %s" % next_addr)
+                l.debug("Advancing execution linearly to %s", next_addr)
                 if next_addr is not None:
                     successors.add_successor(state.copy(), next_addr, state.se.true, 'Ijk_Boring')
 
     def _handle_statement(self, state, successors, stmt_idx, stmt):
-
+        # execute statement
         try:
             l.debug("Executing statement: %s", stmt)
             s_stmt = translate_stmt(stmt, state)
         except SimEngineError as e:
-            l.error("Skipping statement: " + str(e))
+            l.error("Skipping statement: %s", e)
             return
 
         # add invoke exit
@@ -148,34 +145,32 @@ class SimEngineSoot(SimEngine):
             if 'NATIVE' in method.attrs:
                 # the target of the call is a native function
                 # => we need to setup a native call-site
-                l.debug("Native invoke: %r" % method)
+                l.debug("Native invoke: %r", method)
                 addr = self.project.simos.get_addr_of_native_method(method)
                 invoke_state = self._setup_native_callsite(invoke_state, addr, method, args, ret_addr, ret_var)
             else:
-                l.debug("Invoke: %r" % method)
+                l.debug("Invoke: %r", method)
                 self.setup_callsite(invoke_state, args, ret_addr, ret_var)
                 addr = SootAddressDescriptor(method, 0, 0)
-            # add invoke state as the successor and terminate execution prematurely, since 
-            # Soot does not guarantee that an invoke stmt terminates a block
-            successors.add_successor(invoke_state, addr, state.se.true, 'Ijk_Call', )
+            # add invoke state as the successor and terminate execution
+            # prematurely, since Soot does not guarantee that an invoke stmt
+            # terminates a block
+            successors.add_successor(invoke_state, addr, state.se.true, 'Ijk_Call')
             return True
 
         # add jmp exit
         elif s_stmt.has_jump_targets:
             for target, condition in s_stmt.jmp_targets_with_conditions:
-                if target is None:
-                    computed_target = self._get_next_linear_instruction(state, stmt_idx)
-                else:
-                    computed_target = target
-                l.debug("Possible jump: %s -> %s" % (state._ip, computed_target))
-                successors.add_successor(state.copy(), computed_target, condition, 'Ijk_Boring')
+                if not target:
+                    target = self._get_next_linear_instruction(state, stmt_idx)
+                l.debug("Possible jump: %s -> %s", state._ip, target)
+                successors.add_successor(state.copy(), target, condition, 'Ijk_Boring')
             return True
 
         # add return exit
         elif isinstance(s_stmt, (SimSootStmt_Return, SimSootStmt_ReturnVoid)):
-            l.debug("Return exit") 
-            return_val = s_stmt.return_value if type(s_stmt) is SimSootStmt_Return else None
-            self._add_return_exit(state, successors, return_val)
+            l.debug("Return exit")
+            self._add_return_exit(state, successors, s_stmt.return_value)
             return True
 
         # go on linearly
@@ -212,7 +207,7 @@ class SimEngineSoot(SimEngine):
         self.project._sim_procedures[addr] = proc
 
         return proc
-    
+
     @staticmethod
     def _is_method_beginning(addr):
         return addr.block_idx == 0 and addr.stmt_idx == 0
@@ -231,8 +226,8 @@ class SimEngineSoot(SimEngine):
             if new_bb_idx < len(method.blocks):
                 return SootAddressDescriptor(addr.method, new_bb_idx, 0)
             else:
-                l.warning("falling into a non existing bb: %d in %s" %
-                          (new_bb_idx, SootMethodDescriptor.from_soot_method(method)))
+                l.warning("falling into a non existing bb: %d in %s",
+                          new_bb_idx, SootMethodDescriptor.from_soot_method(method))
                 raise IncorrectLocationException()
 
     @staticmethod
@@ -257,34 +252,28 @@ class SimEngineSoot(SimEngine):
 
     @staticmethod
     def prepare_return_state(state, ret_value=None):
-        """
-        Prepare the state for the return site.
-
-        :param state:       The state to prepare for returning.
-        :param ret_value:   The value to return from the current method.
-        :return:            None
-        """
+        # pop callstack
         ret_var = state.callstack.invoke_return_variable
         procedure_data = state.callstack.procedure_data
-
-        # pop callstack and memory frame
         state.callstack.pop()
-        state.memory.pop_stack_frame()
-        
+
         # pass procedure data to the current callstack (if available)
         # => this should get removed by the corresponding sim procedure
         state.callstack.procedure_data = procedure_data
 
+        # pop memory frame
+        state.memory.pop_stack_frame()
+
         # save return value
         if ret_value is not None:
-            l.debug("Assigning %r to return variable %r" % (ret_value, ret_var))
+            l.debug("Assigning %r to return variable %r", ret_value, ret_var)
             if ret_var is not None:
                 # usually the return value is read from the previous stack frame
                 state.memory.store(ret_var, ret_value)
             else:
                 # however if we call a method from outside (e.g. project.state_call),
-                # no previous stack frame exist and no return variable is set
-                # => for this cases, we store the value in the registers, so can
+                # no previous stack frame exist and the return variable is not set
+                # => for this cases, we store the value in the registers, so it can
                 #    still be accessed
                 state.regs.invoke_return_value = ret_value
 
@@ -311,9 +300,10 @@ class SimEngineSoot(SimEngine):
     @staticmethod
     def prepare_native_return_state(native_state):
         """
-        Hook target for native function call returns. Recovers and store the 
-        return value from native memory and toggles the state, s.t. execution
-        continues in the Soot engine.
+        Hook target for native function call returns.
+
+        Recovers and stores the return value from native memory and toggles the
+        state, s.t. execution continues in the Soot engine.
         """
 
         javavm_simos = native_state.project.simos
@@ -323,14 +313,14 @@ class SimEngineSoot(SimEngine):
         ret_state.regs._ip = ret_state.callstack.ret_addr
         ret_state.scratch.guard = ret_state.se.true
         ret_state.history.jumpkind = 'Ijk_Ret'
-        
+
         # if available, lookup the return value in native memory
         ret_var = ret_state.callstack.invoke_return_variable
         if ret_var is not None:
             # get return symbol from native state
             native_cc = javavm_simos.get_native_cc()
             ret_symbol = native_cc.get_return_val(native_state).to_claripy()
-            # convert value to java type 
+            # convert value to java type
             if ret_var.type in ArchSoot.primitive_types:
                 # return value has a primitive type
                 # => we need to manually cast the return value to the correct size, as this
@@ -338,7 +328,7 @@ class SimEngineSoot(SimEngine):
                 ret_value = javavm_simos.cast_primitive(ret_symbol, to_type=ret_var.type)
             else:
                 # return value has a reference type
-                # => ret_symbol is a opaque ref 
+                # => ret_symbol is a opaque ref
                 # => lookup corresponding java reference
                 ret_value = ret_state.jni_references.lookup(ret_symbol)
 
@@ -347,7 +337,7 @@ class SimEngineSoot(SimEngine):
 
         # teardown return state
         SimEngineSoot.prepare_return_state(ret_state, ret_value)
-        
+
         # finally, delete all local references
         ret_state.jni_references.clear_local_references()
 
@@ -355,15 +345,14 @@ class SimEngineSoot(SimEngine):
 
     @classmethod
     def _setup_native_callsite(cls, state, native_addr, java_method, args, ret_addr, ret_var):
-
         # Step 1: setup java callsite, but w/o storing arguments in memory
         cls.setup_callsite(state, None, ret_addr, ret_var)
 
         # Step 2: add JNI specific arguments to *args list
 
         # get JNI enviroment pointer
-        jni_env = JavaArgument(state.project.simos.jni_env, "JNIEnv")
-        
+        jni_env = SootArgument(state.project.simos.jni_env, "JNIEnv")
+
         # get reference to the current object or class
         if args and args[0].is_this_ref:
             # instance method call
@@ -374,11 +363,11 @@ class SimEngineSoot(SimEngine):
             # static method call
             # => pass 'class' reference to native code
             class_ = state.javavm_classloader.get_class(java_method.class_name, init_class=True)
-            ref = JavaArgument(class_, "Class")
+            ref = SootArgument(class_, "Class")
 
         # add to args
         args = [jni_env, ref] + args
-        
+
         # Step 3: create native invoke state
         return state.project.simos.state_call(native_addr, *args,
                                               base_state=state,

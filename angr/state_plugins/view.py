@@ -1,10 +1,11 @@
-import claripy
-from .plugin import SimStatePlugin
+import logging
 
+import claripy
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 import logging
 l = logging.getLogger(name=__name__)
+
 
 class SimRegNameView(SimStatePlugin):
     def __getattr__(self, k):
@@ -54,15 +55,16 @@ class SimRegNameView(SimStatePlugin):
             inspect = True
             disable_actions = False
 
-        # When we execute a Java Archive that interacts with native libraries,
-        # we need to update the instruction pointer flag (which toggles between
-        # the native and the Java view on the state).
-        if self.state.project is not None and \
+        # When executing a Java JNI application, we need to update the state's
+        # instruction pointer flag every time the ip gets written.
+        # This flag will then toggle between the native and the java view of the
+        # state.
+        if self.state.project and \
            isinstance(self.state.project.arch, ArchSoot) and \
            k == 'ip' and \
            self.state.project.simos.is_javavm_with_jni_support:
             self.state.ip_is_soot_addr = True if isinstance(v, SootAddressDescriptor) else False
-    
+
         try:
             return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
         except KeyError:

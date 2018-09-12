@@ -1,13 +1,19 @@
-from .plugin import SimStatePlugin
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor, SootAddressTerminator, SootClassDescriptor
-from ..engines.soot.method_dispatcher import resolve_method
-
 import logging
+
+from archinfo.arch_soot import (SootAddressDescriptor, SootAddressTerminator,
+                                SootClassDescriptor)
+
+from ..engines.soot.method_dispatcher import resolve_method
+from ..sim_state import SimState
+from .plugin import SimStatePlugin
+
 l = logging.getLogger("angr.state_plugins.javavm_classloader")
+
 
 class SimJavaVmClassloader(SimStatePlugin):
     """
-    The classloader is an interface for resolving and initializing java classes.
+    JavaVM Classloader is used as an interface for resolving and initializing
+    Java classes.
     """
 
     def __init__(self, initialized_classes=None):
@@ -16,10 +22,11 @@ class SimJavaVmClassloader(SimStatePlugin):
 
     def get_class(self, class_name, init_class=False):
         """
-        Get a soot class descriptor for the class.
+        Get a class descriptor for the class.
 
-        :param str class_name: Name of class.
-        :param bool init_class: Whether the class initializer <clinit> should be executed.
+        :param str class_name:  Name of class.
+        :param bool init_class: Whether the class initializer <clinit> should be
+                                executed.
         """
         # try to get the soot class object from CLE
         java_binary = self.state.javavm_registers.load('ip_binary')
@@ -51,18 +58,20 @@ class SimJavaVmClassloader(SimStatePlugin):
 
     def is_class_initialized(self, class_):
         """
-        Indicates whether the class' initializing method <clinit> was
-        already executed on this state.
+        Indicates whether the classes initializing method <clinit> was already
+        executed on the state.
         """
         return class_ in self.initialized_classes
 
     def init_class(self, class_):
         """
-        This method simulates the loading of a class by the JVM. During the loading parts
-        of the class, such as static field, are initialized. This is done by running the
-        class initializer method <clinit>.
-        
-        Note: Initialization is skipped, if the class has already been initialized.
+        This method simulates the loading of a class by the JVM, during which
+        parts of the class (e.g. static fields) are initialized. For this, we
+        run the class initializer method <clinit> (if available) and update
+        the state accordingly.
+
+        Note: Initialization is skipped, if the class has already been
+              initialized (or if it's not loaded in CLE).
         """
         if self.is_class_initialized(class_):
             l.debug("Class %r already initialized.", class_)
@@ -72,12 +81,12 @@ class SimJavaVmClassloader(SimStatePlugin):
         self.initialized_classes.add(class_)
 
         if not class_.is_loaded:
-            l.warning("Class %r is not loaded in Cle. Skip initializiation.", class_)
+            l.warning("Class %r is not loaded in CLE. Skip initializiation.", class_)
             return
 
-        clinit_method = resolve_method(self.state, '<clinit>', class_.name, 
+        clinit_method = resolve_method(self.state, '<clinit>', class_.name,
                                        include_superclasses=False, init_class=False)
-        if clinit_method.is_loaded: 
+        if clinit_method.is_loaded:
             javavm_simos = self.state.project.simos
             clinit_state = javavm_simos.state_call(addr=SootAddressDescriptor(clinit_method, 0, 0),
                                                    base_state=self.state,
@@ -86,12 +95,13 @@ class SimJavaVmClassloader(SimStatePlugin):
             l.info(">"*15 + " Run class initializer %r ... " + ">"*15, clinit_method)
             simgr.run()
             l.debug("<"*15 + " Run class initializer %r ... done " + "<"*15, clinit_method)
-            # The only thing that can change in the class initializer are static fields
-            # => update vm_static_table and the heap
+            # The only thing that can be updated during initialization are
+            # static or rather global information, which are either stored on
+            # the heap or in the vm_static_table
             self.state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
             self.state.memory.heap = simgr.deadended[0].memory.heap.copy()
         else:
-            l.debug("Class initializer <clinit> is not loaded in Cle. Skip initializiation.")
+            l.debug("Class initializer <clinit> is not loaded in CLE. Skip initializiation.")
 
     @property
     def initialized_classes(self):
@@ -101,10 +111,20 @@ class SimJavaVmClassloader(SimStatePlugin):
         return self._initialized_classes
 
     @SimStatePlugin.memo
-    def copy(self, memo):
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimJavaVmClassloader(
             initialized_classes=self.initialized_classes.copy()
         )
 
-# FIXME add this to a javavm preset
-SimStatePlugin.register_default('javavm_classloader', SimJavaVmClassloader)
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+        l.warning("Merging is not implemented for JavaVM classloader!")
+        return False
+
+    def widen(self, others): # pylint: disable=unused-argument
+        l.warning("Widening is not implemented for JavaVM classloader!")
+        return False
+
+
+# TODO use a default JavaVM preset
+#      see for reference: angr/engines/__init__.py
+SimState.register_default('javavm_classloader', SimJavaVmClassloader)

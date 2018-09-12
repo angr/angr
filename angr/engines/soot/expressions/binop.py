@@ -1,19 +1,15 @@
 
 import operator
+
 from .base import SimSootExpr
-from ..values.paramref import SimSootValue_ParamRef
 
 
 class SimSootExpr_Binop(SimSootExpr):
-    def __init__(self, expr, state):
-        super(SimSootExpr_Binop, self).__init__(expr, state)
-
     def _execute(self):
         v1 = self._translate_expr(self.expr.value1)
         v2 = self._translate_expr(self.expr.value2)
-
-        new_expr = SimSootExpr_Binop.binop_str_to_function[self.expr.op](v1.expr, v2.expr)
-        self.expr = new_expr
+        operator_func = SimSootExpr_Binop.binop_str_to_function[self.expr.op]
+        self.expr = operator_func(v1.expr, v2.expr)
 
     binop_str_to_function = {
         "add": operator.add,
@@ -28,5 +24,3 @@ class SimSootExpr_Binop(SimSootExpr):
         "xor": operator.xor,
         "rem": operator.imod
     }
-
-

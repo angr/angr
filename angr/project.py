@@ -7,7 +7,7 @@ import string
 from collections import defaultdict
 
 import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor, ArchSoot
+from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
 
 from .misc.ux import deprecated
@@ -213,9 +213,10 @@ class Project:
 
         # Step 6: Register simprocedures as appropriate for library functions
         if isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support:
-            # if we execute a Java Archive, we need to use the arch of the native
-            # simos for all (native) sim procedures
-            sim_proc_arch = self.simos.native_arch 
+            # If we execute a Java archive that includes native JNI libraries,
+            # we need to use the arch of the native simos for all (native) sim
+            # procedures.
+            sim_proc_arch = self.simos.native_arch
         else:
             sim_proc_arch = self.arch
         for obj in self.loader.initial_load_objects:

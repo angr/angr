@@ -1,8 +1,11 @@
 
+import logging
+
 from . import JNISimProcedure
 
-import logging
 l = logging.getLogger('angr.procedures.java_jni.global_and_local_references')
+
+# pylint: disable=arguments-differ,unused-argument
 
 #
 # NewGlobalRef / NewWeakGlobalRef

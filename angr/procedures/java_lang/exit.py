@@ -1,6 +1,8 @@
 
 from ..java import JavaSimProcedure
 
+# pylint: disable=arguments-differ,unused-argument
+
 
 class Exit(JavaSimProcedure):
 

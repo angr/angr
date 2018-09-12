@@ -1,55 +1,58 @@
-from .base import SimSootValue
-from . import translate_value
-from .constants import SimSootValue_IntConstant
-from claripy import And
-from ....errors import SimEngineError
-
 import logging
+
+from claripy import And
+
+from . import translate_value
+from ....errors import SimEngineError
+from .base import SimSootValue
+from .constants import SimSootValue_IntConstant
+
 l = logging.getLogger('angr.engines.soot.values.arrayref')
+
 
 class SimSootValue_ArrayBaseRef(SimSootValue):
 
-    __slots__ = ['id', 'type', 'heap_alloc_id', 'size', 'default_value_generator']
+    __slots__ = [ 'id', 'element_type', 'size', '_default_value_generator' ]
 
-    def __init__(self, heap_alloc_id, element_type, size):
-        self.heap_alloc_id = heap_alloc_id
+    def __init__(self, heap_alloc_id, element_type, size, default_value_generator=None):
+        self.id = "%s.array_%s" % (heap_alloc_id, element_type)
         self.element_type = element_type
-        self.id = self._create_unique_id(self.heap_alloc_id, self.element_type)
         self.size = size
+        self._default_value_generator = default_value_generator
 
-    @staticmethod
-    def _create_unique_id(heap_alloc_id, type_):
-        return "%s.array_%s" % (heap_alloc_id, type_)
+    def __repr__(self):
+        return self.id
 
     def get_default_value(self, state):
         """
-        :return: Default value for an array element.
+        :return: Default value for array elements.
         """
-        if hasattr(self, "default_value_generator"):
-            return self.default_value_generator(state)
+        if self._default_value_generator:
+            return self._default_value_generator(state)
         else:
             return state.project.simos.get_default_value_by_type(self.element_type)
 
     def add_default_value_generator(self, generator):
         """
-        Add a generator for overwriting the default behavior of generating array elements.
+        Add a generator for overwriting the default value for array elements.
 
-        :param function generator: A function that get a sim state for input and returns
-                                   a default value for an array element, e.g.
+        :param function generator: Function that given the state, returns a
+                                   default value for array elements, e.g.
                                    `generator = lambda state: state.solver.BVV(0, 32)`
         """
-        self.default_value_generator = generator
+        self._default_value_generator = generator
 
-    def __repr__(self):
-        return self.id
+    @classmethod
+    def from_sootvalue(cls, soot_value, state):
+        raise NotImplementedError()
 
 
 class SimSootValue_ArrayRef(SimSootValue):
 
-    __slots__ = ['index', 'type', 'size', 'id', 'heap_alloc_id']
+    __slots__ = [ 'id', 'base', 'index' ]
 
     def __init__(self, base, index):
-        self.id = self._create_unique_id(base.id, index)
+        self.id = "%s[%s]" % (base.id, index)
         self.base = base
         self.index = index
 
@@ -65,10 +68,6 @@ class SimSootValue_ArrayRef(SimSootValue):
         return cls(base, idx)
 
     @staticmethod
-    def _create_unique_id(array_id, index):
-        return "%s[%s]" % (array_id, str(index))
-
-    @staticmethod
     def translate_array_index(idx, state):
         idx_value = translate_value(idx, state)
         if isinstance(idx_value, SimSootValue_IntConstant):
@@ -81,14 +80,20 @@ class SimSootValue_ArrayRef(SimSootValue):
 
     @staticmethod
     def check_array_bounds(idx, array, state):
+        # a valid idx fullfills the constraint
+        # 0 <= idx < length
         zero = state.solver.BVV(0, 32)
         length = array.size
-
-        idx_stays_within_bounds = state.solver.eval_upto(
-            And(length.SGT(idx), zero.SLE(idx)), 2
+        bound_constraint = state.solver.And(
+            length.SGT(idx), zero.SLE(idx),
         )
 
-        # There are 3 cases
+        # evaluate the constraint
+        # Note: if index and/or the array length are symbolic, the result
+        #       can be True and False and the same time
+        idx_stays_within_bounds = state.solver.eval_upto(bound_constraint, 2)
+
+        # There are 3 cases:
         # 1) idx has only valid solutions
         # 2) idx has only invalid soultions
         #    TODO: raise a java.lang.ArrayIndexOutOfBoundsException
@@ -99,14 +104,14 @@ class SimSootValue_ArrayRef(SimSootValue):
         #
         # For now we just constraint the index to stay within the bounds
 
-        # exist any valid solutions?
+        # raise exception, if index is *always* invalid
         if not True in idx_stays_within_bounds:
             raise SimEngineError("Access of %s[%s] (length %s) is always invalid. "
                                  "Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."
-                                 % (array.heap_alloc_id, idx, length))
-            
-        # exist any out-of-bounds solutions?
+                                 "" % (array.id, idx, length))
+
+        # bound index and/or length, if there are *some* invalid values
         if False in idx_stays_within_bounds:
             l.warning("Possible out-of-bounds access! Index and/or length gets constraint to "
-                      "valid values. (%s[%s], length %s)" % (array.heap_alloc_id, idx, length))
+                      "valid values. (%s[%s], length %s)", array.id, idx, length)
             state.solver.add(And(length.SGT(idx), zero.SLE(idx)))

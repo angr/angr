@@ -1,17 +1,13 @@
 
-from ..expressions import SimSootExpr_NewArray
+import logging
+
 from ..expressions.invoke import InvokeBase
-from ..values import SimSootValue_ArrayRef
 from .base import SimSootStmt
 
-import logging
 l = logging.getLogger('angr.engines.soot.statements.assign')
 
 
 class SimSootStmt_Assign(SimSootStmt):
-    def __init__(self, stmt, state):
-        super(SimSootStmt_Assign, self).__init__(stmt, state)
-
     def _execute(self):
         dst = self._translate_value(self.stmt.left_op)
         src_expr = self._translate_expr(self.stmt.right_op)
@@ -20,7 +16,7 @@ class SimSootStmt_Assign(SimSootStmt):
             # => The assumption is that if the src_expr contains an invoke, it
             #    is always just that invoke. In other words, the only possible
             #    form of "invoke in assignment" is: reg = invoke.
-            #    This requirement *should* be enforced by the lifting to Soot.
+            #    This requirement *should* be enforced by the lifting to Soot IR.
             # => We deal with the invoke assignment, by
             #    1) saving the destination variable
             #    2) executing the function

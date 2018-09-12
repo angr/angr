@@ -1,15 +1,16 @@
 
-from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
+import logging
+
+from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootArgument,
                                 SootMethodDescriptor)
 
 from . import JNISimProcedure
 from ...calling_conventions import SimCCSoot
 from ...engines.soot.method_dispatcher import resolve_method
-from ...engines.soot.values import SimSootValue_Local
-from ...engines.soot.expressions.invoke import JavaArgument
 
-import logging
 l = logging.getLogger('angr.procedures.java_jni.callmethod')
+
+# pylint: disable=arguments-differ,unused-argument
 
 #
 # GetMethodID / GetStaticMethodID
@@ -20,23 +21,15 @@ class GetMethodID(JNISimProcedure):
     return_ty = 'reference'
 
     def run(self, ptr_env, class_, ptr_method_name, ptr_method_sig):
-        
-        # class name
+
         method_class = self.state.jni_references.lookup(class_)
-
-        # method name
         method_name = self._load_string_from_native_memory(ptr_method_name)
-
-        # param and return types
         method_sig = self._load_string_from_native_memory(ptr_method_sig)
+
+        # derive parameter type from signature
         params, _ = ArchSoot.decode_method_signature(method_sig)
 
-        # create SootMethodDescriptor as id and return a opaque reference to it
-        # Note: we do not resolve the method at this point, because the method id can be 
-        #       used with different objects
-        #       used both for virtual invokes and special invokes (see invoke expr in Soot
-        #       engine). The actual invoke type gets determined later, based on the type
-        #       of jni function (Call<Type>Method vs. CallNonVirtual<Type>Method)
+        # create method ID and return reference to it
         method_id = SootMethodDescriptor(method_class.name, method_name, params)
         return self.state.jni_references.create_new_reference(method_id)
 
@@ -49,7 +42,6 @@ class CallMethodBase(JNISimProcedure):
     return_ty = None
 
     def _invoke(self, method_id, obj=None, dynamic_dispatch=True, args_in_array=None):
-
         # get invoke target
         class_name = obj.type if dynamic_dispatch else method_id.class_name
         invoke_target = resolve_method(self.state, method_id.name, class_name, method_id.params)
@@ -69,26 +61,23 @@ class CallMethodBase(JNISimProcedure):
         # => after returning, the execution will be continued in _return_result_of_computation
         self.call(invoke_addr, java_args, "return_from_invocation", cc=SimCCSoot(ArchSoot()))
 
-
     def _get_arg_values(self, no_of_args):
         return [ self.arg(self.num_args+idx).to_claripy() for idx in range(no_of_args) ]
 
-
     def _get_arg_values_from_array(self, array, no_of_args):
-        return self.load_from_native_memory(addr=array, value_size=self.arch.bytes, 
-                                            no_of_elements=no_of_args, return_as_list=True)
-        
+        return self._load_from_native_memory(addr=array, data_size=self.arch.bytes,
+                                             no_of_elements=no_of_args, return_as_list=True)
 
     def _setup_java_args(self, arg_values, method_id, this_ref=None):
         args = []
 
         # if available, add 'this' reference
         if this_ref:
-            args += [ JavaArgument(this_ref, this_ref.type, is_this_ref=True) ]
+            args += [ SootArgument(this_ref, this_ref.type, is_this_ref=True) ]
 
         # function arguments
         for arg_value_, arg_type in zip(arg_values, method_id.params):
-
+            
             if arg_type in ArchSoot.primitive_types:
                 # argument has a primitive integral type
                 # => cast native value to java type
@@ -98,8 +87,8 @@ class CallMethodBase(JNISimProcedure):
                 # argument has a relative type
                 # => lookup java object
                 arg_value = self.state.jni_references.lookup(arg_value_)
-            
-            args += [ JavaArgument(arg_value, arg_type) ]
+
+            args += [ SootArgument(arg_value, arg_type) ]
 
         return args
 
@@ -129,7 +118,7 @@ class CallMethodA(CallMethodBase):
         method_id = self.state.jni_references.lookup(method_id_)
         obj = self.state.jni_references.lookup(obj_)
         self._invoke(method_id, obj, dynamic_dispatch=True, args_in_array=ptr_args)
-    
+
     def return_from_invocation(self, ptr_env, obj_, method_id_, ptr_args):
         return self._return_from_invocation()
 
@@ -184,7 +173,7 @@ class CallNonvirtualMethodA(CallMethodBase):
         method_id = self.state.jni_references.lookup(method_id_)
         obj = self.state.jni_references.lookup(obj_)
         self._invoke(method_id, obj, dynamic_dispatch=False, args_in_array=ptr_args)
-    
+
     def return_from_invocation(self, ptr_env, obj_, method_id_, ptr_args):
         return self._return_from_invocation()
 
@@ -237,7 +226,7 @@ class CallStaticMethodA(CallMethodBase):
     def run(self, ptr_env, obj_, method_id_, ptr_args):
         method_id = self.state.jni_references.lookup(method_id_)
         self._invoke(method_id, dynamic_dispatch=False, args_in_array=ptr_args)
-    
+
     def return_from_invocation(self, ptr_env, class_, method_id_, ptr_args):
         return self._return_from_invocation()
 

@@ -1,5 +1,4 @@
 
-
 class SimSootValue(object):
 
     @classmethod

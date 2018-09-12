@@ -9,7 +9,7 @@ class Write(JavaSimProcedure):
         ("java.io.PrintStream", "write(int)"),
     )
 
-    def run(self, this, b, *args):
+    def run(self, this, b, *args): # pylint: disable=arguments-differ,unused-argument
         # we do % 256 since this is what Java implementation does.
         # formally what happens is %0x100 and then remove the 3 0-bytes
         # this is outputted as 1 byte only

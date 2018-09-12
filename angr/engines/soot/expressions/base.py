@@ -1,4 +1,8 @@
 
+from . import translate_expr
+from ..values import translate_value
+
+
 class SimSootExpr(object):
     def __init__(self, expr, state):
         self.expr = expr
@@ -17,6 +21,3 @@ class SimSootExpr(object):
     def _translate_value(self, value):
         value_ = translate_value(value, self.state)
         return value_
-
-from . import translate_expr
-from ..values import translate_value

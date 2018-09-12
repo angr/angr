@@ -1,3 +1,4 @@
+
 from .base import SimSootValue
 
 class SimSootValue_IntConstant(SimSootValue):
@@ -9,9 +10,9 @@ class SimSootValue_IntConstant(SimSootValue):
         self.value = value
         self.type = type_
 
+    def __repr__(self):
+        return self.value
+
     @classmethod
     def from_sootvalue(cls, soot_value, state):
         return cls(soot_value.value, soot_value.type)
-
-    def __repr__(self):
-        return self.value

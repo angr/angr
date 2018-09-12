@@ -1,15 +1,7 @@
 
-from .assign import SimSootStmt_Assign
-from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid
-from .identity import SimSootStmt_Identity
-from .goto import SimSootStmt_Goto
-from .invoke import SimSootStmt_Invoke
-from .if_ import SimSootStmt_If
-from .switch import SimSootStmt_TableSwitch
-
 import logging
-l = logging.getLogger('angr.engines.soot.statements')
 
+l = logging.getLogger('angr.engines.soot.statements')
 
 def translate_stmt(stmt, state):
     stmt_name = stmt.__class__.__name__.split(".")[-1]
@@ -20,10 +12,16 @@ def translate_stmt(stmt, state):
         stmt_class = globals()[stmt_cls_name]
         s = stmt_class(stmt, state)
         s.process()
-
         return s
 
     else:
         l.warning("Unsupported Soot statement %s.", stmt_cls_name)
-        # TODO: It should return a SimSootStmt_Unsupported
         return None
+
+from .assign import SimSootStmt_Assign
+from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid
+from .identity import SimSootStmt_Identity
+from .goto import SimSootStmt_Goto
+from .invoke import SimSootStmt_Invoke
+from .if_ import SimSootStmt_If
+from .switch import SimSootStmt_TableSwitch

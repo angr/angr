@@ -3,9 +3,6 @@ import binascii
 import logging
 import os
 
-from angr.sim_state import SimState
-
-from .. import sim_options as options
 from .. import concretization_strategies
 from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_InstanceFieldRef,
@@ -13,22 +10,24 @@ from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_StaticFieldRef,
                                    SimSootValue_StringRef)
 from ..errors import SimMemoryAddressError, SimUnsatError
+from ..sim_state import SimState
 from ..storage.memory import SimMemory
 from .keyvalue_memory import SimKeyValueMemory
 from .plugin import SimStatePlugin
 
 l = logging.getLogger("angr.state_plugins.javavm_memory")
 
-MAX_ARRAY_SIZE = 1000 # FIXME arbitrarily chosen limit
+MAX_ARRAY_SIZE = 1000   # FIXME arbitrarily chosen limit
+
 
 class SimJavaVmMemory(SimMemory):
     def __init__(self, memory_id="mem", stack=None, heap=None, vm_static_table=None,
-                 load_strategies=[], store_strategies=[]):
+                 load_strategies=None, store_strategies=None):
         super(SimJavaVmMemory, self).__init__()
 
         self.id = memory_id
 
-        self._stack = [ ] if stack is None else stack
+        self._stack = [] if stack is None else stack
         self.heap = SimKeyValueMemory("mem") if heap is None else heap
         self.vm_static_table = SimKeyValueMemory("mem") if vm_static_table is None else vm_static_table
 
@@ -39,17 +38,21 @@ class SimJavaVmMemory(SimMemory):
         self.max_array_size = MAX_ARRAY_SIZE
 
         # concretizing strategies
-        self.load_strategies = load_strategies
-        self.store_strategies = store_strategies
+        self.load_strategies = load_strategies if load_strategies else []
+        self.store_strategies = store_strategies if store_strategies else []
 
-    def get_new_uuid(self):
+    @staticmethod
+    def get_new_uuid():
+        """
+        Generate a unique id within the scope of the JavaVM memory. This, for
+        example, is used for distinguishing memory objects of the same type
+        (e.g. multiple instances of the same class).
+        """
         # self._heap_allocation_id += 1
         # return str(self._heap_allocation_id)
         return binascii.hexlify(os.urandom(4))
 
-    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None,
-              inspect=True, priv=None, disable_actions=False, frame=0):
-
+    def store(self, addr, data, frame=0): # pylint: disable=arguments-differ
         if type(addr) is SimSootValue_Local:
             cstack = self._stack[-1+(-1*frame)]
             cstack.store(addr.id, data, type_=addr.type)
@@ -63,7 +66,7 @@ class SimJavaVmMemory(SimMemory):
 
         elif type(addr) is SimSootValue_StaticFieldRef:
             self.vm_static_table.store(addr.id, data, type_=addr.type)
-            
+
         elif type(addr) is SimSootValue_InstanceFieldRef:
             self.heap.store(addr.id, data, type_=addr.type)
 
@@ -71,11 +74,9 @@ class SimJavaVmMemory(SimMemory):
             self.heap.store(addr.id, data, type_=addr.type)
 
         else:
-            l.error("Unknown addr type %s" % addr)
+            l.error("Unknown addr type %s", addr)
 
-    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None,
-             inspect=True, disable_actions=False, ret_on_segv=False, none_if_missing=False, frame=0):
-
+    def load(self, addr, frame=0, none_if_missing=False): # pylint: disable=arguments-differ
         if type(addr) is SimSootValue_Local:
             cstack = self._stack[-1+(-1*frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
@@ -92,8 +93,7 @@ class SimJavaVmMemory(SimMemory):
             if value is None:
                 # initialize field
                 value = self.state.project.simos.get_default_value_by_type(addr.type)
-                l.debug("Initializing static field {field_ref} with {init_value}."
-                        "".format(field_ref=addr, init_value=value))
+                l.debug("Initializing static field %s with %s.", addr, value)
                 self.store(addr, value)
             return value
 
@@ -102,8 +102,7 @@ class SimJavaVmMemory(SimMemory):
             if value is None:
                 # initialize field
                 value = self.state.project.simos.get_default_value_by_type(addr.type)
-                l.debug("Initializing field {field_ref} with {init_value}."
-                        "".format(field_ref=addr, init_value=value))
+                l.debug("Initializing field %s with %s.", addr, value)
                 self.store(addr, value)
             return value
 
@@ -124,7 +123,6 @@ class SimJavaVmMemory(SimMemory):
     def stack(self):
         return self._stack[-1]
 
-
     #
     # Array // Store
     #
@@ -133,15 +131,13 @@ class SimJavaVmMemory(SimMemory):
         self.store_array_elements(array, idx, value)
 
     def store_array_elements(self, array, start_idx, data):
-
         """
         Stores either a single element or a range of elements in the array.
 
-        :param array:     Reference to the array (SimSootValue_ArrayRef).
+        :param array:     Reference to the array.
         :param start_idx: Starting index for the store.
         :param data:      Either a single value or a list of values.
         """
-        
         # we process data as a list of elements
         # => if there is only a single element, wrap it in a list
         data = data if isinstance(data, list) else [data]
@@ -154,12 +150,12 @@ class SimJavaVmMemory(SimMemory):
             # => concrete store
             concrete_start_idx = concrete_start_idxes[0]
             for i, value in enumerate(data):
-                self._store_array_element_on_heap(array=array, 
-                                          idx=concrete_start_idx+i,
-                                          value=value,
-                                          value_type=array.element_type)
-            # constraint the start idx to the concrete one, in case
-            # the index was symbolic prior to the concretization
+                self._store_array_element_on_heap(array=array,
+                                                  idx=concrete_start_idx+i,
+                                                  value=value,
+                                                  value_type=array.element_type)
+            # if the index was symbolic before concretization, this
+            # constraint it to concrete start idx
             self.state.solver.add(concrete_start_idx == start_idx)
 
         else:
@@ -173,7 +169,7 @@ class SimJavaVmMemory(SimMemory):
                 #    then store the value
                 #    else keep the current value
                 for i, value in enumerate(data):
-                    self._store_array_element_on_heap(array=array, 
+                    self._store_array_element_on_heap(array=array,
                                                       idx=concrete_start_idx+i,
                                                       value=value,
                                                       value_type=array.element_type,
@@ -185,8 +181,7 @@ class SimJavaVmMemory(SimMemory):
 
     def _store_array_element_on_heap(self, array, idx, value, value_type, store_condition=None):
         heap_elem_id = '%s[%d]' % (array.id, idx)
-        l.debug("Set {heap_elem_id} to {value} with condition {store_condition}".format(
-                 heap_elem_id=heap_elem_id, value=value, store_condition=store_condition))
+        l.debug("Set %s to %s with condition %s", heap_elem_id, value, store_condition)
         if store_condition is not None:
             current_value = self._load_array_element_from_heap(array, idx)
             new_value = value
@@ -201,16 +196,14 @@ class SimJavaVmMemory(SimMemory):
         return self.load_array_elements(array, idx, 1)[0]
 
     def load_array_elements(self, array, start_idx, no_of_elements):
-
         """
         Loads either a single element or a range of elements from the array.
 
-        :param array:           Reference to the array (SimSootValue_ArrayRef).
+        :param array:           Reference to the array.
         :param start_idx:       Starting index for the load.
         :param no_of_elements:  Number of elements to load.
 
         """
-
         # concretize start index
         concrete_start_idxes = self.concretize_load_idx(start_idx)
 
@@ -218,27 +211,27 @@ class SimJavaVmMemory(SimMemory):
             # only one start index
             # => concrete load
             concrete_start_idx = concrete_start_idxes[0]
-            load_values = [self._load_array_element_from_heap(array, idx) 
+            load_values = [self._load_array_element_from_heap(array, idx)
                            for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
-            # constraint the start idx to the concrete one, in case
-            # the index was symbolic prior to the concretization
+            # if the index was symbolic before concretization, this
+            # constraint it to concrete start idx
             self.state.solver.add(start_idx == concrete_start_idx)
-        
+
         else:
             # multiple start indexes
             # => symbolic load
 
             # start with load values for the first concrete index
             concrete_start_idx = concrete_start_idxes[0]
-            load_values = [self._load_array_element_from_heap(array, idx) 
+            load_values = [self._load_array_element_from_heap(array, idx)
                            for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
             start_idx_options = [concrete_start_idx == start_idx]
 
             # update load values with all remaining start indexes
             for concrete_start_idx in concrete_start_idxes[1:]:
                 # load values for this start index
-                values = [self._load_array_element_from_heap(array, idx) 
-                        for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
+                values = [self._load_array_element_from_heap(array, idx)
+                          for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
                 # update load values with the new ones
                 for i, value in enumerate(values):
                     # condition every value with the start idx
@@ -265,21 +258,19 @@ class SimJavaVmMemory(SimMemory):
         # if it's not available, initialize it
         if value is None:
             value = array.get_default_value(self.state)
-            l.debug("Init {heap_elem_id} with {value}".format(
-                     heap_elem_id=heap_elem_id, value=value))
+            l.debug("Init %s with %s", heap_elem_id, value)
             self.heap.store(heap_elem_id, value)
         else:
-            l.debug("Load {value} from {heap_elem_id}".format(
-                     heap_elem_id=heap_elem_id, value=value))
+            l.debug("Load %s from %s", heap_elem_id, value)
         return value
 
     #
     # Concretization strategies
     #
 
-    def _apply_concretization_strategies(self, idx, strategies, action):
+    def _apply_concretization_strategies(self, idx, strategies, action): # pylint: disable=unused-argument
         """
-        Applies concretization strategies on the index until one of them succeeds.
+        Applies concretization strategies on the index, until one of them succeeds.
         """
 
         for s in strategies:
@@ -290,9 +281,9 @@ class SimJavaVmMemory(SimMemory):
 
             if idxes:
                 return idxes
-        else:
-            raise SimMemoryAddressError("Unable to concretize index %s" % str(idx))
-        
+
+        raise SimMemoryAddressError("Unable to concretize index %s" % idx)
+
     def concretize_store_idx(self, idx, strategies=None):
         """
         Concretizes a store index.
@@ -304,9 +295,9 @@ class SimJavaVmMemory(SimMemory):
         :returns:               A list of concrete indexes.
         """
         if isinstance(idx, int):
-            return [ idx ]
+            return [idx]
         elif not self.state.solver.symbolic(idx):
-            return [ self.state.solver.eval(idx) ]
+            return [self.state.solver.eval(idx)]
 
         strategies = self.store_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(idx, strategies, 'store')
@@ -315,17 +306,16 @@ class SimJavaVmMemory(SimMemory):
         """
         Concretizes a load index.
 
-            :param idx:             An expression for the index.
-            :param strategies:      A list of concretization strategies (to override the default).
-            :param min_idx:         Minimum value for a concretized index (inclusive).
-            :param max_idx:         Maximum value for a concretized index (exclusive).
-            :returns:               A list of concrete indexes.
+        :param idx:             An expression for the index.
+        :param strategies:      A list of concretization strategies (to override the default).
+        :param min_idx:         Minimum value for a concretized index (inclusive).
+        :param max_idx:         Maximum value for a concretized index (exclusive).
+        :returns:               A list of concrete indexes.
         """
-
         if isinstance(idx, int):
-            return [ idx ]
+            return [idx]
         elif not self.state.solver.symbolic(idx):
-            return [ self.state.se.eval(idx) ]
+            return [self.state.se.eval(idx)]
 
         strategies = self.load_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(idx, strategies, 'load')
@@ -366,7 +356,7 @@ class SimJavaVmMemory(SimMemory):
             self._create_default_store_strategies()
 
     @SimStatePlugin.memo
-    def copy(self, _):
+    def copy(self, memo): # pylint: disable=unused-argument
         return SimJavaVmMemory(
             memory_id=self.id,
             stack=[stack_frame.copy() for stack_frame in self._stack],
@@ -375,6 +365,25 @@ class SimJavaVmMemory(SimMemory):
             load_strategies=[s.copy() for s in self.load_strategies],
             store_strategies=[s.copy() for s in self.store_strategies]
         )
+
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+        l.warning("Merging is not implemented for JavaVM memory!")
+        return False
+
+    def widen(self, others): # pylint: disable=unused-argument
+        l.warning("Widening is not implemented for JavaVM memory!")
+        return False
+
+    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1): # pylint: disable=unused-argument
+        l.warning("Find is not implemented for JavaVM memory!")
+        return None
+
+    def _load(self, _addr, _size, condition=None, fallback=None,  # pylint: disable=unused-argument
+              inspect=True, events=True, ret_on_segv=False):
+        raise NotImplementedError("JavaVM memory overwrites load function directly.")
+
+    def _store(self, _request):  # pylint: disable=unused-argument
+        raise NotImplementedError("JavaVM memory overwrites store function directly.")
 
 
 SimState.register_default('javavm_memory', SimJavaVmMemory)

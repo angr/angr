@@ -1,17 +1,12 @@
 
-import angr
-
 import itertools
-from angr.engines.soot.values import translate_value
-from angr.engines.soot.expressions import translate_expr
 
-from ...engines.soot.values import SimSootValue_Local, SimSootValue_ParamRef
+from ...sim_procedure import SimProcedure
+from ...engines.soot.values import SimSootValue_Local, SimSootValue_ParamRef, translate_value
+from ...engines.soot.expressions import translate_expr
 
 
-class JavaSimProcedure(angr.SimProcedure):
-
-    def __init__(self, **kwargs):
-        super(JavaSimProcedure, self).__init__(**kwargs)
+class JavaSimProcedure(SimProcedure):
 
     @property
     def _engine(self):

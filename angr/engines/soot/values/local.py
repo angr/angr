@@ -11,9 +11,9 @@ class SimSootValue_Local(SimSootValue):
         self.id = name
         self.type = type_
 
+    def __repr__(self):
+        return self.id
+
     @classmethod
     def from_sootvalue(cls, soot_value, state):
         return cls(soot_value.name, soot_value.type)
-
-    def __repr__(self):
-        return self.id

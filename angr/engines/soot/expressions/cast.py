@@ -1,27 +1,21 @@
 
-from .base import SimSootExpr
+import logging
 
 from archinfo import ArchSoot
 
-import logging
+from .base import SimSootExpr
+
 l = logging.getLogger("angr.engines.soot.expressions.cast")
 
+
 class SimSootExpr_Cast(SimSootExpr):
-    def __init__(self, expr, state):
-        super(SimSootExpr_Cast, self).__init__(expr, state)
-
     def _execute(self):
-
-        if not self.expr.cast_type in ArchSoot.primitive_types:
-            l.error('Casting of non-primitive types is not implemented.') 
-            return
-
-        if self.expr.cast_type in ['double', 'float']:
-            l.error('Casting of double and float types is not implemented.')
-            return
-        
+        # get value
         local = self._translate_value(self.expr.value)
         value_uncasted = self.state.memory.load(local)
-        value = self.state.project.simos.cast_primitive(value=value_uncasted,
-                                                        to_type=self.expr.cast_type)
-        self.expr = value
+        # cast value
+        if self.expr.cast_type in ArchSoot.primitive_types:
+            javavm_simos = self.state.project.simos
+            self.expr = javavm_simos.cast_primitive(value_uncasted, to_type=self.expr.cast_type)
+        else:
+            l.error('Unknown casting type %s', self.expr.cast_type)

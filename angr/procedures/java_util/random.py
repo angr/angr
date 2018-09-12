@@ -1,9 +1,6 @@
-from ..java import JavaSimProcedure
-from angr.engines.soot.values.thisref import SimSootValue_ThisRef
-from angr.engines.soot.values.instancefieldref import SimSootValue_InstanceFieldRef
-import logging
 
-import claripy
+from ..java import JavaSimProcedure
+
 
 class NextInt(JavaSimProcedure):
 
@@ -11,7 +8,7 @@ class NextInt(JavaSimProcedure):
         ("java.util.Random", "nextInt(int)"),
     )
 
-    def run(self, obj, bound):
+    def run(self, obj, bound): # pylint: disable=arguments-differ,unused-argument
         rand = self.state.solver.BVS('rand', 32)
         self.state.solver.add(rand.UGE(0))
         self.state.solver.add(rand.ULT(bound))

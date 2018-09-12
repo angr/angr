@@ -1,7 +1,7 @@
 
 import logging
-l = logging.getLogger('angr.engines.soot.expressions')
 
+l = logging.getLogger('angr.engines.soot.expressions')
 
 def translate_expr(expr, state):
     expr_name = expr.__class__.__name__.split('.')[-1]
@@ -21,19 +21,25 @@ def translate_expr(expr, state):
     return expr
 
 
+from .arrayref import SimSootExpr_ArrayRef
+from .binop import SimSootExpr_Binop
+from .cast import SimSootExpr_Cast
+from .condition import SimSootExpr_Condition
+from .constants import (SimSootExpr_IntConstant,
+                        SimSootExpr_LongConstant,
+                        SimSootExpr_StringConstant,
+                        SimSootExpr_ClassConstant,
+                        SimSootExpr_NullConstant)
+from .instancefieldref import SimSootExpr_InstanceFieldRef
+from .invoke import (SimSootExpr_SpecialInvoke,
+                     SimSootExpr_StaticInvoke,
+                     SimSootExpr_VirtualInvoke)
+from .length import SimSootExpr_Length
+from .local import SimSootExpr_Local
 from .new import SimSootExpr_New
 from .newArray import SimSootExpr_NewArray
-from .local import SimSootExpr_Local
-from .binop import SimSootExpr_Binop
-from .condition import SimSootExpr_Condition
 from .paramref import SimSootExpr_ParamRef
-from .arrayref import SimSootExpr_ArrayRef
-from .thisref import SimSootExpr_ThisRef
-from .staticfieldref import SimSootExpr_StaticFieldRef
-from .instancefieldref import SimSootExpr_InstanceFieldRef
 from .phi import SimSootExpr_Phi
-from .length import SimSootExpr_Length
+from .staticfieldref import SimSootExpr_StaticFieldRef
+from .thisref import SimSootExpr_ThisRef
 from .unsupported import SimSootExpr_Unsupported
-from .cast import SimSootExpr_Cast
-from .constants import *
-from .invoke import SimSootExpr_SpecialInvoke, SimSootExpr_StaticInvoke, SimSootExpr_VirtualInvoke

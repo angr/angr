@@ -324,6 +324,7 @@ class LoopVisitor(GraphVisitor):
 
         return sorted_nodes
 
+
 #
 # Job info
 #
