@@ -26,7 +26,7 @@ class SimSootExpr_StringConstant(SimSootExpr):
 
 class SimSootExpr_ClassConstant(SimSootExpr):
     def _execute(self):
-        class_name = self.expr.value[8:-2]
+        class_name = self.expr.value[8:-2].replace("/", ".")
         self.expr = SootClassDescriptor(class_name)
 
 

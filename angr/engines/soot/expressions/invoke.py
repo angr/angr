@@ -51,7 +51,7 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
     """
     Instance methods are dynamically resolved by the actual type of the
     base object (i.e. the object on which the method is invoked) and *not*
-    by the type of the reference variable.
+    by the type of the variable storing the reference.
     """
     def _resolve_invoke_target(self, expr, state):
         # get the type of the base object
