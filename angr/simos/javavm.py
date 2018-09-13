@@ -62,7 +62,7 @@ class SimJavaVM(SimOS):
             # Step 4: Allocate memory for the return hook
             # => In order to return back from the Vex to the Soot engine, we hook the return address (see state_call).
             self.native_return_hook_addr = self.project.loader.extern_object.allocate()
-            self.project.hook(self.native_return_hook_addr, SimEngineSoot.prepare_native_return_state)
+            self.project.hook(self.native_return_hook_addr, prepare_native_return_state)
 
             # Step 5: JNI interface functions
             # => During runtime, native code can interact with the JVM through JNI interface functions.
@@ -324,3 +324,14 @@ class SimJavaVM(SimOS):
         """
         native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
         return native_cc_cls(self.native_simos.arch, func_ty=func_ty)
+
+def prepare_native_return_state(native_state):
+    """
+    Hook target for native function call returns.
+
+    Recovers and stores the return value from native memory and toggles the
+    state, s.t. execution continues in the Soot engine.
+
+    Note: Redirection needed for pickling.
+    """
+    return SimEngineSoot.prepare_native_return_state(native_state)
