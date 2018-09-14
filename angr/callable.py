@@ -48,7 +48,7 @@ class Callable(object):
     def __call__(self, *args):
         self.perform_call(*args)
         if self.result_state is not None:
-            return self.result_state.se.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
+            return self.result_state.solver.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
         else:
             return None
 

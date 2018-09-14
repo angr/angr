@@ -211,7 +211,7 @@ class Tracer(ExplorationTechnique):
 
             # something weird... maybe we hit a rep instruction?
             # qemu and vex have slightly different behaviors...
-            if not simgr.active[0].se.satisfiable():
+            if not simgr.active[0].solver.satisfiable():
                 l.info("detected small discrepancy between qemu and angr, "
                         "attempting to fix known cases...")
 
@@ -242,7 +242,7 @@ class Tracer(ExplorationTechnique):
         return simgr
 
     def _syscall(self, state):
-        syscall_addr = state.se.eval(state.ip)
+        syscall_addr = state.solver.eval(state.ip)
         args = None
 
         # 0xa000008 is terminate, which we exclude from syscall statistics.

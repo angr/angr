@@ -28,7 +28,7 @@ class SimEngine(object):
         """
         inline = kwargs.pop('inline', False)
         force_addr = kwargs.pop('force_addr', None)
-        addr = state.se.eval(state._ip) if force_addr is None else force_addr
+        addr = state.solver.eval(state._ip) if force_addr is None else force_addr
 
         # make a copy of the initial state for actual processing, if needed
         if not inline and o.COW_STATES in state.options:

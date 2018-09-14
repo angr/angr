@@ -16,7 +16,7 @@ def test_various_loops():
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
 
     dummy = p.loader.main_object.get_symbol('dummy')
-    bvs = state.se.BVS(dummy.name, 8 * dummy.size)
+    bvs = state.solver.BVS(dummy.name, 8 * dummy.size)
     state.memory.store(dummy.rebased_addr, bvs, endness='Iend_LE')
 
     simgr = p.factory.simgr(state)

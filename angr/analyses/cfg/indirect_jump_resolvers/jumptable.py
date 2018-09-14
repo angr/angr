@@ -186,13 +186,13 @@ class JumpTableResolver(IndirectJumpResolver):
                     #
                     # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
                     # total_cases = int(raw_input("please give me the total cases: "))
-                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
+                    # jump_target = state.solver.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
                     # (total_cases - 1) * 8, stride=8)
 
                 jump_table = [ ]
 
-                min_jump_target = state.se.min(jump_addr)
-                max_jump_target = state.se.max(jump_addr)
+                min_jump_target = state.solver.min(jump_addr)
+                max_jump_target = state.solver.max(jump_addr)
 
                 # Both the min jump target and the max jump target should be within a mapped memory region
                 # i.e., we shouldn't be jumping to the stack or somewhere unmapped
@@ -202,7 +202,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             "Continue to resolve it from the next data source.", addr)
                     continue
 
-                for idx, a in enumerate(state.se.eval_upto(jump_addr, total_cases)):
+                for idx, a in enumerate(state.solver.eval_upto(jump_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
                     target = cfg._fast_memory_load_pointer(a)
@@ -216,7 +216,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 if total_cases > 1:
                     # It can be considered a jump table only if there are more than one jump target
                     ij.jumptable = True
-                    ij.jumptable_addr = state.se.min(jump_addr)
+                    ij.jumptable_addr = state.solver.min(jump_addr)
                     ij.resolved_targets = set(jump_table)
                     ij.jumptable_entries = jump_table
                 else:
@@ -254,8 +254,8 @@ class JumpTableResolver(IndirectJumpResolver):
             # don't touch it
             return
 
-        concrete_read_addr = state.se.eval(read_addr)
-        concrete_read_length = state.se.eval(read_length)
+        concrete_read_addr = state.solver.eval(read_addr)
+        concrete_read_length = state.solver.eval(read_length)
 
         for start, size in self._bss_regions:
             if start <= concrete_read_addr < start + size:
@@ -267,7 +267,7 @@ class JumpTableResolver(IndirectJumpResolver):
         if not state.memory.was_written_to(concrete_read_addr):
             # it was never written to before. we overwrite it with unconstrained bytes
             for i in range(0, concrete_read_length, self.project.arch.bytes):
-                state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.project.arch.bits))
+                state.memory.store(concrete_read_addr + i, state.solver.Unconstrained('unconstrained', self.project.arch.bits))
 
                 # job done :-)
 
@@ -284,7 +284,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 read_length = read_length._model_vsa.upper_bound
             if read_length > 16:
                 return
-            new_read_addr = state.se.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
+            new_read_addr = state.solver.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
             UninitReadMeta.uninit_read_base += read_length
 
             # replace the expression in registers
@@ -374,7 +374,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
                 # value of R3 is. Some intensive data-flow analysis is required in this case.
                 jump_target_addr = load_stmt.addr.con.value
-                return state.se.BVV(jump_target_addr, state.arch.bits)
+                return state.solver.BVV(jump_target_addr, state.arch.bits)
         else:
             raise TypeError("Unsupported address loading statement type %s." % type(load_stmt))
 

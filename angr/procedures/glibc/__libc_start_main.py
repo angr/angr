@@ -29,7 +29,7 @@ class __libc_start_main(angr.SimProcedure):
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
             # Each entry is 2 bytes
             self.state.memory.store(table + (pos*2),
-                                    self.state.se.BVV(c, 16),
+                                    self.state.solver.BVV(c, 16),
                                     inspect=False,
                                     disable_actions=True,
                                     )
@@ -59,7 +59,7 @@ class __libc_start_main(angr.SimProcedure):
 
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
-                                    self.state.se.BVV(c, 32),
+                                    self.state.solver.BVV(c, 32),
                                     endness=self.state.arch.memory_endness,
                                     inspect=False,
                                     disable_actions=True,
@@ -90,7 +90,7 @@ class __libc_start_main(angr.SimProcedure):
 
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
-                                    self.state.se.BVV(c, 32),
+                                    self.state.solver.BVV(c, 32),
                                     endness=self.state.arch.memory_endness,
                                     inspect=False,
                                     disable_actions=True,

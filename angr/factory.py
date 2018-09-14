@@ -9,18 +9,6 @@ from .errors import AngrAssemblyError
 l = logging.getLogger("angr.factory")
 
 
-_deprecation_cache = set()
-def deprecate(name, replacement):
-    def wrapper(func):
-        def inner(*args, **kwargs):
-            if name not in _deprecation_cache:
-                l.warning("factory.%s is deprecated! Please use factory.%s instead.", name, replacement)
-                _deprecation_cache.add(name)
-            return func(*args, **kwargs)
-        return inner
-    return wrapper
-
-
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
@@ -166,9 +154,6 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simgr(self, thing=None, **kwargs):
-        return self.simulation_manager(thing=thing, **kwargs)
-
     def simulation_manager(self, thing=None, **kwargs):
         """
         Constructs a new simulation manager.
@@ -296,34 +281,6 @@ class AngrObjectFactory(object):
     _default_cc = None
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
-
-
-    #
-    # Private methods
-    #
-
-    @deprecate('sim_run()', 'successors()')
-    def sim_run(self, *args, **kwargs):
-        return self.successors(*args, **kwargs)
-
-    @deprecate('sim_block()', 'successors(default_engine=True)')
-    def sim_block(self, *args, **kwargs):
-        kwargs['default_engine'] = True
-        return self.successors(*args, **kwargs)
-
-    #
-    # Compatibility layer
-    #
-
-    @deprecate('path_group()', 'simulation_manager()')
-    def path_group(self, thing=None, **kwargs):
-        return self.simgr(thing, **kwargs)
-
-    @deprecate('path()', 'entry_state()')
-    def path(self, state=None, **kwargs):
-        if state is not None:
-            return state
-        return self.entry_state(**kwargs)
 
 
 from .errors import AngrError

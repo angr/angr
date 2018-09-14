@@ -43,7 +43,7 @@ class SimUCManager(SimStatePlugin):
                 (dst_addr_ast.uc_alloc_depth, self._max_alloc_depth))
 
         abs_addr = self._region_base + self._pos
-        ptr = self.state.se.BVV(abs_addr, self.state.arch.bits)
+        ptr = self.state.solver.BVV(abs_addr, self.state.arch.bits)
         self._pos += self._region_size
 
         self._alloc_depth_map[(abs_addr - self._region_base) // self._region_size] = dst_addr_ast.uc_alloc_depth
@@ -71,7 +71,7 @@ class SimUCManager(SimStatePlugin):
         :return: True if there is at least one related constraint, False otherwise
         """
 
-        return len(ast.variables.intersection(self.state.se._solver.variables)) != 0
+        return len(ast.variables.intersection(self.state.solver._solver.variables)) != 0
 
     def set_state(self, state):
         super(SimUCManager, self).set_state(state)

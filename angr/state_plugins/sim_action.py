@@ -202,10 +202,10 @@ class SimActionData(SimAction):
                 if addr.symbolic:
                     # FIXME: we should fix it by allowing .offset taking ASTs instead of concretizing it right away
                     l.warning('Concretizing a symbolic register offset in SimActionData.')
-                    self.offset = state.se.eval(addr)
+                    self.offset = state.solver.eval(addr)
                 else:
                     # it's not symbolic
-                    self.offset = state.se.eval_one(addr)
+                    self.offset = state.solver.eval_one(addr)
         self.addr = self._make_object(addr)
         self.size = self._make_object(size)
         self.data = self._make_object(data)

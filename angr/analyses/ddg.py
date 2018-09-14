@@ -720,7 +720,7 @@ class DDG(Analysis):
                 matched = False
                 for state in final_states:
                     try:
-                        if state.se.eval(state.ip) == suc.addr:
+                        if state.solver.eval(state.ip) == suc.addr:
                             match_suc[suc.addr] = True
                             match_state[state].add(suc)
                             matched = True
@@ -751,7 +751,7 @@ class DDG(Analysis):
                 new_defs = self._track(state, live_defs, node.irsb.statements if node.irsb is not None else None)
 
                 #corresponding_successors = [n for n in successing_nodes if
-                #                            not state.ip.symbolic and n.addr == state.se.eval(state.ip)]
+                #                            not state.ip.symbolic and n.addr == state.solver.eval(state.ip)]
                 #if not corresponding_successors:
                 #    continue
 
@@ -767,7 +767,7 @@ class DDG(Analysis):
                 for successing_node in add_state_to_sucs:
 
                     if (state.history.jumpkind == 'Ijk_Call' or state.history.jumpkind.startswith('Ijk_Sys')) and \
-                            (state.ip.symbolic or successing_node.addr != state.se.eval(state.ip)):
+                            (state.ip.symbolic or successing_node.addr != state.solver.eval(state.ip)):
                         suc_new_defs = self._filter_defs_at_call_sites(new_defs)
                     else:
                         suc_new_defs = new_defs
@@ -940,7 +940,7 @@ class DDG(Analysis):
         if action.actual_addrs is None:
             # For now, mem reads don't necessarily have actual_addrs set properly
             try:
-                addr_list = {state.se.eval(action.addr.ast)}
+                addr_list = {state.solver.eval(action.addr.ast)}
             except (SimSolverModeError, SimUnsatError, ZeroDivisionError):
                 # FIXME: ZeroDivisionError should have been caught by claripy and simuvex.
                 # FIXME: see claripy issue #75. this is just a temporary workaround.

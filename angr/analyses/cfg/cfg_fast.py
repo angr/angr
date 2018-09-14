@@ -3622,7 +3622,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return
 
                 state = succ.flat_successors[0]
-                if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
+                if not state.regs.gp.symbolic and state.solver.is_false(state.regs.gp == 0xffffffff):
                     function.info['gp'] = state.regs.gp._model_concrete.value
 
     #

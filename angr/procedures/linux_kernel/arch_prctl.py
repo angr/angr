@@ -11,10 +11,10 @@ class arch_prctl(angr.SimProcedure):
     using the 'code' parameter. This syscall is only present on x86_64 linux
     """
     def run(self, code, addr):  # pylint: disable=arguments-differ
-        if self.state.se.symbolic(code):
+        if self.state.solver.symbolic(code):
             raise angr.errors.SimValueError("Code value passed to arch_prctl must be concrete.")
 
-        code = self.state.se.eval(code)
+        code = self.state.solver.eval(code)
 
         #ARCH_SET_GS
         if code == 0x1001:

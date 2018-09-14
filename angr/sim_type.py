@@ -149,7 +149,7 @@ class SimTypeReg(SimType):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        return state.se.eval(out)
+        return state.solver.eval(out)
 
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
@@ -158,7 +158,7 @@ class SimTypeReg(SimType):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):
-            value = state.se.BVV(value, self.size)
+            value = state.solver.BVV(value, self.size)
         elif isinstance(value, bytes):
             store_endness = 'Iend_BE'
         else:
@@ -191,7 +191,7 @@ class SimTypeNum(SimType):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.eval(out)
+        n = state.solver.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -203,7 +203,7 @@ class SimTypeNum(SimType):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):
-            value = state.se.BVV(value, self.size)
+            value = state.solver.BVV(value, self.size)
         elif isinstance(value, bytes):
             store_endness = 'Iend_BE'
         else:
@@ -251,7 +251,7 @@ class SimTypeInt(SimTypeReg):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.eval(out)
+        n = state.solver.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << self.size
         return n
@@ -314,7 +314,7 @@ class SimTypeChar(SimTypeReg):
             super(SimTypeChar, self).store(state, addr, value)
         except TypeError:
             if isinstance(value, bytes) and len(value) == 1:
-                value = state.se.BVV(value[0], state.arch.byte_width)
+                value = state.solver.BVV(value[0], state.arch.byte_width)
                 super(SimTypeChar, self).store(state, addr, value)
             else:
                 raise
@@ -530,7 +530,7 @@ class SimTypeString(SimTypeArray):
         if not concrete:
             return out if out is not None else claripy.BVV(0, 0)
         else:
-            return state.se.eval(out, cast_to=bytes) if out is not None else ''
+            return state.solver.eval(out, cast_to=bytes) if out is not None else ''
 
     _can_refine_int = True
 
@@ -689,7 +689,7 @@ class SimTypeFloat(SimTypeReg):
     def extract(self, state, addr, concrete=False):
         itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)
         if concrete:
-            return state.se.eval(itype)
+            return state.solver.eval(itype)
         return itype
 
     def store(self, state, addr, value):

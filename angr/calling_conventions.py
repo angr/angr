@@ -740,7 +740,7 @@ class SimCC(object):
             if check and isinstance(ty, SimTypeFloat):
                 return SimCC._standardize_value(float(arg), ty, state, alloc)
 
-            val = state.se.BVV(arg, ty.size if check else state.arch.bits)
+            val = state.solver.BVV(arg, ty.size if check else state.arch.bits)
             if state.arch.memory_endness == 'Iend_LE':
                 val = val.reversed
             return val

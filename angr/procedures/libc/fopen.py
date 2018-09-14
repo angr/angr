@@ -33,8 +33,8 @@ class fopen(angr.SimProcedure):
         m_strlen = self.inline_call(strlen, m_addr)
         p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')
         m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
-        path = self.state.se.eval(p_expr, cast_to=bytes)
-        mode = self.state.se.eval(m_expr, cast_to=bytes)
+        path = self.state.solver.eval(p_expr, cast_to=bytes)
+        mode = self.state.solver.eval(m_expr, cast_to=bytes)
 
         # TODO: handle append
         fd = self.state.posix.open(path, mode_to_flag(mode))
@@ -49,7 +49,7 @@ class fopen(angr.SimProcedure):
             file_struct_ptr = self.inline_call(malloc, io_file_data['size']).ret_expr
 
             # Write the fd
-            fd_bvv = self.state.se.BVV(fd, 4 * 8) # int
+            fd_bvv = self.state.solver.BVV(fd, 4 * 8) # int
             self.state.memory.store(file_struct_ptr + io_file_data['fd'],
                                     fd_bvv,
                                     endness=self.state.arch.memory_endness)

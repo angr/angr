@@ -51,7 +51,7 @@ class AddressWrapper(object):
         :param state: A state
         :return: The converted ValueSet instance
         """
-        return state.se.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
+        return state.solver.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
 
 class RegionDescriptor(object):
     """
@@ -401,9 +401,9 @@ class SimMemory(SimStatePlugin):
         if type(data_e) is bytes:
             # Convert the string into a BVV, *regardless of endness*
             bits = len(data_e) * self.state.arch.byte_width
-            data_e = self.state.se.BVV(data_e, bits)
+            data_e = self.state.solver.BVV(data_e, bits)
         elif type(data_e) is int:
-            data_e = self.state.se.BVV(data_e, size_e*self.state.arch.byte_width if size_e is not None
+            data_e = self.state.solver.BVV(data_e, size_e*self.state.arch.byte_width if size_e is not None
                                        else self.state.arch.bits)
         else:
             data_e = data_e.raw_to_bv()
@@ -507,9 +507,9 @@ class SimMemory(SimStatePlugin):
             data_e = data_e.zero_extend(stored_size - len(data_e))
 
         if type(size_e) is int:
-            size_e = self.state.se.BVV(size_e, self.state.arch.bits)
+            size_e = self.state.solver.BVV(size_e, self.state.arch.bits)
         elif size_e is None:
-            size_e = self.state.se.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
+            size_e = self.state.solver.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
 
         if inspect is True:
             if self.category == 'reg':
@@ -540,7 +540,7 @@ class SimMemory(SimStatePlugin):
                 condition_e = self.state._inspect_getattr('mem_write_condition', condition_e)
 
         # if the condition is false, bail
-        if condition_e is not None and self.state.se.is_false(condition_e):
+        if condition_e is not None and self.state.solver.is_false(condition_e):
             if priv is not None: self.state.scratch.pop_priv()
             return
 
@@ -583,9 +583,9 @@ class SimMemory(SimStatePlugin):
                 action.actual_addrs = request.actual_addresses
                 action.actual_value = action._make_object(request.stored_values[0]) # TODO
                 if len(request.constraints) > 0:
-                    action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
+                    action.added_constraints = action._make_object(self.state.solver.And(*request.constraints))
                 else:
-                    action.added_constraints = action._make_object(self.state.se.true)
+                    action.added_constraints = action._make_object(self.state.solver.true)
 
         if priv is not None: self.state.scratch.pop_priv()
 
@@ -640,15 +640,15 @@ class SimMemory(SimStatePlugin):
                 # We may use some refactoring later
                 region_type = self.id
             action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=req.stored_values[-1],
-                                   size=max_bits, condition=self.state.se.Or(*conditions), fallback=fallback
+                                   size=max_bits, condition=self.state.solver.Or(*conditions), fallback=fallback
                                    )
             self.state.history.add_action(action)
 
         if req.completed and action is not None:
             action.actual_addrs = req.actual_addresses
             action.actual_value = action._make_object(req.stored_values[-1])
-            action.added_constraints = action._make_object(self.state.se.And(*req.constraints)
-                                                           if len(req.constraints) > 0 else self.state.se.true)
+            action.added_constraints = action._make_object(self.state.solver.And(*req.constraints)
+                                                           if len(req.constraints) > 0 else self.state.solver.true)
 
     def _store_cases(self, addr, contents, conditions, fallback, endness=None):
         extended_contents = [ ]
@@ -671,7 +671,7 @@ class SimMemory(SimStatePlugin):
         unique_constraints = [ ]
         for c,g in case_constraints.items():
             unique_contents.append(c)
-            unique_constraints.append(self.state.se.Or(*g))
+            unique_constraints.append(self.state.solver.Or(*g))
 
         if len(unique_contents) == 1 and unique_contents[0] is fallback:
             req = MemoryStoreRequest(addr, data=fallback, endness=endness)
@@ -680,12 +680,12 @@ class SimMemory(SimStatePlugin):
             simplified_contents = [ ]
             simplified_constraints = [ ]
             for c,g in zip(unique_contents, unique_constraints):
-                simplified_contents.append(self.state.se.simplify(c))
-                simplified_constraints.append(self.state.se.simplify(g))
+                simplified_contents.append(self.state.solver.simplify(c))
+                simplified_constraints.append(self.state.solver.simplify(g))
             cases = zip(simplified_constraints, simplified_contents)
             #cases = zip(unique_constraints, unique_contents)
 
-            ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
+            ite = self.state.solver.simplify(self.state.solver.ite_cases(cases, fallback))
             req = MemoryStoreRequest(addr, data=ite, endness=endness)
             return self._store(req)
 
@@ -815,18 +815,18 @@ class SimMemory(SimStatePlugin):
 
             if action is not None:
                 action.actual_addrs = a
-                action.added_constraints = action._make_object(self.state.se.And(*c)
-                                                               if len(c) > 0 else self.state.se.true)
+                action.added_constraints = action._make_object(self.state.solver.And(*c)
+                                                               if len(c) > 0 else self.state.solver.true)
 
         return r
 
     def _constrain_underconstrained_index(self, addr_e):
-        if not self.state.uc_manager.is_bounded(addr_e) or self.state.se.max_int(addr_e) - self.state.se.min_int( addr_e) >= self._read_address_range:
+        if not self.state.uc_manager.is_bounded(addr_e) or self.state.solver.max_int(addr_e) - self.state.solver.min_int( addr_e) >= self._read_address_range:
             # in under-constrained symbolic execution, we'll assign a new memory region for this address
             mem_region = self.state.uc_manager.assign(addr_e)
 
             # ... but only if it's not already been constrained to something!
-            if self.state.se.solution(addr_e, mem_region):
+            if self.state.solver.solution(addr_e, mem_region):
                 self.state.add_constraints(addr_e == mem_region)
             l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 

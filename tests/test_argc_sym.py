@@ -8,8 +8,8 @@ import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def _verify_results(pg, sargc, length=400):
-    argcs = pg.mp_found.se.eval(sargc)
-    strs = pg.mp_found.se.eval(pg.mp_found.memory.load(pg.mp_found.regs.sp, length), cast_to=bytes)
+    argcs = pg.mp_found.solver.eval(sargc)
+    strs = pg.mp_found.solver.eval(pg.mp_found.memory.load(pg.mp_found.regs.sp, length), cast_to=bytes)
 
     for a,s in zip(argcs.mp_items, strs.mp_items):
         assert a in (0,1,2)

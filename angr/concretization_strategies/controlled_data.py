@@ -36,10 +36,10 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
 
         # create constraints from intervals
         for base, length in intervals:
-           constraints.append(memory.state.se.And(addr >= base, addr < base+length))
+           constraints.append(memory.state.solver.And(addr >= base, addr < base+length))
 
         # try to get solutions for controlled memory
-        ored_constraints = memory.state.se.Or(*constraints)
+        ored_constraints = memory.state.solver.Or(*constraints)
         solutions = self._eval(memory, addr, self._limit, extra_constraints=(ored_constraints,))
         if not solutions:
             solutions = None

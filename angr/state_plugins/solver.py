@@ -5,7 +5,6 @@ import logging
 
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
-from ..misc.ux import deprecated
 
 l = logging.getLogger("angr.state_plugins.solver")
 
@@ -405,7 +404,7 @@ class SimSolver(SimStatePlugin):
 
     @error_converter
     def widen(self, others):
-        c = self.state.se.BVS('random_widen_condition', 32)
+        c = self.state.solver.BVS('random_widen_condition', 32)
         merge_conditions = [ [ c == i ] for i in range(len(others)+1) ]
         merging_occurred = self.merge(others, merge_conditions)
         return merging_occurred
@@ -774,36 +773,6 @@ class SimSolver(SimStatePlugin):
 
     min_int = min
     max_int = max
-
-    #
-    # Backward-compatibility layer
-    #
-
-    @deprecated(replacement='eval()')
-    def any_int(self, expr, **kwargs):
-        return self.eval(expr, **kwargs)
-
-    @deprecated(replacement='eval_upto(expr, n)')
-    def any_n_int(self, expr, n, **kwargs):
-        return self.eval_upto(expr, n, **kwargs)
-
-    @deprecated(replacement='eval(expr, cast_to=bytes)')
-    def any_str(self, expr, **kwargs):
-        kwargs.pop('cast_to', None)
-        return self.eval(expr, cast_to=bytes, **kwargs)
-
-    @deprecated(replacement='eval_upto(expr, n, cast_to=bytes)')
-    def any_n_str(self, expr, n, **kwargs):
-        kwargs.pop('cast_to', None)
-        return self.eval_upto(expr, n, cast_to=bytes, **kwargs)
-
-    @deprecated(replacement='eval_one()')
-    def exactly_int(self, expr, **kwargs):
-        return self.eval_one(expr, **kwargs)
-
-    @deprecated(replacement='eval_exact(expr, n)')
-    def exactly_n_int(self, expr, n, **kwargs):
-        return self.eval_exact(expr, n, **kwargs)
 
     #
     # Other methods

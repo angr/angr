@@ -52,7 +52,7 @@ def test_inspect():
 
     s.inspect.b('mem_write', when=BP_AFTER, action=act_mem_write)
     nose.tools.assert_equal(counts.mem_write, 0)
-    s.memory.store(100, s.se.BVV(10, 32))
+    s.memory.store(100, s.solver.BVV(10, 32))
     nose.tools.assert_equal(counts.mem_write, 1)
 
     s.inspect.b('mem_read', when=BP_AFTER, action=act_mem_read)
@@ -71,7 +71,7 @@ def test_inspect():
 
     s.inspect.b('reg_write', when=BP_AFTER, action=act_reg_write)
     nose.tools.assert_equal(counts.reg_write, 0)
-    s.registers.store(16, s.se.BVV(10, 32))
+    s.registers.store(16, s.solver.BVV(10, 32))
     nose.tools.assert_equal(counts.reg_write, 1)
     nose.tools.assert_equal(counts.mem_write, 1)
     nose.tools.assert_equal(counts.mem_read, 4)
@@ -111,7 +111,7 @@ def test_inspect_exit():
     def handle_exit_before(state):
         counts.exit_before += 1
         exit_target = state.inspect.exit_target
-        nose.tools.assert_equal(state.se.eval(exit_target), 0x3f8)
+        nose.tools.assert_equal(state.solver.eval(exit_target), 0x3f8)
         # change exit target
         state.inspect.exit_target = 0x41414141
         nose.tools.assert_equal(state.inspect.exit_jumpkind, "Ijk_Boring")
@@ -131,7 +131,7 @@ def test_inspect_exit():
     succ = SimEngineVEX().process(s, irsb).flat_successors
 
     # check
-    nose.tools.assert_equal( succ[0].se.eval(succ[0].ip), 0x41414141)
+    nose.tools.assert_equal( succ[0].solver.eval(succ[0].ip), 0x41414141)
     nose.tools.assert_equal(counts.exit_before, 1)
     nose.tools.assert_equal(counts.exit_after, 1)
 
@@ -185,8 +185,8 @@ def test_inspect_concretization():
     s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=change_symbolic_target)
     s.memory.store(x, 'A')
-    assert list(s.se.eval_upto(x, 10)) == [ 0x1000 ]
-    assert list(s.se.eval_upto(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
+    assert list(s.solver.eval_upto(x, 10)) == [ 0x1000 ]
+    assert list(s.solver.eval_upto(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
 
     #
     # This tests disabling constraint adding through siminspect -- the write still happens
@@ -198,7 +198,7 @@ def test_inspect_concretization():
     s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=dont_add_constraints)
     s.memory.store(x, 'A')
-    assert len(s.se.eval_upto(x, 10)) == 10
+    assert len(s.solver.eval_upto(x, 10)) == 10
 
     #
     # This tests raising an exception if symbolic concretization fails (i.e., if the address
@@ -229,7 +229,7 @@ def test_inspect_concretization():
     s.add_constraints(y == 10)
     s.inspect.b('address_concretization', BP_AFTER, action=abort_unconstrained)
     s.memory.store(y, 'A')
-    assert list(s.se.eval_upto(s.memory.load(y, 1), 10)) == [ 0x41 ]
+    assert list(s.solver.eval_upto(s.memory.load(y, 1), 10)) == [ 0x41 ]
 
     try:
         s.memory.store(x, 'A')

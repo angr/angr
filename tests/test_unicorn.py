@@ -92,8 +92,8 @@ def run_longinit(arch):
     pg.explore()
     s = pg.deadended[0]
     (first, _), (second, _) = s.posix.stdin.content
-    s.add_constraints(first == s.se.BVV(b'A'*9))
-    s.add_constraints(second == s.se.BVV(b'B'*9))
+    s.add_constraints(first == s.solver.BVV(b'A'*9))
+    s.add_constraints(second == s.solver.BVV(b'B'*9))
     nose.tools.assert_equal(s.posix.dumps(1), b"You entered AAAAAAAAA and BBBBBBBBB!\n")
 
 def test_longinit_i386():

@@ -24,10 +24,10 @@ class SimIRStmt_CAS(SimIRStmt):
             # the write data
             data_lo = self._translate_expr(self.stmt.dataLo)
             data_hi = self._translate_expr(self.stmt.dataHi)
-            data = self.state.se.Concat(data_hi.expr, data_lo.expr)
+            data = self.state.solver.Concat(data_hi.expr, data_lo.expr)
 
             # the condition
-            condition = self.state.se.And(old_lo == expd_lo.expr, old_hi == expd_hi.expr)
+            condition = self.state.solver.And(old_lo == expd_lo.expr, old_hi == expd_hi.expr)
 
             # do it
             data_tmp_deps = data_lo.tmp_deps() | data_hi.tmp_deps()

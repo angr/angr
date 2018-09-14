@@ -90,11 +90,11 @@ class DrillerCore(ExplorationTechnique):
     @staticmethod
     def _has_false(state):
         # Check if the state is unsat even if we remove preconstraints.
-        claripy_false = state.se.false
+        claripy_false = state.solver.false
         if state.scratch.guard.cache_key == claripy_false.cache_key:
             return True
 
-        for c in state.se.constraints:
+        for c in state.solver.constraints:
             if c.cache_key == claripy_false.cache_key:
                 return True
 

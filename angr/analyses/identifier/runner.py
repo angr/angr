@@ -56,7 +56,7 @@ class Runner(object):
                     remove_options=remove_options)
 
             # map the CGC flag page
-            fake_flag_data = entry_state.se.BVV(FLAG_DATA)
+            fake_flag_data = entry_state.solver.BVV(FLAG_DATA)
             entry_state.memory.store(0x4347c000, fake_flag_data)
             # map the place where I put arguments
             entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
@@ -151,7 +151,7 @@ class Runner(object):
             )
 
         # solver timeout
-        entry_state.se._solver.timeout = 500
+        entry_state.solver._solver.timeout = 500
 
         return entry_state
 
@@ -161,17 +161,17 @@ class Runner(object):
         # kill path that try to read/write large amounts
         syscall_name = state.inspect.syscall_name
         if syscall_name == "transmit":
-            count = state.se.eval(state.regs.edx)
+            count = state.solver.eval(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
                 state.add_constraints(claripy.BoolV(False))
         if syscall_name == "receive":
-            count = state.se.eval(state.regs.edx)
+            count = state.solver.eval(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
                 state.add_constraints(claripy.BoolV(False))
         if syscall_name == "random":
-            count = state.se.eval(state.regs.ecx)
+            count = state.solver.eval(state.regs.ecx)
             if count > 0x1000:
                 state.regs.ecx = 0
                 state.add_constraints(claripy.BoolV(False))
@@ -182,13 +182,13 @@ class Runner(object):
         # kill path that try to read/write large amounts
         syscall_name = state.inspect.syscall_name
         if syscall_name == "random":
-            count = state.se.eval(state.regs.ecx)
+            count = state.solver.eval(state.regs.ecx)
             if count > 100:
                 return
-            buf = state.se.eval(state.regs.ebx)
+            buf = state.solver.eval(state.regs.ebx)
             for i in range(count):
                 a = random.randint(0, 255)
-                state.memory.store(buf+i, state.se.BVV(a, 8))
+                state.memory.store(buf+i, state.solver.BVV(a, 8))
 
     def get_base_call_state(self, function, test_data, initial_state=None, concrete_rand=False):
         curr_buf_loc = 0x2000
@@ -268,40 +268,40 @@ class Runner(object):
         for out in tmp_outputs:
             if out is None:
                 outputs.append(None)
-            elif result_state.se.symbolic(out):
+            elif result_state.solver.symbolic(out):
                 l.info("symbolic memory output")
                 return False
             else:
-                outputs.append(result_state.se.eval(out, cast_to=bytes))
+                outputs.append(result_state.solver.eval(out, cast_to=bytes))
 
         if outputs != test_data.expected_output_args:
             # print map(lambda x: x.encode('hex'), [a for a in outputs if a is not None]), map(lambda x: x.encode('hex'), [a for a in test_data.expected_output_args if a is not None])
             l.info("mismatch output")
             return False
 
-        if result_state.se.symbolic(result):
+        if result_state.solver.symbolic(result):
             l.info("result value sybolic")
             return False
 
         if test_data.expected_return_val is not None and test_data.expected_return_val < 0:
             test_data.expected_return_val &= (2**self.project.arch.bits - 1)
         if test_data.expected_return_val is not None and \
-                result_state.se.eval(result) != test_data.expected_return_val:
-            l.info("return val mismatch got %#x, expected %#x", result_state.se.eval(result), test_data.expected_return_val)
+                result_state.solver.eval(result) != test_data.expected_return_val:
+            l.info("return val mismatch got %#x, expected %#x", result_state.solver.eval(result), test_data.expected_return_val)
             return False
 
-        if result_state.se.symbolic(result_state.posix.stdout.size):
+        if result_state.solver.symbolic(result_state.posix.stdout.size):
             l.info("symbolic stdout pos")
             return False
 
-        if result_state.se.eval(result_state.posix.stdout.size) == 0:
+        if result_state.solver.eval(result_state.posix.stdout.size) == 0:
             stdout = ""
         else:
             stdout = result_state.posix.stdout.load(0, result_state.posix.stdout.size)
             if stdout.symbolic:
                 l.info("symbolic stdout")
                 return False
-            stdout = result_state.se.eval(stdout, cast_to=bytes)
+            stdout = result_state.solver.eval(stdout, cast_to=bytes)
 
         if stdout != test_data.expected_stdout:
             l.info("mismatch stdout")

@@ -19,9 +19,9 @@ def test_mips():
 
     def hook2(state):
         output.append(2)
-        num = state.se.eval(state.regs.a1)
+        num = state.solver.eval(state.regs.a1)
         string = b'%d ' % num
-        state.posix.get_fd(1).write_data(state.se.BVV(string))
+        state.posix.get_fd(1).write_data(state.solver.BVV(string))
 
     # a manual hook
     p.hook(OUTER_LOOP, hook2, length=0x14)

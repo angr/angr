@@ -201,13 +201,13 @@ class GirlScout(Analysis):
                     if type(real_ref) == SimActionData:
                         if real_ref.action == 'write':
                             addr = real_ref.addr
-                            if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.eval(addr)
+                            if not run.initial_state.solver.symbolic(addr):
+                                concrete_addr = run.initial_state.solver.eval(addr)
                                 self._write_addr_to_run[addr].append(run.addr)
                         elif real_ref.action == 'read':
                             addr = real_ref.addr
-                            if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.eval(addr)
+                            if not run.initial_state.solver.symbolic(addr):
+                                concrete_addr = run.initial_state.solver.eval(addr)
                             self._read_addr_to_run[addr].append(run.addr)
 
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
@@ -352,7 +352,7 @@ class GirlScout(Analysis):
             try:
                 # Try to concretize the target. If we can't, just move on
                 # to the next target
-                next_addr = suc.se.eval_one(suc.ip)
+                next_addr = suc.solver.eval_one(suc.ip)
             except (SimValueError, SimSolverModeError) as ex:
                 # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
@@ -488,7 +488,7 @@ class GirlScout(Analysis):
 
                 try:
                     r = (path.next_run.successors + path.next_run.unsat_successors)[0]
-                    ip = r.se.eval_one(r.ip)
+                    ip = r.solver.eval_one(r.ip)
 
                     function_starts.add(ip)
                     continue

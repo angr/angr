@@ -116,7 +116,7 @@ class CrashMonitor(ExplorationTechnique):
 
         if len(succs) > 0:
             if len(succs) > 1:
-                succs = [s for s in succs if s.se.satisfiable()]
+                succs = [s for s in succs if s.solver.satisfiable()]
             state = succs[0]
             self.last_state = state
 

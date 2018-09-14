@@ -22,25 +22,25 @@ class SimConcretizationStrategy(object):
         """
         Gets the minimum solution of an address.
         """
-        return memory.state.se.min(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.min(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _max(self, memory, addr, **kwargs):
         """
         Gets the maximum solution of an address.
         """
-        return memory.state.se.max(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.max(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _any(self, memory, addr, **kwargs):
         """
         Gets any solution of an address.
         """
-        return memory.state.se.eval(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.eval(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _eval(self, memory, addr, n, **kwargs):
         """
         Gets n solutions for an address.
         """
-        return memory.state.se.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
         """

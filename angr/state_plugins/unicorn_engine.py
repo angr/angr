@@ -607,7 +607,7 @@ class Unicorn(SimStatePlugin):
         _UC_NATIVE.stop(self._uc_state, STOP.STOP_SYSCALL)
 
     def _concretize(self, d):
-        cd = self.state.se.eval_to_ast(d, 1)[0]
+        cd = self.state.solver.eval_to_ast(d, 1)[0]
         if hash(d) not in self._concretized_asts:
             constraint = (d == cd).annotate(AggressiveConcretizationAnnotation(self.state.regs.ip))
             self.state.add_constraints(constraint)
@@ -623,7 +623,7 @@ class Unicorn(SimStatePlugin):
             return d
         elif d.variables.issubset(self.always_concretize):
             return self._concretize(d)
-        elif self.state.se.eval(self.state.ip) in self.concretize_at:
+        elif self.state.solver.eval(self.state.ip) in self.concretize_at:
             return self._concretize(d)
         else:
             return d
@@ -631,7 +631,7 @@ class Unicorn(SimStatePlugin):
     def _report_symbolic_blocker(self, d, from_where):
         if options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
             if self.concretization_threshold_instruction is not None:
-                addr = self.state.se.eval(self.state.ip)
+                addr = self.state.solver.eval(self.state.ip)
                 count = self.symbolic_inst_counts.get(addr, 0)
                 l.debug("... inst count for %s: %d", addr, count)
                 self.symbolic_inst_counts[addr] = count + 1
@@ -840,7 +840,7 @@ class Unicorn(SimStatePlugin):
                 #print "TAINT: %x, %d" % (mo_addr, chunk_size)
                 _taint(mo_addr, chunk_size)
             else:
-                s = self.state.se.eval(d, cast_to=bytes)
+                s = self.state.solver.eval(d, cast_to=bytes)
                 data[mo_addr-start:mo_addr-start+chunk_size] = s
             last_missing = mo_addr - 1
 
@@ -932,7 +932,7 @@ class Unicorn(SimStatePlugin):
             else:
                 _UC_NATIVE.symbolic_register_data(self._uc_state, 0, None)
 
-        addr = self.state.se.eval(self.state.ip)
+        addr = self.state.solver.eval(self.state.ip)
         l.info('started emulation at %#x (%d steps)', addr, self.max_steps if step is None else step)
         self.time = time.time()
         self.errno = _UC_NATIVE.start(self._uc_state, addr, self.max_steps if step is None else step)
@@ -955,7 +955,7 @@ class Unicorn(SimStatePlugin):
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
             raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
 
-        addr = self.state.se.eval(self.state.ip)
+        addr = self.state.solver.eval(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
 
         # should this be in destroy?
@@ -1072,21 +1072,21 @@ class Unicorn(SimStatePlugin):
         uc = self.uc
 
         if self.state.arch.qemu_name == 'x86_64':
-            fs = self.state.se.eval(self.state.regs.fs)
-            gs = self.state.se.eval(self.state.regs.gs)
+            fs = self.state.solver.eval(self.state.regs.fs)
+            gs = self.state.solver.eval(self.state.regs.gs)
             self.write_msr(fs, 0xC0000100)
             self.write_msr(gs, 0xC0000101)
             flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
-            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.eval(flags))
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
         elif self.state.arch.qemu_name == 'i386':
             flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
-            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.eval(flags))
-            fs = self.state.se.eval(self.state.regs.fs) << 16
-            gs = self.state.se.eval(self.state.regs.gs) << 16
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
+            fs = self.state.solver.eval(self.state.regs.fs) << 16
+            gs = self.state.solver.eval(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
 
         for r, c in self._uc_regs.items():
@@ -1095,14 +1095,14 @@ class Unicorn(SimStatePlugin):
             v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
                     raise SimValueError('setting a symbolic register')
-            # l.debug('setting $%s = %#x', r, self.state.se.eval(v))
-            uc.reg_write(c, self.state.se.eval(v))
+            # l.debug('setting $%s = %#x', r, self.state.solver.eval(v))
+            uc.reg_write(c, self.state.solver.eval(v))
 
         if self.state.arch.name in ('X86', 'AMD64'):
             # sync the fp clerical data
-            c3210 = self.state.se.eval(self.state.regs.fc3210)
-            top = self.state.se.eval(self.state.regs.ftop[2:0])
-            rm = self.state.se.eval(self.state.regs.fpround[1:0])
+            c3210 = self.state.solver.eval(self.state.regs.fc3210)
+            top = self.state.solver.eval(self.state.regs.ftop[2:0])
+            rm = self.state.solver.eval(self.state.regs.fpround[1:0])
             control = 0x037F | (rm << 10)
             status = (top << 11) | c3210
             uc.reg_write(unicorn.x86_const.UC_X86_REG_FPCW, control)
@@ -1114,7 +1114,7 @@ class Unicorn(SimStatePlugin):
             vex_tag_offset = self.state.arch.registers['fpu_tags'][0]
             tag_word = 0
             for _ in range(8):
-                tag = self.state.se.eval(self.state.registers.load(vex_tag_offset, size=1))
+                tag = self.state.solver.eval(self.state.registers.load(vex_tag_offset, size=1))
                 tag_word <<= 2
                 if tag == 0:
                     tag_word |= 3       # unicorn doesn't care about any value other than 3 for setting
@@ -1122,7 +1122,7 @@ class Unicorn(SimStatePlugin):
                     val = self._process_value(self.state.registers.load(vex_offset, size=8), 'reg')
                     if val is None:
                         raise SimValueError('setting a symbolic fp register')
-                    val = self.state.se.eval(val)
+                    val = self.state.solver.eval(val)
 
                     sign = bool(val & 0x8000000000000000)
                     exponent = (val & 0x7FF0000000000000) >> 52
@@ -1277,7 +1277,7 @@ class Unicorn(SimStatePlugin):
                 self.state.registers.store('ip_at_syscall', self.state.regs.ip - 2)
 
             # update the eflags
-            self.state.regs.eflags = self.state.se.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
+            self.state.regs.eflags = self.state.solver.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
 
             # sync the fp clerical data
             status = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPSW)

@@ -59,7 +59,7 @@ class SimStateCGC(SimStatePlugin):
             self.output_strings.pop(0)
 
     def addr_invalid(self, a):
-        return not self.state.se.solution(a != 0, True)
+        return not self.state.solver.solution(a != 0, True)
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument

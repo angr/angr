@@ -8,7 +8,7 @@ class __tls_get_addr(angr.SimProcedure):
         module_id, offset = self.state.mem[ptr].uintptr_t.array(2).resolved
         if module_id.symbolic:
             raise SimValueError("__tls_get_addr called with symbolic module ID")
-        module_id = self.state.se.eval(module_id)
+        module_id = self.state.solver.eval(module_id)
 
         return self.project.loader.tls_object.get_addr(module_id, offset)
 

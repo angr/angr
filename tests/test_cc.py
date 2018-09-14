@@ -39,7 +39,7 @@ def test_calling_conventions():
 
 
         for index, arg in enumerate(args):
-            nose.tools.assert_true(s.se.is_true(manyargs.arg(index) == arg))
+            nose.tools.assert_true(s.solver.is_true(manyargs.arg(index) == arg))
 
 if __name__ == '__main__':
     test_calling_conventions()

@@ -11,7 +11,7 @@ def test_simple_concrete():
     addr = 0xba5e0
 
     def check_read(val):
-        nose.tools.assert_equal(s.se.eval(s.memory.load(addr, 8, endness=Endness.LE), cast_to=int), val)
+        nose.tools.assert_equal(s.solver.eval(s.memory.load(addr, 8, endness=Endness.LE), cast_to=int), val)
 
         nose.tools.assert_equal(s.mem[addr].char.concrete, chr(val & 0xFF).encode())
         nose.tools.assert_equal(s.mem[addr].byte.concrete, val & 0xFF)
@@ -33,8 +33,8 @@ def test_string_concrete():
     addr = 0xba5e0
 
     def check_read(val):
-        nose.tools.assert_equal(s.se.eval(s.memory.load(addr, len(val)), cast_to=bytes), val)
-        nose.tools.assert_equal(s.se.eval(s.memory.load(addr + len(val), 1), cast_to=int), 0)
+        nose.tools.assert_equal(s.solver.eval(s.memory.load(addr, len(val)), cast_to=bytes), val)
+        nose.tools.assert_equal(s.solver.eval(s.memory.load(addr + len(val), 1), cast_to=int), 0)
 
         nose.tools.assert_equal(s.mem[addr].string.concrete, val)
 
@@ -64,7 +64,7 @@ def test_array_concrete():
     nose.tools.assert_equal(s.mem[addr].dword.array(2).array(2).concrete, [[0x1, 0x2], [0x3, 0x4]])
 
     s.mem[addr].dword.array(5)[3] = 10
-    nose.tools.assert_equal(s.se.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int), 10)
+    nose.tools.assert_equal(s.solver.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int), 10)
 
     s.mem[addr].dword.array(5).store([20,2,3,4,5])
     nose.tools.assert_equal(s.mem[addr].dword.array(4).concrete, [20,2,3,4])
@@ -82,7 +82,7 @@ def test_pointer_concrete():
 
     nose.tools.assert_equal(s.mem[ptraddr].deref.string.concrete, b"abcdef")
     s.mem[ptraddr].deref.dword = 123954
-    nose.tools.assert_equal(s.se.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int), 123954)
+    nose.tools.assert_equal(s.solver.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int), 123954)
     nose.tools.assert_equal(s.mem[ptraddr].deref.dword.concrete, 123954)
 
 def test_structs():

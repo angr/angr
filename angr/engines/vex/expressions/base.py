@@ -46,11 +46,11 @@ class SimIRExpr(object):
         self._post_processed = True
 
         if o.SIMPLIFY_EXPRS in self.state.options:
-            self.expr = self.state.se.simplify(self.expr)
+            self.expr = self.state.solver.simplify(self.expr)
 
         self.state.add_constraints(*self._constraints)
 
-        if self.state.se.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
+        if self.state.solver.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
         if self.expr.size() != self.size_bits():
@@ -89,7 +89,7 @@ class SimIRExpr(object):
 
     # Concretize this expression
     def make_concrete(self):
-        concrete_value = self.state.se.BVV(self.state.se.eval(self.expr), self.expr.size())
+        concrete_value = self.state.solver.BVV(self.state.solver.eval(self.expr), self.expr.size())
         self._constraints.append(self.expr == concrete_value)
         self.state.add_constraints(self.expr == concrete_value)
         self.expr = concrete_value

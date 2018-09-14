@@ -41,7 +41,7 @@ class Checker(object):
             return True
 
         stdin_input = path.posix.stdin.content[1][0] # skip the first char used in switch
-        some_strings = path.se.eval_upto(stdin_input, 1000, cast_to=bytes)
+        some_strings = path.solver.eval_upto(stdin_input, 1000, cast_to=bytes)
         some_strings = [x.decode() for x in some_strings]
 
         check_passes = False

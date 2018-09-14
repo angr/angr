@@ -57,11 +57,11 @@ class StringTableSpec(object):
 
     def dump(self, state, end_addr, align=0x10):
         if isinstance(end_addr, int):
-            end_addr = state.se.BVV(end_addr, state.arch.bits)
+            end_addr = state.solver.BVV(end_addr, state.arch.bits)
         ptr_size = len(self._contents) * state.arch.bytes
         size = self._str_len + ptr_size
         start_addr = end_addr - size
-        zero_fill = state.se.eval(start_addr % align)
+        zero_fill = state.solver.eval(start_addr % align)
         start_addr -= zero_fill
         start_str = start_addr + ptr_size
 
@@ -75,11 +75,11 @@ class StringTableSpec(object):
                 str_i += len(item)//self._byte_width
             else:
                 if isinstance(item, int):
-                    item = state.se.BVV(item, state.arch.bits)
+                    item = state.solver.BVV(item, state.arch.bits)
                 state.memory.store(ptr_i, item, endness=state.arch.memory_endness)
                 ptr_i += state.arch.bytes
 
         if zero_fill != 0:
-            state.memory.store(end_addr - zero_fill, state.se.BVV(0, self._byte_width*zero_fill))
+            state.memory.store(end_addr - zero_fill, state.solver.BVV(0, self._byte_width*zero_fill))
 
         return start_addr

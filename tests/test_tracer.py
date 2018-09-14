@@ -51,7 +51,7 @@ def test_recursion():
     simgr.run()
 
     nose.tools.assert_true('crashed' in simgr.stashes)
-    nose.tools.assert_true(simgr.crashed[0].se.symbolic(simgr.crashed[0].regs.ip))
+    nose.tools.assert_true(simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip))
 
 
 @slow_test
@@ -162,7 +162,7 @@ def test_crash_addr_detection():
     simgr.run()
 
     nose.tools.assert_true('crashed' in simgr.stashes)
-    nose.tools.assert_true(simgr.crashed[0].se.symbolic(simgr.crashed[0].regs.ip))
+    nose.tools.assert_true(simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip))
 
 
 def test_fauxware():

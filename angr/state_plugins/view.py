@@ -124,7 +124,7 @@ class SimMemView(SimStatePlugin):
 
         # Make sure self._addr is always an AST
         if isinstance(self._addr, int):
-            self._addr = self.state.se.BVV(self._addr, self.state.arch.bits)
+            self._addr = self.state.solver.BVV(self._addr, self.state.arch.bits)
 
     def _deeper(self, **kwargs):
         if 'ty' not in kwargs:
@@ -228,8 +228,8 @@ class SimMemView(SimStatePlugin):
             raise ValueError("Trying to dereference pointer without addr defined")
         ptr = self.state.memory.load(self._addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
         if ptr.symbolic:
-            l.warning("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.se.eval(self._addr))
-        ptr = self.state.se.eval(ptr)
+            l.warning("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.solver.eval(self._addr))
+        ptr = self.state.solver.eval(ptr)
 
         return self._deeper(ty=self._type.pts_to if isinstance(self._type, SimTypePointer) else None, addr=ptr)
 

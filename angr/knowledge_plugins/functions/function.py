@@ -341,20 +341,20 @@ class Function(object):
         # process the nodes in a breadth-first order keeping track of which nodes have already been analyzed
         analyzed = set()
         q = [fresh_state]
-        analyzed.add(fresh_state.se.eval(fresh_state.ip))
+        analyzed.add(fresh_state.solver.eval(fresh_state.ip))
         while len(q) > 0:
             state = q.pop()
             # make sure its in this function
-            if state.se.eval(state.ip) not in graph_addrs:
+            if state.solver.eval(state.ip) not in graph_addrs:
                 continue
             # don't trace into simprocedures
-            if self._project.is_hooked(state.se.eval(state.ip)):
+            if self._project.is_hooked(state.solver.eval(state.ip)):
                 continue
             # don't trace outside of the binary
-            if not self._project.loader.main_object.contains_addr(state.se.eval(state.ip)):
+            if not self._project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
                 continue
 
-            curr_ip = state.se.eval(state.ip)
+            curr_ip = state.solver.eval(state.ip)
 
             # get runtime values from logs of successors
             successors = self._project.factory.successors(state)
@@ -364,11 +364,11 @@ class Function(object):
                         if not isinstance(ao.ast, claripy.ast.Base):
                             constants.add(ao.ast)
                         elif not ao.ast.symbolic:
-                            constants.add(succ.se.eval(ao.ast))
+                            constants.add(succ.solver.eval(ao.ast))
 
                 # add successors to the queue to analyze
-                if not succ.se.symbolic(succ.ip):
-                    succ_ip = succ.se.eval(succ.ip)
+                if not succ.solver.symbolic(succ.ip):
+                    succ_ip = succ.solver.eval(succ.ip)
                     if succ_ip in self and succ_ip not in analyzed:
                         analyzed.add(succ_ip)
                         q.insert(0, succ)
@@ -412,7 +412,7 @@ class Function(object):
                             if not isinstance(ao.ast, claripy.ast.Base):
                                 constants.add(ao.ast)
                             elif not ao.ast.symbolic:
-                                constants.add(s.se.eval(ao.ast))
+                                constants.add(s.solver.eval(ao.ast))
         return constants
 
     @property

@@ -66,7 +66,7 @@ class CallTracingFilter(object):
             return REJECT
 
         try:
-            addr = call_target_state.se.eval_one(ip)
+            addr = call_target_state.solver.eval_one(ip)
         except (SimValueError, SimSolverModeError):
             self._skipped_targets.add(-1)
             l.debug('Rejecting target %s - cannot be concretized', ip)
@@ -544,10 +544,10 @@ class Veritesting(Analysis):
             # FIXME: This is very hackish
             # FIXME: And now only Linux-like syscalls are supported
             if self.project.arch.name == 'X86':
-                if not state.se.symbolic(state.regs.eax):
+                if not state.solver.symbolic(state.regs.eax):
                     cfg_initial_state.regs.eax = state.regs.eax
             elif self.project.arch.name == 'AMD64':
-                if not state.se.symbolic(state.regs.rax):
+                if not state.solver.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
             cfg = self.project.analyses.CFGAccurate(

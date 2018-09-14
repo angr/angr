@@ -175,7 +175,7 @@ class SimEngineVEX(SimEngine):
                     raise SimSegfaultError(addr, 'exec-miss')
                 else:
                     if not perms.symbolic:
-                        perms = state.se.eval(perms)
+                        perms = state.solver.eval(perms)
                         if not perms & 4 and o.ENABLE_NX in state.options:
                             raise SimSegfaultError(addr, 'non-executable')
 
@@ -262,7 +262,7 @@ class SimEngineVEX(SimEngine):
                     raise
                 if stmt.tmp not in (0xffffffff, -1):
                     retval_size = state.scratch.tyenv.sizeof(stmt.tmp)
-                    retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size, key=('dirty', stmt.cee.name))
+                    retval = state.solver.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size, key=('dirty', stmt.cee.name))
                     state.scratch.store_tmp(stmt.tmp, retval, None, None)
                 state.history.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name,
                                     message='unsupported Dirty call')
@@ -312,9 +312,9 @@ class SimEngineVEX(SimEngine):
             if o.CALLLESS in state.options and exit_jumpkind == "Ijk_Call":
                 exit_state.registers.store(
                     exit_state.arch.ret_offset,
-                    exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits)
+                    exit_state.solver.Unconstrained('fake_ret_value', exit_state.arch.bits)
                 )
-                exit_state.scratch.target = exit_state.se.BVV(
+                exit_state.scratch.target = exit_state.solver.BVV(
                     successors.addr + irsb.size, exit_state.arch.bits
                 )
                 exit_state.history.jumpkind = "Ijk_Ret"
@@ -325,8 +325,8 @@ class SimEngineVEX(SimEngine):
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in state.options else ret_state.se.false
-                target = ret_state.se.BVV(successors.addr + irsb.size, ret_state.arch.bits)
+                guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in state.options else ret_state.solver.false
+                target = ret_state.solver.BVV(successors.addr + irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith('Ijk_Sys'):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
@@ -439,7 +439,7 @@ class SimEngineVEX(SimEngine):
 
         # phase 1: parameter defaults
         if addr is None:
-            addr = state.se.eval(state._ip)
+            addr = state.solver.eval(state._ip)
         if size is not None:
             size = min(size, VEX_IRSB_MAX_SIZE)
         if size is None:
@@ -597,7 +597,7 @@ class SimEngineVEX(SimEngine):
             fallback = True
             if addr in state.memory and addr + max_size - 1 in state.memory:
                 try:
-                    buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
+                    buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
                     size = max_size
                     fallback = False
                 except SimError:
@@ -608,7 +608,7 @@ class SimEngineVEX(SimEngine):
                 for i in range(max_size):
                     if addr + i in state.memory:
                         try:
-                            buff_lst.append(state.se.eval(state.memory.load(addr + i, 1, inspect=False)))
+                            buff_lst.append(state.solver.eval(state.memory.load(addr + i, 1, inspect=False)))
                         except SimError:
                             break
                     else:

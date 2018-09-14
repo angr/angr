@@ -400,9 +400,7 @@ class Project(object):
                 l.warning("Address is already hooked, during hook(%#x, %s). Re-hooking.", addr, hook)
 
         if isinstance(hook, type):
-            if once("hook_instance_warning"):
-                l.critical("Hooking with a SimProcedure class is deprecated! Please hook with an instance.")
-            hook = hook(**kwargs)
+            raise TypeError("Please instanciate your SimProcedure before hooking with it")
 
         if callable(hook):
             hook = SIM_PROCEDURES['stubs']['UserHook'](user_func=hook, length=length, **kwargs)

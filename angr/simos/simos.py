@@ -134,7 +134,7 @@ class SimOS(object):
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
             highest_reg_offset, reg_size = max(state.arch.registers.values())
             for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
-                state.registers.store(i, state.se.BVV(0, state.arch.bits))
+                state.registers.store(i, state.solver.BVV(0, state.arch.bits))
         if state.arch.sp_offset is not None:
             state.regs.sp = stack_end
 

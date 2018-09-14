@@ -10,7 +10,6 @@ import claripy
 import ana
 from archinfo import arch_from_id
 
-from .misc.ux import deprecated
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 
@@ -26,6 +25,8 @@ def arch_overrideable(f):
 
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
+
+_complained_se = False
 
 # pylint: disable=not-callable
 class SimState(PluginHub, ana.Storable):
@@ -182,7 +183,10 @@ class SimState(PluginHub, ana.Storable):
 
     @property
     def se(self):
-        # TODO: Deprecate this
+        global _complained_se
+        if not _complained_se:
+            _complained_se = True
+            l.critical("The name state.se is deprecated; please use state.solver.")
         return self.get_plugin('solver')
 
     @property
@@ -778,66 +782,6 @@ class SimState(PluginHub, ana.Storable):
             return conditions.__class__((self._global_condition,))
         else:
             return conditions.__class__((self._adjust_condition(self.solver.And(*conditions)),))
-
-    #
-    # Compatibility layer
-    #
-
-    @property
-    def state(self):
-        return self
-
-    @property
-    def length(self):
-        return self.history.block_count
-
-    @property
-    def jumpkind(self):
-        return self.history.jumpkind
-
-    @property
-    def last_actions(self):
-        return self.history.recent_actions
-
-    @property
-    def history_iterator(self):
-        return self.history.lineage
-
-    @property
-    def addr_trace(self):
-        return self.history.addr_trace
-
-    @property
-    def trace(self):
-        return self.history.trace
-
-    @property
-    def targets(self):
-        return self.history.jump_targets
-
-    @property
-    def guards(self):
-        return self.history.jump_guards
-
-    @property
-    def jumpkinds(self):
-        return self.history.jumpkinds
-
-    @property
-    def events(self):
-        return self.history.events
-
-    @property
-    def actions(self):
-        return self.history.actions
-
-    @property
-    def reachable(self):
-        return self.history.reachable()
-
-    @deprecated()
-    def trim_history(self):
-        self.history.trim()
 
 default_state_plugin_preset = PluginPreset()
 SimState.register_preset('default', default_state_plugin_preset)

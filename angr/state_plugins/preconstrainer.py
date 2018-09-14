@@ -123,9 +123,9 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         # if we used the replacement solver we didn't add constraints we need to remove so keep all constraints
         if o.REPLACEMENT_SOLVER in self.state.options:
-            new_constraints = self.state.se.constraints
+            new_constraints = self.state.solver.constraints
         else:
-            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, self.state.se.constraints)
+            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, self.state.solver.constraints)
 
 
         if self.state.has_plugin("zen_plugin"):

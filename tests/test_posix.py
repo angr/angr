@@ -17,7 +17,7 @@ def test_file_create():
 def test_file_read():
     state = SimState(arch="AMD64", mode='symbolic')
 
-    content = state.se.BVV(0xbadf00d, 32)
+    content = state.solver.BVV(0xbadf00d, 32)
     content_size = content.size() // 8
 
     fd = state.posix.open("test", 1)

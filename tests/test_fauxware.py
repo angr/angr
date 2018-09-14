@@ -110,12 +110,12 @@ def run_merge(arch):
     yes, no = path.history.merge_conditions
     inp = path.posix.stdin.content[2][0]  # content of second packet
     try:
-        assert b'SOSNEAKY' in path.se.eval(inp, cast_to=bytes, extra_constraints=(yes,))
-        assert b'SOSNEAKY' not in path.se.eval(inp, cast_to=bytes, extra_constraints=(no,))
+        assert b'SOSNEAKY' in path.solver.eval(inp, cast_to=bytes, extra_constraints=(yes,))
+        assert b'SOSNEAKY' not in path.solver.eval(inp, cast_to=bytes, extra_constraints=(no,))
     except AssertionError:
         yes, no = no, yes
-        assert b'SOSNEAKY' in path.se.eval(inp, cast_to=bytes, extra_constraints=(yes,))
-        assert b'SOSNEAKY' not in path.se.eval(inp, cast_to=bytes, extra_constraints=(no,))
+        assert b'SOSNEAKY' in path.solver.eval(inp, cast_to=bytes, extra_constraints=(yes,))
+        assert b'SOSNEAKY' not in path.solver.eval(inp, cast_to=bytes, extra_constraints=(no,))
 
 def test_merge():
     for arch in target_addrs:

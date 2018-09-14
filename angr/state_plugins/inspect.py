@@ -158,7 +158,7 @@ class BP(object):
                 l.debug("...... both None, True")
                 c_ok = True
             elif current_expr is not None and needed is not None:
-                if state.se.solution(current_expr, needed):
+                if state.solver.solution(current_expr, needed):
                     l.debug("...... is_solution!")
                     c_ok = True
                 else:
@@ -167,7 +167,7 @@ class BP(object):
 
                 if c_ok and self.kwargs.get(a+'_unique', True):
                     l.debug("...... checking uniqueness")
-                    if not state.se.unique(current_expr):
+                    if not state.solver.unique(current_expr):
                         l.debug("...... not unique")
                         c_ok = False
             else:

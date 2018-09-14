@@ -16,7 +16,7 @@ def test_adc_i386():
     pg.explore(find=end)
 
     found_state = pg.found[0]
-    result = found_state.se.eval(found_state.regs.eax)
+    result = found_state.solver.eval(found_state.regs.eax)
     nose.tools.assert_equal(result, 0x1)
 
 def test_all():

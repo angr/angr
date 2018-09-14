@@ -35,7 +35,7 @@ def test_rw():
     system = state.get_plugin('posix')
     w_len = system.get_file(1).pos
     r_len = system.get_file(0).pos
-    r_len = state.se.eval(r_len)
+    r_len = state.solver.eval(r_len)
 
     nose.tools.assert_equal(r_len, w_len)
     nose.tools.assert_equal(32, r_len)
@@ -49,7 +49,7 @@ def test_orwc():
     num_files = len(system.files)
     w_len = system.get_file(3).pos
     r_len = system.get_file(0).pos
-    r_len = state.se.eval(r_len)
+    r_len = state.solver.eval(r_len)
 
     after_close = angr.surveyors.Explorer(p, find=[0x400124]).run()
     path = after_close.found[0]

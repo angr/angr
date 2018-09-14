@@ -21,7 +21,7 @@ class __getmainargs(angr.SimProcedure):
         }
         self.return_type = SimTypeInt()
 
-        if any(map(self.state.se.symbolic, [argc_p, argv_ppp, env_ppp])):
+        if any(map(self.state.solver.symbolic, [argc_p, argv_ppp, env_ppp])):
             l.warning("got a symbolic argument... aborting")
             return -1
 

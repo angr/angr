@@ -629,7 +629,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         src_block_id = job.src_block_id
         src_exit_stmt_idx = job.src_exit_stmt_idx
 
-        addr = job.state.se.eval(job.state.regs.ip)
+        addr = job.state.solver.eval(job.state.regs.ip)
         input_state = job.state
         block_id = BlockID.new(addr, job.call_stack_suffix, job.jumpkind)
 
@@ -710,7 +710,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_FakeRet, and Ijk_Call always goes first
         job.is_call_jump = any([self._is_call_jumpkind(i.history.jumpkind) for i in all_successors])
-        call_targets = [i.se.eval_one(i.ip) for i in all_successors if self._is_call_jumpkind(i.history.jumpkind)]
+        call_targets = [i.solver.eval_one(i.ip) for i in all_successors if self._is_call_jumpkind(i.history.jumpkind)]
         job.call_target = None if not call_targets else call_targets[0]
 
         job.is_return_jump = len(all_successors) and all_successors[0].history.jumpkind == 'Ijk_Ret'
@@ -756,7 +756,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # this try-except block is to handle cases where the instruction pointer is symbolic
         try:
-            successor_addrs = successor.se.eval_upto(successor.ip, 2)
+            successor_addrs = successor.solver.eval_upto(successor.ip, 2)
         except SimValueError:
             # TODO: Should fall back to reading targets from CFG
             # It cannot be concretized currently. Maybe we could handle
@@ -774,7 +774,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 return self._handle_successor_multitargets(job, successor, all_successors)
 
         # Now there should be one single target for the successor
-        successor_addr = successor.se.eval_one(successor.ip)
+        successor_addr = successor.solver.eval_one(successor.ip)
 
         # Get the fake ret successor
         fakeret_successor = None
@@ -881,7 +881,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # TODO: make it a setting on VFG
         MAX_NUMBER_OF_CONCRETE_VALUES = 256
 
-        all_possible_ips = successor.se.eval_upto(successor.ip, MAX_NUMBER_OF_CONCRETE_VALUES + 1)
+        all_possible_ips = successor.solver.eval_upto(successor.ip, MAX_NUMBER_OF_CONCRETE_VALUES + 1)
 
         if len(all_possible_ips) > MAX_NUMBER_OF_CONCRETE_VALUES:
             l.warning("IP can be concretized to more than %d values, which means it might be corrupted.",
@@ -1168,7 +1168,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # make room for arguments passed to the function
         sp = state.regs.sp
-        sp_val = state.se.eval_one(sp)
+        sp_val = state.solver.eval_one(sp)
         state.memory.set_stack_address_mapping(sp_val,
                                                state.memory.stack_id(function_start) + '_pre',
                                                0
@@ -1177,7 +1177,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # Set the stack address mapping for the initial stack
         state.memory.set_stack_size(state.arch.stack_size)
-        initial_sp = state.se.eval(state.regs.sp) # FIXME: This is bad, as it may lose tracking of multiple sp values
+        initial_sp = state.solver.eval(state.regs.sp) # FIXME: This is bad, as it may lose tracking of multiple sp values
         initial_sp -= state.arch.bytes
         state.memory.set_stack_address_mapping(initial_sp,
                                                state.memory.stack_id(function_start),
@@ -1199,7 +1199,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # TODO: the following code is totally untested other than X86 and AMD64. Don't freak out if you find bugs :)
         # TODO: Test it
 
-        ret_bvv = state.se.BVV(ret_addr, self.project.arch.bits)
+        ret_bvv = state.solver.BVV(ret_addr, self.project.arch.bits)
 
         if self.project.arch.name in ('X86', 'AMD64'):
             state.stack_push(ret_bvv)
@@ -1393,7 +1393,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         ins_addr = successor.scratch.ins_addr
         # Make a copy of the state in case we use it later
         successor_state = successor.copy()
-        successor_addr = successor_state.se.eval(successor_state.ip)
+        successor_addr = successor_state.solver.eval(successor_state.ip)
 
         new_jobs = [ ]
 
@@ -1419,14 +1419,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 successor_state.registers.store(successor_state.arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
-                top_si = successor_state.se.TSI(successor_state.arch.bits)
+                top_si = successor_state.solver.TSI(successor_state.arch.bits)
                 successor_state.registers.store(successor_state.arch.ret_offset, top_si)
 
             if job.call_skipped:
 
                 # TODO: Make sure the return values make sense
                 #if self.project.arch.name == 'X86':
-                #    successor_state.regs.eax = successor_state.se.BVS('ret_val', 32, min=0, max=0xffffffff, stride=1)
+                #    successor_state.regs.eax = successor_state.solver.BVS('ret_val', 32, min=0, max=0xffffffff, stride=1)
 
                 new_job = VFGJob(successor_addr,
                                  successor_state,
@@ -1456,7 +1456,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                     reg_sp_si = self._create_stack_region(successor_state, successor_addr)
 
                     # Save the new sp register
-                    new_reg_sp_expr = successor_state.se.ValueSet(successor_state.arch.bits,
+                    new_reg_sp_expr = successor_state.solver.ValueSet(successor_state.arch.bits,
                                                                        'global',
                                                                        0,
                                                                        reg_sp_si
@@ -1583,7 +1583,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 continue
 
             try:
-                l.debug("-  successor: %#08x of %s [%s]", suc.se.eval_one(suc.ip),
+                l.debug("-  successor: %#08x of %s [%s]", suc.solver.eval_one(suc.ip),
                         suc.history.jumpkind, job.dbg_exit_status[suc])
             except SimValueError:
                 l.debug("-  target cannot be concretized. %s [%s]", job.dbg_exit_status[suc], suc.history.jumpkind)
@@ -1607,12 +1607,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         reg_sp_expr = successor_state.registers.load(reg_sp_offset)
 
         if type(reg_sp_expr._model_vsa) is claripy.BVV:  # pylint:disable=unidiomatic-typecheck
-            reg_sp_val = successor_state.se.eval(reg_sp_expr)
-            reg_sp_si = successor_state.se.SI(to_conv=reg_sp_expr)
+            reg_sp_val = successor_state.solver.eval(reg_sp_expr)
+            reg_sp_si = successor_state.solver.SI(to_conv=reg_sp_expr)
             reg_sp_si = reg_sp_si._model_vsa
         elif type(reg_sp_expr._model_vsa) is int:  # pylint:disable=unidiomatic-typecheck
             reg_sp_val = reg_sp_expr._model_vsa
-            reg_sp_si = successor_state.se.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
+            reg_sp_si = successor_state.solver.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
             reg_sp_si = reg_sp_si._model_vsa
         elif type(reg_sp_expr._model_vsa) is claripy.vsa.StridedInterval:  # pylint:disable=unidiomatic-typecheck
             reg_sp_si = reg_sp_expr._model_vsa
@@ -1643,7 +1643,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             if fakeret_successor is None:
                 retn_target_addr = None
             else:
-                retn_target_addr = fakeret_successor.se.eval_one(fakeret_successor.ip)
+                retn_target_addr = fakeret_successor.solver.eval_one(fakeret_successor.ip)
 
             # Create call stack
             new_call_stack = new_call_stack.call(addr, successor_ip,

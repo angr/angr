@@ -661,9 +661,9 @@ class SimPagedMemory:
                 differences.add(c)
             else:
                 if type(self[c]) is not SimMemoryObject:
-                    self[c] = SimMemoryObject(self.state.se.BVV(ord(self[c]), self.byte_width), c, byte_width=self.byte_width)
+                    self[c] = SimMemoryObject(self.state.solver.BVV(ord(self[c]), self.byte_width), c, byte_width=self.byte_width)
                 if type(other[c]) is not SimMemoryObject:
-                    other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), self.byte_width), c, byte_width=self.byte_width)
+                    other[c] = SimMemoryObject(self.state.solver.BVV(ord(other[c]), self.byte_width), c, byte_width=self.byte_width)
                 if c in self and self[c] != other[c]:
                     # Try to see if the bytes are equal
                     self_byte = self[c].bytes_at(c, 1)
@@ -841,7 +841,7 @@ class SimPagedMemory:
         if options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options:
             page_num = actual_addr // self._page_size
             page_idx = actual_addr
-            if self.state.se.symbolic(cnt):
+            if self.state.solver.symbolic(cnt):
                 self._symbolic_addrs[page_num].add(page_idx)
             else:
                 self._symbolic_addrs[page_num].discard(page_idx)
@@ -851,7 +851,7 @@ class SimPagedMemory:
             return
 
         if (options.REVERSE_MEMORY_HASH_MAP not in self.state.options) and \
-                len(self.state.se.variables(cnt)) == 0:
+                len(self.state.solver.variables(cnt)) == 0:
            return
 
         l.debug("Updating mappings at address 0x%x", actual_addr)
@@ -866,7 +866,7 @@ class SimPagedMemory:
 
             if isinstance(old_obj, claripy.ast.BV):
                 if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
-                    var_set = self.state.se.variables(old_obj)
+                    var_set = self.state.solver.variables(old_obj)
                     for v in var_set:
                         self._mark_updated_mapping(self._name_mapping, v)
                         self._name_mapping[v].discard(actual_addr)
@@ -885,7 +885,7 @@ class SimPagedMemory:
         l.debug("... adding new mappings")
         if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
             # add the new variables to the mapping
-            var_set = self.state.se.variables(cnt)
+            var_set = self.state.solver.variables(cnt)
             for v in var_set:
                 self._mark_updated_mapping(self._name_mapping, v)
                 if v not in self._name_mapping:
@@ -966,11 +966,11 @@ class SimPagedMemory:
         If optional argument permissions is given, set page permissions to that prior to returning permissions.
         """
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             raise SimMemoryError("page permissions cannot currently be looked up for symbolic addresses")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.eval(addr)
+            addr = self.state.solver.eval(addr)
 
         page_num = addr // self._page_size
 
@@ -995,11 +995,11 @@ class SimPagedMemory:
         if o.TRACK_MEMORY_MAPPING not in self.state.options:
             return
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             raise SimMemoryError("cannot map region with a symbolic address")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.max_int(addr)
+            addr = self.state.solver.max_int(addr)
 
         base_page_num = addr // self._page_size
 
@@ -1036,11 +1036,11 @@ class SimPagedMemory:
         if o.TRACK_MEMORY_MAPPING not in self.state.options:
             return
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             raise SimMemoryError("cannot unmap region with a symbolic address")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.max_int(addr)
+            addr = self.state.solver.max_int(addr)
 
         base_page_num = addr // self._page_size
 

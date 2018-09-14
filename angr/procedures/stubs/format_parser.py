@@ -44,7 +44,7 @@ class FormatString(object):
         #TODO: we probably could do something more fine-grained here.
 
         # throw away strings which are just the NULL terminator
-        if self.parser.state.se.max_int(strlen) == 0:
+        if self.parser.state.solver.max_int(strlen) == 0:
             return None
         return self.parser.state.memory.load(str_addr, strlen)
 
@@ -63,7 +63,7 @@ class FormatString(object):
         for component in self.components:
             # if this is just concrete data
             if isinstance(component, bytes):
-                string = self._add_to_string(string, self.parser.state.se.BVV(component))
+                string = self._add_to_string(string, self.parser.state.solver.BVV(component))
             elif isinstance(component, str):
                 raise Exception("this branch should be impossible?")
             elif isinstance(component, claripy.ast.BV):
@@ -78,7 +78,7 @@ class FormatString(object):
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     i_val = args(argpos)
-                    c_val = int(self.parser.state.se.eval(i_val))
+                    c_val = int(self.parser.state.solver.eval(i_val))
                     c_val &= (1 << (fmt_spec.size * 8)) - 1
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= (1 << fmt_spec.size * 8)
@@ -98,7 +98,7 @@ class FormatString(object):
                     else:
                         raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
 
-                    string = self._add_to_string(string, self.parser.state.se.BVV(s_val.encode()))
+                    string = self._add_to_string(string, self.parser.state.solver.BVV(s_val.encode()))
 
                 argpos += 1
 
@@ -215,7 +215,7 @@ class FormatString(object):
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
-        failed = self.parser.state.se.BVV(0, bits)
+        failed = self.parser.state.solver.BVV(0, bits)
         argpos = startpos
         position = addr
         for component in self.components:
@@ -240,26 +240,26 @@ class FormatString(object):
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, ohc, ohi = region.find(position, self.parser.state.se.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
+                    ohr, ohc, ohi = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
 
                     # if no newline is found, mm is position + max_strlen
                     # If-branch will really only happen for format specifiers with a length
-                    mm = self.parser.state.se.If(ohr == 0, position + max_str_len, ohr)
+                    mm = self.parser.state.solver.If(ohr == 0, position + max_str_len, ohr)
                     # we're just going to concretize the length, load will do this anyways
-                    length = self.parser.state.se.max_int(mm - position)
+                    length = self.parser.state.solver.max_int(mm - position)
                     src_str = region.load(position, length)
 
                     # TODO all of these should be delimiters we search for above
                     # add that the contents of the string cannot be any scanf %s string delimiters
                     for delimiter in set(FormatString.SCANF_DELIMITERS):
-                        delim_bvv = self.parser.state.se.BVV(delimiter)
+                        delim_bvv = self.parser.state.solver.BVV(delimiter)
                         for i in range(length):
                             self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
 
                     # write it out to the pointer
                     self.parser.state.memory.store(dest, src_str)
                     # store the terminating null byte
-                    self.parser.state.memory.store(dest + length, self.parser.state.se.BVV(0, 8))
+                    self.parser.state.memory.store(dest + length, self.parser.state.solver.BVV(0, 8))
 
                     position += length
 
@@ -270,7 +270,7 @@ class FormatString(object):
                         base = 16 if fmt_spec.spec_type == b'x' else 10
                         status, i, num_bytes = self.parser._sim_atoi_inner(position, region, base=base, read_length=fmt_spec.length_spec)
                         # increase failed count if we were unable to parse it
-                        failed = self.parser.state.se.If(status, failed, failed + 1)
+                        failed = self.parser.state.solver.If(status, failed, failed + 1)
                         position += num_bytes
                     elif fmt_spec.spec_type == b'c':
                         i = region.load(position, 1)
@@ -279,7 +279,7 @@ class FormatString(object):
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
-                    i = self.parser.state.se.Extract(fmt_spec.size*8-1, 0, i)
+                    i = self.parser.state.solver.Extract(fmt_spec.size*8-1, 0, i)
                     self.parser.state.memory.store(dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness)
 
                 argpos += 1
@@ -524,17 +524,17 @@ class FormatParser(SimProcedure):
 
         fmtstr_ptr = self.arg(fmt_idx)
 
-        if self.state.se.symbolic(fmtstr_ptr):
+        if self.state.solver.symbolic(fmtstr_ptr):
             raise SimProcedureError("Symbolic pointer to (format) string :(")
 
         length = self._sim_strlen(fmtstr_ptr)
-        if self.state.se.symbolic(length):
-            all_lengths = self.state.se.eval_upto(length, 2)
+        if self.state.solver.symbolic(length):
+            all_lengths = self.state.solver.eval_upto(length, 2)
             if len(all_lengths) != 1:
                 raise SimProcedureError("Symbolic (format) string, game over :(")
             length = all_lengths[0]
 
-        if self.state.se.is_true(length == 0):
+        if self.state.solver.is_true(length == 0):
             return FormatString(self, [b""])
 
         fmt_xpr = self.state.memory.load(fmtstr_ptr, length)
