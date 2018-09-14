@@ -21,7 +21,7 @@ addresses_fauxware = {
 def run_fauxware(arch, threads):
     p = angr.Project(os.path.join(location, arch, 'fauxware'), load_options={'auto_load_libs': False})
 
-    pg = p.factory.simgr(threads=threads)
+    pg = p.factory.simulation_manager(threads=threads)
     nose.tools.assert_equal(len(pg.active), 1)
     nose.tools.assert_equal(pg.active[0].history.depth, 0)
 
@@ -70,7 +70,7 @@ def run_fauxware(arch, threads):
     #print pg2.mp_active.addr.mp_map(hex).mp_items
 
     # test selecting paths to step
-    pg_a = p.factory.simgr(immutable=True)
+    pg_a = p.factory.simulation_manager(immutable=True)
     pg_b = pg_a.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     pg_c = pg_b.step(selector_func=lambda p: p is pg_b.active[0], step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     nose.tools.assert_is(pg_b.active[1], pg_c.active[1])
@@ -101,7 +101,7 @@ def test_find_to_middle():
     # Test the ability of PathGroup to execute until an instruction in the middle of a basic block
     p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})
 
-    pg = p.factory.simgr(immutable=False)
+    pg = p.factory.simulation_manager(immutable=False)
     pg.explore(find=(0x4006ee,))
 
     nose.tools.assert_equal(len(pg.found), 1)
@@ -112,7 +112,7 @@ def test_explore_with_cfg():
 
     cfg = p.analyses.CFGAccurate()
 
-    pg = p.factory.simgr()
+    pg = p.factory.simulation_manager()
     pg.use_technique(angr.exploration_techniques.Explorer(find=0x4006ED, cfg=cfg, num_find=3))
     pg.run()
 

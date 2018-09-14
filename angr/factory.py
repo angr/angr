@@ -7,7 +7,7 @@ from .errors import AngrAssemblyError
 
 
 l = logging.getLogger("angr.factory")
-
+_complained_simgr = False
 
 class AngrObjectFactory(object):
     """
@@ -281,6 +281,16 @@ class AngrObjectFactory(object):
     _default_cc = None
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
+
+    def simgr(self, *args, **kwargs):
+        """
+        Deprecated alias for `simulation_manager`
+        """
+        global _complained_simgr
+        if not _complained_simgr:
+            _complained_simgr = True
+            l.critical("The name factory.simgr is deprecated; please use factory.simulation_manager")
+        return self.simulation_manager(*args, **kwargs)
 
 
 from .errors import AngrError

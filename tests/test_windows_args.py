@@ -20,7 +20,7 @@ def test_i386():
         display_name="GetTickCount64"), replace=True) # stubbed until 64 bit return works
 
     s = p.factory.entry_state(args=("simple_windows.exe", "angr_can_windows?", "1497715489"))
-    simgr = p.factory.simgr(s)
+    simgr = p.factory.simulation_manager(s)
     simgr.explore(find=after_puts, avoid=else_paths, num_find=10)
 
     nose.tools.assert_equal(len(simgr.avoid), 0)

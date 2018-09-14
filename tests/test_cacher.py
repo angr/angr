@@ -17,11 +17,11 @@ def broken_cacher():
     tmp_dir = tempfile.mkdtemp(prefix='test_cacher_container')
     container = os.path.join(tmp_dir, '%s.cache' % os.path.basename(p.filename))
 
-    pg = p.factory.simgr(immutable=False)
+    pg = p.factory.simulation_manager(immutable=False)
     pg.use_technique(angr.exploration_techniques.Cacher(when=0x4006ee, container=container))
     pg.run()
 
-    pg2 = p.factory.simgr(immutable=False)
+    pg2 = p.factory.simulation_manager(immutable=False)
     pg2.use_technique(angr.exploration_techniques.Cacher(container=container))
     nose.tools.assert_equal(pg2.active[0].addr, 0x4006ed)
 

@@ -47,7 +47,7 @@ def run_fauxware_override(arch):
     s.posix.queued_syscall_returns.append(None) # password input
     s.posix.queued_syscall_returns.append(0) # password \n input
 
-    results = p.factory.simgr(thing=s).explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
+    results = p.factory.simulation_manager(thing=s).explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     stdin = results.found[0].posix.dumps(0)
     nose.tools.assert_equal(b'SOSNEAKY', stdin)
     stdout = results.found[0].posix.dumps(1)

@@ -20,7 +20,7 @@ def regression_test_memcmp_strlen_simprocedure_interaction():
                                       add_options=angr.sim_options.unicorn
                                       )
 
-    sm = p.factory.simgr(state)
+    sm = p.factory.simulation_manager(state)
     x = sm.explore(find=0x8048b9b, num_find=3)
 
     nose.tools.assert_equal(len(x.found), 1)

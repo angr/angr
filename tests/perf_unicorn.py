@@ -13,7 +13,7 @@ def perf_unicorn_0():
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # unicorn
 
-    sm_unicorn = p.factory.simgr(s_unicorn)
+    sm_unicorn = p.factory.simulation_manager(s_unicorn)
 
     start = time.time()
     sm_unicorn.run()
@@ -27,7 +27,7 @@ def perf_unicorn_1():
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # unicorn
 
-    sm_unicorn = p.factory.simgr(s_unicorn)
+    sm_unicorn = p.factory.simulation_manager(s_unicorn)
 
     start = time.time()
     sm_unicorn.run()

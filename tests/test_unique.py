@@ -19,7 +19,7 @@ criteria = {
 def run_unique(binary, arch):
     proj = angr.Project(os.path.join(os.path.join(location, arch), binary),
                         auto_load_libs=False)
-    simgr = proj.factory.simgr()
+    simgr = proj.factory.simulation_manager()
     technique = angr.exploration_techniques.UniqueSearch()
     simgr.use_technique(technique)
 

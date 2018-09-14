@@ -71,7 +71,7 @@ class Runner(object):
             entry_state.unicorn.cooldown_nonunicorn_blocks = 1
             entry_state.unicorn.max_steps = 10000
 
-            pg = self.project.factory.simgr(entry_state)
+            pg = self.project.factory.simulation_manager(entry_state)
             stop_addr = self.project.simos.syscall_from_number(2).addr
             num_steps = 0
             while len(pg.active) > 0:
@@ -81,7 +81,7 @@ class Runner(object):
 
                 if len(pg.active) > 1:
                     pp = pg.one_active
-                    pg = self.project.factory.simgr(pp)
+                    pg = self.project.factory.simulation_manager(pp)
                 pg.step()
                 num_steps += 1
                 if num_steps > 50:

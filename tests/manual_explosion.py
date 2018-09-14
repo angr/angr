@@ -13,7 +13,7 @@ b = angr.Project(os.path.join(
 start = time.time()
 #s = b.factory.blank_state(add_options={"COMPOSITE_SOLVER"})
 s = b.factory.blank_state(add_options={"COMPOSITE_SOLVER"}, remove_options={"LAZY_SOLVES"})
-sm = b.factory.simgr(s)
+sm = b.factory.simulation_manager(s)
 angr.sim_manager.l.setLevel("DEBUG")
 sm.run(n=300)
 end = time.time()

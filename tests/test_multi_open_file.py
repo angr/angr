@@ -11,7 +11,7 @@ def test_multi_open_file():
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/test_multi_open_file")
     b = angr.Project(test_bin)
 
-    pg = b.factory.simgr()
+    pg = b.factory.simulation_manager()
     pg.active[0].options.discard("LAZY_SOLVES")
     pg.explore()
 

@@ -38,7 +38,7 @@ def test_ctype_b_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.simgr(p)
+    pg = b.factory.simulation_manager(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
@@ -88,7 +88,7 @@ def test_ctype_tolower_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.simgr(p)
+    pg = b.factory.simulation_manager(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
@@ -138,7 +138,7 @@ def test_ctype_toupper_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.simgr(p)
+    pg = b.factory.simulation_manager(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)

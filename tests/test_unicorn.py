@@ -35,12 +35,12 @@ def test_stops():
     # test STOP_NORMAL, STOP_STOPPOINT
     s_normal = p.factory.entry_state(args=['a'], add_options=so.unicorn)
     s_normal.unicorn.max_steps = 100
-    pg_normal = p.factory.simgr(s_normal).run()
+    pg_normal = p.factory.simulation_manager(s_normal).run()
     p_normal = pg_normal.one_deadended
     _compare_trace(p_normal.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80484b6: 1 sat>', '<Unicorn (STOP_STOPPOINT after 8 steps) from 0x804844a: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_normal_angr = p.factory.entry_state(args=['a'])
-    pg_normal_angr = p.factory.simgr(s_normal_angr).run()
+    pg_normal_angr = p.factory.simulation_manager(s_normal_angr).run()
     p_normal_angr = pg_normal_angr.one_deadended
     nose.tools.assert_equal(p_normal_angr.history.bbl_addrs.hardcopy, p_normal.history.bbl_addrs.hardcopy)
 
@@ -54,7 +54,7 @@ def test_stops():
     # this is an address inside main that is not the beginning of a basic block. we should stop here
     stop_in_bb = 0x08048511
     stop_bb = 0x0804850c # basic block of the above address
-    pg_stoppoints = p.factory.simgr(s_stoppoints).run(n=1, extra_stop_points=stop_fake + [stop_in_bb])
+    pg_stoppoints = p.factory.simulation_manager(s_stoppoints).run(n=1, extra_stop_points=stop_fake + [stop_in_bb])
     nose.tools.assert_equal(len(pg_stoppoints.active), 1) # path should not branch
     p_stoppoints = pg_stoppoints.one_active
     nose.tools.assert_equal(p_stoppoints.addr, stop_bb) # should stop at bb before stop_in_bb
@@ -62,25 +62,25 @@ def test_stops():
 
     # test STOP_SYMBOLIC
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
-    pg_symbolic = p.factory.simgr(s_symbolic).run()
+    pg_symbolic = p.factory.simulation_manager(s_symbolic).run()
     p_symbolic = pg_symbolic.one_deadended
     _compare_trace(p_symbolic.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x8048457: 1 sat 3 unsat>', '<IRSB from 0x804848c: 1 sat>', '<IRSB from 0x80484e8: 1 sat>', '<IRSB from 0x804850c: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
-    pg_symbolic_angr = p.factory.simgr(s_symbolic_angr).run()
+    pg_symbolic_angr = p.factory.simulation_manager(s_symbolic_angr).run()
     p_symbolic_angr = pg_symbolic_angr.one_deadended
     nose.tools.assert_equal(p_symbolic_angr.history.bbl_addrs.hardcopy, p_symbolic.history.bbl_addrs.hardcopy)
 
     # test STOP_SEGFAULT
     s_segfault = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options=so.unicorn | {so.STRICT_PAGE_ACCESS, so.ENABLE_NX})
-    pg_segfault = p.factory.simgr(s_segfault).run()
+    pg_segfault = p.factory.simulation_manager(s_segfault).run()
     p_segfault = pg_segfault.errored[0].state
     # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
     # this will extend the last simunicorn one more block
     _compare_trace(p_segfault.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
 
     s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS, so.ENABLE_NX})
-    pg_segfault_angr = p.factory.simgr(s_segfault_angr).run()
+    pg_segfault_angr = p.factory.simulation_manager(s_segfault_angr).run()
     p_segfault_angr = pg_segfault_angr.errored[0].state
     nose.tools.assert_equal(p_segfault_angr.history.bbl_addrs.hardcopy, p_segfault.history.bbl_addrs.hardcopy)
     nose.tools.assert_equal(pg_segfault_angr.errored[0].error.addr, pg_segfault.errored[0].error.addr)
@@ -88,7 +88,7 @@ def test_stops():
 def run_longinit(arch):
     p = angr.Project(os.path.join(test_location, 'binaries/tests/' + arch + '/longinit'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn, remove_options={so.SHORT_READS})
-    pg = p.factory.simgr(s_unicorn, save_unconstrained=True, save_unsat=True)
+    pg = p.factory.simulation_manager(s_unicorn, save_unconstrained=True, save_unsat=True)
     pg.explore()
     s = pg.deadended[0]
     (first, _), (second, _) = s.posix.stdin.content
@@ -104,7 +104,7 @@ def test_longinit_x86_64():
 def test_fauxware():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
-    pg = p.factory.simgr(s_unicorn)
+    pg = p.factory.simulation_manager(s_unicorn)
     pg.explore()
 
     assert all("Unicorn" in ''.join(p.history.descriptions.hardcopy) for p in pg.deadended)
@@ -124,7 +124,7 @@ def test_fauxware_aggressive():
     s_unicorn.unicorn.cooldown_symbolic_memory = 0
     s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
 
-    pg = p.factory.simgr(s_unicorn)
+    pg = p.factory.simulation_manager(s_unicorn)
     pg.explore()
 
     nose.tools.assert_equal(len(pg.deadended), 1)
@@ -178,7 +178,7 @@ def test_unicorn_pickle():
         s_unicorn.unicorn.cooldown_symbolic_registers = 0
         return s_unicorn
 
-    pg = p.factory.simgr(_uni_state())
+    pg = p.factory.simulation_manager(_uni_state())
     pg.one_active.options.update(so.unicorn)
     pg.run(until=lambda lpg: "Unicorn" in lpg.one_active.history.recent_description)
     assert len(pg.active) > 0
@@ -198,7 +198,7 @@ def test_unicorn_pickle():
 
     # test the pickling of SimUnicorn itself
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
-    pg = p.factory.simgr(_uni_state())
+    pg = p.factory.simulation_manager(_uni_state())
     pg.run(n=2)
     assert p.factory.successors(pg.one_active).sort == 'Unicorn'
 
@@ -219,7 +219,7 @@ def test_concrete_transmits():
     inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, stdin=inp, flag_page=b'\0'*4096)
-    pg_unicorn = p.factory.simgr(s_unicorn)
+    pg_unicorn = p.factory.simulation_manager(s_unicorn)
     pg_unicorn.run(n=10)
 
     nose.tools.assert_equal(pg_unicorn.one_active.posix.dumps(1), b'1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
@@ -249,7 +249,7 @@ def test_inspect():
     for addr in [addr0, addr1, addr2]:
         s_break_addr.inspect.b("instruction", instruction=addr, action=create_addr_action(addr))
 
-    pg_instruction = p.factory.simgr(s_break_addr)
+    pg_instruction = p.factory.simulation_manager(s_break_addr)
     pg_instruction.run()
     nose.tools.assert_equal(hits[addr0], 1)
     nose.tools.assert_equal(hits[addr1], 1)
@@ -264,7 +264,7 @@ def test_inspect():
         def action_every(state):
             trace.append(state.addr)
         s_break_every.inspect.b("instruction", action=action_every)
-        pg_break_every = p.factory.simgr(s_break_every)
+        pg_break_every = p.factory.simulation_manager(s_break_every)
         pg_break_every.run()
     nose.tools.assert_equal(collect_trace(so.unicorn), collect_trace(set()))
 
@@ -278,12 +278,12 @@ def test_explore():
 
     addr = 0x08048454
     s_explore = main_state(1)
-    pg_explore_find = p.factory.simgr(s_explore)
+    pg_explore_find = p.factory.simulation_manager(s_explore)
     pg_explore_find.explore(find=addr)
     nose.tools.assert_equal(len(pg_explore_find.found), 1)
     nose.tools.assert_equal(pg_explore_find.found[0].addr, addr)
 
-    pg_explore_avoid = p.factory.simgr(s_explore)
+    pg_explore_avoid = p.factory.simulation_manager(s_explore)
     pg_explore_avoid.explore(avoid=addr)
     nose.tools.assert_equal(len(pg_explore_avoid.avoid), 1)
     nose.tools.assert_equal(pg_explore_avoid.avoid[0].addr, addr)

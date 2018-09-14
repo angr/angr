@@ -85,7 +85,7 @@ class IdentifierCallable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = self._project.factory.simgr(state, immutable=True)
+        caller = self._project.factory.simulation_manager(state, immutable=True)
         for _ in range(self._max_steps):
             if len(caller.active) == 0:
                 break

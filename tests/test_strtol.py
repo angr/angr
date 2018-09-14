@@ -18,7 +18,7 @@ def run_strtol(threads):
     b = angr.Project(test_bin)
 
     initial_state = b.factory.entry_state(remove_options={angr.options.LAZY_SOLVES})
-    pg = b.factory.simgr(thing=initial_state, immutable=False, threads=threads)
+    pg = b.factory.simulation_manager(thing=initial_state, immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {b"base 8 worked\n", b"base +8 worked\n", b"0x worked\n", b"+0x worked\n", b"base +10 worked\n",

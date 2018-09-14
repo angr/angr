@@ -21,7 +21,7 @@ def test_mips():
 
     sargc = claripy.BVS('argc', 32)
     s = arger_mips.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_mips.factory.simgr(s).explore(find=r_addr, num_find=100)
+    pg = arger_mips.factory.simulation_manager(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_mipsel():
@@ -30,7 +30,7 @@ def test_mipsel():
 
     sargc = claripy.BVS('argc', 32)
     s = arger_mipsel.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_mipsel.factory.simgr(s).explore(find=r_addr, num_find=100)
+    pg = arger_mipsel.factory.simulation_manager(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_i386():
@@ -39,7 +39,7 @@ def test_i386():
 
     sargc = claripy.BVS('argc', 32)
     s = arger_i386.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_i386.factory.simgr(s).explore(find=r_addr, num_find=100)
+    pg = arger_i386.factory.simulation_manager(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_amd64():
@@ -48,7 +48,7 @@ def test_amd64():
 
     sargc = claripy.BVS('argc', 64)
     s = arger_amd64.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_amd64.factory.simgr(s).explore(find=r_addr, num_find=100)
+    pg = arger_amd64.factory.simulation_manager(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc, length=800)
 
 def test_arm():
@@ -57,7 +57,7 @@ def test_arm():
 
     sargc = claripy.BVS('argc', 32)
     s = arger_arm.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_arm.factory.simgr(s).explore(find=r_addr, num_find=100)
+    pg = arger_arm.factory.simulation_manager(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_ppc32():
@@ -66,7 +66,7 @@ def test_ppc32():
 
     sargc = claripy.BVS('argc', 32)
     s = arger_ppc32.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_ppc32.factory.simgr(s).explore(find=r_addr, num_find=100)
+    pg = arger_ppc32.factory.simulation_manager(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 if __name__ == "__main__":

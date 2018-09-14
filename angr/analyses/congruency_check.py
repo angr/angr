@@ -41,7 +41,7 @@ class CongruencyCheck(Analysis):
         Checks that the specified paths stay the same over the next `depth` states.
         """
 
-        simgr = self.project.factory.simgr(right_state)
+        simgr = self.project.factory.simulation_manager(right_state)
         simgr.stash(to_stash='right')
         simgr.active.append(left_state)
         simgr.stash(to_stash='left')
@@ -124,7 +124,7 @@ class CongruencyCheck(Analysis):
                     # unicorn "falls behind" on loop and rep instructions, since
                     # it sees them as ending a basic block. Here, we will
                     # step the unicorn until it's caught up
-                    npg = self.project.factory.simgr(unicorn_path)
+                    npg = self.project.factory.simulation_manager(unicorn_path)
                     npg.explore(find=lambda p: p.addr == normal_path.addr, n=200)
                     if len(npg.found) == 0:
                         l.debug("Validator failed to sync paths.")
@@ -147,7 +147,7 @@ class CongruencyCheck(Analysis):
                     # 0x1016f38:      sw      $gp, 0x10($sp)
                     # 0x1016f3c:      lw      $v0, -0x6cf0($gp)
                     # 0x1016f40:      move    $at, $at
-                    npg = self.project.factory.simgr(normal_path)
+                    npg = self.project.factory.simulation_manager(normal_path)
                     npg.explore(find=lambda p: p.addr == unicorn_path.addr, n=200)
                     if len(npg.found) == 0:
                         l.debug("Validator failed to sync paths.")

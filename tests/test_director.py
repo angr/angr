@@ -14,7 +14,7 @@ def test_execute_address_brancher():
 
     p = angr.Project(os.path.join(test_location, 'x86_64', 'brancher'), load_options={'auto_load_libs': False})
 
-    pg = p.factory.simgr()
+    pg = p.factory.simulation_manager()
 
     # initialize the exploration technique
     dm = angr.exploration_techniques.Director(num_fallback_states=1)
@@ -38,7 +38,7 @@ def test_call_function_brancher():
 
     p = angr.Project(os.path.join(test_location, 'x86_64', 'brancher'), load_options={'auto_load_libs': False})
 
-    pg = p.factory.simgr()
+    pg = p.factory.simulation_manager()
 
     # initialize the exploration technique
     dm = angr.exploration_techniques.Director(cfg_keep_states=True, goal_satisfied_callback=goal_reached_callback,

@@ -49,7 +49,7 @@ divergences = {
 
 def run_fauxware(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
-    results = p.factory.simgr().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
+    results = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     stdin = results.found[0].posix.dumps(0)
     nose.tools.assert_equal(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
@@ -61,7 +61,7 @@ def run_fauxware(arch):
 
 def run_pickling(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
-    pg = p.factory.simgr().run(n=10)
+    pg = p.factory.simulation_manager().run(n=10)
     pickled = pickle.dumps(pg, pickle.HIGHEST_PROTOCOL)
     del p
     del pg
@@ -82,20 +82,20 @@ def run_nodecode(arch):
     # screw up the instructions and make sure the test fails with nodecode
     for i,c in enumerate(corrupt_addrs[arch][1]):
         p.loader.memory[corrupt_addrs[arch][0] + i] = c
-    boned = p.factory.simgr().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
+    boned = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     nose.tools.assert_true(len(boned.errored) >= 1)
     nose.tools.assert_true(isinstance(boned.errored[0].error, angr.SimIRSBNoDecodeError))
     nose.tools.assert_true(boned.errored[0].state.addr == corrupt_addrs[arch][0])
 
     # hook the instructions with the emulated stuff
     p.hook(corrupt_addrs[arch][0], corrupt_addrs[arch][2], length=len(corrupt_addrs[arch][1]))
-    results = p.factory.simgr().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
+    results = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     stdin = results.found[0].posix.dumps(0)
     nose.tools.assert_equal(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def run_merge(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
-    pg = p.factory.simgr()
+    pg = p.factory.simulation_manager()
     pg.explore()
 
     # release the unmergable data

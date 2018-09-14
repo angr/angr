@@ -57,7 +57,7 @@ def print_results(tests):
 def run_counter(path):
     p = angr.Project(path)
 
-    sm = p.factory.simgr()
+    sm = p.factory.simulation_manager()
     sm.run(n=500)
 
 

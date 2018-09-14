@@ -58,7 +58,7 @@ class printf(Func):
         test_output = [None]
         test = TestData(test_input, test_output, None, max_steps)
         s = runner.get_base_call_state(func, test)
-        pg = runner.project.factory.simgr(s)
+        pg = runner.project.factory.simulation_manager(s)
         pg.run(n=18)
         interesting_chars = set()
         for p in pg.active:

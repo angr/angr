@@ -14,7 +14,7 @@ def test_FindAvoidConflict():
     proj = angr.Project(test_location+'/i386/ite_FindAvoidConflict-O3')
     initial_state = proj.factory.blank_state()
     path = proj.factory.path(initial_state)
-    sm = proj.factory.simgr(path)
+    sm = proj.factory.simulation_manager(path)
 
     targetAddr = 0x8048390
     avoidAddr = 0x804838B

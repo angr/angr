@@ -10,7 +10,7 @@ def _ultra_oppologist(p, s):
         angr.engines.vex.irop.operations.clear()
         angr.engines.vex.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
 
-        pg = p.factory.simgr(s)
+        pg = p.factory.simulation_manager(s)
         pg.use_technique(angr.exploration_techniques.Oppologist())
         pg.explore()
 
@@ -39,7 +39,7 @@ def test_cromu_70():
     )
 
     #import traceit
-    pg = p.factory.simgr(s)
+    pg = p.factory.simulation_manager(s)
     pg.use_technique(angr.exploration_techniques.Oppologist())
     pg.run(n=50)
     assert pg.one_active.history.block_count > 1500

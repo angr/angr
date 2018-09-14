@@ -19,7 +19,7 @@ def test_various_loops():
     bvs = state.solver.BVS(dummy.name, 8 * dummy.size)
     state.memory.store(dummy.rebased_addr, bvs, endness='Iend_LE')
 
-    simgr = p.factory.simgr(state)
+    simgr = p.factory.simulation_manager(state)
 
     simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions=None, bound=None))
 
@@ -85,7 +85,7 @@ def test_loops_with_invalid_parameter():
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
-    simgr = p.factory.simgr(state)
+    simgr = p.factory.simulation_manager(state)
 
     simgr.use_technique(angr.exploration_techniques.LoopSeer(functions=['main', 0x1234], bound=None))
 
@@ -105,7 +105,7 @@ def test_arrays():
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
-    simgr = p.factory.simgr(state)
+    simgr = p.factory.simulation_manager(state)
 
     simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions='main', bound=None))
 
@@ -123,7 +123,7 @@ def test_loop_limiter():
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
-    simgr = p.factory.simgr(state)
+    simgr = p.factory.simulation_manager(state)
 
     simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions='main', bound=5))
 

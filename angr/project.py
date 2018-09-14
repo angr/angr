@@ -563,7 +563,7 @@ class Project(object):
         else:
             state = self.factory.full_init_state(**kwargs)
 
-        pg = self.factory.simgr(state)
+        pg = self.factory.simulation_manager(state)
         self._executing = True
         return pg.run(until=lambda lpg: not self._executing)
 

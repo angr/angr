@@ -17,7 +17,7 @@ def test_rol_x86_64():
     r_rax = initial_state.solver.BVS('rax', 64)
     initial_state.regs.rax = r_rax
 
-    pg = proj.factory.simgr(initial_state, immutable=False)
+    pg = proj.factory.simulation_manager(initial_state, immutable=False)
     pg.explore(find=0x401013, avoid=0x401010)
     found_state = pg.found[0]
 
@@ -33,7 +33,7 @@ def test_rol_i386():
     r_eax = initial_state.solver.BVS('eax', 32)
     initial_state.regs.eax = r_eax
 
-    pg = proj.factory.simgr(initial_state, immutable=False)
+    pg = proj.factory.simulation_manager(initial_state, immutable=False)
     pg.explore(find=0x401013, avoid=0x401010)
     found_state = pg.found[0]
 

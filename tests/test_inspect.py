@@ -272,7 +272,7 @@ def test_inspect_engine_process():
         nose.tools.assert_in(hex(state.inspect.sim_successors.addr), ('0x40068eL', '0x4006dbL'))
 
     state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
-    pg = p.factory.simgr(state)
+    pg = p.factory.simulation_manager(state)
     state.inspect.b('engine_process',
                     when=BP_BEFORE,
                     action=check_state,
@@ -284,7 +284,7 @@ def test_inspect_engine_process():
     pg.run()
 
     state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
-    pg = p.factory.simgr(state)
+    pg = p.factory.simulation_manager(state)
     state.inspect.b('engine_process',
                     when=BP_BEFORE,
                     action=check_state,

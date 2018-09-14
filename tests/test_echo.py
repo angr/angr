@@ -17,7 +17,7 @@ target_arches = {
 def run_echo_haha(arch):
     p = angr.Project(os.path.join(test_location, arch, 'echo'), use_sim_procedures=False)
     s = p.factory.full_init_state(mode='symbolic_approximating', args=['echo', 'haha'], add_options={angr.options.STRICT_PAGE_ACCESS})
-    pg = p.factory.simgr(s)
+    pg = p.factory.simulation_manager(s)
     pg.run(until=lambda lpg: len(lpg.active) != 1)
 
     assert len(pg.deadended) == 1

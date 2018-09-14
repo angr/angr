@@ -183,6 +183,9 @@ class SimState(PluginHub, ana.Storable):
 
     @property
     def se(self):
+        """
+        Deprecated alias for `solver`
+        """
         global _complained_se
         if not _complained_se:
             _complained_se = True
