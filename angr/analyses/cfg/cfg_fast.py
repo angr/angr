@@ -2018,7 +2018,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             # Find the first successor with a syscall jumpkind
             succ = next(iter(succ for succ in self.project.factory.successors(tmp_state).flat_successors
-                             if succ.jumpkind and succ.jumpkind.startswith("Ijk_Sys")), None)
+                             if succ.history.jumpkind and succ.history.jumpkind.startswith("Ijk_Sys")), None)
             if succ is None:
                 # For some reason, there is no such successor with a syscall jumpkind
                 target_addr = self._unresolvable_target_addr
