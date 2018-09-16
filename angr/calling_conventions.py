@@ -840,7 +840,7 @@ class SimLyingRegArg(SimRegArg):
     def get_value(self, state, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         #val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = getattr(state.regs, self.reg_name)
-        if endness and endness != state.args.register_endness:
+        if endness and endness != state.arch.register_endness:
             val = val.reversed
         if size == 4:
             val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_FLOAT)
@@ -853,7 +853,7 @@ class SimLyingRegArg(SimRegArg):
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
             else:
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_DOUBLE)
-        if endness and endness != state.args.register_endness:
+        if endness and endness != state.arch.register_endness:
             val = val.reversed
         setattr(state.regs, self.reg_name, val)
         #super(SimLyingRegArg, self).set_value(state, val, endness=endness, **kwargs)
