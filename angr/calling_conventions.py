@@ -840,7 +840,7 @@ class SimLyingRegArg(SimRegArg):
     def get_value(self, state, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         #val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = getattr(state.regs, self.reg_name)
-        if endness and endness != state.args.register_endness:
+        if endness and endness != state.arch.register_endness:
             val = val.reversed
         if size == 4:
             val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_FLOAT)
@@ -853,7 +853,7 @@ class SimLyingRegArg(SimRegArg):
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
             else:
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_DOUBLE)
-        if endness and endness != state.args.register_endness:
+        if endness and endness != state.arch.register_endness:
             val = val.reversed
         setattr(state.regs, self.reg_name, val)
         #super(SimLyingRegArg, self).set_value(state, val, endness=endness, **kwargs)
@@ -1144,6 +1144,29 @@ class SimCCUnknown(SimCC):
     def __repr__(self):
         return "<SimCCUnknown - %s %s sp_delta=%d>" % (self.arch.name, self.args, self.sp_delta)
 
+class SimCCS390X(SimCC):
+    ARG_REGS = ['r2', 'r3', 'r4', 'r5', 'r6']
+    FP_ARG_REGS = ['f0', 'f2', 'f4', 'f6']
+    STACKARG_SP_BUFF = 0xa0
+    RETURN_ADDR = SimRegArg('r14', 8)
+    RETURN_VAL = SimRegArg('r2', 8)
+    ARCH = archinfo.ArchS390X
+
+class SimCCS390XLinuxSyscall(SimCC):
+    ARG_REGS = ['r2', 'r3', 'r4', 'r5', 'r6', 'r7']
+    FP_ARG_REGS = []
+    RETURN_VAL = SimRegArg('r2', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
+    ARCH = archinfo.ArchS390X
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.r1
 
 CC = {
     'AMD64': [
@@ -1173,6 +1196,9 @@ CC = {
     'AARCH64': [
         SimCCAArch64,
     ],
+    'S390X': [
+        SimCCS390X,
+    ],
 }
 
 
@@ -1187,7 +1213,8 @@ DEFAULT_CC = {
     'PPC64': SimCCPowerPC64,
     'AARCH64': SimCCAArch64,
     'AVR': SimCCUnknown,
-    'MSP': SimCCUnknown
+    'MSP': SimCCUnknown,
+    'S390X': SimCCS390X,
 }
 
 
@@ -1233,6 +1260,10 @@ SYSCALL_CC = {
     'PPC64': {
         'default': SimCCPowerPC64LinuxSyscall,
         'Linux': SimCCPowerPC64LinuxSyscall,
+    },
+    'S390X': {
+        'default': SimCCS390XLinuxSyscall,
+        'Linux': SimCCS390XLinuxSyscall,
     },
 }
 
