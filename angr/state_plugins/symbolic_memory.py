@@ -449,12 +449,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
         if (all_missing and
-                l.level <= logging.WARNING and
                 options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options
                 ):
             if self.category == 'reg':
                 # try to get a register name
-                reg_str = self.state.arch.register_names.get(addr, '<unknown> (offset:%#x)' % addr)
+                reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
                 l.warning("Register %s has an unspecified value; "
                           "Generating an unconstrained value of %d bytes.", reg_str, num_bytes)
             elif self.category == 'mem':
