@@ -1796,6 +1796,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Scan the basic block to collect data references
         if self._collect_data_ref:
             self._collect_data_references(irsb, addr)
+        else: #TODO
+            self._collect_data_references(irsb, addr)
 
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
@@ -2146,6 +2148,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if empty_insn:
                 # make sure opt_level is 0
                 irsb = self._lift(addr=irsb.addr, size=irsb.size, opt_level=0, collect_data_refs=True).vex
+
+        if self.project.arch.name in ('ARMEL'):
+            empty_insn = False
+            all_statements = len(irsb.statements)
+            for i, stmt in enumerate(irsb.statements[:-1]):
+                if isinstance(stmt, pyvex.IRStmt.IMark) and (
+                        isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
+                        (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
+                ):
+                    #print("mt ARM insn: \t 0x{:x} \t {}".format(irsb_addr, stmt))
+                    pass
+                else:
+                    #print("In ARM insn: \t 0x{:x} \t {}".format(irsb_addr, stmt))
+                    pass
+
+        # for each statement, collect all constants that are referenced or used.
+        self._collect_data_references_core(irsb, irsb_addr)
+
         return irsb
 
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
@@ -2166,6 +2186,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             :param str data_type: Type of the data being manipulated
             :return: None
             """
+
+            if self.project.arch.name in ('ARMHF', 'ARMEL') and type(stmt.data) is pyvex.IRExpr.Load \
+                and type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
+                    data_type="pointer-array" # It's just a pointer, aka an array with 1 element
+
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
             elif type(data_) in (int, long):
@@ -2189,15 +2214,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         instr_addr = None
         next_instr_addr = None
         for stmt_idx, stmt in enumerate(irsb.statements):
+            if self.project.arch.name in ('ARMHF', 'ARMEL'):
+                #print("In ARM insn: {} \t {}".format(type(stmt), stmt))
+                pass
             if type(stmt) is pyvex.IRStmt.IMark:  # pylint: disable=unidiomatic-typecheck
                 instr_addr = instr_addrs[0]
                 instr_addrs = instr_addrs[1 : ]
                 next_instr_addr = instr_addrs[0] if instr_addrs else None
+                """
+                if self.project.arch.name in ('ARMHF', 'ARMEL'):
+                    sym = self.project.loader.find_symbol(instr_addr)
+                    if sym is not None and any([sym.name.startswith(x) for x in ("$a", "$d", "$t")]):
+                        if sym.name.startswith("$d"):
+                            # Treat as data
+                            l.warning("{:x} Treat {} as data".format(instr_addr, sym.name))
+                            _process(irsb, stmt, stmt_idx, stmt.addr, instr_addr, next_instr_addr)
+                """
 
             elif type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
+                    #print("Recurse on pointer value:\n\t{}\t{}\t{}".format(stmt, self._seg_list.is_occupied(stmt.data.addr), self._seg_list.occupied_by_sort(stmt.data.addr)))
+
+                        #loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
+                        #_process(irsb, stmt, stmt_idx, loc, instr_addr, next_instr_addr)
+
                     size = stmt.data.result_size(irsb.tyenv) / 8 # convert to bytes
                     _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
                              data_size=size, data_type='integer'
@@ -2235,6 +2277,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 _process(irsb, stmt, stmt_idx, stmt.addr, instr_addr, next_instr_addr)
                 # store data
                 _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
+            #elif type(stmt) is pyvex.IRExpr.Get:
+            #    _process(irsb, stmt, stmt_idx, stmt.offset, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Dirty:
 
@@ -2302,13 +2346,44 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: bool
         """
 
+        new_data_found = False
+
         # Make sure all memory data entries cover all data sections
         keys = sorted(self._memory_data.iterkeys())
         for i, data_addr in enumerate(keys):
             data = self._memory_data[data_addr]
             if self._addr_in_exec_memory_regions(data.address):
-                # TODO: Handle data among code regions (or executable regions)
                 pass
+                """
+                if self.project.arch.name in ('ARMHF', 'ARMEL'):
+                    sym = self.project.loader.find_symbol(data_addr)
+                    if sym is not None and any([sym.name.startswith(x) for x in ("$a", "$d", "$t")]):
+
+                        if sym.name.startswith("$d"):
+                            # It's data, not code
+
+                            ptr = self._fast_memory_load_pointer(data_addr)
+                            if self._addr_belongs_to_section(ptr) is not None or self._addr_belongs_to_segment(ptr) is not None or \
+                                    (self._extra_memory_regions and
+                                     next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None)):
+                                self._rem_addr_from_exec_memory_regions(ptr)
+                                l.warning("TDR: mark 0x{:x} as a data pointer to 0x{:x}".format(data_addr, ptr))
+
+                                obj = self.project.loader.find_object_containing(ptr)
+                                if obj is self.project.loader.main_object and self._seg_list.is_occupied(ptr):
+                                    # the pointer must come from current binary. skip.
+                                    #sort = self._seg_list.occupied_by_sort(ptr)
+                                    #if sort not in ['code', 'pointer-array']:
+                                    if ptr not in self._memory_data:
+                                        l.warning("It's new")
+                                        self._memory_data[data_addr] = MemoryData(ptr, 0, 'unknown', None, None, None, None,
+                                                                                pointer_addr=ptr)
+                                        new_data_found = True
+
+                else:
+                    # TODO: Handle data among code regions (or executable regions)
+                    pass
+                """
             else:
                 if i + 1 != len(keys):
                     next_data_addr = keys[i + 1]
@@ -2354,8 +2429,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         keys = sorted(self._memory_data.iterkeys())
 
-        new_data_found = False
-
         i = 0
         # pylint:disable=too-many-nested-blocks
         while i < len(keys):
@@ -2400,7 +2473,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     for j in xrange(0, data_size, pointer_size):
                         ptr = self._fast_memory_load_pointer(data_addr + j)
-
                         # is this pointer coming from the current binary?
                         obj = self.project.loader.find_object_containing(ptr, membership_check=False)
                         if obj is not self.project.loader.main_object:
@@ -2419,7 +2491,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                 pointer_addr=data_addr + j
                                                                 )
                             new_data_found = True
-
             else:
                 memory_data.size = memory_data.max_size
 
@@ -2443,15 +2514,65 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: tuple
         """
 
+        pointer_size = self.project.arch.bits / 8
+        if self.project.arch.name in ('ARMHF', 'ARMEL'):
+            # For Arm (at least), we often end up in the following situation:
+            # We have address A containing a reference to address B. At address B there's a value (code/data/string) (C) we want in _memory_data
+            # To ensure this happens, try to load data at B, if we succeed, add C to memory_data[b] and guess it's data type
+            ptr = self._fast_memory_load_pointer(data_addr)
+            if ptr:
+                # Check if the pointer is an address into the binary
+                ptr2 = self._fast_memory_load_pointer(ptr)
+                if ptr2:
+                    # Determine type of ptr, this is a reference to that
+                    #print("Process pointer target (0x{:x} points to) 0x{:x}".format(data_addr, ptr))
+
+                    if ptr not in self._memory_data:
+                        data = MemoryData(ptr, 0, 'unknown', irsb, irsb_addr, None, None,
+                                          insn_addr=data_addr)
+                        self._memory_data[ptr] = data
+
+                    ptr_memory_data = self._memory_data[ptr]
+                    ptr_content_holder = [ ]
+                    ptr_data_type, ptr_data_size = self._guess_data_type(ptr_memory_data.irsb, ptr_memory_data.irsb_addr,
+                                                                     ptr_memory_data.stmt_idx, ptr, ptr_memory_data.max_size,
+                                                                     content_holder=ptr_content_holder)
+                    #print("\t Target content type is {} with size {}".format(ptr_data_type, ptr_data_size))
+                    if len(ptr_content_holder) == 1:
+                        ptr_memory_data.content = ptr_content_holder[0]
+                        #print("\t Target has content: {}".format(repr(ptr_memory_data.content)))
+
+                    self._memory_data[ptr] = MemoryData(ptr, ptr_data_size, ptr_data_type, None, None, None, None,
+                                                        pointer_addr=data_addr, insn_addr=data_addr)
+
+                # This helps when we have symbols but not other times. TODO  merge with above code
+                sym = self.project.loader.find_symbol(data_addr)
+                if sym is not None and any([sym.name.startswith(x) for x in ("$a", "$d", "$t")]):
+                    # TODO split sections if current section doesn't match what we're getting
+                    if sym.name.startswith("$d"): #ARM data prefix, it's a data pointer and not code
+                        #ptr = self._fast_memory_load_pointer(data_addr)
+                        #return "pointer-array", pointer_size
+                        ptr = self._fast_memory_load_pointer(data_addr)
+
+                        if ptr is not None:
+                            ## Check if address is valid
+                            if self._addr_belongs_to_section(ptr) is not None or self._addr_belongs_to_segment(ptr) is not None or \
+                                    (self._extra_memory_regions and
+                                     next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None)
+                                     ):
+                                # Update sections so PTR is data, not code
+
+                                assert(False) # We don't use double pointers anymore
+                            else:
+                                return None, None
+
         if max_size is None:
-            max_size = 0
+            max_size = 32 # TODO  - What's a sane value here? 0 breaks strings
 
         if self._seg_list.is_occupied(data_addr) and self._seg_list.occupied_by_sort(data_addr) == 'code':
             # it's a code reference
             # TODO: Further check if it's the beginning of an instruction
             return "code reference", 0
-
-        pointer_size = self.project.arch.bits / 8
 
         # who's using it?
         if isinstance(self.project.loader.main_object, cle.MetaELF):
@@ -2486,6 +2607,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return "pointer-array", pointer_size * pointers_count
 
         block, block_size = self._fast_memory_load(data_addr)
+        if not block:
+            return None, None
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
@@ -3460,6 +3583,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     distance = min(distance, VEX_IRSB_MAX_SIZE)
                 # TODO: handle segment information as well
 
+                is_thumb = False
+                """
+                # Handle ARM inline transitions between code and data 
+                if self.project.arch.name in ('ARMHF', 'ARMEL'):
+                    sym = self.project.loader.find_symbol(addr)
+                    if sym is not None and any([sym.name.startswith(x) for x in ("$a", "$d", "$t")]):
+                        print("Found ARM special {} at 0x{:x}".format(sym.name, addr))
+                        if sym.name.startswith("$d"): #ARM data prefix, it's a data pointer and not code
+                            return None, None, None, None
+                        elif sym.name.startswith("$t"): # ARM thumb prefix
+                            is_thumb = True # is this okay? Wouldn't we need to decode differently?
+                        elif sym.name.startswith("$a"): # ARM code prefix
+                            pass # TODO: we want to let this get autonamed to sub_XXXX instead of just $a
+                """
+
             if cfg_job.job_type == CFGJob.JOB_TYPE_COMPLETE_SCANNING:
                 # also check the distance between `addr` and the closest function.
                 # we don't want to have a basic block that spans across function boundaries
@@ -3513,11 +3651,69 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 except SimTranslationError:
                     nodecode = True
 
+                if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
+                        self.project.arch.name in ('ARMHF', 'ARMEL') and \
+                        self._arch_options.switch_mode_on_nodecode:
+                    # maybe the current mode is wrong?
+                    nodecode = False
+                    if addr % 2 == 0:
+                        addr_0 = addr + 1
+                    else:
+                        addr_0 = addr - 1
+
+                    if addr_0 in self._nodes:
+                        # it has been analyzed before
+                        cfg_node = self._nodes[addr_0]
+                        irsb = cfg_node.irsb
+                        return addr_0, cfg_node.function_address, cfg_node, irsb
+
+                    try:
+                        lifted_block = self._lift(addr_0, size=distance)
+                        irsb = lifted_block.vex
+                        irsb_string = lifted_block.bytes[:irsb.size]
+                    except SimTranslationError:
+                        nodecode = True
+
+                    if not (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode'):
+                        # it is decodeable
+                        if current_function_addr == addr:
+                            current_function_addr = addr_0
+                        addr = addr_0
+
+                if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
+                    # decoding error
+                    # we still occupy that location since it cannot be decoded anyways
+                    if irsb is None:
+                        irsb_size = 1
+                    else:
+                        irsb_size = irsb.size if irsb.size > 0 else 1
+                    self._seg_list.occupy(addr, irsb_size, 'nodecode')
+                    return None, None, None, None
+
                 if not (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode'):
                     # it is decodeable
                     if current_function_addr == addr:
                         current_function_addr = addr_0
                     addr = addr_0
+
+                # Occupy the block in segment list
+                is_thumb=False
+                if irsb.size > 0:
+                    if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
+                        # thumb mode
+                        is_thumb=True
+                    real_addr = addr
+                    self._seg_list.occupy(real_addr, irsb.size, "code")
+
+                if is_thumb:
+                    real_addr = addr - 1
+                # Create a CFG node, and add it to the graph
+                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
+                                   irsb=irsb, thumb=is_thumb, byte_string=irsb_string,
+                                   )
+
+                self._nodes[addr] = cfg_node
+                self._nodes_by_addr[addr].append(cfg_node)
 
             if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                 # decoding error
@@ -3532,22 +3728,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         current_function_addr
                         )
                 return None, None, None, None
-
-            is_thumb = False
-            # Occupy the block in segment list
-            if irsb.size > 0:
-                if is_arm_arch and addr % 2 == 1:
-                    # thumb mode
-                    is_thumb=True
-                self._seg_list.occupy(real_addr, irsb.size, "code")
-
-            # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
-                               irsb=irsb, thumb=is_thumb, byte_string=irsb_string,
-                               )
-
-            self._nodes[addr] = cfg_node
-            self._nodes_by_addr[addr].append(cfg_node)
 
             return addr, current_function_addr, cfg_node, irsb
 

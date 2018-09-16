@@ -756,6 +756,44 @@ class CFGBase(Analysis):
                 return True
         return False
 
+    def _rem_addr_from_exec_memory_regions(self, addr):
+        """
+        Remove an address from the executable memory region. Truncate prior region and then create a new region after this address
+
+        If addr is not in the executable memory region do nothing
+        """
+
+        new_regions = []
+        for (start, end) in self._exec_mem_regions:
+            if addr > start and addr < end: # Found region
+                new_regions.append((start, addr))
+                new_regions.append((addr+self.project.arch.bits*8, end))
+            else:
+                new_regions.append((start,end))
+
+        self._exec_mem_regions= new_regions
+
+    def _addr_belongs_to_section(self, addr):
+        """
+        Return the section object that the address belongs to.
+
+        :param int addr: The address to test
+        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
+                section information is not available.
+        :rtype: cle.Section
+        """
+
+        obj = self.project.loader.find_object_containing(addr)
+
+        if obj is None:
+            return None
+
+        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
+            # the address is from a special CLE section
+            return None
+
+        return obj.find_section_containing(addr)
+
     def _addrs_belong_to_same_section(self, addr_a, addr_b):
         """
         Test if two addresses belong to the same section.

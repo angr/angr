@@ -4479,3 +4479,11 @@ lib.add_number_mapping_from_dict("sparc64", {
     327: "perf_event_open",
     328: "recvmmsg",
 })
+
+lib.add_number_mapping_from_dict('ARMEL', {
+    1:  'exit',
+    3:  'read',
+    4:  'write',
+    5:  'open',
+    6:  'close',
+})
