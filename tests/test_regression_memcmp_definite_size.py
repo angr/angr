@@ -24,8 +24,8 @@ def regression_test_memcmp_strlen_simprocedure_interaction():
     x = sm.explore(find=0x8048b9b, num_find=3)
 
     nose.tools.assert_equal(len(x.found), 1)
-    for s in x.found:
-        solution = s.state.solver.eval_one(argv1, cast_to=bytes).strip(b"\x00")
+    for state in x.found:
+        solution = state.solver.eval_one(argv1, cast_to=bytes).strip(b"\x00")
         nose.tools.assert_equal(solution, b"Here_you_have_to_understand_a_little_C++_stuffs")
 
 

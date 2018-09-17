@@ -140,26 +140,7 @@ def test_unsat_core():
     unsat_core = s.solver.unsat_core()
     nose.tools.assert_equal(len(unsat_core), 2)
 
-def test_compatibility_layer():
-
-    s = angr.SimState(arch='AMD64', mode='symbolic')
-    x = s.solver.BVS('x', 32)
-
-    s.add_constraints(x > 20)
-    s.add_constraints(x < 40)
-
-    nose.tools.assert_true(s.solver.any_int(x) > 20)
-    nose.tools.assert_true(s.solver.any_int(x) < 40)
-
-    nose.tools.assert_true(len(s.solver.any_n_int(x, 100)), 19)
-
-    y = s.solver.BVS('y', 72)
-    s.add_constraints(y == 0x696c6f766563617400)
-
-    nose.tools.assert_true(s.solver.any_str(y) == b'ilovecat\x00')
-    nose.tools.assert_true(s.solver.any_n_str(y, 2) == [b'ilovecat\x00'])
 
 if __name__ == '__main__':
     test_unsat_core()
     test_concretization_strategies()
-    test_compatibility_layer()
