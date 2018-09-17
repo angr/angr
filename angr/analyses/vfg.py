@@ -474,9 +474,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         initial_state = self._prepare_initial_state(self._start, self._initial_state)
         initial_state.ip = self._start
 
-        initial_state = self.project.arch.prepare_state(initial_state,
-                                                        {'current_function': self._start, }
-                                                        )
+        if self.project.arch.name.startswith('MIPS'):
+            initial_state.regs.t9 = self._start
 
         # clear function merge points cache
         self._function_merge_points = {}

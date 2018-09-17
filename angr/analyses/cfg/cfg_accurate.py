@@ -960,15 +960,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if jumpkind is not None:
             state.history.jumpkind = jumpkind
 
-        state_info = None
-        # THIS IS A HACK FOR MIPS and ALSO PPC64
+        # THIS IS A HACK FOR MIPS
         if ip is not None and self.project.arch.name in ('MIPS32', 'MIPS64'):
             # We assume this is a function start
-            state_info = {'t9': state.solver.BVV(ip, self.project.arch.bits)}
-        elif ip is not None and self.project.arch.name == 'PPC64':
-            # Still assuming this is a function start
-            state_info = {'r2': state.registers.load('r2')}
-        state = self.project.arch.prepare_state(state, state_info)
+            state.regs.t9 = ip
+        # TODO there was at one point special logic for the ppc64 table of contents but it seems to have bitrotted
 
         return state
 
@@ -1237,7 +1233,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self._graph_add_edge(src_key, dst_key, **data)
             del self._pending_edges[block_id]
 
-        block_info = self.project.arch.gather_info_from_state(sim_successors.initial_state)
+        block_info = {reg: sim_successors.initial_state.registers.load(reg) for reg in self.project.arch.persistent_regs}
         self._block_artifacts[addr] = block_info
 
         job.cfg_node = cfg_node
