@@ -1,7 +1,7 @@
 import logging
 
 import claripy
-from archinfo import ArchMIPS32
+from archinfo import ArchMIPS32, ArchS390X
 
 from ..errors import (
     AngrCallableError,
@@ -52,7 +52,11 @@ class SimOS(object):
 
             resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
             try:
-                val = resolver()
+                if isinstance(self.arch, ArchS390X):
+                    # On s390x ifunc resolvers expect hwcaps.
+                    val = resolver(0)
+                else:
+                    val = resolver()
             except AngrCallableMultistateError:
                 _l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
                 return None
