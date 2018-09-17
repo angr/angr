@@ -6,6 +6,22 @@ import pkg_resources
 import shutil
 import platform
 
+if bytes is str:
+    raise Exception("""
+
+=-=-=-=-=-=-=-=-=-=-=-=-=  WELCOME TO THE FUTURE!  =-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+angr has transitioned to python 3. Due to the small size of the team behind it,
+we can't reasonably maintain compatibility between both python 2 and python 3.
+If you want to continue using the most recent version of angr (you definitely
+want that, trust us) you should upgrade to python 3. It's like getting your
+vaccinations. It hurts a little bit initially but in the end it's worth it.
+
+For more information, see here: https://docs.angr.io/MIGRATION.html
+
+Good luck!
+""")
+
 try:
     from setuptools import setup
     from setuptools import find_packages
