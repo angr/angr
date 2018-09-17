@@ -999,7 +999,7 @@ def register_types(mapping):
 
 def do_preprocess(defn):
     """
-    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessable?
+    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
     """
     import pycparser.ply.lex as lex
     import pycparser.ply.cpp as cpp
