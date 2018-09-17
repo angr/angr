@@ -2803,7 +2803,7 @@ class Reassembler(Analysis):
 
         if data_type is int:
             try:
-                return self.project.loader.memory.unpack_word(addr, size=size * 8, endness=endness)
+                return self.project.loader.memory.unpack_word(addr, size=size, endness=endness)
             except KeyError:
                 return None
 
