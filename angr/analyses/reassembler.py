@@ -71,10 +71,14 @@ CAPSTONE_REG_MAP = {
 # Utils
 
 def string_escape(s):
-    s = s.encode('string_escape')
 
-    s = s.replace("\\'", "'")
-    s = s.replace("\"", "\\\"")
+    if isinstance(s, bytes):
+        s = "".join(chr(i) for i in s)
+
+    s = s.encode('unicode_escape')
+
+    s = s.replace(b"\\'", b"'")
+    s = s.replace(b"\"", b"\\\"")
 
     return s
 
@@ -1210,7 +1214,7 @@ class Data(object):
         """
 
         self.sort = 'unknown'
-        content = self.binary.fast_memory_load(self.addr, self.size, str)
+        content = self.binary.fast_memory_load(self.addr, self.size, bytes)
         self.content = [ content ]
 
     def assign_labels(self):
@@ -1460,10 +1464,10 @@ class Data(object):
                                 content += [ "%s" % str(label) ]
                         addr += 1
 
-                        content += ['\t.byte %d' % ord(c)]
+                        content += ['\t.byte %d' % c]
             else:
                 for piece in self.content:
-                    content += [ '\t.byte %d' % ord(c) for c in piece ]
+                    content += [ '\t.byte %d' % c for c in piece ]
 
             s += "\n".join(content)
             s += "\n"
@@ -1556,6 +1560,8 @@ class Data(object):
                     addr = self.binary.fast_memory_load(self.addr + i * pointer_size, pointer_size, int,
                                                         endness=self.project.arch.memory_endness
                                                         )
+                    if addr is None:
+                        continue
                     obj = self.project.loader.find_object_containing(addr)
                     if obj is self.project.loader.main_object:
                         # a dynamic pointer
@@ -1574,8 +1580,8 @@ class Data(object):
                         self._content.append(addr)
 
             elif self.sort == 'string':
-                data = self.binary.fast_memory_load(self.addr, self.size, str)
-                if data[-1] == '\0':
+                data = self.binary.fast_memory_load(self.addr, self.size, bytes)
+                if data[-1] == b'\0':
                     self.null_terminated = True
                     data = data[:-1] # remove the null-byte. we'll use .asciz for it instead.
                 else:
@@ -1584,7 +1590,7 @@ class Data(object):
                 self._content = [data]
 
             elif self.sort == 'integer':
-                data = self.binary.fast_memory_load(self.addr, self.size, str)
+                data = self.binary.fast_memory_load(self.addr, self.size, bytes)
                 self._content = [ data ]
 
             elif self.sort == 'segment-boundary':
@@ -1597,12 +1603,12 @@ class Data(object):
                 # floating-point integers
                 # Python has some trouble in dealing with floating point numbers
                 # just store them as bytes
-                data = self.binary.fast_memory_load(self.addr, self.size, str)
+                data = self.binary.fast_memory_load(self.addr, self.size, bytes)
                 self._content = [ data ]
 
             else:
                 # other sorts
-                content = self.binary.fast_memory_load(self.addr, self.size, str)
+                content = self.binary.fast_memory_load(self.addr, self.size, bytes)
                 if content is not None:
                     self._content = [content]
                 else:
@@ -2537,16 +2543,19 @@ class Reassembler(Analysis):
         l.debug('Initialized.')
 
     def _is_sequence(self, cfg, addr, size):
-        data = self.fast_memory_load(addr, size, str)
+        data = self.fast_memory_load(addr, size, bytes)
+        if data is None:
+            return False
         ints = [i for i in data]
         if len(set([(i - j) for i, j in zip(ints, ints[1:])])) == 1:
             # arithmetic progression
             # backoff: it should not be ending with a pointer
             closest_aligned_addr = (addr + size - 1) & 0xfffffffc
             ptr = self.fast_memory_load(closest_aligned_addr, 4, int, endness=self.project.arch.memory_endness)
+            if ptr is None:
+                return False
             if self._is_pointer(cfg, ptr):
                 return False
-
             return True
         return False
 
@@ -2629,9 +2638,9 @@ class Reassembler(Analysis):
         if max_size < 100:
             return None, None
 
-        data = self.fast_memory_load(data_addr, 20, str)
+        data = self.fast_memory_load(data_addr, 20, bytes)
 
-        if data[:4] != 'The ':
+        if data is not None and data[:4] != b'The ':
             return None, None
 
         # read everything in
@@ -2788,7 +2797,7 @@ class Reassembler(Analysis):
         :param data_type:   Type of the data.
         :param str endness: Endianness of this memory load.
         :return:            Data read out of the memory.
-        :rtype:             bytearray
+        :rtype:             int or bytes or str or None
         """
 
         if data_type is int:
@@ -2798,7 +2807,10 @@ class Reassembler(Analysis):
                 return None
 
         try:
-            return self.project.loader.memory.load(addr, size)
+            data = self.project.loader.memory.load(addr, size)
+            if data_type is str:
+                return "".join(chr(i) for i in data)
+            return data
         except KeyError:
             return None
 
