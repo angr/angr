@@ -2538,7 +2538,7 @@ class Reassembler(Analysis):
 
     def _is_sequence(self, cfg, addr, size):
         data = self.fast_memory_load(addr, size, str)
-        ints = [ord(i) for i in data]
+        ints = [i for i in data]
         if len(set([(i - j) for i, j in zip(ints, ints[1:])])) == 1:
             # arithmetic progression
             # backoff: it should not be ending with a pointer
