@@ -205,7 +205,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                 else:
                     try:
-                        data.add(self.state.loader.memory.unpack_word(a, size=size))
+                        data.add(self.state.loader.memory.unpack_word(a, size=size * 8))
                     except struct.error:
                         pass
 

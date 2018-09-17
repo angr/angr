@@ -2780,9 +2780,20 @@ class Reassembler(Analysis):
         return False
 
     def fast_memory_load(self, addr, size, data_type, endness='Iend_LE'):
+        """
+        Load memory bytes from loader's memory backend.
+
+        :param int addr:    The address to begin memory loading.
+        :param int size:    Size in bytes.
+        :param data_type:   Type of the data.
+        :param str endness: Endianness of this memory load.
+        :return:            Data read out of the memory.
+        :rtype:             bytearray
+        """
+
         if data_type is int:
             try:
-                return self.project.loader.memory.unpack_word(addr, size=size, endness=endness)
+                return self.project.loader.memory.unpack_word(addr, size=size * 8, endness=endness)
             except KeyError:
                 return None
 
@@ -2790,6 +2801,7 @@ class Reassembler(Analysis):
             return self.project.loader.memory.load(addr, size)
         except KeyError:
             return None
+
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('Reassembler', Reassembler)
