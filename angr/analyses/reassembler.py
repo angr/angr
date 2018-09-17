@@ -379,7 +379,8 @@ class SymbolManager(object):
         Mark a certain label as assigned (to an instruction or a block of data).
 
         :param int addr: The address of the label.
-        :param Label label: The label that is just assigned.
+        :param angr.analyses.reassembler.Label label:
+                         The label that is just assigned.
         :return: None
         """
 
