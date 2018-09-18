@@ -1554,7 +1554,7 @@ class Data(object):
             if self.sort == 'pointer-array':
                 # read out the address
                 pointer_size = self.project.arch.bytes
-                pointers = self.size / pointer_size
+                pointers = self.size // pointer_size
 
                 self._content = []
                 for i in range(pointers):
@@ -1977,7 +1977,7 @@ class Reassembler(Analysis):
         Append a new data entry into the binary with specific name, content, and size.
 
         :param str name: Name of the data entry. Will be used as the label.
-        :param str initial_content: The initial content of the data entry.
+        :param bytes initial_content: The initial content of the data entry.
         :param int size: Size of the data entry.
         :param bool readonly: If the data entry belongs to the readonly region.
         :param str sort: Type of the data.
@@ -1990,8 +1990,8 @@ class Reassembler(Analysis):
             section_name = '.data'
 
         if initial_content is None:
-            initial_content = ""
-        initial_content = initial_content.ljust(size, "\x00")
+            initial_content = b""
+        initial_content = initial_content.ljust(size, b"\x00")
         data = Data(self, memory_data=None, section_name=section_name, name=name, initial_content=initial_content,
                     size=size, sort=sort
                     )
@@ -2094,7 +2094,7 @@ class Reassembler(Analysis):
         for proc in self.procedures:
             addr_and_assembly.extend(proc.assembly(comments=comments, symbolized=symbolized))
         # sort it by the address - must be a stable sort!
-        addr_and_assembly = sorted(addr_and_assembly, key=lambda x: x[0])
+        addr_and_assembly = sorted(addr_and_assembly, key=lambda x: x[0] if x[0] is not None else -1)
         all_assembly_lines.extend(line for _, line in addr_and_assembly)
 
         last_section = None
