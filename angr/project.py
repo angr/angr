@@ -35,9 +35,9 @@ def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
             BytesIO(shellcode),
             main_opts={
                 'backend': 'blob',
-                'custom_arch': arch,
-                'custom_entry_point': start_offset,
-                'custom_base_addr': load_address,
+                'arch': arch,
+                'entry_point': start_offset,
+                'base_addr': load_address,
             }
         )
 
