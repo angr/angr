@@ -75,10 +75,10 @@ def string_escape(s):
     if isinstance(s, bytes):
         s = "".join(chr(i) for i in s)
 
-    s = s.encode('unicode_escape')
+    s = s.encode('unicode_escape').decode("utf-8")
 
-    s = s.replace(b"\\'", b"'")
-    s = s.replace(b"\"", b"\\\"")
+    s = s.replace("\\'", "'")
+    s = s.replace("\"", "\\\"")
 
     return s
 
