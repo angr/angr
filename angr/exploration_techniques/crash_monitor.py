@@ -34,10 +34,6 @@ class CrashMonitor(ExplorationTechnique):
         self._crash_type = None
         self._crash_state = None
 
-    def setup(self, simgr):
-        self.project = simgr._project
-        simgr.active[0].inspect.b('state_step', when=BP_AFTER, action=self._check_stack)
-
     def complete(self, simgr):
         # if we spot a crashed state, return the goods >:]
         if self._crash_type is not None:
@@ -57,6 +53,8 @@ class CrashMonitor(ExplorationTechnique):
             self.last_state = simgr.active[0]
 
             simgr = simgr.step(stash=stash, **kwargs)
+            for state in simgr.stashes[stash]:
+                self._check_stack(state)
 
             if self._crash_type == EXEC_STACK:
                 return simgr
