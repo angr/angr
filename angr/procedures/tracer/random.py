@@ -14,9 +14,11 @@ class random(angr.SimProcedure):
                                      claripy.BVV(0, self.state.arch.bits))
 
         if self.state.satisfiable(extra_constraints=[count!=0]):
+            max_size = min(1024768 * 10, self.state.solver.max_int(count))
             self.state.memory.store(buf,
-                                    claripy.BVV(b'A' * self.state.solver.max_int(count)),
-                                    size=count)
+                                    claripy.BVV(b'A' * max_size),
+                                    size=count
+                                    )
 
         self.state.memory.store(rnd_bytes,
                                 count,
