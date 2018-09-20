@@ -1578,15 +1578,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: set
         """
 
-        symbols_by_addr = self._binary.symbols_by_addr
-
-        func_addrs = set()
-
-        for addr, sym in symbols_by_addr.items():
-            if sym.is_function:
-                func_addrs.add(addr)
-
-        return func_addrs
+        return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
 
     def _func_addrs_from_prologues(self):
         """

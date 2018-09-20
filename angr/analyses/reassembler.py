@@ -323,37 +323,37 @@ class SymbolManager(object):
 
         # Check if the address points to a function by checking the plt of main binary
         reverse_plt = self.project.loader.main_object.reverse_plt
-        symbols_by_addr = self.project.loader.main_object.symbols_by_addr
 
         if addr in reverse_plt:
             # It's a PLT entry!
             label = FunctionLabel(self.binary, reverse_plt[addr], addr, plt=True)
-        elif addr in symbols_by_addr:
+        elif self.project.loader.find_symbol(addr) is not None:
             # It's an extern symbol
-            symbol = symbols_by_addr[addr]
-            symbol_name = symbol.name
-            if '@' in symbol_name:
-                symbol_name = symbol_name[ : symbol_name.index('@') ]
+            symbol = self.project.loader.find_symbol(addr)
+            if symbol.owner_object is self.project.loader.main_object:
+                symbol_name = symbol.name
+                if '@' in symbol_name:
+                    symbol_name = symbol_name[ : symbol_name.index('@') ]
 
-            # check the type...
-            if symbol.type == cle.Symbol.TYPE_FUNCTION:
-                # it's a function!
-                label = FunctionLabel(self.binary, symbol_name, addr)
-            elif symbol.type == cle.Symbol.TYPE_OBJECT:
-                # it's an object
-                label = ObjectLabel(self.binary, symbol_name, addr)
-            elif symbol.type == cle.Symbol.TYPE_NONE:
-                # notype
-                label = NotypeLabel(self.binary, symbol_name, addr)
-            elif symbol.type == cle.Symbol.TYPE_SECTION:
-                # section label
-                # use a normal label instead
-                if not name:
-                    # handle empty names
-                    name = None
-                label = Label.new_label(self.binary, name=name, original_addr=addr)
-            else:
-                raise Exception('Unsupported symbol type %s. Bug Fish about it!' % symbol.type)
+                # check the type...
+                if symbol.type == cle.Symbol.TYPE_FUNCTION:
+                    # it's a function!
+                    label = FunctionLabel(self.binary, symbol_name, addr)
+                elif symbol.type == cle.Symbol.TYPE_OBJECT:
+                    # it's an object
+                    label = ObjectLabel(self.binary, symbol_name, addr)
+                elif symbol.type == cle.Symbol.TYPE_NONE:
+                    # notype
+                    label = NotypeLabel(self.binary, symbol_name, addr)
+                elif symbol.type == cle.Symbol.TYPE_SECTION:
+                    # section label
+                    # use a normal label instead
+                    if not name:
+                        # handle empty names
+                        name = None
+                    label = Label.new_label(self.binary, name=name, original_addr=addr)
+                else:
+                    raise Exception('Unsupported symbol type %s. Bug Fish about it!' % symbol.type)
 
         elif (addr is not None and addr in self.cfg.functions) or is_function:
             # It's a function identified by angr's CFG recovery
