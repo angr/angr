@@ -327,10 +327,10 @@ class SymbolManager(object):
         if addr in reverse_plt:
             # It's a PLT entry!
             label = FunctionLabel(self.binary, reverse_plt[addr], addr, plt=True)
-        elif self.project.loader.find_symbol(addr) is not None:
+        elif addr is not None and self.project.loader.find_symbol(addr) is not None:
             # It's an extern symbol
             symbol = self.project.loader.find_symbol(addr)
-            if symbol.owner_object is self.project.loader.main_object:
+            if symbol.owner_obj is self.project.loader.main_object:
                 symbol_name = symbol.name
                 if '@' in symbol_name:
                     symbol_name = symbol_name[ : symbol_name.index('@') ]
@@ -368,7 +368,7 @@ class SymbolManager(object):
                     function_name = "_start"
 
             label = FunctionLabel(self.binary, function_name, addr)
-        elif self.binary.main_nonexecutable_regions_contain(addr):
+        elif addr is not None and self.binary.main_nonexecutable_regions_contain(addr):
             label = DataLabel(self.binary, addr)
         else:
             label = Label.new_label(self.binary, name=name, original_addr=addr)
