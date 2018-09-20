@@ -1407,7 +1407,7 @@ class Data(object):
                                     content += [ "%s" % str(label) ]
                             addr += 1
 
-                            content += ['\t.byte %d' % ord(c)]
+                            content += ['\t.byte %d' % c]
 
             else:
                 integer = struct.unpack(fmt_str, self.content[0])[0]
@@ -1439,10 +1439,10 @@ class Data(object):
                                 content += [ "%s" % str(label) ]
                         addr += 1
 
-                        content += ['\t.byte %d' % ord(c)]
+                        content += ['\t.byte %d' % c]
             else:
                 for piece in self.content:
-                    content += ['\t.byte %d' % ord(c) for c in piece]
+                    content += ['\t.byte %d' % c for c in piece]
 
             s += "\n".join(content)
             s += "\n"

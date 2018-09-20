@@ -2488,7 +2488,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if can_decode(4) or can_decode(5) or can_decode(6):
                 running_failures = 0
                 last_success = 4
-                for i in range(4, len(data)):
+                for i in range(4, len(data) // 2):
                     if can_decode(i):
                         last_success = i
                         running_failures = 0
