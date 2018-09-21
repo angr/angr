@@ -1593,7 +1593,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             regexes.append(r)
 
         # Construct the binary blob first
-        unassured_functions = []
+        unassured_functions = [ ]
 
         for start_, bytes_ in self._binary.memory.backers():
             for regex in regexes:
@@ -1604,7 +1604,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
                         if self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position)
-        l.info("Found %d functions with prologue scanning." % len(unassured_functions))
+        l.info("Found %d functions with prologue scanning.", len(unassured_functions))
         return unassured_functions
 
     # Basic block scanning
@@ -2006,6 +2006,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         jobs = [ ]
+
         if is_syscall:
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
@@ -2061,6 +2062,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     func_edges.append(fakeret_edge)
                     ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
                     func_edges.append(ret_edge)
+
                     # Also, keep tracing from the return site
                     ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
                                 src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
@@ -3300,7 +3302,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if 'lr_saved_on_stack' in function.info:
             return
 
-        #
         # if it does, we log it down to the Function object.
         lr_offset = self.project.arch.registers['lr'][0]
         sp_offset = self.project.arch.sp_offset
@@ -3361,7 +3362,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if 'lr_saved_on_stack' not in function.info or not function.info['lr_saved_on_stack']:
             return
-        
+
         sp_offset = self.project.arch.sp_offset
         initial_sp = 0x7fff0000
         last_sp = None

@@ -221,9 +221,14 @@ class SimEngineVEX(SimEngine):
 
         insn_addrs = [ ]
 
+        if irsb.next is None:
+            l.warning("The .next property of IRSB %#x has an unexpected value None. has_default_exit will be set to False.",
+                      irsb.addr)
+            has_default_exit = False
+
         # if we've told the block to truncate before it ends, it will definitely have a default
         # exit barring errors
-        has_default_exit = (last_stmt == 'default' or num_stmts <= last_stmt) and irsb.next is not None
+        has_default_exit = has_default_exit and (last_stmt == 'default' or num_stmts <= last_stmt)
 
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:

@@ -1388,9 +1388,11 @@ class CFGBase(Analysis):
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
                 self._update_progress(progress)
+
             self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
                                    tmp_functions, traversed_cfg_nodes
                                    )
+
         # Don't forget those small function chunks that are not called by anything.
         # There might be references to them from data, or simply references that we cannot find via static analysis
 
@@ -1418,6 +1420,7 @@ class CFGBase(Analysis):
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_3_progress + (max_stage_3_progress - min_stage_3_progress) * (i * 1.0 / nodes_count)
                 self._update_progress(progress)
+
             self._graph_bfs_custom(self.graph, [fn], self._graph_traversal_handler, blockaddr_to_function,
                                    tmp_functions
                                    )
@@ -1430,6 +1433,7 @@ class CFGBase(Analysis):
                 addr = fn.addr - (fn.addr % 16)
                 if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
                     to_remove.add(fn.addr)
+
         # remove empty functions
         for function in self.kb.functions.values():
             if function.startpoint is None:
@@ -1654,6 +1658,7 @@ class CFGBase(Analysis):
 
         while stack:
             n = stack.pop(last=False)  # type: CFGNode
+
             if n in traversed:
                 continue
 
@@ -1695,6 +1700,7 @@ class CFGBase(Analysis):
 
         src_addr = src.addr
         src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
+
         if src_addr not in src_function.block_addrs_set:
             n = self.get_any_node(src_addr)
             if n is None: node = src_addr
@@ -1723,6 +1729,7 @@ class CFGBase(Analysis):
         stmt_idx = data.get('stmt_idx', None)
 
         if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
+
             is_syscall = jumpkind.startswith('Ijk_Sys')
 
             # It must be calling a function
@@ -2020,6 +2027,7 @@ class CFGBase(Analysis):
                     if there is one or None otherwise)
         :rtype:     tuple
         """
+
         jumpkind = irsb.jumpkind
         l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
 
