@@ -23,7 +23,7 @@ angr is a suite of Python 3 libraries that let you load a binary and do a lot of
 
 The most common angr operation is loading a binary: `p = angr.Project('/bin/bash')` If you do this in an enhanced REPL like IPython, you can use tab-autocomplete to browse the [top-level-accessible methods](http://docs.angr.io/docs/toplevel.html) and their docstrings.
 
-The short version of "how to install angr" is `mkvirtualenv --python=`which python3` angr && python -m pip install angr`.
+The short version of "how to install angr" is `mkvirtualenv --python=$(which python3) angr && python -m pip install angr`.
 
 # Example
 
