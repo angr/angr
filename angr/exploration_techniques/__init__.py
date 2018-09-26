@@ -4,17 +4,16 @@ from ..errors import SimError
 
 # 8<----------------- Compatibility layer -----------------
 class ExplorationTechniqueMeta(type):
-
-    def __new__(mcs, name, bases, attrs):
+    def __new__(cls, name, bases, attrs):
         import inspect
         if name != 'ExplorationTechniqueCompat':
-            if 'step' in attrs and not inspect.getargspec(attrs['step'])[3]:
-                attrs['step'] = mcs._step_factory(attrs['step'])
-            if 'filter' in attrs and inspect.getargspec(attrs['filter'])[0][1] != 'simgr':
-                attrs['filter'] = mcs._filter_factory(attrs['filter'])
-            if 'step_state' in attrs and inspect.getargspec(attrs['step_state'])[0][1] != 'simgr':
-                attrs['step_state'] = mcs._step_state_factory(attrs['step_state'])
-        return type.__new__(mcs, name, bases, attrs)
+            if 'step' in attrs and not inspect.getargspec(attrs['step']).defaults:
+                attrs['step'] = cls._step_factory(attrs['step'])
+            if 'filter' in attrs and inspect.getargspec(attrs['filter']).args[1] != 'simgr':
+                attrs['filter'] = cls._filter_factory(attrs['filter'])
+            if 'step_state' in attrs and inspect.getargspec(attrs['step_state']).args[1] != 'simgr':
+                attrs['step_state'] = cls._step_state_factory(attrs['step_state'])
+        return type.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _step_factory(step):
