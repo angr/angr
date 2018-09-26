@@ -38,7 +38,7 @@ def run_fauxware_override(arch):
     def overwrite_str(state):
         state.posix.get_fd(1).write_data("HAHA\0")
 
-    #s.posix.queued_syscall_returns = [ ] #[ lambda s,run: __import__('ipdb').set_trace() ] * 1000
+    #s.posix.queued_syscall_returns = [ ]
     s.posix.queued_syscall_returns.append(None) # let the mmap run
     s.posix.queued_syscall_returns.append(overwrite_str) # prompt for username
     s.posix.queued_syscall_returns.append(0) # username read

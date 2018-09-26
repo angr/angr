@@ -850,11 +850,6 @@ class DDG(Analysis):
                 else:
                     l.debug("Skip an unsupported action %s.", a)
 
-        #import pprint
-        #pprint.pprint(self._data_graph.edges())
-        #pprint.pprint(self.simplified_data_graph.edges())
-        # import ipdb; ipdb.set_trace()
-
         return self._live_defs
 
     def _def_lookup(self, variable):  # pylint:disable=no-self-use
