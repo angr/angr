@@ -138,10 +138,6 @@ class TypeBackend(claripy.Backend):
     def default_op(expr):
         return TypedValue(Top(label=[]), expr)
 
-    #def convert(self, *args, **kwargs):
-    #    import ipdb; ipdb.set_trace()
-    #    return super(TypeBackend, self).convert(*args, **kwargs)
-
 class TypeAnnotation(claripy.Annotation):
     def __init__(self, ty):
         self.ty = ty

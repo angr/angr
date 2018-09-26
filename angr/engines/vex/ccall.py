@@ -586,7 +586,6 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
         if v == 0xe:
             # jle
             pass
-            # import ipdb; ipdb.set_trace()    l.debug("cond value: 0x%x", v)
         if v in [data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO']]:
             l.debug("CondO")
             of = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
