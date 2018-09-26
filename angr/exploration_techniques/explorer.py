@@ -95,7 +95,7 @@ class Explorer(ExplorationTechnique):
         if not self.avoid_stash in simgr.stashes: simgr.stashes[self.avoid_stash] = []
 
     def step(self, simgr, stash='active', **kwargs):
-        base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
+        base_extra_stop_points = set(kwargs.pop("extra_stop_points", []))
         return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
     def _classify(self, addr, findable, avoidable):
