@@ -493,13 +493,6 @@ class Project(object):
         self.hook(hook_addr, simproc, kwargs=kwargs, replace=replace)
         return hook_addr
 
-    def hook_symbol_batch(self, hooks):
-        if once("hook_symbol_batch warning"):
-            l.critical("Due to advances in technology, hook_symbol_batch is no longer necessary for performance. Please use hook_symbol several times.")
-
-        for x in hooks:
-            self.hook_symbol(x, hooks[x])
-
     def is_symbol_hooked(self, symbol_name):
         """
         Check if a symbol is already hooked.
