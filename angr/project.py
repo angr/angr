@@ -10,7 +10,7 @@ from collections import defaultdict
 import archinfo
 import cle
 
-from .misc.ux import once, deprecated
+from .misc.ux import deprecated
 
 l = logging.getLogger("angr.project")
 projects = weakref.WeakValueDictionary()
@@ -42,7 +42,7 @@ def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
         )
 
 
-class Project(object):
+class Project:
     """
     This is the main class of the angr module. It is meant to contain a set of binaries and the relationships between
     them, and perform analyses on them.
