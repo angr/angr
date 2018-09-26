@@ -51,6 +51,10 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
             return False
 
         section = self.project.loader.find_section_containing(addr)
+
+        if section is None:
+            return False
+
         if section.name != '.plt':
             return False
 

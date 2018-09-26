@@ -179,7 +179,7 @@ class Project(object):
 
         if support_selfmodifying_code:
             if translation_cache is True:
-                translation_cache = False
+                self._translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry

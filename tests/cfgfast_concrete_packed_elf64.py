@@ -5,11 +5,18 @@ import os
 import avatar2 as avatar2
 
 import angr
+import angrutils
 import claripy
+
+
 from angr_targets import AvatarGDBConcreteTarget
 
+
+
+
+
 binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          os.path.join('..', '..', 'binaries','tests','x86_64','packed_elf64'))
+                                          os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'packed_elf64'))
 
 
 GDB_SERVER_IP = '127.0.0.1'
@@ -44,7 +51,16 @@ def test_concrete_engine_linux_x64_no_simprocedures():
     print("test_concrete_engine_linux_x64_no_simprocedures")
     global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-    p = angr.Project(binary_x64 ,concrete_target=avatar_gdb, use_sim_procedures=False)
+    p = angr.Project(binary_x64 ,concrete_target=avatar_gdb, support_selfmodifying_code=True,  use_sim_procedures=False)
+    entry_state = p.factory.entry_state()
+    solv_concrete_engine_linux_x64(p,entry_state)
+
+
+def test_concrete_engine_linux_x64_simprocedures():
+    print("test_concrete_engine_linux_x64_no_simprocedures")
+    global avatar_gdb
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64 ,concrete_target=avatar_gdb, support_selfmodifying_code=True, use_sim_procedures=True)
     entry_state = p.factory.entry_state()
     solv_concrete_engine_linux_x64(p,entry_state)
 
@@ -54,14 +70,14 @@ def test_concrete_engine_linux_x64_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
     global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-    p = angr.Project(binary_x64 , concrete_target=avatar_gdb, use_sim_procedures=False)
-    entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
-    solv_concrete_engine_linux_x64(p,entry_state)
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb, support_selfmodifying_code=True, use_sim_procedures=False)
+    entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
+    solv_concrete_engine_linux_x64(p, entry_state)
 
 
-def execute_concretly(project, state,address,concretize):
+def execute_concretly(project, state, address, concretize):
     simgr = project.factory.simgr(state)
-    simgr.use_technique(angr.exploration_techniques.Symbion(find=[address], concretize = concretize))
+    simgr.use_technique(angr.exploration_techniques.Symbion(find=[address], concretize=concretize))
     exploration = simgr.run()
     return exploration.stashes['found'][0]
 
@@ -76,11 +92,11 @@ def solv_concrete_engine_linux_x64(p,entry_state):
 
     new_concrete_state = execute_concretly(p, new_concrete_state, BINARY_DECISION_ADDRESS, [])
 
-    arg0 = claripy.BVS('arg0', 8*32)
-    symbolic_buffer_address = new_concrete_state.regs.rbp-0xc0
-    new_concrete_state.memory.store(symbolic_buffer_address, arg0)
+    cfg = p.analyses.CFGFast(regions=[(0x400b95, 0x400DE6)], base_state=new_concrete_state)
+    print "It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges()))
+    angrutils.plot_cfg(cfg, "/home/degrigis/Desktop/packed_elf64", asminst=True, remove_imports=True, remove_path_terminator=True)
 
-    cfg = p.analyses.CFGFast(regions=[(0x400CD6,0x400DE6)],base_state=new_concrete_state, function_starts=[BINARY_DECISION_ADDRESS])
-    print(dir(cfg.kb))
-    print(cfg.kb.functions())
 
+setup_x64()
+test_concrete_engine_linux_x64_no_simprocedures()
+teardown()

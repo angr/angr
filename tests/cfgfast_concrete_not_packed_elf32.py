@@ -5,7 +5,9 @@ import subprocess
 import avatar2 as avatar2
 
 import angr
-import claripy
+import angrutils
+
+
 
 from angr_targets import AvatarGDBConcreteTarget
 
@@ -63,9 +65,9 @@ def test_concrete_engine_linux_x86_no_simprocedures():
     print("test_concrete_engine_linux_x86_no_simprocedures")
     global avatar_gdb
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
-    p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=False)
+    p = angr.Project(binary_x86, concrete_target=avatar_gdb, support_selfmodifying_code=True, use_sim_procedures=False)
     entry_state = p.factory.entry_state()
-    solv_concrete_engine_linux_x86(p,entry_state)
+    solv_concrete_engine_linux_x86(p, entry_state)
 
 
 
@@ -88,9 +90,6 @@ def test_concrete_engine_linux_x86_unicorn_no_simprocedures():
     solv_concrete_engine_linux_x86(p,entry_state)
 
 
-
-
-
 def execute_concretly(p,state,address,concretize):
     simgr = p.factory.simgr(state)
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[address], concretize = concretize))
@@ -99,13 +98,13 @@ def execute_concretly(p,state,address,concretize):
 
 def solv_concrete_engine_linux_x86(p,entry_state):
     print "[1]Executing binary concretely until address: " + hex(BINARY_DECISION_ADDRESS)
-
-    new_concrete_state = execute_concretly(p,entry_state,BINARY_DECISION_ADDRESS,[])
-
-    cfg = p.analyses.CFGFast(base_state=new_concrete_state, function_starts=[BINARY_DECISION_ADDRESS])
-
-    print(cfg)
-    #plot_cfg(cfg, "ais3_cfg", asminst=True, remove_imports=True, remove_path_terminator=True)
+    new_concrete_state = execute_concretly(p, entry_state, BINARY_DECISION_ADDRESS,[])
+    cfg = p.analyses.CFGFast(regions=[(BINARY_OEP, BINARY_EXECUTION_END)], base_state=new_concrete_state )
     print "It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges()))
+    angrutils.plot_cfg(cfg, "/home/degrigis/Desktop/not_packed_elf32", asminst=True, remove_imports=True, remove_path_terminator=True)
 
+
+setup_x86()
+test_concrete_engine_linux_x86_no_simprocedures()
+teardown()
 
