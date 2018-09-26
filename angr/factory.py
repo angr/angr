@@ -7,7 +7,6 @@ from .errors import AngrAssemblyError
 
 
 l = logging.getLogger("angr.factory")
-_complained_simgr = False
 
 class AngrObjectFactory(object):
     """
@@ -182,6 +181,12 @@ class AngrObjectFactory(object):
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
 
+    def simgr(self, *args, **kwargs):
+        """
+        Alias for `simulation_manager` to save our poor fingers
+        """
+        return self.simulation_manager(*args, **kwargs)
+
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
@@ -281,16 +286,6 @@ class AngrObjectFactory(object):
     _default_cc = None
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
-
-    def simgr(self, *args, **kwargs):
-        """
-        Deprecated alias for `simulation_manager`
-        """
-        global _complained_simgr
-        if not _complained_simgr:
-            _complained_simgr = True
-            l.critical("The name factory.simgr is deprecated; please use factory.simulation_manager")
-        return self.simulation_manager(*args, **kwargs)
 
 
 from .errors import AngrError
