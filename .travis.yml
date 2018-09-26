@@ -1,5 +1,5 @@
 sudo: required
-dist: trusty
+dist: xenial
 env:
   - PY=e ANGR_REPO=angr
   - PY=e ANGR_REPO=angr-platforms
