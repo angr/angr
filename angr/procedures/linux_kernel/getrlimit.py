@@ -12,7 +12,6 @@ class getrlimit(angr.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, resource, rlim):
-        #import ipdb; ipdb.set_trace()
 
         if self.state.se.eval(resource) == 3:  # RLIMIT_STACK
             l.debug('running getrlimit(RLIMIT_STACK)')

@@ -570,16 +570,6 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         if node.addr in self._node_to_input_state:
             prev_state = self._node_to_input_state[node.addr]
-            #if node.addr == 0x804824f:
-            #    print "###\n### STACK\n###"
-            #    print input_state.stack_region.dbg_repr()
-            #    print ""
-            #    print prev_state.stack_region.dbg_repr()
-            #    print "###\nREGISTER\n###"
-            #    print input_state.register_region.dbg_repr()
-            #    print ""
-            #    print prev_state.register_region.dbg_repr()
-            #    # import ipdb; ipdb.set_trace()
             if input_state == prev_state:
                 l.debug('Skip node %#x as we have reached a fixed-point', node.addr)
                 return False, input_state

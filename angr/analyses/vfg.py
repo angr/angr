@@ -1040,8 +1040,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # print "job_0.state.eax =", job_0.state.regs.eax._model_vsa, "job_1.state.eax =", job_1.state.regs.eax._model_vsa
         # print "new_job.state.eax =", new_state.regs.eax._model_vsa
 
-        # import ipdb; ipdb.set_trace()
-
         new_job = VFGJob(jobs[0].addr, new_state, self._context_sensitivity_level, jumpkind=jobs[0].jumpkind,
                          block_id=jobs[0].block_id, call_stack=jobs[0].call_stack, src_block_id=jobs[0].src_block_id,
                          src_exit_stmt_idx=jobs[0].src_exit_stmt_idx, src_ins_addr=jobs[0].src_ins_addr,
