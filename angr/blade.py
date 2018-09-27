@@ -14,7 +14,7 @@ class Blade(object):
                  ignore_bp=False, ignored_regs=None, max_level=3, base_state=None):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
-                                        angr.analyses.CFGAccurate or angr.analyses.CFGFast.
+                                        angr.analyses.CFGEmulated or angr.analyses.CFGFast.
         :param int dst_run:             An address specifying the target SimRun.
         :param int dst_stmt_idx:        The target statement index. -1 means executing until the last statement.
         :param str direction:           'backward' or 'forward' slicing. Forward slicing is not yet supported.

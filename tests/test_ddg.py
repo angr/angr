@@ -19,7 +19,7 @@ def perform_one(binary_path):
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
     start = time.time()
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=2, keep_state=True,
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=2, keep_state=True,
                                     state_add_options=angr.sim_options.refs  # refs are necessary for DDG to work
                                     )
     end = time.time()

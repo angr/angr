@@ -273,7 +273,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  ):
         """
         :param cfg: The control-flow graph to base this analysis on. If none is provided, we will
-                    construct a CFGAccurate.
+                    construct a CFGEmulated.
         :param context_sensitivity_level: The level of context-sensitivity of this VFG.
                                         It ranges from 0 to infinity. Default 2.
         :param function_start: The address of the function to analyze.
@@ -462,7 +462,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             l.debug("Generating a CFG, since none was given...")
             # TODO: can we use a fast CFG instead? note that fast CFG does not care of context sensitivity at all, but
             # TODO: for state merging, we also don't really care about context sensitivity.
-            self._cfg = self.project.analyses.CFGAccurate(context_sensitivity_level=self._context_sensitivity_level,
+            self._cfg = self.project.analyses.CFGEmulated(context_sensitivity_level=self._context_sensitivity_level,
                 starts=(self._start,)
             )
 

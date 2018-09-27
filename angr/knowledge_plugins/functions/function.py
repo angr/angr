@@ -930,7 +930,7 @@ class Function(object):
         Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
         that IDA Pro generates.
 
-        This method does not touch the CFG result. You may call CFG{Accurate, Fast}.normalize() for that matter.
+        This method does not touch the CFG result. You may call CFG{Emulated, Fast}.normalize() for that matter.
 
         :return: None
         """

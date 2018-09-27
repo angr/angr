@@ -176,7 +176,7 @@ class BinaryOptimizer(Analysis):
         #    14 | PUT(eip) = 0x0804828b
         # there is no write to or read from eax
 
-        cfg = self.project.analyses.CFGAccurate(kb=func_kb,
+        cfg = self.project.analyses.CFGEmulated(kb=func_kb,
                                                 call_depth=1,
                                                 base_graph=function.graph,
                                                 keep_state=True,

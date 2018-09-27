@@ -110,7 +110,7 @@ def test_find_to_middle():
 def test_explore_with_cfg():
     p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})
 
-    cfg = p.analyses.CFGAccurate()
+    cfg = p.analyses.CFGEmulated()
 
     pg = p.factory.simulation_manager()
     pg.use_technique(angr.exploration_techniques.Explorer(find=0x4006ED, cfg=cfg, num_find=3))

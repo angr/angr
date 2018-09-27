@@ -21,7 +21,7 @@ def run_vfg_buffer_overflow(arch):
                  use_sim_procedures=True,
                  default_analysis_mode='symbolic')
 
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1)
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1)
 
     # For this test case, OPTIMIZE_IR does not work due to the way we are widening the states: an index variable
     # directly goes to 0xffffffff, and when OPTIMIZE_IR is used, it does a signed comparison with 0x27, which
@@ -129,7 +129,7 @@ def run_vfg_1(arch):
         use_sim_procedures=True,
     )
 
-    cfg = proj.analyses.CFGAccurate()
+    cfg = proj.analyses.CFGEmulated()
     vfg = proj.analyses.VFG(cfg, start=0x40071d, context_sensitivity_level=10, interfunction_level=10,
                             record_function_final_states=True
                             )
