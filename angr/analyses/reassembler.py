@@ -330,7 +330,7 @@ class SymbolManager(object):
         elif addr is not None and self.project.loader.find_symbol(addr) is not None:
             # It's an extern symbol
             symbol = self.project.loader.find_symbol(addr)
-            if symbol.owner_obj is self.project.loader.main_object:
+            if symbol.owner is self.project.loader.main_object:
                 symbol_name = symbol.name
                 if '@' in symbol_name:
                     symbol_name = symbol_name[ : symbol_name.index('@') ]

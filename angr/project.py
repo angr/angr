@@ -243,27 +243,27 @@ class Project:
                 # we can try to guess them here. Once the Binary Ninja API starts supplying the dependencies,
                 # The if/else, along with Project._guess_simprocedure() can be removed if it has no other utility,
                 # just leave behind the 'unresolved' debug statement from the else clause.
-                if reloc.owner_obj.guess_simprocs:
+                if reloc.owner.guess_simprocs:
                     l.debug("Looking for matching SimProcedure for unresolved %s from %s with hint %s",
-                            func.name, reloc.owner_obj, reloc.owner_obj.guess_simprocs_hint)
-                    self._guess_simprocedure(func, reloc.owner_obj.guess_simprocs_hint)
+                            func.name, reloc.owner, reloc.owner.guess_simprocs_hint)
+                    self._guess_simprocedure(func, reloc.owner.guess_simprocs_hint)
                 else:
-                    l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
+                    l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner)
                 continue
             export = reloc.resolvedby
             if self.is_hooked(export.rebased_addr):
-                l.debug("Already hooked %s (%s)", export.name, export.owner_obj)
+                l.debug("Already hooked %s (%s)", export.name, export.owner)
                 continue
 
             # Step 2.2: If this function has been resolved by a static dependency,
             # check if we actually can and want to replace it with a SimProcedure.
             # We opt out of this step if it is blacklisted by ignore_functions, which
             # will cause it to be replaced by ReturnUnconstrained later.
-            if export.owner_obj is not self.loader._extern_object and \
+            if export.owner is not self.loader._extern_object and \
                     export.name not in self._ignore_functions:
                 if self._check_user_blacklists(export.name):
                     continue
-                owner_name = export.owner_obj.provides
+                owner_name = export.owner.provides
                 if isinstance(self.loader.main_object, cle.backends.pe.PE):
                     owner_name = owner_name.lower()
                 if owner_name not in SIM_LIBRARIES:
@@ -518,7 +518,7 @@ class Project:
         if sym is None:
             l.warning("Could not find symbol %s", symbol_name)
             return False
-        if sym.owner_obj is self.loader._extern_object:
+        if sym.owner is self.loader._extern_object:
             l.warning("Refusing to unhook external symbol %s, replace it with another hook if you want to change it",
                       symbol_name)
             return False

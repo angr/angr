@@ -33,7 +33,7 @@ class Explorer(ExplorationTechnique):
         self.avoid_priority = avoid_priority
 
         # even if avoid or find addresses are not statically known, stop on those that we do know
-        self._extra_stop_points = (static_find or set()) | (static_find or set())
+        self._extra_stop_points = (static_find or set()) | (static_avoid or set())
         self._unknown_stop_points = static_find is None or static_avoid is None
         self._warned_unicorn = False
 
