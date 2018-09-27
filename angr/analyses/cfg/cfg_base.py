@@ -65,7 +65,7 @@ class CFGBase(Analysis):
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None,
                  resolve_indirect_jumps=True, indirect_jump_resolvers=None, indirect_jump_target_limit=100000):
         """
-        :param str sort:                            'fast' or 'accurate'.
+        :param str sort:                            'fast' or 'emulated'.
         :param int context_sensitivity_level:       The level of context-sensitivity of this CFG (see documentation for
                                                     further details). It ranges from 0 to infinity.
         :param bool normalize:                      Whether the CFG as well as all Function graphs should be normalized.
@@ -387,7 +387,7 @@ class CFGBase(Analysis):
         #    self._node_lookup_index_warned = True
 
         for n in self.graph.nodes():
-            if self.tag == "CFGAccurate":
+            if self.tag == "CFGEmulated":
                 cond = n.looping_times == 0
             else:
                 cond = True
@@ -1151,7 +1151,7 @@ class CFGBase(Analysis):
                                                           ]),
                                        thumb=n.thumb
                                        )
-                elif self.tag == "CFGAccurate":
+                elif self.tag == "CFGEmulated":
                     new_node = CFGNodeA(n.addr, new_size, self, callstack_key=callstack_key,
                                         function_address=n.function_address, block_id=n.block_id,
                                         instruction_addrs=tuple([i for i in n.instruction_addrs

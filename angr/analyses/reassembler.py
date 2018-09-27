@@ -2744,7 +2744,7 @@ class Reassembler(Analysis):
                 continue
             base_graph.add_node(candidate_node)
             tmp_kb = KnowledgeBase(self.project, self.project.loader.main_object)
-            cfg = self.project.analyses.CFGAccurate(kb=tmp_kb,
+            cfg = self.project.analyses.CFGEmulated(kb=tmp_kb,
                                                     starts=(candidate.irsb_addr,),
                                                     keep_state=True,
                                                     base_graph=base_graph

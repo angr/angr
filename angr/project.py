@@ -225,6 +225,13 @@ class Project:
                 missing_libs.append(SIM_LIBRARIES[lib_name])
             except KeyError:
                 l.info("There are no simprocedures for missing library %s :(", lib_name)
+        # additionally provide libraries we _have_ loaded as a fallback fallback
+        # this helps in the case that e.g. CLE picked up a linux arm libc to satisfy an android arm binary
+        for lib in self.loader.all_objects:
+            if lib.provides in SIM_LIBRARIES:
+                simlib = SIM_LIBRARIES[lib.provides]
+                if simlib not in missing_libs:
+                    missing_libs.append(simlib)
 
         # Step 2: Categorize every "import" symbol in each object.
         # If it's IGNORED, mark it for stubbing

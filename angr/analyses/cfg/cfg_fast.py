@@ -806,7 +806,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     and then re-recover the CFG.
     """
 
-    # TODO: Move arch_options to CFGBase, and add those logic to CFGAccurate as well.
+    # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
     # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()

@@ -32,7 +32,7 @@ class BaseGoal(object):
     def check(self, cfg, state, peek_blocks):
         """
 
-        :param angr.analyses.CFGAccurate cfg:   An instance of CFGAccurate.
+        :param angr.analyses.CFGEmulated cfg:   An instance of CFGEmulated.
         :param angr.SimState state:             The state to check.
         :param int peek_blocks:                 Number of blocks to peek ahead from the current point.
         :return: True if we can determine that this condition is definitely satisfiable if the path is taken, False
@@ -62,7 +62,7 @@ class BaseGoal(object):
         """
         Get the CFGNode object on the control flow graph given an angr state.
 
-        :param angr.analyses.CFGAccurate cfg:   An instance of CFGAccurate.
+        :param angr.analyses.CFGEmulated cfg:   An instance of CFGEmulated.
         :param angr.SimState state:             The current state.
         :return: A CFGNode instance if the node exists, or None if the node cannot be found.
         :rtype: CFGNode or None
@@ -173,7 +173,7 @@ class CallFunctionGoal(BaseGoal):
     A goal that prioritizes states reaching certain function, and optionally with specific arguments.
     Note that constraints on arguments (and on function address as well) have to be identifiable on an accurate CFG.
     For example, you may have a CallFunctionGoal saying "call printf with the first argument being 'Hello, world'", and
-    CFGAccurate must be able to figure our the first argument to printf is in fact "Hello, world", not some symbolic
+    CFGEmulated must be able to figure our the first argument to printf is in fact "Hello, world", not some symbolic
     strings that will be constrained to "Hello, world" during symbolic execution (or simulation, however you put it).
     """
 
@@ -362,7 +362,7 @@ class Director(ExplorationTechnique):
     """
     An exploration technique for directed symbolic execution.
 
-    A control flow graph (using CFGAccurate) is built and refined during symbolic execution. Each time the execution
+    A control flow graph (using CFGEmulated) is built and refined during symbolic execution. Each time the execution
     reaches a block that is outside of the CFG, the CFG recovery will be triggered with that state, with a maximum
     recovery depth (100 by default). If we see a basic block during state stepping that is not yet in the control flow
     graph, we go back to control flow graph recovery and "peek" more blocks forward.
@@ -448,7 +448,7 @@ class Director(ExplorationTechnique):
             starts = list(simgr.active)
             self._cfg_kb = KnowledgeBase(self.project, self.project.loader.main_object)
 
-            self._cfg = self.project.analyses.CFGAccurate(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
+            self._cfg = self.project.analyses.CFGEmulated(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
                                                           keep_state=self._cfg_keep_states
                                                           )
 

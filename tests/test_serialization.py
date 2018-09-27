@@ -23,7 +23,7 @@ def internaltest_vfg(p, cfg):
 def internaltest_cfg(p):
     state = tempfile.TemporaryFile()
 
-    cfg = p.analyses.CFGAccurate()
+    cfg = p.analyses.CFGEmulated()
     pickle.dump(cfg, state, -1)
 
     state.seek(0)
