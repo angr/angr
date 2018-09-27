@@ -14,7 +14,7 @@ networkx==2.1
 progressbar==2.3
 pyvex==7.8.9.26
 rpyc==3.3.0
-unicorn==1.0.2
+unicorn==1.0.1
 GitPython==2.1.9
 pycparser==2.18
 cffi==1.7.0
