@@ -23,4 +23,5 @@ class fileno(angr.SimProcedure):
         io_file_data = io_file_data_for_arch(self.state.arch)
 
         # Get the file descriptor from FILE struct
-        return self.state.mem[f + io_file_data['fd']].int.resolved
+        result = self.state.mem[f + io_file_data['fd']].int.resolved
+        return result.sign_extend(self.arch.bits - len(result))

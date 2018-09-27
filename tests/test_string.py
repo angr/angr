@@ -844,15 +844,15 @@ def test_getc():
     nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x31])
     nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [1])
 
-    c = getc(s, arguments=[0])
+    c = getc(s, [0x1000])
     nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x32])
     nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [2])
 
-    c = getc(s, arguments=[0])
+    c = getc(s, [0x1000])
     nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x33])
     nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [3])
 
-    c = getc(s, arguments=[0])
+    c = getc(s, [0x1000])
     nose.tools.assert_items_equal(s.se.eval_upto(c, 300), [0x34])
     nose.tools.assert_items_equal(s.se.eval_upto(stdin.tell(), 300), [4])
 
