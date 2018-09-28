@@ -223,7 +223,8 @@ class SimEngineVEX(SimEngine):
 
         has_default_exit = True
         if irsb.next is None:
-            l.warning("The .next property of IRSB %#x has an unexpected value None. has_default_exit will be set to False.",
+            l.warning("The .next property of IRSB %#x has an unexpected value None. "
+                      "has_default_exit will be set to False.",
                       irsb.addr)
             has_default_exit = False
 
