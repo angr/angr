@@ -9,7 +9,7 @@ class stat(angr.SimProcedure):
         stat = self.state.posix.fstat(0)
         # TODO: make arch-neutral
         self._store_amd64(stat_buf, stat)
-        return self.state.se.BVV(0, 64) # success
+        return self.state.solver.BVV(0, 64) # success
 
     def _store_amd64(self, stat_buf, stat):
         store = lambda offset, val: self.state.memory.store(stat_buf + offset, val)
@@ -20,7 +20,7 @@ class stat(angr.SimProcedure):
         store(0x18, stat.st_mode)
         store(0x1c, stat.st_uid)
         store(0x20, stat.st_gid)
-        store(0x24, self.state.se.BVV(0, 32))
+        store(0x24, self.state.solver.BVV(0, 32))
         store(0x28, stat.st_rdev)
         store(0x30, stat.st_size)
         store(0x38, stat.st_blksize)
@@ -31,6 +31,6 @@ class stat(angr.SimProcedure):
         store(0x60, stat.st_mtimensec)
         store(0x68, stat.st_ctime)
         store(0x70, stat.st_ctimensec)
-        store(0x78, self.state.se.BVV(0, 64))
-        store(0x80, self.state.se.BVV(0, 64))
-        store(0x88, self.state.se.BVV(0, 64))
+        store(0x78, self.state.solver.BVV(0, 64))
+        store(0x80, self.state.solver.BVV(0, 64))
+        store(0x88, self.state.solver.BVV(0, 64))

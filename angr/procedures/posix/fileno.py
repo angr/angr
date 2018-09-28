@@ -23,4 +23,9 @@ class fileno(angr.SimProcedure):
         io_file_data = io_file_data_for_arch(self.state.arch)
 
         # Get the file descriptor from FILE struct
-        return self.state.mem[f + io_file_data['fd']].int.resolved
+        fd = self.state.solver.eval(self.state.memory.load(f + io_file_data['fd'],
+                                                          4 * 8,  # int
+                                                          endness=self.state.arch.memory_endness))
+        return fd
+
+

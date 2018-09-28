@@ -2,7 +2,7 @@ import logging
 import os
 import types
 import weakref
-import StringIO
+from io import BytesIO, IOBase
 import pickle
 import string
 from collections import defaultdict
@@ -10,7 +10,7 @@ from collections import defaultdict
 import archinfo
 import cle
 
-from .misc.ux import once, deprecated
+from .misc.ux import deprecated
 
 l = logging.getLogger("angr.project")
 projects = weakref.WeakValueDictionary()
@@ -32,17 +32,17 @@ def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
     :param load_address:    The address to place the data in memory (default 0)
     """
     return Project(
-            StringIO.StringIO(shellcode),
+            BytesIO(shellcode),
             main_opts={
                 'backend': 'blob',
-                'custom_arch': arch,
-                'custom_entry_point': start_offset,
-                'custom_base_addr': load_address,
+                'arch': arch,
+                'entry_point': start_offset,
+                'base_addr': load_address,
             }
         )
 
 
-class Project(object):
+class Project:
     """
     This is the main class of the angr module. It is meant to contain a set of binaries and the relationships between
     them, and perform analyses on them.
@@ -121,7 +121,7 @@ class Project(object):
             l.info("Loading binary from stream")
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
-        elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
+        elif not isinstance(thing, str) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
             # use angr's loader, provided by cle
@@ -218,6 +218,8 @@ class Project(object):
         # Step 5: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self.simos = simos(self) #pylint:disable=invalid-name
+        elif isinstance(simos, str):
+            self.simos = os_mapping[simos](self)
         elif simos is None:
             self.simos = os_mapping[self.loader.main_object.os](self)
         else:
@@ -247,7 +249,7 @@ class Project(object):
         # If it's IGNORED, mark it for stubbing
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
-        for reloc in obj.imports.itervalues():
+        for reloc in obj.imports.values():
             # Step 2.1: Quick filter on symbols we really don't care about
             func = reloc.symbol
             if func is None:
@@ -260,27 +262,27 @@ class Project(object):
                 # we can try to guess them here. Once the Binary Ninja API starts supplying the dependencies,
                 # The if/else, along with Project._guess_simprocedure() can be removed if it has no other utility,
                 # just leave behind the 'unresolved' debug statement from the else clause.
-                if reloc.owner_obj.guess_simprocs:
+                if reloc.owner.guess_simprocs:
                     l.debug("Looking for matching SimProcedure for unresolved %s from %s with hint %s",
-                            func.name, reloc.owner_obj, reloc.owner_obj.guess_simprocs_hint)
-                    self._guess_simprocedure(func, reloc.owner_obj.guess_simprocs_hint)
+                            func.name, reloc.owner, reloc.owner.guess_simprocs_hint)
+                    self._guess_simprocedure(func, reloc.owner.guess_simprocs_hint)
                 else:
-                    l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
+                    l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner)
                 continue
             export = reloc.resolvedby
             if self.is_hooked(export.rebased_addr):
-                l.debug("Already hooked %s (%s)", export.name, export.owner_obj)
+                l.debug("Already hooked %s (%s)", export.name, export.owner)
                 continue
 
             # Step 2.2: If this function has been resolved by a static dependency,
             # check if we actually can and want to replace it with a SimProcedure.
             # We opt out of this step if it is blacklisted by ignore_functions, which
             # will cause it to be replaced by ReturnUnconstrained later.
-            if export.owner_obj is not self.loader._extern_object and \
+            if export.owner is not self.loader._extern_object and \
                     export.name not in self._ignore_functions:
                 if self._check_user_blacklists(export.name):
                     continue
-                owner_name = export.owner_obj.provides
+                owner_name = export.owner.provides
                 if isinstance(self.loader.main_object, cle.backends.pe.PE):
                     owner_name = owner_name.lower()
                 if owner_name not in SIM_LIBRARIES:
@@ -384,7 +386,7 @@ class Project(object):
             # point of the project.
             @proj.hook(proj.entry)
             def my_hook(state):
-                print "Welcome to execution!"
+                print("Welcome to execution!")
 
         :param addr:        The address to hook.
         :param hook:        A :class:`angr.project.Hook` describing a procedure to run at the
@@ -417,9 +419,7 @@ class Project(object):
                 l.warning("Address is already hooked, during hook(%#x, %s). Re-hooking.", addr, hook)
 
         if isinstance(hook, type):
-            if once("hook_instance_warning"):
-                l.critical("Hooking with a SimProcedure class is deprecated! Please hook with an instance.")
-            hook = hook(**kwargs)
+            raise TypeError("Please instanciate your SimProcedure before hooking with it")
 
         if callable(hook):
             hook = SIM_PROCEDURES['stubs']['UserHook'](user_func=hook, length=length, **kwargs)
@@ -484,7 +484,7 @@ class Project(object):
         :returns:           The address of the new symbol.
         :rtype:             int
         """
-        if type(symbol_name) not in (int, long):
+        if type(symbol_name) is not int:
             sym = self.loader.find_symbol(symbol_name)
             if sym is None:
                 # it could be a previously unresolved weak symbol..?
@@ -512,13 +512,6 @@ class Project(object):
         self.hook(hook_addr, simproc, kwargs=kwargs, replace=replace)
         return hook_addr
 
-    def hook_symbol_batch(self, hooks):
-        if once("hook_symbol_batch warning"):
-            l.critical("Due to advances in technology, hook_symbol_batch is no longer necessary for performance. Please use hook_symbol several times.")
-
-        for x in hooks:
-            self.hook_symbol(x, hooks[x])
-
     def is_symbol_hooked(self, symbol_name):
         """
         Check if a symbol is already hooked.
@@ -544,7 +537,7 @@ class Project(object):
         if sym is None:
             l.warning("Could not find symbol %s", symbol_name)
             return False
-        if sym.owner_obj is self.loader._extern_object:
+        if sym.owner is self.loader._extern_object:
             l.warning("Refusing to unhook external symbol %s, replace it with another hook if you want to change it",
                       symbol_name)
             return False
@@ -598,7 +591,7 @@ class Project(object):
         else:
             state = self.factory.full_init_state(**kwargs)
 
-        pg = self.factory.simgr(state)
+        pg = self.factory.simulation_manager(state)
         self._executing = True
         return pg.run(until=lambda lpg: not self._executing)
 
@@ -646,21 +639,21 @@ class Project(object):
                 try:
                     pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
                 except RuntimeError as e: # maximum recursion depth can be reached here
-                    l.error("Unable to store Project, '%s' during pickling", e.message)
+                    l.error("Unable to store Project: '%s' during pickling", e)
 
         # If container is an open file.
-        elif isinstance(container, file):
+        elif isinstance(container, IOBase):
             try:
                 pickle.dump(self, container, pickle.HIGHEST_PROTOCOL)
             except RuntimeError as e: # maximum recursion depth can be reached here
-                l.error("Unable to store Project, '%s' during pickling", e.message)
+                l.error("Unable to store Project: '%s' during pickling", e)
 
         # If container is just a variable.
         else:
             try:
                 container = pickle.dumps(self, pickle.HIGHEST_PROTOCOL)
             except RuntimeError as e: # maximum recursion depth can be reached here
-                l.error("Unable to store Project, '%s' during pickling", e.message)
+                l.error("Unable to store Project: '%s' during pickling", e)
 
     @staticmethod
     def _load(container):
@@ -675,7 +668,7 @@ class Project(object):
                 return pickle.loads(container)
 
         # If container is an open file
-        elif isinstance(container, file):
+        elif isinstance(container, IOBase):
             return pickle.load(container)
 
         # What else could it be?

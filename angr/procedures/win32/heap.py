@@ -10,12 +10,12 @@ class HeapCreate(angr.SimProcedure):
 
 class HeapAlloc(angr.SimProcedure):
     def run(self, HeapHandle, Flags, Size):
-        if self.state.se.symbolic(Size):
-            size = self.state.se.max_int(Size)
+        if self.state.solver.symbolic(Size):
+            size = self.state.solver.max_int(Size)
             if size > self.state.libc.max_variable_size:
                 size = self.state.libc.max_variable_size
         else:
-            size = self.state.se.eval(Size)
+            size = self.state.solver.eval(Size)
 
         addr = self.state.libc.heap_location
         self.state.libc.heap_location += size

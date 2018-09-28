@@ -211,7 +211,7 @@ class Tracer(ExplorationTechnique):
 
             # something weird... maybe we hit a rep instruction?
             # qemu and vex have slightly different behaviors...
-            if not simgr.active[0].se.satisfiable():
+            if not simgr.active[0].solver.satisfiable():
                 l.info("detected small discrepancy between qemu and angr, "
                         "attempting to fix known cases...")
 
@@ -223,8 +223,8 @@ class Tracer(ExplorationTechnique):
                 if self.project.arch.name == 'X86' or self.project.arch.name == 'AMD64':
 
                     # does it looks like a rep? rep ret doesn't count!
-                    if self.project.factory.block(target).bytes.startswith("\xf3") and \
-                       not self.project.factory.block(target).bytes.startswith("\xf3\xc3"):
+                    if self.project.factory.block(target).bytes.startswith(b"\xf3") and \
+                       not self.project.factory.block(target).bytes.startswith(b"\xf3\xc3"):
 
                         l.info("rep discrepency detected, repairing...")
                         # swap the stashes
@@ -242,7 +242,7 @@ class Tracer(ExplorationTechnique):
         return simgr
 
     def _syscall(self, state):
-        syscall_addr = state.se.eval(state.ip)
+        syscall_addr = state.solver.eval(state.ip)
         args = None
 
         # 0xa000008 is terminate, which we exclude from syscall statistics.
@@ -253,7 +253,7 @@ class Tracer(ExplorationTechnique):
 
         if args is not None:
             d = {'addr': syscall_addr}
-            for i in xrange(4):
+            for i in range(4):
                 d['arg_%d' % i] = args[i]
                 d['arg_%d_symbolic' % i] = args[i].symbolic
             self._syscalls.append(d)

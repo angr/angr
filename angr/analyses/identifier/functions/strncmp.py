@@ -6,8 +6,8 @@ from ..func import Func, TestData
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
-        return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
-    return "".join(random.choice(byte_list) for _ in xrange(length))
+        return "".join(chr(random.randint(0, 255)) for _ in range(length))
+    return "".join(random.choice(byte_list) for _ in range(length))
 
 
 class strncmp(Func):
@@ -44,7 +44,7 @@ class strncmp(Func):
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps)
         s = runner.get_out_state(func, test)
-        if s is None or s.se.eval(s.regs.eax) != 0:
+        if s is None or s.solver.eval(s.regs.eax) != 0:
             return False
 
         # should return true for strcmp, false for memcpy
@@ -56,7 +56,7 @@ class strncmp(Func):
         s = runner.get_out_state(func, test)
         if s is None:
             return False
-        outval1 = s.se.eval(s.regs.eax)
+        outval1 = s.solver.eval(s.regs.eax)
 
         # should fail
         bufa = "asdfc\x00as"
@@ -67,7 +67,7 @@ class strncmp(Func):
         s = runner.get_out_state(func, test)
         if s is None:
             return False
-        outval2 = s.se.eval(s.regs.eax)
+        outval2 = s.solver.eval(s.regs.eax)
 
         # should prevent us from misidentifying strcasecmp
         bufa = "ASDFC\x00"
@@ -78,7 +78,7 @@ class strncmp(Func):
         s = runner.get_out_state(func, test)
         if s is None:
             return False
-        outval3 = s.se.eval(s.regs.eax)
+        outval3 = s.solver.eval(s.regs.eax)
 
         # should distinguish strncmp and strcmp
         bufa = "abc5555"
@@ -89,7 +89,7 @@ class strncmp(Func):
         s = runner.get_out_state(func, test)
         if s is None:
             return False
-        outval4 = s.se.eval(s.regs.eax)
+        outval4 = s.solver.eval(s.regs.eax)
 
 
         # should distinguish strncmp and strcmp
@@ -101,6 +101,6 @@ class strncmp(Func):
         s = runner.get_out_state(func, test)
         if s is None:
             return False
-        outval5 = s.se.eval(s.regs.eax)
+        outval5 = s.solver.eval(s.regs.eax)
 
         return outval1 == 0 and outval2 != 0 and outval3 != 0 and outval4 == 0 and outval5 != 0

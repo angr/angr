@@ -333,15 +333,15 @@ class CallFunctionGoal(BaseGoal):
 
         if isinstance(expected, str):
             # convert it to an AST
-            expected = state.se.BVV(expected)
-        length = expected.size() / 8
+            expected = state.solver.BVV(expected)
+        length = expected.size() // 8
         real_string = state.memory.load(ptr, length, endness='Iend_BE')
 
         if real_string.symbolic:
             # we do not support symbolic arguments
             return False
 
-        return state.se.eval(real_string) == state.se.eval(expected)
+        return state.solver.eval(real_string) == state.solver.eval(expected)
 
     @staticmethod
     def _compare_integer_content(state, val, expected):
@@ -352,7 +352,7 @@ class CallFunctionGoal(BaseGoal):
             # we do not support symboli arguments
             return False
 
-        return state.se.eval(val) == state.se.eval(expected)
+        return state.solver.eval(val) == state.solver.eval(expected)
 
 
 class Director(ExplorationTechnique):

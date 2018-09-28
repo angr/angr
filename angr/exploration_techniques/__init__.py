@@ -4,17 +4,16 @@ from ..errors import SimError
 
 # 8<----------------- Compatibility layer -----------------
 class ExplorationTechniqueMeta(type):
-
-    def __new__(mcs, name, bases, attrs):
+    def __new__(cls, name, bases, attrs):
         import inspect
         if name != 'ExplorationTechniqueCompat':
-            if 'step' in attrs and not inspect.getargspec(attrs['step'])[3]:
-                attrs['step'] = mcs._step_factory(attrs['step'])
-            if 'filter' in attrs and inspect.getargspec(attrs['filter'])[0][1] != 'simgr':
-                attrs['filter'] = mcs._filter_factory(attrs['filter'])
-            if 'step_state' in attrs and inspect.getargspec(attrs['step_state'])[0][1] != 'simgr':
-                attrs['step_state'] = mcs._step_state_factory(attrs['step_state'])
-        return type.__new__(mcs, name, bases, attrs)
+            if 'step' in attrs and not inspect.getargspec(attrs['step']).defaults:
+                attrs['step'] = cls._step_factory(attrs['step'])
+            if 'filter' in attrs and inspect.getargspec(attrs['filter']).args[1] != 'simgr':
+                attrs['filter'] = cls._filter_factory(attrs['filter'])
+            if 'step_state' in attrs and inspect.getargspec(attrs['step_state']).args[1] != 'simgr':
+                attrs['step_state'] = cls._step_state_factory(attrs['step_state'])
+        return type.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _step_factory(step):
@@ -23,9 +22,9 @@ class ExplorationTechniqueMeta(type):
         return step_wrapped
 
     @staticmethod
-    def _filter_factory(filter):  # pylint:disable=redefined-builtin
+    def _filter_factory(func):  # pylint:disable=redefined-builtin
         def filter_wrapped(self, simgr, state, filter_func=None):
-            result = filter(self, state)  # pylint:disable=no-value-for-parameter
+            result = func(self, state)  # pylint:disable=no-value-for-parameter
             if result is None:
                 result = simgr.filter(state, filter_func=filter_func)
             return result
@@ -42,7 +41,7 @@ class ExplorationTechniqueMeta(type):
 # ------------------- Compatibility layer --------------->8
 
 
-class ExplorationTechnique(object):
+class ExplorationTechnique:
     """
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
     symbolic exploration.
@@ -117,29 +116,29 @@ class ExplorationTechnique(object):
 
     def _condition_to_lambda(self, condition, default=False):
         """
-        Translates an integer, set, list or lambda into a lambda that checks a state address against the given addresses, and the
-        other ones from the same basic block
+        Translates an integer, set, list or function into a lambda that checks if state's current basic block matches
+        some condition.
 
         :param condition:   An integer, set, list or lambda to convert to a lambda.
         :param default:     The default return value of the lambda (in case condition is None). Default: false.
 
-        :returns:           A lambda that takes a state and returns the set of addresses that it matched from the condition
-                            The lambda has an `.addrs` attribute that contains the full set of the addresses at which it matches if that
-                            can be determined statically.
+        :returns:           A tuple of two items: a lambda that takes a state and returns the set of addresses that it
+                            matched from the condition, and a set that contains the normalized set of addresses to stop
+                            at, or None if no addresses were provided statically.
         """
         if condition is None:
-            condition_function = lambda p: default
-            condition_function.addrs = set()
+            condition_function = lambda state: default
+            static_addrs = set()
 
-        elif isinstance(condition, (int, long)):
+        elif isinstance(condition, int):
             return self._condition_to_lambda((condition,))
 
         elif isinstance(condition, (tuple, set, list)):
-            addrs = set(condition)
-            def condition_function(p):
-                if p.addr in addrs:
-                    # returning {p.addr} instead of True to properly handle find/avoid conflicts
-                    return {p.addr}
+            static_addrs = set(condition)
+            def condition_function(state):
+                if state.addr in static_addrs:
+                    # returning {state.addr} instead of True to properly handle find/avoid conflicts
+                    return {state.addr}
 
                 if not isinstance(self.project.engines.default_engine, engines.SimEngineVEX):
                     return False
@@ -149,16 +148,17 @@ class ExplorationTechnique(object):
                     # not at the top of a block), check directly in the blocks
                     # (Blocks are repeatedly created for every check, but with
                     # the IRSB cache in angr lifter it should be OK.)
-                    return addrs.intersection(set(self.project.factory.block(p.addr).instruction_addrs))
+                    return static_addrs.intersection(set(state.block().instruction_addrs))
                 except (AngrError, SimError):
                     return False
-            condition_function.addrs = addrs
+
         elif hasattr(condition, '__call__'):
             condition_function = condition
+            static_addrs = None
         else:
             raise AngrExplorationTechniqueError("ExplorationTechnique is unable to convert given type (%s) to a callable condition function." % condition.__class__)
 
-        return condition_function
+        return condition_function, static_addrs
 
 #registered_actions = {}
 #registered_surveyors = {}

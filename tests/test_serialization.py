@@ -1,4 +1,4 @@
-import cPickle as pickle
+import pickle
 import nose
 import angr
 import ana
@@ -17,8 +17,8 @@ def internaltest_vfg(p, cfg):
 
     state.seek(0)
     vfg2 = pickle.load(state)
-    nose.tools.assert_equals(vfg.final_states, vfg2.final_states)
-    nose.tools.assert_equals(set(vfg.graph.nodes()), set(vfg2.graph.nodes()))
+    nose.tools.assert_equal(vfg.final_states, vfg2.final_states)
+    nose.tools.assert_equal(set(vfg.graph.nodes()), set(vfg2.graph.nodes()))
 
 def internaltest_cfg(p):
     state = tempfile.TemporaryFile()
@@ -28,8 +28,8 @@ def internaltest_cfg(p):
 
     state.seek(0)
     cfg2 = pickle.load(state)
-    nose.tools.assert_equals(set(cfg.nodes()), set(cfg2.nodes()))
-    nose.tools.assert_equals(cfg.unresolvables, cfg2.unresolvables)
+    nose.tools.assert_equal(set(cfg.nodes()), set(cfg2.nodes()))
+    nose.tools.assert_equal(cfg.unresolvables, cfg2.unresolvables)
     nose.tools.assert_set_equal(set(cfg.deadends), set(cfg2.deadends))
 
     return cfg
@@ -48,7 +48,7 @@ def internaltest_cfgfast(p):
 
     state.seek(0)
     cfg2 = pickle.load(state)
-    nose.tools.assert_equals(set(cfg.nodes()), set(cfg2.nodes()))
+    nose.tools.assert_equal(set(cfg.nodes()), set(cfg2.nodes()))
 
 def internaltest_project(p):
     state = tempfile.TemporaryFile()
@@ -56,9 +56,9 @@ def internaltest_project(p):
 
     state.seek(0)
     loaded_p = pickle.load(state)
-    nose.tools.assert_equals(p.arch, loaded_p.arch)
-    nose.tools.assert_equals(p.filename, loaded_p.filename)
-    nose.tools.assert_equals(p.entry, loaded_p.entry)
+    nose.tools.assert_equal(p.arch, loaded_p.arch)
+    nose.tools.assert_equal(p.filename, loaded_p.filename)
+    nose.tools.assert_equal(p.entry, loaded_p.entry)
 
 def setup():
     tmp_dir = tempfile.mkdtemp(prefix='test_serialization_ana')

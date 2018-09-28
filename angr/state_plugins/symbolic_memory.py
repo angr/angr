@@ -183,7 +183,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
                 if options.ABSTRACT_MEMORY in self.state.options:
                     # merge check for abstract memory
-                    if not to_merge[0][0].uninitialized and self.state.se.backends.vsa.identical(merged_val, to_merge[0][0]):
+                    if not to_merge[0][0].uninitialized and self.state.solver.backends.vsa.identical(merged_val, to_merge[0][0]):
                         continue
 
                 # do the replacement
@@ -219,7 +219,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 if options.ABSTRACT_MEMORY in self.state.options:
                     # merge check for abstract memory
                     if (not unconstrained_in or not unconstrained_in[0][0] is self) \
-                            and self.state.se.backends.vsa.identical(merged_val, to_merge[0][0]):
+                            and self.state.solver.backends.vsa.identical(merged_val, to_merge[0][0]):
                         continue
 
                 self.store(b, merged_val, endness='Iend_BE', inspect=False)  # do not convert endianness again
@@ -319,21 +319,21 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _resolve_size_range(self, size):
-        if not self.state.se.symbolic(size):
-            i = self.state.se.eval(size)
+        if not self.state.solver.symbolic(size):
+            i = self.state.solver.eval(size)
             if i > self._maximum_concrete_size:
                 raise SimMemoryLimitError("Concrete size %d outside of allowable limits" % i)
             return i, i
 
         if options.APPROXIMATE_MEMORY_SIZES in self.state.options:
-            max_size_approx = self.state.se.max_int(size, exact=True)
-            min_size_approx = self.state.se.min_int(size, exact=True)
+            max_size_approx = self.state.solver.max_int(size, exact=True)
+            min_size_approx = self.state.solver.min_int(size, exact=True)
 
             if max_size_approx < self._maximum_symbolic_size_approx:
                 return min_size_approx, max_size_approx
 
-        max_size = self.state.se.max_int(size)
-        min_size = self.state.se.min_int(size)
+        max_size = self.state.solver.max_int(size)
+        min_size = self.state.solver.min_int(size)
 
         if min_size > self._maximum_symbolic_size:
             self.state.history.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
@@ -400,10 +400,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             :returns:               A list of concrete addresses.
         """
 
-        if isinstance(addr, (int, long)):
+        if isinstance(addr, int):
             return [ addr ]
-        elif not self.state.se.symbolic(addr):
-            return [ self.state.se.eval(addr) ]
+        elif not self.state.solver.symbolic(addr):
+            return [ self.state.solver.eval(addr) ]
 
         strategies = self.write_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(addr, strategies, 'store')
@@ -417,10 +417,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             :returns:               A list of concrete addresses.
         """
 
-        if isinstance(addr, (int, long)):
+        if isinstance(addr, int):
             return [ addr ]
-        elif not self.state.se.symbolic(addr):
-            return [ self.state.se.eval(addr) ]
+        elif not self.state.solver.symbolic(addr):
+            return [ self.state.solver.eval(addr) ]
 
         strategies = self.read_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(addr, strategies, 'load')
@@ -448,11 +448,22 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 eternal=False) # :(
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
+        if (all_missing and
+                options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+                ):
+            if self.category == 'reg':
+                # try to get a register name
+                reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
+                l.warning("Register %s has an unspecified value; "
+                          "Generating an unconstrained value of %d bytes.", reg_str, num_bytes)
+            elif self.category == 'mem':
+                l.warning("Memory address %#x has an unspecified value; "
+                          "Generating an unconstrained value of %d bytes.", addr, num_bytes)
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
-        b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
+        b = self.state.solver.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
         if events:
             self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
@@ -500,24 +511,24 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         elif len(segments) == 1:
             r = segments[0]
         else:
-            r = self.state.se.BVV(0, 0)
+            r = self.state.solver.BVV(0, 0)
         return r
 
     def _load(self, dst, size, condition=None, fallback=None,
             inspect=True, events=True, ret_on_segv=False):
-        if self.state.se.symbolic(size):
+        if self.state.solver.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
         # for now, we always load the maximum size
         _,max_size = self._resolve_size_range(size)
-        if options.ABSTRACT_MEMORY not in self.state.options and self.state.se.symbolic(size):
+        if options.ABSTRACT_MEMORY not in self.state.options and self.state.solver.symbolic(size):
             self.state.add_constraints(size == max_size, action=True)
 
         if max_size == 0:
             self.state.history.add_event('memory_limit', message="0-length read")
 
         size = max_size
-        if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
+        if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
             return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*self.state.arch.byte_width), [ ]
 
         # get a concrete set of read addresses
@@ -541,20 +552,20 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             read_value = DUMMY_SYMBOLIC_READ_VALUE  # it's a sentinel value and should never be touched
 
             for a in addrs:
-                read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
+                read_value = self.state.solver.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
                                               read_value)
                 constraint_options.append(dst == a)
 
         if len(constraint_options) > 1:
-            load_constraint = [ self.state.se.Or(*constraint_options) ]
-        elif not self.state.se.symbolic(constraint_options[0]):
+            load_constraint = [ self.state.solver.Or(*constraint_options) ]
+        elif not self.state.solver.symbolic(constraint_options[0]):
             load_constraint = [ ]
         else:
             load_constraint = [ constraint_options[0] ]
 
         if condition is not None and fallback is not None:
-            read_value = self.state.se.If(condition, read_value, fallback)
-            load_constraint = [ self.state.se.Or(self.state.se.And(condition, *load_constraint), self.state.se.Not(condition)) ]
+            read_value = self.state.solver.If(condition, read_value, fallback)
+            load_constraint = [ self.state.solver.Or(self.state.solver.And(condition, *load_constraint), self.state.solver.Not(condition)) ]
 
         return addrs, read_value, load_constraint
 
@@ -563,13 +574,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
-        if isinstance(start, (int, long)):
-            start = self.state.se.BVV(start, self.state.arch.bits)
+        if isinstance(start, int):
+            start = self.state.solver.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)//self.state.arch.byte_width
-        symbolic_what = self.state.se.symbolic(what)
+        symbolic_what = self.state.solver.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         chunk_start = 0
@@ -624,7 +635,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             else:
                 # other modes (e.g. symbolic mode)
-                if not b.symbolic and not symbolic_what and self.state.se.eval(b) == self.state.se.eval(what):
+                if not b.symbolic and not symbolic_what and self.state.solver.eval(b) == self.state.solver.eval(what):
                     l.debug("... found concrete")
                     break
                 else:
@@ -632,7 +643,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         remaining_symbolic -= 1
 
         if self.state.mode == 'static':
-            r = self.state.se.ESI(self.state.arch.bits)
+            r = self.state.solver.ESI(self.state.arch.bits)
             for off in offsets_matched:
                 r = r.union(off)
 
@@ -643,30 +654,30 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if default is None:
                 l.debug("... no default specified")
                 default = 0
-                constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
+                constraints += [ self.state.solver.Or(*[ c for c,_ in cases]) ]
 
             #l.debug("running ite_cases %s, %s", cases, default)
-            r = self.state.se.ite_cases(cases, default - start) + start
+            r = self.state.solver.ite_cases(cases, default - start) + start
             return r, constraints, match_indices
 
     def __contains__(self, dst):
-        if isinstance(dst, (int, long)):
+        if isinstance(dst, int):
             addr = dst
-        elif self.state.se.symbolic(dst):
+        elif self.state.solver.symbolic(dst):
             l.warning("Currently unable to do SimMemory.__contains__ on symbolic variables.")
             return False
         else:
-            addr = self.state.se.eval(dst)
+            addr = self.state.solver.eval(dst)
         return addr in self.mem
 
     def was_written_to(self, dst):
-        if isinstance(dst, (int, long)):
+        if isinstance(dst, int):
             addr = dst
-        elif self.state.se.symbolic(dst):
+        elif self.state.solver.symbolic(dst):
             l.warning("Currently unable to do SimMemory.was_written_to on symbolic variables.")
             return False
         else:
-            addr = self.state.se.eval(dst)
+            addr = self.state.solver.eval(dst)
         return self.mem.contains_no_backer(addr)
 
     #
@@ -712,7 +723,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        if type(req.addr) not in (int, long) and req.addr.symbolic:
+        if type(req.addr) is not int and req.addr.symbolic:
             conditional_constraint = self.state.solver.Or(*[ req.addr == a for a in req.actual_addresses ])
             if (conditional_constraint.symbolic or  # if the constraint is symbolic
                     conditional_constraint.is_false()):  # if it makes the state go unsat
@@ -767,7 +778,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self.mem.store_memory_object(mo)
 
     def _store_fully_concrete(self, address, size, data, endness, condition):
-        if type(size) not in (int, long):
+        if type(size) is not int:
             size = self.state.solver.eval(size)
         if size < data.length//self.state.arch.byte_width:
             data = data[len(data)-1:len(data)-size*self.state.arch.byte_width:]
@@ -796,7 +807,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         befores = original_value.chop(bits=self.state.arch.byte_width)
         afters = data.chop(bits=self.state.arch.byte_width)
-        stored_value = self.state.se.Concat(*[
+        stored_value = self.state.solver.Concat(*[
             self.state.solver.If(self.state.solver.UGT(size, i), a, b)
             for i, (a, b) in enumerate(zip(afters, befores))
         ])
@@ -916,7 +927,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             conditional_value = write_list[0][3]
             for a, index, d_byte, o_byte in write_list:
                 # create the ast for each byte
-                conditional_value = self.state.solver.If(self.state.se.And(address == a, size > index, condition), d_byte, conditional_value)
+                conditional_value = self.state.solver.If(self.state.solver.And(address == a, size > index, condition), d_byte, conditional_value)
 
             stored_values.append(dict(value=conditional_value, addr=byte_addr, size=1))
 
@@ -978,8 +989,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 elif can_be_reversed(old_val):
                     cnt = cnt.args[0]
                     reverse_it = True
-            if isinstance(old_val, (int, long, claripy.bv.BVV)):
-                merged_val = self.state.se.SI(bits=len(old_val), to_conv=old_val)
+            if isinstance(old_val, (int, claripy.bv.BVV)):
+                merged_val = self.state.solver.SI(bits=len(old_val), to_conv=old_val)
             else:
                 merged_val = old_val
             merged_val = merged_val.union(cnt)
@@ -1013,15 +1024,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options):
             # CGC binaries zero-fill the memory for any allocated region
             # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
-            return self.state.se.BVV(0, bits)
+            return self.state.solver.BVV(0, bits)
         elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
             return self.state._special_memory_filler(name, bits, self.state)
         else:
             if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                if source is not None and type(source) in (int, long):
+                if source is not None and type(source) is int:
                     alloc_depth = self.state.uc_manager.get_alloc_depth(source)
                     kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
-            r = self.state.se.Unconstrained(name, bits, key=key, inspect=inspect, events=events, **kwargs)
+            r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events, **kwargs)
             return r
 
     # Unconstrain a byte
@@ -1070,9 +1081,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             if should_reverse: merged_val = merged_val.reversed
         else:
-            merged_val = self.state.se.BVV(0, merged_size*self.state.arch.byte_width)
+            merged_val = self.state.solver.BVV(0, merged_size*self.state.arch.byte_width)
             for tm,fv in to_merge:
-                merged_val = self.state.se.If(fv, tm, merged_val)
+                merged_val = self.state.solver.If(fv, tm, merged_val)
 
         return merged_val
 
@@ -1082,7 +1093,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         lst = []
         more_data = False
-        for i, addr in enumerate(self.mem.iterkeys()):
+        for i, addr in enumerate(self.mem.keys()):
             lst.append(addr)
             if i >= 20:
                 more_data = True
@@ -1092,11 +1103,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             data = self.mem[addr]
             if isinstance(data, SimMemoryObject):
                 memobj = data
-                print "%s%xh: (%s)[%d]" % (" " * indent, addr, memobj, addr - memobj.base)
+                print("%s%xh: (%s)[%d]" % (" " * indent, addr, memobj, addr - memobj.base))
             else:
-                print "%s%xh: <default data>" % (" " * indent, addr)
+                print("%s%xh: <default data>" % (" " * indent, addr))
         if more_data:
-            print "%s..." % (" " * indent)
+            print("%s..." % (" " * indent))
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
                       disable_actions=False):

@@ -599,9 +599,8 @@ class CFGBase(Analysis):
             if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
                 can_produce_exits.add(cs_insn.address)
 
-        successors_filtered = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
-                                        get_exit_stmt_idx(suc) == 'default',
-                                     successors)
+        successors_filtered = [suc for suc in successors
+                               if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == 'default']
 
         return successors_filtered
 
@@ -621,8 +620,7 @@ class CFGBase(Analysis):
         if base_state is not None:
             all_bytes = base_state.memory.load(start, end - start + 1)
             try:
-                n = base_state.se.eval(all_bytes)
-                all_bytes = hex(n)[2:].strip('L').decode("hex")
+                all_bytes = base_state.solver.eval(all_bytes, cast_to=bytes)
             except SimError:
                 all_bytes = None
 
@@ -736,7 +734,7 @@ class CFGBase(Analysis):
                 memory_regions.append(tpl)
 
         if not memory_regions:
-            memory_regions = [(start, start + len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers]
+            memory_regions = [(start, start + len(backer)) for start, backer in self.project.loader.memory.backers()]
 
         memory_regions = sorted(memory_regions, key=lambda x: x[0])
 
@@ -797,61 +795,34 @@ class CFGBase(Analysis):
 
         return self.project.is_hooked(addr) or self.project.simos.is_syscall_addr(addr)
 
-    def _fast_memory_load(self, addr, length):
-        """
-        Perform a fast memory loading of static content from static regions, a.k.a regions that are mapped to the
-        memory by the loader.
-
-        :param int addr: Address to read from.
-        :return: A tuple of the data (cffi.CData) and the max size in the current continuous block, or (None, None) if
-                 the address does not exist.
-        :rtype: tuple
-        """
-
-        try:
-            if self.project.concrete_target is None:
-                buff, size = self.project.loader.memory.read_bytes_c(addr)
-                return buff, size
-            else:
-                buff = "".join(self.project.loader.memory.read_bytes(addr, length))
-                return self._ffi.new("unsigned char [%d]" % len(buff), str(buff)), length
-
-
-        except (KeyError, SimConcreteMemoryError):
-            return None, None
-
     def _fast_memory_load_byte(self, addr):
         """
         Perform a fast memory loading of a byte.
 
         :param int addr: Address to read from.
         :return:         A char or None if the address does not exist.
-        :rtype:          str or None
+        :rtype:          int or None
         """
 
-        return self._fast_memory_load_bytes(addr, 1)
+        try:
+            return self.project.loader.memory[addr]
+        except KeyError:
+            return None
 
     def _fast_memory_load_bytes(self, addr, length):
         """
-        Perform a fast memory loading of a byte.
+        Perform a fast memory loading of some data.
 
         :param int addr: Address to read from.
         :param int length: Size of the string to load.
         :return:         A string or None if the address does not exist.
-        :rtype:          str or None
+        :rtype:          bytes or None
         """
 
-        buf, size = self._fast_memory_load(addr, length)
-        if buf is None:
+        try:
+            return self.project.loader.memory.load(addr, length)
+        except KeyError:
             return None
-        if size == 0:
-            return None
-
-        # Make sure it does not go over-bound
-        length = min(length, size)
-
-        char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
-        return char_str
 
     def _fast_memory_load_pointer(self, addr):
         """
@@ -862,35 +833,10 @@ class CFGBase(Analysis):
         :rtype:          int
         """
 
-        pointer_size = self.project.arch.bits / 8
-        buf, size = self._fast_memory_load(addr, pointer_size)
-        if buf is None:
+        try:
+            return self.project.loader.memory.unpack_word(addr)
+        except KeyError:
             return None
-
-        if self.project.arch.memory_endness == 'Iend_LE':
-            fmt = "<"
-        else:
-            fmt = ">"
-
-        if pointer_size == 8:
-            if size >= 8:
-                fmt += "Q"
-            else:
-                # Insufficient bytes left in the current block for making an 8-byte pointer
-                return None
-        elif pointer_size == 4:
-            if size >= 4:
-                fmt += "I"
-            else:
-                # Insufficient bytes left in the current block for making a 4-byte pointer.
-                return None
-        else:
-            raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
-
-        ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf), pointer_size)
-        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
-
-        return ptr
 
     #
     # Analyze function features
@@ -1111,14 +1057,14 @@ class CFGBase(Analysis):
             # add the new item
             end_addresses_to_nodes[key].add(n)
 
-        for key in end_addresses_to_nodes.keys():
+        for key in list(end_addresses_to_nodes.keys()):
             if len(end_addresses_to_nodes[key]) == 1:
                 smallest_nodes[key] = next(iter(end_addresses_to_nodes[key]))
                 del end_addresses_to_nodes[key]
 
         while end_addresses_to_nodes:
             key_to_find = (None, None)
-            for tpl, x in end_addresses_to_nodes.iteritems():
+            for tpl, x in end_addresses_to_nodes.items():
                 if len(x) > 1:
                     key_to_find = tpl
                     break
@@ -1145,13 +1091,13 @@ class CFGBase(Analysis):
             if not end_addresses_to_nodes:
                 # find if there are still overlapping blocks
                 sorted_smallest_nodes = defaultdict(list)  # callstack_key is the key of this dict
-                for k, node in smallest_nodes.iteritems():
+                for k, node in smallest_nodes.items():
                     _, callstack_key = k
                     sorted_smallest_nodes[callstack_key].append(node)
-                for k in sorted_smallest_nodes.iterkeys():
+                for k in sorted_smallest_nodes.keys():
                     sorted_smallest_nodes[k] = sorted(sorted_smallest_nodes[k], key=lambda node: node.addr)
 
-                for callstack_key, lst in sorted_smallest_nodes.iteritems():
+                for callstack_key, lst in sorted_smallest_nodes.items():
                     lst_len = len(lst)
                     for i, node in enumerate(lst):
                         if i == lst_len - 1:
@@ -1248,9 +1194,7 @@ class CFGBase(Analysis):
             # Update nodes dict
             self._nodes[n.block_id] = new_node
             if n in self._nodes_by_addr[n.addr]:
-                self._nodes_by_addr[n.addr] = filter(lambda x,the_node=n: x is not the_node,
-                                                     self._nodes_by_addr[n.addr]
-                                                     )
+                self._nodes_by_addr[n.addr] = [node for node in self._nodes_by_addr[n.addr] if node is not n]
                 self._nodes_by_addr[n.addr].append(new_node)
 
             for p, _, data in original_predecessors:
@@ -1311,7 +1255,7 @@ class CFGBase(Analysis):
         """
 
         finished_func_addrs = [ ]
-        for func_addr, all_jobs in self._jobs_to_analyze_per_function.iteritems():
+        for func_addr, all_jobs in self._jobs_to_analyze_per_function.items():
             if not all_jobs:
                 # great! we have finished analyzing this function!
                 finished_func_addrs.append(func_addr)
@@ -1499,7 +1443,7 @@ class CFGBase(Analysis):
             del self.kb.functions[addr]
 
         # Update CFGNode.function_address
-        for node in self._nodes.itervalues():
+        for node in self._nodes.values():
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
@@ -1543,7 +1487,7 @@ class CFGBase(Analysis):
 
         functions_can_be_removed = set(functions.keys()) - set(predetermined_function_addrs)
 
-        for func_addr, function in functions.iteritems():
+        for func_addr, function in functions.items():
 
             if func_addr in functions_to_remove:
                 continue
@@ -1650,7 +1594,7 @@ class CFGBase(Analysis):
                 functions_to_remove[f_addr] = func_addr
 
         # merge all functions
-        for to_remove, merge_with in functions_to_remove.iteritems():
+        for to_remove, merge_with in functions_to_remove.items():
             func_merge_with = self._addr_to_function(merge_with, blockaddr_to_function, functions)
 
             for block_addr in functions[to_remove].block_addrs:

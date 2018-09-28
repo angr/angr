@@ -1,9 +1,10 @@
-
+import capstone as cs
 import logging
+
+from ..misc.ux import once
 
 l = logging.getLogger('angr.analyses.disassembly_utils')
 
-import capstone as cs
 
 INS_GROUP_INFO = {
     'X86': {
@@ -26,7 +27,7 @@ try:
     }
 except AttributeError:
     # The installed capstone is too old - it does not support cs.mips.MIPS_GRP_*
-    l.warning('Your version of capstone does not support MIPS instruction groups.')
+    pass
 
 
 INS_INFO = {
@@ -41,6 +42,8 @@ def decode_instruction(arch, instr):
     # this is clearly architecture specific
 
     arch_name = arch.name
+    if arch_name == 'MIPS32' and once('mips-instruction-groups'):
+        l.warning('Your version of capstone does not support MIPS instruction groups.')
 
     insn_info = None
 

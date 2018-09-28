@@ -17,12 +17,12 @@ def test_gdb():
     st.gdb.set_heap(os.path.join(data_location, "heap"), heap_base = 0x601000)
     st.gdb.set_regs(os.path.join(data_location, "regs"))
 
-    nose.tools.assert_equal(st.se.eval(st.regs.rip), 0x4005b4)
+    nose.tools.assert_equal(st.solver.eval(st.regs.rip), 0x4005b4)
 
     # Read the byte in memory at $sp + 8
-    loc = st.se.eval(st.regs.rsp) + 8
+    loc = st.solver.eval(st.regs.rsp) + 8
     val = st.memory.load(loc, 8, endness=st.arch.memory_endness)
-    nose.tools.assert_equal(st.se.eval(val), 0x00601010)
+    nose.tools.assert_equal(st.solver.eval(val), 0x00601010)
 
 if __name__ == "__main__":
     test_gdb()

@@ -2,7 +2,7 @@ import angr
 import nose
 
 def test_unsupported_syscall_simos():
-    p = angr.load_shellcode('\xcd\x80', 'x86')
+    p = angr.load_shellcode(b'\xcd\x80', 'x86')
     state = p.factory.entry_state()
     state.regs.eax = 4
 

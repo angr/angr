@@ -6,8 +6,8 @@ from ..func import Func, TestData
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
-        return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
-    return "".join(random.choice(byte_list) for _ in xrange(length))
+        return "".join(chr(random.randint(0, 255)) for _ in range(length))
+    return "".join(random.choice(byte_list) for _ in range(length))
 
 
 class memcmp(Func):
@@ -40,7 +40,7 @@ class memcmp(Func):
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps)
         s = runner.get_out_state(func, test)
-        if s is None or s.se.eval(s.regs.eax) != 0:
+        if s is None or s.solver.eval(s.regs.eax) != 0:
             return False
 
         bufa = "asd\x00a"
@@ -51,7 +51,7 @@ class memcmp(Func):
         x = runner.get_out_state(func, test)
         if x is None:
             return False
-        outval1 = x.se.eval(x.regs.eax)
+        outval1 = x.solver.eval(x.regs.eax)
 
         bufa = "asd\x00c"
         bufb = "asd\x00b"
@@ -62,7 +62,7 @@ class memcmp(Func):
         if s is None:
             return False
 
-        outval2 = s.se.eval(s.regs.eax)
+        outval2 = s.solver.eval(s.regs.eax)
 
         if outval1 != 0 or outval2 == 0:
             return False

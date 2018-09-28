@@ -13,7 +13,7 @@ class realloc(angr.SimProcedure):
 
     def run(self, ptr, size):
         self.state.add_constraints(size <= self.state.libc.max_variable_size)
-        size_int = self.state.se.max_int(size)
+        size_int = self.state.solver.max_int(size)
 
         l.debug("Size: %d", size_int)
         self.state.add_constraints(size_int == size)

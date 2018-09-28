@@ -1,4 +1,4 @@
-import sys
+
 from cachetools import LRUCache
 
 import pyvex
@@ -10,7 +10,12 @@ from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
+<<<<<<< HEAD
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError, SimConcreteMemoryError)
+=======
+                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
+from ...misc.ux import once
+>>>>>>> a5af2836ccc474269fd5680b3fd09c6b86cf2cba
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -174,7 +179,7 @@ class SimEngineVEX(SimEngine):
                     raise SimSegfaultError(addr, 'exec-miss')
                 else:
                     if not perms.symbolic:
-                        perms = state.se.eval(perms)
+                        perms = state.solver.eval(perms)
                         if not perms & 4 and o.ENABLE_NX in state.options:
                             raise SimSegfaultError(addr, 'non-executable')
 
@@ -222,12 +227,12 @@ class SimEngineVEX(SimEngine):
 
         # if we've told the block to truncate before it ends, it will definitely have a default
         # exit barring errors
-        has_default_exit = num_stmts <= last_stmt
+        has_default_exit = last_stmt == 'default' or num_stmts <= last_stmt
 
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:
             imark_counter = 0
-            for i in xrange(len(ss) - 1, -1, -1):
+            for i in range(len(ss) - 1, -1, -1):
                 if type(ss[i]) is pyvex.IRStmt.IMark:
                     imark_counter += 1
                 if imark_counter >= 4:
@@ -244,7 +249,7 @@ class SimEngineVEX(SimEngine):
             if stmt_idx < skip_stmts:
                 l.debug("Skipping statement %d", stmt_idx)
                 continue
-            if last_stmt is not None and stmt_idx > last_stmt:
+            if last_stmt is not None and last_stmt != 'default' and stmt_idx > last_stmt:
                 l.debug("Truncating statement %d", stmt_idx)
                 continue
             if whitelist is not None and stmt_idx not in whitelist:
@@ -261,7 +266,7 @@ class SimEngineVEX(SimEngine):
                     raise
                 if stmt.tmp not in (0xffffffff, -1):
                     retval_size = state.scratch.tyenv.sizeof(stmt.tmp)
-                    retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size, key=('dirty', stmt.cee.name))
+                    retval = state.solver.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size, key=('dirty', stmt.cee.name))
                     state.scratch.store_tmp(stmt.tmp, retval, None, None)
                 state.history.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name,
                                     message='unsupported Dirty call')
@@ -311,9 +316,9 @@ class SimEngineVEX(SimEngine):
             if o.CALLLESS in state.options and exit_jumpkind == "Ijk_Call":
                 exit_state.registers.store(
                     exit_state.arch.ret_offset,
-                    exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits)
+                    exit_state.solver.Unconstrained('fake_ret_value', exit_state.arch.bits)
                 )
-                exit_state.scratch.target = exit_state.se.BVV(
+                exit_state.scratch.target = exit_state.solver.BVV(
                     successors.addr + irsb.size, exit_state.arch.bits
                 )
                 exit_state.history.jumpkind = "Ijk_Ret"
@@ -324,8 +329,8 @@ class SimEngineVEX(SimEngine):
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in state.options else ret_state.se.false
-                target = ret_state.se.BVV(successors.addr + irsb.size, ret_state.arch.bits)
+                guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in state.options else ret_state.solver.false
+                target = ret_state.solver.BVV(successors.addr + irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith('Ijk_Sys'):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
@@ -350,7 +355,7 @@ class SimEngineVEX(SimEngine):
             state.scratch.ins_addr = ins_addr
 
             # Raise an exception if we're suddenly in self-modifying code
-            for subaddr in xrange(stmt.len):
+            for subaddr in range(stmt.len):
                 if subaddr + stmt.addr in state.scratch.dirty_addrs:
                     raise SimReliftException(state)
             state._inspect('instruction', BP_AFTER)
@@ -422,6 +427,7 @@ class SimEngineVEX(SimEngine):
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         :param strict_block_end:   Whether to force blocks to end at all conditional branches (default: false)
         """
+
         # phase 0: sanity check
         if not state and not clemory and not insn_bytes:
             raise ValueError("Must provide state or clemory or insn_bytes!")
@@ -437,7 +443,7 @@ class SimEngineVEX(SimEngine):
 
         # phase 1: parameter defaults
         if addr is None:
-            addr = state.se.eval(state._ip)
+            addr = state.solver.eval(state._ip)
         if size is not None:
             size = min(size, VEX_IRSB_MAX_SIZE)
         if size is None:
@@ -455,8 +461,9 @@ class SimEngineVEX(SimEngine):
             strict_block_end = self.default_strict_block_end
         if self._support_selfmodifying_code:
             if opt_level > 0:
-                l.warning("Self-modifying code is not always correctly optimized by PyVEX. "
-                          "To guarantee correctness, VEX optimizations have been disabled.")
+                if once('vex-engine-smc-opt-warning'):
+                    l.warning("Self-modifying code is not always correctly optimized by PyVEX. "
+                              "To guarantee correctness, VEX optimizations have been disabled.")
                 opt_level = 0
                 if state and o.OPTIMIZE_IR in state.options:
                     state.options.remove(o.OPTIMIZE_IR)
@@ -521,7 +528,7 @@ class SimEngineVEX(SimEngine):
         # phase 5: call into pyvex
         # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
-            for subphase in xrange(2):
+            for subphase in range(2):
                 irsb = pyvex.lift(buff, addr + thumb, arch,
                                   max_bytes=size,
                                   max_inst=num_inst,
@@ -545,14 +552,13 @@ class SimEngineVEX(SimEngine):
                 return irsb
 
         # phase x: error handling
-        except pyvex.PyVEXError:
+        except pyvex.PyVEXError as e:
             l.debug("VEX translation error at %#x", addr)
-            if isinstance(buff, str):
+            if isinstance(buff, bytes):
                 l.debug('Using bytes: %r', buff)
             else:
                 l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
-            e_type, value, traceback = sys.exc_info()
-            raise SimTranslationError, ("Translation error", e_type, value), traceback
+            raise SimTranslationError("Unable to translate bytecode") from e
 
     def _load_bytes(self, addr, max_size, state=None, clemory=None):
         if not clemory:
@@ -565,7 +571,7 @@ class SimEngineVEX(SimEngine):
                 # symbolic memory
                 clemory = state.memory.mem._memory_backer
 
-        buff, size = "", 0
+        buff, size = b"", 0
 
         # Load from the clemory if we can
         smc = self._support_selfmodifying_code
@@ -581,20 +587,21 @@ class SimEngineVEX(SimEngine):
 
         if not smc or not state:
             try:
-                if self.project.concrete_target is None:
-                    buff, size = clemory.read_bytes_c(addr)
-                else:
-                    buff = "".join(clemory.read_bytes(addr, max_size))
-                    size = max_size
-            except (KeyError, SimConcreteMemoryError):
+                start, backer = next(clemory.backers(addr))
+            except StopIteration:
                 pass
+            else:
+                if start <= addr:
+                    offset = addr - start
+                    buff = pyvex.ffi.from_buffer(backer) + offset
+                    size = len(backer) - offset
 
         # If that didn't work, try to load from the state
         if size == 0 and state:
             fallback = True
             if addr in state.memory and addr + max_size - 1 in state.memory:
                 try:
-                    buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=str)
+                    buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
                     size = max_size
                     fallback = False
                 except SimError:
@@ -602,16 +609,16 @@ class SimEngineVEX(SimEngine):
 
             if fallback:
                 buff_lst = [ ]
-                for i in xrange(max_size):
+                for i in range(max_size):
                     if addr + i in state.memory:
                         try:
-                            buff_lst.append(chr(state.se.eval(state.memory.load(addr + i, 1, inspect=False))))
+                            buff_lst.append(state.solver.eval(state.memory.load(addr + i, 1, inspect=False)))
                         except SimError:
                             break
                     else:
                         break
 
-                buff = ''.join(buff_lst)
+                buff = bytes(buff_lst)
                 size = len(buff)
 
         size = min(max_size, size)

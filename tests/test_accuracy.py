@@ -62,7 +62,7 @@ def test_windows():
 def test_locale():
     p = angr.Project(test_location + 'i386/isalnum', use_sim_procedures=False)
     state = p.factory.full_init_state(args=['./isalnum'], add_options={angr.options.STRICT_PAGE_ACCESS})
-    pg = p.factory.simgr(state)
+    pg = p.factory.simulation_manager(state)
     pg2 = pg.run(until=lambda lpg: len(lpg.active) != 1,
                   step_func=lambda lpg: lpg if len(lpg.active) == 1 else lpg.prune()
                  )
@@ -73,11 +73,11 @@ def test_locale():
 
 
 if __name__ == '__main__':
-    print 'locale'
+    for func, a, b, c, d in test_windows():
+        print(a.filename)
+        func(a, b, c, d)
+    print('locale')
     test_locale()
     for func, a, b, c, d in test_emulation():
-        print a.filename
-        func(a, b, c, d)
-    for func, a, b, c, d in test_windows():
-        print a.filename
+        print(a.filename)
         func(a, b, c, d)

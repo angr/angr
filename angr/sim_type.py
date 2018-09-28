@@ -149,7 +149,7 @@ class SimTypeReg(SimType):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        return state.se.eval(out)
+        return state.solver.eval(out)
 
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
@@ -157,9 +157,9 @@ class SimTypeReg(SimType):
         if isinstance(value, claripy.ast.Bits):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
-        elif isinstance(value, (int, long)):
-            value = state.se.BVV(value, self.size)
-        elif isinstance(value, str):
+        elif isinstance(value, int):
+            value = state.solver.BVV(value, self.size)
+        elif isinstance(value, bytes):
             store_endness = 'Iend_BE'
         else:
             raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
@@ -191,7 +191,7 @@ class SimTypeNum(SimType):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.eval(out)
+        n = state.solver.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -202,9 +202,9 @@ class SimTypeNum(SimType):
         if isinstance(value, claripy.ast.Bits):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
-        elif isinstance(value, (int, long)):
-            value = state.se.BVV(value, self.size)
-        elif isinstance(value, str):
+        elif isinstance(value, int):
+            value = state.solver.BVV(value, self.size)
+        elif isinstance(value, bytes):
             store_endness = 'Iend_BE'
         else:
             raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
@@ -251,9 +251,9 @@ class SimTypeInt(SimTypeReg):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.eval(out)
+        n = state.solver.eval(out)
         if self.signed and n >= 1 << (self.size-1):
-            n -= 1 << (self.size)
+            n -= 1 << self.size
         return n
 
     def _init_str(self):
@@ -262,6 +262,20 @@ class SimTypeInt(SimTypeReg):
             self.signed,
             '"%s"' % self.label if self.label is not None else "None",
         )
+
+    def _refine_dir(self):
+        return ['signed', 'unsigned']
+
+    def _refine(self, view, k):
+        if k == 'signed':
+            ty = copy.copy(self)
+            ty.signed = True
+        elif k == 'unsigned':
+            ty = copy.copy(self)
+            ty.signed = False
+        else:
+            raise KeyError(k)
+        return view._deeper(ty=ty)
 
 
 class SimTypeShort(SimTypeInt):
@@ -299,8 +313,8 @@ class SimTypeChar(SimTypeReg):
         try:
             super(SimTypeChar, self).store(state, addr, value)
         except TypeError:
-            if isinstance(value, str) and len(value) == 1:
-                value = state.se.BVV(ord(value), state.arch.byte_width)
+            if isinstance(value, bytes) and len(value) == 1:
+                value = state.solver.BVV(value[0], state.arch.byte_width)
                 super(SimTypeChar, self).store(state, addr, value)
             else:
                 raise
@@ -311,7 +325,7 @@ class SimTypeChar(SimTypeReg):
 
         out = super(SimTypeChar, self).extract(state, addr, concrete)
         if concrete:
-            return chr(out)
+            return bytes([out])
         return out
 
     def _init_str(self):
@@ -331,7 +345,7 @@ class SimTypeBool(SimTypeChar):
     def extract(self, state, addr, concrete=False):
         ver = super(SimTypeBool, self).extract(state, addr, concrete)
         if concrete:
-            return ver != '\0'
+            return ver != b'\0'
         return ver != 0
 
     def _init_str(self):
@@ -421,11 +435,11 @@ class SimTypeFixedSizeArray(SimType):
         return view._deeper(addr=view._addr + k * (self.elem_type.size//view.state.arch.byte_width), ty=self.elem_type)
 
     def extract(self, state, addr, concrete=False):
-        return [self.elem_type.extract(state, addr + i*(self.elem_type.size//state.arch.byte_width), concrete) for i in xrange(self.length)]
+        return [self.elem_type.extract(state, addr + i*(self.elem_type.size//state.arch.byte_width), concrete) for i in range(self.length)]
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
-            self.elem_type.store(state, addr + i*(self.elem_type.size/8), val)
+            self.elem_type.store(state, addr + i*(self.elem_type.size//8), val)
 
     @property
     def size(self):
@@ -516,7 +530,7 @@ class SimTypeString(SimTypeArray):
         if not concrete:
             return out if out is not None else claripy.BVV(0, 0)
         else:
-            return state.se.eval(out, cast_to=str) if out is not None else ''
+            return state.solver.eval(out, cast_to=bytes) if out is not None else ''
 
     _can_refine_int = True
 
@@ -565,7 +579,7 @@ class SimTypeWString(SimTypeArray):
         if not concrete:
             return out
         else:
-            return u''.join(unichr(state.se.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
+            return u''.join(chr(state.solver.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
 
     _can_refine_int = True
 
@@ -675,7 +689,7 @@ class SimTypeFloat(SimTypeReg):
     def extract(self, state, addr, concrete=False):
         itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)
         if concrete:
-            return state.se.eval(itype)
+            return state.solver.eval(itype)
         return itype
 
     def store(self, state, addr, value):
@@ -732,7 +746,7 @@ class SimStruct(SimType):
     def offsets(self):
         offsets = {}
         offset_so_far = 0
-        for name, ty in self.fields.iteritems():
+        for name, ty in self.fields.items():
             if not self._pack:
                 align = ty.alignment
                 if offset_so_far % align != 0:
@@ -744,7 +758,7 @@ class SimStruct(SimType):
 
     def extract(self, state, addr, concrete=False):
         values = {}
-        for name, offset in self.offsets.iteritems():
+        for name, offset in self.offsets.items():
             ty = self.fields[name]
             v = ty.view(state, addr + offset)
             if concrete:
@@ -761,7 +775,7 @@ class SimStruct(SimType):
         out = SimStruct(None, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         self._arch_memo[arch.name] = out
-        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems())
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
         return out
 
     def __repr__(self):
@@ -769,16 +783,16 @@ class SimStruct(SimType):
 
     @property
     def size(self):
-        return sum(val.size for val in self.fields.itervalues())
+        return sum(val.size for val in self.fields.values())
 
     @property
     def alignment(self):
         if self._align is not None:
             return self._align
-        return max(val.alignment for val in self.fields.itervalues())
+        return max(val.alignment for val in self.fields.values())
 
     def _refine_dir(self):
-        return self.fields.keys()
+        return list(self.fields.keys())
 
     def _refine(self, view, k):
         offset = self.offsets[k]
@@ -796,7 +810,7 @@ class SimStruct(SimType):
         if len(value) != len(self.fields):
             raise ValueError("Passed bad values for %s; expected %d, got %d" % self, len(self.offsets), len(value))
 
-        for field, offset in self.offsets.iteritems():
+        for field, offset in self.offsets.items():
             ty = self.fields[field]
             ty.store(state, addr + offset, value[field])
 
@@ -831,7 +845,7 @@ class SimStructValue(object):
         return self[k]
 
     def __getitem__(self, k):
-        if type(k) in (int, long):
+        if type(k) is int:
             return self._values[self._struct.fields[k]]
         return self._values[k]
 
@@ -849,17 +863,17 @@ class SimUnion(SimType):
 
     @property
     def size(self):
-        return max(ty.size for ty in self.members.itervalues())
+        return max(ty.size for ty in self.members.values())
 
     @property
     def alignment(self):
-        return max(val.alignment for val in self.members.itervalues())
+        return max(val.alignment for val in self.members.values())
 
     def __repr__(self):
-        return 'union {\n\t%s\n}' % '\n\t'.join('%s %s;' % (name, repr(ty)) for name, ty in self.members.iteritems())
+        return 'union {\n\t%s\n}' % '\n\t'.join('%s %s;' % (name, repr(ty)) for name, ty in self.members.items())
 
     def _with_arch(self, arch):
-        out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.iteritems()}, self.label)
+        out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.items()}, self.label)
         out._arch = arch
         return out
 
@@ -985,7 +999,7 @@ def register_types(mapping):
 
 def do_preprocess(defn):
     """
-    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessable?
+    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
     """
     import pycparser.ply.lex as lex
     import pycparser.ply.cpp as cpp

@@ -8,7 +8,7 @@ from ..func import Func, TestData
 BASES = [8, 10, 16]
 
 
-digs = string.digits + string.letters
+digs = string.digits + string.ascii_letters
 
 
 def int2base(x, base):
@@ -22,7 +22,7 @@ def int2base(x, base):
     digits = []
     while x:
         digits.append(digs[x % base])
-        x /= base
+        x //= base
     if sign < 0:
         digits.append('-')
     digits.reverse()
@@ -57,8 +57,8 @@ class based_atoi(Func):
 
     def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
-            return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
-        return "".join(random.choice(byte_list) for _ in xrange(length))
+            return "".join(chr(random.randint(0, 255)) for _ in range(length))
+        return "".join(random.choice(byte_list) for _ in range(length))
 
     def num_args(self):
         return OneTwoOrThree()
@@ -81,7 +81,7 @@ class based_atoi(Func):
 
         num = abs(num)
         s = int2base(num, self.base)
-        test_input = [s, 30, "foo"]
+        test_input = [s, 30, b"foo"]
         test_output = [s, None, None]
         return_val = num
         max_steps = 10
@@ -95,7 +95,7 @@ class based_atoi(Func):
         state = runner.get_out_state(func, test, concrete_rand=True)
         if state is None:
             return False
-        out_val = state.se.eval(state.regs.eax)
+        out_val = state.solver.eval(state.regs.eax)
         self.base = None
         for i in range(2, 16):
             if out_val == int(s, i):

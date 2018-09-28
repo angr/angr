@@ -28,7 +28,7 @@ l = logging.getLogger("angr.analyses.cfg.cfg_fast")
 l.setLevel(logging.DEBUG)
 
 
-class Segment(object):
+class Segment:
     """
     Representing a memory block. This is not the "Segment" in ELF memory model
     """
@@ -71,7 +71,7 @@ class Segment(object):
         return Segment(self.start, self.end, self.sort)
 
 
-class SegmentList(object):
+class SegmentList:
     """
     SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
     blocks or not, and obtain the exact block(segment) that the address belongs to.
@@ -107,7 +107,7 @@ class SegmentList(object):
         end = len(self._list)
 
         while start != end:
-            mid = (start + end) / 2
+            mid = (start + end) // 2
 
             segment = self._list[mid]
             if addr < segment.start:
@@ -421,7 +421,7 @@ class SegmentList(object):
         :return: None
         """
 
-        if size <= 0:
+        if size is None or size <= 0:
             # Cannot occupy a non-existent block
             return
 
@@ -475,7 +475,7 @@ class SegmentList(object):
         return len(self._list) > 0
 
 
-class FunctionReturn(object):
+class FunctionReturn:
     """
     FunctionReturn describes a function call in a specific location and its return location. Hashable and equatable
     """
@@ -504,7 +504,7 @@ class FunctionReturn(object):
         return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
 
 
-class PendingJobs(object):
+class PendingJobs:
     """
     A collection of pending jobs during CFG recovery.
     """
@@ -552,7 +552,7 @@ class PendingJobs(object):
             return None
 
         if not returning:
-            return self._pop_job(self._jobs.keys()[0])
+            return self._pop_job(next(iter(self._jobs.keys())))
 
         # Prioritize returning functions
         for func_addr in self._jobs:
@@ -618,7 +618,7 @@ class PendingJobs(object):
 #
 
 
-class FunctionEdge(object):
+class FunctionEdge:
     __slots__ = ('src_func_addr', 'stmt_idx', 'ins_addr',)
 
     def apply(self, cfg):
@@ -716,7 +716,7 @@ class FunctionReturnEdge(FunctionEdge):
 #
 
 
-class CFGJob(object):
+class CFGJob:
     """
     Defines a job to work on during the CFG recovery
     """
@@ -810,7 +810,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # TODO: Move arch_options to CFGBase, and add those logic to CFGAccurate as well.
     # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
-    PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "")
+    PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
 
     tag = "CFGFast"
 
@@ -964,12 +964,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._extra_cross_references = extra_cross_references
 
-        try:
-            self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
-                                                                                              **extra_arch_options
-                                                                                              )
-        except KeyError:
-            raise
+        self._arch_options = arch_options if arch_options is not None else CFGArchOptions(
+                self.project.arch, **extra_arch_options)
 
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
@@ -1031,9 +1027,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if size is None:
             size = len(data)
 
-        data = str(pyvex.ffi.buffer(data, size))
-        for x in xrange(0, 256):
-            p_x = float(data.count(chr(x))) / size
+        data = bytes(pyvex.ffi.buffer(data, size))
+        for x in range(0, 256):
+            p_x = float(data.count(x)) / size
             if p_x > 0:
                 entropy += - p_x * math.log(p_x, 2)
         return entropy
@@ -1178,7 +1174,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _load_a_byte_as_int(self, addr):
         if self._base_state is not None:
             try:
-                val = chr(self._base_state.mem_concrete(addr, 1, inspect=False, disable_actions=True))
+                val = self._base_state.mem_concrete(addr, 1, inspect=False, disable_actions=True)
             except SimValueError:
                 # Not concretizable
                 l.debug("Address %#x is not concretizable!", addr)
@@ -1191,7 +1187,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_for_printable_strings(self, start_addr):
         addr = start_addr
-        sz = ""
+        sz = []
         is_sz = True
 
         # Get data until we meet a null-byte
@@ -1200,18 +1196,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             val = self._load_a_byte_as_int(addr)
             if val is None:
                 break
-            if val == '\x00':
+            if val == 0:
                 if len(sz) < 4:
                     is_sz = False
                 break
             if val not in self.PRINTABLES:
                 is_sz = False
                 break
-            sz += val
+            sz.append(val)
             addr += 1
 
         if sz and is_sz:
-            l.debug("Got a string of %d chars: [%s]", len(sz), sz)
+            l.debug("Got a string of %d chars: [%s]", len(sz), bytes(sz).decode())
             string_length = len(sz) + 1
             return string_length
 
@@ -1234,7 +1230,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 break
             addr += 1
 
-        if repeating_length > self.project.arch.bits / 8:  # this is pretty random
+        if repeating_length > self.project.arch.bytes:  # this is pretty random
             return repeating_length
         else:
             return 0
@@ -1519,7 +1515,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         target_funcs = [ self.functions.function(addr=func_addr)
                                          for func_addr in callsites_to_functions[src.addr]
                                          ]
-                        if target_funcs and all([ t is not None and t.returning is False for t in target_funcs ]):
+                        if target_funcs and all(t is not None and t.returning is False for t in target_funcs):
                             # Remove this edge
                             edges_to_remove.append((src, dst))
                         else:
@@ -1583,15 +1579,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: set
         """
 
-        symbols_by_addr = self._binary.symbols_by_addr
-
-        func_addrs = set()
-
-        for addr, sym in symbols_by_addr.iteritems():
-            if sym.is_function:
-                func_addrs.add(addr)
-
-        return func_addrs
+        return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
 
     def _func_addrs_from_prologues(self):
         """
@@ -1607,14 +1595,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             regexes.append(r)
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_object. An interface
-        # TODO: to that would be awesome.
-
-        strides = self._binary.memory.stride_repr
-
         unassured_functions = []
 
-        for start_, _, bytes_ in strides:
+        for start_, bytes_ in self._binary.memory.backers():
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes_):
@@ -1729,7 +1712,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for addr_, jumpkind in new_exits:
                 if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:
                     addr_ = addr_._model_concrete.value
-                if not isinstance(addr_, (int, long)):
+                if not isinstance(addr_, int):
                     continue
                 entries += self._create_jobs(addr_, jumpkind, current_func_addr, None, addr_, cfg_node, None,
                                              None
@@ -1864,7 +1847,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             target_addr = target.con.value
         elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
             target_addr = target.value
-        elif type(target) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
             target_addr = target
         else:
             target_addr = None
@@ -2029,7 +2012,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             # Find the first successor with a syscall jumpkind
             succ = next(iter(succ for succ in self.project.factory.successors(tmp_state).flat_successors
-                             if succ.jumpkind and succ.jumpkind.startswith("Ijk_Sys")), None)
+                             if succ.history.jumpkind and succ.history.jumpkind.startswith("Ijk_Sys")), None)
             if succ is None:
                 # For some reason, there is no such successor with a syscall jumpkind
                 target_addr = self._unresolvable_target_addr
@@ -2170,7 +2153,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             """
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
-            elif type(data_) in (int, long):
+            elif type(data_) is int:
                 val = data_
             else:
                 return
@@ -2200,7 +2183,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    size = stmt.data.result_size(irsb.tyenv) / 8 # convert to bytes
+                    size = stmt.data.result_size(irsb.tyenv) // 8 # convert to bytes
                     _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
                              data_size=size, data_type='integer'
                              )
@@ -2305,7 +2288,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Make sure all memory data entries cover all data sections
-        keys = sorted(self._memory_data.iterkeys())
+        keys = sorted(self._memory_data.keys())
         for i, data_addr in enumerate(keys):
             data = self._memory_data[data_addr]
             if self._addr_in_exec_memory_regions(data.address):
@@ -2354,7 +2337,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if boundary is not None:
                     data.max_size = boundary - data_addr
 
-        keys = sorted(self._memory_data.iterkeys())
+                if data.max_size is None:
+                    print('wtf')
+
+        keys = sorted(self._memory_data.keys())
 
         new_data_found = False
 
@@ -2373,7 +2359,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # let's see what sort of data it is
             if memory_data.sort in ('unknown', None) or \
-                    (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bits / 8):
+                    (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bytes):
                 data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr,
                                                              memory_data.stmt_idx, data_addr, memory_data.max_size,
                                                              content_holder=content_holder
@@ -2398,9 +2384,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 if data_type == 'pointer-array':
                     # make sure all pointers are identified
-                    pointer_size = self.project.arch.bits / 8
+                    pointer_size = self.project.arch.bytes
 
-                    for j in xrange(0, data_size, pointer_size):
+                    for j in range(0, data_size, pointer_size):
                         ptr = self._fast_memory_load_pointer(data_addr + j)
 
                         # is this pointer coming from the current binary?
@@ -2453,7 +2439,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # TODO: Further check if it's the beginning of an instruction
             return "code reference", 0
 
-        pointer_size = self.project.arch.bits / 8
+        pointer_size = self.project.arch.bytes
 
         # who's using it?
         if isinstance(self.project.loader.main_object, cle.MetaELF):
@@ -2465,7 +2451,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         pointers_count = 0
 
         max_pointer_array_size = min(512 * pointer_size, max_size)
-        for i in xrange(0, max_pointer_array_size, pointer_size):
+        for i in range(0, max_pointer_array_size, pointer_size):
             ptr = self._fast_memory_load_pointer(data_addr + i)
 
             if ptr is not None:
@@ -2487,36 +2473,43 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if pointers_count:
             return "pointer-array", pointer_size * pointers_count
 
-        # 4096 is only use with a concrete target. It represents the max
-        # between max_unicode_string_len and max_string_len
-        block, block_size = self._fast_memory_load(data_addr, 4096)
+        try:
+            data = self.project.loader.memory.load(data_addr, 1024)
+        except KeyError:
+            data = b''
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block_size >= 4 and block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
-            max_unicode_string_len = 1024
-            try:
-                unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
-            except ValueError:
-                # cffi fails to interpret the bytes as unicode
-                unicode_str = u''
+        if len(data) >= 4 and data[1] == 0 and data[3] == 0 and data[0] in self.PRINTABLES:
+            def can_decode(n):
+                try:
+                    data[:n*2].decode('utf_16_le')
+                except UnicodeDecodeError:
+                    return False
+                return True
+            if can_decode(4) or can_decode(5) or can_decode(6):
+                running_failures = 0
+                last_success = 4
+                for i in range(4, len(data) // 2):
+                    if can_decode(i):
+                        last_success = i
+                        running_failures = 0
+                        if data[i*2-2] == 0 and data[i*2-1] == 0:
+                            break
+                    else:
+                        running_failures += 1
+                        if running_failures > 3:
+                            break
 
-            if (len(unicode_str) and  # pylint:disable=len-as-condition
-                    all([ c in self.PRINTABLES for c in unicode_str])):
-                if content_holder is not None:
-                    content_holder.append(unicode_str)
-                return "unicode", (len(unicode_str) + 1) * 2
+                return "unicode", last_success
 
-        # Is it a null-terminated printable string?
-        max_string_len = min([ block_size, max_size, 4096 ])
-        s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
-        if len(s):  # pylint:disable=len-as-condition
-            if all([ c in self.PRINTABLES for c in s ]):
+        if data:
+            if all(c in self.PRINTABLES for c in data):
                 # it's a string
                 # however, it may not be terminated
                 if content_holder is not None:
-                    content_holder.append(s)
-                return "string", min(len(s) + 1, max_string_len)
+                    content_holder.append(data)
+                return "string", min(len(data) + 1, 1024)
 
         for handler in self._data_type_guessing_handlers:
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
@@ -2731,13 +2724,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # append all new nodes to sorted nodes
         if nodes_to_append:
-            sorted_nodes = sorted(sorted_nodes + nodes_to_append.values(), key=lambda n: n.addr if n is not None else 0)
+            sorted_nodes = sorted(sorted_nodes + list(nodes_to_append.values()), key=lambda n: n.addr if n is not None else 0)
 
         removed_nodes = set()
 
         a = None  # it always hold the very recent non-removed node
 
-        for i in xrange(len(sorted_nodes)):
+        for i in range(len(sorted_nodes)):
 
             if a is None:
                 a = sorted_nodes[0]
@@ -3013,7 +3006,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     @staticmethod
     def _get_return_endpoints(func):
         all_endpoints = func.endpoints_with_type
-        return all_endpoints.get('return', [ ])
+        return all_endpoints.get('return', [])
 
     def _get_jumpout_targets(self, func):
         jumpout_targets = set()
@@ -3062,7 +3055,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
-        for func_addr, func in self.functions.iteritems():
+        for func_addr, func in self.functions.items():
             if func.returning is False:
                 continue
 
@@ -3394,7 +3387,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if isinstance(val, tuple) and val[0] == 'load':
                 # the value comes from memory
                 memory_addr = val[1]
-                if isinstance(last_sp, (int, long)):
+                if isinstance(last_sp, int):
                     lr_on_stack_offset = memory_addr - last_sp
                 else:
                     lr_on_stack_offset = memory_addr - last_sp[1]
@@ -3623,7 +3616,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return
 
                 state = succ.flat_successors[0]
-                if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
+                if not state.regs.gp.symbolic and state.solver.is_false(state.regs.gp == 0xffffffff):
                     function.info['gp'] = state.regs.gp._model_concrete.value
 
     #

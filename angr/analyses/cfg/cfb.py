@@ -233,12 +233,8 @@ class CFBlanket(Analysis):
                 try:
                     _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
                              obj, section, segment, min_addr)
-                    if self.project.concrete_target is None:
-                        bytes_ptr, _ = self.project.loader.memory.read_bytes_c(min_addr)
-                        bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size) # type: str
-                    else:
-                        bytes_ = "".join(self.project.loader.memory.read_bytes(min_addr, size))
-                except (KeyError, SimConcreteMemoryError):
+                    bytes_ = self.project.loader.memory.load(min_addr, size)
+                except KeyError:
                     # The address does not exist
                     bytes_ = None
             self.add_obj(min_addr,
@@ -272,12 +268,8 @@ class CFBlanket(Analysis):
                         try:
                             _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
                                      obj, section, segment, next_addr)
-                            if self.project.concrete_target is None:
-                                bytes_ptr, _ = self.project.loader.memory.read_bytes_c(next_addr)
-                                bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size)  # type: str
-                            else:
-                                bytes_ = "".join(self.project.loader.memory.read_bytes(next_addr, size))
-                        except (KeyError, SimConcreteMemoryError):
+                            bytes_ = self.project.loader.memory.load(next_addr, size)
+                        except KeyError:
                             # The address does not exist
                             bytes_ = None
                     self.add_obj(end_addr,

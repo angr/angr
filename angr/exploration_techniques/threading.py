@@ -23,7 +23,7 @@ class Threading(ExplorationTechnique):
             return out
 
         tasks = {}
-        for x in xrange(self.threads):
+        for x in range(self.threads):
             # construct new simgr with lists w/ object identity
             # move every nth thread into a unique thread-local list
             # this means that threads won't trample each other's hooks

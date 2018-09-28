@@ -39,10 +39,10 @@ def main(file_path, arch, endianness):
         load_options={
             'main_opts': {
                 'backend': 'blob',
-                'custom_base_addr': 0x10000,
-                'custom_entry_point': 0x10000,
-                'custom_arch': 'ARM',
-                'custom_offset': 0,
+                'base_addr': 0x10000,
+                'entry_point': 0x10000,
+                'arch': 'ARM',
+                'offset': 0,
             }
         }
     )

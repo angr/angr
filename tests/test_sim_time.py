@@ -33,3 +33,7 @@ def test_clock_gettime():
     proc.execute(s)
     assert s.mem[0x8000].qword.resolved.symbolic
     assert s.mem[0x8008].qword.resolved.symbolic
+
+if __name__ == '__main__':
+    test_gettimeofday()
+    test_clock_gettime()

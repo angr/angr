@@ -38,24 +38,24 @@ def deconvert_prot(prot):
 class VirtualAlloc(angr.SimProcedure):
     def run(self, lpAddress, dwSize, flAllocationType, flProtect):
         l.debug("VirtualAlloc(%s, %s, %s, %s)", lpAddress, dwSize, flAllocationType, flProtect)
-        addrs = self.state.se.eval_upto(lpAddress, 2)
+        addrs = self.state.solver.eval_upto(lpAddress, 2)
         if len(addrs) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic lpAddress")
         addr = addrs[0]
         addr &= ~0xfff
 
-        size = self.state.se.max_int(dwSize)
+        size = self.state.solver.max_int(dwSize)
         if dwSize.symbolic and size > self.state.libc.max_variable_size:
             l.warning('symbolic VirtualAlloc dwSize %s has maximum %#x, greater than state.libc.max_variable_size %#x',
                       dwSize, size, self.state.libc.max_variable_size)
             size = self.state.libc.max_variable_size
 
-        flagss = self.state.se.eval_upto(flAllocationType, 2)
+        flagss = self.state.solver.eval_upto(flAllocationType, 2)
         if len(flagss) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic flAllocationType")
         flags = flagss[0]
 
-        prots = self.state.se.eval_upto(flProtect, 2)
+        prots = self.state.solver.eval_upto(flProtect, 2)
         if len(prots) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic flProtect")
         prot = prots[0]

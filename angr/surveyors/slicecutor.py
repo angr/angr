@@ -163,14 +163,14 @@ class Slicecutor(Surveyor):
 
         # Set whitelists and last statements
         for s in self.active:
-            addr = s.se.eval_one(s.ip)
+            addr = s.solver.eval_one(s.ip)
             whitelist = self._annotated_cfg.get_whitelisted_statements(addr)
             last_stmt = self._annotated_cfg.get_last_statement_index(addr)
             s._whitelist = whitelist
             s._last_stmt = last_stmt
 
         done_addrs = [ ]
-        for addr, count in self._merge_countdowns.iteritems():
+        for addr, count in self._merge_countdowns.items():
             l.debug("Checking merge point 0x%x with countdown %d.", addr, count)
             if count == 0:
                 to_merge = self._merge_candidates[addr]
@@ -201,13 +201,10 @@ class Slicecutor(Surveyor):
         else:
             return self._project.factory.successors(state, whitelist=state._whitelist)
 
-    def path_comparator(self, a, b):
-        if a.history.block_count != b.history.block_count:
-            return b.history.block_count - a.history.block_count
+    def path_key(self, a):
         a_len = a.history.bbl_addrs.hardcopy.count(a.history.bbl_addrs[-1])
-        b_len = b.history.bbl_addrs.hardcopy.count(b.history.bbl_addrs[-1])
-        return a_len - b_len
-        #return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
+        return a.history.block_count, a_len
+        #return self._annotated_cfg.path_priority(a)
 
     def __repr__(self):
         return "<Slicecutor with paths: %s, %d cut, %d mysteries, %d reached targets, %d waiting to merge>" % (Surveyor.__repr__(self), len(self.cut), len(self.mysteries), len(self.reached_targets), sum(len(i) for i in self._merge_candidates.values()))

@@ -148,7 +148,7 @@ class StateHierarchy(object):
 
         while True:
             l.debug("... looking between %d and %d in %d states", good, bad, len(lineage))
-            cur = (bad+good)/2
+            cur = (bad+good)//2
 
             if cur == good or cur == bad:
                 if lineage[bad]().reachable():

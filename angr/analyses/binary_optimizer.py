@@ -137,7 +137,7 @@ class BinaryOptimizer(Analysis):
         self.optimize()
 
     def optimize(self):
-        for f in self.kb.functions.itervalues():  # type: angr.knowledge.Function
+        for f in self.kb.functions.values():  # type: angr.knowledge.Function
             # if there are unresolved targets in this function, we do not try to optimize it
             if any([ n.sim_procedure is SIM_PROCEDURES['stubs']['UnresolvableTarget'] for n in f.graph.nodes()
                      if isinstance(n, HookNode) ]):
@@ -330,7 +330,7 @@ class BinaryOptimizer(Analysis):
         # find local correspondence that are not modified throughout this function
         redundant_stack_variables = [ ]
 
-        for argument, local_var in argument_to_local.iteritems():
+        for argument, local_var in argument_to_local.items():
             # local_var cannot be killed anywhere
             out_edges = data_graph.out_edges(local_var, data=True)
 

@@ -48,7 +48,7 @@ class Callable(object):
     def __call__(self, *args):
         self.perform_call(*args)
         if self.result_state is not None:
-            return self.result_state.se.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
+            return self.result_state.solver.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
         else:
             return None
 
@@ -65,7 +65,7 @@ class Callable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = self._project.factory.simgr(state, immutable=True)
+        caller = self._project.factory.simulation_manager(state, immutable=True)
         caller_end_unpruned = caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
         caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 

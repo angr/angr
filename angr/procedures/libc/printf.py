@@ -16,8 +16,8 @@ class printf(FormatParser):
         fmt_str = self._parse(0)
         out_str = fmt_str.replace(1, self.arg)
 
-        stdout.write_data(out_str, out_str.size() / 8)
-        return out_str.size() / 8
+        stdout.write_data(out_str, out_str.size() // 8)
+        return out_str.size() // 8
 
 class __printf_chk(FormatParser):
     def run(self):
@@ -29,5 +29,5 @@ class __printf_chk(FormatParser):
         fmt_str = self._parse(1)
         out_str = fmt_str.replace(2, self.arg)
 
-        stdout.write_data(out_str, out_str.size() / 8)
-        return out_str.size() / 8
+        stdout.write_data(out_str, out_str.size() // 8)
+        return out_str.size() // 8

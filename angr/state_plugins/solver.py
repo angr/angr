@@ -1,11 +1,10 @@
-import sys
+import binascii
 import functools
 import time
 import logging
 
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
-from ..misc.ux import deprecated
 
 l = logging.getLogger("angr.state_plugins.solver")
 
@@ -84,12 +83,10 @@ def error_converter(f):
     def wrapped_f(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except claripy.UnsatError:
-            e_type, value, traceback = sys.exc_info()
-            raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
-        except claripy.ClaripyFrontendError:
-            e_type, value, traceback = sys.exc_info()
-            raise SimSolverModeError, ("Translated claripy error:", e_type, value), traceback
+        except claripy.UnsatError as e:
+            raise SimUnsatError("Got an unsat result") from e
+        except claripy.ClaripyFrontendError as e:
+            raise SimSolverModeError("Claripy threw an error") from e
     return wrapped_f
 
 #
@@ -108,7 +105,7 @@ def _concrete_bool(e):
 
 def _concrete_value(e):
     # shortcuts for speed improvement
-    if isinstance(e, (int, long, float, bool)):
+    if isinstance(e, (int, float, bool)):
         return e
     elif isinstance(e, claripy.ast.Base) and e.op in claripy.operations.leaf_operations_concrete:
         return e.args[0]
@@ -214,10 +211,10 @@ class SimSolver(SimStatePlugin):
         >>> list(s.solver.get_variables())
         [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>), (('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
         """
-        for k, v in self.eternal_tracked_variables.iteritems():
+        for k, v in self.eternal_tracked_variables.items():
             if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
                 yield k, v
-        for k, v in self.temporal_tracked_variables.iteritems():
+        for k, v in self.temporal_tracked_variables.items():
             if k[-1] is None:
                 continue
             if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
@@ -248,8 +245,8 @@ class SimSolver(SimStatePlugin):
         """
         Given an AST, iterate over all the keys of all the BVS leaves in the tree which are registered.
         """
-        reverse_mapping = {iter(var.variables).next(): k for k, var in self.eternal_tracked_variables.iteritems()}
-        reverse_mapping.update({iter(var.variables).next(): k for k, var in self.temporal_tracked_variables.iteritems() if k[-1] is not None})
+        reverse_mapping = {next(iter(var.variables)): k for k, var in self.eternal_tracked_variables.items()}
+        reverse_mapping.update({next(iter(var.variables)): k for k, var in self.temporal_tracked_variables.items() if k[-1] is not None})
 
         for var in v.variables:
             if var in reverse_mapping:
@@ -365,7 +362,7 @@ class SimSolver(SimStatePlugin):
         if inspect:
             self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
         if events:
-            self.state.history.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
+            self.state.history.add_event('unconstrained', name=next(iter(r.variables)), bits=size, **kwargs)
         if o.TRACK_SOLVER_VARIABLES in self.state.options:
             self.all_variables = list(self.all_variables)
             self.all_variables.append(r)
@@ -407,7 +404,7 @@ class SimSolver(SimStatePlugin):
 
     @error_converter
     def widen(self, others):
-        c = self.state.se.BVS('random_widen_condition', 32)
+        c = self.state.solver.BVS('random_widen_condition', 32)
         merge_conditions = [ [ c == i ] for i in range(len(others)+1) ]
         merging_occurred = self.merge(others, merge_conditions)
         return merging_occurred
@@ -644,7 +641,7 @@ class SimSolver(SimStatePlugin):
 
         :param e: The expression `value` is a solution for
         :param value: The solution to be cast
-        :param cast_to: The type `value` should be cast to. Must be one of the currently supported types (str|int)
+        :param cast_to: The type `value` should be cast to. Must be one of the currently supported types (bytes|int)
         :raise ValueError: If cast_to is a currently unsupported cast target.
         :return: The value of `solution` cast to type `cast_to`
         """
@@ -652,20 +649,20 @@ class SimSolver(SimStatePlugin):
             return solution
 
         if type(solution) is bool:
-            if cast_to is str:
-                return '{}'.format(solution)
+            if cast_to is bytes:
+                return bytes([int(solution)])
             elif cast_to is int:
                 return int(solution)
         elif type(solution) is float:
             solution = _concrete_value(claripy.FPV(solution, claripy.fp.FSort.from_size(len(e))).raw_to_bv())
 
-        if cast_to is str:
+        if cast_to is bytes:
             if len(e) == 0:
-                return ""
-            return '{:x}'.format(solution).zfill(len(e)/4).decode('hex')
+                return b""
+            return binascii.unhexlify('{:x}'.format(solution).zfill(len(e)//4))
 
         if cast_to is not int:
-            raise ValueError("cast_to parameter {!r} is not a valid cast target, currently supported are only int and str!".format(cast_to))
+            raise ValueError("cast_to parameter {!r} is not a valid cast target, currently supported are only int and bytes!".format(cast_to))
 
         return solution
 
@@ -718,7 +715,7 @@ class SimSolver(SimStatePlugin):
         :return: The value for `e`
         """
         try:
-            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.iteritems() if k != 'default'})[0]
+            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.items() if k != 'default'})[0]
         except (SimUnsatError, SimValueError, SimSolverModeError):
             if 'default' in kwargs:
                 return kwargs.pop('default')
@@ -778,36 +775,6 @@ class SimSolver(SimStatePlugin):
     max_int = max
 
     #
-    # Backward-compatibility layer
-    #
-
-    @deprecated(replacement='eval()')
-    def any_int(self, expr, **kwargs):
-        return self.eval(expr, **kwargs)
-
-    @deprecated(replacement='eval_upto(expr, n)')
-    def any_n_int(self, expr, n, **kwargs):
-        return self.eval_upto(expr, n, **kwargs)
-
-    @deprecated(replacement='eval(expr, cast_to=str)')
-    def any_str(self, expr, **kwargs):
-        kwargs.pop('cast_to', None)
-        return self.eval(expr, cast_to=str, **kwargs)
-
-    @deprecated(replacement='eval_upto(expr, n, cast_to=str)')
-    def any_n_str(self, expr, n, **kwargs):
-        kwargs.pop('cast_to', None)
-        return self.eval_upto(expr, n, cast_to=str, **kwargs)
-
-    @deprecated(replacement='eval_one()')
-    def exactly_int(self, expr, **kwargs):
-        return self.eval_one(expr, **kwargs)
-
-    @deprecated(replacement='eval_exact(expr, n)')
-    def exactly_n_int(self, expr, n, **kwargs):
-        return self.eval_exact(expr, n, **kwargs)
-
-    #
     # Other methods
     #
 
@@ -839,7 +806,7 @@ class SimSolver(SimStatePlugin):
         """
         Returns True if the expression `e` is symbolic.
         """
-        if type(e) in (int, str, float, bool, long):
+        if type(e) in (int, bytes, float, bool):
             return False
         return e.symbolic
 
@@ -850,7 +817,7 @@ class SimSolver(SimStatePlugin):
         not query the constraint solver.
         """
         if self.state.mode == 'static':
-            if type(e) in (int, str, float, bool, long):
+            if type(e) in (int, bytes, float, bool):
                 return True
             else:
                 return e.cardinality <= 1
@@ -866,7 +833,7 @@ class SimSolver(SimStatePlugin):
         """
         if e is None:
             return self._solver.simplify()
-        elif isinstance(e, (int, long, float, bool)):
+        elif isinstance(e, (int, float, bool)):
             return e
         elif isinstance(e, claripy.ast.Base) and e.op in claripy.operations.leaf_operations_concrete:
             return e

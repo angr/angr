@@ -125,7 +125,7 @@ class SimLibrary(object):
         parsed_decl = parsed[0]
         if not parsed_decl:
             raise ValueError('Cannot parse the function prototype.')
-        func_name, func_proto = parsed_decl.items()[0]
+        func_name, func_proto = next(iter(parsed_decl.items()))
 
         self.set_prototype(func_name, func_proto)
 
@@ -148,7 +148,7 @@ class SimLibrary(object):
         :param dictionary:  A mapping from name to procedure class, i.e. the first two arguments to add()
         :param kwargs:      Any additional kwargs will be passed to the constructors of _each_ procedure class
         """
-        for name, procedure in dictionary.iteritems():
+        for name, procedure in dictionary.items():
             self.add(name, procedure, **kwargs)
 
     def add_alias(self, name, *alt_names):

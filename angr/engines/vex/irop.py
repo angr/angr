@@ -360,10 +360,10 @@ class SimIROp(object):
         return "<SimIROp %s>" % self.name
 
     def _dbg_print_attrs(self):
-        print "Operation: %s" % self.name
+        print("Operation: %s" % self.name)
         for k,v in self.op_attrs.items():
             if v is not None and v != "":
-                print "... %s: %s" % (k, v)
+                print("... %s: %s" % (k, v))
 
     def calculate(self, *args):
         if not all(isinstance(a, claripy.ast.Base) for a in args):
@@ -375,11 +375,10 @@ class SimIROp(object):
 
         try:
             return self.extend_size(self._calculate(args))
-        except (ZeroDivisionError, claripy.ClaripyZeroDivisionError):
-            raise SimZeroDivisionException("divide by zero!")
-        except (TypeError, ValueError, SimValueError, claripy.ClaripyError):
-            e_type, value, traceback = sys.exc_info()
-            raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
+        except (ZeroDivisionError, claripy.ClaripyZeroDivisionError) as e:
+            raise SimZeroDivisionException("divide by zero!") from e
+        except (TypeError, ValueError, SimValueError, claripy.ClaripyError) as e:
+            raise SimOperationError("%s._calculate() raised exception" % self.name) from e
 
     def extend_size(self, o):
         cur_size = o.size()
@@ -453,7 +452,7 @@ class SimIROp(object):
 
     def _op_vector_mapped(self, args):
         chopped_args = ([claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a) for a in args]
-                        for i in reversed(xrange(self._vector_count)))
+                        for i in reversed(range(self._vector_count)))
         return claripy.Concat(*(self._op_mapped(ca) for ca in chopped_args))
 
     def _op_vector_float_mapped(self, args):
@@ -462,7 +461,7 @@ class SimIROp(object):
                 [
                     claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a).raw_to_fp()
                     for a in (args if self._generic_name in self.NO_RM else args[1:])
-                ] for i in reversed(xrange(self._vector_count))
+                ] for i in reversed(range(self._vector_count))
             )
         return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
 
@@ -475,10 +474,10 @@ class SimIROp(object):
         return claripy.Concat(*args)
 
     def _op_hi_half(self, args):
-        return claripy.Extract(args[0].size()-1, args[0].size()/2, args[0])
+        return claripy.Extract(args[0].size()-1, args[0].size()//2, args[0])
 
     def _op_lo_half(self, args):
-        return claripy.Extract(args[0].size()/2 - 1, 0, args[0])
+        return claripy.Extract(args[0].size()//2 - 1, 0, args[0])
 
     def _op_extract(self, args):
         return claripy.Extract(self._to_size - 1, 0, args[0])
@@ -553,17 +552,17 @@ class SimIROp(object):
     def _op_generic_InterleaveLO(self, args):
         s = self._vector_size
         c = self._vector_count
-        left_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2) ]
-        right_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
-        return claripy.Concat(*itertools.chain.from_iterable(reversed(zip(left_vector, right_vector))))
+        left_vector = [ args[0][(i+1)*s-1:i*s] for i in range(c//2) ]
+        right_vector = [ args[1][(i+1)*s-1:i*s] for i in range(c//2) ]
+        return claripy.Concat(*itertools.chain.from_iterable(zip(reversed(left_vector), reversed(right_vector))))
 
     @supports_vector
     def _op_generic_InterleaveHI(self, args):
         s = self._vector_size
         c = self._vector_count
-        left_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2, c) ]
-        right_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2, c) ]
-        return claripy.Concat(*itertools.chain.from_iterable(reversed(zip(left_vector, right_vector))))
+        left_vector = [ args[0][(i+1)*s-1:i*s] for i in range(c//2, c) ]
+        right_vector = [ args[1][(i+1)*s-1:i*s] for i in range(c//2, c) ]
+        return claripy.Concat(*itertools.chain.from_iterable(zip(reversed(left_vector), reversed(right_vector))))
 
     def generic_compare(self, args, comparison):
         if self._vector_size is not None:
@@ -698,7 +697,7 @@ class SimIROp(object):
             top_r = res[self._vector_size-1]
             if self.is_signed:
                 big_top_r = (~top_r).zero_extend(self._vector_size-1)
-                cap = (claripy.BVV(-1, self._vector_size)/2) + big_top_r
+                cap = (claripy.BVV(-1, self._vector_size)//2) + big_top_r
                 cap_cond = ((~(top_a ^ top_b)) & (top_a ^ top_r)) == 1
             else:
                 cap = claripy.BVV(-1, self._vector_size)
@@ -719,7 +718,7 @@ class SimIROp(object):
             top_r = res[self._vector_size-1]
             if self.is_signed:
                 big_top_r = (~top_r).zero_extend(self._vector_size-1)
-                cap = (claripy.BVV(-1, self._vector_size)/2) + big_top_r
+                cap = (claripy.BVV(-1, self._vector_size)//2) + big_top_r
                 cap_cond = ((top_a ^ top_b) & (top_a ^ top_r)) == 1
             else:
                 cap = claripy.BVV(0, self._vector_size)
@@ -738,7 +737,7 @@ class SimIROp(object):
                 claripy.Extract(quotient_size - 1, 0, quotient)
             )
         else:
-            quotient = (args[0] / claripy.ZeroExt(self._from_size - self._to_size, args[1]))
+            quotient = (args[0] // claripy.ZeroExt(self._from_size - self._to_size, args[1]))
             remainder = (args[0] % claripy.ZeroExt(self._from_size - self._to_size, args[1]))
             quotient_size = self._to_size
             remainder_size = self._to_size
@@ -818,7 +817,7 @@ class SimIROp(object):
         """
         Generic pack with unsigned saturation.
         Split args in chunks of src_size signed bits and in pack them into unsigned saturated chunks of dst_size bits.
-        Then chunks are concatenated resulting in a BV of len(args)*dst_size/src_size*len(args[0]) bits.
+        Then chunks are concatenated resulting in a BV of len(args)*dst_size//src_size*len(args[0]) bits.
         """
         if src_size <= 0 or dst_size <= 0:
             raise SimOperationError("Can't pack from or to zero or negative size" % self.name)
@@ -894,7 +893,7 @@ class SimIROp(object):
     @staticmethod
     def pow(rm, arg, n):
         out = claripy.FPV(1.0, arg.sort)
-        for _ in xrange(n):
+        for _ in range(n):
             out = claripy.fpMul(rm, arg, out)
         return out
 
@@ -904,7 +903,7 @@ class SimIROp(object):
     #   rounds = 15
     #   accumulator = claripy.FPV(0.0, arg.sort)
     #   factorialpart = 1.0
-    #   for i in xrange(1, rounds + 1):
+    #   for i in range(1, rounds + 1):
     #       term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i - 1), claripy.FPV(float(factorialpart), arg.sort))
     #       factorialpart *= ((i*2) + 1) * (i*2)
     #       if i % 2 == 1:
@@ -920,7 +919,7 @@ class SimIROp(object):
     #   rounds = 20
     #   accumulator = claripy.FPV(1.0, arg.sort)
     #   factorialpart = 2.0
-    #   for i in xrange(1, rounds + 1):
+    #   for i in range(1, rounds + 1):
     #       term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i), claripy.FPV(float(factorialpart), arg.sort))
     #       factorialpart *= (i*2 + 1) * (i*2 + 2)
     #       if i % 2 == 1:
@@ -960,16 +959,16 @@ def translate_inner(state, irop, s_args):
             raise UnsupportedIROpError("floating point support disabled")
         return irop.calculate(*s_args)
     except SimZeroDivisionException:
-        if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
+        if state.mode == 'static' and len(s_args) == 2 and state.solver.is_true(s_args[1] == 0):
             # Monkeypatch the dividend to another value instead of 0
-            s_args[1] = state.se.BVV(1, s_args[1].size())
+            s_args[1] = state.solver.BVV(1, s_args[1].size())
             return irop.calculate(*s_args)
         else:
             raise
     except SimOperationError:
         l.warning("IROp error (for operation %s)", irop.name, exc_info=True)
         if options.BYPASS_ERRORED_IROP in state.options:
-            return state.se.Unconstrained("irop_error", irop._output_size_bits)
+            return state.solver.Unconstrained("irop_error", irop._output_size_bits)
         else:
             raise
 

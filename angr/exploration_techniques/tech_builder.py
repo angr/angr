@@ -9,7 +9,7 @@ class TechniqueBuilder(ExplorationTechnique):
     class SomeComplexAnalysis(Analysis):
 
         def do_something():
-            simgr = self.project.factory.simgr()
+            simgr = self.project.factory.simulation_manager()
             simgr.use_tech(ProxyTechnique(step_state=self._step_state))
             simgr.run()
 

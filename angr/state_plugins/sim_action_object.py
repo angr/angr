@@ -15,6 +15,8 @@ def _raw_ast(a):
         return { k:_raw_ast(a[k]) for k in a }
     elif type(a) in (tuple, list, set, frozenset):
         return type(a)((_raw_ast(b) for b in a))
+    elif type(a) in (zip, filter, map):
+        return (_raw_ast(i) for i in a)
     else:
         return a
 
@@ -22,7 +24,7 @@ def _all_objects(a):
     if type(a) is SimActionObject:
         yield a
     elif type(a) is dict:
-        for b in a.itervalues():
+        for b in a.values():
             for o in _all_objects(b):
                 yield o
     elif type(a) is (tuple, list, set, frozenset):

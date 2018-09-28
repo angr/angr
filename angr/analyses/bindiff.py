@@ -205,7 +205,7 @@ def compare_statement_dict(statement_1, statement_2):
         return []
 
     # constants
-    if isinstance(statement_1, (int, long, float, str, unicode)):
+    if isinstance(statement_1, (int, float, str, bytes)):
         if isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2):
             return []
         elif statement_1 == statement_2:
@@ -680,7 +680,7 @@ class FunctionDiff(object):
             if self.blocks_probably_identical(block_a, block_b) and len(block_a_succ) == len(block_b_succ):
                 ordered_succ_a = self._get_ordered_successors(self._project_a, block_a, block_a_succ)
                 ordered_succ_b = self._get_ordered_successors(self._project_b, block_b, block_b_succ)
-                new_matches += zip(ordered_succ_a, ordered_succ_b)
+                new_matches.extend(zip(ordered_succ_a, ordered_succ_b))
 
             new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
                                                    delta, tiebreak_with_block_similarity=True)

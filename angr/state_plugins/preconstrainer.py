@@ -85,6 +85,8 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         pos = 0
         for write in content:
+            if type(write) is int:
+                write = bytes([write])
             data, length, pos = simfile.read(pos, len(write), short_reads=False)
             if not claripy.is_true(length == len(write)):
                 raise AngrError("Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file")
@@ -121,9 +123,9 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         # if we used the replacement solver we didn't add constraints we need to remove so keep all constraints
         if o.REPLACEMENT_SOLVER in self.state.options:
-            new_constraints = self.state.se.constraints
+            new_constraints = self.state.solver.constraints
         else:
-            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, self.state.se.constraints)
+            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, self.state.solver.constraints)
 
 
         if self.state.has_plugin("zen_plugin"):

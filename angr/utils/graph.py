@@ -151,6 +151,9 @@ class ContainerNode(object):
             return self._obj == other._obj and self.index == other.index
         return False
 
+    def __hash__(self):
+        return 1  # I have genuinely no idea why defining a normal hash function makes everything break but it does
+
 
 class PostDominators(object):
 
@@ -207,7 +210,7 @@ class PostDominators(object):
         dom = [None] * (len(vertices))
         self._ancestor = [None] * (len(vertices) + 1)
 
-        for i in xrange(len(vertices) - 1, 0, -1):
+        for i in range(len(vertices) - 1, 0, -1):
             w = vertices[i]
 
             # Step 2
@@ -235,7 +238,7 @@ class PostDominators(object):
 
             bucket[parent[w].index].clear()
 
-        for i in xrange(1, len(vertices)):
+        for i in range(1, len(vertices)):
             w = vertices[i]
             if w not in parent:
                 continue
@@ -243,7 +246,7 @@ class PostDominators(object):
                 dom[w.index] = dom[dom[w.index].index]
 
         self.post_dom = networkx.DiGraph()  # The post-dom tree described in a directional graph
-        for i in xrange(1, len(vertices)):
+        for i in range(1, len(vertices)):
             if dom[i] is not None and vertices[i] is not None:
                 self.post_dom.add_edge(dom[i].obj, vertices[i].obj)
 

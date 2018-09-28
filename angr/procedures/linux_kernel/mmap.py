@@ -19,7 +19,7 @@ class mmap(angr.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, addr, length, prot, flags, fd, offset): #pylint:disable=arguments-differ,unused-argument
-        #if self.state.se.symbolic(flags) or self.state.se.eval(flags) != 0x22:
+        #if self.state.solver.symbolic(flags) or self.state.solver.eval(flags) != 0x22:
         #   raise Exception("mmap with other than MAP_PRIVATE|MAP_ANONYMOUS unsupported")
         l.debug("mmap(%s, %s, %s, %s, %s, %s) = ...", addr, length, prot, flags, fd, offset)
 
@@ -27,20 +27,20 @@ class mmap(angr.SimProcedure):
         # Length
         #
 
-        if self.state.se.symbolic(length):
-            size = self.state.se.max_int(length)
+        if self.state.solver.symbolic(length):
+            size = self.state.solver.max_int(length)
             if size > self.state.libc.max_variable_size:
                 l.warn("mmap size requested of %d exceeds libc.max_variable_size. Using size %d instead.", size,self.state.libc.max_variable_size)
                 size = self.state.libc.max_variable_size
         else:
-            size = self.state.se.eval(length)
+            size = self.state.solver.eval(length)
 
         #
         # Addr
         #
 
         # Not handling symbolic addr for now
-        addrs = self.state.se.eval_upto(addr,2)
+        addrs = self.state.solver.eval_upto(addr,2)
         if len(addrs) == 2:
             err = "Cannot handle symbolic addr argument for mmap."
             l.error(err)
@@ -57,7 +57,7 @@ class mmap(angr.SimProcedure):
         #
 
         # Only want concrete flags
-        flags = self.state.se.eval_upto(flags,2)
+        flags = self.state.solver.eval_upto(flags,2)
 
         if len(flags) == 2:
             err = "Cannot handle symbolic flags argument for mmap."
@@ -69,7 +69,7 @@ class mmap(angr.SimProcedure):
         # Sanity check. All mmap must have exactly one of MAP_SHARED or MAP_PRIVATE
         if (flags & MAP_SHARED and flags & MAP_PRIVATE) or flags & (MAP_SHARED | MAP_PRIVATE) == 0:
             l.debug('... = -1 (bad flags)')
-            return self.state.se.BVV(-1, self.state.arch.bits)
+            return self.state.solver.BVV(-1, self.state.arch.bits)
 
         while True:
             try:
@@ -82,7 +82,7 @@ class mmap(angr.SimProcedure):
 
                 if flags & MAP_FIXED:
                     l.debug('... = -1 (MAP_FIXED failure)')
-                    return self.state.se.BVV(-1, self.state.arch.bits)
+                    return self.state.solver.BVV(-1, self.state.arch.bits)
 
                 # Can't give you that address. Find a different one and loop back around to try again.
                 addr = self.allocate_memory(size)

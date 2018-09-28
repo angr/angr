@@ -15,17 +15,17 @@ class calloc(angr.SimProcedure):
 
         self.return_type = self.ty_ptr(SimTypeArray(SimTypeTop(sim_size), sim_nmemb))
 
-        if self.state.se.symbolic(sim_nmemb):
+        if self.state.solver.symbolic(sim_nmemb):
             # TODO: find a better way
-            nmemb = self.state.se.max_int(sim_nmemb)
+            nmemb = self.state.solver.max_int(sim_nmemb)
         else:
-            nmemb = self.state.se.eval(sim_nmemb)
+            nmemb = self.state.solver.eval(sim_nmemb)
 
-        if self.state.se.symbolic(sim_size):
+        if self.state.solver.symbolic(sim_size):
             # TODO: find a better way
-            size = self.state.se.max_int(sim_size)
+            size = self.state.solver.max_int(sim_size)
         else:
-            size = self.state.se.eval(sim_size)
+            size = self.state.solver.eval(sim_size)
 
         final_size = size * nmemb
         if final_size > plugin.max_variable_size:
@@ -33,7 +33,7 @@ class calloc(angr.SimProcedure):
 
         addr = plugin.heap_location
         plugin.heap_location += final_size
-        v = self.state.se.BVV(0, final_size * 8)
+        v = self.state.solver.BVV(0, final_size * 8)
         self.state.memory.store(addr, v)
 
         return addr

@@ -27,7 +27,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         super(SimFilesystem, self).__init__()
 
         if files is None: files = {}
-        if pathsep is None: pathsep = '/'
+        if pathsep is None: pathsep = b'/'
         if cwd is None: cwd = pathsep
         if mountpoints is None: mountpoints = {}
 
@@ -58,10 +58,10 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
     @SimStatePlugin.memo
     def copy(self, memo):
         o = SimFilesystem(
-                files={k: v.copy(memo) for k, v in self._files.iteritems()},
+                files={k: v.copy(memo) for k, v in self._files.items()},
                 pathsep=self.pathsep,
                 cwd=self.cwd,
-                mountpoints={k: v.copy(memo) for k, v in self._mountpoints.iteritems()}
+                mountpoints={k: v.copy(memo) for k, v in self._mountpoints.items()}
             )
         o._unlinks = list(self._unlinks)
         return o
@@ -74,7 +74,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
                 raise SimMergeError("Can't merge filesystems with disparate cwds")
             if len(o._mountpoints) != len(self._mountpoints):
                 raise SimMergeError("Can't merge filesystems with disparate mountpoints")
-            if map(id, o.unlinks) != map(id, self.unlinks):
+            if list(map(id, o.unlinks)) != list(map(id, self.unlinks)):
                 raise SimMergeError("Can't merge filesystems with disparate unlinks")
 
         for fname in self._mountpoints:
@@ -113,22 +113,25 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
 
     def widen(self, others): # pylint: disable=unused-argument
         if once('fs_widen_warning'):
-            l.warn("Filesystems can't be widened yet - beware unsoundness")
+            l.warning("Filesystems can't be widened yet - beware unsoundness")
 
     def _normalize_path(self, path):
         """
         Takes a path and returns a simple absolute path as a list of directories from the root
         """
-        if path[0] != self.pathsep:
+        if type(path) is str:
+            path = path.encode()
+
+        if path[0:1] != self.pathsep:
             path = self.cwd + self.pathsep + path
         keys = path.split(self.pathsep)
         i = 0
         while i < len(keys):
-            if keys[i] == '':
+            if keys[i] == b'':
                 keys.pop(i)
-            elif keys[i] == '.':
+            elif keys[i] == b'.':
                 keys.pop(i)
-            elif keys[i] == '..':
+            elif keys[i] == b'..':
                 keys.pop(i)
                 if i != 0:
                     keys.pop(i-1)
@@ -214,7 +217,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         :return: A tuple of the mount and a list of path elements traversing from the mountpoint to the specified file.
         """
         path_chunks = self._normalize_path(path)
-        for i in xrange(len(path_chunks)):
+        for i in range(len(path_chunks)):
             partial_path = self._join_chunks(path_chunks[:-i])
             if partial_path in self._mountpoints:
                 mountpoint = self._mountpoints[partial_path]
@@ -299,14 +302,14 @@ class SimHostFilesystem(SimMount):
             return SimFile(name='file://' + path, content=content, size=len(content))
 
     def insert(self, path_elements, simfile):
-        path = self.pathsep.join(path_elements)
+        path = self.pathsep.join(x.decode() for x in path_elements)
         simfile.set_state(self.state)
         self.cache[path] = simfile
         self.deleted_list.discard(path)
         return True
 
     def delete(self, path_elements):
-        path = self.pathsep.join(path_elements)
+        path = self.pathsep.join(x.decode() for x in path_elements)
         self.deleted_list.add(path)
         return self.cache.pop(path, None) is not None
 
@@ -407,7 +410,7 @@ class SimHostFilesystem(SimMount):
 #                return False
 #            return self
 #
-#        for fname, simfile in self.files.iteritems():
+#        for fname, simfile in self.files.items():
 #            if path.startswith(fname):
 #                if len(path) == len(fname):
 #                    if writing and not simfile.writable:
@@ -490,17 +493,17 @@ class SimHostFilesystem(SimMount):
 #    @SimStatePlugin.memo
 #    def copy(self, memo):
 #        return SimDirectory(
-#                files={x: y.copy(memo) for x, y in self.files.iteritems()},
+#                files={x: y.copy(memo) for x, y in self.files.items()},
 #                writable=self.writable,
 #                parent=self.parent.copy(memo),
 #                pathsep=self.pathsep)
 #
 #    def merge(self, others, conditions, ancestor=None):
-#        new_files = {path: (simfile, [], []) for path, simfile in self.files.iteritems() if path not in ('.', '..')}
+#        new_files = {path: (simfile, [], []) for path, simfile in self.files.items() if path not in ('.', '..')}
 #        for other, condition in zip(others, conditions):
 #            if type(other) is not type(self):
 #                raise SimMergeError("Can't merge filesystem elements of disparate types")
-#            for path, simfile in other.files.iteritems():
+#            for path, simfile in other.files.items():
 #                if path in ('.', '..'):
 #                    continue
 #                if path not in new_files:
@@ -518,11 +521,11 @@ class SimHostFilesystem(SimMount):
 #        self.files = new_files
 #
 #    def widen(self, others):
-#        new_files = {path: [simfile] for path, simfile in self.files.iteritems() if path not in ('.', '..')}
+#        new_files = {path: [simfile] for path, simfile in self.files.items() if path not in ('.', '..')}
 #        for other in others:
 #            if type(other) is not type(self):
 #                raise SimMergeError("Can't merge filesystem elements of disparate types")
-#            for path, simfile in other.files.iteritems():
+#            for path, simfile in other.files.items():
 #                if path in ('.', '..'):
 #                    continue
 #                if path not in new_files:

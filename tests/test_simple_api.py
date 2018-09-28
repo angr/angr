@@ -12,7 +12,7 @@ def test_fauxware():
     @project.hook(0x80485DB)
     def check_backdoor(state): #pylint:disable=unused-variable
         result[0] += 1
-        if "SOSNEAKY" in state.posix.dumps(0):
+        if b"SOSNEAKY" in state.posix.dumps(0):
             result[1] = True
             project.terminate_execution()
 

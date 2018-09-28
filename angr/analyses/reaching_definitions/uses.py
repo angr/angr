@@ -23,7 +23,7 @@ class Uses(object):
         all_uses = set()
 
         offset = definition.offset
-        for pos in xrange(definition.size):
+        for pos in range(definition.size):
             all_uses |= set(self._current_uses.get_objects_by_offset(offset + pos))
 
         return all_uses
@@ -37,7 +37,7 @@ class Uses(object):
 
     def merge(self, other):
 
-        for k, v in other._uses_by_definition.iteritems():
+        for k, v in other._uses_by_definition.items():
             if k not in self._uses_by_definition:
                 self._uses_by_definition[k] = v
             else:
