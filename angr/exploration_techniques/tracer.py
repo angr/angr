@@ -126,7 +126,10 @@ class Tracer(ExplorationTechnique):
                     current.globals['bb_cnt'] += 1
                     l.debug("bb_cnt after the correction %d", current.globals['bb_cnt'])
                     if current.globals['bb_cnt'] >= len(self._trace):
-                        return simgr
+                        if 'unconstrained' in simgr.stashes:
+                            print "if in crash_mode,do not return"
+                        else:
+                            return simgr
 
                 else:
                     l.error( "the dynamic trace and the symbolic trace disagreed")
