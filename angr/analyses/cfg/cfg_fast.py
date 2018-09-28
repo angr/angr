@@ -1538,7 +1538,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._normalize:
             # Normalize the control flow graph first before rediscovering all functions
             self.normalize()
-
         self.make_functions()
         # optional: remove functions that must be alignments
         self.remove_function_alignments()
@@ -1594,7 +1593,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             regexes.append(r)
 
         # Construct the binary blob first
-        unassured_functions = []
+        unassured_functions = [ ]
 
         for start_, bytes_ in self._binary.memory.backers():
             for regex in regexes:
@@ -1605,7 +1604,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
                         if self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position)
-
+        l.info("Found %d functions with prologue scanning.", len(unassured_functions))
         return unassured_functions
 
     # Basic block scanning
@@ -1879,7 +1878,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             elif self._resolve_indirect_jumps and \
                     (jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')):
                 # This is an indirect jump. Try to resolve it.
-
+                # FIXME: in some cases, a statementless irsb will be missing its instr addresses
+                # and this next part will fail. Use the real IRSB instead
+                irsb = cfg_node.block.vex
+                cfg_node.instruction_addrs = irsb.instruction_addresses
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
                                                                                  current_function_addr, stmt_idx)
                 if resolved:
@@ -2046,6 +2048,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         callee_might_return = True
         callee_function = None
+
         if new_function_addr is not None:
             callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
             if callee_function is not None:
@@ -2060,21 +2063,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
                     func_edges.append(ret_edge)
 
+                    # Also, keep tracing from the return site
+                    ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                                src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
+                                syscall=is_syscall, func_edges=func_edges)
+                    self._pending_jobs.add_job(ce)
+                    # register this job to this function
+                    self._register_analysis_job(current_function_addr, ce)
+                elif callee_function is not None and callee_function.returning is False:
+                    pass # Don't go past a call that does not return!
                 else:
+                    # HACK: We don't know where we are jumping.  Let's assume we fakeret to the
+                    # next instruction after the block
+                    # TODO: FIXME: There are arch-specific hints to give the correct ret site
+                    # Such as looking for constant values of LR in this block for ARM stuff.
                     fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=None)
                     func_edges.append(fakeret_edge)
                     fr = FunctionReturn(new_function_addr, current_function_addr, addr, return_site)
                     if fr not in self._function_returns[new_function_addr]:
                         self._function_returns[new_function_addr].add(fr)
+                    ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                                src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
+                                syscall=is_syscall, func_edges=func_edges)
+                    self._pending_jobs.add_job(ce)
+                    # register this job to this function
+                    self._register_analysis_job(current_function_addr, ce)
 
-            if return_site is not None:
-                # Also, keep tracing from the return site
-                ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                            src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
-                            syscall=is_syscall, func_edges=func_edges)
-                self._pending_jobs.add_job(ce)
-                # register this job to this function
-                self._register_analysis_job(current_function_addr, ce)
 
         return jobs
 
@@ -3288,7 +3302,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if 'lr_saved_on_stack' in function.info:
             return
 
-        #
         # if it does, we log it down to the Function object.
         lr_offset = self.project.arch.registers['lr'][0]
         sp_offset = self.project.arch.sp_offset
@@ -3537,8 +3550,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._seg_list.occupy(real_addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
-                               irsb=irsb, thumb=is_thumb, byte_string=irsb_string,
+            cfg_node = CFGNode(addr, irsb.size, self,
+                               function_address=current_function_addr,
+                               block_id=addr,
+                               irsb=irsb,
+                               thumb=is_thumb,
+                               byte_string=irsb_string,
                                )
 
             self._nodes[addr] = cfg_node
