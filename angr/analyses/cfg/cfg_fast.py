@@ -790,9 +790,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # Active scanning
 
         - If the binary has "function symbols" (TODO: this term is not accurate enough), they are starting points of
-            the code scanning
+          the code scanning
         - If the binary does not have any "function symbol", we will first perform a function prologue scanning on the
-            entire binary, and start from those places that look like function beginnings
+          entire binary, and start from those places that look like function beginnings
         - Otherwise, the binary's entry point will be the starting point for scanning
 
     # Passive scanning

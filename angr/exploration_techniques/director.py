@@ -73,9 +73,6 @@ class BaseGoal(object):
 
         block_id = cfg._generate_block_id(call_stack_suffix, state.addr, is_syscall)
 
-        #if cfg.get_node(block_id) is None:
-        #    import ipdb; ipdb.set_trace()
-
         return cfg.get_node(block_id)
 
     @staticmethod

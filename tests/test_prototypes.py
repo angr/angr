@@ -20,8 +20,6 @@ def test_function_prototype():
         func_ty=func.prototype,
     )
 
-    # import ipdb; ipdb.set_trace()
-
 
 def test_find_prototype():
     proj = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)

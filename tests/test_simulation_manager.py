@@ -66,9 +66,6 @@ def run_fauxware(arch, threads):
     nose.tools.assert_equal(len(pg7.backdoor), 0)
     nose.tools.assert_equal(len(pg7.auth), 0)
 
-    #import ipdb; ipdb.set_trace()
-    #print pg2.mp_active.addr.mp_map(hex).mp_items
-
     # test selecting paths to step
     pg_a = p.factory.simulation_manager(immutable=True)
     pg_b = pg_a.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
