@@ -95,7 +95,7 @@ class SimEngineLightVEX(SimEngineLight):
         handler = "_handle_%s" % type(stmt).__name__
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
-        else:
+        elif type(stmt).__name__ not in ('IMark', 'AbiHint'):
             self.l.error('Unsupported statement type %s.', type(stmt).__name__)
 
     # synchronize with function _handle_WrTmpData()
