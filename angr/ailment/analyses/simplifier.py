@@ -40,7 +40,7 @@ class Simplifier(Analysis):
 
         # propagator
         propagator = self.project.analyses.AILPropagator(block=block, reaching_definitions=rd)
-        replacements = propagator._states.values()[0]._final_replacements
+        replacements = list(propagator._states.values())[0]._final_replacements
         new_block = self._replace_and_build(block, replacements)
         new_block = self._eliminate_dead_assignments(new_block)
 

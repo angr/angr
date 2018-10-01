@@ -11,7 +11,7 @@ class TaggedObject(object):
             self.initialize_tags(kwargs)
 
     def initialize_tags(self, tags):
-        for k, v in tags.iteritems():
+        for k, v in tags.items():
             self.tags[k] = v
 
     def __getattr__(self, item):

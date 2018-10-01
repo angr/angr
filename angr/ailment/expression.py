@@ -61,6 +61,9 @@ class Const(Atom):
             self.value == other.value and \
             self.bits == other.bits
 
+    def __hash__(self):
+        return hash((self.value, self.bits))
+
     @property
     def sign_bit(self):
         return self.value >> (self.bits - 1)
@@ -182,7 +185,7 @@ class BinaryOp(Op):
 
         assert len(operands) == 2
         self.operands = operands
-        self.bits = operands[0].bits if not type(operands[0]) in (long, int) else operands[1].bits
+        self.bits = operands[0].bits if type(operands[0]) is not int else operands[1].bits
 
         # TODO: sanity check of operands' sizes for some ops
         # assert self.bits == operands[1].bits
@@ -229,7 +232,7 @@ class Load(Expression):
         return "Load(addr=%s, size=%d, endness=%s)" % (self.addr, self.size, self.endness)
 
     def has_atom(self, atom):
-        if type(self.addr) in (int, long):
+        if type(self.addr) is int:
             return False
         return self.addr.has_atom(atom)
 

@@ -25,3 +25,6 @@ class Block(object):
         return type(other) is Block and \
             self.addr == other.addr and \
             self.statements == other.statements
+
+    def __hash__(self):
+        return hash(self.addr)

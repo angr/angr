@@ -63,7 +63,7 @@ class VEXExprConverter(Converter):
     def Load(expr, manager):
         return Load(manager.next_atom(),
                     VEXExprConverter.convert(expr.addr, manager),
-                    expr.result_size(manager.tyenv) / 8,
+                    expr.result_size(manager.tyenv) // 8,
                     expr.end
                     )
 

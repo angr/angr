@@ -72,7 +72,7 @@ class PropagatorState(object):
         keys_to_remove = set()
 
         for o in others:
-            for k, v in o._replacements.iteritems():
+            for k, v in o._replacements.items():
                 if k not in state._replacements:
                     state._replacements[k] = v
                 else:
@@ -97,7 +97,7 @@ class PropagatorState(object):
     def filter_replacements(self, atom):
         keys_to_remove = set()
 
-        for k, v in self._replacements.iteritems():
+        for k, v in self._replacements.items():
             if isinstance(v, Expr.Expression) and (v == atom or v.has_atom(atom)):
                 keys_to_remove.add(k)
 
