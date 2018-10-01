@@ -8,7 +8,7 @@ class Callable(object):
     If you set perform_merge=True (the default), the result will be returned to you, and
     you can get the result state with callable.result_state.
 
-    Otherwise, you can get the resulting path group (immutable) at callable.result_path_group.
+    Otherwise, you can get the resulting simulation manager at callable.result_path_group.
     """
 
     def __init__(self, project, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
@@ -31,7 +31,6 @@ class Callable(object):
         self._perform_merge = perform_merge
         self._base_state = base_state
         self._toc = toc
-        self._caller = None
         self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
         self._deadend_addr = project.simos.return_deadend
 
@@ -65,17 +64,17 @@ class Callable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = self._project.factory.simulation_manager(state, immutable=True)
-        caller_end_unpruned = caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
-        caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
+        caller = self._project.factory.simulation_manager(state)
+        caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
+        caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
-        if len(caller_end_unmerged.active) == 0:
+        if len(caller.active) == 0:
             raise AngrCallableError("No paths returned from function")
 
-        self.result_path_group = caller_end_unmerged
+        self.result_path_group = caller.copy()
 
         if self._perform_merge:
-            caller_end = caller_end_unmerged.merge()
-            self.result_state = caller_end.active[0]
+            caller.merge()
+            self.result_state = caller.active[0]
 
 from .errors import AngrCallableError, AngrCallableMultistateError

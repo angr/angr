@@ -281,7 +281,6 @@ class Veritesting(Analysis):
         manager = SimulationManager(
             self.project,
             active_states=[ initial_state ],
-            immutable=False,
             resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.options
         )
 
