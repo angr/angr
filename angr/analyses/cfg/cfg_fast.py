@@ -1755,8 +1755,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                              )
         self._function_add_node(cfg_node, function_addr)
 
-        if self.functions.get_by_addr(current_func_addr).returning is not True:
-            self._updated_nonreturning_functions.add(current_func_addr)
+        if self.functions.get_by_addr(function_addr).returning is not True:
+            self._updated_nonreturning_functions.add(function_addr)
 
         # If we have traced it before, don't trace it anymore
         real_addr = self._real_address(self.project.arch, addr)
