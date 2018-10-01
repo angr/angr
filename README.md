@@ -9,7 +9,7 @@ angr
 [![API Docs](https://img.shields.io/badge/docs-api-green.svg)](http://angr.io/api-doc)
 
 angr is a platform-agnostic binary analysis framework.
-It is brought to you by the [Computer Security Lab at UC Santa Barbara](https://seclab.cs.ucsb.edu), [SEFCOM at Arizona State University](http://sefcom.asu.edu),  their associated CTF team, [Shellphish](http://shellphish.net), the open source community, and **@rhelmot**.
+It is brought to you by [the Computer Security Lab at UC Santa Barbara](https://seclab.cs.ucsb.edu), [SEFCOM at Arizona State University](http://sefcom.asu.edu),  their associated CTF team, [Shellphish](http://shellphish.net), the open source community, and **[@rhelmot](https://github.com/rhelmot)**.
 
 # What?
 
