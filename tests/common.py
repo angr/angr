@@ -21,10 +21,13 @@ def do_trace(proj, test_name, input_data):
     fname = os.path.join(bin_location, 'tests_data', 'runner_traces', '%s_%s_%s.p' % (test_name, os.path.basename(proj.filename), proj.arch.name))
 
     if os.path.isfile(fname):
-        with open(fname, 'rb') as f:
-            r = pickle.load(f)
-            assert type(r) is tuple and len(r) == 4
-            return r
+        try:
+            with open(fname, 'rb') as f:
+                r = pickle.load(f)
+                assert type(r) is tuple and len(r) == 4
+                return r
+        except (pickle.UnpicklingError, UnicodeDecodeError):
+            print("Can't unpickle trace - rerunning")
 
     if tracer is None:
         raise Exception("Tracer is not installed and cached data is not present - cannot run test")

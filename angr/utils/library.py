@@ -56,7 +56,7 @@ def convert_cproto_to_py(c_decl):
         if not parsed_decl:
             raise ValueError('Cannot parse the function prototype.')
 
-        func_name, func_proto = parsed_decl.items()[0]
+        func_name, func_proto = next(iter(parsed_decl.items()))
 
         s.append('"%s": %s,' % (func_name, func_proto._init_str()))  # The real Python string
 

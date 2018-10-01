@@ -60,9 +60,9 @@ class SimLinux(SimUserland):
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
                 if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
-                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
-                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
 
             # TODO: what the hell is this
             _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
@@ -76,10 +76,10 @@ class SimLinux(SimUserland):
         tls_obj = self.project.loader.tls_object
         if tls_obj is not None:
             if isinstance(self.project.arch, ArchAMD64):
-                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
-                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
             elif isinstance(self.project.arch, ArchX86):
-                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
             elif isinstance(self.project.arch, ArchARM):
                 self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
@@ -98,7 +98,7 @@ class SimLinux(SimUserland):
                         except AttributeError:
                             continue
                         gotaddr = reloc.rebased_addr
-                        gotvalue = self.project.loader.memory.read_addr_at(gotaddr)
+                        gotvalue = self.project.loader.memory.unpack_word(gotaddr)
                         if self.project.is_hooked(gotvalue):
                             continue
                         # Replace it with a ifunc-resolve simprocedure!
@@ -110,7 +110,7 @@ class SimLinux(SimUserland):
                         # TODO: should this be replaced with hook_symbol?
                         randaddr = self.project.loader.extern_object.allocate()
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
-                        self.project.loader.memory.write_addr_at(gotaddr, randaddr)
+                        self.project.loader.memory.pack_word(gotaddr, randaddr)
 
         # maybe move this into archinfo?
         if self.arch.name == 'X86':
@@ -149,7 +149,7 @@ class SimLinux(SimUserland):
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
-            cwd='/home/user', pathsep='/', **kwargs):
+            cwd=b'/home/user', pathsep=b'/', **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs)
 
         if self.project.loader.tls_object is not None:
@@ -169,7 +169,7 @@ class SimLinux(SimUserland):
 
         if fs is None: fs = {}
         for name in fs:
-            if type(fs[name]) is unicode:
+            if type(fs[name]) is str:
                 fs[name] = fs[name].encode('utf-8')
             if type(fs[name]) is bytes:
                 fs[name] = claripy.BVV(fs[name])
@@ -202,7 +202,7 @@ class SimLinux(SimUserland):
         # Prepare argc
         if argc is None:
             argc = claripy.BVV(len(args), state.arch.bits)
-        elif type(argc) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        elif type(argc) is int:  # pylint: disable=unidiomatic-typecheck
             argc = claripy.BVV(argc, state.arch.bits)
 
         # Make string table for args/env/auxv
@@ -217,10 +217,10 @@ class SimLinux(SimUserland):
         # Prepare the auxiliary vector and add it to the end of the string table
         # TODO: Actually construct a real auxiliary vector
         # current vector is an AT_RANDOM entry where the "random" value is 0xaec0aec0aec0...
-        aux = [(25, ("AEC0" * 8).decode('hex'))]
+        aux = [(25, b"\xAE\xC0" * 8)]
         for a, b in aux:
             table.add_pointer(a)
-            if isinstance(b, str):
+            if isinstance(b, bytes):
                 table.add_string(b)
             else:
                 table.add_pointer(b)
@@ -255,8 +255,8 @@ class SimLinux(SimUserland):
         return state
 
     def set_entry_register_values(self, state):
-        for reg, val in state.arch.entry_register_values.iteritems():
-            if isinstance(val, (int, long)):
+        for reg, val in state.arch.entry_register_values.items():
+            if isinstance(val, int):
                 state.registers.store(reg, val, size=state.arch.bytes)
             elif isinstance(val, (str,)):
                 if val == 'argc':
@@ -294,12 +294,12 @@ class SimLinux(SimUserland):
         """
         if self.project.loader.main_object.is_ppc64_abiv1:
             if basic_addr is not None:
-                pointer = self.project.loader.memory.read_addr_at(basic_addr)
+                pointer = self.project.loader.memory.unpack_word(basic_addr)
                 return pointer, basic_addr
 
             pseudo_hookaddr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
             pseudo_toc = self.project.loader.extern_object.allocate(size=0x18)
-            self.project.loader.extern_object.memory.write_addr_at(
+            self.project.loader.extern_object.memory.pack_word(
                 AT.from_mva(pseudo_toc, self.project.loader.extern_object).to_rva(), pseudo_hookaddr)
             return pseudo_hookaddr, pseudo_toc
         else:

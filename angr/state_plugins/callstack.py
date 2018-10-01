@@ -209,7 +209,7 @@ class CallStack(SimStatePlugin):
 
         try:
             return dropwhile(lambda x: lst[x] != item,
-                             reversed(xrange(len(lst)))).next()
+                             next(reversed(range(len(lst)))))
         except Exception:
             raise ValueError("%s not in the list" % item)
 

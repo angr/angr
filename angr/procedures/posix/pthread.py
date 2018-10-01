@@ -13,7 +13,7 @@ class pthread_create(angr.SimProcedure):
     # pylint: disable=unused-argument,arguments-differ
     def run(self, thread, attr, start_routine, arg):
         self.call(start_routine, (arg,), 'terminate_thread')
-        self.ret(self.state.se.BVV(0, self.state.arch.bits))
+        self.ret(self.state.solver.BVV(0, self.state.arch.bits))
 
     def terminate_thread(self, thread, attr, start_routine, arg):
         self.exit(0)

@@ -15,7 +15,7 @@ class unlink(angr.SimProcedure): #pylint:disable=W0622
 
         p_strlen = self.inline_call(strlen, path_addr)
         str_expr = self.state.memory.load(path_addr, p_strlen.max_null_index, endness='Iend_BE')
-        str_val = self.state.se.eval(str_expr, cast_to=str)
+        str_val = self.state.solver.eval(str_expr, cast_to=bytes)
 
         if self.state.fs.delete(str_val):
             return 0

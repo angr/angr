@@ -24,10 +24,7 @@ class BoyScout(Analysis):
         The implementation here is simple - just perform a pattern matching of all different architectures we support,
         and then perform a vote.
         """
-
         # Retrieve the binary string of main binary
-        strides = self.project.loader.main_object.memory.stride_repr
-
         votes = defaultdict(int)
 
         for arch in all_arches:
@@ -36,7 +33,7 @@ class BoyScout(Analysis):
                 r = re.compile(ins_regex)
                 regexes.add(r)
 
-            for start_, _, data in strides:
+            for start_, data in self.project.loader.main_object.memory.backers():
                 for regex in regexes:
                     # Match them!
                     for mo in regex.finditer(data):
@@ -47,7 +44,7 @@ class BoyScout(Analysis):
             l.debug("%s %s hits %d times", arch.name, arch.memory_endness,
                     votes[(arch.name, arch.memory_endness)])
 
-        arch_name, endianness, hits = sorted([(k[0], k[1], v) for k, v in votes.iteritems()], key=lambda x: x[2], reverse=True)[0]
+        arch_name, endianness, hits = sorted([(k[0], k[1], v) for k, v in votes.items()], key=lambda x: x[2], reverse=True)[0]
 
         if hits < self.cookiesize * 2:
         # this cannot possibly be code

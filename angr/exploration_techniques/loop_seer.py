@@ -92,8 +92,6 @@ class LoopSeer(ExplorationTechnique):
                 if state.addr == header:
                     continue_addrs = [e[0].addr for e in loop.continue_edges]
                     if state.history.addr in continue_addrs:
-                        counts = state.loop_data.back_edge_trip_counts[header][-1] if not self.use_header else \
-                                 state.loop_data.header_trip_counts[header][-1]
                         state.loop_data.back_edge_trip_counts[state.addr][-1] += 1
                     state.loop_data.header_trip_counts[state.addr][-1] += 1
 

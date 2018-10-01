@@ -11,12 +11,12 @@ arches = ( "armel", "i386", "mips", "mipsel", "ppc64", "ppc", "x86_64" )
 
 def run_checkbyte(arch):
     p = angr.Project(os.path.join(test_location, arch, "checkbyte"))
-    results = p.factory.simgr().run(n=100) #, until=lambda lpg: len(lpg.active) > 1)
+    results = p.factory.simulation_manager().run(n=100) #, until=lambda lpg: len(lpg.active) > 1)
 
     assert len(results.deadended) == 2
     one = results.deadended[0].posix.dumps(1)
     two = results.deadended[1].posix.dumps(1)
-    assert set((one, two)) == set(("First letter good\n", "First letter bad\n"))
+    assert {one, two} == {b"First letter good\n", b"First letter bad\n"}
 
 def test_checkbyte():
     for arch in arches:

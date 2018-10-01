@@ -59,7 +59,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
         reg_offset = stmt.offset
-        size = stmt.data.result_size(self.tyenv) / 8
+        size = stmt.data.result_size(self.tyenv) // 8
         reg = Register(reg_offset, size)
         data = self._expr(stmt.data)
 
@@ -74,7 +74,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     def _handle_Store(self, stmt):
 
         addr = self._expr(stmt.addr)
-        size = stmt.data.result_size(self.tyenv) / 8
+        size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
 
         for a in addr:
@@ -99,7 +99,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         else:
             # guard.data == {True, False}
             addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) / 8
+            size = stmt.data.result_size(self.tyenv) // 8
 
             # get current data
             load_end = stmt.end
@@ -192,11 +192,11 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     # caution: Is also called from StoreG
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
-        size = expr.result_size(self.tyenv) / 8
+        size = expr.result_size(self.tyenv) // 8
 
         data = set()
         for a in addr:
-            if isinstance(a, (int, long)):
+            if isinstance(a, int):
                 current_defs = self.state.memory_definitions.get_objects_by_offset(a)
                 if current_defs:
                     for current_def in current_defs:
@@ -204,21 +204,10 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                     if any(type(d) is Undefined for d in data):
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                 else:
-                    mem = self.state.loader.memory.read_bytes(a, size)
-                    if mem:
-                        if self.arch.memory_endness == 'Iend_LE':
-                            fmt = "<"
-                        else:
-                            fmt = ">"
-
-                        if size == 8:
-                            fmt += "Q"
-                        elif size == 4:
-                            fmt += "I"
-
-                        if size in [4, 8] and size == len(mem):
-                            mem_str = ''.join(mem)
-                            data.add(struct.unpack(fmt, mem_str)[0])
+                    try:
+                        data.add(self.state.loader.memory.unpack_word(a, size=size))
+                    except struct.error:
+                        pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
                 self.state.add_use(MemoryLocation(a, size), self._codeloc())
@@ -263,12 +252,12 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         for a in arg_0:
             if type(a) is Undefined:
                 pass
-            elif isinstance(a, (int, long)):
+            elif isinstance(a, int):
                 mask = 2 ** bits - 1
                 a &= mask
             elif type(a) is Parameter:
                 if type(a.value) is Register:
-                    a.value.size = bits / 8
+                    a.value.size = bits // 8
                 elif type(a.value) is SpOffset:
                     a.value.bits = bits
                 else:
@@ -285,7 +274,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         if len(expr_0) == 1:
             e0 = expr_0.get_first_element()
-            if isinstance(e0, (int, long)):
+            if isinstance(e0, int):
                 return DataSet(e0 != 1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -297,7 +286,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         if len(expr_0) == 1:
             e0 = expr_0.get_first_element()
-            if isinstance(e0, (int, long)):
+            if isinstance(e0, int):
                 return DataSet(e0 == 0, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -336,7 +325,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 == e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -350,7 +339,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 != e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -364,7 +353,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 < e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
@@ -379,7 +368,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         if len(expr_0) == 1 and len(expr_1) == 1:
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
-            if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+            if isinstance(e0, int) and isinstance(e1, int):
                 if e0 < e1:
                     return DataSet(0x08, expr.result_size(self.tyenv))
                 elif e0 > e1:
@@ -413,7 +402,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             return None
 
         ip_addr = ip_data.get_first_element()
-        if not isinstance(ip_addr, (int, long)):
+        if not isinstance(ip_addr, int):
             l.error('Invalid type %s for IP.', type(ip_addr).__name__)
             return None
 
@@ -471,7 +460,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 raise ValueError('Invalid number of values for SP')
 
             sp_addr = next(iter(sp_data))
-            if not isinstance(sp_addr, (int, long)):
+            if not isinstance(sp_addr, int):
                 raise TypeError('Invalid type %s for SP' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)

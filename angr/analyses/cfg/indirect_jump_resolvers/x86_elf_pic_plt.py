@@ -87,6 +87,6 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         if len(successors.flat_successors) != 1:
             return False, [ ]
 
-        target = state.se.eval_one(successors.flat_successors[0].ip)
+        target = state.solver.eval_one(successors.flat_successors[0].ip)
 
         return True, [ target ]

@@ -147,7 +147,7 @@ class VSA_DDG(Analysis):
 
                 # TODO: Match the jumpkind
                 # TODO: Support cases where IP is undecidable
-                corresponding_successors = [ n for n in successing_nodes if n.addr == state.se.eval(state.ip) ]
+                corresponding_successors = [ n for n in successing_nodes if n.addr == state.solver.eval(state.ip) ]
                 if not corresponding_successors:
                     continue
                 successing_node = corresponding_successors[0]
@@ -161,7 +161,7 @@ class VSA_DDG(Analysis):
                     live_defs_per_node[successing_node] = defs_for_next_node
 
                 changed = False
-                for var, code_loc_set in new_defs.iteritems():
+                for var, code_loc_set in new_defs.items():
                     if var not in defs_for_next_node:
                         defs_for_next_node[var] = code_loc_set
                         changed = True
@@ -219,7 +219,7 @@ class VSA_DDG(Analysis):
             for edge_tuple in dict_[key]:
                 # unpack it
                 _, _, labels = edge_tuple
-                for k, v in new_labels.iteritems():
+                for k, v in new_labels.items():
                     if k in labels:
                         labels[k] = labels[k] + (v, )
                     else:
@@ -265,7 +265,7 @@ class VSA_DDG(Analysis):
 
                         prevdefs = self._def_lookup(live_defs, variable)
 
-                        for prev_code_loc, labels in prevdefs.iteritems():
+                        for prev_code_loc, labels in prevdefs.items():
                             self._read_edge = True
                             self._add_edge(prev_code_loc, current_code_loc, **labels)
 
@@ -298,7 +298,7 @@ class VSA_DDG(Analysis):
                     if a.offset in regs_to_edges:
                         _dump_edge_from_dict(regs_to_edges, a.offset)
 
-                    for prev_code_loc, labels in prevdefs.iteritems():
+                    for prev_code_loc, labels in prevdefs.items():
                         edge_tuple = (prev_code_loc, current_code_loc, labels)
                         regs_to_edges[a.offset].append(edge_tuple)
 

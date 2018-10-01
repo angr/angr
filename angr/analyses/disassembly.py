@@ -306,7 +306,7 @@ class Operand(DisassemblyPiece):
         self.ident = (self.addr, 'operand', self.op_num)
 
         for i, c in enumerate(self.children):
-            if type(c) not in (str, unicode):
+            if type(c) not in (bytes, str):
                 c.ident = (self.addr, 'operand piece', self.op_num, i)
                 c.parentop = self
 
@@ -315,7 +315,7 @@ class Operand(DisassemblyPiece):
         return self.parentinsn.insn.operands[self.op_num]
 
     def _render(self, formatting):
-        return [''.join(x if type(x) in (str, unicode) else x.render(formatting)[0] for x in self.children)]
+        return [''.join(x if type(x) is str else x.decode() if type(x) is bytes else x.render(formatting)[0] for x in self.children)]
 
     @staticmethod
     def build(operand_type, op_num, children, parentinsn):
@@ -477,7 +477,7 @@ class MemoryOperand(Operand):
                 value_str = custom_values_str
             else:
                 value_str = ''.join(
-                    x.render(formatting)[0] if not isinstance(x, (str, unicode)) else x for x in self.values
+                    x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.values
                 )
 
             segment_selector_str = "" if self.segment_selector is None else self.segment_selector
@@ -630,7 +630,7 @@ class Disassembly(Analysis):
                 aligned_block_addr = block.addr
                 cs = self.project.arch.capstone
             if block.bytestr is None:
-                bytestr = ''.join(self.project.loader.memory.read_bytes(aligned_block_addr, block.size))
+                bytestr = self.project.loader.memory.load(aligned_block_addr, block.size)
             else:
                 bytestr = block.bytestr
             self.block_to_insn_addrs[block.addr] = []

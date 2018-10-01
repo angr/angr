@@ -15,9 +15,9 @@ def deprecated(replacement=None):
         def inner(*args, **kwargs):
             if func not in already_complained:
                 if replacement is None:
-                    print "\x1b[31;1mDeprecation warning: Don't use %s\x1b[0m" % (func.func_name)
+                    print("\x1b[31;1mDeprecation warning: Don't use %s\x1b[0m" % (func.__name__))
                 else:
-                    print "\x1b[31;1mDeprecation warning: Use %s instead of %s\x1b[0m" % (replacement, func.func_name)
+                    print("\x1b[31;1mDeprecation warning: Use %s instead of %s\x1b[0m" % (replacement, func.__name__))
                 already_complained.add(func)
             return func(*args, **kwargs)
         return inner

@@ -29,7 +29,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     cfg = proj.analyses.CFGFast()
     nose.tools.assert_true(set([ k for k in cfg.kb.functions.keys() ]).issuperset(func_addrs))
 
-    for func_addr, feature_dict in func_features.iteritems():
+    for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
         if returning != "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
@@ -38,7 +38,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     cfg = proj.analyses.CFGFast(force_segment=True)
     nose.tools.assert_true(set([ k for k in cfg.kb.functions.keys() ]).issuperset(func_addrs))
 
-    for func_addr, feature_dict in func_features.iteritems():
+    for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
         if returning != "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
@@ -47,7 +47,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     cfg = proj.analyses.CFGFast(force_segment=True, normalize=True)
     nose.tools.assert_true(set([k for k in cfg.kb.functions.keys()]).issuperset(func_addrs))
 
-    for func_addr, feature_dict in func_features.iteritems():
+    for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
         if returning != "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
@@ -532,26 +532,26 @@ def test_collect_data_references():
 def run_all():
 
     g = globals()
-    segmentlist_tests = [ v for k, v in g.iteritems() if k.startswith("test_segment_list_") and hasattr(v, "__call__")]
+    segmentlist_tests = [ v for k, v in g.items() if k.startswith("test_segment_list_") and hasattr(v, "__call__")]
 
     for func in segmentlist_tests:
-        print func.__name__
+        print(func.__name__)
         func()
 
     for args in test_cfg_0():
-        print args[0].__name__
+        print(args[0].__name__)
         args[0](*args[1:])
 
     for args in test_cfg_0_pe():
-        print args[0].__name__
+        print(args[0].__name__)
         args[0](*args[1:])
 
     for args in test_fauxware():
-        print args[0].__name__
+        print(args[0].__name__)
         args[0](*args[1:])
 
     for args in test_cfg_loop_unrolling():
-        print args[0].__name__
+        print(args[0].__name__)
         args[0](*args[1:])
 
     for args in test_cfg_switches():
@@ -579,5 +579,4 @@ def main():
 
 if __name__ == "__main__":
     # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
-
     main()

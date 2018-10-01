@@ -17,7 +17,7 @@ class StoredObject(object):
         return self.obj == other.obj and self.start == other.start and self.size == other.size
 
     def __hash__(self):
-        return hash((self.start, self.obj, self.size))
+        return hash((self.start, self.size))
 
 
 class RegionObject(object):

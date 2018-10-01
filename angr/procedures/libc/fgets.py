@@ -27,13 +27,13 @@ class fgets(angr.SimProcedure):
 
         for i, byte in enumerate(data.chop(8)):
             self.state.solver.add(self.state.solver.If(
-                i+1 != real_size, byte != '\n', # if not last byte returned, not newline
+                i+1 != real_size, byte != b'\n', # if not last byte returned, not newline
                 self.state.solver.Or( # otherwise one of the following must be true
                     i+2 == size, # we ran out of space, or
-                    byte == '\n' # it is a newline
+                    byte == b'\n' # it is a newline
                 )))
 
         self.state.memory.store(dst, data, size=real_size)
-        self.state.memory.store(dst+real_size, '\0')
+        self.state.memory.store(dst+real_size, b'\0')
 
         return real_size

@@ -45,7 +45,7 @@ def test_tech_builder():
             step=foo.step, filter=foo.filter, complete=foo.complete,
         )
 
-    pg = p.factory.simgr()
+    pg = p.factory.simulation_manager()
     pg.use_technique(proxy_tech)
     pg.run()
 

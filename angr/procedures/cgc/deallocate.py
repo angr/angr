@@ -10,30 +10,30 @@ class deallocate(angr.SimProcedure):
 
     def run(self, addr, length): #pylint:disable=unused-argument
         # return code (see deallocate() docs)
-        r = self.state.se.ite_cases((
+        r = self.state.solver.ite_cases((
                 (addr % 0x1000 != 0, self.state.cgc.EINVAL),
                 (length == 0, self.state.cgc.EINVAL),
                 (self.state.cgc.addr_invalid(addr), self.state.cgc.EINVAL),
                 (self.state.cgc.addr_invalid(addr + length), self.state.cgc.EINVAL),
-            ), self.state.se.BVV(0, self.state.arch.bits))
+            ), self.state.solver.BVV(0, self.state.arch.bits))
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             l.warning("Concretizing symbolic address passed to deallocate to max_int")
 
-        addr = self.state.se.max_int(addr)
+        addr = self.state.solver.max_int(addr)
 
         # into a page
         page_size = self.state.memory.mem._page_size
-        base_page_num = addr / page_size
+        base_page_num = addr // page_size
 
-        if self.state.se.symbolic(length):
+        if self.state.solver.symbolic(length):
             l.warning("Concretizing symbolic length passed to deallocate to max_int")
 
-        length = self.state.se.max_int(length)
-        aligned_length = ((length + 0xfff) / 0x1000) * 0x1000
+        length = self.state.solver.max_int(length)
+        aligned_length = ((length + 0xfff) // 0x1000) * 0x1000
 
         # only add sinkholes and unmap on success
-        if self.state.se.max_int(r) == 0:
+        if self.state.solver.max_int(r) == 0:
 
             # shorten length
             allowed_pages = 0

@@ -142,7 +142,7 @@ class SimEngineUnicorn(SimEngine):
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
             state.ip = state.unicorn._syscall_pc
-        successors.add_successor(state, state.ip, state.se.true, state.unicorn.jumpkind)
+        successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
 
         successors.description = description
         successors.processed = True

@@ -14,7 +14,7 @@ class Blade(object):
                  ignore_bp=False, ignored_regs=None, max_level=3, base_state=None):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
-                                        angr.analyses.CFGAccurate or angr.analyses.CFGFast.
+                                        angr.analyses.CFGEmulated or angr.analyses.CFGFast.
         :param int dst_run:             An address specifying the target SimRun.
         :param int dst_stmt_idx:        The target statement index. -1 means executing until the last statement.
         :param str direction:           'backward' or 'forward' slicing. Forward slicing is not yet supported.
@@ -49,7 +49,7 @@ class Blade(object):
         self._ignored_regs = set()
         if ignored_regs:
             for r in ignored_regs:
-                if isinstance(r, (int, long)):
+                if isinstance(r, int):
                     self._ignored_regs.add(r)
                 else:
                     self._ignored_regs.add(self.project.arch.registers[r][0])
@@ -130,7 +130,7 @@ class Blade(object):
         if isinstance(v, CFGNode):
             v = v.addr
 
-        if type(v) in (int, long):
+        if type(v) is int:
             # Generate an IRSB from self._project
 
             if v in self._run_cache:
@@ -167,7 +167,7 @@ class Blade(object):
 
         if isinstance(v, CFGNode):
             return v.addr
-        elif type(v) in (int, long):
+        elif type(v) is int:
             return v
         else:
             raise AngrBladeError('Unsupported SimRun argument type %s' % type(v))

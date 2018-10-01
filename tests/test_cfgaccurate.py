@@ -86,7 +86,7 @@ def perform_single(binary_path, cfg_path=None):
                         default_analysis_mode='symbolic',
                         load_options={'auto_load_libs': False})
     start = time.time()
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1, fail_fast=True)
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.nodes()
@@ -141,9 +141,9 @@ def test_additional_edges():
     additional_edges = {
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True,
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True,
                                     resolve_indirect_jumps=False,  # For this test case, we need to disable the
-                                                                   # jump table resolving, otherwise CFGAccurate
+                                                                   # jump table resolving, otherwise CFGEmulated
                                                                    # can automatically find the node 0x4005ad.
                                     )
 
@@ -160,7 +160,7 @@ def test_not_returning():
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False}
                         )
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
 
     # function_a returns
     nose.tools.assert_not_equal(proj.kb.functions.function(name='function_a'), None)
@@ -190,7 +190,7 @@ def disabled_cfg_5():
 def test_cfg_6():
     function_addresses = [0xfa630, 0xfa683, 0xfa6d4, 0xfa707, 0xfa754, 0xfa779, 0xfa7a9, 0xfa7d6, 0xfa844, 0xfa857,
                           0xfa8d9, 0xfa92f, 0xfa959, 0xfa9fb, 0xfabd6, 0xfac61, 0xfacc2, 0xfad29, 0xfaf94, 0xfbd07,
-                          0xfc100L, 0xfc101, 0xfc14fL, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42fL, 0xfc4a3, 0xfc4cf,
+                          0xfc100, 0xfc101, 0xfc14f, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42f, 0xfc4a3, 0xfc4cf,
                           0xfc4db, 0xfc5ba, 0xfc5ef, 0xfc5fe, 0xfc611, 0xfc682, 0xfc6b7, 0xfc7fc, 0xfc8a8, 0xfc8e7,
                           0xfcb42, 0xfcb50, 0xfcb72, 0xfcc3b, 0xfcc7a, 0xfcc8b, 0xfccdc, 0xfd1a3, 0xff06e]
 
@@ -200,7 +200,7 @@ def test_cfg_6():
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         page_size=1)
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
     nose.tools.assert_greater_equal(set(f for f in proj.kb.functions), set(function_addresses))
     o.modes['fastpath'] ^= {o.DO_CCALLS}
 
@@ -214,7 +214,7 @@ def disabled_loop_unrolling():
     binary_path = test_location + "/x86_64/cfg_loop_unrolling"
 
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFGAccurate(fail_fast=True)
+    cfg = p.analyses.CFGEmulated(fail_fast=True)
 
     cfg.normalize()
     cfg.unroll_loops(5)
@@ -227,7 +227,7 @@ def test_thumb_mode():
 
     binary_path = test_location + "/armhf/test_arrays"
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFGAccurate(fail_fast=True)
+    cfg = p.analyses.CFGEmulated(fail_fast=True)
 
     def check_addr(a):
         if a % 2 == 1:
@@ -257,7 +257,7 @@ def test_fakeret_edges_0():
     binary_path = os.path.join(test_location, "x86_64", "cfg_3")
 
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFGAccurate(context_sensitivity_level=3, fail_fast=True)
+    cfg = p.analyses.CFGEmulated(context_sensitivity_level=3, fail_fast=True)
 
     putchar_plt = cfg.functions.function(name="putchar", plt=True)
     nose.tools.assert_true(putchar_plt.returning)
@@ -304,7 +304,7 @@ def test_string_references():
 
     binary_path = os.path.join(test_location, "i386", "ctf_nuclear")
     b = angr.Project(binary_path, load_options={'auto_load_libs': False})
-    cfg = b.analyses.CFGAccurate(keep_state=True, fail_fast=True)
+    cfg = b.analyses.CFGEmulated(keep_state=True, fail_fast=True)
 
     string_references = []
     for f in cfg.functions.values():
@@ -316,7 +316,7 @@ def test_arrays():
 
     binary_path = os.path.join(test_location, "armhf", "test_arrays")
     b = angr.Project(binary_path, load_options={'auto_load_libs': False})
-    cfg = b.analyses.CFGAccurate(fail_fast=True)
+    cfg = b.analyses.CFGEmulated(fail_fast=True)
 
     node = cfg.get_any_node(0x10415)
     nose.tools.assert_is_not_none(node)
@@ -328,7 +328,7 @@ def test_max_steps():
 
     binary_path = os.path.join(test_location, "x86_64", "fauxware")
     b = angr.Project(binary_path, load_options={'auto_load_libs': False})
-    cfg = b.analyses.CFGAccurate(max_steps=5, fail_fast=True)
+    cfg = b.analyses.CFGEmulated(max_steps=5, fail_fast=True)
 
     dfs_edges = networkx.dfs_edges(cfg.graph)
 
@@ -340,18 +340,18 @@ def test_max_steps():
             depth_map[dst] = depth_map[src] + 1
         depth_map[dst] = max(depth_map[src] + 1, depth_map[dst])
 
-    nose.tools.assert_less_equal(max(depth_map.itervalues()), 5)
+    nose.tools.assert_less_equal(max(depth_map.values()), 5)
 
 
 def test_armel_final_missing_block():
 
-    # Due to a stupid bug in CFGAccurate, the last block of a function might go missing in the function graph if the
+    # Due to a stupid bug in CFGEmulated, the last block of a function might go missing in the function graph if the
     # only entry edge to that block is an Ijk_Ret edge. See #475 on GitHub.
     # Thank @gergo for reporting and providing this test binary.
 
     binary_path = os.path.join(test_location, 'armel', 'last_block')
     b = angr.Project(binary_path, auto_load_libs=False)
-    cfg = b.analyses.CFGAccurate(fail_fast=True)
+    cfg = b.analyses.CFGEmulated(fail_fast=True)
 
     blocks = list(cfg.kb.functions[0x8000].blocks)
 
@@ -379,7 +379,7 @@ def test_armel_final_missing_block_b():
     b = angr.Project(binary_path, auto_load_libs=False)
 
     function = b.loader.main_object.get_symbol('main').rebased_addr
-    cfg = b.analyses.CFGAccurate(starts=[function],
+    cfg = b.analyses.CFGEmulated(starts=[function],
                                  context_sensitivity_level=0,
                                  normalize=True,
                                  fail_fast=True,
@@ -397,7 +397,7 @@ def test_armel_incorrect_function_detection_caused_by_branch():
     binary_path = os.path.join(test_location, "armel", "RTOSDemo.axf.issue_685")
     b = angr.Project(binary_path, auto_load_libs=False)
 
-    cfg = b.analyses.CFGAccurate()
+    cfg = b.analyses.CFGEmulated()
 
     # The Main function should be identified as a single function
     nose.tools.assert_in(0x80a1, cfg.functions)
@@ -470,7 +470,7 @@ def test_cfg_switches():
         path = os.path.join(test_location, arch, filename)
         proj = angr.Project(path, load_options={'auto_load_libs': False})
 
-        cfg = proj.analyses.CFGAccurate()
+        cfg = proj.analyses.CFGEmulated()
 
         for src, dst in edges[arch]:
             src_node = cfg.get_any_node(src)
@@ -482,17 +482,17 @@ def test_cfg_switches():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
-            print f
+            print(f)
             all_functions[f]()
 
 if __name__ == "__main__":
     logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.cfg.cfg_accurate").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.analyses.cfg.cfg_emulated").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)

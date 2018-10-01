@@ -57,7 +57,7 @@ def print_results(tests):
 def run_counter(path):
     p = angr.Project(path)
 
-    sm = p.factory.simgr()
+    sm = p.factory.simulation_manager()
     sm.run(n=500)
 
 
@@ -68,7 +68,7 @@ def run_cfg_analysis(path):
                      load_options=load_options,
                      translation_cache=True
                      )
-    p.analyses.CFGAccurate()
+    p.analyses.CFGEmulated()
 
 
 def time_one(args, test, queue):

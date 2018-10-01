@@ -12,11 +12,11 @@ def test_adc_i386():
 
     state = proj.factory.blank_state(addr=start, remove_options={angr.options.LAZY_SOLVES,}, add_options={angr.options.SYMBOLIC_WRITE_ADDRESSES})
 
-    pg = proj.factory.simgr(state, veritesting=False)
+    pg = proj.factory.simulation_manager(state, veritesting=False)
     pg.explore(find=end)
 
     found_state = pg.found[0]
-    result = found_state.se.eval(found_state.regs.eax)
+    result = found_state.solver.eval(found_state.regs.eax)
     nose.tools.assert_equal(result, 0x1)
 
 def test_all():

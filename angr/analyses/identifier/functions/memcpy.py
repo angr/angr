@@ -8,8 +8,8 @@ from ..custom_callable import IdentifierCallable
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
-        return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
-    return "".join(random.choice(byte_list) for _ in xrange(length))
+        return "".join(chr(random.randint(0, 255)) for _ in range(length))
+    return "".join(random.choice(byte_list) for _ in range(length))
 
 
 class memcpy(Func):
@@ -68,7 +68,7 @@ class memcpy(Func):
                         cc=cc, base_state=s, max_steps=20)
         _ = call(*[0x2003, 0x2000, 5])
         result_state = call.result_state
-        self.memmove_safe = bool(result_state.se.eval(result_state.memory.load(0x2000, 8), cast_to=str) == "ABCABC\x00\x00")
+        self.memmove_safe = bool(result_state.solver.eval(result_state.memory.load(0x2000, 8), cast_to=bytes) == "ABCABC\x00\x00")
 
         s = runner.get_base_call_state(func, test)
         s.memory.store(0x2000, "\x00\x00\x00\x00\x00CBA")
@@ -79,7 +79,7 @@ class memcpy(Func):
                         cc=cc, base_state=s, max_steps=20)
         _ = call(*[0x2000, 0x2003, 5])
         result_state = call.result_state
-        if result_state.se.eval(result_state.memory.load(0x2000, 8), cast_to=str) == "\x00\x00CBACBA":
+        if result_state.solver.eval(result_state.memory.load(0x2000, 8), cast_to=bytes) == "\x00\x00CBACBA":
             self.memmove_safe = True and self.memmove_safe
         else:
             self.memmove_safe = False

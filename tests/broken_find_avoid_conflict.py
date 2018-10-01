@@ -13,8 +13,7 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '.
 def test_FindAvoidConflict():
     proj = angr.Project(test_location+'/i386/ite_FindAvoidConflict-O3')
     initial_state = proj.factory.blank_state()
-    path = proj.factory.path(initial_state)
-    sm = proj.factory.simgr(path)
+    sm = proj.factory.simulation_manager(initial_state)
 
     targetAddr = 0x8048390
     avoidAddr = 0x804838B
@@ -22,8 +21,8 @@ def test_FindAvoidConflict():
     while (len(sm.active) > 0):
         sm.explore(find=targetAddr, avoid=avoidAddr)
 
-    for path in sm.found:
-        for addr in path.addr_trace:
+    for state in sm.found:
+        for addr in state.history.bbl_addrs:
             try:
                 instAddrs = set(proj.factory.block(addr).instruction_addrs)
             except angr.errors.AngrError:

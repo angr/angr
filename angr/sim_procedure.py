@@ -151,7 +151,7 @@ class SimProcedure(object):
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
-                    sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
+                    sim_args = [ inst.arg(_) for _ in range(inst.num_args) ]
                     inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
@@ -274,7 +274,7 @@ class SimProcedure(object):
         :param sim_kwargs:      Any additional keyword args will be passed as sim_kwargs to the
                                 procedure construtor
         """
-        e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
+        e_args = [ self.state.solver.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments ]
         p = procedure(project=self.project, **kwargs)
         return p.execute(self.state, None, arguments=e_args)
 
@@ -290,7 +290,7 @@ class SimProcedure(object):
             if o.SIMPLIFY_RETS in self.state.options:
                 l.debug("... simplifying")
                 l.debug("... before: %s", expr)
-                expr = self.state.se.simplify(expr)
+                expr = self.state.solver.simplify(expr)
                 l.debug("... after: %s", expr)
 
             if self.symbolic_return:
@@ -322,7 +322,7 @@ class SimProcedure(object):
             raise SimProcedureError("No source for return address in ret() call!")
 
         self._exit_action(self.state, ret_addr)
-        self.successors.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
+        self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
 
     def call(self, addr, args, continue_at, cc=None):
         """
@@ -342,7 +342,7 @@ class SimProcedure(object):
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
         simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars, self.state.regs.lr if self.state.arch.lr_offset is not None else None)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
@@ -355,14 +355,14 @@ class SimProcedure(object):
             call_state.regs.t9 = addr
 
         self._exit_action(call_state, addr)
-        self.successors.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
+        self.successors.add_successor(call_state, addr, call_state.solver.true, 'Ijk_Call')
 
         if o.DO_RET_EMULATION in self.state.options:
             # we need to set up the call because the continuation will try to tear it down
             ret_state = self.state.copy()
             cc.setup_callsite(ret_state, ret_addr, args)
             ret_state.callstack.top.procedure_data = simcallstack_entry
-            guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
+            guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.solver.false
             self.successors.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
 
     def jump(self, addr):
@@ -371,7 +371,7 @@ class SimProcedure(object):
         """
         self.inhibit_autoret = True
         self._exit_action(self.state, addr)
-        self.successors.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
+        self.successors.add_successor(self.state, addr, self.state.solver.true, 'Ijk_Boring')
 
     def exit(self, exit_code):
         """
@@ -381,10 +381,10 @@ class SimProcedure(object):
         self.state.options.discard(o.AST_DEPS)
         self.state.options.discard(o.AUTO_REFS)
 
-        if isinstance(exit_code, (int, long)):
-            exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
+        if isinstance(exit_code, int):
+            exit_code = self.state.solver.BVV(exit_code, self.state.arch.bits)
         self.state.history.add_event('terminate', exit_code=exit_code)
-        self.successors.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
+        self.successors.add_successor(self.state, self.state.regs.ip, self.state.solver.true, 'Ijk_Exit')
 
     @staticmethod
     def _exit_action(state, addr):

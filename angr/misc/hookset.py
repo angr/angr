@@ -10,7 +10,7 @@ class HookSet(object):
         :param what:
         :return:
         """
-        for name, hook in what.iteritems():
+        for name, hook in what.items():
             func = getattr(target, name)
             if not isinstance(func, HookedMethod):
                 func = HookedMethod(func)
@@ -25,7 +25,7 @@ class HookSet(object):
         :param what:
         :return:
         """
-        for name, hook in what.iteritems():
+        for name, hook in what.items():
             hooked = getattr(target, name)
             if hook in hooked.pending:
                 hooked.pending.remove(hook)
@@ -54,7 +54,7 @@ class HookedMethod(object):
             if self.pending:
                 next_hook = self.pending.pop()
                 self.pulled.append(next_hook)
-                result = next_hook(self.func.im_self, *args, **kwargs)
+                result = next_hook(self.func.__self__, *args, **kwargs)
 
             else:
                 result = self.func(*args, **kwargs)

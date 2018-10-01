@@ -18,12 +18,12 @@ class __libc_init(angr.SimProcedure):
     local_vars = ('main', 'argc', 'argv', 'envp')
 
     def run(self, raw_args, unused, slingshot, structors):
-        offset = self.state.arch.bits / 8
-        readlen = self.state.arch.bits / 8
+        offset = self.state.arch.bytes
+        readlen = self.state.arch.bytes
         endness = self.state.arch.memory_endness
         self.main = slingshot
         self.argc = self.state.memory.load(raw_args + 0 * offset, readlen, endness=endness)
-        argc_val = self.state.se.eval(self.argc)
+        argc_val = self.state.solver.eval(self.argc)
         self.argv = self.state.memory.load(raw_args + 1 * offset, readlen, endness=endness)
         self.envp= self.state.memory.load(raw_args + (1 + argc_val + 1) * offset, readlen, endness=endness)
         # TODO: __cxa_atexit calls for various at-exit needs

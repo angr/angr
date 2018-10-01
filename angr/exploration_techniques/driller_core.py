@@ -1,6 +1,5 @@
 import logging
-from itertools import islice, izip
-
+from itertools import islice
 
 from . import ExplorationTechnique
 
@@ -25,7 +24,7 @@ class DrillerCore(ExplorationTechnique):
 
         super(DrillerCore, self).__init__()
         self.trace = trace
-        self.fuzz_bitmap = fuzz_bitmap or "\xff" * 65536
+        self.fuzz_bitmap = fuzz_bitmap or b"\xff" * 65536
 
         # Set of encountered basic block transitions.
         self.encounters = set()
@@ -34,7 +33,7 @@ class DrillerCore(ExplorationTechnique):
         self.project = simgr._project
 
         # Update encounters with known state transitions.
-        self.encounters.update(izip(self.trace, islice(self.trace, 1, None)))
+        self.encounters.update(zip(self.trace, islice(self.trace, 1, None)))
 
 
     def complete(self, simgr):
@@ -57,7 +56,7 @@ class DrillerCore(ExplorationTechnique):
                 cur_loc = (cur_loc >> 4) ^ (cur_loc << 8)
                 cur_loc &= len(self.fuzz_bitmap) - 1
 
-                hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
+                hit = bool(self.fuzz_bitmap[cur_loc ^ prev_loc] ^ 0xff)
 
                 transition = (prev_addr, state.addr)
                 mapped_to = self.project.loader.find_object_containing(state.addr).binary
@@ -91,11 +90,11 @@ class DrillerCore(ExplorationTechnique):
     @staticmethod
     def _has_false(state):
         # Check if the state is unsat even if we remove preconstraints.
-        claripy_false = state.se.false
+        claripy_false = state.solver.false
         if state.scratch.guard.cache_key == claripy_false.cache_key:
             return True
 
-        for c in state.se.constraints:
+        for c in state.solver.constraints:
             if c.cache_key == claripy_false.cache_key:
                 return True
 

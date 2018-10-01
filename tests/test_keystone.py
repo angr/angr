@@ -50,5 +50,5 @@ def test_keystone():
 
 if __name__ == "__main__":
     for arch_name in insn_texts:
-        print arch_name
+        print(arch_name)
         run_keystone(arch_name)

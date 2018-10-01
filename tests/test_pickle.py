@@ -11,12 +11,12 @@ import os
 def load_pickles():
     # This is the working case
     f = open("pickletest_good", 'rb')
-    print pickle.load(f)
+    print(pickle.load(f))
     f.close()
 
     # This will not work
     f = open("pickletest_bad", 'rb')
-    print pickle.load(f)
+    print(pickle.load(f))
     f.close()
 
 def make_pickles():

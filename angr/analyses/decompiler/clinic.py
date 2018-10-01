@@ -120,7 +120,7 @@ class Clinic(Analysis):
         :return:
         """
 
-        for key in self._blocks.iterkeys():
+        for key in self._blocks.keys():
             ail_block = self._blocks[key]
             simplified = self._simplify(ail_block)
             self._blocks[key] = simplified
@@ -143,7 +143,7 @@ class Clinic(Analysis):
 
         # TODO: The current mapping implementation is kinda hackish...
 
-        for block in self._blocks.itervalues():
+        for block in self._blocks.values():
             self._link_variables_on_block(block)
 
     def _link_variables_on_block(self, block):

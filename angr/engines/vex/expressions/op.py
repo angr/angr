@@ -30,9 +30,9 @@ class SimIRExpr_Op(SimIRExpr):
             if o.BYPASS_UNSUPPORTED_IROP in self.state.options:
                 self.state.history.add_event('resilience', resilience_type='irop', op=self._expr.op, message='unsupported IROp')
                 if o.UNSUPPORTED_BYPASS_ZERO_DEFAULT in self.state.options:
-                    self.expr = self.state.se.BVV(0, self.size_bits())
+                    self.expr = self.state.solver.BVV(0, self.size_bits())
                 else:
-                    self.expr = self.state.se.Unconstrained(type(self._expr).__name__, self.size_bits())
+                    self.expr = self.state.solver.Unconstrained(type(self._expr).__name__, self.size_bits())
                 if self.type.startswith('Ity_F'):
                     self.expr = self.expr.raw_to_fp()
             else:

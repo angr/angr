@@ -32,7 +32,7 @@ class Executor(Surveyor):
         else:
             path = self.active[0]
             if path.state is not None and \
-                    path.state.se.is_true(path.state.ip == self._final_addr):
+                    path.state.solver.is_true(path.state.ip == self._final_addr):
                 self.found.append(self.active[0])
                 self.active = []
                 return True

@@ -1,6 +1,5 @@
 import logging
 from collections import defaultdict
-from itertools import ifilter
 
 import networkx
 import pyvex
@@ -467,7 +466,7 @@ class BackwardSlice(Analysis):
 
             if self._same_function:
                 # Examine this path and make sure it does not have call or return edge
-                for i in xrange(len(simple_path) - 1):
+                for i in range(len(simple_path) - 1):
                     jumpkind = self._cfg.graph[simple_path[i]][simple_path[i + 1]]['jumpkind']
                     if jumpkind in ('Ijk_Call', 'Ijk_Ret'):
                         return {  }
@@ -508,7 +507,7 @@ class BackwardSlice(Analysis):
             for predecessor in cdg_guardians:
                 exits = self._find_exits(predecessor, target_node)
 
-                for stmt_idx, target_addresses in exits.iteritems():
+                for stmt_idx, target_addresses in exits.items():
                     if stmt_idx is not None:
                         # If it's an exit statement, mark it as picked
                         self._pick_statement(predecessor.addr,
@@ -567,7 +566,7 @@ class BackwardSlice(Analysis):
         new_exit_statements_per_run = defaultdict(list)
 
         while len(exit_statements_per_run):
-            for block_address, exits in exit_statements_per_run.iteritems():
+            for block_address, exits in exit_statements_per_run.items():
                 for stmt_idx, exit_target in exits:
                     if exit_target not in self.chosen_exits:
                         # Oh we found one!
@@ -578,7 +577,7 @@ class BackwardSlice(Analysis):
                             new_exit_statements_per_run[exit_target].append(tpl)
 
             # Add the new ones to our global dict
-            for block_address, exits in new_exit_statements_per_run.iteritems():
+            for block_address, exits in new_exit_statements_per_run.items():
                 for ex in exits:
                     if ex not in self.chosen_exits[block_address]:
                         self.chosen_exits[block_address].append(ex)
@@ -644,7 +643,7 @@ class BackwardSlice(Analysis):
         :returns:           New statement ID.
         """
 
-        if type(stmt_idx) in (int, long):
+        if type(stmt_idx) is int:
             return stmt_idx
 
         if stmt_idx == 'default':
@@ -674,7 +673,7 @@ class BackwardSlice(Analysis):
                     has_code_action = True
                     break
             if has_code_action:
-                readtmp_action = next(ifilter(lambda r: r.type == 'tmp' and r.action == 'read', actions), None)
+                readtmp_action = next(filter(lambda r: r.type == 'tmp' and r.action == 'read', actions), None)
                 if readtmp_action is not None:
                     cmp_tmp_id = readtmp_action.tmp
                     cmp_stmt_id = stmt_idx

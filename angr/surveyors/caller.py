@@ -30,8 +30,8 @@ class Caller(Explorer):
         else:
             start_paths.append(start)
 
-        self.symbolic_args = [ start_paths[0].state.se.Unconstrained('arg%d'%i, project.arch.bits) if arg is None else arg for i, arg in enumerate(args) ]
-        self._ret_addr = start_paths[0].state.se.BVV(self._fake_return_addr, project.arch.bits)
+        self.symbolic_args = [ start_paths[0].state.solver.Unconstrained('arg%d'%i, project.arch.bits) if arg is None else arg for i, arg in enumerate(args) ]
+        self._ret_addr = start_paths[0].state.solver.BVV(self._fake_return_addr, project.arch.bits)
 
         for p in start_paths:
             p.state.ip = addr
@@ -54,14 +54,14 @@ class Caller(Explorer):
 
     def map_se(self, func, *args, **kwargs):
         """
-        Maps the state.se."func" function for all the return address states. This is a generator.
+        Maps the state.solver."func" function for all the return address states. This is a generator.
 
         :param func: the function name, used as getattr(p.state.se, func). Normally eval_upto or any_n_str
         :param runs: the maximum number of runs to execute
         :param solutions: check only returns with this value as a possible solution
         :param sort: sort the result before yielding it
 
-        Other *args and **kwargs are passed to the called state.se.* function.
+        Other *args and **kwargs are passed to the called state.solver.* function.
 
         yields (r, func_return) for each state.
         """
@@ -95,8 +95,8 @@ class Caller(Explorer):
         :param solutions: check only returns with this value as a possible solution
         """
         for p in self.iter_found(runs=runs):
-            r = p.state.se.simplify(self._cc.return_val.get_value(p.state))
-            if solution is not None and not p.state.se.solution(r, solution):
+            r = p.state.solver.simplify(self._cc.return_val.get_value(p.state))
+            if solution is not None and not p.state.solver.solution(r, solution):
                 continue
             yield (r, p)
     __iter__ = iter_returns

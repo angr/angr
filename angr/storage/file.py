@@ -81,12 +81,15 @@ class SimFileBase(SimStatePlugin):
 
     @staticmethod
     def make_ident(name):
+        if type(name) is str:
+            name = name.encode()
+
         def generate():
             consecutive_bad = 0
             for ch in name:
-                if 0x20 <= ord(ch) <= 0x7e:
+                if 0x20 <= ch <= 0x7e:
                     consecutive_bad = 0
-                    yield ch
+                    yield chr(ch)
                 elif consecutive_bad < 3:
                     consecutive_bad += 1
                     yield '?'
@@ -158,8 +161,8 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         content = _deps_unpack(content)[0]
         if type(content) is bytes:
             content = claripy.BVV(content)
-        elif type(content) is unicode:
-            content = claripy.BVV(content.encode('utf-8'))
+        elif type(content) is str:
+            content = claripy.BVV(content.encode())
         elif content is None:
             pass
         elif isinstance(content, claripy.Bits):
@@ -188,7 +191,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         if self.has_end is None:
             self.has_end = sim_options.FILES_HAVE_EOF in state.options
 
-        if type(self._size) in (int, long):
+        if type(self._size) is int:
             self._size = claripy.BVV(self._size, state.arch.bits)
         elif len(self._size) != state.arch.bits:
             raise TypeError("SimFile size must be a bitvector of size %d (arch.bits)" % state.arch.bits)
@@ -204,7 +207,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         size = self.state.solver.min(self._size, **kwargs)
         data = self.load(0, size)
 
-        kwargs['cast_to'] = kwargs.get('cast_to', str)
+        kwargs['cast_to'] = kwargs.get('cast_to', bytes)
         kwargs['extra_constraints'] = tuple(kwargs.get('extra_constraints', ())) + (self._size == size,)
         return self.state.solver.eval(data, **kwargs)
 
@@ -311,7 +314,7 @@ class SimFileStream(SimFile):
 
     def set_state(self, state):
         super(SimFileStream, self).set_state(state)
-        if type(self.pos) in (int, long):
+        if type(self.pos) is int:
             self.pos = state.solver.BVV(self.pos, state.arch.bits)
         elif len(self.pos) != state.arch.bits:
             raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
@@ -389,7 +392,7 @@ class SimPackets(SimFileBase):
         """
         lengths = [self.state.solver.eval(x[1], **kwargs) for x in self.content]
         kwargs['cast_to'] = bytes
-        return ['' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
+        return [b'' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
 
     def read(self, pos, size, **kwargs):
         """
@@ -423,7 +426,7 @@ class SimPackets(SimFileBase):
             return self.content[pos] + (pos+1,)
 
         # typecheck
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # The read is on the frontier. let's generate a new packet.
@@ -480,7 +483,7 @@ class SimPackets(SimFileBase):
             data = claripy.BVV(data)
         if size is None:
             size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # sanity check on packet number and determine if data is already present
@@ -770,7 +773,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
         if not self.file.seekable:
             return claripy.false
 
-        if type(offset) in (int, long):
+        if type(offset) is int:
             offset = self.state.solver.BVV(offset, self.state.arch.bits)
 
         if whence == 'start':
@@ -987,7 +990,7 @@ class SimPacketsSlots(SimFileBase):
         self.read_data = []
 
     def concretize(self, **kwargs):
-        return [self.state.solver.eval(var, cast_to=str, **kwargs) for var in self.read_data]
+        return [self.state.solver.eval(var, cast_to=bytes, **kwargs) for var in self.read_data]
 
     def read(self, pos, size, **kwargs):
         if not self.read_sizes:

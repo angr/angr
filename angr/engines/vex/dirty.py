@@ -20,10 +20,10 @@ l = logging.getLogger("angr.engines.vex.dirty")
 # http://www.cap-lore.com/code/TB/
 def ppcg_dirtyhelper_MFTB(state):
     # TODO: This is an incorrect implementation. Fix it later!
-    return state.se.BVV(0x200, 64), [ ]
+    return state.solver.BVV(0x200, 64), [ ]
 
 def ppc32g_dirtyhelper_MFSPR_287(state):
-    return state.se.BVV(0x200, 32), [ ]
+    return state.solver.BVV(0x200, 32), [ ]
 
 def amd64g_dirtyhelper_RDTSC(state):
     if o.USE_SYSTEM_TIMES in state.options:
@@ -136,7 +136,7 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
     return None, [ ]
 
 def amd64g_dirtyhelper_IN(state, portno, sz): #pylint:disable=unused-argument
-    return state.se.Unconstrained('IN', 64, key=('hardware', 'in')), [ ]
+    return state.solver.Unconstrained('IN', 64, key=('hardware', 'in')), [ ]
 
 def amd64g_dirtyhelper_OUT(state, portno, data, sz): #pylint:disable=unused-argument
     return None, [ ]
@@ -146,7 +146,7 @@ def amd64g_dirtyhelper_SxDT(state, addr, op): #pylint:disable=unused-argument
     # and they both store 80 bit of data
     # See http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2008/10/24594_APM_v3.pdf
     # page 377
-    state.memory.store(addr, state.se.Unconstrained('SxDT', 80))
+    state.memory.store(addr, state.solver.Unconstrained('SxDT', 80))
 
     return None, [ ]
 
@@ -228,7 +228,7 @@ def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
     return None, [ ]
 
 def x86g_dirtyhelper_IN(state, portno, sz): #pylint:disable=unused-argument
-    return state.se.Unconstrained('IN', 32, key=('hardware', 'in')), [ ]
+    return state.solver.Unconstrained('IN', 32, key=('hardware', 'in')), [ ]
 
 def x86g_dirtyhelper_OUT(state, portno, data, sz): #pylint:disable=unused-argument
     return None, [ ]
@@ -240,7 +240,7 @@ def x86g_dirtyhelper_SxDT(state, addr, op):
         # resolved failed
         return None, [ ]
     elif op._model_concrete.value == 0:
-        state.memory.store(addr, state.se.Unconstrained('SIDT', 48))
+        state.memory.store(addr, state.solver.Unconstrained('SIDT', 48))
     elif op._model_concrete.value == 1:
         state.memory.store(addr, state.regs.gdt)
 
@@ -255,7 +255,7 @@ def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
     base = state.memory.load(addr + 2, 4, endness='Iend_LE')
 
     if op._model_concrete.value == 2:
-        state.regs.gdt = state.se.Concat(base, limit).zero_extend(16)
+        state.regs.gdt = state.solver.Concat(base, limit).zero_extend(16)
     elif op._model_concrete.value == 3:
         # LIDT is a nop
         pass
@@ -272,7 +272,7 @@ def x86g_dirtyhelper_FINIT(state, gsptr): #pylint:disable=unused-argument
 def x86g_dirtyhelper_write_cr0(state, value):
     # make a deep copy of the arch before modifying it so we don't accidentally modify it for all other states
     state.arch = state.arch.copy()
-    state.arch.vex_archinfo['x86_cr0'] = state.se.eval_one(value)
+    state.arch.vex_archinfo['x86_cr0'] = state.solver.eval_one(value)
     return None, [ ]
 
 def x86g_dirtyhelper_loadF80le(state, addr):
@@ -282,8 +282,8 @@ def x86g_dirtyhelper_loadF80le(state, addr):
     mantissa = tbyte[62:0]
 
     normalized_exponent = exponent[10:0] - 16383 + 1023
-    zero_exponent = state.se.BVV(0, 11)
-    inf_exponent = state.se.BVV(-1, 11)
+    zero_exponent = state.solver.BVV(0, 11)
+    inf_exponent = state.solver.BVV(-1, 11)
     final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
 
     normalized_mantissa = tbyte[62:11]
@@ -301,8 +301,8 @@ def x86g_dirtyhelper_storeF80le(state, addr, qword):
     mantissa = qword[51:0]
 
     normalized_exponent = exponent.zero_extend(4) - 1023 + 16383
-    zero_exponent = state.se.BVV(0, 15)
-    inf_exponent = state.se.BVV(-1, 15)
+    zero_exponent = state.solver.BVV(0, 15)
+    inf_exponent = state.solver.BVV(-1, 15)
     final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
 
     normalized_mantissa = claripy.Concat(claripy.BVV(1, 1), mantissa, claripy.BVV(0, 11))

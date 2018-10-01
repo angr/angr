@@ -18,25 +18,25 @@ class receive(angr.SimProcedure):
 
         if self.state.mode == 'fastpath':
             # Special case for CFG generation
-            if not self.state.se.symbolic(count):
-                data = self.state.se.Unconstrained(
-                    'receive_data_%d' % fastpath_data_counter.next(),
-                    self.state.se.eval_one(count) * 8
+            if not self.state.solver.symbolic(count):
+                data = self.state.solver.Unconstrained(
+                    'receive_data_%d' % next(fastpath_data_counter),
+                    self.state.solver.eval_one(count) * 8
                 )
                 self.state.memory.store(buf, data)
             else:
-                count = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
+                count = self.state.solver.Unconstrained('receive_length', self.state.arch.bits)
             self.state.memory.store(rx_bytes, count, endness='Iend_LE')
 
-            return self.state.se.BVV(0, self.state.arch.bits)
+            return self.state.solver.BVV(0, self.state.arch.bits)
 
         # check invalid memory accesses
         # rules for invalid: greater than 0xc0 or wraps around
-        if self.state.se.max_int(buf + count) > 0xc0000000 or \
-                self.state.se.min_int(buf + count) < self.state.se.min_int(buf):
+        if self.state.solver.max_int(buf + count) > 0xc0000000 or \
+                self.state.solver.min_int(buf + count) < self.state.solver.min_int(buf):
             return 2
         try:
-            writable = self.state.se.eval(self.state.memory.permissions(self.state.se.eval(buf))) & 2 != 0
+            writable = self.state.solver.eval(self.state.memory.permissions(self.state.solver.eval(buf))) & 2 != 0
         except angr.SimMemoryError:
             writable = False
         if not writable:
@@ -50,7 +50,7 @@ class receive(angr.SimProcedure):
 
             return 0
         else:
-            if self.state.se.solution(count != 0, True):
+            if self.state.solver.solution(count != 0, True):
                 data, read_length = simfd.read_data(count)
                 if not self.state.solver.is_true(read_length == 0):
                     self.state.memory.store(buf, data, size=read_length)

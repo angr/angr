@@ -9,4 +9,4 @@ class free(angr.SimProcedure):
 
     def run(self, ptr): #pylint:disable=unused-argument
         self.argument_types = {0: self.ty_ptr(SimTypeTop())}
-        return self.state.se.Unconstrained('free', self.state.arch.bits)
+        return self.state.solver.Unconstrained('free', self.state.arch.bits)

@@ -34,7 +34,7 @@ def test_lseek_set():
 
     # Seek to the top of the file
     current_pos = lseek(state,[fd,0,SEEK_SET]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,0)
@@ -43,7 +43,7 @@ def test_lseek_set():
 
     # Seek to the top of the file
     current_pos = lseek(state,[fd,8,SEEK_SET]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,8)
@@ -52,7 +52,7 @@ def test_lseek_set():
 
     # Seek to the top of the file
     current_pos = lseek(state,[fd,3,SEEK_SET]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,3)
@@ -71,7 +71,7 @@ def test_lseek_cur():
 
     # Add 12
     current_pos = lseek(state,[fd,12,SEEK_CUR]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,12)
@@ -80,7 +80,7 @@ def test_lseek_cur():
 
     # Remove 3
     current_pos = lseek(state,[fd,-3,SEEK_CUR]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,9)
@@ -98,7 +98,7 @@ def test_lseek_end():
 
     # Add 5
     current_pos = lseek(state,[fd,0,SEEK_END]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # We should be at the end + offset
     nose.tools.assert_equal(current_pos, 16)
@@ -107,7 +107,7 @@ def test_lseek_end():
 
     # Minus 6. End of file never actually changed
     current_pos = lseek(state,[fd,-6,SEEK_END]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # We should be at the end + offset
     nose.tools.assert_equal(current_pos,10)
@@ -117,21 +117,21 @@ def test_lseek_unseekable():
 
     # Illegal seek
     current_pos = lseek(state,[0,0,SEEK_SET]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # Assert we have a negative return value
     nose.tools.assert_true(current_pos & (1 << 63) != 0)
 
     # Illegal seek
     current_pos = lseek(state,[1,0,SEEK_SET]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # Assert we have a negative return value
     nose.tools.assert_true(current_pos & (1 << 63) != 0)
 
     # Illegal seek
     current_pos = lseek(state,[2,0,SEEK_SET]).ret_expr
-    current_pos = state.se.eval(current_pos)
+    current_pos = state.solver.eval(current_pos)
 
     # Assert we have a negative return value
     nose.tools.assert_true(current_pos & (1 << 63) != 0)
@@ -147,7 +147,7 @@ def test_lseek_symbolic_whence():
     # Create a file
     assert fd == state.posix.open('/tmp/qwer', 1)
 
-    whence = state.se.BVS('whence',64)
+    whence = state.solver.BVS('whence',64)
 
     # This should cause the exception
     lseek(state,[fd,0,whence])
@@ -162,13 +162,13 @@ def test_lseek_symbolic_seek():
     # Create a file
     assert fd == state.posix.open('/tmp/qwer', 1)
 
-    seek = state.se.BVS('seek',64)
+    seek = state.solver.BVS('seek',64)
 
     # This should NOT cause an exception
     lseek(state,[fd,seek,SEEK_SET])
 
 if __name__ == '__main__':
     g = globals().copy()
-    for func_name, func in g.iteritems():
+    for func_name, func in g.items():
         if func_name.startswith("test_") and hasattr(func, "__call__"):
             func()

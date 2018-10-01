@@ -1,20 +1,17 @@
 import cooldict
 import claripy
-import cffi
 import cle
 from sortedcontainers import SortedDict
+import logging
 
-from ..errors import SimMemoryError, SimSegfaultError
+from ..errors import SimMemoryError, SimSegfaultError, SimMemoryMissingError
 from .. import sim_options as options
 from .memory_object import SimMemoryObject
-from claripy.ast.bv import BV
 
-_ffi = cffi.FFI()
-
-import logging
 l = logging.getLogger("angr.storage.paged_memory")
 
-class BasePage(object):
+
+class BasePage:
     """
     Page object, allowing for more flexibility than just a raw dict.
     """
@@ -324,7 +321,7 @@ Page = ListPage
 
 #pylint:disable=unidiomatic-typecheck
 
-class SimPagedMemory(object):
+class SimPagedMemory:
     """
     Represents paged memory.
     """
@@ -339,7 +336,7 @@ class SimPagedMemory(object):
         self._page_size = 0x1000 if page_size is None else page_size
         self._symbolic_addrs = dict() if symbolic_addrs is None else symbolic_addrs
         self.state = None
-        self._preapproved_stack = xrange(0)
+        self._preapproved_stack = range(0)
         self._check_perms = check_permissions
 
         # reverse mapping
@@ -387,7 +384,7 @@ class SimPagedMemory(object):
         return m
 
     def __getitem__(self, addr):
-        page_num = addr / self._page_size
+        page_num = addr // self._page_size
         page_idx = addr
         #print "GET", addr, page_num, page_idx
 
@@ -398,7 +395,7 @@ class SimPagedMemory(object):
             raise KeyError(addr)
 
     def __setitem__(self, addr, v):
-        page_num = addr / self._page_size
+        page_num = addr // self._page_size
         page_idx = addr
         #print "SET", addr, page_num, page_idx
 
@@ -438,8 +435,8 @@ class SimPagedMemory(object):
         end = addr + num_bytes
         for page_addr in self._containing_pages(addr, end):
             try:
-                #print "Getting page %x" % (page_addr / self._page_size)
-                page = self._get_page(page_addr / self._page_size)
+                #print "Getting page %x" % (page_addr // self._page_size)
+                page = self._get_page(page_addr // self._page_size)
                 #print "... got it"
             except KeyError:
                 #print "... missing"
@@ -485,43 +482,44 @@ class SimPagedMemory(object):
         if self._memory_backer is None:
             pass
         elif isinstance(self._memory_backer, cle.Clemory):
-            # first, find the right clemory backer
-            for addr, backer in self._memory_backer.cbackers if self.byte_width == 8 else ((x, y) for x, _, y in self._memory_backer.stride_repr):
-                start_backer = new_page_addr - addr
-                if isinstance(start_backer, BV):
-                    continue
-                if start_backer < 0 and abs(start_backer) >= self._page_size:
-                    continue
-                if start_backer >= len(backer):
-                    continue
+            # find permission backer associated with the address
+            # fall back to read-write if we can't find any...
+            flags = Page.PROT_READ | Page.PROT_WRITE
+            for start, end in self._permission_map:
+                if start <= new_page_addr < end:
+                    flags = self._permission_map[(start, end)]
+                    break
+            new_page.permissions = claripy.BVV(flags, 3)
 
-                # find permission backer associated with the address
-                # fall back to read-write if we can't find any...
-                flags = Page.PROT_READ | Page.PROT_WRITE
-                for start, end in self._permission_map:
-                    if start <= new_page_addr < end:
-                        flags = self._permission_map[(start, end)]
-                        break
+            # for each clemory backer which intersects with the page, apply its relevant data
+            for backer_addr, backer in self._memory_backer.backers(new_page_addr):
+                if backer_addr >= new_page_addr + self._page_size:
+                    break
 
-                snip_start = max(0, start_backer)
-                write_start = max(new_page_addr, addr + snip_start)
-                write_size = self._page_size - write_start%self._page_size
+                relevant_region_start = max(new_page_addr, backer_addr)
+                relevant_region_end = min(new_page_addr + self._page_size, backer_addr + len(backer))
+                slice_start = relevant_region_start - backer_addr
+                slice_end = relevant_region_end - backer_addr
 
                 if self.byte_width == 8:
-                    snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
-                    mo = SimMemoryObject(claripy.BVV(snip), write_start, byte_width=self.byte_width)
-                    self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                    relevant_data = bytes(memoryview(backer)[slice_start:slice_end])
+                    mo = SimMemoryObject(
+                            claripy.BVV(relevant_data),
+                            relevant_region_start,
+                            byte_width=self.byte_width)
+                    self._apply_object_to_page(new_page_addr, mo, page=new_page)
                 else:
-                    for i, byte in enumerate(backer):
-                        mo = SimMemoryObject(claripy.BVV(byte, self.byte_width), write_start + i, byte_width=self.byte_width)
-                        self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                    for i, byte in enumerate(backer[slice_start:slice_end]):
+                        mo = SimMemoryObject(claripy.BVV(byte, self.byte_width),
+                                relevant_region_start + i,
+                                byte_width=self.byte_width)
+                        self._apply_object_to_page(new_page_addr, mo, page=new_page)
 
-                new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
 
         elif len(self._memory_backer) <= self._page_size:
             for i in self._memory_backer:
-                if new_page_addr <= i and i <= new_page_addr + self._page_size:
+                if new_page_addr <= i <= new_page_addr + self._page_size:
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
                         backer = self._memory_backer[i]
                     elif isinstance(self._memory_backer[i], bytes):
@@ -592,7 +590,7 @@ class SimPagedMemory(object):
         :rtype: bool
         """
 
-        for i, p in self._pages.iteritems():
+        for i, p in self._pages.items():
             if i * self._page_size <= addr < (i + 1) * self._page_size:
                 return addr - (i * self._page_size) in p.keys()
         return False
@@ -663,9 +661,9 @@ class SimPagedMemory(object):
                 differences.add(c)
             else:
                 if type(self[c]) is not SimMemoryObject:
-                    self[c] = SimMemoryObject(self.state.se.BVV(ord(self[c]), self.byte_width), c, byte_width=self.byte_width)
+                    self[c] = SimMemoryObject(self.state.solver.BVV(ord(self[c]), self.byte_width), c, byte_width=self.byte_width)
                 if type(other[c]) is not SimMemoryObject:
-                    other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), self.byte_width), c, byte_width=self.byte_width)
+                    other[c] = SimMemoryObject(self.state.solver.BVV(ord(other[c]), self.byte_width), c, byte_width=self.byte_width)
                 if c in self and self[c] != other[c]:
                     # Try to see if the bytes are equal
                     self_byte = self[c].bytes_at(c, 1)
@@ -694,7 +692,7 @@ class SimPagedMemory(object):
         :param page:        (optional) the page to use.
         :param overwrite:   (optional) If False, only write to currently-empty memory.
         """
-        page_num = page_base / self._page_size
+        page_num = page_base // self._page_size
         try:
             page = self._get_page(page_num,
                                   write=True,
@@ -748,7 +746,7 @@ class SimPagedMemory(object):
 
         new = SimMemoryObject(new_content, old.base, byte_width=self.byte_width)
         for p in self._containing_pages_mo(old):
-            self._get_page(p/self._page_size, write=True).replace_mo(self.state, old, new)
+            self._get_page(p//self._page_size, write=True).replace_mo(self.state, old, new)
 
         if isinstance(new.object, claripy.ast.BV):
             for b in range(old.base, old.base+old.length):
@@ -841,9 +839,9 @@ class SimPagedMemory(object):
 
     def _update_mappings(self, actual_addr, cnt):
         if options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options:
-            page_num = actual_addr / self._page_size
+            page_num = actual_addr // self._page_size
             page_idx = actual_addr
-            if self.state.se.symbolic(cnt):
+            if self.state.solver.symbolic(cnt):
                 self._symbolic_addrs[page_num].add(page_idx)
             else:
                 self._symbolic_addrs[page_num].discard(page_idx)
@@ -853,7 +851,7 @@ class SimPagedMemory(object):
             return
 
         if (options.REVERSE_MEMORY_HASH_MAP not in self.state.options) and \
-                len(self.state.se.variables(cnt)) == 0:
+                len(self.state.solver.variables(cnt)) == 0:
            return
 
         l.debug("Updating mappings at address 0x%x", actual_addr)
@@ -868,7 +866,7 @@ class SimPagedMemory(object):
 
             if isinstance(old_obj, claripy.ast.BV):
                 if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
-                    var_set = self.state.se.variables(old_obj)
+                    var_set = self.state.solver.variables(old_obj)
                     for v in var_set:
                         self._mark_updated_mapping(self._name_mapping, v)
                         self._name_mapping[v].discard(actual_addr)
@@ -887,7 +885,7 @@ class SimPagedMemory(object):
         l.debug("... adding new mappings")
         if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
             # add the new variables to the mapping
-            var_set = self.state.se.variables(cnt)
+            var_set = self.state.solver.variables(cnt)
             for v in var_set:
                 self._mark_updated_mapping(self._name_mapping, v)
                 if v not in self._name_mapping:
@@ -952,14 +950,14 @@ class SimPagedMemory(object):
         This is useful for replacing those values in one fell swoop with :func:`replace_memory_object()`, even if
         they have been partially overwritten.
         """
-        return set([ self[i] for i in self.addrs_for_name(n)])
+        return {self[i] for i in self.addrs_for_name(n)}
 
     def memory_objects_for_hash(self, n):
         """
         Returns a set of :class:`SimMemoryObjects` that contain expressions that contain a variable with the hash
         `h`.
         """
-        return set([ self[i] for i in self.addrs_for_hash(n)])
+        return {self[i] for i in self.addrs_for_hash(n)}
 
     def permissions(self, addr, permissions=None):
         """
@@ -968,22 +966,22 @@ class SimPagedMemory(object):
         If optional argument permissions is given, set page permissions to that prior to returning permissions.
         """
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             raise SimMemoryError("page permissions cannot currently be looked up for symbolic addresses")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.eval(addr)
+            addr = self.state.solver.eval(addr)
 
-        page_num = addr / self._page_size
+        page_num = addr // self._page_size
 
         try:
             page = self._get_page(page_num)
         except KeyError:
-            raise SimMemoryError("page does not exist at given address")
+            raise SimMemoryMissingError("page does not exist at given address")
 
         # Set permissions for the page
         if permissions is not None:
-            if isinstance(permissions, (int, long)):
+            if isinstance(permissions, int):
                 permissions = claripy.BVV(permissions, 3)
 
             if not isinstance(permissions,claripy.ast.bv.BV):
@@ -997,32 +995,32 @@ class SimPagedMemory(object):
         if o.TRACK_MEMORY_MAPPING not in self.state.options:
             return
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             raise SimMemoryError("cannot map region with a symbolic address")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.max_int(addr)
+            addr = self.state.solver.max_int(addr)
 
-        base_page_num = addr / self._page_size
+        base_page_num = addr // self._page_size
 
         # round length
-        pages = length / self._page_size
+        pages = length // self._page_size
         if length % self._page_size > 0:
             pages += 1
 
         # this check should not be performed when constructing a CFG
         if self.state.mode != 'fastpath':
-            for page in xrange(pages):
+            for page in range(pages):
                 page_id = base_page_num + page
                 if page_id * self._page_size in self:
                     err = "map_page received address and length combination which contained mapped page"
                     l.warning(err)
                     raise SimMemoryError(err)
 
-        if isinstance(permissions, (int, long)):
+        if isinstance(permissions, int):
             permissions = claripy.BVV(permissions, 3)
 
-        for page in xrange(pages):
+        for page in range(pages):
             page_id = base_page_num + page
             self._pages[page_id] = self._create_page(page_id, permissions=permissions)
             self._symbolic_addrs[page_id] = set()
@@ -1038,26 +1036,26 @@ class SimPagedMemory(object):
         if o.TRACK_MEMORY_MAPPING not in self.state.options:
             return
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             raise SimMemoryError("cannot unmap region with a symbolic address")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.max_int(addr)
+            addr = self.state.solver.max_int(addr)
 
-        base_page_num = addr / self._page_size
+        base_page_num = addr // self._page_size
 
-        pages = length / self._page_size
+        pages = length // self._page_size
         if length % self._page_size > 0:
             pages += 1
 
         # this check should not be performed when constructing a CFG
         if self.state.mode != 'fastpath':
-            for page in xrange(pages):
+            for page in range(pages):
                 if base_page_num + page not in self._pages:
                     l.warning("unmap_region received address and length combination is not mapped")
                     return
 
-        for page in xrange(pages):
+        for page in range(pages):
             del self._pages[base_page_num + page]
             del self._symbolic_addrs[base_page_num + page]
 
