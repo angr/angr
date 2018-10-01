@@ -1842,7 +1842,7 @@ class CFGBase(Analysis):
             else:
                 target_function = blockaddr_to_function[dst_addr]
 
-            # Figure out if the function called (not the function retted-to) returns.
+            # Figure out if the function called (not the function returned to) returns.
             # We may have determined that this does not happen, since the time this path
             # was scheduled for exploration
             called_function = None
@@ -1853,7 +1853,11 @@ class CFGBase(Analysis):
                         called_function = blockaddr_to_function[d.addr]
                         break
             # We may have since figured out that the called function doesn't ret.
-            if called_function is not None and called_function.returning is False:
+            # It's important to assume that all unresolved targets do return
+            # FIXME: Remove the last check after we split UnresolvableTarget into UnresolvableJump and UnresolvableCall.
+            if called_function is not None and \
+                    called_function.returning is False and \
+                    (not called_function.is_simprocedure or called_function.name not in ('UnresolvableTarget',)):
                 return
 
             to_outside = not target_function is src_function
