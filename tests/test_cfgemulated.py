@@ -289,12 +289,12 @@ def test_fakeret_edges_0():
     # Each predecessor must have a call edge and a FakeRet edge
     edges_0 = cfg.get_successors_and_jumpkind(preds_0[0], excluding_fakeret=False)
     nose.tools.assert_equal(len(edges_0), 2)
-    jumpkinds = set([ jumpkind for _, jumpkind in edges_0 ])
+    jumpkinds = { jumpkind for _, jumpkind in edges_0 }
     nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
 
     edges_1 = cfg.get_successors_and_jumpkind(preds_1[0], excluding_fakeret=False)
     nose.tools.assert_equal(len(edges_1), 2)
-    jumpkinds = set([ jumpkind for _, jumpkind in edges_1 ])
+    jumpkinds = { jumpkind for _, jumpkind in edges_1 }
     nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
 
 def test_string_references():
@@ -356,7 +356,7 @@ def test_armel_final_missing_block():
     blocks = list(cfg.kb.functions[0x8000].blocks)
 
     nose.tools.assert_equal(len(blocks), 3)
-    nose.tools.assert_set_equal(set([ block.addr for block in blocks ]), { 0x8000, 0x8014, 0x8020 })
+    nose.tools.assert_set_equal({ block.addr for block in blocks }, { 0x8000, 0x8014, 0x8020 })
 
 
 def test_armel_final_missing_block_b():

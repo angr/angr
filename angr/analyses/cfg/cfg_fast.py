@@ -2520,7 +2520,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 zero_pos = data.index(0)
             except ValueError:
                 zero_pos = None
-            if (zero_pos > 0 and all(c in self.PRINTABLES for c in data[:zero_pos])) or \
+            if (zero_pos is not None and zero_pos > 0 and all(c in self.PRINTABLES for c in data[:zero_pos])) or \
                     all(c in self.PRINTABLES for c in data):
                 # it's a string
                 # however, it may not be terminated
