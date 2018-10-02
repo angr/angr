@@ -298,7 +298,7 @@ class Function(object):
                         stn = ""
                         offset = 0
                         current_char = memory[addr + offset]
-                        while current_char in string.printable:
+                        while chr(current_char) in string.printable:
                             stn += current_char
                             offset += 1
                             current_char = memory[addr + offset]
