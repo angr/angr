@@ -1582,7 +1582,7 @@ class Data(object):
 
             elif self.sort == 'string':
                 data = self.binary.fast_memory_load(self.addr, self.size, bytes)
-                if data[-1] == b'\0':
+                if data[-1] == 0:
                     self.null_terminated = True
                     data = data[:-1] # remove the null-byte. we'll use .asciz for it instead.
                 else:
