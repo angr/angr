@@ -2386,8 +2386,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if len(content_holder) == 1:
                     memory_data.content = content_holder[0]
 
-                if memory_data.size > 0 and \
-                        (memory_data.max_size is not None and memory_data.size < memory_data.max_size):
+                if memory_data.max_size is not None and (0 < memory_data.size < memory_data.max_size):
                     # Create another memory_data object to fill the gap
                     new_addr = data_addr + memory_data.size
                     new_md = MemoryData(new_addr, None, None, None, None, None, None,
