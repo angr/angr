@@ -528,6 +528,11 @@ def test_collect_data_references():
     ptr_array_count = len([d for d in memory_data.values() if d.sort == 'pointer-array'])
     nose.tools.assert_greater(ptr_array_count, 2, msg="Missing some pointer arrays.")
 
+    nose.tools.assert_in(0x4008d0, memory_data)
+    sneaky_str = memory_data[0x4008d0]
+    nose.tools.assert_equal(sneaky_str.sort, "string")
+    nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
+
 
 def run_all():
 
