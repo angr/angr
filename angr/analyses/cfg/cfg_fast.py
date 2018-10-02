@@ -2527,7 +2527,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 string_data = data if zero_pos is None else data[:zero_pos]
                 if content_holder is not None:
                     content_holder.append(string_data)
-                return "string", min(len(string_data) + 1, 1024)
+                return "string", min(len(string_data), 1024)
 
         for handler in self._data_type_guessing_handlers:
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
