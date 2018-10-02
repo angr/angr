@@ -483,13 +483,12 @@ class SimPagedMemory:
             pass
         elif isinstance(self._memory_backer, cle.Clemory):
             # find permission backer associated with the address
-            # fall back to read-write if we can't find any...
-            flags = Page.PROT_READ | Page.PROT_WRITE
+            # fall back to default (read-write-maybe-exec) if can't find any
             for start, end in self._permission_map:
                 if start <= new_page_addr < end:
                     flags = self._permission_map[(start, end)]
+                    new_page.permissions = claripy.BVV(flags, 3)
                     break
-            new_page.permissions = claripy.BVV(flags, 3)
 
             # for each clemory backer which intersects with the page, apply its relevant data
             for backer_addr, backer in self._memory_backer.backers(new_page_addr):
