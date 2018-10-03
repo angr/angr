@@ -81,17 +81,20 @@ class SimulationManager(ana.Storable):
         elif resilience is False:
             resilience = set()
 
-        if auto_drop is None and not kwargs.get('save_unconstrained'):
+        if auto_drop is None and not kwargs.pop('save_unconstrained', False):
             self._auto_drop |= {'unconstrained'}
 
-        if auto_drop is None and not kwargs.get('save_unsat'):
+        if auto_drop is None and not kwargs.pop('save_unsat', False):
             self._auto_drop |= {'unsat'}
 
-        if 'veritesting' in kwargs and kwargs['veritesting']:
+        if kwargs.pop('veritesting', False):
             self.use_technique(Veritesting(**kwargs.get('veritesting_options', {})))
 
-        if 'threads' in kwargs and kwargs['threads'] is not None:
-            self.use_technique(Threading(kwargs['threads']))
+        if kwargs.get('threads', None) is not None:
+            self.use_technique(Threading(kwargs.pop('threads')))
+
+        if kwargs:
+            raise TypeError("Unexpected keyword arguments: " + " ".join(kwargs))
         # ------------------ Compatibility layer ---------------->8
 
         if auto_drop:
