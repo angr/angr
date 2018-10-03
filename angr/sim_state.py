@@ -50,7 +50,9 @@ class SimState(PluginHub, ana.Storable):
     """
 
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default'):
+                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default', **kwargs):
+        if kwargs:
+            l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
         self.project = project
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
