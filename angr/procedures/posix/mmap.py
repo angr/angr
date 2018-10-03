@@ -24,8 +24,7 @@ class mmap(angr.SimProcedure):
         l.debug("mmap(%s, %s, %s, %s, %s, %s) = ...", addr, length, prot, flags, fd, offset)
 
         if self.state.solver.is_false(fd == -1):
-            l.warning("Trying to map a file descriptor. I cannot deal with this.")
-            return -1
+            raise angr.errors.SimPosixError("Trying to map a file descriptor. I cannot deal with this.")
 
         #
         # Length
