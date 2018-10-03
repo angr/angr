@@ -8,8 +8,6 @@ class brk(angr.SimProcedure):
     This implements the brk system call.
     """
 
-    IS_SYSCALL = True
-
     #pylint:disable=arguments-differ
 
     def run(self, new_brk):

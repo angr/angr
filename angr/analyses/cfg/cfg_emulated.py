@@ -2802,7 +2802,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                     old_name = None
 
-                    if old_proc.IS_SYSCALL:
+                    if old_proc.is_syscall:
                         new_stub = SIM_PROCEDURES["stubs"]["syscall"]
                         ret_to = state.regs.ip_at_syscall
                     else:

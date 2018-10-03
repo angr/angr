@@ -7,8 +7,6 @@ l = logging.getLogger("angr.procedures.cgc.allocate")
 class allocate(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    IS_SYSCALL = True
-
     def run(self, length, is_x, addr): #pylint:disable=unused-argument
         if self.state.solver.symbolic(length):
             l.warning("Concretizing symbolic length passed to allocate to max_int")

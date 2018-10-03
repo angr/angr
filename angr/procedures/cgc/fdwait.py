@@ -6,8 +6,6 @@ fdcount = itertools.count()
 class fdwait(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    IS_SYSCALL = True
-
     def run(self, nfds, readfds, writefds, timeout, readyfds):
 
         run_count = next(fdcount)

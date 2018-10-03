@@ -3,8 +3,6 @@ import angr
 class transmit(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    IS_SYSCALL = True
-
     def run(self, fd, buf, count, tx_bytes):
         if angr.options.CGC_ENFORCE_FD in self.state.options:
             fd = 1

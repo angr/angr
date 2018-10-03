@@ -1,7 +1,6 @@
 import angr
 
 class time(angr.SimProcedure):
-    IS_SYSCALL = True
     KEY = 'sys_last_time'
 
     @property

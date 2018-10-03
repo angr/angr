@@ -16,8 +16,6 @@ MAP_FIXED       = 0x10 #    /* Interpret addr exactly.  */
 
 class mmap(angr.SimProcedure):
 
-    IS_SYSCALL = True
-
     def run(self, addr, length, prot, flags, fd, offset): #pylint:disable=arguments-differ,unused-argument
         #if self.state.solver.symbolic(flags) or self.state.solver.eval(flags) != 0x22:
         #   raise Exception("mmap with other than MAP_PRIVATE|MAP_ANONYMOUS unsupported")

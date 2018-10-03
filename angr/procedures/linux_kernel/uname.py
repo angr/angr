@@ -1,8 +1,6 @@
 import angr
 
 class uname(angr.SimProcedure):
-    IS_SYSCALL = True
-
     def run(self, uname_buf): # pylint: disable=arguments-differ
          # struct utsname {
          #     char sysname[];    /* Operating system name (e.g., "Linux") */

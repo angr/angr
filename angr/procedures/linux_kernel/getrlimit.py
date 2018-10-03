@@ -9,8 +9,6 @@ l = logging.getLogger("angr.SimProcedures")
 #pylint:disable=redefined-builtin,arguments-differ
 class getrlimit(angr.SimProcedure):
 
-    IS_SYSCALL = True
-
     def run(self, resource, rlim):
 
         if self.state.solver.eval(resource) == 3:  # RLIMIT_STACK

@@ -5,8 +5,6 @@ l = logging.getLogger('angr.procedures.linux_kernel.mprotect')
 
 class mprotect(angr.SimProcedure):
 
-    IS_SYSCALL = True
-
     def run(self, addr, length, prot): #pylint:disable=arguments-differ,unused-argument
 
         try:

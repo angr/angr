@@ -369,6 +369,7 @@ class SimSyscallLibrary(SimLibrary):
         """
         name, arch, abi = self._canonicalize(number, arch, abi_list)
         proc = super(SimSyscallLibrary, self).get(name, arch)
+        proc.is_syscall = True
         self._apply_numerical_metadata(proc, number, arch, abi)
         return proc
 
