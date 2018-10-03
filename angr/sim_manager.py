@@ -31,6 +31,21 @@ class SimulationManager(ana.Storable):
 
     The most important methods you should look at are ``step``, ``explore``, and ``use_technique``.
 
+    :param project:         A Project instance.
+    :type project:          angr.project.Project
+    :param stashes:         A dictionary to use as the stash store.
+    :param active_states:   Active states to seed the "active" stash with.
+    :param hierarchy:       A StateHierarchy object to use to track the relationships between states.
+    :param resilience:      A set of errors to catch during stepping to put a state in the ``errore`` list.
+                            You may also provide the values False, None (default), or True to catch, respectively,
+                            no errors, all angr-specific errors, and a set of many common errors.
+    :param save_unsat:      Set to True in order to introduce unsatisfiable states into the ``unsat`` stash instead
+                            of discarding them immediately.
+    :param auto_drop:       A set of stash names which should be treated as garbage chutes.
+    :param completion_mode: A function describing how multiple exploration techniques with the ``complete``
+                            hook set will interact. By default, the builtin function ``any``.
+    :param techniques:      A list of techniques that should be pre-set to use with this manager.
+
     :ivar errored:          Not a stash, but a list of ErrorRecords. Whenever a step raises an exception that we catch,
                             the state and some information about the error are placed in this list. You can adjust the
                             list of caught exceptions with the `resilience` parameter.
@@ -43,23 +58,18 @@ class SimulationManager(ana.Storable):
 
     _integral_stashes = 'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained'
 
-    def __init__(self, project, active_states=None, stashes=None, hierarchy=None,
-                 resilience=None, auto_drop=None, errored=None, completion_mode=any, techniques=None,
-                 **kwargs):
-        """
-        A SimulationManager initialization routine.
-
-        :param project:         A Project instance.
-        :type project:          angr.project.Project
-        :param stashes:         A dictionary to use as the stash store.
-        :param active_states:   Active states to seed the "active" stash with.
-        :param hierarchy:       A StateHierarchy object to use to track the relationships between states.
-        :param resilience:
-        :param auto_drop:
-        :param completion_mode: A function describing how multiple exploration techniques with the ``complete``
-                                hook set will interact. By default, the builtin function ``any``.
-        :param techniques:      A list of techniques that should be pre-set to use with this manager.
-        """
+    def __init__(self,
+            project,
+            active_states=None,
+            stashes=None,
+            hierarchy=None,
+            resilience=None,
+            save_unsat=False,
+            auto_drop=None,
+            errored=None,
+            completion_mode=any,
+            techniques=None,
+            **kwargs):
         super(SimulationManager, self).__init__()
 
         self._project = project
@@ -68,31 +78,31 @@ class SimulationManager(ana.Storable):
 
         self._stashes = self._create_integral_stashes() if stashes is None else stashes
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
-        self._resilience = set()
+        self._save_unsat = save_unsat
         self._auto_drop = {SimulationManager.DROP, }
         self._techniques = []
 
-        # 8<----------------- Compatibility layer -----------------
         if resilience is None:
-            resilience = {AngrError, SimError, claripy.ClaripyError, }
+            self._resilience = (AngrError, SimError, claripy.ClaripyError)
         elif resilience is True:
-            resilience = {AngrError, SimError, claripy.ClaripyError, } | \
-                         {KeyError, IndexError, TypeError, ValueError, ArithmeticError, MemoryError}
+            self._resilience = (AngrError, SimError, claripy.ClaripyError, \
+                         KeyError, IndexError, TypeError, ValueError, ArithmeticError, MemoryError)
         elif resilience is False:
-            resilience = set()
+            self._resilience = ()
+        else:
+            self._resilience = tuple(resilience)
 
-        if auto_drop is None and not kwargs.pop('save_unconstrained', False):
+        # 8<----------------- Compatibility layer -----------------
+
+        if auto_drop is None and not kwargs.pop('save_unconstrained', True):
             self._auto_drop |= {'unconstrained'}
-
-        if auto_drop is None and not kwargs.pop('save_unsat', False):
-            self._auto_drop |= {'unsat'}
 
         if kwargs.pop('veritesting', False):
             self.use_technique(Veritesting(**kwargs.get('veritesting_options', {})))
 
         threads = kwargs.pop('threads', None)
         if threads is not None:
-            self.use_technique(threads)
+            self.use_technique(Threading(threads))
 
         if kwargs:
             raise TypeError("Unexpected keyword arguments: " + " ".join(kwargs))
@@ -100,9 +110,6 @@ class SimulationManager(ana.Storable):
 
         if auto_drop:
             self._auto_drop |= set(auto_drop)
-
-        if resilience is not None:
-            self._resilience |= set(resilience)
 
         if errored is not None:
             self._errored.extend(errored)
@@ -180,13 +187,7 @@ class SimulationManager(ana.Storable):
         tech.project = self._project
         tech.setup(self)
 
-        def _is_overriden(name):
-            return getattr(tech, name).__code__ is not getattr(ExplorationTechnique, name).__code__
-
-        overriden = filter(_is_overriden, ('step', 'filter', 'selector', 'step_state', 'successors'))
-        hooks = {name: getattr(tech, name) for name in overriden}
-        HookSet.install_hooks(self, **hooks)
-
+        HookSet.install_hooks(self, **tech._get_hooks())
         self._techniques.append(tech)
         return tech
 
@@ -243,14 +244,15 @@ class SimulationManager(ana.Storable):
     def run(self, stash='active', n=None, until=None, **kwargs):
         """
         Run until the SimulationManager has reached a completed state, according to
-        the current exploration techniques.
+        the current exploration techniques. If no exploration techniques that define a completion
+        state are being used, run until there is nothing left to run.
 
         :param stash:       Operate on this stash
         :param n:           Step at most this many times
         :param until:       If provided, should be a function that takes a SimulationManager and
                             returns True or False. Stepping will terminate when it is True.
 
-        :return:            The resulting SimulationManager.
+        :return:            The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         for _ in (itertools.count() if n is None else range(0, n)):
@@ -265,6 +267,10 @@ class SimulationManager(ana.Storable):
         """
         Returns whether or not this manager has reached a "completed" state.
         """
+        if not self._techniques:
+            return False
+        if not any(tech._is_overriden('complete') for tech in self._techniques):
+            return False
         return self.completion_mode((tech.complete(self) for tech in self._techniques))
 
     def step(self, n=None, selector_func=None, step_func=None, stash='active',
@@ -305,7 +311,7 @@ class SimulationManager(ana.Storable):
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. Default: 0
 
-        :returns:           The resulting SimulationManager.
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         l.info("Stepping %s of %s", stash, self)
@@ -322,7 +328,7 @@ class SimulationManager(ana.Storable):
 
         for state in self._fetch_states(stash=stash):
 
-            goto = self.filter(state, filter_func)
+            goto = self.filter(state, filter_func=filter_func)
             if isinstance(goto, tuple):
                 goto, state = goto
 
@@ -330,15 +336,32 @@ class SimulationManager(ana.Storable):
                 bucket[goto].append(state)
                 continue
 
-            if not self.selector(state, selector_func):
+            if not self.selector(state, selector_func=selector_func):
                 bucket[stash].append(state)
                 continue
 
             pre_errored = len(self._errored)
-            successors = self.step_state(state, successor_func, **run_args)
-            if not any(successors.values()) and len(self._errored) == pre_errored:
-                bucket['deadended'].append(state)
-                continue
+            successors = self.step_state(state, successor_func=successor_func, **run_args)
+
+            # handle degenerate stepping cases here. desired behavior:
+            # if a step produced only unsat states, always add them to the unsat stash since this usually indicates a bug
+            # if a step produced sat states and save_unsat is False, drop the unsats
+            # if a step produced no successors, period, add the original state to deadended
+
+            # first check if anything happened besides unsat. that gates all this behavior
+            if not any(v for k, v in successors.items() if k != 'unsat') and len(self._errored) == pre_errored:
+                # then check if there were some unsats
+                if successors.get('unsat', []):
+                    # only unsats. current setup is acceptable.
+                    pass
+                else:
+                    # no unsats. we've deadended.
+                    bucket['deadended'].append(state)
+                    continue
+            else:
+                # there were sat states. it's okay to drop the unsat ones if the user said so.
+                if not self._save_unsat:
+                    successors.pop('unsat', None)
 
             for to_stash, successor_states in successors.items():
                 bucket[to_stash or stash].extend(successor_states)
@@ -411,7 +434,7 @@ class SimulationManager(ana.Storable):
         :param from_stash:  Prune states from this stash. (default: 'active')
         :param to_stash:    Put pruned states in this stash. (default: 'pruned')
 
-        :returns:           The resulting SimulationManager.
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         def _prune_filter(state):
@@ -432,7 +455,6 @@ class SimulationManager(ana.Storable):
 
         :param stash:   A stash to populate.
         :param states:  A list of states with which to populate the stash.
-        :return:
         """
         self._store_states(stash, states)
         return self
@@ -446,7 +468,7 @@ class SimulationManager(ana.Storable):
         :param filter_func: Stash states that match this filter. Should be a function that takes
                             a state and returns True or False. (default: stash all states)
 
-        :returns:           The resulting SimulationManager.
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         filter_func = filter_func or (lambda s: True)
@@ -462,7 +484,7 @@ class SimulationManager(ana.Storable):
         :param from_stash:  Take matching states from this stash. (default: 'active')
         :param to_stash:    Put matching states into this stash. (default: 'stashed')
 
-        :returns:           The resulting SimulationManager
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         return self.move(from_stash, to_stash, filter_func=filter_func)
@@ -476,7 +498,7 @@ class SimulationManager(ana.Storable):
         :param from_stash:  take matching states from this stash. (default: 'stashed')
         :param to_stash:    put matching states into this stash. (default: 'active')
 
-        :returns:            The resulting SimulationManager.
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         return self.move(from_stash, to_stash, filter_func=filter_func)
@@ -489,7 +511,7 @@ class SimulationManager(ana.Storable):
                             a state and returns True or False. (default: drop all states)
         :param stash:       Drop matching states from this stash. (default: 'active')
 
-        :returns:           The resulting SimulationManager
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         return self.move(stash, self.DROP, filter_func=filter_func)
@@ -509,7 +531,7 @@ class SimulationManager(ana.Storable):
         :param stash:       A stash to work with.
         :param to_stash:    If specified, this stash will be used to store the resulting states instead.
 
-        :returns:           The resulting SimulationManager.
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         to_stash = to_stash or stash
@@ -557,7 +579,7 @@ class SimulationManager(ana.Storable):
         :param from_stash:      The stash to split (default: 'active')
         :param to_stash:        The stash to write to (default: 'stashed')
 
-        :returns:               The resulting SimulationManager.
+        :returns:               The simulation manager, for chaining.
         :rtype:                 SimulationManager
         """
         states = self._fetch_states(stash=from_stash)
@@ -597,7 +619,7 @@ class SimulationManager(ana.Storable):
                             equal for all states that are allowed to be merged together, as a first aproximation.
                             By default: uses PC, callstack, and open file descriptors.
 
-        :returns:           The result SimulationManager.
+        :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
         self.prune(from_stash=stash)
@@ -664,9 +686,8 @@ class SimulationManager(ana.Storable):
         """
         Merges a list of states.
 
-        :param states: the states to merge
-        :returns: the resulting state
-        :rtype: SimState
+        :param states:      the states to merge
+        :returns SimState:  the resulting state
         """
 
         if self._hierarchy:
@@ -709,12 +730,6 @@ class SimulationManager(ana.Storable):
     #   ...
     #
 
-    def _apply_filter(self, filter_func, state): #pylint:disable=no-self-use
-        goto = filter_func(state)
-        if isinstance(goto, tuple):
-            goto, state = goto
-        return goto, state
-
     def _create_integral_stashes(self):
         stashes = defaultdict(list)
         stashes.update({name: list() for name in self._integral_stashes})
@@ -754,7 +769,7 @@ class SimulationManager(ana.Storable):
     # ------------------- Compatibility layer --------------->8
 
 
-class ErrorRecord(object):
+class ErrorRecord:
     """
     A container class for a state and an error that was thrown during its execution. You can find these in
     SimulationManager.errored.
