@@ -118,6 +118,9 @@ class SimOS(object):
         if kwargs.get('os_name', None) is None:
             kwargs['os_name'] = self.name
 
+        # in case concrete_fs is not consumed at upper layer, drop it
+        kwargs.pop('concrete_fs', None)
+
         state = SimState(self.project, **kwargs)
 
         if stdin is not None and not isinstance(stdin, SimFileBase):
