@@ -161,7 +161,7 @@ def test_inspect_syscall():
     s.inspect.b('syscall', BP_AFTER, action=handle_syscall_after)
 
     # step it
-    proc = SIM_PROCEDURES['posix']['close']()
+    proc = SIM_PROCEDURES['posix']['close'](is_syscall=True)
     SimEngineProcedure().process(s, proc, ret_to=s.ip)
 
     # check counts

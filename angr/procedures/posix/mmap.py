@@ -21,7 +21,7 @@ class mmap(angr.SimProcedure):
         #   raise Exception("mmap with other than MAP_PRIVATE|MAP_ANONYMOUS unsupported")
         l.debug("mmap(%s, %s, %s, %s, %s, %s) = ...", addr, length, prot, flags, fd, offset)
 
-        if self.state.solver.is_false(fd == -1):
+        if self.state.solver.is_false(fd[31:0] == -1):
             raise angr.errors.SimPosixError("Trying to map a file descriptor. I cannot deal with this.")
 
         #

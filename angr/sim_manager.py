@@ -90,8 +90,9 @@ class SimulationManager(ana.Storable):
         if kwargs.pop('veritesting', False):
             self.use_technique(Veritesting(**kwargs.get('veritesting_options', {})))
 
-        if kwargs.get('threads', None) is not None:
-            self.use_technique(Threading(kwargs.pop('threads')))
+        threads = kwargs.pop('threads', None)
+        if threads is not None:
+            self.use_technique(threads)
 
         if kwargs:
             raise TypeError("Unexpected keyword arguments: " + " ".join(kwargs))
