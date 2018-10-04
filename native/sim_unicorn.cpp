@@ -50,9 +50,9 @@ typedef enum stop {
 } stop_t;
 
 typedef struct block_entry {
-  bool try_unicorn;
-  std::unordered_set<uint64_t> used_registers;
-  std::unordered_set<uint64_t> clobbered_registers;
+	bool try_unicorn;
+	std::unordered_set<uint64_t> used_registers;
+	std::unordered_set<uint64_t> clobbered_registers;
 } block_entry_t;
 
 typedef struct CachedPage {
@@ -65,8 +65,8 @@ typedef taint_t PageBitmap[PAGE_SIZE];
 typedef std::map<uint64_t, CachedPage> PageCache;
 typedef std::unordered_map<uint64_t, block_entry_t> BlockCache;
 typedef struct caches {
-  PageCache *page_cache;
-  BlockCache *block_cache;
+	PageCache *page_cache;
+	BlockCache *block_cache;
 } caches_t;
 std::map<uint64_t, caches_t> global_cache;
 
@@ -233,8 +233,8 @@ public:
 
 		// error if pc is 0
 		if (pc == 0) {
-		  stop_reason = STOP_ZEROPAGE;
-		  return UC_ERR_MAP;
+			stop_reason = STOP_ZEROPAGE;
+			return UC_ERR_MAP;
 		}
 
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
@@ -326,6 +326,7 @@ public:
 			// if there are any stop points in the current basic block, then there is no chance
 			// for us to stop in the middle of a block.
 			// since we do not support stopping in the middle of a block.
+
 			auto stop_point = stop_points.lower_bound(current_address);
 			if (stop_point != stop_points.end() && *stop_point < current_address + real_size) {
 				stop(STOP_STOPPOINT);
@@ -519,8 +520,9 @@ public:
 	void set_stops(uint64_t count, uint64_t *stops)
 	{
 		stop_points.clear();
-		for (int i = 0; i < count; i++)
+		for (int i = 0; i < count; i++) {
 			stop_points.insert(stops[i]);
+		}
 	}
 
 	std::pair<uint64_t, size_t> cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
@@ -840,8 +842,8 @@ public:
 			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
 			uc_mem_read(this->uc, address, instructions.get(), size);
 			VEXLiftResult *lift_ret = vex_lift(
-			    this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1, 0
-			    );
+					this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1, 0
+					);
 
 
 			if (lift_ret == NULL) {
@@ -889,7 +891,7 @@ public:
 
 		if (end >= start) {
 			if (bitmap) {
-				for (int i = start; i <= end; i++)  {
+				for (int i = start; i <= end; i++) {
 					if (bitmap[i] & TAINT_SYMBOLIC) {
 						return (address & ~0xFFF) + i;
 					}
@@ -925,7 +927,7 @@ public:
 		int end = (address + size - 1) & 0xFFF;
 		int clean;
 
-		if (end >= start)  {
+		if (end >= start) {
 			if (bitmap) {
 				clean = 0;
 				for (int i = start; i <= end; i++) {
@@ -957,7 +959,7 @@ public:
 			bitmap = page_lookup(address + size - 1);
 			if (bitmap) {
 				clean = 0;
-				for (int i = 0; i <=  end; i++)  {
+				for (int i = 0; i <= end; i++) {
 					if (bitmap[i] == TAINT_DIRTY) {
 						clean |= (1 << i);
 						bitmap[i] = TAINT_DIRTY;
@@ -1055,7 +1057,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 
 /*
  * the goal of hooking memory write is to determine the exact
- * positions of dirty bytes to writing chaneges  back to angr
+ * positions of dirty bytes to writing chaneges back to angr
  * state. However if the hook is hit before mapping requested
  * page (as writable), we cannot find the bitmap for this page.
  * In this case, just mark all the position as clean (before
@@ -1288,20 +1290,20 @@ void simunicorn_activate(State *state, uint64_t address, uint64_t length, uint8_
 
 extern "C"
 uint64_t simunicorn_executed_pages(State *state) { // this is HORRIBLE
-    if (state->executed_pages_iterator == NULL) {
-        state->executed_pages_iterator = new std::unordered_set<uint64_t>::iterator;
-        *state->executed_pages_iterator = state->executed_pages.begin();
-    }
+	if (state->executed_pages_iterator == NULL) {
+		state->executed_pages_iterator = new std::unordered_set<uint64_t>::iterator;
+		*state->executed_pages_iterator = state->executed_pages.begin();
+	}
 
-    if (*state->executed_pages_iterator == state->executed_pages.end()) {
-        delete state->executed_pages_iterator;
-        state->executed_pages_iterator = NULL;
-        return -1;
-    }
+	if (*state->executed_pages_iterator == state->executed_pages.end()) {
+		delete state->executed_pages_iterator;
+		state->executed_pages_iterator = NULL;
+		return -1;
+	}
 
-    uint64_t out = **state->executed_pages_iterator;
-    (*state->executed_pages_iterator)++;
-    return out;
+	uint64_t out = **state->executed_pages_iterator;
+	(*state->executed_pages_iterator)++;
+	return out;
 }
 
 //

@@ -34,6 +34,9 @@ class CrashMonitor(ExplorationTechnique):
         self._crash_type = None
         self._crash_state = None
 
+    # TODO NEXT STEP: move all functionality into a filter hook. make complete very simple.
+    # maybe not filter?? that won't see the "traced" state...
+    # what would it take to make this not be an explortation technique? an analysis for instance?
     def complete(self, simgr):
         # if we spot a crashed state, return the goods >:]
         if self._crash_type is not None:
@@ -42,7 +45,6 @@ class CrashMonitor(ExplorationTechnique):
                 self._crash_state = self._crash_windup()
                 l.debug("Found the crash!")
 
-            # stashes['crashed'] = [self._crash_state]
             simgr.populate('crashed', [self._crash_state])
             return True
 
@@ -52,7 +54,7 @@ class CrashMonitor(ExplorationTechnique):
         if len(simgr.active) == 1:
             self.last_state = simgr.active[0]
 
-            simgr = simgr.step(stash=stash, **kwargs)
+            simgr.step(stash=stash, **kwargs)
             for state in simgr.stashes[stash]:
                 self._check_stack(state)
 
@@ -60,7 +62,7 @@ class CrashMonitor(ExplorationTechnique):
                 return simgr
 
             # check to see if we reached a deadend
-            if self.last_state.globals['bb_cnt'] >= len(self._trace):
+            if self.last_state.globals['trace_idx'] >= len(self._trace) - 1:
                 simgr.step(stash=stash)
                 self._crash_type = QEMU_CRASH
                 return simgr
@@ -134,11 +136,12 @@ class CrashMonitor(ExplorationTechnique):
         successors = succs.flat_successors + succs.unconstrained_successors
         return successors[0]
 
+    # the below are utility functions for crash windup
+
     def _grab_concretization_results(self, state):
         """
         Grabs the concretized result so we can add the constraint ourselves.
         """
-
         # only grab ones that match the constrained addrs
         if self._add_constraints(state):
             addr = state.inspect.address_concretization_expr
@@ -150,9 +153,8 @@ class CrashMonitor(ExplorationTechnique):
 
     def _dont_add_constraints(self, state):
         """
-        Obnoxious way to handle this, should ONLY be called from tracer.
+        Obnoxious way to handle this, should ONLY be called from crash monitor.
         """
-
         # for each constrained addrs check to see if the variables match,
         # if so keep the constraints
         state.inspect.address_concretization_add_constraints = self._add_constraints(state)

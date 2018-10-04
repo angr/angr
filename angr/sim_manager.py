@@ -271,7 +271,7 @@ class SimulationManager(ana.Storable):
             return False
         if not any(tech._is_overriden('complete') for tech in self._techniques):
             return False
-        return self.completion_mode((tech.complete(self) for tech in self._techniques))
+        return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overriden('complete'))
 
     def step(self, n=None, selector_func=None, step_func=None, stash='active',
              successor_func=None, until=None, filter_func=None, **run_args):
@@ -379,7 +379,7 @@ class SimulationManager(ana.Storable):
         Don't use this function manually - it is meant to interface with exploration techniques.
         """
         try:
-            successors = self.successors(state, successor_func, **run_args)
+            successors = self.successors(state, successor_func=successor_func, **run_args)
             stashes = {None: successors.flat_successors,
                        'unsat': successors.unsat_successors,
                        'unconstrained': successors.unconstrained_successors}
