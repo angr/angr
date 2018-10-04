@@ -1631,7 +1631,8 @@ class CFGBase(Analysis):
             blockaddr_to_function[addr] = f
 
             if addr in known_functions:
-                f.returning = known_functions.function(addr).returning
+                if known_functions.function(addr).returning:
+                    f.returning = True
             else:
                 # TODO:
                 pass

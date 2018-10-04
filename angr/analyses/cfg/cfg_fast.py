@@ -1492,6 +1492,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._make_completed_functions()
 
+        if self._normalize:
+            # Normalize the control flow graph first before rediscovering all functions
+            self.normalize()
+
+        # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
+        self.make_functions()
+
         self._analyze_all_function_features()
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
@@ -1535,10 +1542,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
             self._remove_redundant_overlapping_blocks()
 
-        if self._normalize:
-            # Normalize the control flow graph first before rediscovering all functions
-            self.normalize()
-        self.make_functions()
         # optional: remove functions that must be alignments
         self.remove_function_alignments()
 
