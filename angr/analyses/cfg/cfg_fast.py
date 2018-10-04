@@ -2972,7 +2972,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if returning_function.addr in self._function_returns:
                     for fr in self._function_returns[returning_function.addr]:
                         # Confirm them all
-                        if self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
+                        if self.kb.functions.contains_addr(fr.caller_func_addr) and \
+                                self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
                         return_to_node = self._nodes.get(fr.return_to, None)
@@ -2990,7 +2991,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if not_returning_function.addr in self._function_returns:
                     for fr in self._function_returns[not_returning_function.addr]:
                         # Remove all those FakeRet edges
-                        if self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
+                        if self.kb.functions.contains_addr(fr.caller_func_addr) and \
+                                self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
                     del self._function_returns[not_returning_function.addr]
@@ -3541,12 +3543,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # decoding error
                 # we still occupy that location since it cannot be decoded anyways
                 if irsb is None:
-                    irsb_size = 1
+                    irsb_size = 0
                 else:
-                    irsb_size = irsb.size if irsb.size > 0 else 1
-                self._seg_list.occupy(addr, irsb_size, 'nodecode')
-                l.error("Decoding error occurred at basic block address %#x of function %#x.",
-                        addr,
+                    irsb_size = irsb.size
+                nodecode_size = 1
+                self._seg_list.occupy(addr, irsb_size, 'code')
+                self._seg_list.occupy(addr + irsb_size, nodecode_size, 'nodecode')
+                l.error("Decoding error occurred at address %#x of function %#x.",
+                        addr + irsb_size,
                         current_function_addr
                         )
                 return None, None, None, None
