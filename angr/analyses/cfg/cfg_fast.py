@@ -1496,6 +1496,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Normalize the control flow graph first before rediscovering all functions
             self.normalize()
 
+        self._updated_nonreturning_functions = set()
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
 

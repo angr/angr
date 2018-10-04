@@ -877,7 +877,8 @@ class CFGBase(Analysis):
             # Add callers
             all_func_addrs |= caller_func_addrs
             # Convert addresses to objects
-            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs ]
+            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs
+                              if self.kb.functions.contains_addr(f) ]
 
         else:
             all_functions = self.kb.functions.values()
@@ -1630,12 +1631,17 @@ class CFGBase(Analysis):
 
             blockaddr_to_function[addr] = f
 
+            function_is_returning = False
             if addr in known_functions:
                 if known_functions.function(addr).returning:
                     f.returning = True
-            else:
-                # TODO:
-                pass
+                    function_is_returning = True
+
+            if not function_is_returning:
+                # We will rerun function feature analysis on this function later. Add it to
+                # self._updated_nonreturning_functions so it can be picked up by function feature analysis later.
+                if self._updated_nonreturning_functions is not None:
+                    self._updated_nonreturning_functions.add(addr)
 
         return f
 
