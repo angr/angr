@@ -1448,10 +1448,6 @@ class CFGBase(Analysis):
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
-        # mark endpoints
-        for function in self.kb.functions.values():
-            function.mark_nonreturning_calls_endpoints()
-
     def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
         """
         For unresolveable indirect jumps, angr marks those jump targets as individual functions. For example, usually

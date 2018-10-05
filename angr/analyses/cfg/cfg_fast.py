@@ -1540,6 +1540,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if f.returning is None:
                 f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
 
+        # Finally, mark endpoints of every single function
+        for function in self.kb.functions.values():
+            function.mark_nonreturning_calls_endpoints()
+
         if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
             self._remove_redundant_overlapping_blocks()
 
