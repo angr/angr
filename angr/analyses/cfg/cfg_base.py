@@ -877,7 +877,8 @@ class CFGBase(Analysis):
             # Add callers
             all_func_addrs |= caller_func_addrs
             # Convert addresses to objects
-            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs ]
+            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs
+                              if self.kb.functions.contains_addr(f) ]
 
         else:
             all_functions = self.kb.functions.values()
@@ -1367,10 +1368,17 @@ class CFGBase(Analysis):
 
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
-        removed_functions = self._process_irrational_functions(tmp_functions,
-                                                               set([n.addr for n in function_nodes]),
-                                                               blockaddr_to_function
-                                                               )
+        called_function_addrs = set([n.addr for n in function_nodes])
+
+        removed_functions_a = self._process_irrational_functions(tmp_functions,
+                                                                 called_function_addrs,
+                                                                 blockaddr_to_function
+                                                                 )
+        removed_functions_b = self._process_irrational_function_starts(tmp_functions,
+                                                                       called_function_addrs,
+                                                                       blockaddr_to_function
+                                                                       )
+        removed_functions = removed_functions_a | removed_functions_b
 
         for n in self.graph.nodes():
             if n.addr in tmp_functions or n.addr in removed_functions:
@@ -1447,10 +1455,6 @@ class CFGBase(Analysis):
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
-        # mark endpoints
-        for function in self.kb.functions.values():
-            function.mark_nonreturning_calls_endpoints()
-
     def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
         """
         For unresolveable indirect jumps, angr marks those jump targets as individual functions. For example, usually
@@ -1476,11 +1480,11 @@ class CFGBase(Analysis):
         In the example above, `process_irrational_functions` will remove function 0x400080, and merge it with function
         0x400010.
 
-        :param angr.knowledge_plugins.FunctionManager functions: all functions that angr recovers, including those ones that are
-            misidentified as functions.
+        :param angr.knowledge_plugins.FunctionManager functions: all functions that angr recovers, including those ones
+            that are misidentified as functions.
         :param dict blockaddr_to_function: A mapping between block addresses and Function instances.
-        :return: a list of addresses of all removed functions
-        :rtype: list
+        :return: A set of addresses of all removed functions
+        :rtype: set
         """
 
         functions_to_remove = { }
@@ -1602,7 +1606,78 @@ class CFGBase(Analysis):
 
             del functions[to_remove]
 
-        return functions_to_remove.keys()
+        return set(functions_to_remove.keys())
+
+    def _process_irrational_function_starts(self, functions, predetermined_function_addrs, blockaddr_to_function):
+        """
+        Functions that are identified via function prologues can be starting after the actual beginning of the function.
+        For example, the following function (with an incorrect start) might exist after a CFG recovery:
+
+        sub_8049f70:
+          push    esi
+
+        sub_8049f71:
+          sub     esp, 0A8h
+          mov     esi, [esp+0ACh+arg_0]
+          mov     [esp+0ACh+var_88], 0
+
+        If the following conditions are met, we will remove the second function and merge it into the first function:
+        - The second function is not called by other code.
+        - The first function has only one jumpout site, which points to the second function.
+
+        :param FunctionManager functions:   All functions that angr recovers.
+        :return:                            A set of addresses of all removed functions.
+        :rtype:                             set
+        """
+
+        addrs = sorted(functions.keys())
+        functions_to_remove = set()
+
+        for addr_0, addr_1 in zip(addrs[:-1], addrs[1:]):
+
+            if addr_1 in predetermined_function_addrs:
+                continue
+            if self.project.is_hooked(addr_0) or self.project.is_hooked(addr_1):
+                continue
+
+            func_0 = functions[addr_0]
+
+            if len(func_0.block_addrs) == 1:
+                block = next(func_0.blocks)
+                if block.vex.jumpkind != 'Ijk_Boring':
+                    continue
+                # Skip alignment blocks
+                if self._is_noop_block(self.project.arch, block):
+                    continue
+
+                target = block.vex.next
+                if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target.con.value
+                elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target.value
+                elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target
+                else:
+                    continue
+
+                if target_addr != addr_1:
+                    continue
+
+                l.debug("Merging function %#x into %#x.", addr_1, addr_0)
+
+                # Merge it
+                func_1 = functions[addr_1]
+                for block_addr in func_1.block_addrs:
+                    merge_with = self._addr_to_function(addr_0, blockaddr_to_function, functions)
+                    blockaddr_to_function[block_addr] = merge_with
+
+                functions_to_remove.add(addr_1)
+
+        for to_remove in functions_to_remove:
+            del functions[to_remove]
+
+        return functions_to_remove
+
 
     def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
         """
@@ -1630,11 +1705,17 @@ class CFGBase(Analysis):
 
             blockaddr_to_function[addr] = f
 
+            function_is_returning = False
             if addr in known_functions:
-                f.returning = known_functions.function(addr).returning
-            else:
-                # TODO:
-                pass
+                if known_functions.function(addr).returning:
+                    f.returning = True
+                    function_is_returning = True
+
+            if not function_is_returning:
+                # We will rerun function feature analysis on this function later. Add it to
+                # self._updated_nonreturning_functions so it can be picked up by function feature analysis later.
+                if self._updated_nonreturning_functions is not None:
+                    self._updated_nonreturning_functions.add(addr)
 
         return f
 
@@ -1875,18 +1956,28 @@ class CFGBase(Analysis):
     #
 
     @staticmethod
-    def _is_noop_block(vex_block):
+    def _is_noop_block(arch, block):
         """
         Check if the block is a no-op block by checking VEX statements.
 
-        :param vex_block: The VEX block instance.
+        :param block: The VEX block instance.
         :return: True if the entire block is a single-byte or multi-byte nop instruction, False otherwise.
         :rtype: bool
         """
 
+        if arch.name == "MIPS32":
+            if arch.memory_endness == "Iend_BE":
+                MIPS32_BE_NOOPS = {
+                    b"\x00\x20\x08\x25",  # move $at, $at
+                }
+                insns = set(block.bytes[i:i+4] for i in range(0, block.size, 4))
+                if MIPS32_BE_NOOPS.issuperset(insns):
+                    return True
+
+        # Fallback
         # the block is a noop block if it only has IMark statements
 
-        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in vex_block.statements):
+        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
             return True
         return False
 

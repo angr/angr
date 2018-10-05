@@ -1492,6 +1492,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._make_completed_functions()
 
+        if self._normalize:
+            # Normalize the control flow graph first before rediscovering all functions
+            self.normalize()
+
+        if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
+            self._remove_redundant_overlapping_blocks()
+
+        self._updated_nonreturning_functions = set()
+        # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
+        self.make_functions()
+
         self._analyze_all_function_features()
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
@@ -1532,13 +1543,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if f.returning is None:
                 f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
 
-        if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
-            self._remove_redundant_overlapping_blocks()
+        # Finally, mark endpoints of every single function
+        for function in self.kb.functions.values():
+            function.mark_nonreturning_calls_endpoints()
 
-        if self._normalize:
-            # Normalize the control flow graph first before rediscovering all functions
-            self.normalize()
-        self.make_functions()
         # optional: remove functions that must be alignments
         self.remove_function_alignments()
 
@@ -2688,13 +2696,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # this function might be created from linear sweeping
                     try:
                         block = self._lift(a.addr, size=0x10 - (a.addr % 0x10), opt_level=1)
-                        vex_block = block.vex
                     except SimTranslationError:
                         continue
 
                     nop_length = None
 
-                    if self._is_noop_block(vex_block):
+                    if self._is_noop_block(self.project.arch, block):
                         # fast path: in most cases, the entire block is a single byte or multi-byte nop, which VEX
                         # optimizer is able to tell
                         nop_length = block.size
@@ -2968,6 +2975,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if returning_function.addr in self._function_returns:
                     for fr in self._function_returns[returning_function.addr]:
                         # Confirm them all
+                        if not self.kb.functions.contains_addr(fr.caller_func_addr):
+                            # FIXME: A potential bug might arise here. After post processing (phase 2), if the function
+                            # specified by fr.caller_func_addr has been merged to another function during phase 2, we
+                            # will simply skip this FunctionReturn here. It might lead to unconfirmed fake_ret edges
+                            # in the newly merged function. Fix this bug in the future when it becomes an issue.
+                            continue
+
                         if self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
@@ -2986,7 +3000,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if not_returning_function.addr in self._function_returns:
                     for fr in self._function_returns[not_returning_function.addr]:
                         # Remove all those FakeRet edges
-                        if self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
+                        if self.kb.functions.contains_addr(fr.caller_func_addr) and \
+                                self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
                     del self._function_returns[not_returning_function.addr]
@@ -3537,12 +3552,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # decoding error
                 # we still occupy that location since it cannot be decoded anyways
                 if irsb is None:
-                    irsb_size = 1
+                    irsb_size = 0
                 else:
-                    irsb_size = irsb.size if irsb.size > 0 else 1
-                self._seg_list.occupy(addr, irsb_size, 'nodecode')
-                l.error("Decoding error occurred at basic block address %#x of function %#x.",
-                        addr,
+                    irsb_size = irsb.size
+                nodecode_size = 1
+                self._seg_list.occupy(addr, irsb_size, 'code')
+                self._seg_list.occupy(addr + irsb_size, nodecode_size, 'nodecode')
+                l.error("Decoding error occurred at address %#x of function %#x.",
+                        addr + irsb_size,
                         current_function_addr
                         )
                 return None, None, None, None
