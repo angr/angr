@@ -2696,13 +2696,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # this function might be created from linear sweeping
                     try:
                         block = self._lift(a.addr, size=0x10 - (a.addr % 0x10), opt_level=1)
-                        vex_block = block.vex
                     except SimTranslationError:
                         continue
 
                     nop_length = None
 
-                    if self._is_noop_block(vex_block):
+                    if self._is_noop_block(self.project.arch, block):
                         # fast path: in most cases, the entire block is a single byte or multi-byte nop, which VEX
                         # optimizer is able to tell
                         nop_length = block.size

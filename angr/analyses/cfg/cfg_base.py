@@ -1647,11 +1647,20 @@ class CFGBase(Analysis):
                 if block.vex.jumpkind != 'Ijk_Boring':
                     continue
                 # Skip alignment blocks
-                if self._is_noop_block(block.vex):
+                if self._is_noop_block(self.project.arch, block):
                     continue
 
-                target = addr_0 + block.size
-                if target != addr_1:
+                target = block.vex.next
+                if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target.con.value
+                elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target.value
+                elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target
+                else:
+                    continue
+
+                if target_addr != addr_1:
                     continue
 
                 l.debug("Merging function %#x into %#x.", addr_1, addr_0)
@@ -1947,18 +1956,28 @@ class CFGBase(Analysis):
     #
 
     @staticmethod
-    def _is_noop_block(vex_block):
+    def _is_noop_block(arch, block):
         """
         Check if the block is a no-op block by checking VEX statements.
 
-        :param vex_block: The VEX block instance.
+        :param block: The VEX block instance.
         :return: True if the entire block is a single-byte or multi-byte nop instruction, False otherwise.
         :rtype: bool
         """
 
+        if arch.name == "MIPS32":
+            if arch.memory_endness == "Iend_BE":
+                MIPS32_BE_NOOPS = {
+                    b"\x00\x20\x08\x25",  # move $at, $at
+                }
+                insns = set(block.bytes[i:i+4] for i in range(0, block.size, 4))
+                if MIPS32_BE_NOOPS.issuperset(insns):
+                    return True
+
+        # Fallback
         # the block is a noop block if it only has IMark statements
 
-        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in vex_block.statements):
+        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
             return True
         return False
 
