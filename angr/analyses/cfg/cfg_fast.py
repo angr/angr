@@ -1496,6 +1496,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Normalize the control flow graph first before rediscovering all functions
             self.normalize()
 
+        if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
+            self._remove_redundant_overlapping_blocks()
+
         self._updated_nonreturning_functions = set()
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
@@ -1543,9 +1546,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Finally, mark endpoints of every single function
         for function in self.kb.functions.values():
             function.mark_nonreturning_calls_endpoints()
-
-        if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
-            self._remove_redundant_overlapping_blocks()
 
         # optional: remove functions that must be alignments
         self.remove_function_alignments()
