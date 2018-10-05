@@ -2975,8 +2975,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if returning_function.addr in self._function_returns:
                     for fr in self._function_returns[returning_function.addr]:
                         # Confirm them all
-                        if self.kb.functions.contains_addr(fr.caller_func_addr) and \
-                                self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
+                        if not self.kb.functions.contains_addr(fr.caller_func_addr):
+                            # FIXME: A potential bug might arise here. After post processing (phase 2), if the function
+                            # specified by fr.caller_func_addr has been merged to another function during phase 2, we
+                            # will simply skip this FunctionReturn here. It might lead to unconfirmed fake_ret edges
+                            # in the newly merged function. Fix this bug in the future when it becomes an issue.
+                            continue
+
+                        if self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
                         return_to_node = self._nodes.get(fr.return_to, None)
