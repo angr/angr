@@ -1024,7 +1024,7 @@ class SimPacketsSlots(SimFileBase):
             real_size = avail_size
             self.read_sizes.pop(0)
 
-        data = self.state.solver.BVS('packet_%d_%s' % (len(self.read_data), self.ident), real_size*self.state.arch.byte_width, key=('file', self.ident, 'packet'))
+        data = self.state.solver.BVS('packet_%d_%s' % (len(self.read_data), self.ident), real_size*self.state.arch.byte_width, key=('file', self.ident, 'packet', len(self.read_data)))
         self.read_data.append(data)
         return data, real_size, None
 

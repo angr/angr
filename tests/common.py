@@ -14,7 +14,7 @@ if not os.path.isdir(bin_location):
 
 slow_test = attr(speed='slow')
 
-def do_trace(proj, test_name, input_data):
+def do_trace(proj, test_name, input_data, **kwargs):
     """
     trace, magic, crash_mode, crash_addr = load_cached_trace(proj, "test_blurble")
     """
@@ -25,14 +25,14 @@ def do_trace(proj, test_name, input_data):
             with open(fname, 'rb') as f:
                 r = pickle.load(f)
                 assert type(r) is tuple and len(r) == 4
-                return r
+                #return r
         except (pickle.UnpicklingError, UnicodeDecodeError):
             print("Can't unpickle trace - rerunning")
 
     if tracer is None:
         raise Exception("Tracer is not installed and cached data is not present - cannot run test")
 
-    runner = tracer.QEMURunner(project=proj, input=input_data)
+    runner = tracer.QEMURunner(project=proj, input=input_data, **kwargs)
     r = (runner.trace, runner.magic, runner.crash_mode, runner.crash_addr)
     with open(fname, 'wb') as f:
         pickle.dump(r, f, -1)

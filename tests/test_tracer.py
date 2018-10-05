@@ -17,10 +17,7 @@ def tracer_cgc(filename, test_name, stdin):
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
-    t = angr.exploration_techniques.Tracer(trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=trace, crash_addr=crash_addr)
-    if crash_mode:
-        simgr.use_technique(c)
+    t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
 
@@ -29,15 +26,12 @@ def tracer_cgc(filename, test_name, stdin):
 def tracer_linux(filename, test_name, stdin):
     p = angr.Project(filename)
 
-    trace, _, crash_mode, crash_addr = do_trace(p, test_name, stdin)
+    trace, _, crash_mode, crash_addr = do_trace(p, test_name, stdin, ld_linux=p.loader.linux_loader_object.binary, library_path=set(os.path.dirname(obj.binary) for obj in p.loader.all_elf_objects), record_stdout=True)
     s = p.factory.entry_state(mode='tracing', stdin=angr.SimFileStream)
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
-    t = angr.exploration_techniques.Tracer(trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=trace, crash_addr=crash_addr)
-    if crash_mode:
-        simgr.use_technique(c)
+    t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
 
@@ -50,7 +44,7 @@ def test_recursion():
     simgr, _ = tracer_cgc(fname, 'tracer_recursion', blob)
     simgr.run()
 
-    nose.tools.assert_true('crashed' in simgr.stashes)
+    nose.tools.assert_true(simgr.crashed)
     nose.tools.assert_true(simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip))
 
 
@@ -110,7 +104,7 @@ def test_cgc_se1_palindrome_raw():
     nose.tools.assert_equal(simgr.traced[0].cgc.allocation_base, 0xb8000000)
 
     # make sure there is no crash state
-    nose.tools.assert_true('crashed' not in simgr.stashes)
+    nose.tools.assert_false(simgr.crashed)
 
     # make sure angr modeled the correct output
     stdout_dump = simgr.traced[0].posix.dumps(1)
@@ -125,7 +119,7 @@ def test_cgc_se1_palindrome_raw():
     simgr, _ = tracer_cgc(b, 'tracer_cgc_se1_palindrome_raw_yescrash', b'A'*129)
     simgr.run()
 
-    nose.tools.assert_true('crashed' in simgr.stashes)
+    nose.tools.assert_true(simgr.crashed)
 
 
 def test_symbolic_sized_receives():
@@ -134,13 +128,13 @@ def test_symbolic_sized_receives():
     simgr, _ = tracer_cgc(b, 'tracer_symbolic_sized_receives', b'hello')
     simgr.run()
 
-    nose.tools.assert_true('crashed' not in simgr.stashes)
+    nose.tools.assert_false(simgr.crashed)
     nose.tools.assert_true('traced' in simgr.stashes)
 
     simgr, _ = tracer_cgc(b, 'tracer_symbolic_sized_receives_nulls', b'\0'*20)
     simgr.run()
 
-    nose.tools.assert_true('crashed' not in simgr.stashes)
+    nose.tools.assert_false(simgr.crashed)
     nose.tools.assert_true('traced' in simgr.stashes)
 
 
@@ -161,7 +155,7 @@ def test_crash_addr_detection():
     simgr, _ = tracer_cgc(b, 'tracer_crash_addr_detection', b'A'*700)
     simgr.run()
 
-    nose.tools.assert_true('crashed' in simgr.stashes)
+    nose.tools.assert_true(simgr.crashed)
     nose.tools.assert_true(simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip))
 
 
