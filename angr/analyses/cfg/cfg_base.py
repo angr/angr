@@ -1637,6 +1637,8 @@ class CFGBase(Analysis):
 
             if addr_1 in predetermined_function_addrs:
                 continue
+            if self.project.is_hooked(addr_0) or self.project.is_hooked(addr_1):
+                continue
 
             func_0 = functions[addr_0]
 
