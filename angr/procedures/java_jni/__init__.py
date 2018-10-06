@@ -451,8 +451,8 @@ jni_functions["GetJavaVM"] = not_implemented
 # Misc
 jni_functions["GetStringRegion"] = not_implemented
 jni_functions["GetStringUTFRegion"] = not_implemented
-jni_functions["GetPrimitiveArrayCritical"] = not_implemented
-jni_functions["ReleasePrimitiveArrayCritical"] = not_implemented
+jni_functions["GetPrimitiveArrayCritical"] = "GetArrayElements"
+jni_functions["ReleasePrimitiveArrayCritical"] = "ReleaseArrayElements"
 jni_functions["GetStringCritical"] = not_implemented
 jni_functions["ReleaseStringCritical"] = not_implemented
 jni_functions["NewWeakGlobalRef"] = "NewGlobalRef"

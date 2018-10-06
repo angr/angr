@@ -134,7 +134,7 @@ class GetArrayElements(JNISimProcedure):
         array = self.state.jni_references.lookup(array_)
 
         # load array elements from java memory
-        # => if size is symbolic, we load the maxmimum number of elements
+        # => if size is symbolic, we load the maximum number of elements
         max_array_length = self.state.solver.max(array.size)
         values = self.state.javavm_memory.load_array_elements(array, start_idx=0, no_of_elements=max_array_length)
 
@@ -168,7 +168,7 @@ class ReleaseArrayElements(JNISimProcedure):
         array = self.state.jni_references.lookup(array_)
 
         # load array elements from native memory
-        # => if size is symbolic, we load the maxmimum number of elements
+        # => if size is symbolic, we load the maximum number of elements
         max_array_size = self.state.solver.max(array.size)
         elements = self._load_from_native_memory(addr=ptr_elems,
                                                  data_type=array.element_type,
@@ -179,7 +179,7 @@ class ReleaseArrayElements(JNISimProcedure):
 
 
 #
-# Get<Type>ArrayeRegion / Set<Type>ArrayRegion
+# Get<Type>ArrayRegion / Set<Type>ArrayRegion
 #
 
 class GetArrayRegion(JNISimProcedure):
