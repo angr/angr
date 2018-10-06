@@ -81,7 +81,9 @@ class CallMethodBase(JNISimProcedure):
             if arg_type in ArchSoot.primitive_types:
                 # argument has a primitive integral type
                 # => cast native value to java type
-                arg_value = self.project.simos.cast_primitive(value=arg_value_, to_type=arg_type)
+                arg_value = self.project.simos.cast_primitive(self.state,
+                                                              value=arg_value_,
+                                                              to_type=arg_type)
 
             else:
                 # argument has a relative type

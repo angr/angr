@@ -325,7 +325,8 @@ class SimEngineSoot(SimEngine):
                 # return value has a primitive type
                 # => we need to manually cast the return value to the correct size, as this
                 #    would be usually done by the java callee
-                ret_value = javavm_simos.cast_primitive(ret_symbol, to_type=ret_var.type)
+                ret_value = javavm_simos.cast_primitive(ret_state, ret_symbol,
+                                                        to_type=ret_var.type)
             else:
                 # return value has a reference type
                 # => ret_symbol is a opaque ref

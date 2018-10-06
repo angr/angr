@@ -2,8 +2,9 @@ import logging
 
 from angr import SIM_PROCEDURES
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
-                                SootAddressTerminator, SootArgument)
-from claripy import BVS, BVV, StringS
+                                SootAddressTerminator, SootArgument,
+                                SootNullConstant)
+from claripy import BVS, BVV, StringS, FSORT_FLOAT, FSORT_DOUBLE, FPV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
@@ -250,12 +251,16 @@ class SimJavaVM(SimOS):
             return BVV(0, 32)
         elif type_ == "long":
             return BVV(0, 64)
+        elif type_ == 'float':
+            return FPV(0, FSORT_FLOAT)
+        elif type_ == 'double':
+            return FPV(0, FSORT_DOUBLE)
         else:
             l.error("Could not determine the default value for type %s.", type_)
             return None
 
     @staticmethod
-    def cast_primitive(value, to_type):
+    def cast_primitive(state, value, to_type):
         """
         Cast the value of primtive types.
 
@@ -264,11 +269,18 @@ class SimJavaVM(SimOS):
         :return:            Resized value.
         """
         if to_type in ['float', 'double']:
-            raise NotImplementedError('No support for floating-point arguments.')
+            if value.symbolic:
+                # TODO extend support for floating point types
+                l.warning('No support for symbolic floating-point arguments.'
+                          'Value gets concretized.')
+            value = float(state.solver.eval(value))
+            sort = FSORT_FLOAT if to_type == 'float' else FSORT_DOUBLE
+            return FPV(value, sort)
 
-        # lookup the type size and extract value
-        value_size = ArchSoot.sizeof[to_type]
-        value_extracted = value.reversed.get_bytes(index=0, size=value_size/8).reversed
+        else:
+            # lookup the type size and extract value
+            value_size = ArchSoot.sizeof[to_type]
+            value_extracted = value.reversed.get_bytes(index=0, size=value_size/8).reversed
 
             # determine size of Soot bitvector and resize bitvector
             # Note: smaller types than int's are stored in a 32-bit BV

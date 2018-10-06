@@ -84,7 +84,8 @@ class SetStaticField(JNISimProcedure):
                                                 field_name=field_id.name,
                                                 type_=field_id.type)
         # cast value to java type
-        value = self.state.project.simos.cast_primitive(value=value_.to_claripy(),
+        value = self.state.project.simos.cast_primitive(state=self.state,
+                                                        value=value_.to_claripy(),
                                                         to_type=field_id.type)
         # store value in java memory
         self.state.javavm_memory.store(field_ref, value)
@@ -140,7 +141,8 @@ class SetField(JNISimProcedure):
                                                   field_name=field_id.name,
                                                   type_=field_id.type)
         # cast value to java type
-        value = self.state.project.simos.cast_primitive(value=value_.to_claripy(),
+        value = self.state.project.simos.cast_primitive(state=self.state,
+                                                        value=value_.to_claripy(),
                                                         to_type=field_id.type)
         # store value in java memory
         self.state.javavm_memory.store(field_ref, value)
