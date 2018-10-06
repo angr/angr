@@ -9,7 +9,9 @@ from claripy import BVS, BVV, StringS, FSORT_FLOAT, FSORT_DOUBLE, FPV
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
 from ..engines.soot.expressions import SimSootExpr_NewArray
-from ..engines.soot.values import SimSootValue_StringRef
+from ..engines.soot.values import (SimSootValue_StringRef,
+                                   SimSootValue_ThisRef,
+                                   SimSootValue_StaticFieldRef)
 from ..errors import AngrSimOSError
 from ..procedures.java_jni import jni_functions
 from ..sim_state import SimState
@@ -188,11 +190,12 @@ class SimJavaVM(SimOS):
         :param addr:    Soot or native addr of the invoke target.
         :param *args:   List of SootArgument values.
         """
-        state = kwargs.pop('base_state')
+        state = kwargs.pop('base_state', None)
         # check if we need to setup a native or a java callsite
         if isinstance(addr, SootAddressDescriptor):
             # JAVA CALLSITE
-            ret_addr = kwargs.pop('ret_addr', SootAddressTerminator())
+            # ret addr precedence: ret_addr kwarg > base_state.addr > terminator
+            ret_addr = kwargs.pop('ret_addr', state.addr if state else SootAddressTerminator())
             cc = kwargs.pop('cc', SimCCSoot(self.arch))
             if state is None:
                 state = self.state_blank(addr=addr, **kwargs)
