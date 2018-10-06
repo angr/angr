@@ -1,9 +1,6 @@
 
-import logging
-
 from .base import SimSootValue
-
-l = logging.getLogger('angr.engines.soot.values.staticfieldref')
+from ..field_dispatcher import resolve_field
 
 
 class SimSootValue_StaticFieldRef(SimSootValue):
@@ -20,14 +17,23 @@ class SimSootValue_StaticFieldRef(SimSootValue):
         return self.id
 
     @classmethod
+    def from_field_id(cls, field_id):
+        return cls(field_id.class_name, field_id.name, field_id.type)
+
+    @classmethod
     def from_sootvalue(cls, soot_value, state):
         field_name, field_class_name = soot_value.field
         field_type = soot_value.type
-        # applications can access static fields before the class was initialized
-        # => if the class hasn't been initialized yet, we need to initialize it
-        field_class = state.javavm_classloader.get_class(field_class_name, init_class=True)
-        if field_class is None:
-            l.warning("Trying to access static field %s.%s from an unloaded class %s",
-                    field_class_name, field_name, field_class_name)
+        # return field reference
+        return cls.get_ref(state, field_class_name, field_name, field_type)
+
+    @classmethod
+    def get_ref(cls, state, field_class_name, field_name, field_type):
+        """
+        Resolve the field within the given state.
+        """
+        # resolve field
+        field_class = state.javavm_classloader.get_class(field_class_name)
+        field_id = resolve_field(state, field_class, field_name, field_type)
         # return field ref
-        return cls(field_class_name, field_name, field_type)
+        return cls.from_field_id(field_id)

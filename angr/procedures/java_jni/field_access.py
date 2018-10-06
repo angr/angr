@@ -1,8 +1,10 @@
 import logging
 
-from archinfo.arch_soot import ArchSoot, SootFieldDescriptor
+from archinfo.arch_soot import ArchSoot
 
 from . import JNISimProcedure
+from ...engines.soot.exceptions import SootFieldNotLoadedException
+from ...engines.soot.field_dispatcher import resolve_field
 from ...engines.soot.values import (SimSootValue_InstanceFieldRef,
                                     SimSootValue_StaticFieldRef)
 
@@ -24,47 +26,15 @@ class GetFieldID(JNISimProcedure):
         field_sig = self._load_string_from_native_memory(ptr_field_sig)
         # get type from type signature
         field_type = ArchSoot.decode_type_signature(field_sig)
-        return self._get_field_id(field_class, field_name, field_type)
-
-    def _get_field_id(self, field_class, field_name, field_type):
-
-        # Background:
-        # In Java, fields are not polymorphic and the class declaring the field
-        # is determined statically by the declaring variable.
-        # Also fields are uniquely defined by the tuple (field_name, field_type)
-        # and in particular *not* by its attributes (e.g. 'STATIC').
-        # => This both together implies that we do not have to distinguish between
-        #    static and instance fields.
-
-        # fields can be defined in superclasses (and TODO: superinterfaces)
-        # => walk up in class hierarchy
-        class_hierarchy = self.state.javavm_classloader.get_class_hierarchy(field_class)
-        for class_ in class_hierarchy:
-            # check for every class, if it contains the field
-            if self._class_contains_field(class_, field_name, field_type):
-                self.state.javavm_classloader.init_class(class_)
-                # if so, create the field_id and return a reference to it
-                field_id = SootFieldDescriptor(class_.name, field_name, field_type)
-                return self.state.jni_references.create_new_reference(field_id)
-
-        # field couldn't be found
-        # => return null and (TODO:) throw an NoSuchFieldError
-        l.debug("Couldn't find field %s in classes %s.", class_hierarchy, field_name)
-        return 0
-
-    @staticmethod
-    def _class_contains_field(field_class, field_name, field_type):
-        # check if field is loaded in CLE
-        if not field_class.is_loaded:
-            return False
-        # check if a field with the given name exists
-        if not field_name in field_class.fields:
-            return False
-        field = field_class.fields[field_name]
-        # check type
-        if field[1] != field_type:
-            return False
-        return True
+        # resolve field
+        try:
+            field_id = resolve_field(self.state, field_class, field_name, field_type,
+                                     raise_exception_if_not_found=True)
+            return self.state.jni_references.create_new_reference(field_id)
+        except SootFieldNotLoadedException:
+            # field could not be found
+            # => return null and (TODO:) throw an NoSuchFieldError
+            return 0
 
 #
 # GetStatic<Type>Field
