@@ -6,6 +6,8 @@ from cle import Symbol
 import logging
 l = logging.getLogger(name=__name__)
 
+from archinfo.arch_soot import SootAddressDescriptor
+
 symbolic_count = itertools.count()
 
 
@@ -347,13 +349,18 @@ class SimProcedure:
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
-        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars, self.state.regs.lr if self.state.arch.lr_offset is not None else None)
+        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        simcallstack_entry = (self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
+                              self.arguments,
+                              saved_local_vars,
+                              self.state.regs.lr if self.state.arch.lr_offset is not None else None)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
 
         # TODO: Move this to setup_callsite?
-        if call_state.libc.ppc64_abiv == 'ppc64_1':
+        if isinstance(call_state.addr, SootAddressDescriptor):
+            pass
+        elif call_state.libc.ppc64_abiv == 'ppc64_1':
             call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
             addr = call_state.mem[addr:].long.resolved
         elif call_state.arch.name in ('MIPS32', 'MIPS64'):

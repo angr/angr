@@ -245,6 +245,7 @@ class SimEngineSoot(SimEngine):
         state.javavm_memory.push_stack_frame()
         # setup arguments
         if args:
+            args = list(args)
             # if available, store the 'this' reference
             if args[0].is_this_ref:
                 this_ref = args.pop(0)
