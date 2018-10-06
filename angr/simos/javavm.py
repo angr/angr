@@ -268,8 +268,9 @@ class SimJavaVM(SimOS):
         elif type_ == 'double':
             return FPV(0, FSORT_DOUBLE)
         else:
-            l.error("Could not determine the default value for type %s.", type_)
-            return None
+            # not a primitive type
+            # => treat it as a reference
+            return SootNullConstant()
 
     @staticmethod
     def cast_primitive(state, value, to_type):
