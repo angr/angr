@@ -12,7 +12,7 @@ class SimSootStmt_Assign(SimSootStmt):
         dst = self._translate_value(self.stmt.left_op)
         src_expr = self._translate_expr(self.stmt.right_op)
         if isinstance(src_expr, InvokeBase):
-            # right hand side of the the assignemnt is an invocation
+            # right hand side of the the assignment is an invocation
             # => The assumption is that if the src_expr contains an invoke, it
             #    is always just that invoke. In other words, the only possible
             #    form of "invoke in assignment" is: reg = invoke.
@@ -20,7 +20,7 @@ class SimSootStmt_Assign(SimSootStmt):
             # => We deal with the invoke assignment, by
             #    1) saving the destination variable
             #    2) executing the function
-            #    3) assign the return value to destination variable,
+            #    3) assign the return value to the destination variables
             #       after the function returns
             self._add_invoke_target(invoke_expr=src_expr, ret_var=dst)
             # exit prematurely

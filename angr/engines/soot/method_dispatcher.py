@@ -3,11 +3,14 @@ import logging
 
 from archinfo.arch_soot import SootMethodDescriptor
 
+from .exceptions import SootMethodNotLoadedException
+
 l = logging.getLogger('angr.engines.soot.method_dispatcher')
 
 
 def resolve_method(state, method_name, class_name, params=(),
-                   include_superclasses=True, init_class=True):
+                   include_superclasses=True, init_class=True,
+                   raise_exception_if_not_found=False):
     """
     Resolves the method based on the given characteristics (name, class and
     params) The method may be defined in one of the superclasses of the given
@@ -33,6 +36,9 @@ def resolve_method(state, method_name, class_name, params=(),
 
     # method could not be found
     # => we are executing code that is not loaded (typically library code)
-    # => fallback: contionue with infos available from the invocation, so we
+    # => fallback: continue with infos available from the invocation, so we
     #              still can use SimProcedures
-    return SootMethodDescriptor(class_name, method_name, params)
+    if raise_exception_if_not_found:
+        raise SootMethodNotLoadedException()
+    else:
+        return SootMethodDescriptor(class_name, method_name, params)

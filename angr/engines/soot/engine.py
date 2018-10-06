@@ -100,7 +100,8 @@ class SimEngineSoot(SimEngine):
         if starting_stmt_idx == 0:
             l.debug("Executing new block %s \n\n%s\n", addr, block)
         else:
-            l.debug("Continue executing block %s", addr)
+            # l.debug("Continue executing block %s", addr)
+            l.debug("Continue executing block %s \n\n%s\n", addr, block)
         self._handle_block(state, successors, block, starting_stmt_idx, method)
 
         successors.processed = True
@@ -270,7 +271,7 @@ class SimEngineSoot(SimEngine):
 
         # save return value
         if ret_value is not None:
-            l.debug("Assigning %r to return variable %r", ret_value, ret_var)
+            l.debug("Assign %r := %r", ret_var, ret_value)
             if ret_var is not None:
                 # usually the return value is read from the previous stack frame
                 state.memory.store(ret_var, ret_value)

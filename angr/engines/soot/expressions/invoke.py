@@ -1,8 +1,9 @@
 
-from archinfo.arch_soot import SootArgument
+from archinfo.arch_soot import SootArgument, SootMethodDescriptor
 
 from . import translate_expr
 from ..method_dispatcher import resolve_method
+from ..exceptions import SootMethodNotLoadedException
 from .base import SimSootExpr
 
 
@@ -25,7 +26,7 @@ class InvokeBase(SimSootExpr):
         if isinstance(self, SimSootExpr_VirtualInvoke) or \
            isinstance(self, SimSootExpr_SpecialInvoke):
             this_ref_base = self._translate_value(self.expr.base)
-            this_ref = self.state.memory.load(this_ref_base)
+            this_ref = self.state.memory.load(this_ref_base, none_if_missing=True)
             this_ref_type = this_ref.type if this_ref is not None else None
             args += [SootArgument(this_ref, this_ref_type, is_this_ref=True)]
 
@@ -38,7 +39,8 @@ class InvokeBase(SimSootExpr):
             else:
                 # argument is a variable
                 # => load value from memory
-                arg_value = self.state.memory.load(self._translate_value(arg))
+                arg_value = self.state.memory.load(self._translate_value(arg),
+                                                   none_if_missing=True)
             args += [SootArgument(arg_value, arg.type)]
 
         return args
@@ -65,10 +67,19 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
             base_type = self.expr.class_name
 
         # based on the class of the base object, we resolve the invoke target
-        return resolve_method(state=self.state,
-                              method_name=self.expr.method_name,
-                              class_name=base_type,
-                              params=self.expr.method_params)
+        try:
+            return resolve_method(state=self.state,
+                                  method_name=self.expr.method_name,
+                                  class_name=base_type,
+                                  params=self.expr.method_params,
+                                  raise_exception_if_not_found=True)
+        except SootMethodNotLoadedException:
+            # in case that the method is not loaded, continue with the infos
+            # available from the invoke expression
+            return SootMethodDescriptor(self.expr.class_name,
+                                        self.expr.method_name,
+                                        self.expr.method_params)
+
 
 
 class SimSootExpr_SpecialInvoke(InvokeBase):
@@ -76,7 +87,7 @@ class SimSootExpr_SpecialInvoke(InvokeBase):
     Special invocations are used either for invoking instance methods of a
     superclass or a constructor. Compared to virtual invokes, the class
     containing the method is passed explicitly in the invoke expression
-    (@expr.class_name) rather than determined dyncamically by the type of the
+    (@expr.class_name) rather than determined dynamically by the type of the
     base objects.
     """
     def _resolve_invoke_target(self, expr, state):
