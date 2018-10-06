@@ -212,6 +212,18 @@ class SimJavaVM(SimOS):
                     # the value of primitive types and the JNIEnv pointer
                     # are just getting copied into the native memory
                     native_arg_value = arg.value
+                    if self.arch.bits == 32 and arg.type == "long":
+                        # On 32 bit architecture, long values (w/ 64 bit) are copied
+                        # as two 32 bit integer
+                        # TODO is this correct?
+                        upper = native_arg_value.get_bytes(0, 4)
+                        lower = native_arg_value.get_bytes(4, 4)
+                        idx = args.index(arg)
+                        args = args[:idx] \
+                               + (SootArgument(upper, 'int'), SootArgument(lower, 'int')) \
+                               + args[idx+1:]
+                        native_arg_values += [upper, lower]
+                        continue
                 else:
                     # argument has a relative type
                     # => map Java reference to an opaque reference, which the native code
