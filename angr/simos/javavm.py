@@ -142,6 +142,11 @@ class SimJavaVM(SimOS):
         # initialize class
         state.javavm_classloader.get_class(state.addr.method.class_name, init_class=True)
 
+        # initialize the Java environment
+        # TODO move this to `state_full_init?
+        self.init_static_field(state, "java.lang.System", "in", "java.io.InputStream")
+        self.init_static_field(state, "java.lang.System", "out", "java.io.PrintStream")
+
         return state
 
     def state_entry(self, *args, **kwargs): # pylint: disable=arguments-differ
@@ -265,14 +270,30 @@ class SimJavaVM(SimOS):
         value_size = ArchSoot.sizeof[to_type]
         value_extracted = value.reversed.get_bytes(index=0, size=value_size/8).reversed
 
-        # determine size of Soot bitvector and resize bitvector
-        # Note: smaller types than int's are stored in a 32-bit BV
-        value_soot_size = value_size if value_size >= 32 else 32
-        if to_type in ['char', 'boolean']:
-            # unsigned extend
-            return value_extracted.zero_extend(value_soot_size-value_size)
-        # signed extend
-        return value_extracted.sign_extend(value_soot_size-value_size)
+            # determine size of Soot bitvector and resize bitvector
+            # Note: smaller types than int's are stored in a 32-bit BV
+            value_soot_size = value_size if value_size >= 32 else 32
+            if to_type in ['char', 'boolean']:
+                # unsigned extend
+                return value_extracted.zero_extend(value_soot_size-value_extracted.size())
+            # signed extend
+            return value_extracted.sign_extend(value_soot_size-value_extracted.size())
+
+    @staticmethod
+    def init_static_field(state, field_class_name, field_name, field_type):
+        """
+        Initialize the static field with an allocated, but not initialized,
+        object of the given type.
+
+        :param state: State associated to the field.
+        :param field_class_name: Class containing the field.
+        :param field_name: Name of the field.
+        :param field_type: Type of the field and the new object.
+        """
+        field_ref = SimSootValue_StaticFieldRef.get_ref(state, field_class_name,
+                                                        field_name, field_type)
+        field_val = SimSootValue_ThisRef.new_object(state, field_type)
+        state.memory.store(field_ref, field_val)
 
     #
     # Helper JNI
