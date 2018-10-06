@@ -33,7 +33,8 @@ from .constants import (SimSootExpr_IntConstant,
 from .instancefieldref import SimSootExpr_InstanceFieldRef
 from .invoke import (SimSootExpr_SpecialInvoke,
                      SimSootExpr_StaticInvoke,
-                     SimSootExpr_VirtualInvoke)
+                     SimSootExpr_VirtualInvoke,
+                     SimSootExpr_InterfaceInvoke)
 from .length import SimSootExpr_Length
 from .local import SimSootExpr_Local
 from .new import SimSootExpr_New

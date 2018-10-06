@@ -92,3 +92,7 @@ class SimSootExpr_StaticInvoke(InvokeBase):
                               method_name=self.expr.method_name,
                               class_name=self.expr.class_name,
                               params=self.expr.method_params)
+
+class SimSootExpr_InterfaceInvoke(SimSootExpr_VirtualInvoke):
+    def _resolve_invoke_target(self, expr, state):
+        return super(SimSootExpr_InterfaceInvoke, self)._resolve_invoke_target(expr, state)
