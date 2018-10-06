@@ -45,7 +45,7 @@ class SimJavaVM(SimOS):
             if len(native_libs_simos) > 1 or len(native_libs_arch) > 1:
                 l.warning("Native libraries appear to require different SimOS's (%s) or Arch's (%s).",
                           native_libs_simos, native_libs_arch)
-            # instantiate native SimOS
+            # instantiate the native SimOS
             if native_libs_simos:
                 self.native_simos = native_libs_simos.pop()(self.project)
                 self.native_simos.arch = native_libs_arch.pop()()
@@ -110,7 +110,7 @@ class SimJavaVM(SimOS):
                                endness=self.native_arch.memory_endness)
             # Initialize the function table
             # => Each entry usually contains the address of the function, but since we hook all functions
-            #    with SimProcedures, we store the address of the corresonding hook instead.
+            #    with SimProcedures, we store the address of the corresponding hook instead.
             #    This, by construction, is exactly the address of the function table entry itself.
             for idx in range(len(jni_functions)):
                 jni_function_addr = self.jni_function_table + idx * native_addr_size/8
@@ -140,7 +140,7 @@ class SimJavaVM(SimOS):
         new_frame.ret_addr = SootAddressTerminator()
         state.callstack.push(new_frame)
 
-        # initialize class
+        # initialize class containing the current method
         state.javavm_classloader.get_class(state.addr.method.class_name, init_class=True)
 
         # initialize the Java environment
@@ -325,9 +325,11 @@ class SimJavaVM(SimOS):
                 return symbol.rebased_addr
 
         native_symbols = "\n".join(self.native_symbols.keys())
-        raise AngrSimOSError("No native method found that matches the Soot method '%s'."
-                             "\nAvailable symbols (prefix + encoded class path + encoded method name):\n%s"
-                             % soot_method.name, native_symbols)
+        l.warning("No native method found that matches the Soot method '%s'. "
+                  "Skipping statement.", soot_method.name)
+        l.debug("Available symbols (prefix + encoded class path + encoded method "
+                "name):\n%s", native_symbols)
+        return None
 
     def get_native_type(self, java_type):
         """

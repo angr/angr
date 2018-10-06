@@ -147,6 +147,10 @@ class SimEngineSoot(SimEngine):
                 # => we need to setup a native call-site
                 l.debug("Native invoke: %r", method)
                 addr = self.project.simos.get_addr_of_native_method(method)
+                if not addr:
+                    # native function could not be found
+                    # => skip invocation and continue execution linearly
+                    return False
                 invoke_state = self._setup_native_callsite(invoke_state, addr, method, args, ret_addr, ret_var)
             else:
                 l.debug("Invoke: %r", method)
@@ -351,7 +355,7 @@ class SimEngineSoot(SimEngine):
 
         # Step 2: add JNI specific arguments to *args list
 
-        # get JNI enviroment pointer
+        # get JNI environment pointer
         jni_env = SootArgument(state.project.simos.jni_env, "JNIEnv")
 
         # get reference to the current object or class

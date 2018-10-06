@@ -107,7 +107,7 @@ class JNISimProcedure(SimProcedure):
                                           size=data_size,
                                           endness=native_memory_endness)
             if data_type:
-                value = self.state.project.simos.cast_primitive(value=value, to_type=data_type)
+                value = self.state.project.simos.cast_primitive(self.state, value=value, to_type=data_type)
             values.append(value)
         # return element(s)
         if no_of_elements == 1 and not return_as_list:
