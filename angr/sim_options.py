@@ -283,6 +283,9 @@ CGC_ENFORCE_FD = 'CGC_ENFORCE_FD'
 # FDWAIT will always return FDs as non blocking
 CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 
+# Allows memory breakpoints to get more accurate sizes in case of reading large chunks
+# Sacrafice performance for more fine tune memory read size
+MEMORY_CHUNK_INDIVIDUAL_READS = 'MEMORY_CHUNK_INDIVIDUAL_READS'
 
 #
 # Register those variables as Boolean state options
