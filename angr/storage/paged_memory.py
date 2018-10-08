@@ -1083,7 +1083,7 @@ class SimPagedMemory:
         """
         white_list_page_number = []
         for addr in white_list:
-            for page_addr in xrange(addr[0], addr[1], self._page_size):
+            for page_addr in range(addr[0], addr[1], self._page_size):
                 white_list_page_number.append(page_addr / self._page_size)
 
         new_page_dict = {}

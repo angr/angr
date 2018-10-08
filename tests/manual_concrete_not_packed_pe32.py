@@ -93,7 +93,7 @@ def solv_concrete_engine_windows_x86(p,entry_state):
     # declaring symbolic buffer
     arg0 = claripy.BVS('arg0', 8 * 32)
     symbolic_buffer_address = new_concrete_state.regs.esp + 0x18
-    new_concrete_state.memory.store(new_concrete_state.se.eval(symbolic_buffer_address), arg0)
+    new_concrete_state.memory.store(new_concrete_state.solver.eval(symbolic_buffer_address), arg0)
 
     print("[2]Symbolically executing malware to find dropping of second stage [ address:  " + hex(DROP_V1) + " ]")
     simgr = p.factory.simgr(new_concrete_state)
@@ -104,5 +104,5 @@ def solv_concrete_engine_windows_x86(p,entry_state):
     execute_concretly(p, new_symbolic_state, MALWARE_EXECUTION_END,[(symbolic_buffer_address, arg0)])
 
     print("[4]Malware execution ends, the configuration value is: " + hex(
-        new_symbolic_state.se.eval(arg0, cast_to=int)))
+        new_symbolic_state.solver.eval(arg0, cast_to=int)))
 

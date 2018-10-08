@@ -1107,7 +1107,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     seg_selector &= 0x0000FFFF
 
-    segment_selector_val = state.se.eval(seg_selector >> 3)
+    segment_selector_val = state.solver.eval(seg_selector >> 3)
 
     if state.project.simos.name == "Win32" and segment_selector_val == 0x6 and state.project.concrete_target is not None:
             return bad("angr doesn't support Windows Heaven's gate calls http://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
@@ -1164,7 +1164,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     # When a concrete target is set and memory is read directly from the process sometimes a negative offset
     # from a segment register is used
-    if state.se.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
+    if state.solver.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
         return bad("virtual_addr >= limit")
 
     r = (base + virtual_addr).zero_extend(32)

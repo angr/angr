@@ -1085,9 +1085,9 @@ class Unicorn(SimStatePlugin):
             if flags is None:
                 raise SimValueError('symbolic eflags')
 
-            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.eval(flags))
-            fs = self.state.se.eval(self.state.regs.fs) << 16
-            gs = self.state.se.eval(self.state.regs.gs) << 16
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
+            fs = self.state.solver.eval(self.state.regs.fs) << 16
+            gs = self.state.solver.eval(self.state.regs.gs) << 16
             gdt = self.state.project.simos.generate_gdt(fs, gs)
             self.setup_gdt(gdt)
 

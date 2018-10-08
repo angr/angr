@@ -95,7 +95,7 @@ def solv_concrete_engine_linux_x86(p,entry_state):
     exploration = simgr.explore(find=DROP_STAGE2_V1, avoid=[DROP_STAGE2_V2, VENV_DETECTED, FAKE_CC ])
     new_symbolic_state = exploration.stashes['found'][0]
 
-    binary_configuration = new_symbolic_state.se.eval(arg0,cast_to=int)
+    binary_configuration = new_symbolic_state.solver.eval(arg0,cast_to=int)
 
     print("[3]Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
     execute_concretly(p, new_symbolic_state,BINARY_EXECUTION_END,[(symbolic_buffer_address,arg0)])

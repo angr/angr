@@ -351,7 +351,7 @@ class SimLinux(SimUserland):
         # register used to read the value of the segment register
         exfiltration_reg = "rax"
         # instruction to inject for reading the value at segment value = offset
-        read_fs0_x64 = "\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
+        read_fs0_x64 = b"\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
 
         return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
 
@@ -366,7 +366,7 @@ class SimLinux(SimUserland):
         # register used to read the value of the segment register
         exfiltration_reg = "eax"
         # instruction to inject for reading the value at segment value = offset
-        read_gs0_x64 = "\x65\xA1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
+        read_gs0_x64 = b"\x65\xA1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
         return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
 
     def get_segment_register_name(self):
