@@ -73,7 +73,7 @@ class SimEngineConcrete(SimEngine):
 
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
-        successors.add_successor(state, state.ip, state.se.true, state.unicorn.jumpkind)
+        successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
         successors.description = "Concrete Successors "
         successors.processed = True
 
@@ -101,9 +101,9 @@ class SimEngineConcrete(SimEngine):
 
             for sym_var in concretize:
                 sym_var_address = state.solver.eval(sym_var[0])
-                sym_var_value = state.solver.eval(sym_var[1], cast_to=int)
-                l.debug("Concretize memory at address %s with value 0x%x" % (hex(sym_var_address), sym_var_value))
-                self.target.write_memory(sym_var_address, str(sym_var_value), raw=True)
+                sym_var_value = state.solver.eval(sym_var[1], cast_to=bytes)
+                l.debug("Concretize memory at address %s with value %s" % (hex(sym_var_address), str(sym_var_value)))
+                self.target.write_memory(sym_var_address, sym_var_value, raw=True)
 
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
@@ -120,6 +120,9 @@ class SimEngineConcrete(SimEngine):
         # breakpoint specified by the user the timeout will abort angr execution.
         l.warning("SimEngineConcrete is resuming the concrete process!")
         self.target.run()
+
+        l.warning("SimEngineConcrete has resumed the process!")
+
 
         # reset the alarm
         if self.target.timeout:
