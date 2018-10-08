@@ -65,7 +65,7 @@ class CFGBase(Analysis):
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None,
                  resolve_indirect_jumps=True, indirect_jump_resolvers=None, indirect_jump_target_limit=100000):
         """
-        :param str sort:                            'fast' or 'accurate'.
+        :param str sort:                            'fast' or 'emulated'.
         :param int context_sensitivity_level:       The level of context-sensitivity of this CFG (see documentation for
                                                     further details). It ranges from 0 to infinity.
         :param bool normalize:                      Whether the CFG as well as all Function graphs should be normalized.
@@ -387,7 +387,7 @@ class CFGBase(Analysis):
         #    self._node_lookup_index_warned = True
 
         for n in self.graph.nodes():
-            if self.tag == "CFGAccurate":
+            if self.tag == "CFGEmulated":
                 cond = n.looping_times == 0
             else:
                 cond = True
@@ -877,7 +877,8 @@ class CFGBase(Analysis):
             # Add callers
             all_func_addrs |= caller_func_addrs
             # Convert addresses to objects
-            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs ]
+            all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs
+                              if self.kb.functions.contains_addr(f) ]
 
         else:
             all_functions = self.kb.functions.values()
@@ -1151,7 +1152,7 @@ class CFGBase(Analysis):
                                                           ]),
                                        thumb=n.thumb
                                        )
-                elif self.tag == "CFGAccurate":
+                elif self.tag == "CFGEmulated":
                     new_node = CFGNodeA(n.addr, new_size, self, callstack_key=callstack_key,
                                         function_address=n.function_address, block_id=n.block_id,
                                         instruction_addrs=tuple([i for i in n.instruction_addrs
@@ -1367,10 +1368,17 @@ class CFGBase(Analysis):
 
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
-        removed_functions = self._process_irrational_functions(tmp_functions,
-                                                               set([n.addr for n in function_nodes]),
-                                                               blockaddr_to_function
-                                                               )
+        called_function_addrs = set([n.addr for n in function_nodes])
+
+        removed_functions_a = self._process_irrational_functions(tmp_functions,
+                                                                 called_function_addrs,
+                                                                 blockaddr_to_function
+                                                                 )
+        removed_functions_b = self._process_irrational_function_starts(tmp_functions,
+                                                                       called_function_addrs,
+                                                                       blockaddr_to_function
+                                                                       )
+        removed_functions = removed_functions_a | removed_functions_b
 
         for n in self.graph.nodes():
             if n.addr in tmp_functions or n.addr in removed_functions:
@@ -1447,10 +1455,6 @@ class CFGBase(Analysis):
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
-        # mark endpoints
-        for function in self.kb.functions.values():
-            function.mark_nonreturning_calls_endpoints()
-
     def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
         """
         For unresolveable indirect jumps, angr marks those jump targets as individual functions. For example, usually
@@ -1476,11 +1480,11 @@ class CFGBase(Analysis):
         In the example above, `process_irrational_functions` will remove function 0x400080, and merge it with function
         0x400010.
 
-        :param angr.knowledge_plugins.FunctionManager functions: all functions that angr recovers, including those ones that are
-            misidentified as functions.
+        :param angr.knowledge_plugins.FunctionManager functions: all functions that angr recovers, including those ones
+            that are misidentified as functions.
         :param dict blockaddr_to_function: A mapping between block addresses and Function instances.
-        :return: a list of addresses of all removed functions
-        :rtype: list
+        :return: A set of addresses of all removed functions
+        :rtype: set
         """
 
         functions_to_remove = { }
@@ -1602,7 +1606,78 @@ class CFGBase(Analysis):
 
             del functions[to_remove]
 
-        return functions_to_remove.keys()
+        return set(functions_to_remove.keys())
+
+    def _process_irrational_function_starts(self, functions, predetermined_function_addrs, blockaddr_to_function):
+        """
+        Functions that are identified via function prologues can be starting after the actual beginning of the function.
+        For example, the following function (with an incorrect start) might exist after a CFG recovery:
+
+        sub_8049f70:
+          push    esi
+
+        sub_8049f71:
+          sub     esp, 0A8h
+          mov     esi, [esp+0ACh+arg_0]
+          mov     [esp+0ACh+var_88], 0
+
+        If the following conditions are met, we will remove the second function and merge it into the first function:
+        - The second function is not called by other code.
+        - The first function has only one jumpout site, which points to the second function.
+
+        :param FunctionManager functions:   All functions that angr recovers.
+        :return:                            A set of addresses of all removed functions.
+        :rtype:                             set
+        """
+
+        addrs = sorted(functions.keys())
+        functions_to_remove = set()
+
+        for addr_0, addr_1 in zip(addrs[:-1], addrs[1:]):
+
+            if addr_1 in predetermined_function_addrs:
+                continue
+            if self.project.is_hooked(addr_0) or self.project.is_hooked(addr_1):
+                continue
+
+            func_0 = functions[addr_0]
+
+            if len(func_0.block_addrs) == 1:
+                block = next(func_0.blocks)
+                if block.vex.jumpkind != 'Ijk_Boring':
+                    continue
+                # Skip alignment blocks
+                if self._is_noop_block(self.project.arch, block):
+                    continue
+
+                target = block.vex.next
+                if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target.con.value
+                elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target.value
+                elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
+                    target_addr = target
+                else:
+                    continue
+
+                if target_addr != addr_1:
+                    continue
+
+                l.debug("Merging function %#x into %#x.", addr_1, addr_0)
+
+                # Merge it
+                func_1 = functions[addr_1]
+                for block_addr in func_1.block_addrs:
+                    merge_with = self._addr_to_function(addr_0, blockaddr_to_function, functions)
+                    blockaddr_to_function[block_addr] = merge_with
+
+                functions_to_remove.add(addr_1)
+
+        for to_remove in functions_to_remove:
+            del functions[to_remove]
+
+        return functions_to_remove
+
 
     def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
         """
@@ -1630,11 +1705,17 @@ class CFGBase(Analysis):
 
             blockaddr_to_function[addr] = f
 
+            function_is_returning = False
             if addr in known_functions:
-                f.returning = known_functions.function(addr).returning
-            else:
-                # TODO:
-                pass
+                if known_functions.function(addr).returning:
+                    f.returning = True
+                    function_is_returning = True
+
+            if not function_is_returning:
+                # We will rerun function feature analysis on this function later. Add it to
+                # self._updated_nonreturning_functions so it can be picked up by function feature analysis later.
+                if self._updated_nonreturning_functions is not None:
+                    self._updated_nonreturning_functions.add(addr)
 
         return f
 
@@ -1666,8 +1747,10 @@ class CFGBase(Analysis):
 
             if n.has_return:
                 callback(n, None, {'jumpkind': 'Ijk_Ret'}, blockaddr_to_function, known_functions, None)
+            # NOTE: A block that has_return CAN have successors that aren't the return.
+            # This is particularly the case for ARM conditional instructions.  Yes, conditional rets are a thing.
 
-            elif g.out_degree(n) == 0:
+            if g.out_degree(n) == 0:
                 # it's a single node
                 callback(n, None, None, blockaddr_to_function, known_functions, None)
 
@@ -1735,11 +1818,22 @@ class CFGBase(Analysis):
 
             n = self.get_any_node(src_addr)
             if n is None: src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
-            else: src_snippet = self._to_snippet(cfg_node=n)
+            else:
+                src_snippet = self._to_snippet(cfg_node=n)
 
-            fakeret_node = None if not all_edges else self._one_fakeret_node(all_edges)
-            if fakeret_node is None: fakeret_snippet = None
-            else: fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
+            # HACK: FIXME: We need a better way of representing unresolved calls and whether they return.
+            # For now, assume UnresolvedTarget returns if we're calling to it
+
+            # If the function doesn't return, don't add a fakeret!
+            if not all_edges or (dst_function.returning is False and not dst_function.name == b'UnresolvableTarget'):
+                fakeret_node = None
+            else:
+                fakeret_node = self._one_fakeret_node(all_edges)
+
+            if fakeret_node is None:
+                fakeret_snippet = None
+            else:
+                fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
 
             self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
@@ -1755,8 +1849,10 @@ class CFGBase(Analysis):
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
                 n = self.get_any_node(returning_target)
-                if n is None: returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
-                else: returning_snippet = self._to_snippet(cfg_node=n)
+                if n is None:
+                    returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                else:
+                    returning_snippet = self._to_snippet(cfg_node=n)
 
                 self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
                                                   to_outside=to_outside
@@ -1806,12 +1902,17 @@ class CFGBase(Analysis):
 
             # convert src_addr and dst_addr to CodeNodes
             n = self.get_any_node(src_addr)
-            if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            if n is None:
+                src_node = src_addr
+            else:
+                src_node = self._to_snippet(n)
 
             n = self.get_any_node(dst_addr)
-            if n is None: dst_node = dst_addr
-            else: dst_node = self._to_snippet(n)
+            if n is None:
+                dst_node = dst_addr
+            else:
+                dst_node = self._to_snippet(n)
+
 
             if dst_addr not in blockaddr_to_function:
                 if dst_addr not in known_functions:
@@ -1822,8 +1923,27 @@ class CFGBase(Analysis):
             else:
                 target_function = blockaddr_to_function[dst_addr]
 
+            # Figure out if the function called (not the function returned to) returns.
+            # We may have determined that this does not happen, since the time this path
+            # was scheduled for exploration
+            called_function = None
+            # Try to find the call that this fakeret goes with
+            for _, d, e in all_edges:
+                if e['jumpkind'] == 'Ijk_Call':
+                    if d.addr in blockaddr_to_function:
+                        called_function = blockaddr_to_function[d.addr]
+                        break
+            # We may have since figured out that the called function doesn't ret.
+            # It's important to assume that all unresolved targets do return
+            # FIXME: Remove the last check after we split UnresolvableTarget into UnresolvableJump and UnresolvableCall.
+            if called_function is not None and \
+                    called_function.returning is False and \
+                    (not called_function.is_simprocedure or called_function.name not in ('UnresolvableTarget',)):
+                return
+
             to_outside = not target_function is src_function
 
+            # FIXME: Not sure we should confirm this fakeret or not.
             self.kb.functions._add_fakeret_to(src_function.addr, src_node, dst_node, confirmed=True,
                                               to_outside=to_outside, to_function_addr=target_function.addr
                                               )
@@ -1836,18 +1956,28 @@ class CFGBase(Analysis):
     #
 
     @staticmethod
-    def _is_noop_block(vex_block):
+    def _is_noop_block(arch, block):
         """
         Check if the block is a no-op block by checking VEX statements.
 
-        :param vex_block: The VEX block instance.
+        :param block: The VEX block instance.
         :return: True if the entire block is a single-byte or multi-byte nop instruction, False otherwise.
         :rtype: bool
         """
 
+        if arch.name == "MIPS32":
+            if arch.memory_endness == "Iend_BE":
+                MIPS32_BE_NOOPS = {
+                    b"\x00\x20\x08\x25",  # move $at, $at
+                }
+                insns = set(block.bytes[i:i+4] for i in range(0, block.size, 4))
+                if MIPS32_BE_NOOPS.issuperset(insns):
+                    return True
+
+        # Fallback
         # the block is a noop block if it only has IMark statements
 
-        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in vex_block.statements):
+        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
             return True
         return False
 

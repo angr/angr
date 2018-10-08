@@ -7,8 +7,6 @@ import angr
 class unlink(angr.SimProcedure): #pylint:disable=W0622
     #pylint:disable=arguments-differ
 
-    IS_SYSCALL = True
-
     def run(self, path_addr):
         # This is a dummy for now
         strlen = angr.SIM_PROCEDURES['libc']['strlen']

@@ -108,7 +108,7 @@ class CallTracingFilter(object):
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self.project, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self.project.analyses.CFGAccurate(starts=((addr, jumpkind),),
+            cfg = self.project.analyses.CFGEmulated(starts=((addr, jumpkind),),
                                                     initial_state=call_target_state,
                                                     context_sensitivity_level=0,
                                                     call_depth=1,
@@ -281,7 +281,6 @@ class Veritesting(Analysis):
         manager = SimulationManager(
             self.project,
             active_states=[ initial_state ],
-            immutable=False,
             resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.options
         )
 
@@ -522,7 +521,7 @@ class Veritesting(Analysis):
         Builds a CFG from the current function.
         Saved in cfg_cache.
 
-        returns (CFGAccurate, networkx.DiGraph): Tuple of the CFG and networkx representation of it
+        returns (CFGEmulated, networkx.DiGraph): Tuple of the CFG and networkx representation of it
         """
 
         state = self._input_state
@@ -550,7 +549,7 @@ class Veritesting(Analysis):
                 if not state.solver.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
-            cfg = self.project.analyses.CFGAccurate(
+            cfg = self.project.analyses.CFGEmulated(
                 starts=((ip_int, state.history.jumpkind),),
                 context_sensitivity_level=0,
                 call_depth=1,
@@ -583,7 +582,7 @@ class Veritesting(Analysis):
         """
         Return all possible merge points in this CFG.
 
-        :param CFGAccurate cfg: The control flow graph, which must be acyclic.
+        :param CFGEmulated cfg: The control flow graph, which must be acyclic.
         :returns [(int, int)]:  A list of merge points (address and number of times looped).
         """
 

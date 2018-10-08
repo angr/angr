@@ -236,7 +236,7 @@ class TreePage(BasePage):
             else:
                 if self._storage[key].includes(start):
                     keys.insert(0, key)
-        return [(key, self._storage[key]) for key in keys]
+        return [(max(start, key), self._storage[key]) for key in keys]
 
     def _copy_args(self):
         return { 'storage': self._storage.copy() }
@@ -500,13 +500,12 @@ class SimPagedMemory:
 
         elif isinstance(self._memory_backer, cle.Clemory):
             # find permission backer associated with the address
-            # fall back to read-write if we can't find any...
-            flags = Page.PROT_READ | Page.PROT_WRITE
+            # fall back to default (read-write-maybe-exec) if can't find any
             for start, end in self._permission_map:
                 if start <= new_page_addr < end:
                     flags = self._permission_map[(start, end)]
+                    new_page.permissions = claripy.BVV(flags, 3)
                     break
-            new_page.permissions = claripy.BVV(flags, 3)
 
             # for each clemory backer which intersects with the page, apply its relevant data
             for backer_addr, backer in self._memory_backer.backers(new_page_addr):

@@ -24,7 +24,7 @@ from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
 
-l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
+l = logging.getLogger("angr.analyses.cfg.cfg_emulated")
 
 
 class CFGJob(CFGJobBase):
@@ -54,7 +54,7 @@ class CFGJob(CFGJobBase):
     def block_id(self):
         if self._block_id is None:
             # generate a new block ID
-            self._block_id = CFGAccurate._generate_block_id(
+            self._block_id = CFGEmulated._generate_block_id(
                 self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall)
         return self._block_id
 
@@ -114,12 +114,12 @@ class PendingJob(object):
                self.src_exit_ins_addr == other.src_exit_ins_addr
 
 
-class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
+class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
     This class represents a control-flow graph.
     """
 
-    tag = "CFGAccurate"
+    tag = "CFGEmulated"
 
     def __init__(self,
                  context_sensitivity_level=1,
@@ -186,7 +186,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     will strictly follow nodes and edges shown in the graph, and discard
                                                     any contorl flow that does not follow an existing edge in the base
                                                     graph. For example, you can pass in a Function local transition
-                                                    graph as the base graph, and CFGAccurate will traverse nodes and
+                                                    graph as the base graph, and CFGEmulated will traverse nodes and
                                                     edges and extract useful information.
         :param int iropt_level:                     The optimization level of VEX IR (0, 1, 2). The default level will
                                                     be used if `iropt_level` is None.
@@ -196,7 +196,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param state_remove_options:                State options that will be removed from the initial state.
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
-        CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
+        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
                          resolve_indirect_jumps=resolve_indirect_jumps,
                          indirect_jump_resolvers=indirect_jump_resolvers,
                          indirect_jump_target_limit=indirect_jump_target_limit,
@@ -307,8 +307,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: A copy of the CFG instance.
         :rtype: angr.analyses.CFG
         """
-        new_cfg = CFGAccurate.__new__(CFGAccurate)
-        super(CFGAccurate, self).make_copy(new_cfg)
+        new_cfg = CFGEmulated.__new__(CFGEmulated)
+        super(CFGEmulated, self).make_copy(new_cfg)
 
         new_cfg._indirect_jump_target_limit = self._indirect_jump_target_limit
         new_cfg.named_errors = dict(self.named_errors)
@@ -614,7 +614,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                         there is a path between `starting_node` and a CFGNode with the specified
                                         address, and all nodes on the path should also be included in the subgraph.
         :return: A new CFG that only contain the specific subgraph.
-        :rtype: CFGAccurate
+        :rtype: CFGEmulated
         """
 
         graph = networkx.DiGraph()
@@ -1341,7 +1341,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     successors.append(successor_state)
             else:
                 if extra_successor_addrs:
-                    l.error('CFGAccurate terminates at %#x although base graph provided more exits.', addr)
+                    l.error('CFGEmulated terminates at %#x although base graph provided more exits.', addr)
 
         if not successors:
             # There is no way out :-(
@@ -2802,7 +2802,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                     old_name = None
 
-                    if old_proc.IS_SYSCALL:
+                    if old_proc.is_syscall:
                         new_stub = SIM_PROCEDURES["stubs"]["syscall"]
                         ret_to = state.regs.ip_at_syscall
                     else:
@@ -3438,4 +3438,4 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         state.options = state.options.difference(self._state_remove_options)
 
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('CFGAccurate', CFGAccurate)
+AnalysesHub.register_default('CFGEmulated', CFGEmulated)

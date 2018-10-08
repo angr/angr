@@ -1,4 +1,5 @@
 from . import ExplorationTechnique
+from .common import condition_to_lambda
 from .. import sim_options
 from ..errors import SimIRSBNoDecodeError, AngrExplorationTechniqueError
 
@@ -23,8 +24,8 @@ class Explorer(ExplorationTechnique):
     """
     def __init__(self, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, avoid_priority=False):
         super(Explorer, self).__init__()
-        self.find, static_find = self._condition_to_lambda(find)
-        self.avoid, static_avoid = self._condition_to_lambda(avoid)
+        self.find, static_find = condition_to_lambda(find)
+        self.avoid, static_avoid = condition_to_lambda(avoid)
         self.find_stash = find_stash
         self.avoid_stash = avoid_stash
         self.cfg = cfg
@@ -125,7 +126,14 @@ class Explorer(ExplorationTechnique):
                     return i, self.avoid_stash
         return None, None
 
-    def filter(self, simgr, state, filter_func=None):
+    # make it more natural to deal with the intended dataflow
+    def filter(self, simgr, state, **kwargs):
+        stash = self._filter_inner(state)
+        if stash is None:
+            return simgr.filter(state, **kwargs)
+        return stash
+
+    def _filter_inner(self, state):
         if self._unknown_stop_points and sim_options.UNICORN in state.options and not self._warned_unicorn:
             l.warning("Using unicorn with find/avoid conditions that are a lambda (not a number, set, tuple or list)")
             l.warning("Unicorn may step over states that match the condition (find or avoid) without stopping.")

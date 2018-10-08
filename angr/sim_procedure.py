@@ -33,7 +33,7 @@ class SimProcedure(object):
     """
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
-        returns=None, is_syscall=None, is_stub=False,
+        returns=None, is_syscall=False, is_stub=False,
         num_args=None, display_name=None, library_name=None,
         is_function=None, **kwargs
     ):
@@ -57,7 +57,7 @@ class SimProcedure(object):
 
         # set some properties about the type of procedure this is
         self.returns = returns if returns is not None else not self.NO_RET
-        self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
+        self.is_syscall = is_syscall
         self.is_function = is_function if is_function is not None else self.IS_FUNCTION
         self.is_stub = is_stub
         self.is_continuation = False
@@ -82,7 +82,7 @@ class SimProcedure(object):
         self.inhibit_autoret = None
 
     def __repr__(self):
-        syscall = ' (syscall)' if self.IS_SYSCALL else ''
+        syscall = ' (syscall)' if self.is_syscall else ''
         stub = ' (stub)' if self.is_stub else ''
         return "<SimProcedure %s%s%s>" % (self.display_name, syscall, stub)
 
@@ -190,7 +190,6 @@ class SimProcedure(object):
 
     NO_RET = False          # set this to true if control flow will never return from this function
     ADDS_EXITS = False      # set this to true if you do any control flow other than returning
-    IS_SYSCALL = False      # self-explanatory.
     IS_FUNCTION = True      # does this procedure simulate a function?
     ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
                             # function specification? This may happen when we manually extract arguments in the run()

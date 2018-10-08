@@ -6,8 +6,6 @@ l = logging.getLogger("angr.procedures.cgc.deallocate")
 class deallocate(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    IS_SYSCALL = True
-
     def run(self, addr, length): #pylint:disable=unused-argument
         # return code (see deallocate() docs)
         r = self.state.solver.ite_cases((

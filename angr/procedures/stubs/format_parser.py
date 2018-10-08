@@ -322,6 +322,8 @@ class FormatParser(SimProcedure):
     For SimProcedures relying on format strings.
     """
 
+    ARGS_MISMATCH = True
+
     # Basic conversion specifiers for format strings, mapped to sim_types
     # TODO: support for C and S that are deprecated.
     # TODO: We only consider POSIX locales here.
@@ -344,8 +346,8 @@ class FormatParser(SimProcedure):
         b's': 'char*',
         b'p': 'uintptr_t',
         b'n': 'uintptr_t', # pointer to num bytes written so far
-        b'm': None, # Those don't expect any argument
-        b'%': None, # Those don't expect any argument
+        #b'm': None, # Those don't expect any argument
+        #b'%': None, # Those don't expect any argument
     }
 
     # Signedness of integers

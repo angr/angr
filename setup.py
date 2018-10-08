@@ -17,6 +17,10 @@ If you want to continue using the most recent version of angr (you definitely
 want that, trust us) you should upgrade to python 3. It's like getting your
 vaccinations. It hurts a little bit initially but in the end it's worth it.
 
+If you are staying on python 2 and would like to make sure you don't get
+incompatible versions, make sure your pip is at least version 9.0, and it will
+use our metadata to implicitly avoid them.
+
 For more information, see here: https://docs.angr.io/MIGRATION.html
 
 Good luck!
@@ -110,7 +114,8 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
 
 setup(
     name='angr',
-    version='7.8.8.1',
+    version='8.18.10.5',
+    python_requires='>=3.5',
     description='A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries',
     url='https://github.com/angr/angr',
     packages=packages,
@@ -128,11 +133,11 @@ setup(
         'rpyc',
         'cffi>=1.7.0',
         'unicorn',
-        'archinfo>=7.8.8.1',
-        'claripy>=7.8.8.1',
-        'cle>=7.8.8.1',
-        'pyvex>=7.8.8.1',
-        'ailment>=7.8.6.16',
+        'archinfo==8.18.10.5',
+        'claripy==8.18.10.5',
+        'cle==8.18.10.5',
+        'pyvex==8.18.10.5',
+        'ailment==8.18.10.5',
         'GitPython',
         'pycparser>=2.18',
     ],

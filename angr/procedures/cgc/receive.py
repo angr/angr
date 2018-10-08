@@ -6,8 +6,6 @@ fastpath_data_counter = count()
 class receive(angr.SimProcedure):
     #pylint:disable=arguments-differ,attribute-defined-outside-init,redefined-outer-name
 
-    IS_SYSCALL = True
-
     def run(self, fd, buf, count, rx_bytes):
         if angr.options.CGC_ENFORCE_FD in self.state.options:
             fd = 0

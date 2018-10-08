@@ -1583,7 +1583,7 @@ class Data(object):
 
             elif self.sort == 'string':
                 data = self.binary.fast_memory_load(self.addr, self.size, bytes)
-                if data[-1] == b'\0':
+                if data[-1] == 0:
                     self.null_terminated = True
                     data = data[:-1] # remove the null-byte. we'll use .asciz for it instead.
                 else:
@@ -2745,7 +2745,7 @@ class Reassembler(Analysis):
                 continue
             base_graph.add_node(candidate_node)
             tmp_kb = KnowledgeBase(self.project, self.project.loader.main_object)
-            cfg = self.project.analyses.CFGAccurate(kb=tmp_kb,
+            cfg = self.project.analyses.CFGEmulated(kb=tmp_kb,
                                                     starts=(candidate.irsb_addr,),
                                                     keep_state=True,
                                                     base_graph=base_graph

@@ -5,8 +5,6 @@ l = logging.getLogger("angr.procedures.syscalls.lseek")
 
 class lseek(angr.SimProcedure):
 
-    IS_SYSCALL = True
-
     def run(self, fd, seek, whence): #pylint:disable=arguments-differ,unused-argument
 
         if self.state.solver.symbolic(whence):

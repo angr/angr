@@ -267,8 +267,8 @@ class SimHostFilesystem(SimMount):
     """
     Simulated mount that makes some piece from the host filesystem available to the guest.
 
-    :param host_path:       The path on the host to mount
-    :param pathsep:         The host path separator character, default os.path.sep
+    :param str host_path:       The path on the host to mount
+    :param str pathsep:         The host path separator character, default os.path.sep
     """
     def __init__(self, host_path, pathsep=os.path.sep):
         super(SimHostFilesystem, self).__init__()
@@ -278,7 +278,7 @@ class SimHostFilesystem(SimMount):
         self.deleted_list = set()
 
     def get(self, path_elements):
-        path = self.pathsep.join(path_elements)
+        path = self.pathsep.join(x.decode() for x in path_elements)
         if path in self.deleted_list:
             return None
 

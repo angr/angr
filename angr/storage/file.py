@@ -62,15 +62,18 @@ class SimFileBase(SimStatePlugin):
                     must be a number of bytes from the start of the file.
     :ivar writable: Bool indicating whether writing to this file is allowed.
     :ivar pos:      If the file is a stream, this will be the current position. Otherwise, None.
+    :ivar concrete: Whether or not this file contains mostly concrete data. Will be used by some SimProcedures to
+                    choose how to handle variable-length operations like fgets.
     """
 
     seekable = False
     pos = None
 
-    def __init__(self, name, writable=True, ident=None, **kwargs):
+    def __init__(self, name, writable=True, ident=None, concrete=False, **kwargs):
         self.name = name
         self.ident = ident
         self.writable = writable
+        self.concrete = concrete
 
         if ident is None:
             self.ident = self.make_ident(self.name)
@@ -147,10 +150,12 @@ class SimFile(SimFileBase, SimSymbolicMemory):
                         caveat is that if the size is also unspecified this value will default to False.
     :param seekable:    Optional bool indicating whether seek operations on this file should succeed, default True.
     :param writable:    Whether writing to this file is allowed
+    :param concrete:    Whether or not this file contains mostly concrete data. Will be used by some SimProcedures to
+                        choose how to handle variable-length operations like fgets.
 
     :ivar has_end:      Whether this file has an EOF
     """
-    def __init__(self, name, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, **kwargs):
+    def __init__(self, name, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, concrete=None, **kwargs):
         kwargs['memory_id'] = kwargs.get('memory_id', 'file')
         super(SimFile, self).__init__(name, writable=writable, ident=ident, **kwargs)
         self._size = size
@@ -160,15 +165,22 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         # this is hacky because we need to work around not having a state yet
         content = _deps_unpack(content)[0]
         if type(content) is bytes:
+            if concrete is None: concrete = True
             content = claripy.BVV(content)
         elif type(content) is str:
+            if concrete is None: concrete = True
             content = claripy.BVV(content.encode())
         elif content is None:
             pass
         elif isinstance(content, claripy.Bits):
+            if concrete is None and not content.symbolic: concrete = True
             pass
         else:
             raise TypeError("Can't handle SimFile content of type %s" % type(content))
+
+        if concrete is None:
+            concrete = False
+        self.concrete = concrete
 
         if content is not None:
             mo = SimMemoryObject(content, 0, length=len(content)//8)
@@ -268,7 +280,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
     @SimStatePlugin.memo
     def copy(self, _):
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-        return type(self)(name=self.name, size=self._size, has_end=self.has_end, seekable=self.seekable, writable=self.writable, ident=self.ident,
+        return type(self)(name=self.name, size=self._size, has_end=self.has_end, seekable=self.seekable, writable=self.writable, ident=self.ident, concrete=self.concrete,
             mem=self.mem.branch(),
             memory_id=self.id,
             endness=self.endness,
@@ -506,7 +518,7 @@ class SimPackets(SimFileBase):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        return type(self)(self.name, write_mode=self.write_mode, content=self.content, ident=self.ident)
+        return type(self)(self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:

@@ -85,27 +85,25 @@ class IdentifierCallable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = self._project.factory.simulation_manager(state, immutable=True)
+        caller = self._project.factory.simulation_manager(state)
         for _ in range(self._max_steps):
             if len(caller.active) == 0:
                 break
             if caller.active[0].history.block_count > 100000:
                 l.debug("super long path %s", caller.active[0])
                 raise AngrCallableError("Super long path")
-            caller = caller.step(step_func=step_func if self._concrete_only else None)
+            caller.step(step_func=step_func if self._concrete_only else None)
         if len(caller.active) > 0:
             raise AngrCallableError("didn't make it to the end of the function")
 
-        caller_end_unpruned = caller.unstash(from_stash='deadended')
-        caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
+        caller.unstash(from_stash='deadended')
+        caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
-        if len(caller_end_unmerged.active) == 0:
+        if len(caller.active) == 0:
             raise AngrCallableError("No paths returned from function")
 
-        self.result_path_group = caller_end_unmerged
+        self.result_path_group = caller.copy()
 
         if self._perform_merge:
-            caller_end = caller_end_unmerged.merge()
-            self.result_state = caller_end.active[0]
-        else:
-            self.result_state = self.result_path_group.active[0]
+            caller.merge()
+        self.result_state = caller.active[0]

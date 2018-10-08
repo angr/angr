@@ -7,8 +7,6 @@ import angr
 #pylint:disable=redefined-builtin,arguments-differ
 class syscall(angr.SimProcedure):
 
-    IS_SYSCALL = True
-
     def run(self, resolves=None):
 
         self.resolves = resolves  # pylint:disable=attribute-defined-outside-init

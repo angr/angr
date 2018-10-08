@@ -298,7 +298,7 @@ class Function(object):
                         stn = ""
                         offset = 0
                         current_char = memory[addr + offset]
-                        while current_char in string.printable:
+                        while chr(current_char) in string.printable:
                             stn += current_char
                             offset += 1
                             current_char = memory[addr + offset]
@@ -930,7 +930,7 @@ class Function(object):
         Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
         that IDA Pro generates.
 
-        This method does not touch the CFG result. You may call CFG{Accurate, Fast}.normalize() for that matter.
+        This method does not touch the CFG result. You may call CFG{Emulated, Fast}.normalize() for that matter.
 
         :return: None
         """
