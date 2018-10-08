@@ -1,5 +1,6 @@
 
 import logging
+from .common import condition_to_lambda
 
 from . import ExplorationTechnique
 
@@ -21,7 +22,7 @@ class Symbion(ExplorationTechnique):
 
         # need to keep the raw list of addresses to
         self.breakpoints = find
-        self.find = self._condition_to_lambda(find)
+        self.find = condition_to_lambda(find)
         self.concretize = concretize
         self.find_stash = find_stash
 
