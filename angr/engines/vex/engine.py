@@ -10,12 +10,9 @@ from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
-<<<<<<< HEAD
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError, SimConcreteMemoryError)
-=======
-                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
+
 from ...misc.ux import once
->>>>>>> a5af2836ccc474269fd5680b3fd09c6b86cf2cba
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr

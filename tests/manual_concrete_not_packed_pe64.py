@@ -31,7 +31,7 @@ def setup_x64():
           "e careful the architecture (x86 or x64) of gdbserver should be the same as the debugged binary.\n"
           "Currently using MinGW for 32 bit gdbserver and Cygwin for 64 bit gdbserver"% (GDB_SERVER_IP, GDB_SERVER_IP, GDB_SERVER_PORT))
     print("On windows machine execute gdbserver %s:%s path/to/simple_crackme.exe" % (GDB_SERVER_IP, GDB_SERVER_PORT))
-    raw_input("Press enter when gdbserver has been executed")
+    input("Press enter when gdbserver has been executed")
 
 
 def teardown():
@@ -87,7 +87,7 @@ def execute_concretly(p,state,address,concretize):
 
 def solv_concrete_engine_windows_x64(p,entry_state):
 
-    print "[1]Executing malware concretely until address: " + hex(STARTING_DECISION_ADDRESS)
+    print("[1]Executing malware concretely until address: " + hex(STARTING_DECISION_ADDRESS))
     new_concrete_state = execute_concretly(p, entry_state, STARTING_DECISION_ADDRESS, [])
 
     # declaring symbolic buffer
@@ -95,14 +95,14 @@ def solv_concrete_engine_windows_x64(p,entry_state):
     symbolic_buffer_address = new_concrete_state.regs.rbp - 0x60
     new_concrete_state.memory.store(new_concrete_state.se.eval(symbolic_buffer_address), arg0)
 
-    print "[2]Symbolically executing malware to find dropping of second stage [ address:  " + hex(DROP_V1) + " ]"
+    print("[2]Symbolically executing malware to find dropping of second stage [ address:  " + hex(DROP_V1) + " ]")
     simgr = p.factory.simgr(new_concrete_state)
     exploration = simgr.explore(find=DROP_V1, avoid=[FAKE_CC, DROP_V2, VENV_DETECTED])
     new_symbolic_state = exploration.stashes['found'][0]
 
-    print "[3]Executing malware concretely with solution found until the end " + hex(MALWARE_EXECUTION_END)
+    print("[3]Executing malware concretely with solution found until the end " + hex(MALWARE_EXECUTION_END))
     execute_concretly(p, new_symbolic_state, MALWARE_EXECUTION_END, [(symbolic_buffer_address, arg0)])
 
-    print "[4]Malware execution ends, the configuration value downloaded from C&C is: " + hex(
-        new_symbolic_state.se.eval(arg0, cast_to=int))
+    print("[4]Malware execution ends, the configuration value downloaded from C&C is: " + hex(
+        new_symbolic_state.se.eval(arg0, cast_to=int)))
 

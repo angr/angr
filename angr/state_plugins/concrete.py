@@ -102,7 +102,7 @@ class Concrete(SimStatePlugin):
                         old_func_symbol = self.state.project.loader.find_symbol(reloc.symbol.name)
 
                         if old_func_symbol:  # if we actually have a symbol
-                            owner_obj = old_func_symbol.owner_obj
+                            owner_obj = old_func_symbol.owner
 
                             # calculating the new real address
                             new_relative_address = func_address - owner_obj.mapped_base
@@ -149,7 +149,7 @@ class Concrete(SimStatePlugin):
                 reg_value = target.read_register(register_name)
                 setattr(self.state.regs, register_name, reg_value)
                 l.debug("Register: %s value: %x " % (register_name,
-                                                     self.state.se.eval(getattr(self.state.regs, register_name),
+                                                     self.state.solver.eval(getattr(self.state.regs, register_name),
                                                                         cast_to=int)))
             except SimConcreteRegisterError as exc:
                 l.debug("Can't set register %s reason: %s, if this register is not used "
@@ -212,7 +212,7 @@ class Concrete(SimStatePlugin):
                     # That's not a perfect solution, but should work most of the time.
                     result = target.read_memory(mmap.start_address, 10)
 
-                    if self.state.project.simos.get_binary_header_name() in result:
+                    if self.state.project.simos.get_binary_header_name() in str(result):
                         if mapped_object.mapped_base == mmap.start_address:
                             # We already have the correct address for this memory mapping
                             l.debug("Object %s is already rebased correctly at 0x%x"

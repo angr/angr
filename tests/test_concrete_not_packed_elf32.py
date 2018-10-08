@@ -100,17 +100,25 @@ def solv_concrete_engine_linux_x86(p,entry_state):
 
     # symbolic exploration
     simgr = p.factory.simgr(new_concrete_state)
-    print "[2]Symbolically executing BINARY to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]"
+    print("[2]Symbolically executing BINARY to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]")
     exploration = simgr.explore(find=DROP_STAGE2_V1, avoid=[DROP_STAGE2_V2, VENV_DETECTED, FAKE_CC ])
     new_symbolic_state = exploration.stashes['found'][0]
 
     binary_configuration = new_symbolic_state.se.eval(arg0,cast_to=int)
 
-    print "[3]Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END)
+    print("[3]Execuing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
     execute_concretly(p,new_symbolic_state,BINARY_EXECUTION_END,[(symbolic_buffer_address,arg0)])
 
-    print "[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration)
+    print("[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration))
 
     correct_solution = 0xa000000f9ffffff000000000000000000000000000000000000000000000000
     nose.tools.assert_true(binary_configuration == correct_solution)
 
+
+setup_x86()
+print("test_concrete_engine_linux_x86_simprocedures")
+global avatar_gdb
+avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
+p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=True)
+entry_state = p.factory.entry_state()
+solv_concrete_engine_linux_x86(p, entry_state)

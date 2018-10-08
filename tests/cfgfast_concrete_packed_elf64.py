@@ -5,7 +5,6 @@ import os
 import avatar2 as avatar2
 
 import angr
-import angrutils
 import claripy
 
 
@@ -83,18 +82,18 @@ def execute_concretly(project, state, address, concretize):
 
 
 def solv_concrete_engine_linux_x64(p,entry_state):
-    print "[1]Executing binary concretely until address: " + hex(UNPACKING_STUB)
+    print("[1]Executing binary concretely until address: " + hex(UNPACKING_STUB))
     # until unpacking of stub
     new_concrete_state = execute_concretly(p, entry_state, UNPACKING_STUB, [])
     # now until stub instructions
-    for i in xrange(0,4):
+    for i in range(0,4):
         new_concrete_state = execute_concretly(p, new_concrete_state, UNPACKING_BINARY, [])
 
     new_concrete_state = execute_concretly(p, new_concrete_state, BINARY_DECISION_ADDRESS, [])
 
     cfg = p.analyses.CFGFast(regions=[(0x400b95, 0x400DE6)], base_state=new_concrete_state)
-    print "It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges()))
-    angrutils.plot_cfg(cfg, "/home/degrigis/Desktop/packed_elf64", asminst=True, remove_imports=True, remove_path_terminator=True)
+    print("It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges())))
+    #angrutils.plot_cfg(cfg, "/home/degrigis/Desktop/packed_elf64", asminst=True, remove_imports=True, remove_path_terminator=True)
 
 
 setup_x64()

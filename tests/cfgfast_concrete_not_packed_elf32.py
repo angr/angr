@@ -1,11 +1,8 @@
 import os
 import nose
 import subprocess
-
 import avatar2 as avatar2
-
 import angr
-import angrutils
 
 
 
@@ -97,11 +94,11 @@ def execute_concretly(p,state,address,concretize):
     return exploration.stashes['found'][0]
 
 def solv_concrete_engine_linux_x86(p,entry_state):
-    print "[1]Executing binary concretely until address: " + hex(BINARY_DECISION_ADDRESS)
+    print("[1]Executing binary concretely until address: " + hex(BINARY_DECISION_ADDRESS))
     new_concrete_state = execute_concretly(p, entry_state, BINARY_DECISION_ADDRESS,[])
     cfg = p.analyses.CFGFast(regions=[(BINARY_OEP, BINARY_EXECUTION_END)], base_state=new_concrete_state )
-    print "It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges()))
-    angrutils.plot_cfg(cfg, "/home/degrigis/Desktop/not_packed_elf32", asminst=True, remove_imports=True, remove_path_terminator=True)
+    print("It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges())))
+    #angrutils.plot_cfg(cfg, "/home/degrigis/Desktop/not_packed_elf32", asminst=True, remove_imports=True, remove_path_terminator=True)
 
 
 setup_x86()

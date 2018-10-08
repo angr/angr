@@ -8,7 +8,7 @@ from .engine import SimEngine
 from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 def timeout_handler():
@@ -29,7 +29,7 @@ class SimEngineConcrete(SimEngine):
             self.target = self.project.concrete_target
 
         else:
-            l.warn("Error, you must provide an instance of a ConcreteTarget to initialize a SimEngineConcrete.")
+            l.warning("Error, you must provide an instance of a ConcreteTarget to initialize a SimEngineConcrete.")
             self.target = None
             sys.exit()
 
@@ -97,13 +97,13 @@ class SimEngineConcrete(SimEngine):
 
 
         if concretize:
-            l.warn("SimEngineConcrete is concretizing variables before resuming the concrete process")
+            l.warning("SimEngineConcrete is concretizing variables before resuming the concrete process")
 
             for sym_var in concretize:
-                sym_var_address = state.se.eval(sym_var[0])
-                sym_var_value = state.se.eval(sym_var[1], cast_to=str)
-                l.debug("Concretize memory at address %s with value %s" % (hex(sym_var_address), sym_var_value))
-                self.target.write_memory(sym_var_address, sym_var_value)
+                sym_var_address = state.solver.eval(sym_var[0])
+                sym_var_value = state.solver.eval(sym_var[1], cast_to=int)
+                l.debug("Concretize memory at address %s with value 0x%x" % (hex(sym_var_address), sym_var_value))
+                self.target.write_memory(sym_var_address, str(sym_var_value), raw=True)
 
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
@@ -118,7 +118,7 @@ class SimEngineConcrete(SimEngine):
 
         # resuming of the concrete process, if the target won't reach the
         # breakpoint specified by the user the timeout will abort angr execution.
-        l.warn("SimEngineConcrete is resuming the concrete process!")
+        l.warning("SimEngineConcrete is resuming the concrete process!")
         self.target.run()
 
         # reset the alarm
@@ -134,12 +134,12 @@ class SimEngineConcrete(SimEngine):
         while self.target.read_register("pc") not in extra_stop_points:
             unexpected_breakpoint_cnt = unexpected_breakpoint_cnt + 1
             if unexpected_breakpoint_cnt == self.unexpected_stop_points_limit:
-                l.warn("Reached max number of hits of not expected breakpoints. Aborting.")
+                l.warning("Reached max number of hits of not expected breakpoints. Aborting.")
             else:
                 if self.target.timeout:
                     signal.alarm(self.target.timeout)
                 self.target.run()
-                l.warn("Stopped a pc %s but breakpoint set to %s so resuming concrete execution"
+                l.warning("Stopped a pc %s but breakpoint set to %s so resuming concrete execution"
                        % (hex(self.target.read_register("pc")), [hex(bp) for bp in extra_stop_points]))
 
         # restoring old sigalrm handler
@@ -158,13 +158,13 @@ class SimEngineConcrete(SimEngine):
         :return: True if the concrete target is compliant
         """
         entry_point = concrete_target.read_register("pc")
-        if not type(entry_point) in (int, long):
+        if not type(entry_point) is int:
             l.error("read_register result type is %s, should be <type 'int'>" % (type(entry_point)))
             return False
 
         mem_read = concrete_target.read_memory(entry_point, 0x4)
 
-        if not type(mem_read) is str:
+        if not type(mem_read) is bytes:
             l.error("read_memory result type is %s, should be <type 'str'>" % (type(mem_read)))
             return False
 

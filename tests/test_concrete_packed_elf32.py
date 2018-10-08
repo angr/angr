@@ -74,13 +74,13 @@ def execute_concretly(project, state,address,concretize):
 
 def solv_concrete_engine_linux_x86(p,entry_state):
     
-    print "[1]Executing binary concretely until address: " + hex(UNPACKING_BINARY)
+    print("[1]Executing binary concretely until address: " + hex(UNPACKING_BINARY))
     
     # until unpacking of stub
     new_concrete_state = entry_state
     
     # now until stub instructions 
-    for i in xrange(0,4):
+    for i in range(0,4):
         new_concrete_state = execute_concretly(p, new_concrete_state,UNPACKING_BINARY,[])
      
     new_concrete_state = execute_concretly(p, new_concrete_state,BINARY_DECISION_ADDRESS,[])
@@ -91,18 +91,18 @@ def solv_concrete_engine_linux_x86(p,entry_state):
     
     # symbolic exploration 
     simgr = p.factory.simgr(new_concrete_state)
-    print "[2]Symbolically executing binary to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]"
+    print("[2]Symbolically executing binary to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]")
     exploration = simgr.explore(find=DROP_STAGE2_V1, avoid=[DROP_STAGE2_V2, VENV_DETECTED, FAKE_CC ])
     new_symbolic_state = exploration.stashes['found'][0]
 
     binary_configuration = new_symbolic_state.se.eval(arg0,cast_to=int)
 
-    print "[3]Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END)
+    print("[3]Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
     execute_concretly(p, new_symbolic_state,BINARY_EXECUTION_END,[(symbolic_buffer_address,arg0)])
     
     
     
-    print "[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration)
+    print("[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration))
 
     correct_solution = 0xa000000f9ffffff000000000000000000000000000000000000000000000000
     nose.tools.assert_true(binary_configuration == correct_solution)

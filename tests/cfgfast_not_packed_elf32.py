@@ -36,6 +36,6 @@ binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 p = angr.Project(binary_x86, use_sim_procedures=True)
 entry_state = p.factory.entry_state()
 cfg = p.analyses.CFGFast(regions=[(BINARY_OEP, BINARY_EXECUTION_END)], base_state=entry_state)
-print "It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges()))
+print("It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges())))
 angrutils.plot_cfg(cfg, "/home/degrigis/Desktop/malware_graph", asminst=True, remove_imports=True, remove_path_terminator=True)
 

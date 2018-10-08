@@ -486,8 +486,8 @@ class SimPagedMemory:
 
         elif isinstance(self._memory_backer, cle.Clemory) and self._memory_backer.is_concrete_target_set():
             try:
-                concrete_memory = self._memory_backer.read_bytes(new_page_addr, self._page_size)
-                backer = claripy.BVV(''.join(concrete_memory))
+                concrete_memory = self._memory_backer.load(new_page_addr, self._page_size)
+                backer = claripy.BVV(concrete_memory)
                 mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
                 self._apply_object_to_page(n * self._page_size, mo, page=new_page)
                 initialized = True
