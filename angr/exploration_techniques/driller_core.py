@@ -35,10 +35,6 @@ class DrillerCore(ExplorationTechnique):
         # Update encounters with known state transitions.
         self.encounters.update(zip(self.trace, islice(self.trace, 1, None)))
 
-
-    def complete(self, simgr):
-        return not simgr.active or simgr.one_active.globals['bb_cnt'] >= len(self.trace)
-
     def step(self, simgr, stash='active', **kwargs):
         simgr.step(stash=stash, **kwargs)
 
