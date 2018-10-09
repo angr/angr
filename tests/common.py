@@ -25,7 +25,7 @@ def do_trace(proj, test_name, input_data, **kwargs):
             with open(fname, 'rb') as f:
                 r = pickle.load(f)
                 assert type(r) is tuple and len(r) == 4
-                #return r
+                return r
         except (pickle.UnpicklingError, UnicodeDecodeError):
             print("Can't unpickle trace - rerunning")
 
