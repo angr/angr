@@ -17,7 +17,7 @@ def tracer_cgc(filename, test_name, stdin):
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
-    t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr)
+    t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr, keep_predecessors=1)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
 
@@ -27,7 +27,7 @@ def tracer_linux(filename, test_name, stdin):
     p = angr.Project(filename)
 
     trace, _, crash_mode, crash_addr = do_trace(p, test_name, stdin, ld_linux=p.loader.linux_loader_object.binary, library_path=set(os.path.dirname(obj.binary) for obj in p.loader.all_elf_objects), record_stdout=True)
-    s = p.factory.entry_state(mode='tracing', stdin=angr.SimFileStream)
+    s = p.factory.full_init_state(mode='tracing', stdin=angr.SimFileStream)
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
@@ -160,12 +160,11 @@ def test_crash_addr_detection():
 
 
 def test_fauxware():
-
     if not sys.platform.startswith('linux'):
         raise nose.SkipTest()
 
     b = os.path.join(bin_location, "tests/x86_64/fauxware")
-    simgr, _ = tracer_linux(b, 'tracer_fauxware', b'A')
+    simgr, _ = tracer_linux(b, 'tracer_fauxware', b'A'*18)
     simgr.run()
 
     nose.tools.assert_true('traced' in simgr.stashes)
