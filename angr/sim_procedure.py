@@ -75,16 +75,26 @@ class SimProcedure(object):
         self.state = None
         self.successors = None
         self.arguments = None
-        self.use_state_arguments = None
+        self.use_state_arguments = True
         self.ret_to = None
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
 
     def __repr__(self):
-        syscall = ' (syscall)' if self.is_syscall else ''
-        stub = ' (stub)' if self.is_stub else ''
-        return "<SimProcedure %s%s%s>" % (self.display_name, syscall, stub)
+        return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
+
+    def _describe_me(self):
+        """
+        return a 5-tuple of strings sufficient for formatting with ``%s%s%s%s%s`` to verbosely describe the procedure
+        """
+        return (
+            self.display_name,
+            ' (cont: %s)' % self.run_func if self.is_continuation else '',
+            ' (syscall)' if self.is_syscall else '',
+            ' (inline)' if not self.use_state_arguments else '',
+            ' (stub)' if self.is_stub else '',
+        )
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
@@ -159,13 +169,7 @@ class SimProcedure(object):
                     inst.arguments = arguments
 
             # run it
-            l.debug("Executing %s%s%s%s with %s, %s",
-                    inst.display_name,
-                    ' (syscall)' if inst.is_syscall else '',
-                    ' (inline)' if not inst.use_state_arguments else '',
-                    ' (stub)' if inst.is_stub else '',
-                    sim_args,
-                    inst.kwargs)
+            l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         if inst.returns and inst.is_function and not inst.inhibit_autoret:
@@ -177,7 +181,13 @@ class SimProcedure(object):
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
             cont = copy.copy(self.canonical)
-            cont.addr = self.project.loader.extern_object.allocate()
+            target_name = '%s.%s' % (self.display_name, name)
+            should_be_none = self.project.loader.extern_object.get_symbol(target_name)
+            if should_be_none is None:
+                cont.addr = self.project.loader.extern_object.make_extern(target_name).rebased_addr
+            else:
+                l.error("Trying to make continuation %s but it already exists. This is bad.", target_name)
+                cont.addr = self.project.loader.extern_object.allocate()
             cont.is_continuation = True
             cont.run_func = name
             self.canonical.continuations[name] = cont
