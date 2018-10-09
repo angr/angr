@@ -10,7 +10,7 @@ from angr_targets import AvatarGDBConcreteTarget
 binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                           os.path.join('..', '..', 'binaries','tests','x86','windows','not_packed_pe32.exe'))
 
-GDB_SERVER_IP = '192.168.56.103'
+GDB_SERVER_IP = '192.168.59.164'
 GDB_SERVER_PORT = 9999
 
 STARTING_DECISION_ADDRESS = 0x401775
@@ -28,7 +28,7 @@ def setup_x86():
           "Check windows firewall configurations to be sure that the connections to %s:%s are not blocked\n"
           "Install gdbserver on the machine, b"
           "e careful the architecture (x86 or x64) of gdbserver should be the same as the debugged binary.\n"
-          "Currently using MinGW for 32 bit gdbserver and Cygwin for 64 bit gdbserver"% (GDB_SERVER_IP,GDB_SERVER_IP,GDB_SERVER_PORT))
+          "Currently using Cygwin for 32 bit gdbserver and Cygwin for 64 bit gdbserver"% (GDB_SERVER_IP,GDB_SERVER_IP,GDB_SERVER_PORT))
     print("On windows machine execute gdbserver %s:%s path/to/simple_crackme.exe" % (GDB_SERVER_IP,GDB_SERVER_PORT))
     input("Press enter when gdbserver has been executed")
 
@@ -110,3 +110,12 @@ def solv_concrete_engine_windows_x86(p,entry_state):
     print("[4]Malware execution ends, the configuration value is: " + hex(
         new_symbolic_state.solver.eval(arg0, cast_to=int)))
 
+
+setup_x86()
+global avatar_gdb
+print("test_concrete_engine_windows_x86_no_simprocedures")
+avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
+p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=False,
+                 page_size=0x1000)
+entry_state = p.factory.entry_state()
+solv_concrete_engine_windows_x86(p, entry_state)
