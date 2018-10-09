@@ -206,7 +206,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 else:
                     try:
                         data.add(self.state.loader.memory.unpack_word(a, size=size))
-                    except struct.error:
+                    except (struct.error, KeyError):
                         pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
