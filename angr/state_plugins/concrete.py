@@ -10,7 +10,7 @@ from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
@@ -67,7 +67,7 @@ class Concrete(SimStatePlugin):
 
         # Sync Angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
-        l.info("Synchronizing general purpose registers")
+        l.debug("Synchronizing general purpose registers")
 
         to_sync_register = list(filter(lambda x: x.concrete, self.state.arch.register_list))
 
@@ -88,7 +88,7 @@ class Concrete(SimStatePlugin):
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
         if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
-            l.info("Restoring SimProc using concrete memory")
+            l.debug("Restoring SimProc using concrete memory")
             for reloc in self.state.project.loader.main_object.relocs:
                 if reloc.symbol:  # consider only reloc with a symbol
                     l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
@@ -123,7 +123,7 @@ class Concrete(SimStatePlugin):
 
 
         else:
-            l.warn("SimProc not restored, you are going to simulate also the code of external libraries!")
+            l.debug("SimProc not restored, you are going to simulate also the code of external libraries!")
 
         # flush the angr memory in order to synchronize them with the content of the
         # concrete process memory when a read/write to the page is performed

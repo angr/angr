@@ -8,7 +8,7 @@ from .engine import SimEngine
 from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 def timeout_handler():
@@ -97,7 +97,7 @@ class SimEngineConcrete(SimEngine):
 
 
         if concretize:
-            l.warning("SimEngineConcrete is concretizing variables before resuming the concrete process")
+            l.debug("SimEngineConcrete is concretizing variables before resuming the concrete process")
 
             for sym_var in concretize:
                 sym_var_address = state.solver.eval(sym_var[0])
@@ -118,10 +118,9 @@ class SimEngineConcrete(SimEngine):
 
         # resuming of the concrete process, if the target won't reach the
         # breakpoint specified by the user the timeout will abort angr execution.
-        l.warning("SimEngineConcrete is resuming the concrete process!")
+        l.debug("SimEngineConcrete is resuming the concrete process")
         self.target.run()
-
-        l.warning("SimEngineConcrete has resumed the process!")
+        l.debug("SimEngineConcrete has successfully resumed the process")
 
 
         # reset the alarm
