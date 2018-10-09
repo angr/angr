@@ -33,7 +33,7 @@ binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           os.path.join('..','..', 'binaries','tests','i386','not_packed_elf32'))
 
 
-p = angr.Project(binary_x86, use_sim_procedures=True)
+p = angr.Project(binary_x86, use_sim_procedures=True, page_size=0x1000)
 entry_state = p.factory.entry_state()
 cfg = p.analyses.CFGFast(regions=[(BINARY_OEP, BINARY_EXECUTION_END)], base_state=entry_state)
 print("It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges())))
