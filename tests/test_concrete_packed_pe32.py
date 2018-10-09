@@ -6,19 +6,22 @@ import avatar2 as avatar2
 import angr
 import claripy
 from angr_targets import AvatarGDBConcreteTarget
+from nose.plugins.attrib import attr
 
 binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          os.path.join('..', '..', 'binaries','tests','x86','windows','not_packed_pe32.exe'))
+                                          os.path.join('..', '..', 'binaries','tests','x86','windows','packed_pe32.exe'))
 
 GDB_SERVER_IP = '192.168.59.164'
 GDB_SERVER_PORT = 9999
 
+UNPACKING_FINISHED = 0x41EA02
 STARTING_DECISION_ADDRESS = 0x401775
 DROP_V1 = 0x401807
 DROP_V2 = 0x401839
 MALWARE_EXECUTION_END = 0x401879
 FAKE_CC = 0x401861
 VENV_DETECTED = 0x401847
+
 
 avatar_gdb = None
 
@@ -40,6 +43,7 @@ def teardown():
 
 
 @nose.with_setup(setup_x86,teardown)
+@attr('slow')
 def test_concrete_engine_windows_x86_no_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_no_simprocedures")
@@ -51,6 +55,7 @@ def test_concrete_engine_windows_x86_no_simprocedures():
 
 
 @nose.with_setup(setup_x86, teardown)
+@attr('slow')
 def test_concrete_engine_windows_x86_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_simprocedures")
@@ -62,6 +67,7 @@ def test_concrete_engine_windows_x86_simprocedures():
 
 
 @nose.with_setup(setup_x86, teardown)
+@attr('slow')
 def test_concrete_engine_windows_x86_unicorn_no_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_unicorn_no_simprocedures")
@@ -73,6 +79,7 @@ def test_concrete_engine_windows_x86_unicorn_no_simprocedures():
 
 
 @nose.with_setup(setup_x86, teardown)
+@attr('slow')
 def test_concrete_engine_windows_x86_unicorn_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_unicorn_simprocedures")
@@ -83,16 +90,20 @@ def test_concrete_engine_windows_x86_unicorn_simprocedures():
     solv_concrete_engine_windows_x86(p, entry_state)
 
 
-def execute_concretly(p,state,address,concretize):
+def execute_concretly(p, state, address, concretize):
     simgr = p.factory.simgr(state)
     simgr.use_technique(angr.exploration_techniques.Symbion(find=[address], concretize = concretize))
     exploration = simgr.run()
     return exploration.stashes['found'][0]
 
-def solv_concrete_engine_windows_x86(p,entry_state):
+
+def solv_concrete_engine_windows_x86(p, entry_state):
+
+    print("[0]Let the malware unpack itself")
+    new_state = execute_concretly(p, entry_state, UNPACKING_FINISHED, [])
 
     print("[1]Executing malware concretely until address: " + hex(STARTING_DECISION_ADDRESS))
-    new_concrete_state = execute_concretly(p, entry_state, STARTING_DECISION_ADDRESS, [])
+    new_concrete_state = execute_concretly(p, new_state, STARTING_DECISION_ADDRESS, [])
 
     # declaring symbolic buffer
     arg0 = claripy.BVS('arg0', 8 * 32)
@@ -105,10 +116,9 @@ def solv_concrete_engine_windows_x86(p,entry_state):
     new_symbolic_state = exploration.stashes['found'][0]
 
     print("[3]Executing malware concretely with solution found until the end " + hex(MALWARE_EXECUTION_END))
-    execute_concretly(p, new_symbolic_state, MALWARE_EXECUTION_END,[(symbolic_buffer_address, arg0)])
+    execute_concretly(p, new_symbolic_state, MALWARE_EXECUTION_END, [(symbolic_buffer_address, arg0)])
 
-    print("[4]Malware execution ends, the configuration value is: " + hex(
-        new_symbolic_state.solver.eval(arg0, cast_to=int)))
+    print("[4]Malware execution ends, the configuration value is: " + hex(new_symbolic_state.solver.eval(arg0, cast_to=int)))
 
 '''
 setup_x86()

@@ -7,6 +7,7 @@ import angr
 import claripy
 import os
 from angr_targets import AvatarGDBConcreteTarget
+from nose.plugins.attrib import attr
 
 
 binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
@@ -40,6 +41,7 @@ def teardown():
     print("---------------------------\n")
 
 @nose.with_setup(setup_x64, teardown)
+@attr('slow')
 def test_concrete_engine_linux_x64_simprocedures():
     print("test_concrete_engine_linux_x64_simprocedures")
     global avatar_gdb
@@ -50,6 +52,7 @@ def test_concrete_engine_linux_x64_simprocedures():
     solv_concrete_engine_linux_x64(p, entry_state)
 
 @nose.with_setup(setup_x64,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x64_no_simprocedures():
     print("test_concrete_engine_linux_x64_no_simprocedures")
     global avatar_gdb
@@ -60,8 +63,8 @@ def test_concrete_engine_linux_x64_no_simprocedures():
     solv_concrete_engine_linux_x64(p,entry_state)
 
 
-
 @nose.with_setup(setup_x64,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x64_unicorn_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_simprocedures")
     global avatar_gdb
@@ -71,7 +74,9 @@ def test_concrete_engine_linux_x64_unicorn_simprocedures():
     entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
     solv_concrete_engine_linux_x64(p, entry_state)
 
+
 @nose.with_setup(setup_x64,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x64_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
     global avatar_gdb
@@ -80,7 +85,6 @@ def test_concrete_engine_linux_x64_unicorn_no_simprocedures():
                      page_size=0x1000)
     entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
     solv_concrete_engine_linux_x64(p,entry_state)
-
 
 
 def execute_concretly(project, state,address,concretize):

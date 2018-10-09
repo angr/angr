@@ -1,6 +1,6 @@
 import subprocess
 import os
-#import nose
+import nose
 
 import avatar2 as avatar2
 
@@ -9,7 +9,7 @@ import claripy
 
 
 from angr_targets import AvatarGDBConcreteTarget
-
+from nose.plugins.attrib import attr
 
 
 
@@ -44,8 +44,8 @@ def teardown():
     import time
     time.sleep(1)
 
-
-#@nose.with_setup(setup_x64,teardown)
+@nose.with_setup(setup_x64,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x64_no_simprocedures():
     print("test_concrete_engine_linux_x64_no_simprocedures")
     global avatar_gdb
@@ -55,7 +55,8 @@ def test_concrete_engine_linux_x64_no_simprocedures():
     entry_state = p.factory.entry_state()
     solv_concrete_engine_linux_x64(p,entry_state)
 
-
+@nose.with_setup(setup_x64,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x64_simprocedures():
     print("test_concrete_engine_linux_x64_no_simprocedures")
     global avatar_gdb
@@ -66,7 +67,8 @@ def test_concrete_engine_linux_x64_simprocedures():
     solv_concrete_engine_linux_x64(p,entry_state)
 
 
-#@nose.with_setup(setup_x64,teardown)
+@nose.with_setup(setup_x64,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x64_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
     global avatar_gdb

@@ -7,6 +7,7 @@ import avatar2 as avatar2
 import angr
 import claripy
 from angr_targets import AvatarGDBConcreteTarget
+from nose.plugins.attrib import attr
 
 
 binary_x86 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
@@ -44,6 +45,7 @@ def teardown():
 
 
 @nose.with_setup(setup_x86,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x86_no_simprocedures():
     print("test_concrete_engine_linux_x86_no_simprocedures")
     global avatar_gdb
@@ -55,6 +57,7 @@ def test_concrete_engine_linux_x86_no_simprocedures():
 
 
 @nose.with_setup(setup_x86,teardown)
+@attr('slow')
 def test_concrete_engine_linux_x86_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x86_unicorn_no_simprocedures")
     global avatar_gdb
