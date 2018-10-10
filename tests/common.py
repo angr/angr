@@ -14,6 +14,8 @@ if not os.path.isdir(bin_location):
 
 slow_test = attr(speed='slow')
 
+TRACE_VERSION = 1
+
 def do_trace(proj, test_name, input_data, **kwargs):
     """
     trace, magic, crash_mode, crash_addr = load_cached_trace(proj, "test_blurble")
@@ -24,8 +26,8 @@ def do_trace(proj, test_name, input_data, **kwargs):
         try:
             with open(fname, 'rb') as f:
                 r = pickle.load(f)
-                assert type(r) is tuple and len(r) == 4
-                return r
+                if type(r) is tuple and len(r) == 2 and r[1] == TRACE_VERSION:
+                    return r[0]
         except (pickle.UnpicklingError, UnicodeDecodeError):
             print("Can't unpickle trace - rerunning")
 
@@ -35,5 +37,5 @@ def do_trace(proj, test_name, input_data, **kwargs):
     runner = tracer.QEMURunner(project=proj, input=input_data, **kwargs)
     r = (runner.trace, runner.magic, runner.crash_mode, runner.crash_addr)
     with open(fname, 'wb') as f:
-        pickle.dump(r, f, -1)
+        pickle.dump((r, TRACE_VERSION), f, -1)
     return r
