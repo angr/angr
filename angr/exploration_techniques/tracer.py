@@ -97,7 +97,7 @@ class Tracer(ExplorationTechnique):
         return simgr.filter(state, **kwargs)
 
     def step(self, simgr, stash='active', **kwargs):
-        simgr.drop('missed')
+        simgr.drop(stash='missed')
         return simgr.step(stash, **kwargs)
 
     def step_state(self, simgr, state, **kwargs):
