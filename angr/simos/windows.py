@@ -59,8 +59,13 @@ class SimWindows(SimOS):
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
         state = super(SimWindows, self).state_entry(**kwargs)
 
-        if args is None: args = []
-        if env is None: env = {}
+        # Handle default values
+        filename = self.project.filename or 'dummy_filename'
+        if args is None:
+            args = [filename]
+
+        if env is None:
+            env = {}
 
         # Prepare argc
         if argc is None:
