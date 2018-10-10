@@ -2,13 +2,17 @@ import logging
 import signal
 import sys
 
-from angr_targets.concrete import ConcreteTarget
-
 from .engine import SimEngine
 from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
 #l.setLevel(logging.DEBUG)
+
+try:
+    from angr_targets.concrete import ConcreteTarget
+except Exception as e:
+    l.error("Can't find angr_targets project!")
+
 
 
 def timeout_handler():
