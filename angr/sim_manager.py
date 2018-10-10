@@ -273,7 +273,7 @@ class SimulationManager(ana.Storable):
             return False
         return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overriden('complete'))
 
-    def step(self, n=None, selector_func=None, step_func=None, stash='active',
+    def step(self, stash='active', n=None, selector_func=None, step_func=None,
              successor_func=None, until=None, filter_func=None, **run_args):
         """
         Step a stash of states forward and categorize the successors appropriately.
@@ -282,7 +282,6 @@ class SimulationManager(ana.Storable):
         categorization process.
 
         :param stash:           The name of the stash to step (default: 'active')
-        :param n:               (DEPRECATED) The number of times to step (default: 1 if "until" is not provided)
         :param selector_func:   If provided, should be a function that takes a state and returns a
                                 boolean. If True, the state will be stepped. Otherwise, it will be
                                 kept as-is.
@@ -292,12 +291,13 @@ class SimulationManager(ana.Storable):
                                 stepping - it is meant to be a maintenance function called after each step.
         :param successor_func:  If provided, should be a function that takes a state and return its successors.
                                 Otherwise, project.factory.successors will be used.
-        :param until:           (DEPRECATED) If provided, should be a function that takes a SimulationManager and
-                                returns True or False. Stepping will terminate when it is True.
         :param filter_func:     If provided, should be a function that takes a state and return the name
                                 of the stash, to which the state should be moved.
+        :param until:           (DEPRECATED) If provided, should be a function that takes a SimulationManager and
+                                returns True or False. Stepping will terminate when it is True.
+        :param n:               (DEPRECATED) The number of times to step (default: 1 if "until" is not provided)
 
-        Additionally, you can pass in any of the following keyword args for project.factory.sim_run:
+        Additionally, you can pass in any of the following keyword args for project.factory.successors:
 
         :param jumpkind:        The jumpkind of the previous exit
         :param addr:            An address to execute at instead of the state's ip.
