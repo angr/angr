@@ -5,6 +5,7 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
+from itanium_demangler import parse
 
 import claripy
 from ...errors import SimEngineError, SimMemoryError
@@ -1080,6 +1081,16 @@ class Function(object):
         if self.calling_convention is not None:
             self.calling_convention.args = None
             self.calling_convention.func_ty = proto
+
+
+    @property
+    def demangled_name(self):
+
+        if self.name[0:2] == "_Z":
+            ast = parse(self.name)
+            if ast:
+                return ast.__str__()
+        return self.name
 
 
 from ...codenode import BlockNode, HookNode

@@ -17,3 +17,4 @@ rpyc
 unicorn
 GitPython
 pycparser>=2.18
+itanium_demangler
