@@ -129,6 +129,22 @@ def test_ccall():
     nose.tools.assert_true(s.solver.is_true(sf == 0))
     nose.tools.assert_true(s.solver.is_true(of == 0))
 
+def test_aarch64_32bit_ccalls():
+
+    # GitHub issue #1238
+    s = SimState(arch="AArch64")
+
+    x = s.solver.BVS("x", 32)
+    # A normal operation
+    flag_z, _ = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0)
+    nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 0,)))
+    nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 1,)))
+    # What VEX does
+    flag_z, _ = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0)
+    nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 0,)))
+    nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 1,)))
+
+
 def test_some_vector_ops():
     from angr.engines.vex.irop import translate
 
