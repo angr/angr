@@ -520,6 +520,9 @@ class SimTypeString(SimTypeArray):
         if self.length is None:
             out = None
             last_byte = state.memory.load(addr, 1)
+            # if we try to extract a symbolic string, it's likely that we are going to be trapped in a very large loop.
+            if state.solver.symbolic(last_byte):
+                raise ValueError("Trying to extract a symbolic string at %#x" % state.solver.eval(addr))
             addr += 1
             while not claripy.is_true(last_byte == 0):
                 out = last_byte if out is None else out.concat(last_byte)
@@ -568,6 +571,9 @@ class SimTypeWString(SimTypeArray):
         if self.length is None:
             out = None
             last_byte = state.memory.load(addr, 2)
+            # if we try to extract a symbolic string, it's likely that we are going to be trapped in a very large loop.
+            if state.solver.symbolic(last_byte):
+                raise ValueError("Trying to extract a symbolic string at %#x" % state.solver.eval(addr))
             addr += 2
             while not claripy.is_true(last_byte == 0):
                 out = last_byte if out is None else out.concat(last_byte)
