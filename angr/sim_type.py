@@ -699,7 +699,7 @@ class SimTypeFloat(SimTypeReg):
         return itype
 
     def store(self, state, addr, value):
-        if type(value) in (int, float, long):
+        if type(value) in (int, float):
             value = claripy.FPV(float(value), self.sort)
         return super(SimTypeFloat, self).store(state, addr, value)
 
