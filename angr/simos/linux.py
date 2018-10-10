@@ -194,7 +194,7 @@ class SimLinux(SimUserland):
 
         # Handle default values
         if args is None:
-            args = []
+            args = [self.project.filename]
 
         if env is None:
             env = {}
