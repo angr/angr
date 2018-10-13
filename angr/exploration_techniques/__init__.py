@@ -145,6 +145,18 @@ class ExplorationTechnique:
         """
         return False
 
+    def complete_hook(self, simgr):
+        """
+        Perform post completed procedure if manager has reached a "completed" state, i.e. ``SimulationManager.run()`` halt at a
+        ``complete`` function provided by any exploration technique this manager adoptes.
+
+        User can override this function to execute a function after the manager halts.
+
+        ..note:: This function may be invoked when ``self.complete(simgr)`` does not return True. This is because manager
+        might reach a "completed" state due to other exploration techniques adopted by the same manager.
+        """
+        pass
+
 
 from .cacher import Cacher
 from .driller_core import DrillerCore

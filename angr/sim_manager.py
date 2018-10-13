@@ -255,12 +255,17 @@ class SimulationManager(ana.Storable):
         :return:            The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
+        completed = False
         for _ in (itertools.count() if n is None else range(0, n)):
-            if not self.complete() and self._stashes[stash]:
+            completed = self.complete()
+            if not completed and self._stashes[stash]:
                 self.step(stash=stash, **kwargs)
                 if not (until and until(self)):
                     continue
             break
+        if completed:
+            for tech in self._techniques:
+                tech.complete_hook(self)
         return self
 
     def complete(self):
