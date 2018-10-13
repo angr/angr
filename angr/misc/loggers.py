@@ -53,9 +53,16 @@ class Loggers(object):
         for name in logging.Logger.manager.loggerDict.keys():
             logging.getLogger(name).setLevel(level)
 
+def simple_hash(string):
+    out = 0x12345678
+    for c in string.encode():
+        out ^= c
+        out = ((out << 13) | out >> 19) & 0xffffffff
+    return out
+
 class CuteHandler(logging.StreamHandler):
     def emit(self, record):
-        color = hash(record.name) % 7 + 31
+        color = simple_hash(record.name) % 7 + 31
         try:
             record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
         except Exception:
