@@ -13,7 +13,7 @@ class Caller(Explorer):
         :param addr:            the address to start calling at
         :param args:            a tuple of arguments. Any members that are None will be replaced with symbolic expressions with a
                                 length of the architecture's bitwidth.
-        :param start:           a path (or set of paths) to start from
+        :param start:           a state (or set of states) to start from
         :param num_find:        find at least this many returns from the function
         :param concrete_only:   Throw an exception if the execution splits into multiple paths
         """
@@ -22,33 +22,33 @@ class Caller(Explorer):
         self._cc = DEFAULT_CC[project.arch.name](project.arch)
         self._concrete_only = concrete_only
 
-        start_paths = [ ]
+        start_states = [ ]
         if start is None:
-            start_paths.append(project.factory.path(project.factory.blank_state(addr=addr)))
+            start_states.append(project.factory.blank_state(addr=addr))
         elif isinstance(start, (tuple,list,set)):
-            start_paths.extend(start)
+            start_states.extend(start)
         else:
-            start_paths.append(start)
+            start_states.append(start)
 
-        self.symbolic_args = [ start_paths[0].state.solver.Unconstrained('arg%d'%i, project.arch.bits) if arg is None else arg for i, arg in enumerate(args) ]
-        self._ret_addr = start_paths[0].state.solver.BVV(self._fake_return_addr, project.arch.bits)
+        self.symbolic_args = [ start_states[0].solver.Unconstrained('arg%d'%i, project.arch.bits) if arg is None else arg for i, arg in enumerate(args) ]
+        self._ret_addr = start_states[0].solver.BVV(self._fake_return_addr, project.arch.bits)
 
-        for p in start_paths:
-            p.state.ip = addr
-            self._cc.setup_callsite(p.state, self._ret_addr, self.symbolic_args)
+        for p in start_states:
+            p.ip = addr
+            self._cc.setup_callsite(p, self._ret_addr, self.symbolic_args)
 
-        super(Caller, self).__init__(project, find=self._fake_return_addr, start=start_paths, num_find=num_find, **kwargs)
+        super(Caller, self).__init__(project, find=self._fake_return_addr, start=start_states, num_find=num_find, **kwargs)
 
     def post_tick(self):
         if not self._concrete_only: return
         if len(self.active) > 1:
             toomany = self.active
             self.active = []
-            for path in toomany:
-                if path.state.satisfiable():
-                    self.active.append(path)
+            for state in toomany:
+                if state.satisfiable():
+                    self.active.append(state)
                 else:
-                    self.errored.append(path)
+                    self.errored.append(state)
             if len(self.active) > 1:
                 raise AngrCallableMultistateError("Execution produced multiple successors")
 
@@ -56,7 +56,7 @@ class Caller(Explorer):
         """
         Maps the state.solver."func" function for all the return address states. This is a generator.
 
-        :param func: the function name, used as getattr(p.state.se, func). Normally eval_upto or any_n_str
+        :param func: the function name, used as getattr(p.se, func). Normally eval_upto or any_n_str
         :param runs: the maximum number of runs to execute
         :param solutions: check only returns with this value as a possible solution
         :param sort: sort the result before yielding it
@@ -71,12 +71,12 @@ class Caller(Explorer):
         extra_constraints = kwargs.pop('extra_constraints', ())
         sort = kwargs.pop('sort', True)
         for r,p in self.iter_returns(runs=runs, solution=solution):
-            v = getattr(p.state.se, func)(*args, extra_constraints=extra_constraints + (r==solution,), **kwargs)
+            v = getattr(p.se, func)(*args, extra_constraints=extra_constraints + (r==solution,), **kwargs)
             yield r, sorted(v) if sort else v
 
     def map_func(self, func, runs=None, solution=None):
         """
-        Calls func(return_value, args_tuple, path) for each function return. This is a generator.
+        Calls func(return_value, args_tuple, state) for each function return. This is a generator.
 
         :param func: the function to call
         :param runs: the maximum number of runs to execute
@@ -89,14 +89,14 @@ class Caller(Explorer):
 
     def iter_returns(self, runs=None, solution=None):
         """
-        Yields (return_value, path) for every return. This is a generator.
+        Yields (return_value, state) for every return. This is a generator.
 
         :param runs: the maximum number of runs to execute
         :param solutions: check only returns with this value as a possible solution
         """
         for p in self.iter_found(runs=runs):
-            r = p.state.solver.simplify(self._cc.return_val.get_value(p.state))
-            if solution is not None and not p.state.solver.solution(r, solution):
+            r = p.solver.simplify(self._cc.return_val.get_value(p))
+            if solution is not None and not p.solver.solution(r, solution):
                 continue
             yield (r, p)
     __iter__ = iter_returns
