@@ -280,6 +280,9 @@ class DirtyExpression(Expression):
         super(DirtyExpression, self).__init__(idx, **kwargs)
         self.dirty_expr = dirty_expr
 
+    def replace(self, old_expr, new_expr):
+        return False, self
+
     def __repr__(self):
         return "DirtyExpression (%s)" % type(self.dirty_expr)
 

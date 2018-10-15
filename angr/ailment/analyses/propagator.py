@@ -136,6 +136,9 @@ def get_engine(base_engine):
         def _handle_Load(self, expr):
             raise NotImplementedError()
 
+        def _handle_DirtyExpression(self, expr):
+            raise NotImplementedError()
+
         #
         # AIL statement handlers
         #
@@ -244,6 +247,9 @@ def get_engine(base_engine):
             return converted
 
         def _ail_handle_Const(self, expr):
+            return expr
+
+        def _ail_handle_DirtyExpression(self, expr):
             return expr
 
         def _ail_handle_CmpLE(self, expr):
