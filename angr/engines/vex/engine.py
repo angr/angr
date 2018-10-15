@@ -612,10 +612,15 @@ class SimEngineVEX(SimEngine):
 
             if fallback:
                 buff_lst = [ ]
+                symbolic_warned = False
                 for i in range(max_size):
                     if addr + i in state.memory:
                         try:
-                            buff_lst.append(state.solver.eval(state.memory.load(addr + i, 1, inspect=False)))
+                            byte = state.memory.load(addr + i, 1, inspect=False)
+                            if byte.symbolic and not symbolic_warned:
+                                symbolic_warned = True
+                                l.warning("Executing symbolic code at %#x", addr + i)
+                            buff_lst.append(state.solver.eval(byte))
                         except SimError:
                             break
                     else:
