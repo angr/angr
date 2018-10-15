@@ -1,5 +1,5 @@
 import logging
-import hashlib
+import zlib
 from .testing import is_testing
 
 class Loggers(object):
@@ -56,9 +56,7 @@ class Loggers(object):
 
 class CuteHandler(logging.StreamHandler):
      def emit(self, record):
-        h = hashlib.sha1() # Algorithm was chosen for best looking output. Not all loggers tested though.
-        h.update(record.name.encode())
-        color = int.from_bytes(h.digest(), byteorder='little') % 7 + 31
+        color = zlib.adler32(record.name.encode()) % 7 + 31
         try:
             record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
         except Exception:
