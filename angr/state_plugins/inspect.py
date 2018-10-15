@@ -23,7 +23,6 @@ event_types = {
     'return',
     'simprocedure',
     'syscall',
-    'state_step',
     'cfg_handle_job',
     'vfg_handle_successor',
     'vfg_widen_state',
@@ -158,7 +157,7 @@ class BP(object):
                 l.debug("...... both None, True")
                 c_ok = True
             elif current_expr is not None and needed is not None:
-                if state.se.solution(current_expr, needed):
+                if state.solver.solution(current_expr, needed):
                     l.debug("...... is_solution!")
                     c_ok = True
                 else:
@@ -167,7 +166,7 @@ class BP(object):
 
                 if c_ok and self.kwargs.get(a+'_unique', True):
                     l.debug("...... checking uniqueness")
-                    if not state.se.unique(current_expr):
+                    if not state.solver.unique(current_expr):
                         l.debug("...... not unique")
                         c_ok = False
             else:
@@ -235,7 +234,7 @@ class SimInspector(SimStatePlugin):
         and fires the ones whose conditions match.
         """
         l.debug("Event %s (%s) firing...", event_type, when)
-        for k,v in kwargs.iteritems():
+        for k,v in kwargs.items():
             if k not in inspect_attributes:
                 raise ValueError("Invalid inspect attribute %s passed in. Should be one of: %s" % (k, inspect_attributes))
             #l.debug("... %s = %r", k, v)
@@ -301,7 +300,7 @@ class SimInspector(SimStatePlugin):
         for i in inspect_attributes:
             setattr(c, i, getattr(self, i))
 
-        for t,a in self._breakpoints.iteritems():
+        for t,a in self._breakpoints.items():
             c._breakpoints[t].extend(a)
         return c
 

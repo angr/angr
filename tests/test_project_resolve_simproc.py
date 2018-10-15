@@ -18,9 +18,9 @@ def test_bina():
     rand_jmpslot = p.loader.main_object.jmprel['rand']
     read_jmpslot = p.loader.main_object.jmprel['read']
 
-    sleep_addr = p.loader.memory.read_addr_at(sleep_jmpslot.rebased_addr)
-    rand_addr = p.loader.memory.read_addr_at(rand_jmpslot.rebased_addr)
-    read_addr = p.loader.memory.read_addr_at(read_jmpslot.rebased_addr)
+    sleep_addr = p.loader.memory.unpack_word(sleep_jmpslot.rebased_addr)
+    rand_addr = p.loader.memory.unpack_word(rand_jmpslot.rebased_addr)
+    read_addr = p.loader.memory.unpack_word(read_jmpslot.rebased_addr)
 
     libc_sleep_addr = p.loader.shared_objects['libc.so.6'].get_symbol('sleep').rebased_addr
     libc_rand_addr = p.loader.shared_objects['libc.so.6'].get_symbol('rand').rebased_addr

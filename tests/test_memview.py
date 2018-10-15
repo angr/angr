@@ -11,9 +11,9 @@ def test_simple_concrete():
     addr = 0xba5e0
 
     def check_read(val):
-        nose.tools.assert_equal(s.se.eval(s.memory.load(addr, 8, endness=Endness.LE), cast_to=int), val)
+        nose.tools.assert_equal(s.solver.eval(s.memory.load(addr, 8, endness=Endness.LE), cast_to=int), val)
 
-        nose.tools.assert_equal(s.mem[addr].char.concrete, chr(val & 0xFF))
+        nose.tools.assert_equal(s.mem[addr].char.concrete, chr(val & 0xFF).encode())
         nose.tools.assert_equal(s.mem[addr].byte.concrete, val & 0xFF)
 
         nose.tools.assert_equal(s.mem[addr].int16_t.concrete, ctypes.c_int16(val & 0xFFFF).value)
@@ -33,20 +33,20 @@ def test_string_concrete():
     addr = 0xba5e0
 
     def check_read(val):
-        nose.tools.assert_equal(s.se.eval(s.memory.load(addr, len(val)), cast_to=str), val)
-        nose.tools.assert_equal(s.se.eval(s.memory.load(addr + len(val), 1), cast_to=int), 0)
+        nose.tools.assert_equal(s.solver.eval(s.memory.load(addr, len(val)), cast_to=bytes), val)
+        nose.tools.assert_equal(s.solver.eval(s.memory.load(addr + len(val), 1), cast_to=int), 0)
 
         nose.tools.assert_equal(s.mem[addr].string.concrete, val)
 
-    s.memory.store(addr, "a string!\0")
-    check_read("a string!")
+    s.memory.store(addr, b"a string!\0")
+    check_read(b"a string!")
 
     # not supported yet
     # s.mem[addr].string = "shorter"
-    # check_read("shorter")
+    # check_read(b"shorter")
 
     # s.mem[addr].string = "a longer string"
-    # check_read("a longer string")
+    # check_read(b"a longer string")
 
 def test_array_concrete():
     s = SimState(arch="AMD64")
@@ -64,13 +64,13 @@ def test_array_concrete():
     nose.tools.assert_equal(s.mem[addr].dword.array(2).array(2).concrete, [[0x1, 0x2], [0x3, 0x4]])
 
     s.mem[addr].dword.array(5)[3] = 10
-    nose.tools.assert_equals(s.se.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int), 10)
+    nose.tools.assert_equal(s.solver.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int), 10)
 
     s.mem[addr].dword.array(5).store([20,2,3,4,5])
-    nose.tools.assert_equals(s.mem[addr].dword.array(4).concrete, [20,2,3,4])
+    nose.tools.assert_equal(s.mem[addr].dword.array(4).concrete, [20,2,3,4])
 
     s.mem[addr].dword.array(2).array(2).store([[1,2], [4,3]])
-    nose.tools.assert_equals(s.mem[addr].dword.array(4).concrete, [1,2,4,3])
+    nose.tools.assert_equal(s.mem[addr].dword.array(4).concrete, [1,2,4,3])
 
 def test_pointer_concrete():
     s = SimState(arch="AMD64")
@@ -78,11 +78,11 @@ def test_pointer_concrete():
     ptraddr = 0xcd0
 
     s.memory.store(ptraddr, claripy.BVV(addr, 64), endness=Endness.LE)
-    s.memory.store(addr, "abcdef\0")
+    s.memory.store(addr, b"abcdef\0")
 
-    nose.tools.assert_equal(s.mem[ptraddr].deref.string.concrete, "abcdef")
+    nose.tools.assert_equal(s.mem[ptraddr].deref.string.concrete, b"abcdef")
     s.mem[ptraddr].deref.dword = 123954
-    nose.tools.assert_equal(s.se.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int), 123954)
+    nose.tools.assert_equal(s.solver.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int), 123954)
     nose.tools.assert_equal(s.mem[ptraddr].deref.dword.concrete, 123954)
 
 def test_structs():
@@ -97,7 +97,7 @@ struct abcd {
 
     s.mem[0x8000].struct.abcd = {'a': 10, 'b': 20}
     assert s.mem[0x8000].struct.abcd.a.concrete == 10
-    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=str) == '0a000000000000001400000000000000'.decode('hex')
+    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes) == bytes.fromhex('0a000000000000001400000000000000')
 
 
 if __name__ == '__main__':

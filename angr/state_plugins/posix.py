@@ -163,11 +163,11 @@ class SimSystemPosix(SimStatePlugin):
     def init_state(self):
         if self.dev_fs is None:
             self.dev_fs = PosixDevFS()
-            self.state.fs.mount("/dev", self.dev_fs)
+            self.state.fs.mount(b"/dev", self.dev_fs)
 
     def set_brk(self, new_brk):
         # arch word size is not available at init for some reason, fix that here
-        if isinstance(self.brk, (int, long)):
+        if isinstance(self.brk, int):
             self.brk = self.state.solver.BVV(self.brk, self.state.arch.bits)
 
         if new_brk.symbolic:
@@ -209,7 +209,7 @@ class SimSystemPosix(SimStatePlugin):
         self.stderr.set_state(state)
 
     def _pick_fd(self):
-        for fd in xrange(0, 8192):
+        for fd in range(0, 8192):
             if fd not in self.fd:
                 return fd
         raise SimPosixError('exhausted file descriptors')
@@ -229,6 +229,8 @@ class SimSystemPosix(SimStatePlugin):
 
         if len(name) == 0:
             return None
+        if type(name) is str:
+            name = name.encode()
 
         # TODO: speed this up (editor's note: ...really? this is fine)
         fd = None
@@ -335,28 +337,28 @@ class SimSystemPosix(SimStatePlugin):
         # sizes are AMD64-specific for now
         # TODO: import results from concrete FS, if using concrete FS
         if self.state.solver.symbolic(fd):
-            mode = self.state.se.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
+            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
         else:
-            fd = self.state.se.eval(fd)
-            mode = self.state.se.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.se.BVV(0, 32)
+            fd = self.state.solver.eval(fd)
+            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
             # return this weird bogus zero value to keep code paths in libc simple :\
 
-        return Stat(self.state.se.BVV(0, 64), # st_dev
-                    self.state.se.BVV(0, 64), # st_ino
-                    self.state.se.BVV(0, 64), # st_nlink
+        return Stat(self.state.solver.BVV(0, 64), # st_dev
+                    self.state.solver.BVV(0, 64), # st_ino
+                    self.state.solver.BVV(0, 64), # st_nlink
                     mode, # st_mode
-                    self.state.se.BVV(0, 32), # st_uid (lol root)
-                    self.state.se.BVV(0, 32), # st_gid
-                    self.state.se.BVV(0, 64), # st_rdev
-                    self.state.se.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
-                    self.state.se.BVV(0, 64), # st_blksize
-                    self.state.se.BVV(0, 64), # st_blocks
-                    self.state.se.BVV(0, 64), # st_atime
-                    self.state.se.BVV(0, 64), # st_atimensec
-                    self.state.se.BVV(0, 64), # st_mtime
-                    self.state.se.BVV(0, 64), # st_mtimensec
-                    self.state.se.BVV(0, 64), # st_ctime
-                    self.state.se.BVV(0, 64)) # st_ctimensec
+                    self.state.solver.BVV(0, 32), # st_uid (lol root)
+                    self.state.solver.BVV(0, 32), # st_gid
+                    self.state.solver.BVV(0, 64), # st_rdev
+                    self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
+                    self.state.solver.BVV(0, 64), # st_blksize
+                    self.state.solver.BVV(0, 64), # st_blocks
+                    self.state.solver.BVV(0, 64), # st_atime
+                    self.state.solver.BVV(0, 64), # st_atimensec
+                    self.state.solver.BVV(0, 64), # st_mtime
+                    self.state.solver.BVV(0, 64), # st_mtimensec
+                    self.state.solver.BVV(0, 64), # st_ctime
+                    self.state.solver.BVV(0, 64)) # st_ctimensec
 
     def sigmask(self, sigsetsize=None):
         """
@@ -367,11 +369,11 @@ class SimSystemPosix(SimStatePlugin):
         """
         if self._sigmask is None:
             if sigsetsize is not None:
-                sc = self.state.se.eval(sigsetsize)
+                sc = self.state.solver.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
-                self._sigmask = self.state.se.BVS('initial_sigmask', sc*self.state.arch.byte_width, key=('initial_sigmask',), eternal=True)
+                self._sigmask = self.state.solver.BVS('initial_sigmask', sc*self.state.arch.byte_width, key=('initial_sigmask',), eternal=True)
             else:
-                self._sigmask = self.state.se.BVS('initial_sigmask', self.sigmask_bits, key=('initial_sigmask',), eternal=True)
+                self._sigmask = self.state.solver.BVS('initial_sigmask', self.sigmask_bits, key=('initial_sigmask',), eternal=True)
         return self._sigmask
 
     def sigprocmask(self, how, new_mask, sigsetsize, valid_ptr=True):
@@ -384,12 +386,12 @@ class SimSystemPosix(SimStatePlugin):
         :param valid_ptr: is set if the new_mask was not NULL
         """
         oldmask = self.sigmask(sigsetsize)
-        self._sigmask = self.state.se.If(valid_ptr,
-            self.state.se.If(how == self.SIG_BLOCK,
+        self._sigmask = self.state.solver.If(valid_ptr,
+            self.state.solver.If(how == self.SIG_BLOCK,
                 oldmask | new_mask,
-                self.state.se.If(how == self.SIG_UNBLOCK,
+                self.state.solver.If(how == self.SIG_UNBLOCK,
                     oldmask & (~new_mask),
-                    self.state.se.If(how == self.SIG_SETMASK,
+                    self.state.solver.If(how == self.SIG_SETMASK,
                         new_mask,
                         oldmask
                      )
@@ -474,10 +476,13 @@ class SimSystemPosix(SimStatePlugin):
         Returns the concrete content for a file by path.
 
         :param path: file path as string
-        :param kwargs: passed to state.se.eval
+        :param kwargs: passed to state.solver.eval
         :return: file contents as string
         """
-        return self.state.fs.get(path).concretize(**kwargs)
+        file = self.state.fs.get(path)
+        if file is None:
+            return None
+        return file.concretize(**kwargs)
 
     def dumps(self, fd, **kwargs):
         """
@@ -493,7 +498,7 @@ class SimSystemPosix(SimStatePlugin):
         if 0 <= fd <= 2:
             data = [self.stdin, self.stdout, self.stderr][fd].concretize(**kwargs)
             if type(data) is list:
-                data = ''.join(data)
+                data = b''.join(data)
             return data
         return self.get_fd(fd).concretize(**kwargs)
 

@@ -14,14 +14,14 @@ def test_rol_x86_64():
     proj = angr.Project(binary_path)
 
     initial_state = proj.factory.blank_state(addr=0x401000)
-    r_rax = initial_state.se.BVS('rax', 64)
+    r_rax = initial_state.solver.BVS('rax', 64)
     initial_state.regs.rax = r_rax
 
-    pg = proj.factory.simgr(initial_state, immutable=False)
+    pg = proj.factory.simulation_manager(initial_state)
     pg.explore(find=0x401013, avoid=0x401010)
     found_state = pg.found[0]
 
-    result = found_state.se.eval(r_rax)
+    result = found_state.solver.eval(r_rax)
     nose.tools.assert_equal(result, 0x37B7AB70)
 
 def test_rol_i386():
@@ -30,14 +30,14 @@ def test_rol_i386():
     proj = angr.Project(binary_path)
 
     initial_state = proj.factory.blank_state(addr=0x401000)
-    r_eax = initial_state.se.BVS('eax', 32)
+    r_eax = initial_state.solver.BVS('eax', 32)
     initial_state.regs.eax = r_eax
 
-    pg = proj.factory.simgr(initial_state, immutable=False)
+    pg = proj.factory.simulation_manager(initial_state)
     pg.explore(find=0x401013, avoid=0x401010)
     found_state = pg.found[0]
 
-    result = found_state.se.eval(r_eax)
+    result = found_state.solver.eval(r_eax)
     nose.tools.assert_equal(result, 0x37B7AB70) 
 
 def test_all():

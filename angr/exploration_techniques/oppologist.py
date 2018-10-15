@@ -45,9 +45,9 @@ class Oppologist(ExplorationTechnique):
 
         l.debug("... successors: %s", ss)
 
-        return {'active': map(fixup, [ s for s in ss.flat_successors ]),
-                'unconstrained': map(fixup, ss.unconstrained_successors),
-                'unsat': map(fixup, ss.unsat_successors),
+        return {'active': [fixup(s) for s in ss.flat_successors],
+                'unconstrained': [fixup(s) for s in ss.unconstrained_successors],
+                'unsat': [fixup(s) for s in ss.unsat_successors],
                 }
 
     @staticmethod
@@ -55,10 +55,10 @@ class Oppologist(ExplorationTechnique):
         all_results = defaultdict(list)
 
         for stashes_dict in results:
-            for stash, paths in stashes_dict.iteritems():
+            for stash, paths in stashes_dict.items():
                 all_results[stash].extend(paths)
 
-        return {stash: paths for stash, paths in all_results.iteritems()}
+        return {stash: paths for stash, paths in all_results.items()}
 
     def _delayed_oppology(self, state, e, **kwargs):
         ss = self.project.factory.successors(state, num_inst=e.executed_instruction_count, **kwargs)
@@ -69,7 +69,7 @@ class Oppologist(ExplorationTechnique):
                     'unsat': ss.unsat_successors,
                   }]
 
-        results += map(functools.partial(self._oppologize, state, **kwargs), need_oppologizing)
+        results.extend(map(functools.partial(self._oppologize, state, **kwargs), need_oppologizing))
         return self._combine_results(*results)
 
     def step_state(self, simgr, state, successor_func=None, **kwargs):

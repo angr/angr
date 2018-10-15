@@ -17,12 +17,11 @@ def test_amd64():
     EXPECTED_BLOCKS = { 0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007B3, 0x4007C7,
                         0x4007C9, 0x4007BD, 0x4007D3 }
     EXPECTED_CALLSITES = { 0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007BD, 0x4007C9 }
-    EXPECTED_CALLSITE_TARGETS = { 4195600L, 4195632L, 4195632L, 4195600L, 4195632L, 4195632L, 4195940L, 4196077L,
-                                  4196093L }
+    EXPECTED_CALLSITE_TARGETS = { 4195600, 4195632, 4195632, 4195600, 4195632, 4195632, 4195940, 4196077, 4196093 }
     EXPECTED_CALLSITE_RETURNS = { 0x40073e, 0x400754, 0x40076a, 0x400774, 0x40078a, 0x4007a0, 0x4007b3, 0x4007c7,
                                   None }
 
-    cfg = fauxware_amd64.analyses.CFGAccurate()  # pylint:disable=unused-variable
+    cfg = fauxware_amd64.analyses.CFGEmulated()  # pylint:disable=unused-variable
     nose.tools.assert_equal(set([ k for k in fauxware_amd64.kb.functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
     main = fauxware_amd64.kb.functions.function(name='main')

@@ -77,8 +77,8 @@ class Block(object):
         if byte_string is None:
             if backup_state is not None:
                 self._bytes = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)[0]
-                if type(self._bytes) is not str:
-                    self._bytes = str(pyvex.ffi.buffer(self._bytes, size))
+                if type(self._bytes) is not bytes:
+                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:
@@ -112,7 +112,7 @@ class Block(object):
         return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
 
     def __setstate__(self, data):
-        for k, v in data.iteritems():
+        for k, v in data.items():
             setattr(self, k, v)
 
     def __hash__(self):
@@ -201,14 +201,7 @@ class Block(object):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
-            buf, size = self._project.loader.memory.read_bytes_c(addr)
-
-            # Make sure it does not go over-bound
-            if buf is not None and self.size <= size:
-                self._bytes = pyvex.ffi.unpack(pyvex.ffi.cast('char*', buf), self.size)
-            else:
-                # fall back to the slow path
-                self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
+            self._bytes = self._project.loader.memory.load(addr, self.size)
         return self._bytes
 
     @property
@@ -242,7 +235,7 @@ class CapstoneBlock(object):
         self.arch = arch
 
     def pp(self):
-        print str(self)
+        print(str(self))
 
     def __str__(self):
         return '\n'.join(map(str, self.insns))

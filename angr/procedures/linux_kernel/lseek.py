@@ -5,8 +5,6 @@ l = logging.getLogger("angr.procedures.syscalls.lseek")
 
 class lseek(angr.SimProcedure):
 
-    IS_SYSCALL = True
-
     def run(self, fd, seek, whence): #pylint:disable=arguments-differ,unused-argument
 
         if self.state.solver.symbolic(whence):
@@ -25,12 +23,12 @@ class lseek(angr.SimProcedure):
             return -1
 
         # let's see what happens...
-        #if self.state.se.symbolic(seek):
+        #if self.state.solver.symbolic(seek):
         #    err = "Symbolic seek is not supported in lseek syscall."
         #    l.error(err)
         #    raise angr.errors.SimPosixError(err)
 
-        #seek = self.state.se.eval(seek)
+        #seek = self.state.solver.eval(seek)
 
         simfd = self.state.posix.get_fd(fd)
         if simfd is None:

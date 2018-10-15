@@ -243,7 +243,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
                                                 definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
                                                 OP_AFTER.
-        :param LiveDefinitions init_state:  An optional initialization state. The analysis creates and works on a
+        :param angr.analyses.reaching_definitions.reaching_definitions.LiveDefinitions init_state:
+                                                An optional initialization state. The analysis creates and works on a
                                                 copy.
         :param bool init_func:                  Whether stack and arguments are initialized or not.
         :param SimCC cc:                        Calling convention of the function.
@@ -320,7 +321,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         if len(self.observed_results) != 1:
             raise ValueError("More than one results are available.")
 
-        return next(self.observed_results.itervalues())
+        return next(iter(self.observed_results.values()))
 
     def observe(self, ins_addr, stmt, block, state, ob_type):
         if self._observation_points is not None and (ins_addr, ob_type) in self._observation_points:

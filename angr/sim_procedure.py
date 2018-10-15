@@ -33,7 +33,7 @@ class SimProcedure(object):
     """
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
-        returns=None, is_syscall=None, is_stub=False,
+        returns=None, is_syscall=False, is_stub=False,
         num_args=None, display_name=None, library_name=None,
         is_function=None, **kwargs
     ):
@@ -57,7 +57,7 @@ class SimProcedure(object):
 
         # set some properties about the type of procedure this is
         self.returns = returns if returns is not None else not self.NO_RET
-        self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
+        self.is_syscall = is_syscall
         self.is_function = is_function if is_function is not None else self.IS_FUNCTION
         self.is_stub = is_stub
         self.is_continuation = False
@@ -75,16 +75,26 @@ class SimProcedure(object):
         self.state = None
         self.successors = None
         self.arguments = None
-        self.use_state_arguments = None
+        self.use_state_arguments = True
         self.ret_to = None
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
 
     def __repr__(self):
-        syscall = ' (syscall)' if self.IS_SYSCALL else ''
-        stub = ' (stub)' if self.is_stub else ''
-        return "<SimProcedure %s%s%s>" % (self.display_name, syscall, stub)
+        return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
+
+    def _describe_me(self):
+        """
+        return a 5-tuple of strings sufficient for formatting with ``%s%s%s%s%s`` to verbosely describe the procedure
+        """
+        return (
+            self.display_name,
+            ' (cont: %s)' % self.run_func if self.is_continuation else '',
+            ' (syscall)' if self.is_syscall else '',
+            ' (inline)' if not self.use_state_arguments else '',
+            ' (stub)' if self.is_stub else '',
+        )
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
@@ -151,7 +161,7 @@ class SimProcedure(object):
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
-                    sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
+                    sim_args = [ inst.arg(_) for _ in range(inst.num_args) ]
                     inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
@@ -159,13 +169,7 @@ class SimProcedure(object):
                     inst.arguments = arguments
 
             # run it
-            l.debug("Executing %s%s%s%s with %s, %s",
-                    inst.display_name,
-                    ' (syscall)' if inst.is_syscall else '',
-                    ' (inline)' if not inst.use_state_arguments else '',
-                    ' (stub)' if inst.is_stub else '',
-                    sim_args,
-                    inst.kwargs)
+            l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         if inst.returns and inst.is_function and not inst.inhibit_autoret:
@@ -177,7 +181,13 @@ class SimProcedure(object):
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
             cont = copy.copy(self.canonical)
-            cont.addr = self.project.loader.extern_object.allocate()
+            target_name = '%s.%s' % (self.display_name, name)
+            should_be_none = self.project.loader.extern_object.get_symbol(target_name)
+            if should_be_none is None:
+                cont.addr = self.project.loader.extern_object.make_extern(target_name).rebased_addr
+            else:
+                l.error("Trying to make continuation %s but it already exists. This is bad.", target_name)
+                cont.addr = self.project.loader.extern_object.allocate()
             cont.is_continuation = True
             cont.run_func = name
             self.canonical.continuations[name] = cont
@@ -190,7 +200,6 @@ class SimProcedure(object):
 
     NO_RET = False          # set this to true if control flow will never return from this function
     ADDS_EXITS = False      # set this to true if you do any control flow other than returning
-    IS_SYSCALL = False      # self-explanatory.
     IS_FUNCTION = True      # does this procedure simulate a function?
     ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
                             # function specification? This may happen when we manually extract arguments in the run()
@@ -274,7 +283,7 @@ class SimProcedure(object):
         :param sim_kwargs:      Any additional keyword args will be passed as sim_kwargs to the
                                 procedure construtor
         """
-        e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
+        e_args = [ self.state.solver.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments ]
         p = procedure(project=self.project, **kwargs)
         return p.execute(self.state, None, arguments=e_args)
 
@@ -290,7 +299,7 @@ class SimProcedure(object):
             if o.SIMPLIFY_RETS in self.state.options:
                 l.debug("... simplifying")
                 l.debug("... before: %s", expr)
-                expr = self.state.se.simplify(expr)
+                expr = self.state.solver.simplify(expr)
                 l.debug("... after: %s", expr)
 
             if self.symbolic_return:
@@ -322,7 +331,7 @@ class SimProcedure(object):
             raise SimProcedureError("No source for return address in ret() call!")
 
         self._exit_action(self.state, ret_addr)
-        self.successors.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
+        self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
 
     def call(self, addr, args, continue_at, cc=None):
         """
@@ -342,7 +351,7 @@ class SimProcedure(object):
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
         simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars, self.state.regs.lr if self.state.arch.lr_offset is not None else None)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
@@ -355,14 +364,14 @@ class SimProcedure(object):
             call_state.regs.t9 = addr
 
         self._exit_action(call_state, addr)
-        self.successors.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
+        self.successors.add_successor(call_state, addr, call_state.solver.true, 'Ijk_Call')
 
         if o.DO_RET_EMULATION in self.state.options:
             # we need to set up the call because the continuation will try to tear it down
             ret_state = self.state.copy()
             cc.setup_callsite(ret_state, ret_addr, args)
             ret_state.callstack.top.procedure_data = simcallstack_entry
-            guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
+            guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.solver.false
             self.successors.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
 
     def jump(self, addr):
@@ -371,7 +380,7 @@ class SimProcedure(object):
         """
         self.inhibit_autoret = True
         self._exit_action(self.state, addr)
-        self.successors.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
+        self.successors.add_successor(self.state, addr, self.state.solver.true, 'Ijk_Boring')
 
     def exit(self, exit_code):
         """
@@ -381,10 +390,10 @@ class SimProcedure(object):
         self.state.options.discard(o.AST_DEPS)
         self.state.options.discard(o.AUTO_REFS)
 
-        if isinstance(exit_code, (int, long)):
-            exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
+        if isinstance(exit_code, int):
+            exit_code = self.state.solver.BVV(exit_code, self.state.arch.bits)
         self.state.history.add_event('terminate', exit_code=exit_code)
-        self.successors.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
+        self.successors.add_successor(self.state, self.state.regs.ip, self.state.solver.true, 'Ijk_Exit')
 
     @staticmethod
     def _exit_action(state, addr):

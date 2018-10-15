@@ -42,8 +42,7 @@ def test_simple():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     codegen = p.analyses.StructuredCodeGenerator(rs.result)
-
-    print codegen.text
+    print(codegen.text)
 
 
 def test_simple_loop():
@@ -63,8 +62,7 @@ def test_simple_loop():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     codegen = p.analyses.StructuredCodeGenerator(rs.result)
-
-    print codegen.text
+    print(codegen.text)
 
 
 def test_recursive_structuring():
@@ -84,8 +82,7 @@ def test_recursive_structuring():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     codegen = p.analyses.StructuredCodeGenerator(rs.result)
-
-    print codegen.text
+    print(codegen.text)
 
 
 def test_while_true_break():
@@ -106,7 +103,7 @@ def test_while_true_break():
 
     codegen = p.analyses.StructuredCodeGenerator(rs.result)
 
-    print codegen.text
+    print(codegen.text)
 
 def test_while():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),
@@ -126,7 +123,7 @@ def test_while():
 
     codegen = p.analyses.StructuredCodeGenerator(rs.result)
 
-    print codegen.text
+    print(codegen.text)
 
 
 if __name__ == "__main__":

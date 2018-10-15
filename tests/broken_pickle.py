@@ -15,7 +15,6 @@ def test_pickle_state():
     del p
     del s2
 
-    #import ipdb; ipdb.set_trace()
     import gc; gc.collect()
 
     s2 = pickle.loads(s_str)

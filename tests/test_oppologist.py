@@ -10,7 +10,7 @@ def _ultra_oppologist(p, s):
         angr.engines.vex.irop.operations.clear()
         angr.engines.vex.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
 
-        pg = p.factory.simgr(s)
+        pg = p.factory.simulation_manager(s)
         pg.use_technique(angr.exploration_techniques.Oppologist())
         pg.explore()
 
@@ -27,11 +27,11 @@ def test_fauxware_oppologist():
     pg = _ultra_oppologist(p, s)
     assert len(pg.deadended) == 1
     assert len(pg.deadended[0].posix.dumps(0)) == 18
-    assert pg.deadended[0].posix.dumps(1).count("\n") == 3
+    assert pg.deadended[0].posix.dumps(1).count(b"\n") == 3
 
 def test_cromu_70():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/CROMU_00070'))
-    inp = "030e000001000001001200010000586d616ce000000600030000040dd0000000000600000606000006030e000001000001003200010000586d616ce0030000000000030e000001000001003200010000586d616ce003000000000006000006030e000001000001003200010000586d616ce0030000df020000".decode('hex')
+    inp = bytes.fromhex("030e000001000001001200010000586d616ce000000600030000040dd0000000000600000606000006030e000001000001003200010000586d616ce0030000000000030e000001000001003200010000586d616ce003000000000006000006030e000001000001003200010000586d616ce0030000df020000")
     s = p.factory.full_init_state(
         add_options={ angr.options.UNICORN },
         remove_options={ angr.options.LAZY_SOLVES, angr.options.SUPPORT_FLOATING_POINT },
@@ -39,17 +39,17 @@ def test_cromu_70():
     )
 
     #import traceit
-    pg = p.factory.simgr(s)
+    pg = p.factory.simulation_manager(s)
     pg.use_technique(angr.exploration_techniques.Oppologist())
-    pg.explore()
-    assert pg.one_deadended.history.block_count > 1500
+    pg.run(n=50)
+    assert pg.one_active.history.block_count > 1500
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
-            print f
+            print(f)
             all_functions[f]()
 
 

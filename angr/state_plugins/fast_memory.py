@@ -44,7 +44,7 @@ class SimFastMemory(SimMemory):
         The default uninitialized read handler. Returns symbolic bytes.
         """
         if self._uninitialized_read_handler is None:
-            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*self.state.arch.byte_width, key=self.variable_key_prefix + (addr,), inspect=inspect, events=events)
+            v = self.state.solver.Unconstrained("%s_%s" % (self.id, addr), self.width*self.state.arch.byte_width, key=self.variable_key_prefix + (addr,), inspect=inspect, events=events)
             return v.reversed if self.endness == "Iend_LE" else v
         else:
             return self._uninitialized_read_handler(self, addr, inspect=inspect, events=events)
@@ -55,7 +55,7 @@ class SimFastMemory(SimMemory):
         """
         if isinstance(a, claripy.ast.Base) and not a.singlevalued:
             raise SimFastMemoryError("address not supported")
-        return self.state.se.eval(a)
+        return self.state.solver.eval(a)
 
     def _translate_data(self, d): #pylint:disable=no-self-use
         """
@@ -71,7 +71,7 @@ class SimFastMemory(SimMemory):
             raise SimFastMemoryError("size not supported")
         if s is None:
             return s
-        return self.state.se.eval(s)
+        return self.state.solver.eval(s)
 
     def _translate_cond(self, c): #pylint:disable=no-self-use
         """
@@ -82,7 +82,7 @@ class SimFastMemory(SimMemory):
         if c is None:
             return True
         else:
-            return self.state.se.eval_upto(c, 1)[0]
+            return self.state.solver.eval_upto(c, 1)[0]
 
     def _resolve_access(self, addr, size):
         """
@@ -151,7 +151,7 @@ class SimFastMemory(SimMemory):
         if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
             data = data.reversed
         addr = self._translate_addr(req.addr)
-        size = self._translate_addr(req.size) if req.size is not None else data.length/self.state.arch.byte_width
+        size = self._translate_addr(req.size) if req.size is not None else data.length//self.state.arch.byte_width
 
         #
         # simplify
@@ -159,7 +159,7 @@ class SimFastMemory(SimMemory):
 
         if (self.category == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
            (self.category == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
-            data = self.state.se.simplify(data)
+            data = self.state.solver.simplify(data)
 
         accesses = self._resolve_access(addr, size)
         if len(accesses) == 1:
@@ -218,7 +218,7 @@ class SimFastMemory(SimMemory):
         changes = set()
 
         l.warning("FastMemory.changed_bytes(): This implementation is very slow and only for debug purposes.")
-        for addr,v in self._contents.iteritems():
+        for addr,v in self._contents.items():
             for i in range(self.width):
                 other_byte = other.load(addr+i, 1)
                 our_byte = v.get_byte(i)

@@ -41,7 +41,8 @@ class Checker(object):
             return True
 
         stdin_input = path.posix.stdin.content[1][0] # skip the first char used in switch
-        some_strings = path.se.eval_upto(stdin_input, 1000, cast_to=str)
+        some_strings = path.solver.eval_upto(stdin_input, 1000, cast_to=bytes)
+        some_strings = [x.decode() for x in some_strings]
 
         check_passes = False
 
@@ -62,20 +63,20 @@ def test_scanf():
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/scanf_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.simgr(immutable=False)
+    pg = b.factory.simulation_manager()
 
     # find the end of main
     expected_outputs = {
-        "%%07x\n":                      Checker(lambda s: int(s, 16) == 0xaaaa, length=7, base=16),
-        "%%07x and negative numbers\n": Checker(lambda s: int(s, 16) == -0xcdcd, length=7, base=16),
-        "nope 0\n":                     Checker(None, dummy=True),
-        "%%d\n":                        Checker(lambda s: int(s) == 133337),
-        "%%d and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 1337),
-        "nope 1\n":                     Checker(None, dummy=True),
-        "%%u\n":                        Checker(lambda s: int(s) == 0xaaaa),
-        "%%u and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 0xcdcd),
-        "nope 2\n":                     Checker(None, dummy=True),
-        "Unsupported switch\n":         Checker(None, dummy=True),
+        b"%%07x\n":                      Checker(lambda s: int(s, 16) == 0xaaaa, length=7, base=16),
+        b"%%07x and negative numbers\n": Checker(lambda s: int(s, 16) == -0xcdcd, length=7, base=16),
+        b"nope 0\n":                     Checker(None, dummy=True),
+        b"%%d\n":                        Checker(lambda s: int(s) == 133337),
+        b"%%d and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 1337),
+        b"nope 1\n":                     Checker(None, dummy=True),
+        b"%%u\n":                        Checker(lambda s: int(s) == 0xaaaa),
+        b"%%u and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 0xcdcd),
+        b"nope 2\n":                     Checker(None, dummy=True),
+        b"Unsupported switch\n":         Checker(None, dummy=True),
     }
     pg.explore(find=0x4007f3, num_find=len(expected_outputs))
 

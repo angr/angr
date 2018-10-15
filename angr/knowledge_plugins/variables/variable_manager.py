@@ -71,7 +71,7 @@ class VariableManagerInternal(object):
         else:
             prefix = "m"
 
-        return "i%s_%d" % (prefix, self._variable_counters[sort].next())
+        return "i%s_%d" % (prefix, next(self._variable_counters[sort]))
 
     def add_variable(self, sort, start, variable):
         if sort == 'stack':
@@ -256,7 +256,7 @@ class VariableManagerInternal(object):
 
         input_variables = [ ]
 
-        for variable, accesses in self._variable_accesses.iteritems():
+        for variable, accesses in self._variable_accesses.items():
             if not has_write_access(accesses) and has_read_access(accesses):
                 if not exclude_specials or not variable.category:
                     input_variables.append(variable)
@@ -313,7 +313,7 @@ class VariableManager(KnowledgeBasePlugin):
             return self.get_function_manager(key)
 
     def get_function_manager(self, func_addr):
-        if not isinstance(func_addr, (int, long)):
+        if not isinstance(func_addr, int):
             raise TypeError('Argument "func_addr" must be an int.')
 
         if func_addr not in self.function_managers:
@@ -323,7 +323,7 @@ class VariableManager(KnowledgeBasePlugin):
 
     def initialize_variable_names(self):
         self.global_manager.assign_variable_names()
-        for manager in self.function_managers.itervalues():
+        for manager in self.function_managers.values():
             manager.assign_variable_names()
 
     def get_variable_accesses(self, variable, same_name=False):

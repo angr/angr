@@ -507,7 +507,7 @@ class Structurer(Analysis):
                 break
 
         # make all conditionally-reachable nodes a ConditionNode
-        for i in xrange(len(seq.nodes)):
+        for i in range(len(seq.nodes)):
             node = seq.nodes[i]
             if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
                 new_node = ConditionNode(node.addr, None, node.reaching_condition, node, None)

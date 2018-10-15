@@ -576,7 +576,7 @@ class RegionIdentifier(Analysis):
 
     @staticmethod
     def _dbg_block_list(blocks):
-        return map(lambda block: hex(block.addr), blocks)
+        return [hex(b.addr) for b in blocks]
 
 
 register_analysis(RegionIdentifier, 'RegionIdentifier')

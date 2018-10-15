@@ -16,7 +16,7 @@ def test_signed_div():
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/test_signed_div")
     b = angr.Project(test_bin)
 
-    pg = b.factory.simgr()
+    pg = b.factory.simulation_manager()
     pg.explore()
     out_angr = pg.deadended[0].posix.dumps(1)
     proc = subprocess.Popen(test_bin, stdout=subprocess.PIPE)

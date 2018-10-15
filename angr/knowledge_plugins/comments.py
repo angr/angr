@@ -9,7 +9,7 @@ class Comments(KnowledgeBasePlugin, dict):
 
     def copy(self):
         o = Comments(self._kb)
-        o.update({k: v for k, v in self.iteritems()})
+        o.update({k: v for k, v in self.items()})
 
 
 KnowledgeBasePlugin.register_default('comments', Comments)
