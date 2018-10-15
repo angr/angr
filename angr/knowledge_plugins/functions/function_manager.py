@@ -24,13 +24,16 @@ class FunctionDict(SortedDict):
         try:
             return super(FunctionDict, self).__getitem__(addr)
         except KeyError:
-            if not isinstance(addr, (int, long)):
+            if not isinstance(addr, int):
                 raise TypeError("FunctionDict only supports int as key type")
 
             t = Function(self._backref, addr)
             self[addr] = t
             self._backref._function_added(t)
             return t
+
+    def get(self, addr):
+        return super(FunctionDict, self).__getitem__(addr)
 
     def floor_addr(self, addr):
         try:
@@ -85,7 +88,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
                 f.write("%#x\tDirectEdge\t%#x\n" % (src, dst))
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
-        if type(node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(node) is int:  # pylint: disable=unidiomatic-typecheck
             node = self._kb._project.factory.snippet(node, size=size)
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
@@ -93,12 +96,12 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None, stmt_idx=None, ins_addr=None,
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None, ins_addr=None,
                      return_to_outside=False):
 
-        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(retn_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(retn_node) is int:  # pylint: disable=unidiomatic-typecheck
             retn_node = self._kb._project.factory.snippet(retn_node)
         dest_func = self._function_map[to_addr]
         if syscall in (True, False):
@@ -123,9 +126,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
     def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False,
                         to_function_addr=None):
-        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         src_func = self._function_map[function_addr]
 
@@ -143,29 +146,29 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
     def _remove_fakeret(self, function_addr, from_node, to_node):
-        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None): #pylint:disable=unused-argument
-        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None):
-        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._transit_to(from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx)
 
     def _add_outside_transition_to(self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None,
                                    stmt_idx=None):
-        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             try:
                 to_node = self._kb._project.factory.snippet(to_node)
             except SimEngineError:
@@ -188,7 +191,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
         # Note that you will never return to a syscall
 
-        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         func = self._function_map[function_addr]
         src_func = self._function_map[src_function_addr]
@@ -200,7 +203,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
     def __contains__(self, item):
 
-        if type(item) in (int, long):
+        if type(item) is int:
             # this is an address
             return item in self._function_map
 
@@ -211,7 +214,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
             return False
 
     def __getitem__(self, k):
-        if type(k) in (int, long):
+        if type(k) is int:
             f = self.function(addr=k)
         elif type(k) is str:
             f = self.function(name=k)
@@ -224,14 +227,14 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return f
 
     def __setitem__(self, k, v):
-        if isinstance(k, (int, long)):
+        if isinstance(k, int):
             self._function_map[k] = v
             self._function_added(v)
         else:
             raise ValueError("FunctionManager.__setitem__ keys must be an int")
 
     def __delitem__(self, k):
-        if isinstance(k, (int, long)):
+        if isinstance(k, int):
             del self._function_map[k]
             if k in self.callgraph:
                 self.callgraph.remove_node(k)
@@ -242,8 +245,11 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return len(self._function_map)
 
     def __iter__(self):
-        for i in sorted(self._function_map.iterkeys()):
+        for i in sorted(self._function_map.keys()):
             yield i
+
+    def get_by_addr(self, addr):
+        return self._function_map.get(addr)
 
     def _function_added(self, func):
         """
@@ -277,7 +283,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
         try:
             next_addr = self._function_map.ceiling_addr(addr)
-            return self._function_map[next_addr]
+            return self._function_map.get(next_addr)
 
         except KeyError:
             return None
@@ -327,7 +333,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
                     f.is_syscall=True
                 return f
         elif name is not None:
-            for func in self._function_map.itervalues():
+            for func in self._function_map.values():
                 if func.name == name:
                     if plt is None or func.is_plt == plt:
                         return func
@@ -335,7 +341,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return None
 
     def dbg_draw(self, prefix='dbg_function_'):
-        for func_addr, func in self._function_map.iteritems():
+        for func_addr, func in self._function_map.items():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
 

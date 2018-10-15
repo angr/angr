@@ -29,7 +29,7 @@ class UniqueSearch(ExplorationTechnique):
         if self.deferred_stash not in simgr.stashes:
             simgr.stashes[self.deferred_stash] = []
 
-    def step(self, simgr, stash=None, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
 
         old_states = simgr.stashes[self.deferred_stash][:]
@@ -65,11 +65,12 @@ class UniqueSearch(ExplorationTechnique):
                 update_average(state_a, similarity)
         self.num_deadended = len(simgr.deadended)
 
-        unique_state = min(self.uniqueness.items(), key=lambda e: e[1])[0]
-        del self.uniqueness[unique_state]
+        if self.uniqueness:
+            unique_state = min(self.uniqueness.items(), key=lambda e: e[1])[0]
+            del self.uniqueness[unique_state]
 
-        simgr.move(from_stash=self.deferred_stash, to_stash=stash,
-                   filter_func=lambda s: s is unique_state)
+            simgr.move(from_stash=self.deferred_stash, to_stash=stash,
+                       filter_func=lambda s: s is unique_state)
 
         return simgr
 
@@ -83,7 +84,7 @@ class UniqueSearch(ExplorationTechnique):
         count_a = Counter(state_a.history.bbl_addrs)
         count_b = Counter(state_b.history.bbl_addrs)
         normal_distance = sum((count_a.get(addr, 0) - count_b.get(addr, 0)) ** 2
-                              for addr in set(count_a.keys() + count_b.keys())) ** 0.5
+                              for addr in set(list(count_a.keys()) + list(count_b.keys()))) ** 0.5
         return 1.0 / (1 + normal_distance)
 
     @staticmethod

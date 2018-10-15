@@ -5,7 +5,7 @@ l = logging.getLogger('angr.procedures.win32.GetModuleHandle')
 
 class GetModuleHandleA(angr.SimProcedure):
     def run(self, pointer):
-        if self.state.se.is_true(pointer == 0):
+        if self.state.solver.is_true(pointer == 0):
             return self.handle(None)
         else:
             return self.handle(self.state.mem[pointer].string.concrete)
@@ -22,7 +22,7 @@ class GetModuleHandleA(angr.SimProcedure):
 
 class GetModuleHandleW(GetModuleHandleA):
     def run(self, pointer):
-        if self.state.se.is_true(pointer == 0):
+        if self.state.solver.is_true(pointer == 0):
             return self.handle(None)
         else:
             return self.handle(self.state.mem[pointer].wstring.concrete)

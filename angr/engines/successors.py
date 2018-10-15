@@ -135,11 +135,11 @@ class SimSuccessors(object):
 
         # Next, simplify what needs to be simplified
         if o.SIMPLIFY_EXIT_STATE in state.options:
-            state.se.simplify()
+            state.solver.simplify()
         if o.SIMPLIFY_EXIT_GUARD in state.options:
-            state.scratch.guard = state.se.simplify(state.scratch.guard)
+            state.scratch.guard = state.solver.simplify(state.scratch.guard)
         if o.SIMPLIFY_EXIT_TARGET in state.options:
-            state.scratch.target = state.se.simplify(state.scratch.target)
+            state.scratch.target = state.solver.simplify(state.scratch.target)
 
         # unwrap stuff from SimActionObjects
         state.scratch.target = _raw_ast(state.scratch.target)
@@ -178,7 +178,7 @@ class SimSuccessors(object):
                 if state.arch.call_pushes_ret:
                     ret_addr = state.mem[state.regs._sp].long.concrete
                 else:
-                    ret_addr = state.se.eval(state.regs._lr)
+                    ret_addr = state.solver.eval(state.regs._lr)
             except SimSolverModeError:
                 # Use the address for UnresolvableTarget instead.
                 ret_addr = state.project.simos.unresolvable_target
@@ -189,7 +189,7 @@ class SimSuccessors(object):
                 state_addr = None
 
             try:
-                stack_ptr = state.se.eval(state.regs._sp)
+                stack_ptr = state.solver.eval(state.regs._sp)
             except SimSolverModeError:
                 stack_ptr = 0
 
@@ -203,7 +203,7 @@ class SimSuccessors(object):
 
             state._inspect('call', BP_AFTER)
         else:
-            while state.se.is_true(state.regs._sp > state.callstack.top.stack_ptr):
+            while state.solver.is_true(state.regs._sp > state.callstack.top.stack_ptr):
                 state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
                 state.callstack.pop()
                 state._inspect('return', BP_AFTER)
@@ -234,23 +234,23 @@ class SimSuccessors(object):
         target = state.scratch.target
 
         # categorize the state
-        if o.APPROXIMATE_GUARDS in state.options and state.se.is_false(state.scratch.guard, exact=False):
+        if o.APPROXIMATE_GUARDS in state.options and state.solver.is_false(state.scratch.guard, exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options:
                 if state.satisfiable():
                     raise Exception('WTF')
             self.unsat_successors.append(state)
-        elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.se.satisfiable(exact=False):
+        elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.solver.satisfiable(exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options:
-                if state.se.satisfiable():
+                if state.solver.satisfiable():
                     raise Exception('WTF')
             self.unsat_successors.append(state)
-        elif not state.scratch.guard.symbolic and state.se.is_false(state.scratch.guard):
+        elif not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
-        elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(target):
+        elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):
             self.unconstrained_successors.append(state)
-        elif not state.se.symbolic(target) and not state.history.jumpkind.startswith("Ijk_Sys"):
+        elif not state.solver.symbolic(target) and not state.history.jumpkind.startswith("Ijk_Sys"):
             # a successor with a concrete IP, and it's not a syscall
             self.successors.append(state)
             self.flat_successors.append(state)
@@ -293,7 +293,7 @@ class SimSuccessors(object):
                     if len(addrs) > _max_targets:
                         # It is not a library
                         l.debug("It is not a Library")
-                        addrs = state.se.eval_upto(target, _max_targets + 1)
+                        addrs = state.solver.eval_upto(target, _max_targets + 1)
                         l.debug("addrs :%s", addrs)
                     cond_and_targets = [ (target == addr, addr) for addr in addrs ]
                     max_targets = _max_targets
@@ -345,7 +345,7 @@ class SimSuccessors(object):
             l.debug("Not resolving symbolic syscall number")
             return syscall_num, None
         maximum = state.posix.maximum_symbolic_syscalls
-        possible = state.se.eval_upto(syscall_num, maximum + 1)
+        possible = state.solver.eval_upto(syscall_num, maximum + 1)
 
         if len(possible) == 0:
             raise AngrUnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")
@@ -494,7 +494,7 @@ class SimSuccessors(object):
         :rtype:         list
         """
 
-        addrs = state.se.eval_upto(ip, limit)
+        addrs = state.solver.eval_upto(ip, limit)
 
         return [ (ip == addr, addr) for addr in addrs ]
 

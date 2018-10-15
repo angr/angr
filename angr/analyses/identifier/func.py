@@ -8,6 +8,9 @@ class TestData(object):
             preloaded_stdin = ""
         if expected_stdout is None:
             expected_stdout = ""
+        for i, v in enumerate(input_args):
+            if type(v) is str:
+                input_args[i] = v.encode('latin-1')  # py3k transition hack :/
 
         self.input_args = input_args
         self.expected_output_args = expected_output_args

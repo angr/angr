@@ -1,31 +1,26 @@
-from .. import engines
-from ..errors import SimError
-
-
 # 8<----------------- Compatibility layer -----------------
 class ExplorationTechniqueMeta(type):
-
-    def __new__(mcs, name, bases, attrs):
+    def __new__(cls, name, bases, attrs):
         import inspect
         if name != 'ExplorationTechniqueCompat':
-            if 'step' in attrs and not inspect.getargspec(attrs['step'])[3]:
-                attrs['step'] = mcs._step_factory(attrs['step'])
-            if 'filter' in attrs and inspect.getargspec(attrs['filter'])[0][1] != 'simgr':
-                attrs['filter'] = mcs._filter_factory(attrs['filter'])
-            if 'step_state' in attrs and inspect.getargspec(attrs['step_state'])[0][1] != 'simgr':
-                attrs['step_state'] = mcs._step_state_factory(attrs['step_state'])
-        return type.__new__(mcs, name, bases, attrs)
+            if 'step' in attrs and not inspect.getargspec(attrs['step']).defaults:
+                attrs['step'] = cls._step_factory(attrs['step'])
+            if 'filter' in attrs and inspect.getargspec(attrs['filter']).args[1] != 'simgr':
+                attrs['filter'] = cls._filter_factory(attrs['filter'])
+            if 'step_state' in attrs and inspect.getargspec(attrs['step_state']).args[1] != 'simgr':
+                attrs['step_state'] = cls._step_state_factory(attrs['step_state'])
+        return type.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _step_factory(step):
-        def step_wrapped(self, simgr, stash=None, **kwargs):
+        def step_wrapped(self, simgr, stash='active', **kwargs):
             return step(self, simgr, stash, **kwargs)
         return step_wrapped
 
     @staticmethod
-    def _filter_factory(filter):  # pylint:disable=redefined-builtin
+    def _filter_factory(func):  # pylint:disable=redefined-builtin
         def filter_wrapped(self, simgr, state, filter_func=None):
-            result = filter(self, state)  # pylint:disable=no-value-for-parameter
+            result = func(self, state)  # pylint:disable=no-value-for-parameter
             if result is None:
                 result = simgr.filter(state, filter_func=filter_func)
             return result
@@ -42,7 +37,7 @@ class ExplorationTechniqueMeta(type):
 # ------------------- Compatibility layer --------------->8
 
 
-class ExplorationTechnique(object):
+class ExplorationTechnique:
     """
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
     symbolic exploration.
@@ -51,10 +46,23 @@ class ExplorationTechnique(object):
 
     Any number of these methods may be overridden by a subclass.
     To use an exploration technique, call ``simgr.use_technique`` with an *instance* of the technique.
+
+    .. warning:: There is currently installed a compatibility layer for the previous version of this API. This
+                 layer requires that implementations of ExplorationTechnique use the same argument names as the
+                 original methods, or else it will mangle the behvior.
     """
     # 8<----------------- Compatibility layer -----------------
     __metaclass__ = ExplorationTechniqueMeta
     # ------------------- Compatibility layer --------------->8
+
+    # this is the master list of hook functinos
+    _hook_list = ('step', 'filter', 'selector', 'step_state', 'successors')
+
+    def _get_hooks(self):
+        return {name: getattr(self, name) for name in self._hook_list if self._is_overriden(name)}
+
+    def _is_overriden(self, name):
+        return getattr(self, name).__code__ is not getattr(ExplorationTechnique, name).__code__
 
     def __init__(self):
         # this attribute will be set from above by the manager
@@ -67,107 +75,76 @@ class ExplorationTechnique(object):
         """
         pass
 
-    def step(self, simgr, stash=None, **kwargs):  # pylint:disable=no-self-use
+    def step(self, simgr, stash='active', **kwargs):  # pylint:disable=no-self-use
         """
-        Step this stash of this manager forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the actual
-        processing.
-
-        Return the stepped manager.
+        Hook the process of stepping a stash forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the
+        actual processing.
         """
-        return simgr.step(stash=stash, **kwargs)
+        simgr.step(stash=stash, **kwargs)
 
-    def filter(self, simgr, state, filter_func=None):  # pylint:disable=no-self-use
+    def filter(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
         """
-        Perform filtering on a state.
+        Perform filtering on which stash a state should be inserted into.
 
-        If the state should not be filtered, return None.
         If the state should be filtered, return the name of the stash to move the state to.
         If you want to modify the state before filtering it, return a tuple of the stash to move the state to and the
         modified state.
-        """
-        return simgr.filter(state, filter_func=filter_func)
+        To defer to the original categorization procedure, return the result of ``simgr.filter(state, **kwargs)``
 
-    def selector(self, simgr, state, selector_func=None):  # pylint:disable=no-self-use
+        If the user provided a ``filter_func`` in their step or run command, it will appear here.
         """
-        Return True, the state should be selected for stepping during the step() process.
-        """
-        return simgr.selector(state, selector_func=selector_func)
+        return simgr.filter(state, **kwargs)
 
-    def step_state(self, simgr, state, successor_func=None, **kwargs):  # pylint:disable=no-self-use
+    def selector(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
         """
-        Perform the process of stepping a state forward.
+        Determine if a state should participate in the current round of stepping.
+        Return True if the state should be stepped, and False if the state should not be stepped.
+        To defer to the original selection procedure, return the result of ``simgr.selector(state, **kwargs)``.
 
-        If the stepping fails, return None to fall back to a default stepping procedure.
-        Otherwise, return a dict of stashes to merge into the simulation manager. All the states
-        will be added to the PathGroup's stashes based on the mapping in the returned dict.
+        If the user provided a ``selector_func`` in their step or run command, it will appear here.
         """
-        return simgr.step_state(state, successor_func=successor_func, **kwargs)
+        return simgr.selector(state, **kwargs)
 
-    def successors(self, simgr, state, successor_func=None, **run_args):  # pylint:disable=no-self-use
+    def step_state(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
         """
-        Return successors of the given state.
+        Determine the categorization of state successors into stashes. The result should be a dict mapping stash names
+        to the list of successor states that fall into that stash, or None as a stash name to use the original stash
+        name.
+
+        If you would like to directly work with a `SimSuccessors` object, you can obtain it with
+        ``simgr.successors(state, **kwargs)``. This is not recommended, as it denies other hooks the opportunity to
+        look at the successors. Therefore, the usual technique is to call ``simgr.step_state(state, **kwargs)`` and
+        then mutate the returned dict before returning it yourself.
+
+        ..note:: This takes precedence over the `filter` hook - `filter` is only applied to states returned from here
+        in the None stash.
         """
-        return simgr.successors(state, successor_func=successor_func, **run_args)
+        return simgr.step_state(state, **kwargs)
+
+    def successors(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
+        """
+        Perform the process of stepping a state forward, returning a SimSuccessors object.
+
+        To defer to the original succession procedure, return the result of ``simgr.successors(state, **kwargs)``.
+        Be careful about not calling this method (e.g. calling ``project.factory.successors`` manually) as it denies
+        other hooks the opportunity to instrument the step. Instead, you can mutate the kwargs for the step before
+        calling the original, and mutate the result before returning it yourself.
+
+        If the user provided a ``successor_func`` in their step or run command, it will appear here.
+        """
+        return simgr.successors(state, **kwargs)
 
     def complete(self, simgr):  # pylint:disable=no-self-use,unused-argument
         """
         Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should halt.
+
+        This is the one hook which is *not* subject to the nesting rules of hooks.
+        You should *not* call ``simgr.complete``, you should make your own decision and return True or False.
+        Each of the techniques' completion checkers will be called and the final result will be compted with
+        ``simgr.completion_mode``.
         """
         return False
 
-    def _condition_to_lambda(self, condition, default=False):
-        """
-        Translates an integer, set, list or lambda into a lambda that checks a state address against the given addresses, and the
-        other ones from the same basic block
-
-        :param condition:   An integer, set, list or lambda to convert to a lambda.
-        :param default:     The default return value of the lambda (in case condition is None). Default: false.
-
-        :returns:           A lambda that takes a state and returns the set of addresses that it matched from the condition
-                            The lambda has an `.addrs` attribute that contains the full set of the addresses at which it matches if that
-                            can be determined statically.
-        """
-        if condition is None:
-            condition_function = lambda p: default
-            condition_function.addrs = set()
-
-        elif isinstance(condition, (int, long)):
-            return self._condition_to_lambda((condition,))
-
-        elif isinstance(condition, (tuple, set, list)):
-            addrs = set(condition)
-            def condition_function(p):
-                if p.addr in addrs:
-                    # returning {p.addr} instead of True to properly handle find/avoid conflicts
-                    return {p.addr}
-
-                if not isinstance(self.project.engines.default_engine, engines.SimEngineVEX):
-                    return False
-
-                try:
-                    # If the address is not in the set (which could mean it is
-                    # not at the top of a block), check directly in the blocks
-                    # (Blocks are repeatedly created for every check, but with
-                    # the IRSB cache in angr lifter it should be OK.)
-                    return addrs.intersection(set(self.project.factory.block(p.addr).instruction_addrs))
-                except (AngrError, SimError):
-                    return False
-            condition_function.addrs = addrs
-        elif hasattr(condition, '__call__'):
-            condition_function = condition
-        else:
-            raise AngrExplorationTechniqueError("ExplorationTechnique is unable to convert given type (%s) to a callable condition function." % condition.__class__)
-
-        return condition_function
-
-#registered_actions = {}
-#registered_surveyors = {}
-#
-#def register_action(name, strat):
-#    registered_actions[name] = strat
-#
-#def register_surveyor(name, strat):
-#    registered_surveyors[name] = strat
 
 from .cacher import Cacher
 from .driller_core import DrillerCore
@@ -177,7 +154,6 @@ from .tracer import Tracer
 from .explorer import Explorer
 from .threading import Threading
 from .dfs import DFS
-from .looplimiter import LoopLimiter
 from .lengthlimiter import LengthLimiter
 from .veritesting import Veritesting
 from .oppologist import Oppologist
@@ -187,4 +163,3 @@ from .manual_mergepoint import ManualMergepoint
 from .tech_builder import TechniqueBuilder
 from .stochastic import StochasticSearch
 from .unique import UniqueSearch
-from ..errors import AngrError, AngrExplorationTechniqueError

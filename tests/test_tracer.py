@@ -44,21 +44,21 @@ def tracer_linux(filename, test_name, stdin):
     return simgr, t
 
 def test_recursion():
-    blob = "00aadd114000000000000000200000001d0000000005000000aadd2a1100001d0000000001e8030000aadd21118611b3b3b3b3b3e3b1b1b1adb1b1b1b1b1b1118611981d8611".decode('hex')
-    fname = os.path.join( os.path.dirname(__file__), "../../binaries/tests/cgc/NRFIN_00075")
+    blob = bytes.fromhex("00aadd114000000000000000200000001d0000000005000000aadd2a1100001d0000000001e8030000aadd21118611b3b3b3b3b3e3b1b1b1adb1b1b1b1b1b1118611981d8611")
+    fname = os.path.join(os.path.dirname(__file__), "../../binaries/tests/cgc/NRFIN_00075")
 
     simgr, _ = tracer_cgc(fname, 'tracer_recursion', blob)
     simgr.run()
 
     nose.tools.assert_true('crashed' in simgr.stashes)
-    nose.tools.assert_true(simgr.crashed[0].se.symbolic(simgr.crashed[0].regs.ip))
+    nose.tools.assert_true(simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip))
 
 
 @slow_test
 def broken_cache_stall():
     # test a valid palindrome
     b = os.path.join(bin_location, "tests/cgc/CROMU_00071")
-    blob = "0c0c492a53acacacacacacacacacacacacac000100800a0b690e0aef6503697d660a0059e20afc0a0a332f7d66660a0059e20afc0a0a332f7fffffff16fb1616162516161616161616166a7dffffff7b0e0a0a6603697d660a0059e21c".decode('hex')
+    blob = bytes.fromhex("0c0c492a53acacacacacacacacacacacacac000100800a0b690e0aef6503697d660a0059e20afc0a0a332f7d66660a0059e20afc0a0a332f7fffffff16fb1616162516161616161616166a7dffffff7b0e0a0a6603697d660a0059e21c")
 
     simgr, tracer = tracer_cgc(b, 'tracer_cache_stall', blob)
     simgr.run()
@@ -86,7 +86,7 @@ def test_manual_recursion():
         raise nose.SkipTest()
 
     b = os.path.join(bin_location, "tests/cgc", "CROMU_00071")
-    blob = open(os.path.join(bin_location, 'tests_data/', 'crash2731')).read()
+    blob = open(os.path.join(bin_location, 'tests_data/', 'crash2731'), 'rb').read()
 
     simgr, tracer = tracer_cgc(b, 'tracer_manual_recursion', blob)
     simgr.run()
@@ -102,7 +102,7 @@ def test_cgc_se1_palindrome_raw():
     b = os.path.join(bin_location, "tests/cgc/sc1_0b32aa01_01")
     # test a valid palindrome
 
-    simgr, _ = tracer_cgc(b, 'tracer_cgc_se1_palindrome_raw_nocrash', 'racecar\n')
+    simgr, _ = tracer_cgc(b, 'tracer_cgc_se1_palindrome_raw_nocrash', b'racecar\n')
     simgr.run()
 
     # make sure the heap base is correct and hasn't been altered from the default
@@ -114,15 +114,15 @@ def test_cgc_se1_palindrome_raw():
 
     # make sure angr modeled the correct output
     stdout_dump = simgr.traced[0].posix.dumps(1)
-    nose.tools.assert_true(stdout_dump.startswith("\nWelcome to Palindrome Finder\n\n"
-                                                  "\tPlease enter a possible palindrome: "
-                                                  "\t\tYes, that's a palindrome!\n\n"
-                                                  "\tPlease enter a possible palindrome: "))
+    nose.tools.assert_true(stdout_dump.startswith(b"\nWelcome to Palindrome Finder\n\n"
+                                                  b"\tPlease enter a possible palindrome: "
+                                                  b"\t\tYes, that's a palindrome!\n\n"
+                                                  b"\tPlease enter a possible palindrome: "))
     # make sure there were no 'Nope's from non-palindromes
-    nose.tools.assert_false("Nope" in stdout_dump)
+    nose.tools.assert_false(b"Nope" in stdout_dump)
 
     # now test crashing input
-    simgr, _ = tracer_cgc(b, 'tracer_cgc_se1_palindrome_raw_yescrash', 'A'*129)
+    simgr, _ = tracer_cgc(b, 'tracer_cgc_se1_palindrome_raw_yescrash', b'A'*129)
     simgr.run()
 
     nose.tools.assert_true('crashed' in simgr.stashes)
@@ -131,13 +131,13 @@ def test_cgc_se1_palindrome_raw():
 def test_symbolic_sized_receives():
     b = os.path.join(bin_location, "tests/cgc/CROMU_00070")
 
-    simgr, _ = tracer_cgc(b, 'tracer_symbolic_sized_receives', 'hello')
+    simgr, _ = tracer_cgc(b, 'tracer_symbolic_sized_receives', b'hello')
     simgr.run()
 
     nose.tools.assert_true('crashed' not in simgr.stashes)
     nose.tools.assert_true('traced' in simgr.stashes)
 
-    simgr, _ = tracer_cgc(b, 'tracer_symbolic_sized_receives_nulls', '\0'*20)
+    simgr, _ = tracer_cgc(b, 'tracer_symbolic_sized_receives_nulls', b'\0'*20)
     simgr.run()
 
     nose.tools.assert_true('crashed' not in simgr.stashes)
@@ -145,11 +145,11 @@ def test_symbolic_sized_receives():
 
 
 def test_allocation_base_continuity():
-    correct_out = 'prepare for a challenge\nb7fff000\nb7ffe000\nb7ffd000\nb7ffc000\nb7ffb000\nb7ffa000\nb7ff9000\nb7ff8000\nb7ff7000\nb7ff6000\nb7ff5000\nb7ff4000\nb7ff3000\nb7ff2000\nb7ff1000\nb7ff0000\nb7fef000\nb7fee000\nb7fed000\nb7fec000\ndeallocating b7ffa000\na: b7ffb000\nb: b7fff000\nc: b7ff5000\nd: b7feb000\ne: b7fe8000\ne: b7fa8000\na: b7ffe000\nb: b7ffd000\nc: b7ff7000\nd: b7ff6000\ne: b7ff3000\ne: b7f68000\nallocate: 3\na: b7fef000\n'
+    correct_out = b'prepare for a challenge\nb7fff000\nb7ffe000\nb7ffd000\nb7ffc000\nb7ffb000\nb7ffa000\nb7ff9000\nb7ff8000\nb7ff7000\nb7ff6000\nb7ff5000\nb7ff4000\nb7ff3000\nb7ff2000\nb7ff1000\nb7ff0000\nb7fef000\nb7fee000\nb7fed000\nb7fec000\ndeallocating b7ffa000\na: b7ffb000\nb: b7fff000\nc: b7ff5000\nd: b7feb000\ne: b7fe8000\ne: b7fa8000\na: b7ffe000\nb: b7ffd000\nc: b7ff7000\nd: b7ff6000\ne: b7ff3000\ne: b7f68000\nallocate: 3\na: b7fef000\n'
 
     b = os.path.join(bin_location, "tests/i386/cgc_allocations")
 
-    simgr, _ = tracer_cgc(b, 'tracer_allocation_base_continuity', '')
+    simgr, _ = tracer_cgc(b, 'tracer_allocation_base_continuity', b'')
     simgr.run()
 
     nose.tools.assert_equal(simgr.traced[0].posix.dumps(1), correct_out)
@@ -158,11 +158,11 @@ def test_allocation_base_continuity():
 def test_crash_addr_detection():
     b = os.path.join(bin_location, "tests/i386/call_symbolic")
 
-    simgr, _ = tracer_cgc(b, 'tracer_crash_addr_detection', 'A'*700)
+    simgr, _ = tracer_cgc(b, 'tracer_crash_addr_detection', b'A'*700)
     simgr.run()
 
     nose.tools.assert_true('crashed' in simgr.stashes)
-    nose.tools.assert_true(simgr.crashed[0].se.symbolic(simgr.crashed[0].regs.ip))
+    nose.tools.assert_true(simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip))
 
 
 def test_fauxware():
@@ -171,7 +171,7 @@ def test_fauxware():
         raise nose.SkipTest()
 
     b = os.path.join(bin_location, "tests/x86_64/fauxware")
-    simgr, _ = tracer_linux(b, 'tracer_fauxware', 'A')
+    simgr, _ = tracer_linux(b, 'tracer_fauxware', b'A')
     simgr.run()
 
     nose.tools.assert_true('traced' in simgr.stashes)
@@ -184,7 +184,7 @@ def run_all():
         print('#' * (len(name) + 8))
 
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
             print_test_name(f)

@@ -27,7 +27,7 @@ class memset(angr.SimProcedure):
             return byt
 
         remainder = rep % 2
-        quotient = rep / 2
+        quotient = rep // 2
 
         r_ = memset._repeat_bytes(byt, quotient)
         if remainder == 1:

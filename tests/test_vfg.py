@@ -21,7 +21,7 @@ def run_vfg_buffer_overflow(arch):
                  use_sim_procedures=True,
                  default_analysis_mode='symbolic')
 
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1)
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1)
 
     # For this test case, OPTIMIZE_IR does not work due to the way we are widening the states: an index variable
     # directly goes to 0xffffffff, and when OPTIMIZE_IR is used, it does a signed comparison with 0x27, which
@@ -45,13 +45,13 @@ def run_vfg_buffer_overflow(arch):
     states = vfg.final_states
     nose.tools.assert_equal(len(states), 2)
     stack_check_fail = proj._extern_obj.get_pseudo_addr('symbol hook: __stack_chk_fail')
-    nose.tools.assert_equal(set([ s.se.eval_one(s.ip) for s in states ]),
+    nose.tools.assert_equal(set([ s.solver.eval_one(s.ip) for s in states ]),
                             {
                                 stack_check_fail,
                                 0x4005b4
                             })
 
-    state = [ s for s in states if s.se.eval_one(s.ip) == 0x4005b4 ][0]
+    state = [ s for s in states if s.solver.eval_one(s.ip) == 0x4005b4 ][0]
     nose.tools.assert_true(claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28))
 
 def broken_vfg_buffer_overflow():
@@ -78,10 +78,10 @@ def run_vfg_0(arch):
     function_final_states = vfg._function_final_states
     nose.tools.assert_in(main.addr, function_final_states)
 
-    final_state_main = function_final_states[main.addr].values()[0]
+    final_state_main = next(iter(function_final_states[main.addr].values()))
     stdout = final_state_main.posix.dumps(1)
 
-    nose.tools.assert_equal(stdout[:6], "i = 64")
+    nose.tools.assert_equal(stdout[:6], b"i = 64")
     # the following does not work without affine relation analysis
     # nose.tools.assert_equal(stdout, "i = 64, j = 63")
 
@@ -129,7 +129,7 @@ def run_vfg_1(arch):
         use_sim_procedures=True,
     )
 
-    cfg = proj.analyses.CFGAccurate()
+    cfg = proj.analyses.CFGEmulated()
     vfg = proj.analyses.VFG(cfg, start=0x40071d, context_sensitivity_level=10, interfunction_level=10,
                             record_function_final_states=True
                             )
@@ -144,9 +144,9 @@ def run_vfg_1(arch):
     nose.tools.assert_true(authenticate.addr in vfg.function_final_states)
     authenticate_final_states = vfg.function_final_states[authenticate.addr]
     nose.tools.assert_equal(len(authenticate_final_states), 1)
-    authenticate_final_state = authenticate_final_states.values()[0]
+    authenticate_final_state = next(iter(authenticate_final_states.values()))
     nose.tools.assert_is_not_none(authenticate_final_state)
-    nose.tools.assert_equal(authenticate_final_state.se.eval_upto(authenticate_final_state.regs.rax, 3), [0, 1])
+    nose.tools.assert_equal(authenticate_final_state.solver.eval_upto(authenticate_final_state.regs.rax, 3), [0, 1])
 
     # optimal execution tests
     # - the basic block after returning from `authenticate` should only be executed once
@@ -174,19 +174,17 @@ if __name__ == "__main__":
         # TODO: Actually run all tests
         # Run all tests
 
-        g = globals()
-
-        for f in g.keys():
-            if f.startswith('test_') and hasattr(g[f], '__call__'):
+        for f in list(globals().keys()):
+            if f.startswith('test_') and hasattr(globals()[f], '__call__'):
                 for test_func, arch_name in globals()[f]():
                     test_func(arch_name)
 
     else:
         f = 'test_' + sys.argv[1]
-        if f in globals():
+        if f in list(globals()):
             func = globals()[f]
             if hasattr(func, '__call__'):
                 for test_func, arch_ in func():
                     test_func(arch_)
             else:
-                print '"%s" does not exist, or is not a callable' % f
+                print('"%s" does not exist, or is not a callable' % f)

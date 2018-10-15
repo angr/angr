@@ -13,14 +13,14 @@ class pthread_create(angr.SimProcedure):
     # pylint: disable=unused-argument,arguments-differ
     def run(self, thread, attr, start_routine, arg):
         self.call(start_routine, (arg,), 'terminate_thread')
-        self.ret(self.state.se.BVV(0, self.state.arch.bits))
+        self.ret(self.state.solver.BVV(0, self.state.arch.bits))
 
     def terminate_thread(self, thread, attr, start_routine, arg):
         self.exit(0)
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath")
+        blank_state = angr.SimState(project=self.project, mode="fastpath", memory_backer=self.project.loader.memory)
 
         # Execute each block
         state = blank_state

@@ -37,23 +37,21 @@ def disabled_reaching_definition_analysis():
         },
     }
 
-    for func_name, truth in groundtruth.iteritems():
+    for func_name, truth in groundtruth.items():
         yield run_reaching_definition_analysis, project, cfg.kb.functions[func_name], truth
 
 
 def main():
-
     g = globals()
-    for func_name, func in g.iteritems():
+    for func_name, func in g.items():
         if func_name.startswith('test_') and hasattr(func, '__call__'):
-            print func_name
+            print(func_name)
             for testfunc_and_args in func():
                 testfunc, args = testfunc_and_args[0], testfunc_and_args[1:]
                 testfunc(*args)
 
 
 if __name__ == '__main__':
-
     l.setLevel(logging.DEBUG)
     logging.getLogger('angr.analyses.reaching_definitions').setLevel(logging.DEBUG)
 

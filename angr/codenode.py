@@ -4,13 +4,15 @@ l = logging.getLogger("angr.codenode")
 
 class CodeNode(object):
 
-    __slots__ = ['addr', 'size', '_graph', 'thumb']
+    __slots__ = ['addr', 'size', '_graph', 'thumb', '_hash']
 
     def __init__(self, addr, size, graph=None, thumb=False):
         self.addr = addr
         self.size = size
         self.thumb = thumb
         self._graph = graph
+
+        self._hash = None
 
     def __len__(self):
         return self.size
@@ -31,7 +33,9 @@ class CodeNode(object):
         raise TypeError("Comparison with a code node")
 
     def __hash__(self):
-        return hash((self.addr, self.size))
+        if self._hash is None:
+            self._hash = hash((self.addr, self.size))
+        return self._hash
 
     def successors(self):
         if self._graph is None:

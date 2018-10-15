@@ -22,7 +22,7 @@ def test_graph_0():
                      use_sim_procedures=True)
 
     # Create the CDG analysis
-    cfg = p.analyses.CFGAccurate(no_construct=True)
+    cfg = p.analyses.CFGEmulated(no_construct=True)
 
     # Create our mock control flow graph
     g = networkx.DiGraph()
@@ -82,7 +82,7 @@ def test_graph_0():
         12: { 2, 8, 9, 11, 12 }
     }
 
-    for node, cd_nodes in standard_result.iteritems():
+    for node, cd_nodes in standard_result.items():
         # Each node in set `cd_nodes` is control dependent on `node`
         for n in cd_nodes:
             nose.tools.assert_true(cdg.graph.has_edge(TemporaryNode(node), TemporaryNode(n)))
@@ -158,7 +158,7 @@ def test_dominance_frontiers():
 
 def run_all():
     g = globals()
-    for k, v in g.iteritems():
+    for k, v in g.items():
         if k.startswith('test_') and hasattr(v, '__call__'):
             v()
 

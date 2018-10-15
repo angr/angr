@@ -12,11 +12,11 @@ class Block(object):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
-                 '_instruction_addrs', '_opt_level'
+                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs'
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 opt_level=None, num_inst=None, traceflags=0):
+                 opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
 
         # set up arch
         if project is not None:
@@ -57,12 +57,17 @@ class Block(object):
                         thumb=thumb,
                         opt_level=opt_level,
                         num_inst=num_inst,
-                        traceflags=traceflags)
+                        traceflags=traceflags,
+                        strict_block_end=strict_block_end,
+                        collect_data_refs=collect_data_refs,
+                )
                 size = vex.size
 
         self._vex = vex
+        self._vex_nostmt = None
         self._capstone = None
         self.size = size
+        self._collect_data_refs = collect_data_refs
 
         self._instructions = num_inst
         self._instruction_addrs = []
@@ -72,8 +77,8 @@ class Block(object):
         if byte_string is None:
             if backup_state is not None:
                 self._bytes = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)[0]
-                if type(self._bytes) is not str:
-                    self._bytes = str(pyvex.ffi.buffer(self._bytes, size))
+                if type(self._bytes) is not bytes:
+                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:
@@ -107,7 +112,7 @@ class Block(object):
         return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
 
     def __setstate__(self, data):
-        for k, v in data.iteritems():
+        for k, v in data.items():
             setattr(self, k, v)
 
     def __hash__(self):
@@ -143,10 +148,33 @@ class Block(object):
                     num_inst=self._instructions,
                     opt_level=self._opt_level,
                     arch=self.arch,
+                    collect_data_refs=self._collect_data_refs,
             )
             self._parse_vex_info()
 
         return self._vex
+
+    @property
+    def vex_nostmt(self):
+        if self._vex_nostmt:
+            return self._vex_nostmt
+
+        if self._vex:
+            return self._vex
+
+        self._vex_nostmt = self._vex_engine.lift(
+            clemory=self._project.loader.memory if self._project is not None else None,
+            insn_bytes=self._bytes,
+            addr=self.addr,
+            thumb=self.thumb,
+            size=self.size,
+            num_inst=self._instructions,
+            opt_level=self._opt_level,
+            arch=self.arch,
+            skip_stmts=True,
+            collect_data_refs=self._collect_data_refs,
+        )
+        return self._vex_nostmt
 
     @property
     def capstone(self):
@@ -173,14 +201,7 @@ class Block(object):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
-            buf, size = self._project.loader.memory.read_bytes_c(addr)
-
-            # Make sure it does not go over-bound
-            if buf is not None and self.size <= size:
-                self._bytes = pyvex.ffi.unpack(pyvex.ffi.cast('char*', buf), self.size)
-            else:
-                # fall back to the slow path
-                self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
+            self._bytes = self._project.loader.memory.load(addr, self.size)
         return self._bytes
 
     @property
@@ -214,7 +235,7 @@ class CapstoneBlock(object):
         self.arch = arch
 
     def pp(self):
-        print str(self)
+        print(str(self))
 
     def __str__(self):
         return '\n'.join(map(str, self.insns))

@@ -19,7 +19,7 @@ class GetSystemTimeAsFileTime(angr.SimProcedure):
                     # convert to microseconds, convert to nanoseconds, convert to 100ns intervals
 
     def fill_symbolic(self):
-        self.timestamp = self.state.se.BVS('SystemTimeAsFileTime', 64, key=('api', 'SystemTimeAsFileTime'))
+        self.timestamp = self.state.solver.BVS('SystemTimeAsFileTime', 64, key=('api', 'SystemTimeAsFileTime'))
 
 
 class GetLocalTime(angr.SimProcedure):

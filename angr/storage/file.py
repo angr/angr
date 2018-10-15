@@ -62,23 +62,43 @@ class SimFileBase(SimStatePlugin):
                     must be a number of bytes from the start of the file.
     :ivar writable: Bool indicating whether writing to this file is allowed.
     :ivar pos:      If the file is a stream, this will be the current position. Otherwise, None.
+    :ivar concrete: Whether or not this file contains mostly concrete data. Will be used by some SimProcedures to
+                    choose how to handle variable-length operations like fgets.
     """
 
     seekable = False
     pos = None
 
-    def __init__(self, name, writable=True, ident=None, **kwargs):
+    def __init__(self, name, writable=True, ident=None, concrete=False, **kwargs):
         self.name = name
         self.ident = ident
         self.writable = writable
+        self.concrete = concrete
 
         if ident is None:
-            nice_name = self.name if all(0x20 <= ord(c) <= 0x7f for c in self.name) else '???'
-            self.ident = 'file_%d_%s' % (next(file_counter), nice_name)
+            self.ident = self.make_ident(self.name)
 
         if 'memory_id' in kwargs:
             kwargs['memory_id'] = self.ident
         super(SimFileBase, self).__init__(**kwargs)
+
+    @staticmethod
+    def make_ident(name):
+        if type(name) is str:
+            name = name.encode()
+
+        def generate():
+            consecutive_bad = 0
+            for ch in name:
+                if 0x20 <= ch <= 0x7e:
+                    consecutive_bad = 0
+                    yield chr(ch)
+                elif consecutive_bad < 3:
+                    consecutive_bad += 1
+                    yield '?'
+
+        nice_name = ''.join(generate())
+        return 'file_%d_%s' % (next(file_counter), nice_name)
 
     def concretize(self, **kwargs):
         """
@@ -116,9 +136,10 @@ class SimFileBase(SimStatePlugin):
         """
         raise NotImplementedError
 
+
 class SimFile(SimFileBase, SimSymbolicMemory):
     """
-    The normal SimFile is meant to files on disk. It subclasses SimSymbolicMemory so loads and stores to/from
+    The normal SimFile is meant to model files on disk. It subclasses SimSymbolicMemory so loads and stores to/from
     it are very simple.
 
     :param name:        The name of the file
@@ -129,10 +150,12 @@ class SimFile(SimFileBase, SimSymbolicMemory):
                         caveat is that if the size is also unspecified this value will default to False.
     :param seekable:    Optional bool indicating whether seek operations on this file should succeed, default True.
     :param writable:    Whether writing to this file is allowed
+    :param concrete:    Whether or not this file contains mostly concrete data. Will be used by some SimProcedures to
+                        choose how to handle variable-length operations like fgets.
 
     :ivar has_end:      Whether this file has an EOF
     """
-    def __init__(self, name, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, **kwargs):
+    def __init__(self, name, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, concrete=None, **kwargs):
         kwargs['memory_id'] = kwargs.get('memory_id', 'file')
         super(SimFile, self).__init__(name, writable=writable, ident=ident, **kwargs)
         self._size = size
@@ -142,15 +165,22 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         # this is hacky because we need to work around not having a state yet
         content = _deps_unpack(content)[0]
         if type(content) is bytes:
+            if concrete is None: concrete = True
             content = claripy.BVV(content)
-        elif type(content) is unicode:
-            content = claripy.BVV(content.encode('utf-8'))
+        elif type(content) is str:
+            if concrete is None: concrete = True
+            content = claripy.BVV(content.encode())
         elif content is None:
             pass
         elif isinstance(content, claripy.Bits):
+            if concrete is None and not content.symbolic: concrete = True
             pass
         else:
             raise TypeError("Can't handle SimFile content of type %s" % type(content))
+
+        if concrete is None:
+            concrete = False
+        self.concrete = concrete
 
         if content is not None:
             mo = SimMemoryObject(content, 0, length=len(content)//8)
@@ -173,8 +203,10 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         if self.has_end is None:
             self.has_end = sim_options.FILES_HAVE_EOF in state.options
 
-        if type(self._size) in (int, long):
+        if type(self._size) is int:
             self._size = claripy.BVV(self._size, state.arch.bits)
+        elif len(self._size) != state.arch.bits:
+            raise TypeError("SimFile size must be a bitvector of size %d (arch.bits)" % state.arch.bits)
 
     @property
     def size(self):
@@ -184,10 +216,10 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         """
         Return a concretization of the contents of the file, as a flat bytestring.
         """
-        size = self.state.solver.eval(self._size, **kwargs)
+        size = self.state.solver.min(self._size, **kwargs)
         data = self.load(0, size)
 
-        kwargs['cast_to'] = kwargs.get('cast_to', str)
+        kwargs['cast_to'] = kwargs.get('cast_to', bytes)
         kwargs['extra_constraints'] = tuple(kwargs.get('extra_constraints', ())) + (self._size == size,)
         return self.state.solver.eval(data, **kwargs)
 
@@ -232,7 +264,10 @@ class SimFile(SimFileBase, SimSymbolicMemory):
             # note: this assumes that constraints cannot be removed
             return self.load(pos, passed_max_size), size, size + pos
 
-    def write(self, pos, data, size=None, **kwargs):
+    def write(self, pos, data, size=None, events=True, **kwargs):
+        if events:
+            self.state.history.add_event('fs_write', filename=self.name, data=data, size=size, pos=pos)
+
         data = _deps_unpack(data)[0]
         if size is None:
             size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
@@ -245,7 +280,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
     @SimStatePlugin.memo
     def copy(self, _):
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-        return type(self)(name=self.name, size=self._size, has_end=self.has_end, seekable=self.seekable, writable=self.writable, ident=self.ident,
+        return type(self)(name=self.name, size=self._size, has_end=self.has_end, seekable=self.seekable, writable=self.writable, ident=self.ident, concrete=self.concrete,
             mem=self.mem.branch(),
             memory_id=self.id,
             endness=self.endness,
@@ -291,8 +326,10 @@ class SimFileStream(SimFile):
 
     def set_state(self, state):
         super(SimFileStream, self).set_state(state)
-        if type(self.pos) in (int, long):
+        if type(self.pos) is int:
             self.pos = state.solver.BVV(self.pos, state.arch.bits)
+        elif len(self.pos) != state.arch.bits:
+            raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
 
     def read(self, pos, size, **kwargs):
         no_stream = kwargs.pop('no_stream', False)
@@ -367,7 +404,7 @@ class SimPackets(SimFileBase):
         """
         lengths = [self.state.solver.eval(x[1], **kwargs) for x in self.content]
         kwargs['cast_to'] = bytes
-        return ['' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
+        return [b'' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
 
     def read(self, pos, size, **kwargs):
         """
@@ -401,7 +438,7 @@ class SimPackets(SimFileBase):
             return self.content[pos] + (pos+1,)
 
         # typecheck
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # The read is on the frontier. let's generate a new packet.
@@ -435,7 +472,7 @@ class SimPackets(SimFileBase):
         self.content.append(packet)
         return packet + (pos+1,)
 
-    def write(self, pos, data, size=None, **kwargs):
+    def write(self, pos, data, size=None, events=True, **kwargs):
         """
         Write a packet to the stream.
 
@@ -444,6 +481,9 @@ class SimPackets(SimFileBase):
         :param size:        The optional size to write. May be symbolic; must be constrained to at most the size of data.
         :return:            The next packet to use after this
         """
+        if events:
+            self.state.history.add_event('fs_write', filename=self.name, data=data, size=size, pos=pos)
+
         # sanity check on read/write modes
         if self.write_mode is None:
             self.write_mode = True
@@ -455,7 +495,7 @@ class SimPackets(SimFileBase):
             data = claripy.BVV(data)
         if size is None:
             size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # sanity check on packet number and determine if data is already present
@@ -478,7 +518,7 @@ class SimPackets(SimFileBase):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        return type(self)(self.name, write_mode=self.write_mode, content=self.content, ident=self.ident)
+        return type(self)(self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:
@@ -709,6 +749,7 @@ class SimFileDescriptorBase(SimStatePlugin):
 
         return size
 
+
 class SimFileDescriptor(SimFileDescriptorBase):
     """
     A simple file descriptor forwarding reads and writes to a SimFile. Contains information about
@@ -744,7 +785,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
         if not self.file.seekable:
             return claripy.false
 
-        if type(offset) in (int, long):
+        if type(offset) is int:
             offset = self.state.solver.BVV(offset, self.state.arch.bits)
 
         if whence == 'start':
@@ -831,6 +872,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
 
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
+
 
 class SimFileDescriptorDuplex(SimFileDescriptorBase):
     """
@@ -939,6 +981,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
 
+
 class SimPacketsSlots(SimFileBase):
     """
     SimPacketsSlots is the new SimDialogue, if you've ever seen that before.
@@ -959,7 +1002,7 @@ class SimPacketsSlots(SimFileBase):
         self.read_data = []
 
     def concretize(self, **kwargs):
-        return [self.state.solver.eval(var, cast_to=str, **kwargs) for var in self.read_data]
+        return [self.state.solver.eval(var, cast_to=bytes, **kwargs) for var in self.read_data]
 
     def read(self, pos, size, **kwargs):
         if not self.read_sizes:
@@ -1012,5 +1055,6 @@ class SimPacketsSlots(SimFileBase):
 
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
+
 
 from ..errors import SimMergeError, SimFileError, SimSolverError

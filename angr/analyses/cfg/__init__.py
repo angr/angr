@@ -1,7 +1,7 @@
 
 # analyses
 from .cfg_fast import CFGFast
-from .cfg_accurate import CFGAccurate
+from .cfg_emulated import CFGEmulated
 from .cfg import CFG
 from .cfb import CFBlanket
 

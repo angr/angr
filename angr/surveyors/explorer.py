@@ -64,7 +64,7 @@ class Explorer(Surveyor):
         # initialize the counter
         self._instruction_counter = collections.Counter()
 
-        self._find = find if not isinstance(find, (int, long)) else [find]
+        self._find = find if not isinstance(find, int) else [find]
         self._avoid = avoid
         self._restrict = restrict
         self._max_repeats = max_repeats
@@ -129,8 +129,8 @@ class Explorer(Surveyor):
     def _lo(self):
         return self.looping[0]
 
-    def path_comparator(self, x, y):
-        return self._instruction_counter[x.addr] - self._instruction_counter[y.addr]
+    def path_key(self, x):
+        return self._instruction_counter[x.addr]
 
     @property
     def done(self):
@@ -163,7 +163,7 @@ class Explorer(Surveyor):
             r = len(criteria & imark_set) > 0
         elif isinstance(criteria, (tuple, list)):
             r = len(set(criteria) & imark_set) > 0
-        elif isinstance(criteria, (int, long)):
+        elif isinstance(criteria, int):
             r = criteria in imark_set
         elif hasattr(criteria, '__call__'):
             r = criteria(path)
@@ -177,7 +177,7 @@ class Explorer(Surveyor):
             r = not imark_set.issubset(criteria)
         elif isinstance(criteria, (tuple, list)):
             r = not imark_set.issubset(set(criteria))
-        elif isinstance(criteria, (int, long)):
+        elif isinstance(criteria, int):
             r = criteria in imark_set
         elif hasattr(criteria, '__call__'):
             r = criteria(path)

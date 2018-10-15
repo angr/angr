@@ -17,15 +17,15 @@ def test_sscanf():
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/sscanf_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.simgr(immutable=False)
+    pg = b.factory.simulation_manager()
 
     # find the end of main
     expected_outputs = {
-        "0x worked\n", "+0x worked\n", "base +16 worked\n", "base 16 worked\n",
-        "-0x worked\n", "base -16 worked\n", "Nope x\n",
-        "base 8 worked\n", "base +8 worked\n", "base +10 worked\n", "base 10 worked\n",
-        "base -8 worked\n", "base -10 worked\n", "Nope u\n",
-        "No switch\n",
+        b"0x worked\n", b"+0x worked\n", b"base +16 worked\n", b"base 16 worked\n",
+        b"-0x worked\n", b"base -16 worked\n", b"Nope x\n",
+        b"base 8 worked\n", b"base +8 worked\n", b"base +10 worked\n", b"base 10 worked\n",
+        b"base -8 worked\n", b"base -10 worked\n", b"Nope u\n",
+        b"No switch\n",
     }
     pg.run()
     nose.tools.assert_equal(len(pg.deadended), len(expected_outputs))

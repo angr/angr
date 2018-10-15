@@ -19,16 +19,16 @@ class SimIRStmt_LLSC(SimIRStmt):
             self.state.scratch.store_tmp(self.stmt.result, data, addr.reg_deps(), addr.tmp_deps())
         else:
             # it's a store-conditional
-            #result = self.state.se.Unconstrained('llcd_result', 1)
+            #result = self.state.solver.Unconstrained('llcd_result', 1)
 
             #new_data = self._translate_expr(self.stmt.storedata)
             #old_data = self.state.memory.load(addr.expr, new_data.size_bytes(), endness=self.stmt.endness)
 
-            #store_data = self.state.se.If(result == 1, new_data.expr, old_data)
+            #store_data = self.state.solver.If(result == 1, new_data.expr, old_data)
 
             # for single-threaded programs, an SC will never fail. For now, we just assume it succeeded.
             store_data = self._translate_expr(self.stmt.storedata)
-            result = self.state.se.BVV(1, 1)
+            result = self.state.solver.BVV(1, 1)
 
             # the action
             if o.TRACK_MEMORY_ACTIONS in self.state.options:

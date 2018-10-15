@@ -11,7 +11,7 @@ try:
 except ImportError:
     print("If you install gitpython (`pip install gitpython`), I can give you git info too!")
 
-angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'simuvex', 'z3', 'unicorn']
+angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'z3', 'unicorn']
 native_modules = {'angr': 'angr.state_plugins.unicorn_engine._UC_NATIVE',
                   'unicorn': 'unicorn.unicorn._uc',
                   'pyvex': 'pyvex.pvc',
@@ -42,8 +42,8 @@ def print_versions():
         except ImportError:
             print("Python could not find " + m)
             continue
-        except Exception, e:
-            print("An error occured importing %s: %s" % (m, e.message))
+        except Exception as e:
+            print("An error occured importing %s: %s" % (m, e))
         print("Python found it in %s" % (python_filename))
         try:
             pip_version = pkg_resources.get_distribution(m)
@@ -83,7 +83,7 @@ def print_system_info():
 
 
 def print_native_info():
-    print "######### Native Module Info ##########"
+    print("######### Native Module Info ##########")
     for module, path in native_modules.items():
         try:
             import_module(module)

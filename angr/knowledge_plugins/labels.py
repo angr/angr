@@ -1,3 +1,6 @@
+
+import cle
+
 from .plugin import KnowledgeBasePlugin
 
 
@@ -8,14 +11,12 @@ class Labels(KnowledgeBasePlugin):
         self._labels = {}
         self._reverse_labels = {}
         for obj in kb._project.loader.all_objects:
-            for k, v in obj.symbols_by_addr.iteritems():
-                if v.name:
-                    if v.is_import:
-                        continue
+            for v in obj.symbols:
+                if v.name and not v.is_import and v.type not in {cle.Symbol.TYPE_OTHER, }:
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr
             try:
-                for v, k in obj.plt.iteritems():
+                for v, k in obj.plt.items():
                     self._labels[k] = v
             except AttributeError:
                 pass
@@ -61,8 +62,8 @@ class Labels(KnowledgeBasePlugin):
 
     def copy(self):
         o = Labels(self._kb)
-        o._labels = {k: v for k, v in self._labels.iteritems()}
-        o._reverse_labels = {k: v for k, v in self._reverse_labels.iteritems()}
+        o._labels = {k: v for k, v in self._labels.items()}
+        o._reverse_labels = {k: v for k, v in self._reverse_labels.items()}
 
 
 KnowledgeBasePlugin.register_default('labels', Labels)

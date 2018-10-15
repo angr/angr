@@ -27,7 +27,7 @@ class free(Func):
 
     def try_match(self, func, identifier, runner): #pylint disable=no-self-use
         malloc = None
-        for k, v in identifier.matches.iteritems():
+        for k, v in identifier.matches.items():
             if v[0] == "malloc":
                 malloc = k
         if malloc is None:
@@ -47,13 +47,13 @@ class free(Func):
             if state is None:
                 l.critical("malloc failed")
                 raise IdentifierException("malloc failed")
-            malloc_vals.append(state.se.eval(state.regs.eax))
+            malloc_vals.append(state.solver.eval(state.regs.eax))
             if malloc_vals[-1] < 0x10000:
                 return False
             test_input = [malloc_vals[-1]]
             test_output = [None]
             return_val = None
-            state.memory.store(malloc_vals[-1], state.se.BVS("some_data", 0x80*8))
+            state.memory.store(malloc_vals[-1], state.solver.BVS("some_data", 0x80*8))
             free_test = TestData(test_input, test_output, return_val, max_steps)
             state = runner.get_out_state(func, free_test, initial_state=state)
             if state is None:

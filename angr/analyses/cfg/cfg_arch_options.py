@@ -44,15 +44,15 @@ class CFGArchOptions(object):
         self._options = {}
 
         if self.arch.name in self.OPTIONS:
-            for k, (_, value) in self.OPTIONS[self.arch.name].iteritems():
+            for k, (_, value) in self.OPTIONS[self.arch.name].items():
                 self._options[k] = value
 
         # make sure options are valid
-        for k in options.iterkeys():
+        for k in options.keys():
             if self.arch.name not in self.OPTIONS or k not in self.OPTIONS[self.arch.name]:
                 raise KeyError('Architecture %s does not support arch-specific option "%s".' % (self.arch.name, k))
 
-        for k, v in options.iteritems():
+        for k, v in options.items():
             self.__setattr__(k, v)
 
     def __getattr__(self, option_name):

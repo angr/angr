@@ -12,7 +12,7 @@ def test_simcc_x86_64():
     binary_path = test_location + "/x86_64/simcc"
 
     p = angr.Project(binary_path)
-    p.analyses.CFGAccurate()
+    p.analyses.CFGEmulated()
 
     f_arg1 = p.kb.functions['arg1']
     nose.tools.assert_not_equal(f_arg1, None)
@@ -34,7 +34,7 @@ def test_simcc_x86_64():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_') and hasattr(v, '__call__')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_') and hasattr(v, '__call__')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 

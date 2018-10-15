@@ -38,21 +38,18 @@ def test_ctype_b_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.simgr(p)
+    pg = b.factory.simulation_manager(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
     state = main.found[0]
     b_loc_array_ptr = ctype_b_loc(state, []).ret_expr
-    table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
+    table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-    result = ''
+    result = b''
     for i in range(-128, 256):
-        # Each entry is 2 bytes
-        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*2),
-                                                                        2,
-                                                                        endness='Iend_BE')))
+        result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*2].short.unsigned.concrete)
 
     # Check output of compiled C program that uses ctype_b_loc()
     output = subprocess.check_output(bin_path, shell=True)
@@ -91,20 +88,18 @@ def test_ctype_tolower_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.simgr(p)
+    pg = b.factory.simulation_manager(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
     state = main.found[0]
     tolower_loc_array_ptr = ctype_tolower_loc(state, []).ret_expr
-    table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
+    table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-    result = ''
+    result = b''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*4),
-                                                                        4,
-                                                                        endness=state.arch.memory_endness)))
+        result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*4].int.unsigned.concrete)
 
     # Check output of compiled C program that uses ctype_tolower_loc()
     output = subprocess.check_output(bin_path, shell=True)
@@ -143,20 +138,18 @@ def test_ctype_toupper_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.simgr(p)
+    pg = b.factory.simulation_manager(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
     state = main.found[0]
     toupper_loc_array_ptr = ctype_toupper_loc(state, []).ret_expr
-    table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
+    table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-    result = ''
+    result = b''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*4),
-                                                                        4,
-                                                                        endness=state.arch.memory_endness)))
+        result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*4].int.unsigned.concrete)
 
     # Check output of compiled C program that uses ctype_toupper_loc()
     output = subprocess.check_output(bin_path, shell=True)
@@ -165,6 +158,6 @@ def test_ctype_toupper_loc():
 
 if __name__ == '__main__':
     g = globals().copy()
-    for func_name, func in g.iteritems():
+    for func_name, func in g.items():
         if func_name.startswith("test_") and hasattr(func, "__call__"):
             func()

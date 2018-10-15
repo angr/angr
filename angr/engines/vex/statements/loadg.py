@@ -14,7 +14,7 @@ class SimIRStmt_LoadG(SimIRStmt):
         read_size = self.size_bytes(read_type)
         converted_size = self.size_bytes(converted_type)
 
-        read_expr = self.state.memory.load(addr.expr, read_size, endness=self.stmt.end)
+        read_expr = self.state.memory.load(addr.expr, read_size, endness=self.stmt.end, condition=guard.expr != 0)
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in self.stmt.cvt:
@@ -26,7 +26,7 @@ class SimIRStmt_LoadG(SimIRStmt):
         else:
             raise SimStatementError("Unrecognized IRLoadGOp %s!" % self.stmt.cvt)
 
-        read_expr = self.state.se.If(guard.expr != 0, converted_expr, alt.expr)
+        read_expr = self.state.solver.If(guard.expr != 0, converted_expr, alt.expr)
 
         if o.ACTION_DEPS in self.state.options:
             reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()

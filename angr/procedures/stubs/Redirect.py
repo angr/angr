@@ -15,4 +15,4 @@ class Redirect(angr.SimProcedure):
 
         self._custom_name = "Redirect to 0x%08x" % redirect_to
         # There is definitely no refs
-        self.add_successor(self.state, redirect_to, self.state.se.true, 'Ijk_Boring')
+        self.add_successor(self.state, redirect_to, self.state.solver.true, 'Ijk_Boring')

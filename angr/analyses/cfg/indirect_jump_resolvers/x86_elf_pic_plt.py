@@ -76,7 +76,10 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
             # cannot get the base address of GOT
             return False, [ ]
 
-        state = cfg._initial_state.copy()
+        if cfg._initial_state is not None:
+            state = cfg._initial_state.copy()
+        else:
+            state = self.project.factory.blank_state()
         state.regs.ebx = got_addr
 
         successors = self.project.engines.default_engine.process(state, block, force_addr=addr)
@@ -84,6 +87,6 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         if len(successors.flat_successors) != 1:
             return False, [ ]
 
-        target = state.se.eval_one(successors.flat_successors[0].ip)
+        target = state.solver.eval_one(successors.flat_successors[0].ip)
 
         return True, [ target ]

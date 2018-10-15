@@ -14,11 +14,11 @@ def main():
     p = angr.Project(f, arch=angr.SimARM(endness="Iend_BE"),
         load_options={
             'backend': 'blob',
-            'custom_base_addr': 0x10000,
-            #'custom_entry_point': 0x10000,
-            'custom_entry_point': 0x10000,
-            'custom_arch': 'ARM',
-            'custom_offset': 0,
+            'base_addr': 0x10000,
+            #'entry_point': 0x10000,
+            'entry_point': 0x10000,
+            'arch': 'ARM',
+            'offset': 0,
             }
         )
     # Call Scout

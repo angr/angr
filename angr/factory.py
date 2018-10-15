@@ -8,19 +8,6 @@ from .errors import AngrAssemblyError
 
 l = logging.getLogger("angr.factory")
 
-
-_deprecation_cache = set()
-def deprecate(name, replacement):
-    def wrapper(func):
-        def inner(*args, **kwargs):
-            if name not in _deprecation_cache:
-                l.warning("factory.%s is deprecated! Please use factory.%s instead.", name, replacement)
-                _deprecation_cache.add(name)
-            return func(*args, **kwargs)
-        return inner
-    return wrapper
-
-
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
@@ -166,9 +153,6 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simgr(self, thing=None, **kwargs):
-        return self.simulation_manager(thing=thing, **kwargs)
-
     def simulation_manager(self, thing=None, **kwargs):
         """
         Constructs a new simulation manager.
@@ -196,6 +180,12 @@ class AngrObjectFactory(object):
             raise AngrError("BadType to initialze SimulationManager: %s" % repr(thing))
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
+
+    def simgr(self, *args, **kwargs):
+        """
+        Alias for `simulation_manager` to save our poor fingers
+        """
+        return self.simulation_manager(*args, **kwargs)
 
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
@@ -263,7 +253,8 @@ class AngrObjectFactory(object):
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None, insn_text=None  # backward compatibility
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None, collect_data_refs=False,
               ):
 
         if insn_bytes is not None and insn_text is not None:
@@ -283,7 +274,8 @@ class AngrObjectFactory(object):
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
             size = max_size
         return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
-                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags
+                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
+                     strict_block_end=strict_block_end, collect_data_refs=collect_data_refs,
                      )
 
     def fresh_block(self, addr, size, backup_state=None):
@@ -294,34 +286,6 @@ class AngrObjectFactory(object):
     _default_cc = None
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
-
-
-    #
-    # Private methods
-    #
-
-    @deprecate('sim_run()', 'successors()')
-    def sim_run(self, *args, **kwargs):
-        return self.successors(*args, **kwargs)
-
-    @deprecate('sim_block()', 'successors(default_engine=True)')
-    def sim_block(self, *args, **kwargs):
-        kwargs['default_engine'] = True
-        return self.successors(*args, **kwargs)
-
-    #
-    # Compatibility layer
-    #
-
-    @deprecate('path_group()', 'simulation_manager()')
-    def path_group(self, thing=None, **kwargs):
-        return self.simgr(thing, **kwargs)
-
-    @deprecate('path()', 'entry_state()')
-    def path(self, state=None, **kwargs):
-        if state is not None:
-            return state
-        return self.entry_state(**kwargs)
 
 
 from .errors import AngrError

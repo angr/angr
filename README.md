@@ -2,16 +2,18 @@ angr
 ====
 
 [![Latest Release](https://img.shields.io/pypi/v/angr.svg)](https://pypi.python.org/pypi/angr/)
+[![PyPI Statistics](https://pypistats.com/badge/angr.svg)](https://pypistats.com/package/angr)
 [![Build Status](https://travis-ci.org/angr/angr.svg?branch=master)](https://travis-ci.org/angr/angr)
 [![License](https://img.shields.io/github/license/angr/angr.svg)](https://github.com/angr/angr/blob/master/LICENSE)
 [![Gitbook](https://img.shields.io/badge/docs-gitbook-green.svg)](http://docs.angr.io)
 [![API Docs](https://img.shields.io/badge/docs-api-green.svg)](http://angr.io/api-doc)
 
-angr is a platform-agnostic binary analysis framework developed by the Computer Security Lab at UC Santa Barbara and their associated CTF team, Shellphish.
+angr is a platform-agnostic binary analysis framework.
+It is brought to you by [the Computer Security Lab at UC Santa Barbara](https://seclab.cs.ucsb.edu), [SEFCOM at Arizona State University](http://sefcom.asu.edu),  their associated CTF team, [Shellphish](http://shellphish.net), the open source community, and **[@rhelmot](https://github.com/rhelmot)**.
 
 # What?
 
-angr is a suite of Python 2 libraries that let you load a binary and do a lot of cool things to it:
+angr is a suite of Python 3 libraries that let you load a binary and do a lot of cool things to it:
 
 - Disassembly and intermediate-representation lifting
 - Program instrumentation
@@ -20,9 +22,9 @@ angr is a suite of Python 2 libraries that let you load a binary and do a lot of
 - Data-dependency analysis
 - Value-set analysis (VSA)
 
-The most common angr operation is loading a binary: `p = angr.Project('/bin/bash')` If you do this in IPython 5.x LTS or earlier, you can use tab-autocomplete to browse the [top-level-accessible methods](http://docs.angr.io/docs/toplevel.html) and their docstrings.
+The most common angr operation is loading a binary: `p = angr.Project('/bin/bash')` If you do this in an enhanced REPL like IPython, you can use tab-autocomplete to browse the [top-level-accessible methods](http://docs.angr.io/docs/toplevel.html) and their docstrings.
 
-The short version of "how to install angr" is `mkvirtualenv angr && python2 -m pip install angr`.
+The short version of "how to install angr" is `mkvirtualenv --python=$(which python3) angr && python -m pip install angr`.
 
 # Example
 
@@ -36,7 +38,7 @@ project = angr.Project("angr-doc/examples/defcamp_r100/r100", auto_load_libs=Fal
 
 @project.hook(0x400844)
 def print_flag(state):
-    print("FLAG SHOULD BE:", state.posix.dump_fd(0))
+    print("FLAG SHOULD BE:", state.posix.dumps(0))
     project.terminate_execution()
 
 project.execute()

@@ -4,7 +4,7 @@ from ..misc.ux import deprecated
 def register_analysis(cls, name):
     AnalysesHub.register_default(name, cls)
 
-from .cfg import CFGFast, CFGAccurate, CFG, CFGArchOptions
+from .cfg import CFGFast, CFGEmulated, CFG, CFGArchOptions
 from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
@@ -14,7 +14,6 @@ from .backward_slice import BackwardSlice
 from .veritesting import Veritesting
 from .vsa_ddg import VSA_DDG
 from .bindiff import BinDiff
-from .dfg import DFG
 from .loopfinder import LoopFinder
 from .congruency_check import CongruencyCheck
 from .static_hooker import StaticHooker
@@ -26,3 +25,4 @@ from .identifier import Identifier
 from .callee_cleanup_finder import CalleeCleanupFinder
 from .reaching_definitions import ReachingDefinitionAnalysis
 from .calling_convention import CallingConventionAnalysis
+from .code_tagging import CodeTagging

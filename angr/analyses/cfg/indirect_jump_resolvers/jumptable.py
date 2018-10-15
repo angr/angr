@@ -85,13 +85,25 @@ class JumpTableResolver(IndirectJumpResolver):
                 if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
                     # data transferring
                     stmts_to_remove.append(stmt_loc)
-                    stmt_loc = (block_addr, stmt_idx)
+                    continue
+                elif isinstance(stmt.data, pyvex.IRExpr.ITE):
+                    # data transferring
+                    #   t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
+                    # > t44 = ITE(t43,t16,0x0000c844)
+                    stmts_to_remove.append(stmt_loc)
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
-                    stmt_loc = (block_addr, stmt_idx)
                     load_stmt, load_stmt_loc = stmt, stmt_loc
                     stmts_to_remove.append(stmt_loc)
+            elif isinstance(stmt, pyvex.IRStmt.LoadG):
+                # Got it!
+                #
+                # this is how an ARM jump table is translated to VEX
+                # > t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
+                load_stmt, load_stmt_loc = stmt, stmt_loc
+                stmts_to_remove.append(stmt_loc)
+
             break
 
         if load_stmt_loc is None:
@@ -158,13 +170,11 @@ class JumpTableResolver(IndirectJumpResolver):
                 state = all_states[0]  # Just take the first state
 
                 # Parse the memory load statement
-                load_addr_tmp = load_stmt.data.addr.tmp
-                if load_addr_tmp not in state.scratch.temps:
-                    # the tmp variable is not there... umm...
+                jump_addr = self._parse_load_statement(load_stmt, state)
+                if jump_addr is None:
                     continue
-                jump_addr = state.scratch.temps[load_addr_tmp]
+                all_targets = [ ]
                 total_cases = jump_addr._model_vsa.cardinality
-                all_targets = []
 
                 if total_cases > self._max_targets:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
@@ -176,13 +186,13 @@ class JumpTableResolver(IndirectJumpResolver):
                     #
                     # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
                     # total_cases = int(raw_input("please give me the total cases: "))
-                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
+                    # jump_target = state.solver.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
                     # (total_cases - 1) * 8, stride=8)
 
-                jump_table = []
+                jump_table = [ ]
 
-                min_jump_target = state.se.min(jump_addr)
-                max_jump_target = state.se.max(jump_addr)
+                min_jump_target = state.solver.min(jump_addr)
+                max_jump_target = state.solver.max(jump_addr)
 
                 # Both the min jump target and the max jump target should be within a mapped memory region
                 # i.e., we shouldn't be jumping to the stack or somewhere unmapped
@@ -192,11 +202,10 @@ class JumpTableResolver(IndirectJumpResolver):
                             "Continue to resolve it from the next data source.", addr)
                     continue
 
-                for idx, a in enumerate(state.se.eval_upto(jump_addr, total_cases)):
+                for idx, a in enumerate(state.solver.eval_upto(jump_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
-                    jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
-                    target = state.se.eval(jump_target)
+                    target = cfg._fast_memory_load_pointer(a)
                     all_targets.append(target)
                     jump_table.append(target)
 
@@ -204,10 +213,15 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 # write to the IndirectJump object in CFG
                 ij = cfg.indirect_jumps[addr]
-                ij.jumptable = True
-                ij.jumptable_addr = state.se.min(jump_addr)
-                ij.jumptable_targets = jump_table
-                ij.jumptable_entries = total_cases
+                if total_cases > 1:
+                    # It can be considered a jump table only if there are more than one jump target
+                    ij.jumptable = True
+                    ij.jumptable_addr = state.solver.min(jump_addr)
+                    ij.resolved_targets = set(jump_table)
+                    ij.jumptable_entries = jump_table
+                else:
+                    ij.jumptable = False
+                    ij.resolved_targets = set(jump_table)
 
                 return True, all_targets
 
@@ -236,12 +250,12 @@ class JumpTableResolver(IndirectJumpResolver):
         read_addr = state.inspect.mem_read_address
         read_length = state.inspect.mem_read_length
 
-        if not isinstance(read_addr, (int, long)) and read_addr.symbolic:
+        if not isinstance(read_addr, int) and read_addr.symbolic:
             # don't touch it
             return
 
-        concrete_read_addr = state.se.eval(read_addr)
-        concrete_read_length = state.se.eval(read_length)
+        concrete_read_addr = state.solver.eval(read_addr)
+        concrete_read_length = state.solver.eval(read_length)
 
         for start, size in self._bss_regions:
             if start <= concrete_read_addr < start + size:
@@ -252,8 +266,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if not state.memory.was_written_to(concrete_read_addr):
             # it was never written to before. we overwrite it with unconstrained bytes
-            for i in xrange(0, concrete_read_length, self.project.arch.bits / 8):
-                state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.project.arch.bits))
+            for i in range(0, concrete_read_length, self.project.arch.bytes):
+                state.memory.store(concrete_read_addr + i, state.solver.Unconstrained('unconstrained', self.project.arch.bits))
 
                 # job done :-)
 
@@ -261,15 +275,16 @@ class JumpTableResolver(IndirectJumpResolver):
     def _init_registers_on_demand(state):
         # for uninitialized read using a register as the source address, we replace them in memory on demand
         read_addr = state.inspect.mem_read_address
+        cond = state.inspect.mem_read_condition
 
-        if not isinstance(read_addr, (int, long)) and read_addr.uninitialized:
+        if not isinstance(read_addr, int) and read_addr.uninitialized and cond is None:
 
             read_length = state.inspect.mem_read_length
-            if not isinstance(read_length, (int, long)):
+            if not isinstance(read_length, int):
                 read_length = read_length._model_vsa.upper_bound
             if read_length > 16:
                 return
-            new_read_addr = state.se.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
+            new_read_addr = state.solver.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
             UninitReadMeta.uninit_read_base += read_length
 
             # replace the expression in registers
@@ -290,24 +305,24 @@ class JumpTableResolver(IndirectJumpResolver):
             stmt_ids = stmts[addr]
             irsb = self.project.factory.block(addr, backup_state=self.base_state).vex
 
-            print "  ####"
-            print "  #### Block %#x" % addr
-            print "  ####"
+            print("  ####")
+            print("  #### Block %#x" % addr)
+            print("  ####")
 
             for i, stmt in enumerate(irsb.statements):
                 taken = i in stmt_ids
                 s = "%s %x:%02d | " % ("+" if taken else " ", addr, i)
-                s += "%s " % irsb.statements[i].__str__(arch=self.project.arch, tyenv=irsb.tyenv)
+                s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)
                 if taken:
                     s += "IN: %d" % blade.slice.in_degree((addr, i))
-                print s
+                print(s)
 
             # the default exit
             default_exit_taken = 'default' in stmt_ids
             s = "%s %x:default | PUT(%s) = %s; %s" % ("+" if default_exit_taken else " ", addr, irsb.offsIP, irsb.next,
                                                       irsb.jumpkind
                                                       )
-            print s
+            print(s)
 
     def _initial_state(self, src_irsb):
 
@@ -326,3 +341,53 @@ class JumpTableResolver(IndirectJumpResolver):
         )
 
         return state
+
+    @staticmethod
+    def _parse_load_statement(load_stmt, state):
+        """
+        Parse a memory load VEX statement and get the jump target addresses.
+
+        :param load_stmt:   The VEX statement for loading the jump target addresses.
+        :param state:       The SimState instance (in static mode).
+        :return:            A tuple of an abstract value (or a concrete value) representing the jump target addresses,
+                            and a set of extra concrete targets. Return (None, None) if we fail to parse the statement.
+        """
+
+        # The jump table address is stored in a tmp. In this case, we find the jump-target loading tmp.
+        load_addr_tmp = None
+
+        if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
+            load_addr_tmp = load_stmt.data.addr.tmp
+        elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
+            if type(load_stmt.addr) is pyvex.IRExpr.RdTmp:
+                load_addr_tmp = load_stmt.addr.tmp
+            elif type(load_stmt.addr) is pyvex.IRExpr.Const:
+                # It's directly loading from a constant address
+                # e.g.,
+                #  4352c     SUB     R1, R11, #0x1000
+                #  43530     LDRHI   R3, =loc_45450
+                #  ...
+                #  43540     MOV     PC, R3
+                #
+                # It's not a jump table, but we resolve it anyway
+                # TODO: We should develop an ARM-specific indirect jump resolver in this case
+                # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
+                # value of R3 is. Some intensive data-flow analysis is required in this case.
+                jump_target_addr = load_stmt.addr.con.value
+                return state.solver.BVV(jump_target_addr, state.arch.bits)
+        else:
+            raise TypeError("Unsupported address loading statement type %s." % type(load_stmt))
+
+        if load_addr_tmp not in state.scratch.temps:
+            # the tmp variable is not there... umm...
+            return None
+
+        jump_addr = state.scratch.temps[load_addr_tmp]
+
+        if isinstance(load_stmt, pyvex.IRStmt.LoadG):
+            # LoadG comes with a guard. We should apply this guard to the load expression
+            guard_tmp = load_stmt.guard.tmp
+            guard = state.scratch.temps[guard_tmp] != 0
+            jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
+
+        return jump_addr
