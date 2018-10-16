@@ -398,7 +398,12 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         ip_data = next(iter(defs_ip)).data
         if len(ip_data) != 1:
-            l.error('Invalid number of values for IP.')
+            handler_name = 'handle_inderect_call'
+            if hasattr(self._function_handler, handler_name):
+                _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                self.state = state
+            else:
+                l.warning('Please implement the inderect function handler with your own logic.')
             return None
 
         ip_addr = ip_data.get_first_element()
@@ -443,6 +448,12 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 l.warning('Please implement the local function handler with your own logic.')
         else:
             l.warning('Could not find function name for external function at address %#x.', ip_addr)
+            handler_name = 'handle_unknown_call'
+            if hasattr(self._function_handler, handler_name):
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                self.state = state
+            else:
+                l.warning('Please implement the unknown function handler with your own logic.')
 
         # pop return address if necessary
         if executed_rda is False and self.arch.call_pushes_ret is True:
