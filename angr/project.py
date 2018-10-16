@@ -158,9 +158,9 @@ class Project:
         self._translation_cache = translation_cache
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
 
-        if support_selfmodifying_code:
-            if translation_cache is True:
-                translation_cache = False
+        if self._support_selfmodifying_code:
+            if self._translation_cache is True:
+                self._translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry

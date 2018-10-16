@@ -193,8 +193,9 @@ class SimLinux(SimUserland):
         state = super(SimLinux, self).state_entry(**kwargs)
 
         # Handle default values
+        filename = self.project.filename or 'dummy_filename'
         if args is None:
-            args = []
+            args = [filename]
 
         if env is None:
             env = {}

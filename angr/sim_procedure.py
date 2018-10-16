@@ -1,6 +1,7 @@
 import inspect
 import copy
 import itertools
+from cle import Symbol
 
 import logging
 l = logging.getLogger("angr.sim_procedure")
@@ -8,7 +9,7 @@ l = logging.getLogger("angr.sim_procedure")
 symbolic_count = itertools.count()
 
 
-class SimProcedure(object):
+class SimProcedure:
     """
     A SimProcedure is a wonderful object which describes a procedure to run on a state.
 
@@ -40,7 +41,7 @@ class SimProcedure(object):
         # WE'LL FIGURE IT OUT
         self.project = project
         self.arch = project.arch if project is not None else None
-        #self.addr = None
+        self.addr = None
         self.cc = cc
         self.canonical = self
 
@@ -104,8 +105,8 @@ class SimProcedure(object):
         provide arguments to the function.
         """
         # fill out all the fun stuff we don't want to frontload
-        #if self.addr is None:
-        #    self.addr = state.addr
+        if self.addr is None and not state.regs.ip.symbolic:
+            self.addr = state.addr
         if self.arch is None:
             self.arch = state.arch
         if self.project is None:
@@ -115,7 +116,7 @@ class SimProcedure(object):
                 self.cc = DEFAULT_CC[self.arch.name](self.arch)
             else:
                 raise SimProcedureError('There is no default calling convention for architecture %s.'
-                                        ' You must specify a calling convention.', self.arch.name)
+                                        ' You must specify a calling convention.' % self.arch.name)
 
         inst = copy.copy(self)
         inst.state = state
@@ -184,7 +185,7 @@ class SimProcedure(object):
             target_name = '%s.%s' % (self.display_name, name)
             should_be_none = self.project.loader.extern_object.get_symbol(target_name)
             if should_be_none is None:
-                cont.addr = self.project.loader.extern_object.make_extern(target_name).rebased_addr
+                cont.addr = self.project.loader.extern_object.make_extern(target_name, sym_type=Symbol.TYPE_OTHER).rebased_addr
             else:
                 l.error("Trying to make continuation %s but it already exists. This is bad.", target_name)
                 cont.addr = self.project.loader.extern_object.allocate()

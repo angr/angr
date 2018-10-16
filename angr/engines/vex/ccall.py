@@ -1388,6 +1388,7 @@ def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
            (ARMG_CC_SHIFT_V, state.solver.Extract(0, 0, v))]
     return _concat_flags(ARMG_NBITS, vec), c1 + c2 + c3 + c4
 
+
 def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     cond = state.solver.LShR(cond_n_op, 4)
     cc_op = cond_n_op & 0xF
@@ -1475,6 +1476,8 @@ def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_op = flag_concretize(state, cc_op)
     flag = None
 
+    cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
+
     if concrete_op == ARM64G_CC_OP_COPY:
         flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_N) & 1
     elif concrete_op == ARM64G_CC_OP_ADD32:
@@ -1510,12 +1513,34 @@ def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     l.error("Unknown cc_op %s (arm64g_calculate_flag_n)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
+
 def arm64_zerobit(state, x):
     return calc_zerobit(state, x).zero_extend(63)
+
+
+def u64_to_u32(n):
+    return n[31:0]
+
+
+def arm64g_32bit_truncate_operands(cc_op, cc_dep1, cc_dep2, cc_dep3):
+    # Truncate operands if in 32-bit mode
+    if cc_op in {ARM64G_CC_OP_ADD32, ARM64G_CC_OP_SUB32}:
+        cc_dep1 = u64_to_u32(cc_dep1)
+        cc_dep2 = u64_to_u32(cc_dep2)
+    elif cc_op in {ARM64G_CC_OP_ADC32, ARM64G_CC_OP_SBC32}:
+        cc_dep1 = u64_to_u32(cc_dep1)
+        cc_dep2 = u64_to_u32(cc_dep2)
+        cc_dep3 = u64_to_u32(cc_dep3)
+    elif cc_op == ARM64G_CC_OP_LOGIC32:
+        cc_dep1 = u64_to_u32(cc_dep1)
+    return cc_dep1, cc_dep2, cc_dep3
+
 
 def arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_op = flag_concretize(state, cc_op)
     flag = None
+
+    cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
 
     if concrete_op == ARM64G_CC_OP_COPY:
         flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_Z) & 1
@@ -1543,6 +1568,8 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_op = flag_concretize(state, cc_op)
     flag = None
 
+    cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
+
     if concrete_op == ARM64G_CC_OP_COPY:
         flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_C) & 1
     elif concrete_op in (ARM64G_CC_OP_ADD32, ARM64G_CC_OP_ADD64):
@@ -1566,6 +1593,8 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_op = flag_concretize(state, cc_op)
     flag = None
+
+    cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
 
     if concrete_op == ARM64G_CC_OP_COPY:
         flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_V) & 1
