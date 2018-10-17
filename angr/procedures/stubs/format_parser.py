@@ -219,7 +219,7 @@ class FormatString(object):
         argpos = startpos
         position = addr
         for component in self.components:
-            if isinstance(component, str):
+            if isinstance(component, bytes):
                 # TODO we skip non-format-specifiers in format string interpretation for now
                 # if the region doesn't match the concrete component, we need to return immediately
                 pass
