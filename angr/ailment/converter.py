@@ -44,7 +44,8 @@ class VEXExprConverter(Converter):
 
     @staticmethod
     def register(offset, bits, manager):
-        reg_name = manager.arch.register_names[offset]
+        reg_size = bits // manager.arch.byte_width
+        reg_name = manager.arch.translate_register_name(offset, reg_size)
         return Register(manager.next_atom(), None, offset, bits, reg_name=reg_name)
 
     @staticmethod
