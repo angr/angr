@@ -398,7 +398,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         ip_data = next(iter(defs_ip)).data
         if len(ip_data) != 1:
-            handler_name = 'handle_inderect_call'
+            handler_name = 'handle_indirect_call'
             if hasattr(self._function_handler, handler_name):
                 _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                 self.state = state
