@@ -1,4 +1,5 @@
 import logging
+import zlib
 from .testing import is_testing
 
 class Loggers(object):
@@ -54,8 +55,8 @@ class Loggers(object):
             logging.getLogger(name).setLevel(level)
 
 class CuteHandler(logging.StreamHandler):
-    def emit(self, record):
-        color = hash(record.name) % 7 + 31
+     def emit(self, record):
+        color = zlib.adler32(record.name.encode()) % 7 + 31
         try:
             record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
         except Exception:

@@ -25,7 +25,7 @@ class Function(object):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info'
+                 '_local_block_addrs', 'info', 'tags',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None):
@@ -152,6 +152,7 @@ class Function(object):
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
         self.info = { }  # storing special information, like $gp values for MIPS32
+        self.tags = tuple()  # store function tags. can be set manually by performing CodeTagging analysis.
 
     @property
     def name(self):
@@ -297,11 +298,11 @@ class Function(object):
                         # build string
                         stn = ""
                         offset = 0
-                        current_char = memory[addr + offset]
-                        while chr(current_char) in string.printable:
+                        current_char = chr(memory[addr + offset])
+                        while current_char in string.printable:
                             stn += current_char
                             offset += 1
-                            current_char = memory[addr + offset]
+                            current_char = chr(memory[addr + offset])
 
                         # check that the string was a null terminated string with minimum length
                         if current_char == "\x00" and len(stn) >= minimum_length:
