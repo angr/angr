@@ -2841,7 +2841,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if insns:
                             nop_length = self._get_nop_length(insns)
 
-                    if nop_length <= 0:
+                    if nop_length is None or nop_length <= 0:
                         continue
 
                     # leading nop for alignment.
