@@ -149,7 +149,9 @@ class Tracer(ExplorationTechnique):
         if state.history.recent_block_count > 1:
             # multiple blocks were executed this step. they should follow the trace *perfectly*
             # or else something is up
-            # "something else" so far only includes concrete transmits
+            # "something else" so far only includes concrete transmits, or...
+            # TODO: https://github.com/unicorn-engine/unicorn/issues/874
+            # ^ this means we will see desyncs of the form unicorn suddenly skips a bunch of qemu blocks
             assert state.history.recent_block_count == len(state.history.recent_bbl_addrs)
 
             if sync is not None:
@@ -188,6 +190,7 @@ class Tracer(ExplorationTechnique):
                     # this is fine. we do nothing and then next round it'll get handled by the is_hooked(state.history.addr) case
                     pass
                 else:
+                    # this may also be triggered as a consequence of the unicorn issue linked above
                     raise Exception("BUG: State is returning to a continuation that isn't its own???")
             else:
                 # see above
@@ -232,7 +235,8 @@ class Tracer(ExplorationTechnique):
         if obj not in self._aslr_slides: # this SHOULD be an invariant given the way _compare_addrs works
             raise Exception("BUG: misfollow analysis initiated when jumping into a new object")
 
-        trace_addr = self._trace[idx + 1] - self._aslr_slides[obj]
+        slide = self._aslr_slides[obj]
+        trace_addr = self._trace[idx + 1] - slide
         l.info("Misfollow: angr says %#x, trace says %#x", angr_addr, trace_addr)
 
         if not obj.contains_addr(trace_addr):
@@ -240,6 +244,23 @@ class Tracer(ExplorationTechnique):
             return False
 
         # TODO: add rep handling
+
+        if 'IRSB' in state.history.recent_description:
+            last_block = state.block(state.history.bbl_addrs[-1])
+            if self._trace[idx + 1] - slide in last_block.instruction_addrs:
+                # we have disparate block sizes!
+                # specifically, the angr block size is larger than the trace's.
+                # allow the trace to catch up.
+                while self._trace[idx + 1] - slide in last_block.instruction_addrs:
+                    idx += 1
+
+                if self._trace[idx + 1] - slide == state.addr:
+                    state.globals['trace_idx'] = idx + 1
+                    return True
+                else:
+                    state.globals['trace_idx'] = idx
+                    #state.globals['trace_desync'] = True
+                    return True
 
         prev_addr = state.history.bbl_addrs[-1]
         prev_obj = self.project.loader.find_object_containing(prev_addr)
