@@ -40,9 +40,6 @@ from .state_plugins import SimStatePlugin
 
 from .project import *
 from .errors import *
-#from . import surveyors
-#from .surveyor import *
-#from .service import *
 from .blade import Blade
 from .simos import SimOS
 from .block import Block

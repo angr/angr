@@ -144,7 +144,7 @@ class Tracer(ExplorationTechnique):
         self._update_state_tracking(res[0])
         return res[0]
 
-    def _update_state_tracking(self, state: angr.SimState):
+    def _update_state_tracking(self, state: 'angr.SimState'):
         idx = state.globals['trace_idx']
         sync = state.globals['sync_idx']
 

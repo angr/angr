@@ -1,4 +1,3 @@
-import angr
 import functools
 import itertools
 import contextlib
@@ -7,9 +6,10 @@ import weakref
 import logging
 l = logging.getLogger("angr.sim_state")
 
+import angr # type annotations; pylint:disable=unused-import
 import claripy
 import ana
-from archinfo import arch_from_id
+import archinfo
 
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
@@ -50,7 +50,7 @@ class SimState(PluginHub, ana.Storable):
     :ivar unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
+    def __init__(self, project:'angr.Project'=None, arch:archinfo.Arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
                  add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default', **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
@@ -59,7 +59,7 @@ class SimState(PluginHub, ana.Storable):
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
         if type(self.arch) is str:
-            self.arch = arch_from_id(self.arch)
+            self.arch = archinfo.arch_from_id(self.arch)
 
         # the options
         if options is None:
@@ -415,7 +415,7 @@ class SimState(PluginHub, ana.Storable):
         """
         return self.project.factory.successors(self, **kwargs)
 
-    def block(self, *args, **kwargs) -> angr.Block:
+    def block(self, *args, **kwargs):
         """
         Represent the basic block at this state's instruction pointer.
         Any arguments to `AngrObjectFactory.block` can ba passed to this.

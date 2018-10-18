@@ -1,10 +1,10 @@
 from collections import OrderedDict, defaultdict
 import copy
 import re
+import logging
 
 import claripy
 
-import logging
 l = logging.getLogger("angr.sim_type")
 
 try:
@@ -50,9 +50,6 @@ class SimType(object):
         for attr in self._fields:
             out ^= hash(getattr(self, attr))
         return out
-
-    def view(self, state, addr):
-        return SimMemView(ty=self, addr=addr, state=state)
 
     @property
     def name(self):
@@ -766,7 +763,7 @@ class SimStruct(SimType):
         values = {}
         for name, offset in self.offsets.items():
             ty = self.fields[name]
-            v = ty.view(state, addr + offset)
+            v = view.SimMemView(ty=ty, addr=addr+offset, state=state)
             if concrete:
                 values[name] = v.concrete
             else:
@@ -1174,5 +1171,4 @@ struct timeval {
 except ImportError:
     pass
 
-
-from .state_plugins.view import SimMemView
+from .state_plugins import view
