@@ -1,3 +1,4 @@
+import angr
 import functools
 import itertools
 import contextlib
@@ -414,7 +415,7 @@ class SimState(PluginHub, ana.Storable):
         """
         return self.project.factory.successors(self, **kwargs)
 
-    def block(self, *args, **kwargs):
+    def block(self, *args, **kwargs) -> angr.Block:
         """
         Represent the basic block at this state's instruction pointer.
         Any arguments to `AngrObjectFactory.block` can ba passed to this.
@@ -796,4 +797,4 @@ from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
 
 from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, AngrNoPluginError
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError

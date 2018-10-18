@@ -1,3 +1,5 @@
+import angr
+
 # 8<----------------- Compatibility layer -----------------
 class ExplorationTechniqueMeta(type):
     def __new__(cls, name, bases, attrs):
@@ -67,22 +69,22 @@ class ExplorationTechnique:
     def __init__(self):
         # this attribute will be set from above by the manager
         if not hasattr(self, 'project'):
-            self.project = None
+            self.project = None # type: angr.project.Project
 
-    def setup(self, simgr):
+    def setup(self, simgr: angr.SimulationManager):
         """
         Perform any initialization on this manager you might need to do.
         """
         pass
 
-    def step(self, simgr, stash='active', **kwargs):  # pylint:disable=no-self-use
+    def step(self, simgr: angr.SimulationManager, stash='active', **kwargs):  # pylint:disable=no-self-use
         """
         Hook the process of stepping a stash forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the
         actual processing.
         """
         simgr.step(stash=stash, **kwargs)
 
-    def filter(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
+    def filter(self, simgr: angr.SimulationManager, state: angr.SimState, **kwargs):  # pylint:disable=no-self-use
         """
         Perform filtering on which stash a state should be inserted into.
 
@@ -95,7 +97,7 @@ class ExplorationTechnique:
         """
         return simgr.filter(state, **kwargs)
 
-    def selector(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
+    def selector(self, simgr: angr.SimulationManager, state: angr.SimState, **kwargs):  # pylint:disable=no-self-use
         """
         Determine if a state should participate in the current round of stepping.
         Return True if the state should be stepped, and False if the state should not be stepped.
@@ -105,7 +107,7 @@ class ExplorationTechnique:
         """
         return simgr.selector(state, **kwargs)
 
-    def step_state(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
+    def step_state(self, simgr: angr.SimulationManager, state: angr.SimState, **kwargs):  # pylint:disable=no-self-use
         """
         Determine the categorization of state successors into stashes. The result should be a dict mapping stash names
         to the list of successor states that fall into that stash, or None as a stash name to use the original stash
@@ -121,7 +123,7 @@ class ExplorationTechnique:
         """
         return simgr.step_state(state, **kwargs)
 
-    def successors(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
+    def successors(self, simgr: angr.SimulationManager, state: angr.SimState, **kwargs):  # pylint:disable=no-self-use
         """
         Perform the process of stepping a state forward, returning a SimSuccessors object.
 
@@ -134,7 +136,7 @@ class ExplorationTechnique:
         """
         return simgr.successors(state, **kwargs)
 
-    def complete(self, simgr):  # pylint:disable=no-self-use,unused-argument
+    def complete(self, simgr: angr.SimulationManager):  # pylint:disable=no-self-use,unused-argument
         """
         Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should halt.
 
