@@ -6,9 +6,10 @@ import weakref
 import logging
 l = logging.getLogger("angr.sim_state")
 
+import angr # type annotations; pylint:disable=unused-import
 import claripy
 import ana
-from archinfo import arch_from_id
+import archinfo
 
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
@@ -33,6 +34,9 @@ class SimState(PluginHub, ana.Storable):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
+    :param angr.Project project:
+    :param archinfo.Arch arch:
+
     :ivar regs:         A convenient view of the state's registers, where each register is a property
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
     :ivar registers:    The state's register file as a flat memory region
@@ -46,7 +50,7 @@ class SimState(PluginHub, ana.Storable):
     :ivar libc:         Information about the standard library we are emulating
     :ivar cgc:          Information about the cgc environment
     :ivar uc_manager:   Control of under-constrained symbolic execution
-    :ivar unicorn:      Control of the Unicorn Engine
+    :ivar str unicorn:      Control of the Unicorn Engine
     """
 
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
@@ -58,7 +62,7 @@ class SimState(PluginHub, ana.Storable):
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
         if type(self.arch) is str:
-            self.arch = arch_from_id(self.arch)
+            self.arch = archinfo.arch_from_id(self.arch)
 
         # the options
         if options is None:
@@ -796,4 +800,4 @@ from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
 
 from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, AngrNoPluginError
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError

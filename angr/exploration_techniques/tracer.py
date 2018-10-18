@@ -1,3 +1,5 @@
+import angr
+from typing import List
 import logging
 
 from . import ExplorationTechnique
@@ -40,7 +42,7 @@ class Tracer(ExplorationTechnique):
         self._current_slide = None
 
         # keep track of the last basic block we hit
-        self.predecessors = [None] * keep_predecessors
+        self.predecessors = [None] * keep_predecessors # type: List[angr.SimState]
         self.last_state = None
 
         # whether we should follow the trace
@@ -142,7 +144,7 @@ class Tracer(ExplorationTechnique):
         self._update_state_tracking(res[0])
         return res[0]
 
-    def _update_state_tracking(self, state):
+    def _update_state_tracking(self, state: 'angr.SimState'):
         idx = state.globals['trace_idx']
         sync = state.globals['sync_idx']
 
