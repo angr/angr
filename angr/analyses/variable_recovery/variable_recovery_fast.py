@@ -50,7 +50,10 @@ class ProcessorState(object):
         self.sp_adjustment = max(self.sp_adjustment, other.sp_adjustment)
         if other.bp_as_base is True:
             self.bp_as_base = True
-        self.bp = max(self.bp, other.bp)
+        if self.bp is None:
+            self.bp = other.bp
+        elif other.bp is not None:  # and self.bp is not None
+            self.bp = max(self.bp, other.bp)
         return self
 
     def __eq__(self, other):
