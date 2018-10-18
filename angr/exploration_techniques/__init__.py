@@ -71,20 +71,25 @@ class ExplorationTechnique:
         if not hasattr(self, 'project'):
             self.project = None # type: angr.project.Project
 
-    def setup(self, simgr: 'angr.SimulationManager'):
+    def setup(self, simgr):
         """
         Perform any initialization on this manager you might need to do.
+
+        :param angr.SimulationManager simgr:    The simulation manager to which you have just been added
         """
         pass
 
-    def step(self, simgr: 'angr.SimulationManager', stash='active', **kwargs):  # pylint:disable=no-self-use
+    def step(self, simgr, stash='active', **kwargs):  # pylint:disable=no-self-use
         """
         Hook the process of stepping a stash forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the
         actual processing.
+
+        :param angr.SimulationManager simgr:
+        :param str stash:
         """
         simgr.step(stash=stash, **kwargs)
 
-    def filter(self, simgr: 'angr.SimulationManager', state: 'angr.SimState', **kwargs):  # pylint:disable=no-self-use
+    def filter(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
         """
         Perform filtering on which stash a state should be inserted into.
 
@@ -94,20 +99,26 @@ class ExplorationTechnique:
         To defer to the original categorization procedure, return the result of ``simgr.filter(state, **kwargs)``
 
         If the user provided a ``filter_func`` in their step or run command, it will appear here.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.filter(state, **kwargs)
 
-    def selector(self, simgr: 'angr.SimulationManager', state: 'angr.SimState', **kwargs):  # pylint:disable=no-self-use
+    def selector(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
         """
         Determine if a state should participate in the current round of stepping.
         Return True if the state should be stepped, and False if the state should not be stepped.
         To defer to the original selection procedure, return the result of ``simgr.selector(state, **kwargs)``.
 
         If the user provided a ``selector_func`` in their step or run command, it will appear here.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.selector(state, **kwargs)
 
-    def step_state(self, simgr: 'angr.SimulationManager', state: 'angr.SimState', **kwargs):  # pylint:disable=no-self-use
+    def step_state(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
         """
         Determine the categorization of state successors into stashes. The result should be a dict mapping stash names
         to the list of successor states that fall into that stash, or None as a stash name to use the original stash
@@ -120,10 +131,13 @@ class ExplorationTechnique:
 
         ..note:: This takes precedence over the `filter` hook - `filter` is only applied to states returned from here
         in the None stash.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.step_state(state, **kwargs)
 
-    def successors(self, simgr: 'angr.SimulationManager', state: 'angr.SimState', **kwargs):  # pylint:disable=no-self-use
+    def successors(self, simgr, state, **kwargs):  # pylint:disable=no-self-use
         """
         Perform the process of stepping a state forward, returning a SimSuccessors object.
 
@@ -133,10 +147,13 @@ class ExplorationTechnique:
         calling the original, and mutate the result before returning it yourself.
 
         If the user provided a ``successor_func`` in their step or run command, it will appear here.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.successors(state, **kwargs)
 
-    def complete(self, simgr: 'angr.SimulationManager'):  # pylint:disable=no-self-use,unused-argument
+    def complete(self, simgr):  # pylint:disable=no-self-use,unused-argument
         """
         Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should halt.
 
@@ -144,6 +161,8 @@ class ExplorationTechnique:
         You should *not* call ``simgr.complete``, you should make your own decision and return True or False.
         Each of the techniques' completion checkers will be called and the final result will be compted with
         ``simgr.completion_mode``.
+
+        :param angr.SimulationManager simgr:
         """
         return False
 

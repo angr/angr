@@ -34,6 +34,9 @@ class SimState(PluginHub, ana.Storable):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
+    :param angr.Project project:
+    :param archinfo.Arch arch:
+
     :ivar regs:         A convenient view of the state's registers, where each register is a property
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
     :ivar registers:    The state's register file as a flat memory region
@@ -47,10 +50,10 @@ class SimState(PluginHub, ana.Storable):
     :ivar libc:         Information about the standard library we are emulating
     :ivar cgc:          Information about the cgc environment
     :ivar uc_manager:   Control of under-constrained symbolic execution
-    :ivar unicorn:      Control of the Unicorn Engine
+    :ivar str unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, project:'angr.Project'=None, arch:archinfo.Arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
+    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
                  add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default', **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
