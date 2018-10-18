@@ -630,9 +630,10 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         # readjusting sp at the end for blocks that end in a call
         if block.addr in self._node_to_cc:
             cc = self._node_to_cc[block.addr]
-            state.processor_state.sp_adjustment += cc.sp_delta
-            state.processor_state.sp_adjusted = True
-            l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
+            if cc is not None:
+                state.processor_state.sp_adjustment += cc.sp_delta
+                state.processor_state.sp_adjusted = True
+                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
 
     def _make_phi_node(self, block_addr, *variables):
 

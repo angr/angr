@@ -25,6 +25,24 @@ def test_smoketest():
     st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
 
 
+def test_smoketest_cm3_firmware():
+
+    p = angr.Project(os.path.join(test_location, 'armel', 'i2c_master_read-nucleol152re.elf'), auto_load_libs=False)
+    cfg = p.analyses.CFG(normalize=True,
+                         force_complete_scan=False)
+
+    main_func = cfg.kb.functions['main']
+
+    # convert function blocks to AIL blocks
+    clinic = p.analyses.Clinic(main_func)
+
+    # recover regions
+    ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
+
+    # structure it
+    st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
+
+
 def test_simple():
 
     p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)
@@ -133,3 +151,4 @@ if __name__ == "__main__":
     test_recursive_structuring()
     test_while_true_break()
     test_while()
+    test_smoketest_cm3_firmware()
