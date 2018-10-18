@@ -25,10 +25,11 @@ def test_smoketest():
     st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
 
 
-def test_smoketest_cm3_firmware(binname):
+def test_smoketest_cm3_firmware():
 
     p = angr.Project(os.path.join(test_location, 'armel', 'i2c_master_read-nucleol152re.elf'), auto_load_libs=False)
-    cfg = p.analyses.CFG(normalize=True)
+    cfg = p.analyses.CFG(normalize=True,
+                         force_complete_scan=False)
 
     main_func = cfg.kb.functions['main']
 
@@ -150,3 +151,4 @@ if __name__ == "__main__":
     test_recursive_structuring()
     test_while_true_break()
     test_while()
+    test_smoketest_cm3_firmware()
