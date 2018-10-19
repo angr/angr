@@ -483,7 +483,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
                                                      )
         output_states = successors.all_successors
 
-        state.concrete_states = output_states
+        state.concrete_states = [ state for state in output_states if not state.ip.symbolic ]
 
         self._node_to_state[node.addr] = state
 
