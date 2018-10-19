@@ -8,6 +8,7 @@ l = logging.getLogger("angr.exploration_techniques.oppologist")
 
 from ..errors import AngrError, SimError, SimUnsupportedError, SimCCallError
 from .. import sim_options
+from ..engines.successors import SimSuccessors
 
 exc_list = (AngrError, SimError, claripy.ClaripyError, TypeError, ValueError, ArithmeticError, MemoryError)
 
@@ -27,9 +28,8 @@ class Oppologist(ExplorationTechnique):
         new.release_plugin('unicorn')
         new.register_plugin('unicorn', old.unicorn.copy())
         new.options = old.options.copy()
-        return new
 
-    def _oppologize(self, state, pn, **kwargs):
+    def _oppologize(self, simgr, state, pn, **kwargs):
         l.debug("... pn: %s", pn)
 
         pn.options.add(sim_options.UNICORN)
@@ -39,58 +39,58 @@ class Oppologist(ExplorationTechnique):
         pn.unicorn.countdown_symbolic_memory = 0
         pn.unicorn.countdown_nonunicorn_blocks = 0
         pn.unicorn.countdown_stop_point = 0
-        ss = self.project.factory.successors(pn, throw=True, **kwargs)
+        ss = simgr.successors(pn, throw=True, **kwargs)
 
         fixup = functools.partial(self._restore_state, state)
 
         l.debug("... successors: %s", ss)
+        for s in ss.flat_successors + ss.unconstrained_successors + ss.unsat_successors + ss.successors:
+            fixup(s)
 
-        return {'active': [fixup(s) for s in ss.flat_successors],
-                'unconstrained': [fixup(s) for s in ss.unconstrained_successors],
-                'unsat': [fixup(s) for s in ss.unsat_successors],
-                }
+        return ss
 
     @staticmethod
     def _combine_results(*results):
         all_results = defaultdict(list)
 
-        for stashes_dict in results:
-            for stash, paths in stashes_dict.items():
-                all_results[stash].extend(paths)
+        final = SimSuccessors(results[0].addr, results[0].initial_state)
+        final.description = 'Oppology'
+        final.sort = 'Oppologist'
 
-        return {stash: paths for stash, paths in all_results.items()}
+        for med in results:
+            final.processed = True
+            final.successors.extend(med.successors)
+            final.all_successors.extend(med.all_successors)
+            final.flat_successors.extend(med.flat_successors)
+            final.unsat_successors.extend(med.unsat_successors)
+            final.unconstrained_successors.extend(med.unsat_successors)
 
-    def _delayed_oppology(self, state, e, **kwargs):
-        ss = self.project.factory.successors(state, num_inst=e.executed_instruction_count, **kwargs)
+        return final
+
+    def _delayed_oppology(self, simgr, state, e, **kwargs):
+        ss = simgr.successors(state, num_inst=e.executed_instruction_count, **kwargs)
         need_oppologizing = [ s for s in ss.flat_successors if s.addr == e.ins_addr ]
+        ss.flat_successors = [ s for s in ss.flat_successors if s.addr != e.ins_addr ]
+        results = [ss]
 
-        results = [{'active': [ s for s in ss.flat_successors if s.addr != e.ins_addr ],
-                    'unconstrained': ss.unconstrained_successors,
-                    'unsat': ss.unsat_successors,
-                  }]
-
-        results.extend(map(functools.partial(self._oppologize, state, **kwargs), need_oppologizing))
+        results.extend(map(functools.partial(self._oppologize, simgr, state, **kwargs), need_oppologizing))
         return self._combine_results(*results)
 
-    def step_state(self, simgr, state, successor_func=None, **kwargs):
+    def successors(self, simgr, state, **kwargs):
         try:
             kwargs.pop('throw', None)
-            ss = self.project.factory.successors(state, **kwargs)
+            return simgr.successors(state, **kwargs)
 
-            return {'active': ss.flat_successors,
-                    'unconstrained': ss.unconstrained_successors,
-                    'unsat': ss.unsat_successors,
-                    }
         except (SimUnsupportedError, SimCCallError) as e:
             l.debug("Errored on path %s after %d instructions", state, e.executed_instruction_count)
             try:
                 if e.executed_instruction_count:
-                    return self._delayed_oppology(state, e, **kwargs)
+                    return self._delayed_oppology(simgr, state, e, **kwargs)
                 else:
-                    return self._oppologize(state, state.copy(), **kwargs)
+                    return self._oppologize(simgr, state, state.copy(), **kwargs)
             except exc_list: #pylint:disable=broad-except
-                l.error("Oppologizer hit an error.", exc_info=True)
-                return simgr.step_state(state, **kwargs)
-        except exc_list: #pylint:disable=broad-except
-            l.error("Original block hit an error.", exc_info=True)
-            return simgr.step_state(state, **kwargs)
+                l.error("Oppologizer hit an error while trying to perform repairs", exc_info=True)
+                raise e
+        except Exception: #pylint:disable=broad-except
+            l.error("Original block hit an unsupported error")
+            raise

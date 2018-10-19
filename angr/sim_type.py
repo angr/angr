@@ -1,10 +1,10 @@
 from collections import OrderedDict, defaultdict
 import copy
 import re
+import logging
 
 import claripy
 
-import logging
 l = logging.getLogger("angr.sim_type")
 
 try:
@@ -13,7 +13,7 @@ except ImportError:
     pycparser = None
 
 
-class SimType(object):
+class SimType:
     """
     SimType exists to track type information for SimProcedures.
     """
@@ -50,9 +50,6 @@ class SimType(object):
         for attr in self._fields:
             out ^= hash(getattr(self, attr))
         return out
-
-    def view(self, state, addr):
-        return SimMemView(ty=self, addr=addr, state=state)
 
     @property
     def name(self):
@@ -766,7 +763,7 @@ class SimStruct(SimType):
         values = {}
         for name, offset in self.offsets.items():
             ty = self.fields[name]
-            v = ty.view(state, addr + offset)
+            v = SimMemView(ty=ty, addr=addr+offset, state=state)
             if concrete:
                 values[name] = v.concrete
             else:
@@ -831,7 +828,7 @@ class SimStruct(SimType):
         )
 
 
-class SimStructValue(object):
+class SimStructValue:
     """
     A SimStruct type paired with some real values
     """
@@ -1007,8 +1004,7 @@ def do_preprocess(defn):
     """
     Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
     """
-    import pycparser.ply.lex as lex
-    import pycparser.ply.cpp as cpp
+    from pycparser.ply import lex, cpp
     lexer = lex.lex(cpp)
     p = cpp.Preprocessor(lexer)
     # p.add_path(dir) will add dir to the include search path
@@ -1173,6 +1169,5 @@ struct timeval {
 """))
 except ImportError:
     pass
-
 
 from .state_plugins.view import SimMemView
