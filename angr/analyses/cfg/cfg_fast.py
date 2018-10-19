@@ -639,11 +639,17 @@ class FunctionTransitionEdge(FunctionEdge):
         self.ins_addr = ins_addr
 
     def apply(self, cfg):
+        to_outside = self.to_outside
+        if not to_outside:
+            # is it jumping to outside? Maybe we are seeing more functions now.
+            dst_node = cfg.get_any_node(self.dst_addr)
+            if dst_node is not None and dst_node.function_address != self.src_func_addr:
+                to_outside = True
         return cfg._function_add_transition_edge(
             self.dst_addr,
             self.src_node,
             self.src_func_addr,
-            to_outside=self.to_outside,
+            to_outside=to_outside,
             dst_func_addr=self.dst_func_addr,
             stmt_idx=self.stmt_idx,
             ins_addr=self.ins_addr,
