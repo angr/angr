@@ -221,6 +221,11 @@ class AngrObjectFactory(object):
         :param func_ty:     The prototype for the given function, as a SimType or a C-style function declaration that
                             can be parsed into a SimTypeFunction instance.
 
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
 
@@ -244,7 +249,14 @@ class AngrObjectFactory(object):
         :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
                             size of the corresponding argument in bytes.
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :parmm func_ty:     A SimType for the function itself
+        :param func_ty:     A SimType for the function itself or a C-style function declaration that can be parsed into
+                            a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         """
         return self._default_cc.from_arg_kinds(arch=self.project.arch,
                 fp_args=fp_args,

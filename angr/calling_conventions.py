@@ -254,8 +254,14 @@ class SimCC:
         :param args:        A list of SimFunctionArguments describing where the arguments go
         :param ret_val:     A SimFunctionArgument describing where the return value goes
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :parmm func_ty:     A SimTypeFunction for the function itself, or a string that can be parsed into a
+        :param func_ty:     A SimTypeFunction for the function itself, or a string that can be parsed into a
                             SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         """
         if func_ty is not None:
             if isinstance(func_ty, str):
