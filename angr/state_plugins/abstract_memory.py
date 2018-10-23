@@ -7,7 +7,8 @@ from claripy.vsa import ValueSet, RegionAnnotation
 
 from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest
 from ..errors import SimMemoryError, SimAbstractMemoryError
-from ..sim_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING
+from ..sim_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING, \
+    CONSERVATIVE_READ_STRATEGY, CONSERVATIVE_WRITE_STRATEGY
 from .symbolic_memory import SimSymbolicMemory
 from ..state_plugins.sim_action_object import _raw_ast
 
@@ -397,6 +398,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     # FIXME: symbolic_length is also a hack!
     def _store(self, req):
         address_wrappers = self.normalize_address(req.addr, is_write=True, convert_to_valueset=False)
+        if len(address_wrappers) == WRITE_TARGETS_LIMIT and CONSERVATIVE_WRITE_STRATEGY in self.state.options:
+            return
+
         req.actual_addresses = [ ]
         req.stored_values = [ ]
 
@@ -446,7 +450,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         val = None
 
-        if len(address_wrappers) > 1 and AVOID_MULTIVALUED_READS in self.state.options:
+        if (len(address_wrappers) > 1 and AVOID_MULTIVALUED_READS in self.state.options) or \
+                (len(address_wrappers) == READ_TARGETS_LIMIT and CONSERVATIVE_READ_STRATEGY in self.state.options):
             val = self.state.solver.Unconstrained('unconstrained_read', size * self.state.arch.byte_width)
             return address_wrappers, val, [True]
 
