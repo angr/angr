@@ -1,4 +1,8 @@
+
+import pycparser
+
 from .calling_conventions import DEFAULT_CC
+
 
 class Callable(object):
     """
@@ -8,7 +12,7 @@ class Callable(object):
     If you set perform_merge=True (the default), the result will be returned to you, and
     you can get the result state with callable.result_state.
 
-    Otherwise, you can get the resulting path group (immutable) at callable.result_path_group.
+    Otherwise, you can get the resulting simulation manager at callable.result_path_group.
     """
 
     def __init__(self, project, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
@@ -31,7 +35,6 @@ class Callable(object):
         self._perform_merge = perform_merge
         self._base_state = base_state
         self._toc = toc
-        self._caller = None
         self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
         self._deadend_addr = project.simos.return_deadend
 
@@ -48,7 +51,7 @@ class Callable(object):
     def __call__(self, *args):
         self.perform_call(*args)
         if self.result_state is not None:
-            return self.result_state.se.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
+            return self.result_state.solver.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
         else:
             return None
 
@@ -65,17 +68,61 @@ class Callable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = self._project.factory.simgr(state, immutable=True)
-        caller_end_unpruned = caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
-        caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
+        caller = self._project.factory.simulation_manager(state)
+        caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
+        caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
-        if len(caller_end_unmerged.active) == 0:
+        if len(caller.active) == 0:
             raise AngrCallableError("No paths returned from function")
 
-        self.result_path_group = caller_end_unmerged
+        self.result_path_group = caller.copy()
 
         if self._perform_merge:
-            caller_end = caller_end_unmerged.merge()
-            self.result_state = caller_end.active[0]
+            caller.merge()
+            self.result_state = caller.active[0]
+
+    def call_c(self, c_args):
+        """
+        Call this Callable with a string of C-style arguments.
+
+        :param str c_args:  C-style arguments.
+        :return:            The return value from the call.
+        :rtype:             claripy.Ast
+        """
+
+        c_args = c_args.strip()
+        if c_args[0] != "(":
+            c_args = "(" + c_args
+        if c_args[-1] != ")":
+            c_args += ")"
+
+        # Parse arguments
+        content = "int main() { func%s; }" % c_args
+        ast = pycparser.CParser().parse(content)
+
+        if not ast.ext or not isinstance(ast.ext[0], pycparser.c_ast.FuncDef):
+            raise AngrCallableError("Error in parsing the given C-style argument string.")
+
+        if not ast.ext[0].body.block_items or not isinstance(ast.ext[0].body.block_items[0], pycparser.c_ast.FuncCall):
+            raise AngrCallableError("Error in parsing the given C-style argument string: "
+                                    "Cannot find the expected function call.")
+
+        arg_exprs = ast.ext[0].body.block_items[0].args.exprs
+
+        args = [ ]
+        for expr in arg_exprs:
+            if isinstance(expr, pycparser.c_ast.Constant):
+                # string
+                if expr.type == "string":
+                    args.append(expr.value[1:-1])
+                elif expr.type == "int":
+                    args.append(int(expr.value))
+                else:
+                    raise AngrCallableError("Unsupported expression type %s." % expr.type)
+            else:
+                raise AngrCallableError("Unsupported expression type %s." % type(expr))
+
+        return self.__call__(*args)
+
 
 from .errors import AngrCallableError, AngrCallableMultistateError

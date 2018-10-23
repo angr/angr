@@ -22,7 +22,7 @@ DEFAULT_RESOLVERS = {
 def default_indirect_jump_resolvers(obj, project):
     arch_specific = DEFAULT_RESOLVERS.get(project.arch.name, { })
     resolvers = [ ]
-    for k, lst in arch_specific.iteritems():
+    for k, lst in arch_specific.items():
         if isinstance(obj, k):
             resolvers = lst
             break

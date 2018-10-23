@@ -91,7 +91,7 @@ class SimRegisterVariable(SimVariable):
     def __repr__(self):
 
         ident_str = "[%s]" % self.ident if self.ident else ""
-        region_str = hex(self.region) if isinstance(self.region, (int, long)) else self.region
+        region_str = hex(self.region) if isinstance(self.region, int) else self.region
         phi_str = ("phi(%s)|" % (",".join(v.ident for v in self.variables))) if self.phi else ""  #pylint:disable=no-member
 
         s = "<%s%s%s|Reg %s, %sB>" % (phi_str, region_str, ident_str, self.reg, self.size)
@@ -166,12 +166,12 @@ class SimMemoryVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        if type(self.size) in (int, long):
+        if type(self.size) is int:
             size = '%d' % self.size
         else:
             size = '%s' % self.size
 
-        if type(self.addr) in (int, long):
+        if type(self.addr) is int:
             s = "<%s|Mem %#x %s>" % (self.region, self.addr, size)
         else:
             s = "<%s|Mem %s %s>" % (self.region, self.addr, size)
@@ -184,7 +184,7 @@ class SimMemoryVariable(SimVariable):
 
         if isinstance(self.addr, AddressWrapper):
             addr_hash = hash(self.addr)
-        elif type(self.addr) in (int, long):
+        elif type(self.addr) is int:
             addr_hash = self.addr
         elif self.addr._model_concrete is not self.addr:
             addr_hash = hash(self.addr._model_concrete)
@@ -249,7 +249,7 @@ class SimStackVariable(SimMemoryVariable):
     __slots__ = ['base', 'offset']
 
     def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None, category=None):
-        if offset > 0x1000000 and isinstance(offset, (int, long)):
+        if offset > 0x1000000 and isinstance(offset, int):
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
             mask = (1 << offset.bit_length()) - 1
@@ -267,17 +267,17 @@ class SimStackVariable(SimMemoryVariable):
         self.offset = offset
 
     def __repr__(self):
-        if type(self.size) in (int, long):
+        if type(self.size) is int:
             size = '%d' % self.size
         else:
             size = '%s' % self.size
 
         prefix = "%s(stack)" % self.name if self.name is not None else "Stack"
         ident = "[%s]" % self.ident if self.ident else ""
-        region_str = hex(self.region) if isinstance(self.region, (int, long)) else self.region
+        region_str = hex(self.region) if isinstance(self.region, int) else self.region
         phi_str = "phi|" if self.phi else ""
 
-        if type(self.offset) in (int, long):
+        if type(self.offset) is int:
             if self.offset < 0:
                 offset = "%#x" % self.offset
             elif self.offset > 0:
@@ -301,6 +301,9 @@ class SimStackVariable(SimMemoryVariable):
                self.offset == other.offset and \
                self.size == other.size and \
                self.phi == other.phi
+
+    def __hash__(self):
+        return hash((self.ident, self.name, self.base, self.offset, self.size, self.phi))
 
 
 class SimStackVariablePhi(SimStackVariable):
@@ -349,7 +352,7 @@ class SimVariableSet(collections.MutableSet):
         # For the sake of performance optimization, all elements in register_variables must be concrete integers which
         # representing register offsets..
         # There shouldn't be any problem apart from GetI/PutI instructions. We simply ignore them for now.
-        # TODO: Take care of register offsets that are not aligned to (arch.bits/8)
+        # TODO: Take care of register offsets that are not aligned to (arch.bytes)
         # TODO: arch.bits/what? That number has no power here anymore.
         self.register_variable_offsets = set()
 
@@ -376,7 +379,7 @@ class SimVariableSet(collections.MutableSet):
     def add_memory_variable(self, mem_var):
         self.memory_variables.add(mem_var)
         base_address = mem_var.addr.address # Dealing with AddressWrapper
-        for i in xrange(mem_var.size):
+        for i in range(mem_var.size):
             self.memory_variable_addresses.add(base_address + i)
 
     def discard(self, item):
@@ -396,7 +399,7 @@ class SimVariableSet(collections.MutableSet):
 
     def discard_memory_variable(self, mem_var):
         self.memory_variables.remove(mem_var)
-        for i in xrange(mem_var.size):
+        for i in range(mem_var.size):
             self.memory_variable_addresses.remove(mem_var.addr.address + i)
 
     def __len__(self):

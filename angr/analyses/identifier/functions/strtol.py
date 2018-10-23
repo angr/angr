@@ -5,7 +5,7 @@ import string
 from ..func import Func, TestData
 
 
-digs = string.digits + string.letters
+digs = string.digits + string.ascii_letters
 
 
 def int2base(x, base):
@@ -19,7 +19,7 @@ def int2base(x, base):
     digits = []
     while x:
         digits.append(digs[x % base])
-        x /= base
+        x //= base
     if sign < 0:
         digits.append('-')
     digits.reverse()
@@ -34,8 +34,8 @@ class strtol(Func):
 
     def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
-            return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
-        return "".join(random.choice(byte_list) for _ in xrange(length))
+            return "".join(chr(random.randint(0, 255)) for _ in range(length))
+        return "".join(random.choice(byte_list) for _ in range(length))
 
     def num_args(self): #pylint disable=no-self-use
         return 3

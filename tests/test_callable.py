@@ -42,16 +42,37 @@ def run_fauxware(arch):
     nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY")._model_concrete.value, 1)
     nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
+
+def run_callable_c_fauxware(arch):
+    addr = addresses_fauxware[arch]
+    p = angr.Project(os.path.join(location, arch, 'fauxware'))
+    cc = p.factory.cc(func_ty="int f(char*, char*)")
+    authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, cc=cc)
+    retval = authenticate.call_c('("asdf", "SOSNEAKY")')
+    nose.tools.assert_equal(retval._model_concrete.value, 1)
+    nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
+
+
 def run_manysum(arch):
     addr = addresses_manysum[arch]
-    p = angr.Project(location + '/' + arch + '/manysum')
+    p = angr.Project(os.path.join(location, arch, 'manysum'))
     inttype = SimTypeInt()
     prototype = SimTypeFunction([inttype]*11, inttype)
     cc = p.factory.cc(func_ty=prototype)
     sumlots = p.factory.callable(addr, cc=cc)
     result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
     nose.tools.assert_false(result.symbolic)
-    nose.tools.assert_equal(result._model_concrete.value, sum(xrange(12)))
+    nose.tools.assert_equal(result._model_concrete.value, sum(range(12)))
+
+
+def run_callable_c_manysum(arch):
+    addr = addresses_manysum[arch]
+    p = angr.Project(os.path.join(location, arch, 'manysum'))
+    cc = p.factory.cc(func_ty="int f(int, int, int, int, int, int, int, int, int, int, int)")
+    sumlots = p.factory.callable(addr, cc=cc)
+    result = sumlots.call_c("(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)")
+    nose.tools.assert_false(result.symbolic)
+    nose.tools.assert_equal(result._model_concrete.value, sum(range(12)))
 
 type_cache = None
 
@@ -80,7 +101,7 @@ def run_manyfloatsum_symbolic(arch):
     p = angr.Project(location + '/' + arch + '/manyfloatsum')
     function = 'sum_doubles'
     cc = p.factory.cc(func_ty=type_cache[function])
-    args = [claripy.FPS('arg_%d' % i, claripy.FSORT_DOUBLE) for i in xrange(len(type_cache[function].args))]
+    args = [claripy.FPS('arg_%d' % i, claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]
     addr = p.loader.main_object.get_symbol(function).rebased_addr
     my_callable = p.factory.callable(addr, cc=cc)
     result = my_callable(*args)
@@ -115,20 +136,38 @@ def test_manyfloatsum_symbolic():
     for arch in ('i386', 'x86_64'):
         yield run_manyfloatsum_symbolic, arch
 
+
+def test_callable_c_fauxware():
+    for arch in addresses_fauxware:
+        yield run_callable_c_fauxware, arch
+
+
+def test_callable_c_manyfloatsum():
+    for arch in addresses_manysum:
+        yield run_callable_c_manysum, arch
+
+
 if __name__ == "__main__":
-    print 'testing manyfloatsum'
-    for func, march in test_manyfloatsum():
-        print '* testing ' + march
-        func(march)
-    print 'testing manyfloatsum with symbolic arguments'
+    print('testing manyfloatsum with symbolic arguments')
     for func, march in test_manyfloatsum_symbolic():
-        print '* testing ' + march
+        print('* testing ' + march)
         func(march)
-    print 'testing fauxware'
+    print('testing manyfloatsum')
+    for func, march in test_manyfloatsum():
+        print('* testing ' + march)
+        func(march)
+    print('testing fauxware')
     for func, march in test_fauxware():
-        print '* testing ' + march
+        print('* testing ' + march)
         func(march)
-    print 'testing manysum'
+    print('testing fauxware with c-style strings')
+    for func, march in test_callable_c_fauxware():
+        func(march)
+    print('testing manysum')
     for func, march in test_manysum():
-        print '* testing ' + march
+        print('* testing ' + march)
+        func(march)
+    print('testing manyfloatsum with c_style strings')
+    for func, march in test_callable_c_manyfloatsum():
+        print('* testing ' + march)
         func(march)

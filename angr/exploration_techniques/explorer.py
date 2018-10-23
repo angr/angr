@@ -1,7 +1,7 @@
 from . import ExplorationTechnique
+from .common import condition_to_lambda
 from .. import sim_options
 from ..errors import SimIRSBNoDecodeError, AngrExplorationTechniqueError
-from ..misc.ux import once
 
 import logging
 l = logging.getLogger("angr.exploration_techniques.explorer")
@@ -24,8 +24,8 @@ class Explorer(ExplorationTechnique):
     """
     def __init__(self, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, avoid_priority=False):
         super(Explorer, self).__init__()
-        self.find = self._condition_to_lambda(find)
-        self.avoid = self._condition_to_lambda(avoid)
+        self.find, static_find = condition_to_lambda(find)
+        self.avoid, static_avoid = condition_to_lambda(avoid)
         self.find_stash = find_stash
         self.avoid_stash = avoid_stash
         self.cfg = cfg
@@ -33,12 +33,10 @@ class Explorer(ExplorationTechnique):
         self.num_find = num_find
         self.avoid_priority = avoid_priority
 
-        find_addrs = getattr(self.find, "addrs", None)
-        avoid_addrs = getattr(self.avoid, "addrs", None)
-
         # even if avoid or find addresses are not statically known, stop on those that we do know
-        self._extra_stop_points = (find_addrs or set()) | (avoid_addrs or set())
-
+        self._extra_stop_points = (static_find or set()) | (static_avoid or set())
+        self._unknown_stop_points = static_find is None or static_avoid is None
+        self._warned_unicorn = False
 
         # TODO: This is a hack for while CFGFast doesn't handle procedure continuations
         from .. import analyses
@@ -48,10 +46,10 @@ class Explorer(ExplorationTechnique):
             self.cfg = None
 
         if self.cfg is not None:
-            avoid = avoid_addrs or set()
+            avoid = static_avoid or set()
 
             # we need the find addresses to be determined statically
-            if not find_addrs:
+            if not static_find:
                 l.error("You must provide at least one 'find' address as a number, set, list, or tuple if you provide a CFG.")
                 l.error("Usage of the CFG has been disabled for this explorer.")
                 self.cfg = None
@@ -63,7 +61,7 @@ class Explorer(ExplorationTechnique):
 
             # not a queue but a stack... it's just a worklist!
             queue = []
-            for f in find_addrs:
+            for f in static_find:
                 nodes = cfg.get_all_nodes(f)
                 if len(nodes) == 0:
                     l.warning("'Find' address %#x not present in CFG...", f)
@@ -95,7 +93,7 @@ class Explorer(ExplorationTechnique):
         if not self.avoid_stash in simgr.stashes: simgr.stashes[self.avoid_stash] = []
 
     def step(self, simgr, stash='active', **kwargs):
-        base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
+        base_extra_stop_points = set(kwargs.pop("extra_stop_points", []))
         return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
     def _classify(self, addr, findable, avoidable):
@@ -128,10 +126,18 @@ class Explorer(ExplorationTechnique):
                     return i, self.avoid_stash
         return None, None
 
-    def filter(self, simgr, state, filter_func=None):
-        if sim_options.UNICORN in state.options and once('unicorn-find-avoid'):
+    # make it more natural to deal with the intended dataflow
+    def filter(self, simgr, state, **kwargs):
+        stash = self._filter_inner(state)
+        if stash is None:
+            return simgr.filter(state, **kwargs)
+        return stash
+
+    def _filter_inner(self, state):
+        if self._unknown_stop_points and sim_options.UNICORN in state.options and not self._warned_unicorn:
             l.warning("Using unicorn with find/avoid conditions that are a lambda (not a number, set, tuple or list)")
             l.warning("Unicorn may step over states that match the condition (find or avoid) without stopping.")
+            self._warned_unicorn = True
 
         findable = self.find(state)
         avoidable = self.avoid(state)

@@ -181,7 +181,7 @@ class CFGNode(object):
 
 class CFGNodeA(CFGNode):
     """
-    The CFGNode that is used in CFGAccurate.
+    The CFGNode that is used in CFGEmulated.
     """
 
     __slots__ = [ 'input_state', 'looping_times', 'callstack', 'depth', 'final_states', 'creation_failure_info',

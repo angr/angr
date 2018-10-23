@@ -1,7 +1,7 @@
 import logging
 
 import claripy
-from archinfo import ArchMIPS32
+from archinfo import ArchMIPS32, ArchS390X
 
 from ..errors import (
     AngrCallableError,
@@ -52,7 +52,11 @@ class SimOS(object):
 
             resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
             try:
-                val = resolver()
+                if isinstance(self.arch, ArchS390X):
+                    # On s390x ifunc resolvers expect hwcaps.
+                    val = resolver(0)
+                else:
+                    val = resolver()
             except AngrCallableMultistateError:
                 _l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
                 return None
@@ -134,7 +138,7 @@ class SimOS(object):
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
             highest_reg_offset, reg_size = max(state.arch.registers.values())
             for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
-                state.registers.store(i, state.se.BVV(0, state.arch.bits))
+                state.registers.store(i, state.solver.BVV(0, state.arch.bits))
         if state.arch.sp_offset is not None:
             state.regs.sp = stack_end
 
@@ -245,7 +249,7 @@ class SimOS(object):
             basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
         return basic_addr, basic_addr
 
-    def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback): # pylint: disable=no-self-use,unused-argument
+    def handle_exception(self, successors, engine, exception): # pylint: disable=no-self-use,unused-argument
         """
         Perform exception handling. This method will be called when, during execution, a SimException is thrown.
         Currently, this can only indicate a segfault, but in the future it could indicate any unexpected exceptional
@@ -259,7 +263,7 @@ class SimOS(object):
         :param exc_value:       The value of sys.exc_info()[1] from the error, the actual exception object
         :param exc_traceback:   The value of sys.exc_info()[2] from the error, the traceback from the exception
         """
-        raise exc_type, exc_value, exc_traceback
+        raise exception
     # Dummy stuff to allow this API to be used freely
 
     # pylint: disable=unused-argument, no-self-use

@@ -1,6 +1,8 @@
-
 import logging
 from collections import defaultdict
+from functools import reduce
+
+import angr # type annotations; pylint: disable=unused-import
 
 from .. import Analysis
 
@@ -14,7 +16,7 @@ from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVaria
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery")
 
 
-class VariableRecoveryState(object):
+class VariableRecoveryState:
     """
     The abstract state of variable recovery analysis.
 
@@ -22,7 +24,7 @@ class VariableRecoveryState(object):
     """
 
     def __init__(self, variable_manager, arch, func_addr, concrete_states, stack_region=None, register_region=None):
-        self.variable_manager = variable_manager  # type: angr.knowledge.variable_manager.VariableManager
+        self.variable_manager = variable_manager  # type: angr.knowledge_plugins.variables.variable_manager.VariableManager
         self.arch = arch
         self.func_addr = func_addr
         self._concrete_states = concrete_states
@@ -151,11 +153,11 @@ class VariableRecoveryState(object):
         reg_read_offset = state.inspect.reg_read_offset
         reg_read_length = state.inspect.reg_read_length
 
-        if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bits / 8:
+        if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bytes:
             # TODO: make sure the sp is not overwritten by something that we are not tracking
             return
 
-        #if reg_read_offset == state.arch.bp_offset and reg_read_length == state.arch.bits / 8:
+        #if reg_read_offset == state.arch.bp_offset and reg_read_length == state.arch.bytes:
         #    # TODO:
 
         var_offset = self._normalize_register_offset(reg_read_offset)
@@ -179,7 +181,7 @@ class VariableRecoveryState(object):
             return
 
         reg_write_expr = state.inspect.reg_write_expr
-        reg_write_length = len(reg_write_expr) / 8
+        reg_write_length = len(reg_write_expr) // 8
 
         # annotate it
         # reg_write_expr = reg_write_expr.annotate(VariableSourceAnnotation.from_state(state))
@@ -269,7 +271,7 @@ class VariableRecoveryState(object):
 
         mem_write_address = state.inspect.mem_write_address
         mem_write_expr = state.inspect.mem_write_expr
-        mem_write_length = len(mem_write_expr) / 8
+        mem_write_length = len(mem_write_expr) // 8
 
         stack_offset = self._addr_to_stack_offset(mem_write_address)
 
@@ -481,7 +483,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
                                                      )
         output_states = successors.all_successors
 
-        state.concrete_states = output_states
+        state.concrete_states = [ state for state in output_states if not state.ip.symbolic ]
 
         self._node_to_state[node.addr] = state
 
@@ -496,7 +498,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
         # TODO: only re-assign variable names to those that are newly changed
         self.variable_manager.initialize_variable_names()
 
-        for addr, state in self._node_to_state.iteritems():
+        for addr, state in self._node_to_state.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,
                                                                          state.register_region,
                                                                          state.stack_region

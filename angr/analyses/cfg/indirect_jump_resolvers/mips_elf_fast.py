@@ -71,7 +71,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             state.regs.gp = func.info['gp']
 
         def overwrite_tmp_value(state):
-            state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
+            state.inspect.tmp_write_expr = state.solver.BVV(func.info['gp'], state.arch.bits)
 
         # Special handling for cases where `gp` is stored on the stack
         got_gp_stack_store = False

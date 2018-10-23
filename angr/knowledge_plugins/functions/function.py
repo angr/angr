@@ -25,7 +25,7 @@ class Function(object):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info'
+                 '_local_block_addrs', 'info', 'tags',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None):
@@ -152,6 +152,7 @@ class Function(object):
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
         self.info = { }  # storing special information, like $gp values for MIPS32
+        self.tags = tuple()  # store function tags. can be set manually by performing CodeTagging analysis.
 
     @property
     def name(self):
@@ -178,7 +179,7 @@ class Function(object):
         :return: angr.lifter.Block instances.
         """
 
-        for block_addr, block in self._local_blocks.iteritems():
+        for block_addr, block in self._local_blocks.items():
             try:
                 yield self._get_block(block_addr, size=block.size,
                                       byte_string=block.bytestr if isinstance(block, BlockNode) else None)
@@ -193,7 +194,7 @@ class Function(object):
         :return: block addresses.
         """
 
-        return self._local_blocks.iterkeys()
+        return self._local_blocks.keys()
 
     @property
     def block_addrs_set(self):
@@ -292,16 +293,16 @@ class Function(object):
                 # check that the address isn't an pointing to known executable code
                 # and that it isn't an indirect pointer to known executable code
                 try:
-                    possible_pointer = memory.read_addr_at(addr)
+                    possible_pointer = memory.unpack_word(addr)
                     if addr not in known_executable_addresses and possible_pointer not in known_executable_addresses:
                         # build string
                         stn = ""
                         offset = 0
-                        current_char = memory[addr + offset]
+                        current_char = chr(memory[addr + offset])
                         while current_char in string.printable:
                             stn += current_char
                             offset += 1
-                            current_char = memory[addr + offset]
+                            current_char = chr(memory[addr + offset])
 
                         # check that the string was a null terminated string with minimum length
                         if current_char == "\x00" and len(stn) >= minimum_length:
@@ -341,20 +342,20 @@ class Function(object):
         # process the nodes in a breadth-first order keeping track of which nodes have already been analyzed
         analyzed = set()
         q = [fresh_state]
-        analyzed.add(fresh_state.se.eval(fresh_state.ip))
+        analyzed.add(fresh_state.solver.eval(fresh_state.ip))
         while len(q) > 0:
             state = q.pop()
             # make sure its in this function
-            if state.se.eval(state.ip) not in graph_addrs:
+            if state.solver.eval(state.ip) not in graph_addrs:
                 continue
             # don't trace into simprocedures
-            if self._project.is_hooked(state.se.eval(state.ip)):
+            if self._project.is_hooked(state.solver.eval(state.ip)):
                 continue
             # don't trace outside of the binary
-            if not self._project.loader.main_object.contains_addr(state.se.eval(state.ip)):
+            if not self._project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
                 continue
 
-            curr_ip = state.se.eval(state.ip)
+            curr_ip = state.solver.eval(state.ip)
 
             # get runtime values from logs of successors
             successors = self._project.factory.successors(state)
@@ -364,11 +365,11 @@ class Function(object):
                         if not isinstance(ao.ast, claripy.ast.Base):
                             constants.add(ao.ast)
                         elif not ao.ast.symbolic:
-                            constants.add(succ.se.eval(ao.ast))
+                            constants.add(succ.solver.eval(ao.ast))
 
                 # add successors to the queue to analyze
-                if not succ.se.symbolic(succ.ip):
-                    succ_ip = succ.se.eval(succ.ip)
+                if not succ.solver.symbolic(succ.ip):
+                    succ_ip = succ.solver.eval(succ.ip)
                     if succ_ip in self and succ_ip not in analyzed:
                         analyzed.add(succ_ip)
                         q.insert(0, succ)
@@ -412,7 +413,7 @@ class Function(object):
                             if not isinstance(ao.ast, claripy.ast.Base):
                                 constants.add(ao.ast)
                             elif not ao.ast.symbolic:
-                                constants.add(s.se.eval(ao.ast))
+                                constants.add(s.solver.eval(ao.ast))
         return constants
 
     @property
@@ -420,7 +421,7 @@ class Function(object):
         return len(self._argument_registers) + len(self._argument_stack_variables)
 
     def __contains__(self, val):
-        if isinstance(val, (int, long)):
+        if isinstance(val, int):
             return val in self._block_sizes
         else:
             return False
@@ -790,7 +791,7 @@ class Function(object):
         g = networkx.DiGraph()
         if self.startpoint is not None:
             g.add_node(self.startpoint)
-        for block in self._local_blocks.itervalues():
+        for block in self._local_blocks.values():
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges(data=True):
             if 'type' in data:
@@ -817,7 +818,7 @@ class Function(object):
         blocks = []
         block_addr_to_insns = {}
 
-        for b in self._local_blocks.itervalues():
+        for b in self._local_blocks.values():
             # TODO: should I call get_blocks?
             block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
@@ -843,7 +844,7 @@ class Function(object):
                 last_instr = block_addr_to_insns[src.addr][-1]
                 g.add_edge(last_instr, insns[0])
 
-            for i in xrange(0, len(insns) - 1):
+            for i in range(0, len(insns) - 1):
                 g.add_edge(insns[i], insns[i + 1])
 
         return g
@@ -930,7 +931,7 @@ class Function(object):
         Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
         that IDA Pro generates.
 
-        This method does not touch the CFG result. You may call CFG{Accurate, Fast}.normalize() for that matter.
+        This method does not touch the CFG result. You may call CFG{Emulated, Fast}.normalize() for that matter.
 
         :return: None
         """
@@ -949,9 +950,9 @@ class Function(object):
                 end_addr = block.addr + block.size
                 end_addresses[end_addr].append(block)
 
-        while any(len(x) > 1 for x in end_addresses.itervalues()):
+        while any(len(x) > 1 for x in end_addresses.values()):
             end_addr, all_nodes = \
-                next((end_addr, x) for (end_addr, x) in end_addresses.iteritems() if len(x) > 1)
+                next((end_addr, x) for (end_addr, x) in end_addresses.items() if len(x) > 1)
 
             all_nodes = sorted(all_nodes, key=lambda node: node.size)
             smallest_node = all_nodes[0]

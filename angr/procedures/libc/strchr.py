@@ -17,14 +17,14 @@ class strchr(angr.SimProcedure):
 
         s_strlen = self.inline_call(angr.SIM_PROCEDURES['libc']['strlen'], s_addr)
 
-        if self.state.se.symbolic(s_strlen.ret_expr):
+        if self.state.solver.symbolic(s_strlen.ret_expr):
             l.debug("symbolic strlen")
             # TODO: more constraints here to make sure we don't search too little
-            max_sym = min(self.state.se.max_int(s_strlen.ret_expr), self.state.libc.max_symbolic_strchr)
+            max_sym = min(self.state.solver.max_int(s_strlen.ret_expr), self.state.libc.max_symbolic_strchr)
             a, c, i = self.state.memory.find(s_addr, c, s_strlen.max_null_index, max_symbolic_bytes=max_sym, default=0)
         else:
             l.debug("concrete strlen")
-            max_search = self.state.se.eval(s_strlen.ret_expr)
+            max_search = self.state.solver.eval(s_strlen.ret_expr)
             a, c, i = self.state.memory.find(s_addr, c, max_search, default=0)
 
         if len(i) > 1:
@@ -32,6 +32,6 @@ class strchr(angr.SimProcedure):
             self.state.add_constraints(*c)
 
         return a
-        #self.state.add_constraints(self.state.se.ULT(a - s_addr, s_strlen.ret_expr))
+        #self.state.add_constraints(self.state.solver.ULT(a - s_addr, s_strlen.ret_expr))
         #self.max_chr_index = max(i)
         #return a

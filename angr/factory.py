@@ -9,18 +9,6 @@ from .errors import AngrAssemblyError
 l = logging.getLogger("angr.factory")
 
 
-_deprecation_cache = set()
-def deprecate(name, replacement):
-    def wrapper(func):
-        def inner(*args, **kwargs):
-            if name not in _deprecation_cache:
-                l.warning("factory.%s is deprecated! Please use factory.%s instead.", name, replacement)
-                _deprecation_cache.add(name)
-            return func(*args, **kwargs)
-        return inner
-    return wrapper
-
-
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
@@ -166,9 +154,6 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simgr(self, thing=None, **kwargs):
-        return self.simulation_manager(thing=thing, **kwargs)
-
     def simulation_manager(self, thing=None, **kwargs):
         """
         Constructs a new simulation manager.
@@ -197,6 +182,12 @@ class AngrObjectFactory(object):
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
 
+    def simgr(self, *args, **kwargs):
+        """
+        Alias for `simulation_manager` to save our poor fingers
+        """
+        return self.simulation_manager(*args, **kwargs)
+
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
@@ -220,7 +211,6 @@ class AngrObjectFactory(object):
                         toc=toc,
                         cc=cc)
 
-
     def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
         """
         Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
@@ -228,13 +218,20 @@ class AngrObjectFactory(object):
         :param args:        A list of argument storage locations, as SimFunctionArguments.
         :param ret_val:     The return value storage location, as a SimFunctionArgument.
         :param sp_delta:    Does this even matter??
-        :param func_ty:     The protoype for the given function, as a SimType.
+        :param func_ty:     The prototype for the given function, as a SimType or a C-style function declaration that
+                            can be parsed into a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
 
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
 
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
+
         return self._default_cc(arch=self.project.arch,
                                   args=args,
                                   ret_val=ret_val,
@@ -252,7 +249,14 @@ class AngrObjectFactory(object):
         :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
                             size of the corresponding argument in bytes.
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :parmm func_ty:     A SimType for the function itself
+        :param func_ty:     A SimType for the function itself or a C-style function declaration that can be parsed into
+                            a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         """
         return self._default_cc.from_arg_kinds(arch=self.project.arch,
                 fp_args=fp_args,
@@ -296,34 +300,6 @@ class AngrObjectFactory(object):
     _default_cc = None
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
-
-
-    #
-    # Private methods
-    #
-
-    @deprecate('sim_run()', 'successors()')
-    def sim_run(self, *args, **kwargs):
-        return self.successors(*args, **kwargs)
-
-    @deprecate('sim_block()', 'successors(default_engine=True)')
-    def sim_block(self, *args, **kwargs):
-        kwargs['default_engine'] = True
-        return self.successors(*args, **kwargs)
-
-    #
-    # Compatibility layer
-    #
-
-    @deprecate('path_group()', 'simulation_manager()')
-    def path_group(self, thing=None, **kwargs):
-        return self.simgr(thing, **kwargs)
-
-    @deprecate('path()', 'entry_state()')
-    def path(self, state=None, **kwargs):
-        if state is not None:
-            return state
-        return self.entry_state(**kwargs)
 
 
 from .errors import AngrError

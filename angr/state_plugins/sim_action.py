@@ -43,7 +43,7 @@ class SimAction(SimEvent):
     #def __getstate__(self):
     #   return { k: getattr(self, k) for k in sum([ c.__slots__ for c in self.__class__.mro() if hasattr(c, '__slots__')], []) } #pylint:disable=no-member
     #def __setstate__(self, s):
-    #   for k,v in s.iteritems():
+    #   for k,v in s.items():
     #       setattr(self, k, v)
 
     @staticmethod
@@ -190,22 +190,22 @@ class SimActionData(SimAction):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
-        self._reg_dep = _noneset if addr is None or action != SimActionData.READ or not isinstance(addr, (int, long)) else frozenset((addr,))
+        self._reg_dep = _noneset if addr is None or action != SimActionData.READ or not isinstance(addr, int) else frozenset((addr,))
         self._tmp_dep = _noneset if tmp is None or action != SimActionData.READ else frozenset((tmp,))
 
         self.tmp = tmp
         self.offset = None
         if region_type == 'reg':
-            if isinstance(addr, (int, long)):
+            if isinstance(addr, int):
                 self.offset = addr
             else:
                 if addr.symbolic:
                     # FIXME: we should fix it by allowing .offset taking ASTs instead of concretizing it right away
                     l.warning('Concretizing a symbolic register offset in SimActionData.')
-                    self.offset = state.se.eval(addr)
+                    self.offset = state.solver.eval(addr)
                 else:
                     # it's not symbolic
-                    self.offset = state.se.eval_one(addr)
+                    self.offset = state.solver.eval_one(addr)
         self.addr = self._make_object(addr)
         self.size = self._make_object(size)
         self.data = self._make_object(data)

@@ -44,7 +44,7 @@ class CodeLocation(object):
 
             ss = [ ]
             if self.info:
-                for k, v in self.info.iteritems():
+                for k, v in self.info.items():
                     ss.append("%s=%s" % (k, v))
                 s += " with %s" % ", ".join(ss)
             s += ">"
@@ -72,5 +72,5 @@ class CodeLocation(object):
         return hash((self.block_addr, self.stmt_idx, self.sim_procedure))
 
     def _store_kwargs(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             self.info[k] = v

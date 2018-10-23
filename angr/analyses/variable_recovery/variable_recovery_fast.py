@@ -26,7 +26,7 @@ class ProcessorState(object):
         # whether we have met the initial stack pointer adjustment
         self.sp_adjusted = None
         # how many bytes are subtracted from the stack pointer
-        self.sp_adjustment = arch.bits / 8 if arch.call_pushes_ret else 0
+        self.sp_adjustment = arch.bytes if arch.call_pushes_ret else 0
         # whether the base pointer is used as the stack base of the stack frame or not
         self.bp_as_base = None
         # content of the base pointer
@@ -42,7 +42,7 @@ class ProcessorState(object):
 
     def merge(self, other):
         if not self == other:
-            l.warn("Inconsistent merge: %s %s ", self, other)
+            l.warning("Inconsistent merge: %s %s ", self, other)
 
         # FIXME: none of the following logic makes any sense...
         if other.sp_adjusted is True:
@@ -50,7 +50,10 @@ class ProcessorState(object):
         self.sp_adjustment = max(self.sp_adjustment, other.sp_adjustment)
         if other.bp_as_base is True:
             self.bp_as_base = True
-        self.bp = max(self.bp, other.bp)
+        if self.bp is None:
+            self.bp = other.bp
+        elif other.bp is not None:  # and self.bp is not None
+            self.bp = max(self.bp, other.bp)
         return self
 
     def __eq__(self, other):
@@ -104,13 +107,13 @@ def get_engine(base_engine):
         def _handle_Put(self, stmt):
             offset = stmt.offset
             data = self._expr(stmt.data)
-            size = stmt.data.result_size(self.tyenv) / 8
+            size = stmt.data.result_size(self.tyenv) // 8
 
             self._assign_to_register(offset, data, size)
 
         def _handle_Store(self, stmt):
             addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) / 8
+            size = stmt.data.result_size(self.tyenv) // 8
             data = self._expr(stmt.data)
 
             self._store(addr, data, size)
@@ -120,14 +123,14 @@ def get_engine(base_engine):
 
         def _handle_Get(self, expr):
             reg_offset = expr.offset
-            reg_size = expr.result_size(self.tyenv) / 8
+            reg_size = expr.result_size(self.tyenv) // 8
 
             return self._read_from_register(reg_offset, reg_size)
 
 
         def _handle_Load(self, expr):
             addr = self._expr(expr.addr)
-            size = expr.result_size(self.tyenv) / 8
+            size = expr.result_size(self.tyenv) // 8
 
             return self._load(addr, size)
 
@@ -143,7 +146,7 @@ def get_engine(base_engine):
             if dst_type is ailment.Expr.Register:
                 offset = stmt.dst.reg_offset
                 data = self._expr(stmt.src)
-                size = stmt.src.bits / 8
+                size = stmt.src.bits // 8
 
                 self._assign_to_register(offset, data, size)
 
@@ -161,7 +164,7 @@ def get_engine(base_engine):
         def _ail_handle_Store(self, stmt):
             addr = self._expr(stmt.addr)
             data = self._expr(stmt.data)
-            size = stmt.data.bits / 8
+            size = stmt.data.bits // 8
 
             self._store(addr, data, size)
 
@@ -178,7 +181,7 @@ def get_engine(base_engine):
 
         def _ail_handle_Register(self, expr):
             offset = expr.reg_offset
-            size = expr.bits / 8
+            size = expr.bits // 8
 
             return self._read_from_register(offset, size)
 
@@ -538,8 +541,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
                                           )
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
-            ret_addr_offset = self.project.arch.bits / 8
-            ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bits / 8, base='bp', name='ret_addr',
+            ret_addr_offset = self.project.arch.bytes
+            ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bytes, base='bp', name='ret_addr',
                                             region=self.function.addr, category='return_address',
                                             )
             state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
@@ -570,16 +573,6 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         if node.addr in self._node_to_input_state:
             prev_state = self._node_to_input_state[node.addr]
-            #if node.addr == 0x804824f:
-            #    print "###\n### STACK\n###"
-            #    print input_state.stack_region.dbg_repr()
-            #    print ""
-            #    print prev_state.stack_region.dbg_repr()
-            #    print "###\nREGISTER\n###"
-            #    print input_state.register_region.dbg_repr()
-            #    print ""
-            #    print prev_state.register_region.dbg_repr()
-            #    # import ipdb; ipdb.set_trace()
             if input_state == prev_state:
                 l.debug('Skip node %#x as we have reached a fixed-point', node.addr)
                 return False, input_state
@@ -608,7 +601,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     def _post_analysis(self):
         self.variable_manager.initialize_variable_names()
 
-        for addr, state in self._node_to_state.iteritems():
+        for addr, state in self._node_to_state.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,
                                                                          state.register_region,
                                                                          state.stack_region
@@ -637,9 +630,10 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         # readjusting sp at the end for blocks that end in a call
         if block.addr in self._node_to_cc:
             cc = self._node_to_cc[block.addr]
-            state.processor_state.sp_adjustment += cc.sp_delta
-            state.processor_state.sp_adjusted = True
-            l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
+            if cc is not None:
+                state.processor_state.sp_adjustment += cc.sp_delta
+                state.processor_state.sp_adjusted = True
+                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
 
     def _make_phi_node(self, block_addr, *variables):
 

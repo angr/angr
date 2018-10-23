@@ -32,7 +32,7 @@ def run_veritesting_a(arch):
     # Make sure the input makes sense
     for f in r.found:
         input_str = f.plugins['posix'].dumps(0)
-        nose.tools.assert_equal(input_str.count('B'), 10)
+        nose.tools.assert_equal(input_str.count(b'B'), 10)
 
 def run_veritesting_b(arch):
     #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
@@ -51,7 +51,7 @@ def run_veritesting_b(arch):
     # Make sure the input makes sense
     for f in r.found:
         input_str = f.plugins['posix'].dumps(0)
-        nose.tools.assert_equal(input_str.count('B'), 35)
+        nose.tools.assert_equal(input_str.count(b'B'), 35)
 
 def test_veritesting_a():
     # This is the most basic test

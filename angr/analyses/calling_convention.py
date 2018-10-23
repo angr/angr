@@ -1,4 +1,3 @@
-
 import logging
 
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC
@@ -60,9 +59,9 @@ class CallingConventionAnalysis(Analysis):
         input_args = self._args_from_vars(input_variables)
 
         # TODO: properly decide sp_delta
-        sp_delta = self.project.arch.bits / 8 if self.project.arch.call_pushes_ret else 0
+        sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
-        cc = SimCC.find_cc(self.project.arch, input_args, sp_delta)
+        cc = SimCC.find_cc(self.project.arch, list(input_args), sp_delta)
 
         if cc is None:
             l.warning('_analyze_function(): Cannot find a calling convention that fits the given arguments.')
@@ -95,7 +94,7 @@ class CallingConventionAnalysis(Analysis):
         if not self.project.arch.call_pushes_ret:
             ret_addr_offset = 0
         else:
-            ret_addr_offset = self.project.arch.bits / 8
+            ret_addr_offset = self.project.arch.bytes
 
         for variable in variables:
             if isinstance(variable, SimStackVariable):
@@ -168,7 +167,7 @@ class CallingConventionAnalysis(Analysis):
         new_cc_found = True
         while new_cc_found:
             new_cc_found = False
-            for func in kb.functions.itervalues():
+            for func in kb.functions.values():
                 if func.calling_convention is None:
                     # determine the calling convention of each function
                     cc_analysis = project.analyses.CallingConvention(func)

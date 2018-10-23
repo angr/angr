@@ -35,7 +35,7 @@ class LoopFinder(Analysis):
 
     def __init__(self, functions=None, normalize=True):
         if functions is None:
-            functions = self.kb.functions.itervalues()
+            functions = self.kb.functions.values()
 
         found_any = False
         self.loops = []
@@ -137,8 +137,8 @@ class LoopFinder(Analysis):
                     else:
                         subg.add_edge(subloop, exit_edge[1])
                         removed_exits[exit_edge] = subloop
-                subg = filter(lambda g: entry_node in g.nodes(),
-                        networkx.weakly_connected_component_subgraphs(subg))[0]
+                subg = next(filter(lambda g: entry_node in g.nodes(),
+                        networkx.weakly_connected_component_subgraphs(subg)))
 
         me = Loop(entry_node,
              entry_edges,

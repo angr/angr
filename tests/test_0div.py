@@ -20,18 +20,18 @@ def test_0div_exception():
     yield run_0div, 'x86_64'
 
 def test_symbolic_0div():
-    p = angr.load_shellcode('X', arch='amd64')
+    p = angr.load_shellcode(b'X', arch='amd64')
     s = p.factory.blank_state()
     s.regs.rax = s.solver.BVS('rax', 64)
     s.regs.rcx = s.solver.BVS('rcx', 64)
     s.regs.rdx = s.solver.BVS('rdx', 64)
 
     s.options.add(angr.options.PRODUCE_ZERODIV_SUCCESSORS)
-    successors = s.step(insn_bytes='\x48\xf7\xf1') # div rcx
+    successors = s.step(insn_bytes=b'\x48\xf7\xf1') # div rcx
     assert len(successors.flat_successors) == 2
 
     s.options.discard(angr.options.PRODUCE_ZERODIV_SUCCESSORS)
-    successors = s.step(insn_bytes='\x48\xf7\xf1') # div rcx
+    successors = s.step(insn_bytes=b'\x48\xf7\xf1') # div rcx
     assert len(successors.flat_successors) == 1
 
 if __name__ == '__main__':

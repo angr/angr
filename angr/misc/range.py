@@ -1,7 +1,7 @@
 
 class IRange(object):
     """
-    A simple range object for testing inclusion. Like xrange but works for huge numbers.
+    A simple range object for testing inclusion. Like range but works for huge numbers.
     """
     __slots__ = ('start', 'end')
 
@@ -10,7 +10,7 @@ class IRange(object):
         self.end = end
 
     def __contains__(self, k):
-        if type(k) in (int, long):
+        if type(k) is int:
             return k >= self.start and k < self.end
         return False
 

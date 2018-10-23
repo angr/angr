@@ -59,7 +59,7 @@ class SimRegNameView(SimStatePlugin):
 
     def __dir__(self):
         if self.state.arch.name in ('X86', 'AMD64'):
-            return self.state.arch.registers.keys() + ['st%d' % n for n in xrange(8)] + ['tag%d' % n for n in xrange(8)] + ['flags', 'eflags', 'rflags']
+            return list(self.state.arch.registers.keys()) + ['st%d' % n for n in range(8)] + ['tag%d' % n for n in range(8)] + ['flags', 'eflags', 'rflags']
         elif self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
             return self.state.arch.registers.keys() + ['flags']
         return self.state.arch.registers.keys()
@@ -123,8 +123,8 @@ class SimMemView(SimStatePlugin):
         super(SimMemView, self).set_state(state)
 
         # Make sure self._addr is always an AST
-        if isinstance(self._addr, (int, long)):
-            self._addr = self.state.se.BVV(self._addr, self.state.arch.bits)
+        if isinstance(self._addr, int):
+            self._addr = self.state.solver.BVV(self._addr, self.state.arch.bits)
 
     def _deeper(self, **kwargs):
         if 'ty' not in kwargs:
@@ -228,9 +228,8 @@ class SimMemView(SimStatePlugin):
             raise ValueError("Trying to dereference pointer without addr defined")
         ptr = self.state.memory.load(self._addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
         if ptr.symbolic:
-            l.warn("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.se.eval(self._addr))
-            print self._addr
-        ptr = self.state.se.eval(ptr)
+            l.warning("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.solver.eval(self._addr))
+        ptr = self.state.solver.eval(ptr)
 
         return self._deeper(ty=self._type.pts_to if isinstance(self._type, SimTypePointer) else None, addr=ptr)
 

@@ -1,4 +1,3 @@
-
 import logging
 
 from ..sim_procedure import SimProcedure
@@ -51,7 +50,7 @@ class DataGraphMeta(object):
                 s = "[0x%x]" % self._imarks[stmt]
             pp.append(s)
 
-        print pp[0] + " -> " + pp[1] + " : " + str(data)
+        print(pp[0] + " -> " + pp[1] + " : " + str(data))
 
     def _branch(self, live_defs, node, path=""):
         """

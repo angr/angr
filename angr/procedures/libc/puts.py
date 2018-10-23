@@ -19,5 +19,5 @@ class puts(angr.SimProcedure):
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
         length = self.inline_call(strlen, string).ret_expr
         out = stdout.write(string, length)
-        stdout.write_data(self.state.solver.BVV('\n'))
+        stdout.write_data(self.state.solver.BVV(b'\n'))
         return out + 1
