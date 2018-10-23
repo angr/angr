@@ -13,7 +13,7 @@ class SimStatePreconstrainer(SimStatePlugin):
     """
     This state plugin manages the concept of preconstraining - adding constraints which you would like to remove later.
 
-    :param constrained_addrs : Addresses which have had constraints applied to them and should not be removed.
+    :param constrained_addrs : SimActions for memory operations whose addresses should be constrained during crash analysis
     """
 
     def __init__(self, constrained_addrs=None):

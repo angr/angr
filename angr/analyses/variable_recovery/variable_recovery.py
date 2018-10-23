@@ -1,6 +1,8 @@
-
 import logging
 from collections import defaultdict
+from functools import reduce
+
+import angr # type annotations; pylint: disable=unused-import
 
 from .. import Analysis
 
@@ -14,7 +16,7 @@ from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVaria
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery")
 
 
-class VariableRecoveryState(object):
+class VariableRecoveryState:
     """
     The abstract state of variable recovery analysis.
 
@@ -22,7 +24,7 @@ class VariableRecoveryState(object):
     """
 
     def __init__(self, variable_manager, arch, func_addr, concrete_states, stack_region=None, register_region=None):
-        self.variable_manager = variable_manager  # type: angr.knowledge.variable_manager.VariableManager
+        self.variable_manager = variable_manager  # type: angr.knowledge_plugins.variables.variable_manager.VariableManager
         self.arch = arch
         self.func_addr = func_addr
         self._concrete_states = concrete_states
@@ -481,7 +483,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
                                                      )
         output_states = successors.all_successors
 
-        state.concrete_states = output_states
+        state.concrete_states = [ state for state in output_states if not state.ip.symbolic ]
 
         self._node_to_state[node.addr] = state
 

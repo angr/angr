@@ -8,6 +8,7 @@ from .errors import AngrAssemblyError
 
 l = logging.getLogger("angr.factory")
 
+
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
@@ -210,7 +211,6 @@ class AngrObjectFactory(object):
                         toc=toc,
                         cc=cc)
 
-
     def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
         """
         Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
@@ -218,13 +218,20 @@ class AngrObjectFactory(object):
         :param args:        A list of argument storage locations, as SimFunctionArguments.
         :param ret_val:     The return value storage location, as a SimFunctionArgument.
         :param sp_delta:    Does this even matter??
-        :param func_ty:     The protoype for the given function, as a SimType.
+        :param func_ty:     The prototype for the given function, as a SimType or a C-style function declaration that
+                            can be parsed into a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
 
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
 
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
+
         return self._default_cc(arch=self.project.arch,
                                   args=args,
                                   ret_val=ret_val,
@@ -242,7 +249,14 @@ class AngrObjectFactory(object):
         :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
                             size of the corresponding argument in bytes.
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :parmm func_ty:     A SimType for the function itself
+        :param func_ty:     A SimType for the function itself or a C-style function declaration that can be parsed into
+                            a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         """
         return self._default_cc.from_arg_kinds(arch=self.project.arch,
                 fp_args=fp_args,

@@ -1,3 +1,5 @@
+import angr # type annotations; pylint:disable=unused-import
+
 # 8<----------------- Compatibility layer -----------------
 class ExplorationTechniqueMeta(type):
     def __new__(cls, name, bases, attrs):
@@ -67,11 +69,13 @@ class ExplorationTechnique:
     def __init__(self):
         # this attribute will be set from above by the manager
         if not hasattr(self, 'project'):
-            self.project = None
+            self.project = None # type: angr.project.Project
 
     def setup(self, simgr):
         """
         Perform any initialization on this manager you might need to do.
+
+        :param angr.SimulationManager simgr:    The simulation manager to which you have just been added
         """
         pass
 
@@ -79,6 +83,9 @@ class ExplorationTechnique:
         """
         Hook the process of stepping a stash forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the
         actual processing.
+
+        :param angr.SimulationManager simgr:
+        :param str stash:
         """
         simgr.step(stash=stash, **kwargs)
 
@@ -92,6 +99,9 @@ class ExplorationTechnique:
         To defer to the original categorization procedure, return the result of ``simgr.filter(state, **kwargs)``
 
         If the user provided a ``filter_func`` in their step or run command, it will appear here.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.filter(state, **kwargs)
 
@@ -102,6 +112,9 @@ class ExplorationTechnique:
         To defer to the original selection procedure, return the result of ``simgr.selector(state, **kwargs)``.
 
         If the user provided a ``selector_func`` in their step or run command, it will appear here.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.selector(state, **kwargs)
 
@@ -118,6 +131,9 @@ class ExplorationTechnique:
 
         ..note:: This takes precedence over the `filter` hook - `filter` is only applied to states returned from here
         in the None stash.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.step_state(state, **kwargs)
 
@@ -131,6 +147,9 @@ class ExplorationTechnique:
         calling the original, and mutate the result before returning it yourself.
 
         If the user provided a ``successor_func`` in their step or run command, it will appear here.
+
+        :param angr.SimulationManager simgr:
+        :param angr.SimState state:
         """
         return simgr.successors(state, **kwargs)
 
@@ -142,6 +161,8 @@ class ExplorationTechnique:
         You should *not* call ``simgr.complete``, you should make your own decision and return True or False.
         Each of the techniques' completion checkers will be called and the final result will be compted with
         ``simgr.completion_mode``.
+
+        :param angr.SimulationManager simgr:
         """
         return False
 
@@ -149,7 +170,6 @@ class ExplorationTechnique:
 from .cacher import Cacher
 from .driller_core import DrillerCore
 from .loop_seer import LoopSeer
-from .crash_monitor import CrashMonitor
 from .tracer import Tracer
 from .explorer import Explorer
 from .threading import Threading

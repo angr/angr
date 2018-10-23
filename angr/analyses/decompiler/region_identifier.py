@@ -175,7 +175,11 @@ class RegionIdentifier(Analysis):
                 for src, dst in zip(simple_path, simple_path[1:]):
                     if include_frontier or (src not in frontier and dst not in frontier):
                         subgraph.add_edge(src, dst)
-
+        if not list(subgraph.nodes):
+            # HACK: FIXME: for infinite loop nodes, this would return an empty set, so we include the loop body itself
+            # Make sure this makes sense (EDG thinks it does)
+            if (node, node) in graph.edges:
+                subgraph.add_edge(node, node)
         return subgraph
 
     def _analyze(self):
@@ -243,8 +247,8 @@ class RegionIdentifier(Analysis):
         # TODO optimize
         latching_nodes = set([s for s,t in dfs_back_edges(graph, self._start_node) if t == head])
         loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
-        return set(loop_subgraph.nodes())
-
+        nodes = set(loop_subgraph.nodes())
+        return nodes
     @staticmethod
     def _dominates(idom, dominator_node, node):
         n = node

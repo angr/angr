@@ -15,6 +15,7 @@ def test_cgc():
     simgr.run()
 
     nose.tools.assert_true('diverted' in simgr.stashes)
+    nose.tools.assert_equal(len(simgr.diverted), 3)
 
 def test_simprocs():
     binary = os.path.join(bin_location, "tests/i386/driller_simproc")
@@ -28,7 +29,8 @@ def test_simprocs():
     simgr.use_technique(d)
 
     simgr.run()
-    nose.tools.assert_true('diverted' in simgr.stashes)
+    nose.tools.assert_in('diverted', simgr.stashes)
+    nose.tools.assert_greater(len(simgr.diverted), 0)
 
 
 def run_all():
