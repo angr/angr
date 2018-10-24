@@ -78,7 +78,7 @@ class Slicecutor(ExplorationTechnique):
         simgr.split(state_ranker=self.state_key, limit=self._max_active, to_stash='active')
         return simgr.step(stash=stash, **kwargs)
 
-    def filter(self, simgr, state, filter_func=None):  # pylint:disable=no-self-use
+    def filter(self, simgr, state, **kwargs):
         if state.addr in self._targets:
             return 'reached_targets', self.suspend_state(state)
 
@@ -92,11 +92,11 @@ class Slicecutor(ExplorationTechnique):
             l.debug("... limit reached")
             return SimulationManager.DROP
 
-        return simgr.filter(state, filter_func=filter_func)
+        return simgr.filter(state, **kwargs)
 
-    def step_state(self, simgr, state, successor_func=None, **kwargs):  # pylint:disable=no-self-use
+    def step_state(self, simgr, state, **kwargs):
         l.debug("%s ticking state %s at address %#x.", self, state, state.addr)
-        stashes = simgr.step_state(state, successor_func=successor_func, **kwargs)
+        stashes = simgr.step_state(state, **kwargs)
 
         cut = False
         mystery = False
@@ -140,15 +140,16 @@ class Slicecutor(ExplorationTechnique):
                 'mystery': [state] if mystery else [],
                 'cut': [state] if cut else []}
 
-    def successors(self, simgr, state, successor_func=None, **run_args):  # pylint:disable=no-self-use
-        run_args['whitelist'] = self._annotated_cfg.get_whitelisted_statements(state.addr)
-        run_args['last_stmt'] = self._annotated_cfg.get_last_statement_index(state.addr)
-        return simgr.successors(state, successor_func=successor_func, **run_args)
+    def successors(self, simgr, state, **kwargs):
+        kwargs['whitelist'] = self._annotated_cfg.get_whitelisted_statements(state.addr)
+        kwargs['last_stmt'] = self._annotated_cfg.get_last_statement_index(state.addr)
+        return simgr.successors(state, **kwargs)
 
     def complete(self, simgr):  # pylint:disable=no-self-use,unused-argument
         return (len(simgr.active) + len(self._merge_countdowns)) == 0
 
-    def state_key(self, a):
+    @staticmethod
+    def state_key(a):
         if a.history.depth > 0:
             a_len = a.history.bbl_addrs.hardcopy.count(a.history.bbl_addrs[-1])
             return a.history.block_count, a_len
