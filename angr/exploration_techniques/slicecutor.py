@@ -96,13 +96,19 @@ class Slicecutor(ExplorationTechnique):
 
     def step_state(self, simgr, state, successor_func=None, **kwargs):  # pylint:disable=no-self-use
         l.debug("%s ticking state %s at address %#x.", self, state, state.addr)
-        successors = simgr.successors(state, successor_func=successor_func, **kwargs)
+        stashes = simgr.step_state(state, successor_func=successor_func, **kwargs)
 
         cut = False
         mystery = False
         new_active = []
 
-        for successor in successors.flat_successors:
+        # SimulationManager returns new active states in the None stash by default.
+        flat_successors = stashes.get(None, None)
+        if flat_successors is None:
+            # Did the user explicitly put them into the 'active' stash instead?
+            flat_successors = stashes.get('active', [])
+
+        for successor in flat_successors:
             l.debug("... checking exit to %#x from %#x.", successor.addr, state.addr)
 
             try:
@@ -121,10 +127,11 @@ class Slicecutor(ExplorationTechnique):
                 l.debug("... not taking the exit.")
                 cut = True
 
-        if not new_active and successors.unconstrained_successors and self._force_taking_exit:
+        unconstrained_successors = stashes.get('unconstrained', [])
+        if not new_active and unconstrained_successors and self._force_taking_exit:
             # somehow there is no feasible state. We are forced to create a successor based on our slice
             for target in self._annotated_cfg.get_targets(state.addr):
-                successor = successors.unconstrained_successors[0].copy()
+                successor = unconstrained_successors[0].copy()
                 successor.regs._ip = target
                 new_active.append(successor)
             l.debug('%d new states are created based on AnnotatedCFG.', len(new_active))
