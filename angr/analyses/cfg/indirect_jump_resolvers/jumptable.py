@@ -141,7 +141,7 @@ class JumpTableResolver(IndirectJumpResolver):
             start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
 
             # Create the slicecutor
-            simgr = self.project.factory.simulation_manager(start_state)
+            simgr = self.project.factory.simulation_manager(start_state, resilience=True)
             simgr.use_technique(Slicecutor(annotatedcfg, targets=(load_stmt_loc[0],), force_taking_exit=True))
 
             # Run it!
