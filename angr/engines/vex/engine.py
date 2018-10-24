@@ -138,7 +138,7 @@ class SimEngineVEX(SimEngine):
     def _check(self, state, *args, **kwargs):
         return True
 
-    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=99999999, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
+    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=None, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
         successors.sort = 'IRSB'
         successors.description = 'IRSB'
         state.history.recent_block_count = 1
@@ -230,7 +230,7 @@ class SimEngineVEX(SimEngine):
 
         # if we've told the block to truncate before it ends, it will definitely have a default
         # exit barring errors
-        has_default_exit = has_default_exit and (last_stmt == 'default' or num_stmts <= last_stmt)
+        has_default_exit = has_default_exit and (last_stmt in (None, 'default') or num_stmts <= last_stmt)
 
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:

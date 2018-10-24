@@ -8,7 +8,7 @@ import archinfo
 from .... import options, BP_BEFORE
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
-from ....surveyors import Slicecutor
+from ....exploration_techniques import Slicecutor
 
 from .resolver import IndirectJumpResolver
 
@@ -92,11 +92,12 @@ class MipsElfFastResolver(IndirectJumpResolver):
             if got_gp_stack_store:
                 break
 
-        slicecutor = Slicecutor(project, annotated_cfg=annotated_cfg, start=state)
-        slicecutor.run()
+        simgr = self.project.factory.simulation_manager(state)
+        simgr.use_technique(Slicecutor(annotated_cfg))
+        simgr.run()
 
-        if slicecutor.cut:
-            succ = project.factory.successors(slicecutor.cut[0])
+        if simgr.cut:
+            succ = project.factory.successors(simgr.cut[0])
             target = succ.flat_successors[0].addr
 
             if self._is_target_valid(cfg, target):

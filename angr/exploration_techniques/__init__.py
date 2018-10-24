@@ -167,6 +167,7 @@ class ExplorationTechnique:
         return False
 
 
+from .slicecutor import Slicecutor
 from .cacher import Cacher
 from .driller_core import DrillerCore
 from .loop_seer import LoopSeer
