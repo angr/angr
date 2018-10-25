@@ -10,7 +10,7 @@ from angr.analyses.cfg.cfg_fast import SegmentList
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
 
 def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     """
