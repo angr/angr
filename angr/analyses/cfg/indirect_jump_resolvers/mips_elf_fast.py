@@ -97,8 +97,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         simgr.run()
 
         if simgr.cut:
-            succ = project.factory.successors(simgr.cut[0])
-            target = succ.flat_successors[0].addr
+            target = simgr.cut[0].addr
 
             if self._is_target_valid(cfg, target):
                 l.debug("Indirect jump at %#x is resolved to target %#x.", addr, target)
