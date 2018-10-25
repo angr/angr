@@ -4,7 +4,7 @@ import itertools
 import logging
 
 from archinfo import ArchSoot
-from claripy import BVV
+from claripy import BVV, StrSubstr
 
 from ...calling_conventions import DefaultCC
 from ...sim_procedure import SimProcedure
@@ -134,9 +134,8 @@ class JNISimProcedure(SimProcedure):
         for i in itertools.count():
             str_byte = self.state.memory.load(addr+i, size=1)
             if self.state.solver.symbolic(str_byte):
-                l.error("Loading strings with symbolic chars is not implemented "
-                        "Continue execution with an empty string.")
-                return ""
+                l.error("Loading of strings with symbolic chars is not supported. "
+                        "Character %d is concretized.", i)
             str_byte = self.state.solver.eval(str_byte)
             if str_byte == 0:
                 break
@@ -162,10 +161,17 @@ class JNISimProcedure(SimProcedure):
                         "Continue execution with concretized address.")
             addr = self.state.solver.eval(addr)
 
+        # warn if string is symbolic
+        if self.state.solver.symbolic(string):
+            l.warning('Support for symbolic strings, passed to native code, is limited. '
+                      'String will get concretized after `ReleaseStringUTFChars` is called.')
+
         # store chars one by one
-        for idx, c in enumerate(string):
-            str_byte = BVV(ord(c), 8)
+        str_len = len(string) // 8
+        for idx in range(str_len):
+            str_byte = StrSubstr(idx, 1, string)
             self.state.memory.store(addr+idx, str_byte)
+
         # store terminating zero
         self.state.memory.store(len(string), BVV(0, 8))
 

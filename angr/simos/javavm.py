@@ -4,7 +4,7 @@ from angr import SIM_PROCEDURES
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootAddressTerminator, SootArgument,
                                 SootNullConstant)
-from claripy import BVS, BVV, StringS, FSORT_FLOAT, FSORT_DOUBLE, FPV
+from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
@@ -96,6 +96,9 @@ class SimJavaVM(SimOS):
         if not kwargs.get('mode', None): kwargs['mode'] = self.project._default_analysis_mode
         if not kwargs.get('arch', None):  kwargs['arch'] = self.arch
         if not kwargs.get('os_name', None): kwargs['os_name'] = self.name
+        # enable support for string analysis
+        if not kwargs.get('add_options', None): kwargs['add_options'] = []
+        kwargs['add_options'] += [options.STRINGS_ANALYSIS, options.COMPOSITE_SOLVER]
 
         if self.is_javavm_with_jni_support:
             # If the JNI support is enabled (i.e. JNI libs are loaded), the SimState

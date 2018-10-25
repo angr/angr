@@ -23,11 +23,6 @@ class GetStringUTFChars(JNISimProcedure):
         str_ref = self.state.jni_references.lookup(str_ref_)
         str_val = self.state.javavm_memory.load(str_ref)
 
-        # and concretize if it's symbolic
-        if self.state.solver.symbolic(str_val):
-            l.warning('Symbolic string is concretized to %s.', str_val)
-        str_val =  self.state.solver.eval(str_val)
-
         # store string in native memory
         addr = self._store_string_in_native_memory(str_val)
 
@@ -47,8 +42,18 @@ class ReleaseStringUTFChars(JNISimProcedure):
 
     return_ty = 'void'
 
-    def run(self, ptr_env, str_ref_, native_buf_):
-        pass
+    def run(self, ptr_env, str_ref_, native_buf):
+        # FIXME delete this, when claripy fully supports string solving
+        # All changes made from the native code to a symbolic string are not
+        # reflected in the claripy.String representation (used for Java strings)
+        # => when the native code releases a string, the symbolic string gets
+        #    replaced with a concretized version that includes all additional
+        #    constraints added in the native execution
+        str_ref = self.state.jni_references.lookup(str_ref_)
+        str_val = self.state.javavm_memory.load(str_ref)
+        if self.state.solver.symbolic(str_val):
+            str_native = self._load_string_from_native_memory(native_buf)
+            self.state.javavm_memory.store(str_ref, StringV(str_native))
 
 #
 # NewStringUTF
