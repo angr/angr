@@ -22,16 +22,12 @@ class Slicecutor(ExplorationTechnique):
 
         self._annotated_cfg = annotated_cfg
         self._force_taking_exit = force_taking_exit
-        self._targets = targets if targets is not None else []
 
     def setup(self, simgr):
-        for stash in ('cut', 'mysteries', 'reached_targets'):
+        for stash in ('cut', 'mysteries'):
             simgr.populate(stash, [])
 
     def filter(self, simgr, state, **kwargs):
-        if state.addr in [addr for addr, _ in self._targets]:
-            return 'reached_targets'
-
         l.debug("Checking state %s for filtering...", state)
         if not self._annotated_cfg.filter_path(state):
             l.debug("... %s is cut by AnnoCFG explicitly.", state)
