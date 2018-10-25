@@ -208,6 +208,14 @@ class SimSystemPosix(SimStatePlugin):
         self.stdout.set_state(state)
         self.stderr.set_state(state)
 
+        if self.socket_queue:
+            for sock_pair in self.socket_queue:
+                if not sock_pair:
+                    continue
+                sock_pair[0].set_state(state)
+                sock_pair[1].set_state(state)
+
+
     def _pick_fd(self):
         for fd in range(0, 8192):
             if fd not in self.fd:
