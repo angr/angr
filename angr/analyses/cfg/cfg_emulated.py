@@ -17,7 +17,10 @@ from ..forward_analysis import ForwardAnalysis
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
 from ...engines import SimEngineProcedure
-from ...exploration_techniques import Slicecutor, LoopSeer
+from ...exploration_techniques.loop_seer import LoopSeer
+from ...exploration_techniques.slicecutor import Slicecutor
+from ...exploration_techniques.explorer import Explorer
+from ...exploration_techniques.lengthlimiter import LengthLimiter
 from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
     SimFastPathError, SimIRSBError, AngrExitError, SimEmptyCallStackError
 from ...sim_state import SimState
@@ -2606,19 +2609,19 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                      action=reg_protector.write_persistent_register
                                                  )
                                                  )
-                result = self.project.surveyors.Explorer(
-                    start=self.project.factory.path(state),
-                    find=(current_block.addr,),
-                    avoid=avoid,
-                    max_repeats=10,
-                    max_depth=path_length
-                ).run()
-                if result.found:
-                    if not result.found[0].errored and result.found[0].step():
-                        # Make sure we don't throw any exception here by checking the path.errored attribute first
+                simgr = self.project.factory.simulation_manager(state)
+                simgr.use_technique(LoopSeer(bound=10))
+                simgr.use_technique(Explorer(find=current_block.addr, avoid=avoid))
+                simgr.use_technique(LengthLimiter(path_length))
+                simgr.run()
+
+                if simgr.found:
+                    simgr = self.project.factory.simulation_manager(simgr.one_found, save_unsat=True)
+                    simgr.step()
+                    if simgr.active or simgr.unsat:
                         keep_running = False
-                        concrete_exits.extend([s for s in result.found[0].next_run.flat_successors])
-                        concrete_exits.extend([s for s in result.found[0].next_run.unsat_successors])
+                        concrete_exits.extend(simgr.active)
+                        concrete_exits.extend(simgr.unsat)
                 if keep_running:
                     l.debug('Step back for one more run...')
 

@@ -26,8 +26,7 @@ def test_mips():
     # a manual hook
     p.hook(OUTER_LOOP, hook2, length=0x14)
 
-    s = p.surveyors.Explorer(start=p.factory.entry_state(), find=[MAIN_END])
-    s.run()
+    s = p.factory.simulation_manager(p.factory.entry_state()).explore(find=[MAIN_END])
 
     nose.tools.assert_equal(len(s.found), 1)
     nose.tools.assert_equal(s.found[0].posix.dumps(1), b''.join(b'%d ' % x for x in range(100)) + b'\n')

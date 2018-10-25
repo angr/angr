@@ -210,7 +210,7 @@ class Explorer(ExplorationTechnique):
 
         stash = self._classify(succ.flat_successors[0].addr, findable, avoidable)
         if stash is None:
-            l.info("Explorer entered windup but did not produce a found/avoided state")
+            l.warning("Explorer entered windup but did not produce a found/avoided state")
         return stash, succ.flat_successors[0]
 
     def complete(self, simgr):

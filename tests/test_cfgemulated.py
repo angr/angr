@@ -490,7 +490,6 @@ def run_all():
 
 if __name__ == "__main__":
     logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
-    logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
     # logging.getLogger("angr.analyses.cfg.cfg_emulated").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
