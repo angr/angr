@@ -1865,7 +1865,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param int sp_addr: stack pointer address.
         :param set accessed_registers: set of before accessed registers.
         """
-        se = state.se
+        se = state.solver
 
         if func is not None and sp_addr is not None:
 
@@ -2053,7 +2053,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 confirmed=confirmed,
             )
 
-        elif jumpkind == 'Ijk_Boring':
+        elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
 
             src_obj = self.project.loader.find_object_containing(src_node.addr)
             dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
@@ -2257,7 +2257,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # - It's a call (Ijk_Call), and its target is fully symbolic
                 # TODO: This is very hackish, please refactor this part of code later
                 should_resolve = True
-                legit_successors = [suc for suc in successors if suc.history.jumpkind in ('Ijk_Boring', 'Ijk_Call')]
+                legit_successors = [suc for suc in successors if suc.history.jumpkind in ('Ijk_Boring', 'Ijk_InvalICache', 'Ijk_Call')]
                 if legit_successors:
                     legit_successor = legit_successors[0]
                     if legit_successor.ip.symbolic:
@@ -3285,7 +3285,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             return False
 
         default_jumpkind = sim_successors.artifacts['irsb_default_jumpkind']
-        if default_jumpkind not in ('Ijk_Call', 'Ijk_Boring'):
+        if default_jumpkind not in ('Ijk_Call', 'Ijk_Boring', 'Ijk_InvalICache'):
             # It's something else, like a ret of a syscall... we don't care about it
             return False
 

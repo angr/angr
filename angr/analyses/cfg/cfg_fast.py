@@ -1890,7 +1890,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 cfg_node.has_return = True
 
             elif self._resolve_indirect_jumps and \
-                    (jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys')):
+                    (jumpkind in ('Ijk_Boring', 'Ijk_Call', 'Ijk_InvalICache') or jumpkind.startswith('Ijk_Sys')):
                 # This is an indirect jump. Try to resolve it.
                 # FIXME: in some cases, a statementless irsb will be missing its instr addresses
                 # and this next part will fail. Use the real IRSB instead
@@ -1914,7 +1914,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             jobs.append(ce)
                     return jobs
 
-                if jumpkind == "Ijk_Boring":
+                if jumpkind in ("Ijk_Boring", 'Ijk_InvalICache'):
                     resolved_as_plt = False
 
                     if irsb and self._heuristic_plt_resolving:
@@ -1960,7 +1960,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # This is a direct jump with a concrete target.
 
             # pylint: disable=too-many-nested-blocks
-            if jumpkind == 'Ijk_Boring':
+            if jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
                 # if the target address is at another section, it has to be jumping to a new function
                 if not self._addrs_belong_to_same_section(addr, target_addr):
                     target_func_addr = target_addr
