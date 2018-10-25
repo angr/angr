@@ -1651,7 +1651,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         suc_exit_stmt_idx = state.scratch.exit_stmt_idx
         suc_exit_ins_addr = state.scratch.exit_ins_addr
 
-        if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail', 'Ijk_InvalICache', 'Ijk_NoRedir',
+        if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail', 'Ijk_NoRedir',
                             'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_ClientReq'}:
             # Ignore SimExits that are of these jumpkinds
             job.successor_status[state] = "Skipped"
