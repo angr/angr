@@ -235,6 +235,10 @@ class SimSystemPosix(SimStatePlugin):
         ``mode`` from open(2) is unsupported at present.
         """
 
+        # FIXME: HACK
+        if self.uid != 0 and name.startswith(b'/var/run'):
+            return None
+
         if len(name) == 0:
             return None
         if type(name) is str:
