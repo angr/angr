@@ -10,13 +10,11 @@ class Slicecutor(ExplorationTechnique):
     The Slicecutor is an exploration that executes provided code slices.
     """
 
-    def __init__(self, annotated_cfg, targets=None, force_taking_exit=False):
+    def __init__(self, annotated_cfg, force_taking_exit=False):
         """
         All parameters except `annotated_cfg` are optional.
 
         :param annotated_cfg:       The AnnotatedCFG that provides the code slice.
-        :param targets:             A list of (bbl_addr, stmt_idx) tuples that specify where to stop
-                                    the execution.
         :param force_taking_exit:   Set to True if you want to create a successor based on our slice in case of
                                     unconstrained successors.
         """
