@@ -32,14 +32,14 @@ class SimLinux(SimUserland):
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
         self._error_catch_tsd_addr = None
-        self._vsyscall_addr = None
+        self.vsyscall_addr = None
 
     def configure_project(self): # pylint: disable=arguments-differ
         self._loader_addr = self.project.loader.extern_object.allocate()
         self._loader_lock_addr = self.project.loader.extern_object.allocate()
         self._loader_unlock_addr = self.project.loader.extern_object.allocate()
         self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
-        self._vsyscall_addr = self.project.loader.extern_object.allocate()
+        self.vsyscall_addr = self.project.loader.extern_object.allocate()
         self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
         self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
         self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
@@ -48,7 +48,7 @@ class SimLinux(SimUserland):
                               static_addr=self.project.loader.extern_object.allocate()
                           )
                           )
-        self.project.hook(self._vsyscall_addr, P['linux_kernel']['_vsyscall']())
+        self.project.hook(self.vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
         ld_obj = self.project.loader.linux_loader_object
         if ld_obj is not None:
@@ -79,7 +79,7 @@ class SimLinux(SimUserland):
                 self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
                 self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
             elif isinstance(self.project.arch, ArchX86):
-                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
             elif isinstance(self.project.arch, ArchARM):
                 self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 

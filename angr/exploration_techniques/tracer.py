@@ -80,6 +80,7 @@ class Tracer(ExplorationTechnique):
         # initialize the state info
         simgr.one_active.globals['trace_idx'] = idx
         simgr.one_active.globals['sync_idx'] = None
+        simgr.one_active.globals['sync_timer'] = 0
 
         # enable lazy solves - don't touch z3 unless I tell you so
         simgr.one_active.options.add(sim_options.LAZY_SOLVES)
@@ -132,8 +133,11 @@ class Tracer(ExplorationTechnique):
 
         res = []
         for succ in succs:
-            if succ.addr == self._trace[idx + 1]:
-                res.append(succ)
+            try:
+                if self._compare_addr(self._trace[idx + 1], succ.addr):
+                    res.append(succ)
+            except AngrTracerError:
+                pass
 
         if not res:
             raise Exception("No states followed the trace?")
@@ -147,6 +151,7 @@ class Tracer(ExplorationTechnique):
     def _update_state_tracking(self, state: 'angr.SimState'):
         idx = state.globals['trace_idx']
         sync = state.globals['sync_idx']
+        timer = state.globals['sync_timer']
 
         if state.history.recent_block_count > 1:
             # multiple blocks were executed this step. they should follow the trace *perfectly*
@@ -166,16 +171,20 @@ class Tracer(ExplorationTechnique):
                 if self._compare_addr(self._trace[idx], addr):
                     idx += 1
                 else:
-                    raise Exception('BUG! Please investivate the claim in the comment above me')
+                    raise Exception('BUG! Please investigate the claim in the comment above me')
 
             idx -= 1 # use normal code to do the last synchronization
 
         if sync is not None:
+            timer -= 1
             if self._compare_addr(self._trace[sync], state.addr):
                 state.globals['trace_idx'] = sync
                 state.globals['sync_idx'] = None
+                state.globals['sync_timer'] = 0
+            elif timer > 0:
+                state.globals['sync_timer'] = timer
             else:
-                raise Exception("Trace did not sync after 1 step, you knew this would happen")
+                raise Exception("Trace failed to synchronize! We expected it to hit %#x (untranslated), but it failed to do this within a timeout" % self._trace[sync])
 
         elif self._compare_addr(self._trace[idx + 1], state.addr):
             # normal case
@@ -194,12 +203,16 @@ class Tracer(ExplorationTechnique):
                 else:
                     # this may also be triggered as a consequence of the unicorn issue linked above
                     raise Exception("BUG: State is returning to a continuation that isn't its own???")
+            elif state.addr == getattr(self.project.simos, 'vsyscall_addr', None):
+                if not self._sync_callsite(state, idx, state.history.addr):
+                    raise AngrTracerError("Could not synchronize following vsyscall")
             else:
                 # see above
                 pass
         elif state.history.jumpkind.startswith('Ijk_Sys'):
             # syscalls
             state.globals['sync_idx'] = idx + 1
+            state.globals['sync_timer'] = 1
         elif state.history.jumpkind.startswith('Ijk_Exit'):
             # termination!
             state.globals['trace_idx'] = len(self._trace) - 1
@@ -212,7 +225,22 @@ class Tracer(ExplorationTechnique):
         else:
             raise AngrTracerError("Oops! angr did not follow the trace.")
 
-        l.debug("Trace: %d/%d", state.globals['trace_idx'], len(self._trace))
+        if state.globals['sync_idx'] is not None:
+            l.debug("Trace: %d-%d/%d synchronizing %d", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
+        else:
+            l.debug("Trace: %d/%d", state.globals['trace_idx'], len(self._trace))
+
+    def _translate_state_addr(self, state_addr, obj=None):
+        if obj is None:
+            obj = self.project.loader.find_object_containing(state_addr)
+        if obj not in self._aslr_slides:
+            raise Exception("Internal error: cannot translate address")
+        return state_addr + self._aslr_slides[obj]
+
+    def _translate_trace_addr(self, trace_addr, obj):
+        if obj not in self._aslr_slides:
+            raise Exception("Internal error: object is untranslated")
+        return trace_addr - self._aslr_slides[obj]
 
     def _compare_addr(self, trace_addr, state_addr):
         if self._current_slide is not None and trace_addr == state_addr + self._current_slide:
@@ -256,6 +284,8 @@ class Tracer(ExplorationTechnique):
                 while self._trace[idx + 1] - slide in last_block.instruction_addrs:
                     idx += 1
 
+                l.info('...resolved: disparate block sizes')
+
                 if self._trace[idx + 1] - slide == state.addr:
                     state.globals['trace_idx'] = idx + 1
                     return True
@@ -268,22 +298,23 @@ class Tracer(ExplorationTechnique):
         prev_obj = self.project.loader.find_object_containing(prev_addr)
 
         if state.block(prev_addr).vex.jumpkind == 'Ijk_Call':
-            l.info('...trying to sync at callsite')
+            l.info('...syncing at callsite')
             return self._sync_callsite(state, idx, prev_addr)
 
         if prev_addr in getattr(prev_obj, 'reverse_plt', ()):
+            prev_name = prev_obj.reverse_plt[prev_addr]
             prev_prev_addr = state.history.bbl_addrs[-2]
             if not prev_obj.contains_addr(prev_prev_addr) or state.block(prev_prev_addr).vex.jumpkind != 'Ijk_Call':
-                l.info('...weird interaction with PLT stub, aborting analysis')
+                l.info('...weird interaction with PLT stub (%s), aborting analysis', prev_name)
                 return False
-            l.info('...trying to sync at PLT callsite')
+            l.info('...syncing at PLT callsite for %s', prev_name)
             return self._sync_callsite(state, idx, prev_prev_addr)
 
         l.info('...all analyses failed.')
         return False
 
     def _sync_callsite(self, state, idx, callsite_addr):
-        retsite_addr = state.block(callsite_addr).size + callsite_addr
+        retsite_addr = self._translate_state_addr(state.block(callsite_addr).size + callsite_addr)
         try:
             retsite_idx = self._trace.index(retsite_addr, idx)
         except ValueError:
@@ -292,6 +323,7 @@ class Tracer(ExplorationTechnique):
 
         state.globals['sync_idx'] = retsite_idx
         state.globals['trace_idx'] = idx
+        state.globals['sync_timer'] = 10000  # TODO: ???
         return True
 
     def _fast_forward(self, state):
