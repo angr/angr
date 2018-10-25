@@ -238,6 +238,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
                                                           block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width
                     stmts_to_remove.append(stmt_loc)
+                    all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
             elif isinstance(stmt, pyvex.IRStmt.LoadG):
                 # Got it!
                 #
