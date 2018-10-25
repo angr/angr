@@ -1,6 +1,6 @@
 import logging
 
-from angr import SIM_PROCEDURES
+from angr import SIM_PROCEDURES, options
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootAddressTerminator, SootArgument,
                                 SootNullConstant)
@@ -9,7 +9,8 @@ from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
 from ..engines.soot.expressions import SimSootExpr_NewArray
-from ..engines.soot.values import (SimSootValue_StringRef,
+from ..engines.soot.values import (SimSootValue_ArrayRef,
+                                   SimSootValue_StringRef,
                                    SimSootValue_ThisRef,
                                    SimSootValue_StaticFieldRef)
 from ..errors import AngrSimOSError
@@ -173,7 +174,7 @@ class SimJavaVM(SimOS):
             # => saves it in the globals dict
             state.globals['cmd_line_args'] = cmd_line_args
         # setup arguments
-        state = self.state_call(state.addr, *args, base_state=state)
+        SimEngineSoot.setup_arguments(state, args)
         return state
 
     @staticmethod
@@ -183,7 +184,9 @@ class SimJavaVM(SimOS):
         :return: The string reference.
         """
         str_ref = SimSootValue_StringRef(state.memory.get_new_uuid())
-        state.memory.store(str_ref, StringS("cmd_line_arg", max_length))
+        str_sym = StringS("cmd_line_arg", max_length)
+        state.solver.add(str_sym != StringV(""))
+        state.memory.store(str_ref, str_sym)
         return str_ref
 
     def state_call(self, addr, *args, **kwargs):
@@ -325,6 +328,18 @@ class SimJavaVM(SimOS):
                                                         field_name, field_type)
         field_val = SimSootValue_ThisRef.new_object(state, field_type)
         state.memory.store(field_ref, field_val)
+
+    @staticmethod
+    def get_cmd_line_args(state):
+        args_array = state.globals['cmd_line_args']
+        no_of_args = state.solver.eval(args_array.size)
+        args = []
+        for idx in range(no_of_args):
+            array_ref = SimSootValue_ArrayRef(args_array, idx)
+            str_ref = state.memory.load(array_ref)
+            cmd_line_arg = state.memory.load(str_ref)
+            args.append(cmd_line_arg)
+        return args
 
     #
     # Helper JNI

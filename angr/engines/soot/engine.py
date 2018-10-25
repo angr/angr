@@ -235,8 +235,8 @@ class SimEngineSoot(SimEngine):
                           new_bb_idx, SootMethodDescriptor.from_soot_method(method))
                 raise IncorrectLocationException()
 
-    @staticmethod
-    def setup_callsite(state, args, ret_addr, ret_var=None):
+    @classmethod
+    def setup_callsite(cls, state, args, ret_addr, ret_var=None):
         # push new callstack frame
         state.callstack.push(state.callstack.copy())
         state.callstack.ret_addr = ret_addr
@@ -245,16 +245,19 @@ class SimEngineSoot(SimEngine):
         state.javavm_memory.push_stack_frame()
         # setup arguments
         if args:
-            args = list(args)
-            # if available, store the 'this' reference
-            if args[0].is_this_ref:
-                this_ref = args.pop(0)
-                local = SimSootValue_Local('this', this_ref.type)
-                state.javavm_memory.store(local, this_ref.value)
-            # store all function arguments in memory
-            for idx, arg in enumerate(args):
-                param_ref = SimSootValue_ParamRef(idx, arg.type)
-                state.javavm_memory.store(param_ref, arg.value)
+            cls.setup_arguments(state, list(args))
+
+    @staticmethod
+    def setup_arguments(state, args):
+        # if available, store the 'this' reference
+        if args[0].is_this_ref:
+            this_ref = args.pop(0)
+            local = SimSootValue_Local('this', this_ref.type)
+            state.javavm_memory.store(local, this_ref.value)
+        # store all function arguments in memory
+        for idx, arg in enumerate(args):
+            param_ref = SimSootValue_ParamRef(idx, arg.type)
+            state.javavm_memory.store(param_ref, arg.value)
 
     @staticmethod
     def prepare_return_state(state, ret_value=None):

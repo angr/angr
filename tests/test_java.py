@@ -13,9 +13,26 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
 file_dir = os.path.dirname(os.path.realpath(__file__))
 test_location = str(os.path.join(file_dir, "..", "..", "binaries", "tests", "java"))
 
-strings_analysis_options = [angr.options.STRINGS_ANALYSIS,
-                            angr.options.COMPOSITE_SOLVER]
 
+
+def test_fauxware():
+    # create project
+    binary_path = os.path.join(test_location, "fauxware_java_jni", "fauxware.jar")
+    jni_options = {'jni_libs': ['libfauxware.so']}
+    project = angr.Project(binary_path, main_opts=jni_options)
+    print project.loader.main_object.classes['Fauxware']
+    entry = project.factory.entry_state()
+    simgr = project.factory.simgr(entry)
+
+    # find path to `accepted()` method
+    accepted_method = SootMethodDescriptor.from_string('Fauxware.accepted()').address()
+    simgr.explore(find=lambda s: s.addr == accepted_method)
+    state = simgr.found[0]
+
+    # eval password
+    cmd_line_args = project.simos.get_cmd_line_args(state)
+    password = state.solver.eval(cmd_line_args[0])
+    assert password == "SOSNEAKY"
 
 # def apk_loading():
 #
@@ -35,7 +52,7 @@ strings_analysis_options = [angr.options.STRINGS_ANALYSIS,
 
 def test_cmd_line_args():
     project = create_project("cmd_line_args", load_native_libs=False)
-    entry = project.factory.entry_state(add_options=strings_analysis_options)
+    entry = project.factory.entry_state()
     simgr = project.factory.simgr(entry)
     simgr.run()
     assert len(simgr.deadended) == 2
@@ -624,7 +641,9 @@ def get_winning_path(project, method_fullname):
 
 
 def main():
-    test_cmd_line_args()
+    #test_jni_object_operations()
+    test_fauxware()
+    # test_cmd_line_args()
     # apk_loading()
     # test_method_calls()
 
@@ -634,13 +653,18 @@ if __name__ == "__main__":
     logging.getLogger('cle.backends.apk').setLevel('DEBUG')
     logging.getLogger('cle.backends.jar').setLevel('DEBUG')
 
-    logging.getLogger('archinfo.arch_soot').setLevel("DEBUG")
-    logging.getLogger('angr.procedures.java_jni').setLevel("DEBUG")
-    logging.getLogger("angr.sim_procedure").setLevel("DEBUG")
-    logging.getLogger("angr.engines").setLevel("DEBUG")
-    logging.getLogger('angr.simos.JavaVM').setLevel("DEBUG")
-    logging.getLogger('angr.engines.vex').setLevel("INFO")
+    logging.getLogger("angr").setLevel("DEBUG")
+
+    logging.getLogger("angr.state_plugins").setLevel("INFO")
     logging.getLogger('angr.state_plugins.javavm_memory').setLevel("DEBUG")
     logging.getLogger('angr.state_plugins.jni_references').setLevel("DEBUG")
     logging.getLogger("angr.state_plugins.javavm_classloader").setLevel("DEBUG")
+
+    logging.getLogger('archinfo.arch_soot').setLevel("DEBUG")
+    # logging.getLogger('angr.procedures.java_jni').setLevel("DEBUG")
+    # logging.getLogger("angr.sim_procedure").setLevel("DEBUG")
+    # logging.getLogger("angr.engines").setLevel("DEBUG")
+    # logging.getLogger('angr.simos.JavaVM').setLevel("DEBUG")
+    # logging.getLogger('angr.engines.vex').setLevel("DEBUG")
+    #
     main()
