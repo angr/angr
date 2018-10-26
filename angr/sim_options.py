@@ -270,6 +270,9 @@ EXTENDED_IROP_SUPPORT = 'EXTENDED_IROP_SUPPORT'
 # For each division operation, produce a successor state with the constraint that the divisor is zero
 PRODUCE_ZERODIV_SUCCESSORS = 'PRODUCE_ZERODIV_SUCCESSORS'
 
+# Allow POSIX API send() to fail
+ALLOW_SEND_FAILURES = 'ALLOW_SEND_FAILURES'
+
 #
 # CGC specific state options
 #
