@@ -24,6 +24,12 @@ class Tracer(ExplorationTechnique):
     :param crash_addr:          If the trace resulted in a crash, provide the crashing instruction
                                 pointer here, and the 'crashed' stash will be populated with the
                                 crashing state.
+    :param copy_states:         Whether COPY_STATES should be enabled for the tracing state. It is
+                                off by default because most tracing workloads benefit greatly from
+                                not performing copying. You want to enable it if you want to see
+                                the missed states. It will be re-added for the last 2% of the trace
+                                in order to set the predecessors list correctly. If you turn this
+                                on you may want to enable the LAZY_SOLVES option.
 
     :ivar predecessors:         A list of states in the history before the final state.
     """
@@ -32,11 +38,13 @@ class Tracer(ExplorationTechnique):
             trace=None,
             resiliency=False,
             keep_predecessors=1,
-            crash_addr=None):
+            crash_addr=None,
+            copy_states=False):
         super(Tracer, self).__init__()
         self._trace = trace
         self._resiliency = resiliency
         self._crash_addr = crash_addr
+        self._copy_states = copy_states
 
         self._aslr_slides = {}
         self._current_slide = None
@@ -83,7 +91,8 @@ class Tracer(ExplorationTechnique):
         simgr.one_active.globals['sync_timer'] = 0
 
         # disable state copying!
-        simgr.one_active.options.remove(sim_options.COPY_STATES)
+        if not self._copy_states:
+            simgr.one_active.options.remove(sim_options.COPY_STATES)
 
     def complete(self, simgr):
         return bool(simgr.traced)
@@ -115,7 +124,7 @@ class Tracer(ExplorationTechnique):
         # perform the step. ask qemu to stop at the termination point.
         stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
         succs_dict = simgr.step_state(state, extra_stop_points=stops, **kwargs)
-        succs = succs_dict[None]
+        succs = succs_dict[None] + succs_dict['unsat']
 
         # follow the trace
         if len(succs) == 1:
