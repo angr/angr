@@ -266,8 +266,8 @@ class SimSuccessors(object):
             try:
                 symbolic_syscall_num, concrete_syscall_nums = self._resolve_syscall(state)
                 if concrete_syscall_nums is not None:
-                    for n in concrete_syscall_nums:
-                        split_state = state.copy()
+                    for i, n in enumerate(concrete_syscall_nums):
+                        split_state = state if i == len(concrete_syscall_nums) - 1 else state.copy()
                         split_state.add_constraints(symbolic_syscall_num == n)
                         split_state.inspect.downsize()
                         self._fix_syscall_ip(split_state)

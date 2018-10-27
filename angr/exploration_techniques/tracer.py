@@ -349,6 +349,9 @@ class Tracer(ExplorationTechnique):
             l.debug("executing input-related code")
             return state
 
+        state = state.copy()
+        state.options.add(sim_options.COPY_STATES)
+
         # before we step through and collect the actions we have to set
         # up a special case for address concretization in the case of a
         # controlled read or write vulnerability.

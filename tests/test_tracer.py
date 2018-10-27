@@ -83,6 +83,8 @@ def test_manual_recursion():
     blob = open(os.path.join(bin_location, 'tests_data/', 'crash2731'), 'rb').read()
 
     simgr, tracer = tracer_cgc(b, 'tracer_manual_recursion', blob)
+    simgr.one_active.options.remove(angr.options.COPY_STATES)
+    simgr.one_active.options.add(angr.options.LAZY_SOLVES)
     simgr.run()
 
     crash_path = tracer.predecessors[-1]

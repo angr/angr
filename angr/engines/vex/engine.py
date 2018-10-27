@@ -1,4 +1,3 @@
-
 from cachetools import LRUCache
 
 import pyvex
@@ -262,8 +261,10 @@ class SimEngineVEX(SimEngine):
             try:
                 state.scratch.stmt_idx = stmt_idx
                 state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-                self._handle_statement(state, successors, stmt)
+                cont = self._handle_statement(state, successors, stmt)
                 state._inspect('statement', BP_AFTER)
+                if not cont:
+                    return
             except UnsupportedDirtyError:
                 if o.BYPASS_UNSUPPORTED_IRDIRTY not in state.options:
                     raise
@@ -379,14 +380,41 @@ class SimEngineVEX(SimEngine):
 
             # Produce our successor state!
             # Let SimSuccessors.add_successor handle the nitty gritty details
-            exit_state = state.copy()
+
+            cont = True
+
+            if o.COPY_STATES not in state.options:
+                # very special logic to try to minimize copies
+                # first, check if this branch is impossible
+                if s_stmt.guard.is_false():
+                    return True
+                elif o.LAZY_SOLVES not in state.options and not state.solver.satisfiable(extra_constraints=(s_stmt.guard,)):
+                    return True
+
+                # then, check if it's impossible to continue from this branch
+                elif s_stmt.guard.is_true():
+                    exit_state = state
+                    cont = False
+                elif o.LAZY_SOLVES not in state.options and not state.solver.satisfiable(extra_constraints=(claripy.Not(s_stmt.guard),)):
+                    exit_state = state
+                    cont = False
+                else:
+                    exit_state = state.copy()
+            else:
+                exit_state = state.copy()
+
             successors.add_successor(exit_state, s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
                                      exit_stmt_idx=state.scratch.stmt_idx, exit_ins_addr=state.scratch.ins_addr)
+
+            if not cont:
+                return False
 
             # Do our bookkeeping on the continuing state
             cont_condition = claripy.Not(s_stmt.guard)
             state.add_constraints(cont_condition)
             state.scratch.guard = claripy.And(state.scratch.guard, cont_condition)
+
+        return True
 
     def lift(self,
              state=None,
