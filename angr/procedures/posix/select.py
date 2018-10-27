@@ -7,7 +7,7 @@ import angr
 class select(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, nfds, readfds, writefds, exceptfds, timeout):
+    def run(self, nfds, readfds, writefds, exceptfds, timeout): # pylint: disable=unused-argument
 
         assert not writefds.symbolic and self.state.solver.eval(writefds) == 0
         assert not exceptfds.symbolic and self.state.solver.eval(exceptfds) == 0

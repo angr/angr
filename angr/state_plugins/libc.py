@@ -1,4 +1,3 @@
-import angr
 from .plugin import SimStatePlugin
 
 HEAP_LOCATION = 0xc0000000
