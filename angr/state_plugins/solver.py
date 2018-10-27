@@ -184,12 +184,15 @@ class SimSolver(SimStatePlugin):
         self.temporal_tracked_variables = {} if temporal_tracked_variables is None else temporal_tracked_variables
         self.eternal_tracked_variables = {} if eternal_tracked_variables is None else eternal_tracked_variables
 
-    def reload_solver(self):
+    def reload_solver(self, constraints=None):
         """
         Reloads the solver. Useful when changing solver options.
+
+        :param list constraints:    A new list of constraints to use in the reloaded solver instead of the current one
         """
 
-        constraints = self._solver.constraints
+        if constraints is None:
+            constraints = self._solver.constraints
         self._stored_solver = None
         self._solver.add(constraints)
 

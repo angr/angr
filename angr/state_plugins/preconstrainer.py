@@ -112,6 +112,15 @@ class SimStatePreconstrainer(SimStatePlugin):
             self.preconstrain(m, v)
 
     def remove_preconstraints(self, to_composite_solver=True, simplify=True):
+        """
+        Remove the preconstraints from the state.
+
+        If you are using the zen plugin, this will also use that to filter the constraints.
+
+        :param to_composite_solver:     Whether to convert the replacement solver to a composite solver. You probably
+                                        want this if you're switching from tracing to symbolic analysis.
+        :param simplify:                Whether to simplify the resulting set of constraints.
+        """
         if not self.preconstraints:
             return
 
@@ -135,23 +144,19 @@ class SimStatePreconstrainer(SimStatePlugin):
             self.state.options.discard(o.REPLACEMENT_SOLVER)
             self.state.options.add(o.COMPOSITE_SOLVER)
 
-        self.state.release_plugin('solver')
-        self.state.add_constraints(*new_constraints)
-
-        l.debug("downsizing unpreconstrained state")
-        self.state.downsize()
+        # clear the solver's internal memory and replace it with the new solver options and constraints
+        self.state.solver.reload_solver(new_constraints)
 
         if simplify:
             l.debug("simplifying solver...")
             self.state.solver.simplify()
             l.debug("...simplification done")
 
-        self.state.solver._solver.result = None
-
     def reconstrain(self):
         """
-        Re-apply preconstraints to improve solver time, hopefully these
-        constraints still allow us to do meaningful things to state.
+        Split the solver. If any of the subsolvers time out after a short timeout (10 seconds), re-add the
+        preconstraints associated with each of its variables. Hopefully these constraints still allow us to do
+        meaningful things to the state.
         """
 
         # test all solver splits
@@ -162,7 +167,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             if not solver.satisfiable():
                 for var in solver.variables:
                     if var in self.variable_map:
-                        self.state.add_constraints(self.variable_map[var])
+                        self.state.solver.add(self.variable_map[var])
                     else:
                         l.warning("var %s not found in self.variable_map", var)
 
