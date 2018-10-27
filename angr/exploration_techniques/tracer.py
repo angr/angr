@@ -82,8 +82,8 @@ class Tracer(ExplorationTechnique):
         simgr.one_active.globals['sync_idx'] = None
         simgr.one_active.globals['sync_timer'] = 0
 
-        # enable lazy solves - don't touch z3 unless I tell you so
-        simgr.one_active.options.add(sim_options.LAZY_SOLVES)
+        # disable state copying!
+        simgr.one_active.options.remove(sim_options.COPY_STATES)
 
     def complete(self, simgr):
         return bool(simgr.traced)
@@ -107,6 +107,10 @@ class Tracer(ExplorationTechnique):
         # maintain the predecessors list
         self.predecessors.append(state)
         self.predecessors.pop(0)
+
+        if state.globals['trace_idx'] > len(self._trace) * 0.98:
+            state.options.add(sim_options.COPY_STATES)
+            state.options.add(sim_options.LAZY_SOLVES)
 
         # perform the step. ask qemu to stop at the termination point.
         stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
