@@ -92,7 +92,9 @@ class Tracer(ExplorationTechnique):
 
         # disable state copying!
         if not self._copy_states:
-            simgr.one_active.options.remove(sim_options.COPY_STATES)
+            # insulate our caller from this nonsense my making a single copy at the beginning
+            simgr.active[0] = simgr.active[0].copy()
+            simgr.active[0].options.remove(sim_options.COPY_STATES)
 
     def complete(self, simgr):
         return bool(simgr.traced)
