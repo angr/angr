@@ -13,7 +13,7 @@ class StringTableSpec(object):
             self.add_null()
 
     def append_env(self, env, add_null=True):
-        if type(env) is dict:
+        if isinstance(env, dict):
             for k, v in env.items():
                 if type(k) is bytes:
                     k = claripy.BVV(k)
