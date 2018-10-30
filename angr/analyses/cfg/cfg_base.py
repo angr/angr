@@ -1553,7 +1553,7 @@ class CFGBase(Analysis):
                     b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
                     if len(b.successors) != 1:
                         break
-                    if b.successors[0].history.jumpkind != 'Ijk_Boring':
+                    if b.successors[0].history.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                         break
                     if b.successors[0].ip.symbolic:
                         break
@@ -1644,7 +1644,7 @@ class CFGBase(Analysis):
 
             if len(func_0.block_addrs) == 1:
                 block = next(func_0.blocks)
-                if block.vex.jumpkind != 'Ijk_Boring':
+                if block.vex.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                     continue
                 # Skip alignment blocks
                 if self._is_noop_block(self.project.arch, block):
@@ -1858,7 +1858,7 @@ class CFGBase(Analysis):
                                                   to_outside=to_outside
                                                   )
 
-        elif jumpkind == 'Ijk_Boring':
+        elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
 
             # convert src_addr and dst_addr to CodeNodes
             n = self.get_any_node(src_addr)

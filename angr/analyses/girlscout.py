@@ -1,3 +1,5 @@
+raise ImportError("Don't import me! I don't work!")
+
 import logging
 import math
 import os

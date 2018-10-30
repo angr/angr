@@ -130,7 +130,7 @@ class CFGJobBase(object):
             self._call_stack = CallStack()
 
             # Added the function address of the current exit to callstack
-            se = self.state.se
+            se = self.state.solver
             sp_expr = self.state.regs.sp
 
             # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.

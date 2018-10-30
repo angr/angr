@@ -83,8 +83,6 @@ class Project:
     :ivar filename:     The filename of the executable.
     :ivar loader:       The program loader.
     :type loader:       cle.Loader
-    :ivar surveyors:    The available surveyors.
-    :type surveyors:    angr.surveyors.surveyor.Surveyors
     :ivar storage:      Dictionary of things that should be loaded/stored with the Project.
     :type storage:      defaultdict(list)
     """
@@ -212,7 +210,6 @@ class Project:
         self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
 
         # Step 4.3: ...etc
-        self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
 
         # Step 5: determine the guest OS
@@ -700,7 +697,6 @@ from .errors import AngrError, AngrNoPluginError
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub
-from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
 from .engines import EngineHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

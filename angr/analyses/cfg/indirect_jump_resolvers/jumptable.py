@@ -9,7 +9,8 @@ from ....blade import Blade
 from ....annocfg import AnnotatedCFG
 from .... import sim_options as o
 from .... import BP, BP_BEFORE
-from ....exploration_techniques import Slicecutor
+from ....exploration_techniques.slicecutor import Slicecutor
+from ....exploration_techniques.explorer import Explorer
 from .resolver import IndirectJumpResolver
 
 
@@ -142,7 +143,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Create the slicecutor
             simgr = self.project.factory.simulation_manager(start_state, resilience=True)
-            simgr.use_technique(Slicecutor(annotatedcfg, targets=(load_stmt_loc[0],), force_taking_exit=True))
+            simgr.use_technique(Slicecutor(annotatedcfg, force_taking_exit=True))
+            simgr.use_technique(Explorer(find=load_stmt_loc[0]))
 
             # Run it!
             try:
@@ -154,7 +156,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 continue
 
             # Get the jumping targets
-            for r in simgr.reached_targets:
+            for r in simgr.found:
                 try:
                     succ = project.factory.successors(r)
                 except (AngrError, SimError):

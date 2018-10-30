@@ -201,7 +201,7 @@ class AngrObjectFactory(object):
         :param cc:              The SimCC to use for a calling convention
         :returns:               A Callable object that can be used as a interface for executing guest code like a
                                 python function.
-        :rtype:                 angr.surveyors.caller.Callable
+        :rtype:                 angr.callable.Callable
         """
         return Callable(self.project,
                         addr=addr,
