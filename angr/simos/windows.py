@@ -1,7 +1,10 @@
 import os
 import logging
+import collections
+import random
 
 import claripy
+import cle.backends
 
 from ..errors import (
     AngrSimOSError,
@@ -9,12 +12,21 @@ from ..errors import (
     SimUnsupportedError,
     SimZeroDivisionException,
 )
+from .. import errors
 from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
 from .simos import SimOS
 
 _l = logging.getLogger('angr.simos.windows')
+
+
+_VS_Security_Cookie = collections.namedtuple('_VS_Security_Cookie', ('default', 'width'))
+# security cookie details from visual studio, keyed by architecture name
+VS_SECURITY_COOKIES = {
+	'AMD64': _VS_Security_Cookie(0x2b992ddfa232, 48),
+	'X86': _VS_Security_Cookie(0xbb40e64e, 32)
+}
 
 
 class SimWindows(SimOS):
@@ -29,6 +41,11 @@ class SimWindows(SimOS):
         self.commode_ptr = None
         self.acmdln_ptr = None
         self.wcmdln_ptr = None
+
+        self._security_cookie = None
+        for loaded_object in project.loader.all_objects:
+            if isinstance(loaded_object, cle.backends.pe.PE):
+                self._init_object_pe(loaded_object)
 
     def configure_project(self):
         super(SimWindows, self).configure_project()
@@ -435,3 +452,25 @@ class SimWindows(SimOS):
         state.regs.eip = state.mem[addr + 0xb8].uint32_t.resolved
         state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved
         state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
+
+
+    def _init_object_pe(self, pe_object):
+        pe = getattr(pe_object, '_pe', None)
+        if pe is None:
+            # this is a code compatibility issue because we're using the private member
+            raise errors.AngrSimOSError('cle backened pe_object has no _pe attribute')
+        if hasattr(pe, 'DIRECTORY_ENTRY_LOAD_CONFIG'):
+            config = pe.DIRECTORY_ENTRY_LOAD_CONFIG.struct
+            if config.SecurityCookie:
+                vs_cookie = VS_SECURITY_COOKIES.get(self.project.arch.name)
+                if vs_cookie is None:
+                    _l.warning('Unsupported architecture: ' + self.project.arch + ' for /GS, leaving _security_cookie uninitialized')
+                else:
+                    value = pe_object.memory.unpack_word(config.SecurityCookie - pe.NT_HEADERS.OPTIONAL_HEADER.ImageBase)
+                    if value == vs_cookie.default:
+                        if self._security_cookie is None:
+                            self._security_cookie = random.randint(1, (2 ** vs_cookie.width - 1))
+                            if self._security_cookie == vs_cookie:
+                                self._security_cookie = vs_cookie + 1
+                        value = self._security_cookie
+                        pe_object.memory.pack_word(config.SecurityCookie - pe.NT_HEADERS.OPTIONAL_HEADER.ImageBase, value)
