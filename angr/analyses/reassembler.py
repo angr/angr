@@ -2487,6 +2487,9 @@ class Reassembler(Analysis):
 
             if i in data_indices_to_remove:
                 continue
+            
+            if data.size is None:
+                continue
 
             # process the overlapping ones
             if i < len(self.data) - 1:
