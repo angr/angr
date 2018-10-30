@@ -80,7 +80,7 @@ class SimOS:
                     return
             self.project.hook(sym.rebased_addr, hook)
 
-    def state_blank(self, addr=None, initial_prefix=None, stack_end=None, stack_size=1024*1024*8, stdin=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, **kwargs):
         """
         Initialize a blank state.
 
@@ -90,6 +90,7 @@ class SimOS:
         :param initial_prefix:
         :param stack_end:       The end of the stack (i.e., the byte after the last valid stack address).
         :param stack_size:      The number of bytes to allocate for stack space
+        :param brk:             The address of the process' break.
         :return:                The initialized SimState.
 
         Any additional arguments will be passed to the SimState constructor
@@ -127,8 +128,8 @@ class SimOS:
                 stdin = SimFileStream(name='stdin', content=stdin, has_end=True)
 
         last_addr = self.project.loader.main_object.max_addr
-        brk = last_addr - last_addr % 0x1000 + 0x1000
-        state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=brk))
+        actual_brk = (last_addr - last_addr % 0x1000 + 0x1000) if brk is None else brk
+        state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
 
         actual_stack_end = state.arch.initial_sp if stack_end is None else stack_end
