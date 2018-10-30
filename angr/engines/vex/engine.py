@@ -367,6 +367,12 @@ class SimEngineVEX(SimEngine):
             l.debug("IMark: %#x", stmt.addr)
             state.scratch.num_insns += 1
             state._inspect('instruction', BP_BEFORE, instruction=ins_addr)
+            #print(stmt.pp)
+
+            if 0x7ffff7dec6f8 == stmt.addr:
+                print("HERE")
+
+            #state.project.factory.block(state.se.eval(state.regs.pc)).capstone.pp()
 
         # process it!
         s_stmt = translate_stmt(stmt, state)
@@ -533,6 +539,7 @@ class SimEngineVEX(SimEngine):
         # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in range(2):
+
                 irsb = pyvex.lift(buff, addr + thumb, arch,
                                   max_bytes=size,
                                   max_inst=num_inst,

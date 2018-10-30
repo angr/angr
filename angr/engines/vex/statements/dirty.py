@@ -27,6 +27,7 @@ class SimIRStmt_Dirty(SimIRStmt):
                 tmp_deps = None
 
             func = getattr(dirty, self.stmt.cee.name)
+
             retval, retval_constraints = func(self.state, *s_args)
 
             self._add_constraints(*retval_constraints)

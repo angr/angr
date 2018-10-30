@@ -119,7 +119,14 @@ def solv_concrete_engine_linux_x64(p,state):
 
     nose.tools.assert_true(binary_configuration == correct_solution)
 
-
-
-
-
+'''
+setup_x64()
+print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
+global avatar_gdb
+avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
+                 page_size=0x1000)
+entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
+#[entry_state.options.add(x) for x in angr.options.refs]
+solv_concrete_engine_linux_x64(p,entry_state)
+'''
