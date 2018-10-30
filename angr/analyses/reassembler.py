@@ -1222,7 +1222,7 @@ class Data(object):
 
         # TODO: What if it's not aligned for some sort of data, like pointer array?
 
-        if self.addr is None:
+        if self.addr is None or self.size is None:
             # this piece of data comes from a patch, not from the original binary
             return
 
