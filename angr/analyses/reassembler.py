@@ -1196,7 +1196,7 @@ class Data(object):
                 # it's not aligned?
                 raise BinaryError('Fails at Data.shrink()')
 
-            pointers = self.size / pointer_size
+            pointers = int( self.size / pointer_size )
             self._content = self._content[ : pointers]
 
         else:
