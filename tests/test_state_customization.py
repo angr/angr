@@ -18,7 +18,7 @@ def test_stack_end():
 			if n.bit_length() > p.arch.bits:
 				continue
 			s = p.factory.full_init_state(stack_end=n)
-			assert s.solver.eval_upto(s.regs.sp + offset == n, 2) == [ True ]
+			assert s.solver.eval_one(s.regs.sp + offset == n)
 
 def test_brk():
 	for fn in glob.glob(os.path.join(test_location, "*", "fauxware")):
@@ -29,7 +29,7 @@ def test_brk():
 			if n.bit_length() > p.arch.bits:
 				continue
 			s = p.factory.full_init_state(brk=n)
-			assert s.solver.eval_upto(s.posix.brk == n, 2) == [ True ]
+			assert s.solver.eval_one(s.posix.brk == n)
 
 if __name__ == '__main__':
 	test_stack_end()
