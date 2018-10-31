@@ -341,6 +341,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :return: A list of AddressWrapper or ValueSet objects
         """
 
+        if type(addr) is not int:
+            for constraint in self.state.solver.constraints:
+                if getattr(addr, 'variables', set()) & constraint.variables:
+                    addr = self._apply_condition_to_symbolic_addr(addr, constraint)
+
         # Apply the condition if necessary
         if condition is not None:
             addr = self._apply_condition_to_symbolic_addr(addr, condition)
