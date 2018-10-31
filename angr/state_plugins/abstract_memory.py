@@ -8,7 +8,7 @@ from claripy.vsa import ValueSet, RegionAnnotation
 from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest
 from ..errors import SimMemoryError, SimAbstractMemoryError
 from ..sim_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING, \
-    CONSERVATIVE_READ_STRATEGY, CONSERVATIVE_WRITE_STRATEGY
+    CONSERVATIVE_READ_STRATEGY, CONSERVATIVE_WRITE_STRATEGY, HYBRID_SOLVER, APPROXIMATE_FIRST
 from .symbolic_memory import SimSymbolicMemory
 from ..state_plugins.sim_action_object import _raw_ast
 
@@ -340,6 +340,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param target_region: Which region to normalize the address to. To leave the decision to SimuVEX, set it to None
         :return: A list of AddressWrapper or ValueSet objects
         """
+        targets_limit = WRITE_TARGETS_LIMIT if is_write else READ_TARGETS_LIMIT
 
         if type(addr) is not int:
             for constraint in self.state.solver.constraints:
@@ -357,14 +358,17 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         address_wrappers = [ ]
 
         for region, addr_si in addr_with_regions:
-            if is_write:
-                concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
-                if len(concrete_addrs) == WRITE_TARGETS_LIMIT:
-                    self.state.history.add_event('mem', message='too many targets to write to. address = %s' % addr_si)
-            else:
-                concrete_addrs = addr_si.eval(READ_TARGETS_LIMIT)
-                if len(concrete_addrs) == READ_TARGETS_LIMIT:
-                    self.state.history.add_event('mem', message='too many targets to read from. address = %s' % addr_si)
+            concrete_addrs = addr_si.eval(targets_limit)
+
+            if len(concrete_addrs) == targets_limit and HYBRID_SOLVER in self.state.options:
+                exact = True if APPROXIMATE_FIRST not in self.state.options else None
+                solutions = self.state.solver.eval_upto(addr, targets_limit, exact=exact)
+
+                if len(solutions) < len(concrete_addrs):
+                    concrete_addrs = [addr_si.intersection(s).eval(1)[0] for s in solutions]
+
+            if len(concrete_addrs) == targets_limit:
+                self.state.history.add_event('mem', message='concretized too many targets. address = %s' % addr_si)
 
             for c in concrete_addrs:
                 aw = self._normalize_address(region, c, target_region=target_region)
