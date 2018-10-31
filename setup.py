@@ -140,6 +140,7 @@ setup(
         'ailment==8.18.10.25',
         'GitPython',
         'pycparser>=2.18',
+        'itanium_demangler',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
