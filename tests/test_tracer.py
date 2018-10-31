@@ -8,7 +8,7 @@ import angr
 
 from common import bin_location, do_trace, slow_test
 
-def tracer_cgc(filename, test_name, stdin):
+def tracer_cgc(filename, test_name, stdin, copy_states=False):
     p = angr.Project(filename)
     p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
 
@@ -17,7 +17,7 @@ def tracer_cgc(filename, test_name, stdin):
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(s, hierarchy=False, save_unconstrained=crash_mode)
-    t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr, keep_predecessors=1)
+    t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr, keep_predecessors=1, copy_states=copy_states)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
 

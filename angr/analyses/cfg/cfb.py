@@ -7,7 +7,7 @@ from sortedcontainers import SortedDict
 from ..analysis import Analysis
 from ...errors import SimConcreteMemoryError
 
-_l = logging.getLogger('angr.analyses.cfg.cfb')
+_l = logging.getLogger(name=__name__)
 
 
 class CFBlanketView(object):

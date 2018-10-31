@@ -8,7 +8,7 @@ import claripy
 from ..func import Func, TestData
 
 
-l = logging.getLogger("angr.analyses.identifier.functions.printf")
+l = logging.getLogger(name=__name__)
 
 
 class printf(Func):

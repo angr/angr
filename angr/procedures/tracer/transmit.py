@@ -3,7 +3,7 @@ import logging
 from ..cgc.transmit import transmit as orig_transmit
 
 
-l = logging.getLogger("angr.procedures.tracer.transmit")
+l = logging.getLogger(name=__name__)
 
 
 class transmit(orig_transmit):

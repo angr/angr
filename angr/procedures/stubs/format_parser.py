@@ -7,7 +7,7 @@ from ... import sim_type
 from ...sim_procedure import SimProcedure
 from ...storage.file import SimPackets
 
-l = logging.getLogger("angr.procedures.stubs.format_parser")
+l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
 
 class FormatString(object):
@@ -219,7 +219,7 @@ class FormatString(object):
         argpos = startpos
         position = addr
         for component in self.components:
-            if isinstance(component, str):
+            if isinstance(component, bytes):
                 # TODO we skip non-format-specifiers in format string interpretation for now
                 # if the region doesn't match the concrete component, we need to return immediately
                 pass

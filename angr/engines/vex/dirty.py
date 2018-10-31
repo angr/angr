@@ -5,7 +5,7 @@ import time
 
 from ... import sim_options as o
 
-l = logging.getLogger("angr.engines.vex.dirty")
+l = logging.getLogger(name=__name__)
 
 
 #####################

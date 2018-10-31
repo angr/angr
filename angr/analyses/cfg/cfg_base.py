@@ -21,7 +21,7 @@ from .. import Analysis
 from .cfg_node import CFGNode, CFGNodeA
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
-l = logging.getLogger("angr.analyses.cfg.cfg_base")
+l = logging.getLogger(name=__name__)
 
 
 class IndirectJump(object):

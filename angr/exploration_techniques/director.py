@@ -12,7 +12,7 @@ from ..knowledge_base import KnowledgeBase
 from ..errors import AngrDirectorError
 from . import ExplorationTechnique
 
-l = logging.getLogger("angr.exploration_techniques.director")
+l = logging.getLogger(name=__name__)
 
 
 class BaseGoal(object):

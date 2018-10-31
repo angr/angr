@@ -1,7 +1,7 @@
 import logging
 import os
 
-l = logging.getLogger("angr.procedures.procedure_dict")
+l = logging.getLogger(name=__name__)
 
 from ..misc import autoimport
 from ..sim_procedure import SimProcedure

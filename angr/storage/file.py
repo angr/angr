@@ -8,7 +8,7 @@ from ..state_plugins.sim_action_object import SimActionObject
 from ..state_plugins.symbolic_memory import SimSymbolicMemory
 from .. import sim_options
 
-l = logging.getLogger("angr.storage.file")
+l = logging.getLogger(name=__name__)
 
 file_counter = itertools.count()
 dialogue_counter = itertools.count()

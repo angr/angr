@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeString
 
 import logging
-l = logging.getLogger("angr.procedures.posix.strtok_r")
+l = logging.getLogger(name=__name__)
 
 class strtok_r(angr.SimProcedure):
     #pylint:disable=arguments-differ

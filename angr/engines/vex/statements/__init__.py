@@ -18,7 +18,7 @@ from .llsc import SimIRStmt_LLSC
 from .puti import SimIRStmt_PutI
 
 import logging
-l = logging.getLogger("angr.engines.vex.statements.")
+l = logging.getLogger(name=__name__)
 
 def translate_stmt(stmt, state):
     stmt_name = 'SimIRStmt_' +  type(stmt).__name__.split('IRStmt')[-1].split('.')[-1]

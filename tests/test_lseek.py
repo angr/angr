@@ -28,7 +28,7 @@ def test_lseek_set():
 
     # Create a file
     state.fs.insert('/tmp/qwer', SimFile(name='qwer', size=100))
-    assert fd == state.posix.open('/tmp/qwer', 2)
+    assert fd == state.posix.open(b'/tmp/qwer', 2)
 
     # Part 1
 
@@ -65,7 +65,7 @@ def test_lseek_cur():
 
     # Create a file
     state.fs.insert('/tmp/qwer', SimFile(name='qwer', size=100))
-    assert fd == state.posix.open('/tmp/qwer', 2)
+    assert fd == state.posix.open(b'/tmp/qwer', 2)
 
     # Part 1
 
@@ -92,7 +92,7 @@ def test_lseek_end():
 
     # Create a file
     state.fs.insert('/tmp/qwer', SimFile(name='qwer', size=16))
-    assert fd == state.posix.open('/tmp/qwer', 2)
+    assert fd == state.posix.open(b'/tmp/qwer', 2)
 
     # Part 1
 
@@ -145,7 +145,7 @@ def test_lseek_symbolic_whence():
     fd = 3
 
     # Create a file
-    assert fd == state.posix.open('/tmp/qwer', 1)
+    assert fd == state.posix.open(b'/tmp/qwer', 1)
 
     whence = state.solver.BVS('whence',64)
 
@@ -160,7 +160,7 @@ def test_lseek_symbolic_seek():
     fd = 3
 
     # Create a file
-    assert fd == state.posix.open('/tmp/qwer', 1)
+    assert fd == state.posix.open(b'/tmp/qwer', 1)
 
     seek = state.solver.BVS('seek',64)
 

@@ -17,7 +17,7 @@ from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 from ..errors import SimConcreteMemoryError
 
-l = logging.getLogger("angr.analyses.reassembler")
+l = logging.getLogger(name=__name__)
 
 #
 # Exceptions

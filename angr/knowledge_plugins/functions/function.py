@@ -10,7 +10,7 @@ import claripy
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 
-l = logging.getLogger("angr.knowledge.function")
+l = logging.getLogger(name=__name__)
 
 
 class Function(object):

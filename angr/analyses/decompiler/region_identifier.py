@@ -6,7 +6,7 @@ import networkx
 from .. import Analysis, register_analysis
 from ...utils.graph import dfs_back_edges
 
-l = logging.getLogger('angr.analyses.region_identifier')
+l = logging.getLogger(name=__name__)
 
 
 class MultiNode(object):

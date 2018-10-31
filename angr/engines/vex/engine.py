@@ -1,4 +1,3 @@
-
 from cachetools import LRUCache
 
 import pyvex
@@ -18,7 +17,7 @@ from .statements import translate_stmt
 from .expressions import translate_expr
 
 import logging
-l = logging.getLogger("angr.engines.vex.engine")
+l = logging.getLogger(name=__name__)
 
 #pylint: disable=arguments-differ
 
@@ -263,8 +262,10 @@ class SimEngineVEX(SimEngine):
             try:
                 state.scratch.stmt_idx = stmt_idx
                 state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-                self._handle_statement(state, successors, stmt)
+                cont = self._handle_statement(state, successors, stmt)
                 state._inspect('statement', BP_AFTER)
+                if not cont:
+                    return
             except UnsupportedDirtyError:
                 if o.BYPASS_UNSUPPORTED_IRDIRTY not in state.options:
                     raise
@@ -380,14 +381,43 @@ class SimEngineVEX(SimEngine):
 
             # Produce our successor state!
             # Let SimSuccessors.add_successor handle the nitty gritty details
-            exit_state = state.copy()
-            successors.add_successor(exit_state, s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
-                                     exit_stmt_idx=state.scratch.stmt_idx, exit_ins_addr=state.scratch.ins_addr)
+
+            cont_state = None
+            exit_state = None
+
+            if o.COPY_STATES not in state.options:
+                # very special logic to try to minimize copies
+                # first, check if this branch is impossible
+                if s_stmt.guard.is_false():
+                    cont_state = state
+                elif o.LAZY_SOLVES not in state.options and not state.solver.satisfiable(extra_constraints=(s_stmt.guard,)):
+                    cont_state = state
+
+                # then, check if it's impossible to continue from this branch
+                elif s_stmt.guard.is_true():
+                    exit_state = state
+                elif o.LAZY_SOLVES not in state.options and not state.solver.satisfiable(extra_constraints=(claripy.Not(s_stmt.guard),)):
+                    exit_state = state
+                else:
+                    exit_state = state.copy()
+                    cont_state = state
+            else:
+                exit_state = state.copy()
+                cont_state = state
+
+            if exit_state is not None:
+                successors.add_successor(exit_state, s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
+                                         exit_stmt_idx=state.scratch.stmt_idx, exit_ins_addr=state.scratch.ins_addr)
+
+            if cont_state is None:
+                return False
 
             # Do our bookkeeping on the continuing state
             cont_condition = claripy.Not(s_stmt.guard)
-            state.add_constraints(cont_condition)
-            state.scratch.guard = claripy.And(state.scratch.guard, cont_condition)
+            cont_state.add_constraints(cont_condition)
+            cont_state.scratch.guard = claripy.And(cont_state.scratch.guard, cont_condition)
+
+        return True
 
     def lift(self,
              state=None,

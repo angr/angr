@@ -2,7 +2,7 @@ from pyvex import get_type_size
 from . import SimIRStmt
 
 import logging
-l = logging.getLogger("angr.engines.vex.statements.llsc")
+l = logging.getLogger(name=__name__)
 
 # TODO: memory read SimActions
 # TODO: tmp write SimActions

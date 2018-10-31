@@ -2,7 +2,7 @@ import logging
 
 from . import ExplorationTechnique
 
-l = logging.getLogger('angr.exploration_techniques.manual_mergepoint')
+l = logging.getLogger(name=__name__)
 
 class ManualMergepoint(ExplorationTechnique):
     def __init__(self, address, wait_counter=10):

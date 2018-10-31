@@ -2,7 +2,7 @@ import logging
 
 from angr.procedures.stubs.format_parser import FormatParser
 
-l = logging.getLogger("angr.procedures.libc.snprintf")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # snprintf

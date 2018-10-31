@@ -5,7 +5,7 @@ from sortedcontainers import SortedDict
 from ..state_plugins.plugin import SimStatePlugin
 
 
-l = logging.getLogger("angr.storage.memory")
+l = logging.getLogger(name=__name__)
 
 stn_map = { 'st%d' % n: n for n in range(8) }
 tag_map = { 'tag%d' % n: n for n in range(8) }
@@ -842,7 +842,7 @@ class SimMemory(SimStatePlugin):
         raise NotImplementedError()
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
-             disable_actions=False, inspect=True):
+             disable_actions=False, inspect=True, chunk_size=None):
         """
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
         value, this search could cause the state to go unsat if no possible matching byte exists.
@@ -867,14 +867,14 @@ class SimMemory(SimStatePlugin):
             what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
-                           step=step, disable_actions=disable_actions, inspect=inspect)
+                           step=step, disable_actions=disable_actions, inspect=inspect, chunk_size=chunk_size)
         if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
-              disable_actions=False, inspect=True):
+              disable_actions=False, inspect=True, chunk_size=None):
         raise NotImplementedError()
 
     def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,

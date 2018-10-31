@@ -3,7 +3,7 @@ import logging
 
 from ..misc.ux import once
 
-l = logging.getLogger('angr.analyses.disassembly_utils')
+l = logging.getLogger(name=__name__)
 
 
 INS_GROUP_INFO = {

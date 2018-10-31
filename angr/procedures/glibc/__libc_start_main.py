@@ -4,7 +4,7 @@ import logging
 import pyvex
 import angr
 
-l = logging.getLogger("angr.procedures.glibc.__libc_start_main")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # __libc_start_main
@@ -113,6 +113,12 @@ class __libc_start_main(angr.SimProcedure):
         self._initialize_tolower_loc_table()
         self._initialize_toupper_loc_table()
 
+    def _initialize_errno(self):
+        malloc = angr.SIM_PROCEDURES['libc']['malloc']
+        errno_loc = self.inline_call(malloc, self.state.arch.bytes).ret_expr
+
+        self.state.libc.errno_location = errno_loc
+        self.state.memory.store(errno_loc, self.state.solver.BVV(0, self.state.arch.bits))
 
     @property
     def envp(self):
@@ -123,6 +129,7 @@ class __libc_start_main(angr.SimProcedure):
         # TODO: add argument types
 
         self._initialize_ctype_table()
+        self._initialize_errno()
 
         self.main, self.argc, self.argv, self.init, self.fini = self._extract_args(self.state, main, argc, argv, init,
                                                                                    fini)

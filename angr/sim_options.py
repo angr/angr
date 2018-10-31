@@ -151,8 +151,9 @@ REVERSE_MEMORY_HASH_MAP = "REVERSE_MEMORY_HASH_MAP"
 # This enables tracking of which bytes in the state are symbolic
 MEMORY_SYMBOLIC_BYTES_MAP = "MEMORY_SYMBOLIC_BYTES_MAP"
 
-# this makes s_run() copy states
-COW_STATES = "COW_STATES"
+# this makes engine copy states
+COPY_STATES = "COPY_STATES"
+COW_STATES = COPY_STATES
 
 # this replaces calls with an unconstraining of the return register
 CALLLESS = "CALLLESS"
@@ -270,7 +271,8 @@ EXTENDED_IROP_SUPPORT = 'EXTENDED_IROP_SUPPORT'
 # For each division operation, produce a successor state with the constraint that the divisor is zero
 PRODUCE_ZERODIV_SUCCESSORS = 'PRODUCE_ZERODIV_SUCCESSORS'
 
-SYNC_CLE_BACKEND_CONCRETE = 'SYNC_CLE_BACKEND_CONCRETE'
+# Allow POSIX API send() to fail
+ALLOW_SEND_FAILURES = 'ALLOW_SEND_FAILURES'
 
 #
 # CGC specific state options
@@ -285,6 +287,9 @@ CGC_ENFORCE_FD = 'CGC_ENFORCE_FD'
 # FDWAIT will always return FDs as non blocking
 CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 
+# Allows memory breakpoints to get more accurate sizes in case of reading large chunks
+# Sacrafice performance for more fine tune memory read size
+MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 
 #
 # Register those variables as Boolean state options
@@ -293,7 +298,7 @@ CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 _g = globals().copy()
 for k, v in _g.items():
     if all([ char in string.ascii_uppercase + "_" + string.digits for char in k ]) and type(v) is str:
-        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY"):
+        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY", "COW_STATES"):
             # UNKNOWN_FILES_HAVE_EOF == FILES_HAVE_EOF
             # CGC_ZERO_FILL_UNCONSTRAINED_MEMORY == ZERO_FILL_UNCONSTRAINED_MEMORY
             continue
@@ -316,5 +321,5 @@ modes = {
     'symbolic_approximating': common_options | symbolic | approximation | { TRACK_CONSTRAINT_ACTIONS },
     'static': (common_options - simplification) | { REGION_MAPPING, BEST_EFFORT_MEMORY_STORING, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP },
     'fastpath': (common_options - simplification ) | (symbolic - { SYMBOLIC, DO_CCALLS }) | resilience | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS },
-    'tracing': (common_options - simplification - {SUPPORT_FLOATING_POINT}) | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { CGC_NO_SYMBOLIC_RECEIVE_LENGTH, REPLACEMENT_SOLVER, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, USE_SYSTEM_TIMES, PRODUCE_ZERODIV_SUCCESSORS },
+    'tracing': (common_options - simplification - {SUPPORT_FLOATING_POINT, ALL_FILES_EXIST}) | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { CGC_NO_SYMBOLIC_RECEIVE_LENGTH, REPLACEMENT_SOLVER, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, PRODUCE_ZERODIV_SUCCESSORS, ALLOW_SEND_FAILURES },
 }

@@ -12,7 +12,7 @@ import cle
 
 from .misc.ux import deprecated
 
-l = logging.getLogger("angr.project")
+l = logging.getLogger(name=__name__)
 projects = weakref.WeakValueDictionary()
 
 def fake_project_unpickler(name):

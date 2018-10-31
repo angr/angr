@@ -9,7 +9,7 @@ import itertools
 import operator
 
 import logging
-l = logging.getLogger("angr.engines.vex.irop")
+l = logging.getLogger(name=__name__)
 
 import pyvex
 import claripy

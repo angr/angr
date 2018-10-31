@@ -4,7 +4,7 @@ from .. import sim_options
 from ..errors import SimIRSBNoDecodeError, AngrExplorationTechniqueError
 
 import logging
-l = logging.getLogger("angr.exploration_techniques.explorer")
+l = logging.getLogger(name=__name__)
 
 class Explorer(ExplorationTechnique):
     """

@@ -18,7 +18,7 @@ from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, Angr
 from ..procedures import SIM_PROCEDURES
 from ..state_plugins.callstack import CallStack
 
-l = logging.getLogger("angr.analyses.vfg")
+l = logging.getLogger(name=__name__)
 
 
 class VFGJob(CFGJobBase):

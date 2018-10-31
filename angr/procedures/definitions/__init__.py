@@ -10,7 +10,7 @@ from ...sim_type import parse_file
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
 
-l = logging.getLogger("angr.procedures.definitions")
+l = logging.getLogger(name=__name__)
 SIM_LIBRARIES = {}
 
 class SimLibrary(object):

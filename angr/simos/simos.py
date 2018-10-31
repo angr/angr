@@ -18,10 +18,10 @@ from ..storage.file import SimFileStream, SimFileBase
 from ..misc import IRange
 
 
-_l = logging.getLogger("angr.simos.simos")
+_l = logging.getLogger(name=__name__)
 
 
-class SimOS(object):
+class SimOS:
     """
     A class describing OS/arch-level configuration.
     """
@@ -80,8 +80,7 @@ class SimOS(object):
                     return
             self.project.hook(sym.rebased_addr, hook)
 
-    def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8,
-            stdin=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, **kwargs):
         """
         Initialize a blank state.
 
@@ -89,7 +88,9 @@ class SimOS(object):
 
         :param addr:            The execution start address.
         :param initial_prefix:
+        :param stack_end:       The end of the stack (i.e., the byte after the last valid stack address).
         :param stack_size:      The number of bytes to allocate for stack space
+        :param brk:             The address of the process' break.
         :return:                The initialized SimState.
 
         Any additional arguments will be passed to the SimState constructor
@@ -127,20 +128,20 @@ class SimOS(object):
                 stdin = SimFileStream(name='stdin', content=stdin, has_end=True)
 
         last_addr = self.project.loader.main_object.max_addr
-        brk = last_addr - last_addr % 0x1000 + 0x1000
-        state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=brk))
+        actual_brk = (last_addr - last_addr % 0x1000 + 0x1000) if brk is None else brk
+        state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
 
-        stack_end = state.arch.initial_sp
+        actual_stack_end = state.arch.initial_sp if stack_end is None else stack_end
         if o.ABSTRACT_MEMORY not in state.options:
-            state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
+            state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
 
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
             highest_reg_offset, reg_size = max(state.arch.registers.values())
             for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
                 state.registers.store(i, state.solver.BVV(0, state.arch.bits))
         if state.arch.sp_offset is not None:
-            state.regs.sp = stack_end
+            state.regs.sp = actual_stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -165,6 +166,10 @@ class SimOS(object):
                 else:
                     raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
 
+            # special case for stack pointer override
+            if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
+                continue
+
             if o.ABSTRACT_MEMORY in state.options and is_addr:
                 address = claripy.ValueSet(state.arch.bits, mem_region, region_base, val)
                 state.registers.store(reg, address)
@@ -179,6 +184,7 @@ class SimOS(object):
         state.scratch.bbl_addr = addr
         state.scratch.stmt_idx = 0
         state.history.jumpkind = 'Ijk_Boring'
+
         return state
 
     def state_entry(self, **kwargs):
