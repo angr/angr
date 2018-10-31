@@ -12,7 +12,7 @@ from ...engines.light import SimEngineLightVEX, SpOffset
 from ...engines.vex.irop import operations as vex_operations
 from ...errors import SimEngineError
 
-l = logging.getLogger('angr.analyses.reaching_definitions.engine_vex')
+l = logging.getLogger(name=__name__)
 
 
 class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method

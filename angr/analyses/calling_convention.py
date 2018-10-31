@@ -4,7 +4,7 @@ from ..calling_conventions import SimRegArg, SimStackArg, SimCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from . import Analysis, register_analysis
 
-l = logging.getLogger('angr.analyses.calling_convention')
+l = logging.getLogger(name=__name__)
 
 
 class CallingConventionAnalysis(Analysis):

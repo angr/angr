@@ -6,7 +6,7 @@ from .. import sim_options as o
 from ..errors import AngrError
 
 
-l = logging.getLogger("angr.state_plugins.preconstrainer")
+l = logging.getLogger(name=__name__)
 
 
 class SimStatePreconstrainer(SimStatePlugin):

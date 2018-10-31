@@ -12,7 +12,7 @@ from .. import SIM_PROCEDURES as P
 from . import SimLibrary
 
 
-_l = logging.getLogger('angr.prototypes.libc')
+_l = logging.getLogger(name=__name__)
 
 
 libc = SimLibrary()

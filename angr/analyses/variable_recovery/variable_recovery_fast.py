@@ -14,7 +14,7 @@ from ...keyed_region import KeyedRegion
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 
-l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast")
+l = logging.getLogger(name=__name__)
 
 
 class ProcessorState(object):

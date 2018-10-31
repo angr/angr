@@ -2,7 +2,7 @@ import angr
 import archinfo
 import logging
 
-l = logging.getLogger('angr.procedures.posix.sigaction')
+l = logging.getLogger(name=__name__)
 
 class sigaction(angr.SimProcedure):
     def run(self, signum, act, oldact):

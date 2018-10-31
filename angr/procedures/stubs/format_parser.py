@@ -7,7 +7,7 @@ from ... import sim_type
 from ...sim_procedure import SimProcedure
 from ...storage.file import SimPackets
 
-l = logging.getLogger("angr.procedures.stubs.format_parser")
+l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
 
 class FormatString(object):

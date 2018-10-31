@@ -4,7 +4,7 @@ from angr.sim_type import SimTypeString, SimTypeLength
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging
-l = logging.getLogger("angr.procedures.libc.strlen")
+l = logging.getLogger(name=__name__)
 
 class strlen(angr.SimProcedure):
     #pylint:disable=arguments-differ

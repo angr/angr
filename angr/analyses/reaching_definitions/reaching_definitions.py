@@ -19,7 +19,7 @@ from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
 
-l = logging.getLogger('angr.analyses.reaching_definitions')
+l = logging.getLogger(name=__name__)
 
 
 class LiveDefinitions(object):

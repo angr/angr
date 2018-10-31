@@ -8,7 +8,7 @@ from ..errors import SimMemoryError, SimSegfaultError, SimMemoryMissingError
 from .. import sim_options as options
 from .memory_object import SimMemoryObject
 
-l = logging.getLogger("angr.storage.paged_memory")
+l = logging.getLogger(name=__name__)
 
 
 class BasePage:

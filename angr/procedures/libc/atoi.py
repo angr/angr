@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeString, SimTypeInt
 
 import logging
-l = logging.getLogger("angr.procedures.libc.atoi")
+l = logging.getLogger(name=__name__)
 
 
 class atoi(angr.SimProcedure):

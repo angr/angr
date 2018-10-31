@@ -3,7 +3,7 @@ import logging
 from .engine import SimEngine
 from .successors import SimSuccessors
 
-l = logging.getLogger("angr.engines.hook")
+l = logging.getLogger(name=__name__)
 
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ

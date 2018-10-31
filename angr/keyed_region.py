@@ -2,7 +2,7 @@ import logging
 from sortedcontainers import SortedDict
 
 
-l = logging.getLogger("angr.knowledge.keyed_region")
+l = logging.getLogger(name=__name__)
 
 
 class StoredObject(object):

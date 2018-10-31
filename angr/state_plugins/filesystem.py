@@ -6,7 +6,7 @@ from ..storage.file import SimFile
 from ..errors import SimMergeError
 from ..misc.ux import once
 
-l = logging.getLogger('angr.state_plugins.filesystem')
+l = logging.getLogger(name=__name__)
 
 class SimFilesystem(SimStatePlugin): # pretends links don't exist
     """

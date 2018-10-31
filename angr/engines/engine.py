@@ -2,7 +2,7 @@ import sys
 import logging
 
 
-l = logging.getLogger("angr.engines.engine")
+l = logging.getLogger(name=__name__)
 
 
 class SimEngine(object):

@@ -4,7 +4,7 @@ import logging
 import pyvex
 import angr
 
-l = logging.getLogger("angr.procedures.glibc.__libc_start_main")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # __libc_start_main

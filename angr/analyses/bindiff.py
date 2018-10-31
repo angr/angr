@@ -13,7 +13,7 @@ from ..errors import SimEngineError, SimMemoryError
 # todo include a method that detects any change other than constants
 # todo use function names / string references where available
 
-l = logging.getLogger("angr.analyses.bindiff")
+l = logging.getLogger(name=__name__)
 
 # basic block changes
 DIFF_TYPE = "type"

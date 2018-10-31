@@ -5,7 +5,7 @@ from sortedcontainers import SortedDict
 from ..state_plugins.plugin import SimStatePlugin
 
 
-l = logging.getLogger("angr.storage.memory")
+l = logging.getLogger(name=__name__)
 
 stn_map = { 'st%d' % n: n for n in range(8) }
 tag_map = { 'tag%d' % n: n for n in range(8) }

@@ -4,7 +4,7 @@ from angr.sim_type import SimTypeString, SimTypeInt, SimTypeChar
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging
-l = logging.getLogger("angr.procedures.libc.strchr")
+l = logging.getLogger(name=__name__)
 
 class strchr(angr.SimProcedure):
     #pylint:disable=arguments-differ

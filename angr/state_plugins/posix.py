@@ -6,7 +6,7 @@ from .filesystem import SimMount
 from ..storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
 from .. import sim_options as options
 
-l = logging.getLogger("angr.state_plugins.posix")
+l = logging.getLogger(name=__name__)
 
 max_fds = 8192
 

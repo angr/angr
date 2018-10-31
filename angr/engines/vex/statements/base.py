@@ -1,6 +1,6 @@
 import logging
 from pyvex.const import get_type_size
-l = logging.getLogger("angr.engines.vex.statements.base")
+l = logging.getLogger(name=__name__)
 
 class SimIRStmt(object):
     """A class for symbolically translating VEX IRStmts."""

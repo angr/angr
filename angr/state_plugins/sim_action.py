@@ -1,7 +1,7 @@
 # This module contains data structures for handling memory, code, and register references.
 
 import logging
-l = logging.getLogger("angr.state_plugins.sim_action")
+l = logging.getLogger(name=__name__)
 
 _noneset = frozenset()
 

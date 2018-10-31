@@ -14,7 +14,7 @@ from ....exploration_techniques.explorer import Explorer
 from .resolver import IndirectJumpResolver
 
 
-l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.jumptable")
+l = logging.getLogger(name=__name__)
 
 
 class UninitReadMeta(object):

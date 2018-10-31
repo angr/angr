@@ -6,7 +6,7 @@ from sortedcontainers import SortedDict
 
 from ..analysis import Analysis
 
-_l = logging.getLogger('angr.analyses.cfg.cfb')
+_l = logging.getLogger(name=__name__)
 
 
 class CFBlanketView(object):

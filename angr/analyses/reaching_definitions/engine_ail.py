@@ -10,7 +10,7 @@ from .undefined import Undefined
 from ...engines.light import SimEngineLightAIL, RegisterOffset, SpOffset
 from ...errors import SimEngineError
 
-l = logging.getLogger('angr.analyses.reaching_definitions.engine_ail')
+l = logging.getLogger(name=__name__)
 
 
 class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method

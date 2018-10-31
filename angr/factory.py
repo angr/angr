@@ -6,7 +6,7 @@ from .callable import Callable
 from .errors import AngrAssemblyError
 
 
-l = logging.getLogger("angr.factory")
+l = logging.getLogger(name=__name__)
 
 
 class AngrObjectFactory(object):

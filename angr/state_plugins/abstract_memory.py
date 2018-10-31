@@ -12,7 +12,7 @@ from .symbolic_memory import SimSymbolicMemory
 from ..state_plugins.sim_action_object import _raw_ast
 
 
-l = logging.getLogger("angr.state_plugins.abstract_memory")
+l = logging.getLogger(name=__name__)
 
 WRITE_TARGETS_LIMIT = 2048
 READ_TARGETS_LIMIT = 4096

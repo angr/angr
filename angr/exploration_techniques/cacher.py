@@ -8,7 +8,7 @@ from . import ExplorationTechnique
 from .common import condition_to_lambda
 
 
-l = logging.getLogger("angr.exploration_techniques.cacher")
+l = logging.getLogger(name=__name__)
 
 
 class Cacher(ExplorationTechnique):

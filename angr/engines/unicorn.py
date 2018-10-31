@@ -5,7 +5,7 @@ from ..state_plugins.inspect import BP_AFTER
 
 #pylint: disable=arguments-differ
 
-l = logging.getLogger("angr.engines.unicorn")
+l = logging.getLogger(name=__name__)
 
 
 class SimEngineUnicorn(SimEngine):

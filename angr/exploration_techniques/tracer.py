@@ -6,7 +6,7 @@ from . import ExplorationTechnique
 from .. import BP_BEFORE, BP_AFTER, sim_options
 from ..errors import AngrTracerError
 
-l = logging.getLogger("angr.exploration_techniques.tracer")
+l = logging.getLogger(name=__name__)
 
 
 class Tracer(ExplorationTechnique):
