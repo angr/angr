@@ -497,7 +497,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         dst_memory.store(dst, data, size=size, condition=condition, inspect=inspect, disable_actions=disable_actions)
         return data
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1, chunk_size=None):
         if type(addr) is int:
             addr = self.state.solver.BVV(addr, self.state.arch.bits)
 
