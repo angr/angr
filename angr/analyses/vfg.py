@@ -1200,7 +1200,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         if self.project.arch.name in ('X86', 'AMD64'):
             state.stack_push(ret_bvv)
-        elif self.project.arch.name in ('ARMEL', 'ARMHF', 'AARCH64'):
+        elif self.project.arch.name in ('ARMEL', 'ARMHF', 'AARCH64', 'ARMCortexM'):
             state.regs.lr = ret_bvv
         elif self.project.arch.name in ('MIPS32', 'MIPS64'):
             state.regs.ra = ret_bvv

@@ -145,7 +145,7 @@ class CallingConventionAnalysis(Analysis):
                     64 <= variable.reg < 104 or  # rsi, rdi, r8, r9, r10
                     224 <= variable.reg < 480)  # xmm0-xmm7
 
-        elif arch.name == 'ARMEL' or arch.name == 'ARMHF':
+        elif arch.name == 'ARMEL' or arch.name == 'ARMHF' or arch.name == "ARMCortexM":
             return 8 <= variable.reg < 24  # r0-r3
 
         elif arch.name == 'MIPS32':

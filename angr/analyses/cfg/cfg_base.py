@@ -1108,7 +1108,7 @@ class CFGBase(Analysis):
         :rtype:             int
         """
 
-        return ((addr >> 1) << 1) if arch.name in ('ARMEL', 'ARMHF') else addr
+        return ((addr >> 1) << 1) if arch.name in ('ARMEL', 'ARMHF', 'ARMCortexM') else addr
 
     def normalize(self):
         """
@@ -1529,7 +1529,7 @@ class CFGBase(Analysis):
         to_remove = set()
 
         # Remove all stubs after PLT entries
-        if self.project.arch.name not in {'ARMEL', 'ARMHF'}:
+        if self.project.arch.name not in {'ARMEL', 'ARMHF', 'ARMCortexM'}:
             for fn in self.kb.functions.values():
                 addr = fn.addr - (fn.addr % 16)
                 if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:

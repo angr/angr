@@ -79,7 +79,7 @@ class SimRegNameView(SimStatePlugin):
     def __dir__(self):
         if self.state.arch.name in ('X86', 'AMD64'):
             return list(self.state.arch.registers.keys()) + ['st%d' % n for n in range(8)] + ['tag%d' % n for n in range(8)] + ['flags', 'eflags', 'rflags']
-        elif self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
+        elif self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64', 'ARMCortexM'):
             return self.state.arch.registers.keys() + ['flags']
         return self.state.arch.registers.keys()
 

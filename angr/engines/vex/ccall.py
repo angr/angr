@@ -1705,7 +1705,7 @@ def _get_flags(state):
         return x86g_calculate_eflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AMD64':
         return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
-    elif state.arch.name in ('ARMEL', 'ARMHF', 'ARM'):
+    elif state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'ARMCortexM'):
         return armg_calculate_flags_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AARCH64':
         return arm64g_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
