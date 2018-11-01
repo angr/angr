@@ -24,8 +24,8 @@ _l = logging.getLogger('angr.simos.windows')
 _VS_Security_Cookie = collections.namedtuple('_VS_Security_Cookie', ('default', 'width'))
 # security cookie details from visual studio, keyed by architecture name
 VS_SECURITY_COOKIES = {
-	'AMD64': _VS_Security_Cookie(0x2b992ddfa232, 48),
-	'X86': _VS_Security_Cookie(0xbb40e64e, 32)
+    'AMD64': _VS_Security_Cookie(0x2b992ddfa232, 48),
+    'X86': _VS_Security_Cookie(0xbb40e64e, 32)
 }
 
 
@@ -458,7 +458,7 @@ class SimWindows(SimOS):
         pe = getattr(pe_object, '_pe', None)
         if pe is None:
             # this is a code compatibility issue because we're using the private member
-            raise errors.AngrSimOSError('cle backened pe_object has no _pe attribute')
+            raise errors.AngrSimOSError('cle backend object has no _pe attribute')
         if hasattr(pe, 'DIRECTORY_ENTRY_LOAD_CONFIG'):
             config = pe.DIRECTORY_ENTRY_LOAD_CONFIG.struct
             if config.SecurityCookie:
