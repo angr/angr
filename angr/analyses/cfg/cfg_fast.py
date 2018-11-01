@@ -1675,6 +1675,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
             regexes.append(r)
+        # FIXME: HACK: Oh my god i'm sorry
+        thumb_regexes = list()
+        if hasattr(self.project.arch, 'thumb_prologs'):
+            for ins_regex in self.project.arch.thumb_prologs:
+                # Thumb prologues are found at even addrs, but their actual addr is odd!
+                # Isn't that great?
+                r = re.compile(ins_regex)
+                thumb_regexes.append(r)
 
         # Construct the binary blob first
         unassured_functions = [ ]
@@ -1688,6 +1696,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
                         if self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position)
+            # HACK part 2: Yes, i really have to do this
+            for regex in thumb_regexes:
+                # Match them!
+                for mo in regex.finditer(bytes_):
+                    position = mo.start() + start_
+                    if position % self.project.arch.instruction_alignment == 0:
+                        mapped_position = AT.from_rva(position, self._binary).to_mva()
+                        if self._addr_in_exec_memory_regions(mapped_position):
+                            unassured_functions.append(mapped_position+1)
+
         l.info("Found %d functions with prologue scanning.", len(unassured_functions))
         return unassured_functions
 
@@ -1821,7 +1839,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: a list of successors
         :rtype: list
         """
-
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
 
         # Add edges going to this node in function graphs
