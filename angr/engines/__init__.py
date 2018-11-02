@@ -8,7 +8,7 @@ from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
 from .hook import SimEngineHook
 
-from .hub import EngineHub, EnginePreset
+from .selector import EngineSelector, EnginePreset
 
 
 # This is a basic preset of essential engines.
@@ -24,7 +24,7 @@ basic_preset.procedure_engine = 'procedure'
 # This is a VEX engine preset.
 # It will be used as a default preset for engine hub.
 vex_preset = basic_preset.copy()
-EngineHub.register_preset('default', vex_preset)
+EngineSelector.register_preset('default', vex_preset)
 
 vex_preset.add_default_plugin('unicorn', SimEngineUnicorn)
 vex_preset.add_default_plugin('vex', SimEngineVEX)

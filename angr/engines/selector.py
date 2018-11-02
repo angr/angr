@@ -5,10 +5,10 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-class EngineHub(PluginHub):
+class EngineSelector(PluginHub):
 
     def __init__(self, project):
-        super(EngineHub, self).__init__()
+        super(EngineSelector, self).__init__()
         self.project = project
 
         self._order = None
@@ -16,11 +16,11 @@ class EngineHub(PluginHub):
         self._procedure_engine = None
 
     def __getstate__(self):
-        s = super(EngineHub, self).__getstate__()
+        s = super(EngineSelector, self).__getstate__()
         return s, self._order, self._default_engine, self._procedure_engine, self.project
 
     def __setstate__(self, s):
-        super(EngineHub, self).__setstate__(s[0])
+        super(EngineSelector, self).__setstate__(s[0])
         self._order, self._default_engine, self._procedure_engine, self.project = s[1:]
 
     #
@@ -31,7 +31,7 @@ class EngineHub(PluginHub):
         return plugin_cls(self.project)
 
     def use_plugin_preset(self, preset, adjust_order=True):  # pylint:disable=arguments-differ
-        super(EngineHub, self).use_plugin_preset(preset)
+        super(EngineSelector, self).use_plugin_preset(preset)
 
         if adjust_order and self.plugin_preset.has_order():
             self.order = self.plugin_preset.order

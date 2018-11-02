@@ -70,7 +70,7 @@ class Project:
     :param load_function:               A function that defines how the Project should be loaded. Default to unpickling.
     :param analyses_preset:             The plugin preset for the analyses provider (i.e. Analyses instance).
     :type analyses_preset:              angr.misc.PluginPreset
-    :param engines_preset:              The plugin preset for the engines provider (i.e. EngineHub instance).
+    :param engines_preset:              The plugin preset for the engines provider (i.e. EngineSelector instance).
     :type engines_preset:               angr.misc.PluginPreset
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
@@ -168,7 +168,7 @@ class Project:
 
         # Step 4: Set up the project's plugin hubs
         # Step 4.1: Engines. Get the preset from the loader, from the arch, or use the default.
-        engines = EngineHub(self)
+        engines = EngineSelector(self)
         if engines_preset is not None:
             engines.use_plugin_preset(engines_preset)
         elif self.loader.main_object.engine_preset is not None:
@@ -663,5 +663,5 @@ from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub
 from .knowledge_base import KnowledgeBase
-from .engines import EngineHub
+from .engines import EngineSelector
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
