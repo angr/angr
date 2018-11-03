@@ -14,11 +14,17 @@ insn_texts = {
     'x86_64': b"add rax, 15",
     'ppc': b"addi %r1, %r1, 15",
     'armel': b"add r1, r1, 15",
+    'armel_thumb': b"add.w r1, r1, #0xf",
     'mips': b"addi $1, $1, 15"
 }
 
 def run_keystone(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    proj_arch = arch
+    is_thumb = False
+    if arch == "armel_thumb":
+        is_thumb = True
+        proj_arch = "armel"
+    p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"))
     addr = p.loader.main_object.get_symbol('authenticate').rebased_addr
 
     sm = p.factory.simulation_manager()
@@ -27,11 +33,13 @@ def run_keystone(arch):
     else:
         sm.one_active.regs.r1 = 3
 
-    block = p.factory.block(addr, insn_text=insn_texts[arch]).vex
+    if is_thumb:
+        addr |= 1
+    block = p.factory.block(addr, insn_text=insn_texts[arch], thumb=is_thumb).vex
 
     nose.tools.assert_equal(block.instructions, 1)
 
-    sm.step(addr=addr, insn_text=insn_texts[arch])
+    sm.step(addr=addr, insn_text=insn_texts[arch], thumb=is_thumb)
 
     if arch in ['i386', 'x86_64']:
         nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.eax), 0x12)
