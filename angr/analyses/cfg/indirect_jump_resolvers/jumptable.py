@@ -68,11 +68,10 @@ class JumpTableResolver(IndirectJumpResolver):
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # TODO:
 
-        if jumpkind != "Ijk_Boring":
+        if jumpkind == "Ijk_Boring" or jumpkind == 'Ijk_Call':
             # Currently we only support boring ones
-            return False
-
-        return True
+            return True
+        return False
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
@@ -88,7 +87,6 @@ class JumpTableResolver(IndirectJumpResolver):
 
         project = self.project  # short-hand
         self._max_targets = cfg._indirect_jump_target_limit
-
         # Perform a backward slicing from the jump target
         b = Blade(cfg.graph, addr, -1,
             cfg=cfg, project=project,
@@ -253,12 +251,21 @@ class JumpTableResolver(IndirectJumpResolver):
             # the load statement is not found
             return False, None
 
+<<<<<<< HEAD
         if len(stmts_adding_base_addr) > 1:
             # there are more than one statement that is trying to mess with the loaded address. unsupported for now.
             return False, None
 
         # skip all statements before the load statement
         b.slice.remove_nodes_from(stmts_to_remove)
+=======
+        # TODO: FIXME: Removed by EDG because it breaks everything by removing the entire
+        # slice for short slices e.g., :
+        # ldr. r0, =xxx
+        # bx, r0
+        ## skip all statements before the load statement
+        #b.slice.remove_nodes_from(stmts_to_remove)
+>>>>>>> 6e2ebaf8... The ARM CFG party is getting so lit we're jumping on tables now! Tweak JumpTableResolver to handle some GCC longjump idioms that get used instead of a normal call for no reason
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -598,7 +605,16 @@ class JumpTableResolver(IndirectJumpResolver):
         load_addr_tmp = None
 
         if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
-            load_addr_tmp = load_stmt.data.addr.tmp
+            if type(load_stmt.data.addr) is pyvex.IRExpr.RdTmp:
+                load_addr_tmp = load_stmt.data.addr.tmp
+            elif type(load_stmt.data.addr) is pyvex.IRExpr.Const:
+                # It's directly loading from a constant address
+                # e.g.,
+                #  ldr r0, =main+1
+                #  blx r0
+                # It's not a jump table, but we resolve it anyway
+                jump_target_addr = load_stmt.data.addr.con.value
+                return state.solver.BVV(jump_target_addr, state.arch.bits)
         elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
             if type(load_stmt.addr) is pyvex.IRExpr.RdTmp:
                 load_addr_tmp = load_stmt.addr.tmp
@@ -611,7 +627,6 @@ class JumpTableResolver(IndirectJumpResolver):
                 #  43540     MOV     PC, R3
                 #
                 # It's not a jump table, but we resolve it anyway
-                # TODO: We should develop an ARM-specific indirect jump resolver in this case
                 # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
                 # value of R3 is. Some intensive data-flow analysis is required in this case.
                 jump_target_addr = load_stmt.addr.con.value
