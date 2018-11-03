@@ -464,7 +464,7 @@ class SimWindows(SimOS):
 
     def _init_object_pe_security_cookie(self, pe_object, state, state_kwargs):
         sc_init = state_kwargs.pop('security_cookie_init', SecurityCookieInit.STATIC)
-        if sc_init is SecurityCookieInit.NONE:
+        if sc_init is SecurityCookieInit.NONE or sc_init is None:
             return
         pe = getattr(pe_object, '_pe', None)
         if pe is None:
@@ -477,7 +477,7 @@ class SimWindows(SimOS):
             return
         vs_cookie = VS_SECURITY_COOKIES.get(self.project.arch.name)
         if vs_cookie is None:
-            _l.warning('Unsupported architecture: ' + self.project.arch + ' for /GS, leaving _security_cookie uninitialized')
+            _l.warning('Unsupported architecture: %s for /GS, leaving _security_cookie uninitialized', self.project.arch.name)
             return
         if sc_init is SecurityCookieInit.RANDOM:
             sc_value = random.randint(1, (2 ** vs_cookie.width - 1))
