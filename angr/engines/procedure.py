@@ -2,6 +2,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 from .engine import SimEngine
+from ..misc.ux import once
 
 #pylint: disable=arguments-differ
 
@@ -10,6 +11,13 @@ class SimEngineProcedure(SimEngine):
     An engine for running SimProcedures
     """
     requires_project = False
+
+    def __init__(self, *args, **kwargs):
+        super(SimEngineProcedure, self).__init__(*args, **kwargs)
+
+        if once('sim_engine_hook'):
+            print("\x1b[31;1mDeprecation warning: SimProcedures are now engines on their own."
+                  "You can run them directly using the instance process() method.\x1b[0m")
 
     def process(self, state, procedure=None, ret_to=None, **kwargs):
         """

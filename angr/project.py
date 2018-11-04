@@ -402,6 +402,7 @@ class Project:
                 return
             else:
                 l.warning("Address is already hooked, during hook(%#x, %s). Re-hooking.", addr, hook)
+            self.engines.remove_engine(addr, self._sim_procedures[addr])
 
         if isinstance(hook, type):
             raise TypeError("Please instanciate your SimProcedure before hooking with it")
@@ -410,6 +411,7 @@ class Project:
             hook = SIM_PROCEDURES['stubs']['UserHook'](user_func=hook, length=length, **kwargs)
 
         self._sim_procedures[addr] = hook
+        self.engines.insert_engine(addr, hook)
 
     def is_hooked(self, addr):
         """
