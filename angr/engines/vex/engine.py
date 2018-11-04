@@ -27,6 +27,7 @@ class SimEngineVEX(SimEngine):
     """
     Execution engine based on VEX, Valgrind's IR.
     """
+    requires_project = False
 
     def __init__(self, project=None,
             stop_points=None,
