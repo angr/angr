@@ -141,6 +141,7 @@ setup(
         'GitPython',
         'pycparser>=2.18',
         'itanium_demangler',
+        'yardict',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
