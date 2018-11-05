@@ -1,8 +1,13 @@
+import enum
 import os
 import logging
+import collections
+import random
+import struct
 
 import claripy
 from archinfo import ArchX86, ArchAMD64
+import cle.backends
 
 from ..errors import (
     AngrSimOSError,
@@ -10,12 +15,28 @@ from ..errors import (
     SimUnsupportedError,
     SimZeroDivisionException,
 )
+from .. import errors
 from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
 from .simos import SimOS
 
 _l = logging.getLogger(name=__name__)
+
+
+_VS_Security_Cookie = collections.namedtuple('_VS_Security_Cookie', ('default', 'width'))
+# security cookie details from visual studio, keyed by architecture name
+VS_SECURITY_COOKIES = {
+    'AMD64': _VS_Security_Cookie(0x2b992ddfa232, 48),
+    'X86': _VS_Security_Cookie(0xbb40e64e, 32)
+}
+
+
+class SecurityCookieInit(enum.Enum):
+    NONE = 0
+    RANDOM = 1
+    STATIC = 2
+    SYMBOLIC = 3
 
 
 class SimWindows(SimOS):
@@ -278,6 +299,10 @@ class SimWindows(SimOS):
             link_list(mem_order, 8)
             link_list(init_order, 16)
 
+        for loaded_object in self.project.loader.all_objects:
+            if isinstance(loaded_object, cle.backends.pe.PE):
+                self._init_object_pe_security_cookie(loaded_object, state, kwargs)
+
         return state
 
     def handle_exception(self, successors, engine, exception):
@@ -500,3 +525,32 @@ class SimWindows(SimOS):
 
     def get_binary_header_name(self):
         return "PE"
+
+    def _init_object_pe_security_cookie(self, pe_object, state, state_kwargs):
+        sc_init = state_kwargs.pop('security_cookie_init', SecurityCookieInit.STATIC)
+        if sc_init is SecurityCookieInit.NONE or sc_init is None:
+            return
+        pe = getattr(pe_object, '_pe', None)
+        if pe is None:
+            # this is a code compatibility issue because we're using the private member
+            raise errors.AngrSimOSError('cle backend object has no _pe attribute')
+        if not hasattr(pe, 'DIRECTORY_ENTRY_LOAD_CONFIG'):
+            return
+        config = pe.DIRECTORY_ENTRY_LOAD_CONFIG.struct
+        if not config.SecurityCookie:
+            return
+        vs_cookie = VS_SECURITY_COOKIES.get(self.project.arch.name)
+        if vs_cookie is None:
+            _l.warning('Unsupported architecture: %s for /GS, leaving _security_cookie uninitialized', self.project.arch.name)
+            return
+        if sc_init is SecurityCookieInit.RANDOM:
+            sc_value = random.randint(1, (2 ** vs_cookie.width - 1))
+            if sc_value == vs_cookie.default:
+                sc_value += 1
+        elif sc_init is SecurityCookieInit.STATIC:
+            sc_value = struct.unpack('>I', b'cook')[0]
+        elif sc_init is SecurityCookieInit.SYMBOLIC:
+            sc_value = claripy.BVS('_security_cookie', state.arch.bits)
+        else:
+            raise TypeError("security_cookie_init must SecurityCookieInit, not {0}".format(type(sc_init).__name__))
+        setattr(state.mem[config.SecurityCookie], "uint{0}_t".format(state.arch.bits), sc_value)
