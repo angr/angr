@@ -147,8 +147,14 @@ class SimProcedure:
         else:
             # get the arguments
 
+            # If the simprocedure is related to a Java function call the appropriate setup_args methos
+            # TODO: should we move this?
+            if self.is_java:
+                sim_args = self._setup_args(inst, state, arguments)
+                self.use_state_arguments = False
+
             # handle if this is a continuation from a return
-            if inst.is_continuation:
+            elif inst.is_continuation:
                 if state.callstack.top.procedure_data is None:
                     raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
@@ -317,19 +323,32 @@ class SimProcedure:
 
             self.ret_expr = expr
 
+        ret_addr = None
+        # TODO: I had to put this check here because I don't understand why self.use_state_arguments gets reset to true
+        # when calling the function ret. at the calling point the attribute is set to False
+        if isinstance(self.addr, SootAddressDescriptor):
+            ret_addr = self._compute_ret_addr(expr)
+        elif self.use_state_arguments:
+            ret_addr = self.cc.teardown_callsite(
+                    self.state,
+                    expr,
+                    arg_types=[False]*self.num_args if self.cc.args is None else None)
+
         if not self.should_add_successors:
             l.debug("Returning without setting exits due to 'internal' call.")
             return
 
-        ret_addr = self._compute_ret_addr(expr)
+        if self.ret_to is not None:
+            ret_addr = self.ret_to
+
         if ret_addr is None:
             raise SimProcedureError("No source for return address in ret() call!")
 
         self._prepare_ret_state()
 
-        # Create an exit action
         self._exit_action(self.state, ret_addr)
         self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
+
 
     def call(self, addr, args, continue_at, cc=None):
         """
@@ -349,7 +368,7 @@ class SimProcedure:
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
         simcallstack_entry = (self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
                               self.arguments,
                               saved_local_vars,
@@ -410,60 +429,16 @@ class SimProcedure:
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)
 
-    #
-    # Private methods
-    #
-
-    def _setup_args(self, inst, state, arguments):
-
-        # handle if this is a continuation from a return
-        if inst.is_continuation:
-            if state.callstack.top.procedure_data is None:
-                raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
-
-            saved_sp, sim_args, saved_local_vars, saved_lr = state.callstack.top.procedure_data
-            state.regs.sp = saved_sp
-            if saved_lr is not None:
-                state.regs.lr = saved_lr
-            inst.arguments = sim_args
-            inst.use_state_arguments = True
-            inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
-            for name, val in saved_local_vars:
-                setattr(inst, name, val)
-        else:
-            if arguments is None:
-                inst.use_state_arguments = True
-                sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
-                inst.arguments = sim_args
-            else:
-                inst.use_state_arguments = False
-                sim_args = arguments[:inst.num_args]
-                inst.arguments = arguments
-
-        return sim_args
-
-    def _compute_ret_addr(self, expr):
-
-        # Computer return address
-        ret_addr = None
-        if self.use_state_arguments:
-            ret_addr = self.cc.teardown_callsite(
-                self.state,
-                return_val=expr,
-                arg_types=[False] * self.num_args if self.cc.args is None else None
-            )
-
-        if self.ret_to is not None:
-            ret_addr = self.ret_to
-
-        return ret_addr
+    @property
+    def is_java(self):
+        return False
 
     def _prepare_ret_state(self):
         pass
 
 
 from . import sim_options as o
-from .errors import SimProcedureError, SimProcedureArgumentError
-from .sim_type import SimTypePointer
-from .state_plugins.sim_action import SimActionExit
-from .calling_conventions import DEFAULT_CC
+from angr.errors import SimProcedureError, SimProcedureArgumentError
+from angr.sim_type import SimTypePointer
+from angr.state_plugins.sim_action import SimActionExit
+from angr.calling_conventions import DEFAULT_CC

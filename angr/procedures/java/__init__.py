@@ -9,6 +9,10 @@ from ...engines.soot.expressions import translate_expr
 class JavaSimProcedure(SimProcedure):
 
     @property
+    def is_java(self):
+        return True
+
+    @property
     def _engine(self):
         return self.project.factory.default_engine  # FIXME: Currently we assume that it must be a SimEngineSoot
 

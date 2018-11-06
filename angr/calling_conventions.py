@@ -1171,6 +1171,7 @@ class SimCCPowerPC64LinuxSyscall(SimCC):
 
 class SimCCSoot(SimCC):
     ARCH = archinfo.ArchSoot
+    ARG_REGS = []
 
 class SimCCUnknown(SimCC):
     """

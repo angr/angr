@@ -20,7 +20,6 @@ def test_fauxware():
     binary_path = os.path.join(test_location, "fauxware_java_jni", "fauxware.jar")
     jni_options = {'jni_libs': ['libfauxware.so']}
     project = angr.Project(binary_path, main_opts=jni_options)
-    print project.loader.main_object.classes['Fauxware']
     entry = project.factory.entry_state()
     simgr = project.factory.simgr(entry)
 
@@ -272,9 +271,9 @@ def test_jni_array_operations():
     state = run_method(project=project,
                        method="MixedJava.test_jni_getarrayregion")
     a = load_value_from_stack(state, 'i1')
-    state.state.solver.add(a == 15)
+    state.solver.add(a == 15)
     idx = state.posix.stdin.content[0][0]
-    assert state.state.solver.eval_one(idx) == 7
+    assert state.solver.eval_one(idx) == 7
 
     # test_jni_setarrayregion1
     run_method(project=project,
@@ -297,7 +296,6 @@ def test_jni_array_operations():
     state.solver.add(a == 0)
     idx = state.posix.stdin.content[0][0]
     idx_value = state.solver.eval_exact(idx, 2)
-    print idx_value
     assert 1 in idx_value
     assert 2 in idx_value
     assert 3 not in idx_value
@@ -306,11 +304,10 @@ def test_jni_array_operations():
     winning_path = get_winning_path(project=project,
                                     method_fullname="MixedJava.test_jni_getarrayelements_symbolic")
     stdin_packets = winning_path.posix.stdin.content
-    idx = winning_path.state.solver.eval_one(stdin_packets[0][0])
-    min_length = winning_path.state.solver.min(stdin_packets[1][0])
+    idx = winning_path.solver.eval_one(stdin_packets[0][0])
+    min_length = winning_path.solver.min(stdin_packets[1][0])
     assert idx == 223
     assert min_length == 224
-    print "Found correct solution:", "idx =", idx, ", min_length =", min_length
 
     # test_jni_releasearrayelements
     run_method(project=project,
@@ -383,11 +380,9 @@ def test_array_operations():
                                     method_fullname="MixedJava.test_symbolic_array_read")
     stdin_packets = winning_path.posix.stdin.content
     input_char, _ = stdin_packets[0]
-    solutions = winning_path.state.solver.eval_exact(input_char, 2)
+    solutions = winning_path.solver.eval_exact(input_char, 2)
     assert ord('A') in solutions
     assert ord('C') in solutions
-    print "Found correct solutions:", chr(
-        solutions[0]), "and", chr(solutions[1])
 
     # test_symbolic_array_write
     winning_path = get_winning_path(project=project,
@@ -395,27 +390,24 @@ def test_array_operations():
     stdin_packets = winning_path.posix.stdin.content
     idx_symbol, _ = stdin_packets[0]
     val_symbol, _ = stdin_packets[1]
-    winning_path.state.solver.add(val_symbol != 0)  # exclude trivial solution
-    idx = winning_path.state.solver.eval_one(idx_symbol)
-    val = winning_path.state.solver.eval_one(val_symbol)
+    winning_path.solver.add(val_symbol != 0)  # exclude trivial solution
+    idx = winning_path.solver.eval_one(idx_symbol)
+    val = winning_path.solver.eval_one(val_symbol)
     assert idx == ord('I')
     assert val == ord('5')
-    print "Found correct solution:", "idx =", chr(idx), ", val =", chr(val)
 
     # test_symbolic_array_length
     winning_path = get_winning_path(project=project,
                                     method_fullname="MixedJava.test_symbolic_array_length")
     stdin_packets = winning_path.posix.stdin.content
     input_char, _ = stdin_packets[0]
-    solution = winning_path.state.solver.eval_one(input_char)
+    solution = winning_path.solver.eval_one(input_char)
     assert solution == ord('F')
-    print "Found correct solution:", chr(solution)
 
     # test_index_of_of_bound0
     state = run_method(project=project,
                        method="MixedJava.test_index_of_of_bound0")
     array_len = load_value_from_stack(state, 'i1')
-    print "assert array length in range 0-255"
     assert 0 == state.solver.min(array_len)
     assert 255 == state.solver.max(array_len)
 
@@ -423,7 +415,6 @@ def test_array_operations():
     state = run_method(project=project,
                        method="MixedJava.test_index_of_of_bound1")
     array_len = load_value_from_stack(state, 'i1')
-    print "assert array length in range 101-255"
     assert 101 == state.solver.min(array_len)
     assert 255 == state.solver.max(array_len)
 
@@ -540,33 +531,29 @@ def test_toggling_of_simstate():
 
 def run_method(project, method, assert_locals=None, assertions=None):
     end_state = get_last_state_of_method(project, method)
-    print_java_memory(end_state)
+    # print_java_memory(end_state)
 
     if assert_locals:
         for symbol_name, assert_value in assert_locals.items():
-            print "assert value of %s ..." % symbol_name,
             symbol = load_value_from_stack(end_state, symbol_name)
             val = end_state.solver.eval_one(symbol)
             assert val == assert_value
-            print "ok"
 
     if assertions:
         for description, test in assertions.items():
-            print "assert value of %s ..." % description,
             assert test(end_state)
-            print "ok"
 
     return end_state
 
 
-def print_java_memory(state):
-    print "\n##### STACK ##########" + "#"*60
-    print state.memory.stack
-    print "\n##### HEAP ###########" + "#"*60
-    print state.memory.heap
-    print "\n##### VM STATIC TABLE " + "#"*60
-    print state.memory.vm_static_table
-    print
+# def print_java_memory(state):
+#     print "\n##### STACK ##########" + "#"*60
+#     print state.memory.stack
+#     print "\n##### HEAP ###########" + "#"*60
+#     print state.memory.heap
+#     print "\n##### VM STATIC TABLE " + "#"*60
+#     print state.memory.vm_static_table
+#     print
 
 
 def create_project(binary_dir, load_native_libs=True):
@@ -626,7 +613,7 @@ def get_winning_paths(project, method_fullname):
         stdout_packets = pp.posix.stdout.content
         read_byte, _ = stdout_packets[0]
         # a winning path is printing 'W'
-        pp.state.add_constraints(read_byte == pp.state.solver.BVV(ord('W'), 8))
+        pp.solver.add(read_byte == pp.solver.BVV(ord('W'), 8))
         if pp.satisfiable():
             winnning_paths.append(pp)
 

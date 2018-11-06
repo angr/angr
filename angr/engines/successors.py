@@ -68,12 +68,9 @@ class SimSuccessors(object):
                 result = ' '.join(successor_strings)
         else:
             result = 'failure'
-
-        if type(self.addr) in (int, long):
-            addr_str = "%#x" % self.addr
-        else:
-            addr_str = repr(self.addr)
-        return '<%s from %s: %s>' % (self.description, addr_str, result)
+        if isinstance(self.initial_state.arch, ArchSoot):
+            return '<%s from %s: %s>' % (self.description, self.addr, result)
+        return '<%s from %#x: %s>' % (self.description, self.addr, result)
 
     @property
     def is_empty(self):

@@ -1,4 +1,3 @@
-
 import traceback
 import logging
 
@@ -8,7 +7,7 @@ import archinfo
 from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
 
-_l = logging.getLogger(__name__)
+l = logging.getLogger(__name__)
 
 
 class CFGNodeCreationFailure:
@@ -71,7 +70,10 @@ class CFGNode:
         self.thumb = thumb
         self.byte_string = byte_string
 
-        self._name = simprocedure_name
+        if isinstance(addr, SootAddressDescriptor):
+            self._name = repr(addr)
+        else:
+            self._name = simprocedure_name
         self.instruction_addrs = instruction_addrs if instruction_addrs is not None else tuple()
 
         self.is_syscall = True if self.simprocedure_name and self._cfg.project.simos.is_syscall_addr(addr) else False
@@ -80,7 +82,8 @@ class CFGNode:
             if irsb is not None:
                 self.instruction_addrs = irsb.instruction_addresses
 
-        self.irsb = None #irsb
+        self.irsb = None
+        self.soot_block = soot_block
         self.has_return = False
         self._hash = None
 
@@ -154,7 +157,7 @@ class CFGNode:
         s = "<CFGNode "
         if self.name is not None:
             s += self.name + " "
-        s += CFGUtils.loc_to_str(self.addr)
+        s += hex(self.addr)
         if self.size is not None:
             s += "[%d]" % self.size
         s += ">"

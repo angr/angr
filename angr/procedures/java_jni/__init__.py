@@ -63,15 +63,15 @@ class JNISimProcedure(SimProcedure):
         # store single value
         if isinstance(data, int):
             if addr is None:
-                addr = self._allocate_native_memory(size=type_size/8)
+                addr = self._allocate_native_memory(size=type_size//8)
             value = self.state.solver.BVV(data, type_size)
             self.state.memory.store(addr, value, endness=native_memory_endness)
         # store array
         elif isinstance(data, list):
             if addr is None:
-                addr = self._allocate_native_memory(size=type_size*len(data)/8)
+                addr = self._allocate_native_memory(size=type_size*len(data)//8)
             for idx, value in enumerate(data):
-                memory_addr = addr+idx*type_size/8
+                memory_addr = addr+idx*type_size//8
                 self.state.memory.store(memory_addr, value, endness=native_memory_endness)
         # return native addr
         return addr
@@ -96,7 +96,7 @@ class JNISimProcedure(SimProcedure):
         # if data size is not set, derive it from the type
         if not data_size:
             if data_type:
-                data_size = ArchSoot.sizeof[data_type]/8
+                data_size = ArchSoot.sizeof[data_type]//8
             else:
                 raise ValueError("Cannot determine the data size w/o a type.")
         native_memory_endness = self.state.arch.memory_endness

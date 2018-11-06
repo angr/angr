@@ -16,39 +16,23 @@ class FunctionDict(SortedDict):
     FunctionDict is a dict where the keys are function starting addresses and
     map to the associated :class:`Function`.
     """
-    def __init__(self, backref, key_types=None, *args, **kwargs):
+    def __init__(self, backref, *args, **kwargs):
         self._backref = backref
-        self._avltree = bintrees.AVLTree()
-        self._key_types = key_types
-
-        if self._key_types is None:
-            self._key_types = (int, long)
-
+        self._key_types = kwargs.pop('key_types', int)
         super(FunctionDict, self).__init__(*args, **kwargs)
 
-    def __missing__(self, key):
-        if isinstance(key, self._key_types):
-            addr = key
-        else:
-            raise ValueError("FunctionDict.__missing__ only supports the following types of keys: %s."
-                             % str(self._key_types))
-
-        t = Function(self._backref, addr)
-        self[addr] = t
-        return t
-
-    def __setitem__(self, addr, func):
-        self._avltree[addr] = func
-        super(FunctionDict, self).__setitem__(addr, func)
-  
     def __getitem__(self, addr):
         try:
             return super(FunctionDict, self).__getitem__(addr)
         except KeyError:
-            if not isinstance(addr, int):
-                raise TypeError("FunctionDict only supports int as key type")
+            if not isinstance(addr, self._key_types):
+                raise TypeError("FunctionDict only supports %s as key type" % self._key_types)
+
             t = Function(self._backref, addr)
-            self[addr] = t
+            try:
+                self[addr] = t
+            except:
+                pass
             self._backref._function_added(t)
             return t
 

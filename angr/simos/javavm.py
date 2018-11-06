@@ -77,7 +77,7 @@ class SimJavaVM(SimOS):
             #    table entries with SimProcedures, which then implement the effects of the interface functions.
 
             # i)   First we allocate memory for the JNIEnv pointer and the function table
-            native_addr_size = self.native_simos.arch.bits/8
+            native_addr_size = self.native_simos.arch.bits//8
             function_table_size = native_addr_size*len(jni_functions)
             self.jni_env = self.project.loader.extern_object.allocate(native_addr_size)
             self.jni_function_table = self.project.loader.extern_object.allocate(function_table_size)
@@ -119,7 +119,7 @@ class SimJavaVM(SimOS):
             #    with SimProcedures, we store the address of the corresponding hook instead.
             #    This, by construction, is exactly the address of the function table entry itself.
             for idx in range(len(jni_functions)):
-                jni_function_addr = self.jni_function_table + idx * native_addr_size/8
+                jni_function_addr = self.jni_function_table + idx * native_addr_size//8
                 state.memory.store(addr=jni_function_addr,
                                    data=BVV(jni_function_addr, native_addr_size),
                                    endness=self.native_arch.memory_endness)
@@ -302,7 +302,7 @@ class SimJavaVM(SimOS):
         else:
             # lookup the type size and extract value
             value_size = ArchSoot.sizeof[to_type]
-            value_extracted = value.reversed.get_bytes(index=0, size=value_size/8).reversed
+            value_extracted = value.reversed.get_bytes(index=0, size=value_size//8).reversed
 
             # determine size of Soot bitvector and resize bitvector
             # Note: smaller types than int's are stored in a 32-bit BV

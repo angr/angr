@@ -768,10 +768,7 @@ class CFGJob:
             self._func_edges = None
 
     def __repr__(self):
-        return "<CFGJob%s %s @ func %s>" % (" syscall" if self.syscall else "",
-                                            CFGUtils.loc_to_str(self.addr),
-                                            CFGUtils.loc_to_str(self.func_addr)
-                                            )
+        return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
                                             
     def __eq__(self, other):
         return self.addr == other.addr and \
@@ -1093,40 +1090,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Methods for determining scanning scope
 
-    def _initialize_regions(self, exclude_sparse_regions, skip_specific_regions, force_segment, base_state,
-                           initial_regions=None):
-        """
-        Initialize self._regions with a series of memory regions that CFG recovery should cover.
-
-        :return: None
-        """
-
-        regions = initial_regions if initial_regions is not None else \
-            self._executable_memory_regions(binary=None,
-                                            force_segment=force_segment
-                                            )
-        if exclude_sparse_regions:
-            new_regions = [ ]
-            for start_, end_ in regions:
-                if not self._is_region_extremely_sparse(start_, end_, base_state=base_state):
-                    new_regions.append((start_, end_))
-            regions = new_regions
-        if skip_specific_regions:
-            if base_state is not None:
-                l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
-            new_regions = [ ]
-            for start_, end_ in regions:
-                if not self._should_skip_region(start_):
-                    new_regions.append((start_, end_))
-            regions = new_regions
-        if not regions:
-            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
-        # sort the regions
-        regions = sorted(regions, key=lambda x: x[0])
-        self._regions_size = sum((b - a) for a, b in regions)
-        # initial self._regions as a sorted dict
-        self._regions = SortedDict(regions)
-
     def _inside_regions(self, address):
         """
         Check if the address is inside any existing region.
@@ -1364,10 +1327,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._pending_jobs = PendingJobs(self.functions, self._deregister_analysis_job)
         self._traced_addresses = set()
         self._function_returns = defaultdict(set)
-
-    def _pre_analysis(self):
-        
-        self._pre_analysis_common()
 
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
@@ -1907,29 +1866,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_jobs(target, jumpkind, function_addr, block, addr, cfg_node, ins_addr,
+            entries += self._create_jobs(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
                                          stmt_idx
                                          )
 
         return entries
-
-    def _create_entries_filter_target(self, target):
-        """
-
-        :param target:
-        :return:
-        """
-
-        if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
-            target_addr = target.con.value
-        elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
-            target_addr = target.value
-        elif type(target) in (int, long):  # pylint: disable=unidiomatic-typecheck
-            target_addr = target
-        else:
-            target_addr = None
-
-        return target_addr
 
     def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
 
@@ -2146,7 +2087,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 except AngrUnsupportedSyscallError:
                     target_addr = self._unresolvable_call_target_addr
 
-        new_function_addr = self._loc_to_funcloc(target_addr)
+        new_function_addr = target_addr
         if irsb is None:
             return_site = None
         else:
@@ -2221,31 +2162,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
 
         return jobs
-
-    def _pop_pending_job(self):
-        """
-        Scan through the pending job list and pop the first pending job which must return from the source function
-        (callee function).
-
-        :return:  The popped pending job, or None if we are not sure which job to take.
-        """
-
-        job_index = None
-        for i, job in enumerate(self._pending_jobs):
-            src_func_addr = job.returning_source
-            if src_func_addr is None or src_func_addr not in self.kb.functions:
-                continue
-            function = self.kb.functions[src_func_addr]
-            if function.returning is True:
-                job_index = i
-                break
-
-        if job_index is not None:
-            the_job = self._pending_jobs[job_index]
-            del self._pending_jobs[job_index]
-            return the_job
-
-        return None
 
     # Data reference processing
 
@@ -3267,13 +3183,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # get the node on CFG
             if func.startpoint is None:
-                l.warning('Function %s does not have a startpoint (yet).', CFGUtils.loc_to_str(func_addr))
+                l.warning('Function %#x does not have a startpoint (yet).', func_addr)
                 continue
 
             startpoint = self.get_any_node(func.startpoint.addr)
             if startpoint is None:
                 # weird...
-                l.warning('No CFGNode is found for function %s in _make_return_edges().', CFGUtils.loc_to_str(func_addr))
+                l.warning('No CFGNode is found for function %#x in _make_return_edges().', func_addr)
                 continue
 
             endpoints = self._get_return_sources(func)

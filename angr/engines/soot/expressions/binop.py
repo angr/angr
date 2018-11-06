@@ -15,7 +15,7 @@ class SimSootExpr_Binop(SimSootExpr):
         "add": operator.add,
         "sub": operator.sub,
         "and": operator.and_,
-        "div": operator.div,
+        "div": operator.truediv,
         "mul": operator.mul,
         "or": operator.or_,
         "shl": operator.lshift,

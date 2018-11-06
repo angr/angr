@@ -68,7 +68,11 @@ class SimRegNameView(SimStatePlugin):
         try:
             return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
         except KeyError:
-            raise AttributeError(k)
+            # What do we do in case we are dealing with soot? there are no register
+            if isinstance(self.state.arch, ArchSoot):
+                pass
+            else:
+                raise AttributeError(k)
 
     def __dir__(self):
         if self.state.arch.name in ('X86', 'AMD64'):
