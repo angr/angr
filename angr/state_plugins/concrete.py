@@ -23,7 +23,7 @@ class Concrete(SimStatePlugin):
 
         self.whitelist = whitelist
         self.fs_register_bp = fs_register_bp
-        self.synchronize_cle = synchronize_cle
+        self.synchronize_cle = False #synchronize_cle
         self.already_sync_objects_addresses = already_sync_objects_addresses
 
     def copy(self, _memo):
@@ -140,7 +140,6 @@ class Concrete(SimStatePlugin):
             self.segment_registers_callback_initialized = True
 
             l.debug("Set SimInspect breakpoint to the new state!")
-
 
 
     def _sync_registers(self, register_names, target):
