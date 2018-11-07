@@ -41,7 +41,7 @@ def teardown():
 
 
 @nose.with_setup(setup_x86,teardown)
-@attr('slow')
+@attr(speed='slow')
 def test_concrete_engine_windows_x86_no_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_no_simprocedures")
@@ -53,7 +53,7 @@ def test_concrete_engine_windows_x86_no_simprocedures():
 
 
 @nose.with_setup(setup_x86, teardown)
-@attr('slow')
+@attr(speed='slow')
 def test_concrete_engine_windows_x86_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_simprocedures")
@@ -65,7 +65,7 @@ def test_concrete_engine_windows_x86_simprocedures():
 
 
 @nose.with_setup(setup_x86, teardown)
-@attr('slow')
+@attr(speed='slow')
 def test_concrete_engine_windows_x86_unicorn_no_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_unicorn_no_simprocedures")
@@ -77,7 +77,7 @@ def test_concrete_engine_windows_x86_unicorn_no_simprocedures():
 
 
 @nose.with_setup(setup_x86, teardown)
-@attr('slow')
+@attr(speed='slow')
 def test_concrete_engine_windows_x86_unicorn_simprocedures():
     global avatar_gdb
     print("test_concrete_engine_windows_x86_unicorn_simprocedures")
