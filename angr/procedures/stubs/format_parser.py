@@ -116,11 +116,11 @@ class FormatString(object):
                         elif fmt_spec.spec_type == b'c':
                             s_val = chr(c_val & 0xff)
                         elif fmt_spec.spec_type == b'x':
-                            s_val = hex(c_val)[2:].rstrip(b'L')
+                            s_val = hex(c_val)[2:]
                         elif fmt_spec.spec_type == b'o':
-                            s_val = oct(c_val)[1:].rstrip(b'L')
+                            s_val = oct(c_val)[1:]
                         elif fmt_spec.spec_type == b'p':
-                            s_val = hex(c_val).rstrip(b'L')
+                            s_val = hex(c_val)
                         else:
                             raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
 

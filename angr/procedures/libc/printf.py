@@ -1,5 +1,5 @@
 import logging
-
+import angr
 from angr.procedures.stubs.format_parser import FormatParser
 
 l = logging.getLogger(name=__name__)

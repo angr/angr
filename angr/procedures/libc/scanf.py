@@ -1,5 +1,5 @@
 import logging
-
+import angr
 from angr.procedures.stubs.format_parser import FormatParser
 from angr.sim_type import SimTypeInt, SimTypeString
 
