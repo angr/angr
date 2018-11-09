@@ -1706,7 +1706,11 @@ class CFGBase(Analysis):
 
             if len(func_0.block_addrs) == 1:
                 block = next(func_0.blocks)
-                if block.vex.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
+                # HACKS: temporary hacks to wrongly dealt with wrongly Ijk_Sys_Sycall
+                try:
+                    if block.vex.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
+                        continue
+                except:
                     continue
                 # Skip alignment blocks
                 if self._is_noop_block(self.project.arch, block):
