@@ -748,7 +748,7 @@ class DDG(Analysis):
                     new_call_depth -= 1
 
                 if self._call_depth is not None and call_depth > self._call_depth:
-                    l.debug('Do not trace into %s due to the call depth limit', state.ip)
+                    l.debug('Did not trace into %s due to the call depth limit', state.ip)
                     continue
 
                 new_defs = self._track(state, live_defs, node.irsb.statements if node.irsb is not None else None)
