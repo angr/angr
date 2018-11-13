@@ -1710,7 +1710,7 @@ class CFGBase(Analysis):
                 try:
                     if block.vex.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                         continue
-                except:
+                except SimEngineError:
                     continue
                 # Skip alignment blocks
                 if self._is_noop_block(self.project.arch, block):
