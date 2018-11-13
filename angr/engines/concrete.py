@@ -6,7 +6,6 @@ from .engine import SimEngine
 from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
-#l.setLevel(logging.DEBUG)
 
 try:
     from angr_targets.concrete import ConcreteTarget
