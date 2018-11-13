@@ -32,11 +32,13 @@ def amd64g_dirtyhelper_RDTSC(state):
         val = state.solver.BVS('RDTSC', 64, key=('hardware', 'rdtsc'))
     return val, []
 
+
 x86g_dirtyhelper_RDTSC = amd64g_dirtyhelper_RDTSC
 
 # For all the CPUID helpers: we've implemented the very nice CPUID functions, but we don't use them.
 # we claim to be a much dumber cpu than we can support because otherwise we get bogged down doing
 # various tasks in the libc initializers.
+
 
 # Copied basically directly from the vex source
 def amd64g_dirtyhelper_CPUID_baseline(state, _):

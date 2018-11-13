@@ -5,7 +5,7 @@ from .common import condition_to_lambda
 from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")
-#l.setLevel(logging.DEBUG)
+# l.setLevel(logging.DEBUG)
 
 
 class Symbion(ExplorationTechnique):
@@ -17,7 +17,7 @@ class Symbion(ExplorationTechnique):
      :param concretize: list of tuples (address, symbolic variable) to concretize and write inside
                         the concrete process.
     """
-    def __init__(self, find=[], concretize=[], find_stash='found'):
+    def __init__(self, find=None, concretize=None, find_stash='found'):
         super(Symbion, self).__init__()
 
         # need to keep the raw list of addresses to
@@ -30,11 +30,11 @@ class Symbion(ExplorationTechnique):
         # adding the 'found' stash during the setup
         simgr.stashes[self.find_stash] = []
 
-    def step(self, simgr, stash, **kwargs):
+    def step(self, simgr, stash='active', **kwargs):
         # safe guard
         if not len(simgr.stashes[stash]):
             l.warning("No stashes to step, aborting.")
-            return
+            return None
 
         # check if the stash contains only one SimState and if not warn the user that only the
         # first state in the stash can be stepped in the SimEngineConcrete.
@@ -46,7 +46,7 @@ class Symbion(ExplorationTechnique):
 
         return simgr.step(stash=stash, **kwargs)
 
-    def step_state(self, simgr, state, successor_func=None, **kwargs):
+    def step_state(self, simgr, state, **kwargs):
         ss = self.project.factory.successors(state, engines=['concrete'],
                                              extra_stop_points=self.breakpoints, concretize=self.concretize)
 

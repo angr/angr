@@ -167,8 +167,9 @@ class SimLinux(SimUserland):
             elif isinstance(state.arch, ArchAArch64):
                 state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
 
+        if fs is None:
+            fs = {}
 
-        if fs is None: fs = {}
         for name in fs:
             if type(fs[name]) is str:
                 fs[name] = fs[name].encode('utf-8')

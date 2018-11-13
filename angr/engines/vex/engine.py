@@ -9,7 +9,7 @@ from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
-                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError, SimConcreteMemoryError)
+                       SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
 
 from ...misc.ux import once
 from ..engine import SimEngine

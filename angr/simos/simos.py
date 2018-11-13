@@ -370,8 +370,8 @@ class SimOS:
     def get_binary_header_name(self):
         return ""
 
-class GlobalDescriptorTable(object):
 
+class GlobalDescriptorTable():
     def __init__(self, addr, limit, table, gdt_sel, cs_sel, ds_sel, es_sel, ss_sel, fs_sel, gs_sel):
         self.addr = addr
         self.limit = limit
@@ -383,4 +383,3 @@ class GlobalDescriptorTable(object):
         self.ss = ss_sel
         self.fs = fs_sel
         self.gs = gs_sel
-
