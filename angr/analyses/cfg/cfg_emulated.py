@@ -11,7 +11,7 @@ from archinfo import ArchARM
 
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_node import CFGNodeA
+from .cfg_node import CFGENode
 from .cfg_utils import CFGUtils
 from ..forward_analysis import ForwardAnalysis
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
@@ -1919,7 +1919,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             is_syscall = node_key.jump_type == 'syscall'
             is_thumb = isinstance(self.project.arch, ArchARM) and addr % 2 == 1
 
-            pt = CFGNodeA(self._block_id_addr(node_key),
+            pt = CFGENode(self._block_id_addr(node_key),
                           None,
                           self,
                           callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
@@ -3051,7 +3051,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if syscall is not None and sa['no_ret']:
                 no_ret = True
 
-            cfg_node = CFGNodeA(sim_successors.addr,
+            cfg_node = CFGENode(sim_successors.addr,
                                 None,
                                 self,
                                 callstack=call_stack,
@@ -3069,7 +3069,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                 )
 
         else:
-            cfg_node = CFGNodeA(sim_successors.addr,
+            cfg_node = CFGENode(sim_successors.addr,
                                 sa['irsb_size'],
                                 self,
                                 callstack=call_stack,
@@ -3393,7 +3393,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 
-        elif isinstance(begin, CFGNodeA) and isinstance(end, CFGNodeA):
+        elif isinstance(begin, CFGENode) and isinstance(end, CFGENode):
             n_begin = begin
             n_end = end
         else:
