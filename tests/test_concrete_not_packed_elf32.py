@@ -3,10 +3,7 @@ import nose
 import sys
 import subprocess
 
-try:
-    import avatar2 as avatar2
-except Exception:
-    sys.exit()
+import avatar2 as avatar2
 
 import angr
 import claripy
@@ -44,40 +41,50 @@ def teardown():
 def test_concrete_engine_linux_x86_simprocedures():
     print("test_concrete_engine_linux_x86_simprocedures")
     global avatar_gdb
-    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP ,GDB_SERVER_PORT)
-    p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=True)
-    entry_state = p.factory.entry_state()
-    solv_concrete_engine_linux_x86(p, entry_state)
-
+    try:
+        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP ,GDB_SERVER_PORT)
+        p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=True)
+        entry_state = p.factory.entry_state()
+        solv_concrete_engine_linux_x86(p, entry_state)
+    except AttributeError as e:
+        print(e)
 
 @nose.with_setup(setup_x86,teardown)
 def test_concrete_engine_linux_x86_no_simprocedures():
     print("test_concrete_engine_linux_x86_no_simprocedures")
     global avatar_gdb
-    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
-    p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=False)
-    entry_state = p.factory.entry_state()
-    solv_concrete_engine_linux_x86(p, entry_state)
+    try:
+        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
+        p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=False)
+        entry_state = p.factory.entry_state()
+        solv_concrete_engine_linux_x86(p, entry_state)
+    except AttributeError as e:
+        print(e)
 
 
 @nose.with_setup(setup_x86,teardown)
 def test_concrete_engine_linux_x86_unicorn_simprocedures():
     print("test_concrete_engine_linux_x86_unicorn_simprocedures")
     global avatar_gdb
-    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
-    p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=True)
-    entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
-    solv_concrete_engine_linux_x86(p, entry_state)
-
+    try:
+        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
+        p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=True)
+        entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
+        solv_concrete_engine_linux_x86(p, entry_state)
+    except AttributeError as e:
+        print(e)
 
 @nose.with_setup(setup_x86,teardown)
 def test_concrete_engine_linux_x86_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x86_unicorn_no_simprocedures")
     global avatar_gdb
-    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
-    p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=False)
-    entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
-    solv_concrete_engine_linux_x86(p, entry_state)
+    try:
+        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
+        p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=False)
+        entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
+        solv_concrete_engine_linux_x86(p, entry_state)
+    except AttributeError as e:
+        print(e)
 
 
 def execute_concretly(p, state, address, concretize):
