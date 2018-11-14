@@ -3,12 +3,20 @@ import nose
 import sys
 import subprocess
 
-import avatar2 as avatar2
+try:
+    import avatar2 as avatar2
+except Exception as e:
+    print("Failing importing avatar2")
+    print(e)
 
 import angr
 import claripy
 
-from angr_targets import AvatarGDBConcreteTarget
+try:
+    from angr_targets import AvatarGDBConcreteTarget
+except Exception as e:
+    print("Failing importing AvatarGDBConcreteTarget")
+    print(e)
 
 GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
@@ -46,7 +54,8 @@ def test_concrete_engine_linux_x86_simprocedures():
         p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=True)
         entry_state = p.factory.entry_state()
         solv_concrete_engine_linux_x86(p, entry_state)
-    except AttributeError as e:
+    except Exception as e:
+        print("Failing executing test")
         print(e)
 
 @nose.with_setup(setup_x86,teardown)
@@ -58,7 +67,8 @@ def test_concrete_engine_linux_x86_no_simprocedures():
         p = angr.Project(binary_x86 ,concrete_target=avatar_gdb, use_sim_procedures=False)
         entry_state = p.factory.entry_state()
         solv_concrete_engine_linux_x86(p, entry_state)
-    except AttributeError as e:
+    except Exception as e:
+        print("Failing executing test")
         print(e)
 
 
@@ -71,7 +81,8 @@ def test_concrete_engine_linux_x86_unicorn_simprocedures():
         p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=True)
         entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
         solv_concrete_engine_linux_x86(p, entry_state)
-    except AttributeError as e:
+    except Exception as e:
+        print("Failing executing test")
         print(e)
 
 @nose.with_setup(setup_x86,teardown)
@@ -83,7 +94,8 @@ def test_concrete_engine_linux_x86_unicorn_no_simprocedures():
         p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=False)
         entry_state = p.factory.entry_state(add_options = angr.options.unicorn)
         solv_concrete_engine_linux_x86(p, entry_state)
-    except AttributeError as e:
+    except Exception as e:
+        print("Failing executing test")
         print(e)
 
 
