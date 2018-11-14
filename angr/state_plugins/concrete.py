@@ -165,14 +165,17 @@ class Concrete(SimStatePlugin):
         # now we have to register a SimInspect in order to synchronize the segments register
         # on demand when the symbolic execution accesses it
         if not self.segment_registers_callback_initialized:
-            self.fs_register_bp = self.state.inspect.b('reg_read',
-                                                       reg_read_offset=
-                                                       self.state.project.simos.get_segment_register_name(),
-                                                       action=_sync_segments)
+            segment_register_name = self.state.project.simos.get_segment_register_name()
+            if segment_register_name:
+                self.fs_register_bp = self.state.inspect.b('reg_read',
+                                                           reg_read_offset=segment_register_name,
+                                                           action=_sync_segments)
 
-            self.segment_registers_callback_initialized = True
+                self.segment_registers_callback_initialized = True
 
-            l.debug("Set SimInspect breakpoint to the new state!")
+                l.debug("Set SimInspect breakpoint to the new state!")
+            else:
+                l.error("Can't set breakpoint to synchronize segments registers, horrible things will happen.")
 
     def _sync_registers(self, register_names, target):
         for register_name in register_names:

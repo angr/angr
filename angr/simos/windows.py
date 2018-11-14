@@ -522,6 +522,7 @@ class SimWindows(SimOS):
             for register in self.arch.register_list:
                 if register.name == 'fs':
                     return register.vex_offset
+        return None
 
     def _init_object_pe_security_cookie(self, pe_object, state, state_kwargs):
         sc_init = state_kwargs.pop('security_cookie_init', SecurityCookieInit.STATIC)

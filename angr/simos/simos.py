@@ -356,7 +356,7 @@ class SimOS:
         to_ret = flags
         to_ret |= idx << 3
         return to_ret
-    
+
     @staticmethod
     def _create_gdt_entry(base, limit, access, flags):
         to_ret = limit & 0xffff
@@ -367,11 +367,8 @@ class SimOS:
         to_ret |= ((base >> 24) & 0xff) << 56
         return struct.pack('<Q', to_ret)
 
-    def get_binary_header_name(self):
-        return ""
 
-
-class GlobalDescriptorTable():
+class GlobalDescriptorTable:
     def __init__(self, addr, limit, table, gdt_sel, cs_sel, ds_sel, es_sel, ss_sel, fs_sel, gs_sel):
         self.addr = addr
         self.limit = limit

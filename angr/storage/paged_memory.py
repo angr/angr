@@ -496,7 +496,7 @@ class SimPagedMemory:
                 this can happen when a memory allocation function/syscall is invoked in the simulated execution \
                 and the map_region function is called")
 
-                return
+                return initialized
 
         elif isinstance(self._memory_backer, cle.Clemory):
             # find permission backer associated with the address
@@ -532,7 +532,6 @@ class SimPagedMemory:
                         self._apply_object_to_page(new_page_addr, mo, page=new_page)
 
                 initialized = True
-
 
         elif len(self._memory_backer) <= self._page_size:
             for i in self._memory_backer:

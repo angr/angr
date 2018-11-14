@@ -1,7 +1,6 @@
 import os
 import sys
 import copy
-import struct
 import ctypes
 import threading
 import itertools

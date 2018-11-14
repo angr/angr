@@ -75,11 +75,12 @@ amd64g_dirtyhelper_CPUID_avx_and_cx16 = amd64g_dirtyhelper_CPUID_baseline
 amd64g_dirtyhelper_CPUID_avx2 = amd64g_dirtyhelper_CPUID_baseline
 
 
-def amd64g_create_mxcsr(state, sseround):
+def amd64g_create_mxcsr(_, sseround):
     return 0x1F80 | ((sseround & 3) << 13)
 
+
 # see canonical implementation of this in guest_amd64_helpers.c
-def amd64g_dirtyhelper_XSAVE_COMPONENT_1_EXCLUDING_XMMREGS(state, gsptr, addr):
+def amd64g_dirtyhelper_XSAVE_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
 
     mxcsr = amd64g_create_mxcsr(state, state.regs.sseround)
     mxcsr = mxcsr[15:0]
@@ -113,10 +114,10 @@ def amd64g_check_ldmxcsr(state, mxcsr):
             (mxcsr & 0x1F80) != 0x1F80,
             state.solver.BVV(EmWarn_X86_sseExns, 64),
             state.solver.If(
-                mxcsr & (1<<15) != 0,
+                mxcsr & (1 << 15) != 0,
                 state.solver.BVV(EmWarn_X86_fz, 64),
                 state.solver.If(
-                    mxcsr & (1<<6) != 0,
+                    mxcsr & (1 << 6) != 0,
                     state.solver.BVV(EmWarn_X86_daz, 64),
                     state.solver.BVV(EmNote_NONE, 64)
                 )
@@ -125,12 +126,13 @@ def amd64g_check_ldmxcsr(state, mxcsr):
 
     return (ew << 32) | rmode, ()
 
+
 # see canonical implementation of this in guest_amd64_helpers.c
-def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, gsptr, addr):
+def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
 
     w32 = state.solver.BVV(
-             (state.mem[state.solver.eval(addr) + 12].short.concrete & 0xFFFF) | \
-                (( state.mem[state.solver.eval(addr) + 16].short.concrete & 0xFFFF) << 16)
+             (state.mem[state.solver.eval(addr) + 12].short.concrete & 0xFFFF) |
+             ((state.mem[state.solver.eval(addr) + 16].short.concrete & 0xFFFF) << 16)
              , 64)
 
     w64, _ = amd64g_check_ldmxcsr(state, w32)

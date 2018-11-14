@@ -380,3 +380,4 @@ class SimLinux(SimUserland):
             for register in self.arch.register_list:
                 if register.name == 'gs':
                     return register.vex_offset
+        return None
