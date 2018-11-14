@@ -11,12 +11,14 @@ l = logging.getLogger("angr.exploration_techniques.symbion")
 class Symbion(ExplorationTechnique):
     """
      The Symbion exploration technique uses the SimEngineConcrete available to step a SimState.
+
      :param find: address or list of addresses that we want to reach, these will be translated into breakpoints
                   inside the concrete process using the ConcreteTarget interface provided by the user
                   inside the SimEngineConcrete.
      :param concretize: list of tuples (address, symbolic variable) to concretize and write inside
                         the concrete process.
     """
+
     def __init__(self, find=None, concretize=None, find_stash='found'):
         super(Symbion, self).__init__()
 
