@@ -41,7 +41,7 @@ TRANSMIT_RECORD._fields_ = [
         ('count', ctypes.c_uint32)
     ]
 
-class STOP(object): # stop_t
+class STOP():  # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
     STOP_SYMBOLIC_MEM   = 2
