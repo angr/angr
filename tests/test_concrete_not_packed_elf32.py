@@ -38,8 +38,14 @@ def setup_x86():
 
 
 def teardown():
+
     global avatar_gdb
-    avatar_gdb.exit()
+    try:
+        avatar_gdb.exit()
+    except Exception as e:
+        print("Exiting avatar raise exception!")
+        print(e)
+
     import time
     time.sleep(2)
     print("---------------------------\n")
