@@ -109,7 +109,7 @@ def solv_concrete_engine_linux_x86(p, entry_state):
 
 
 # MANUAL TEST
-'''
+"""
 setup_x86()
 print("test_concrete_engine_linux_x86_no_simprocedures")
 global avatar_gdb
@@ -118,4 +118,4 @@ p = angr.Project(binary_x86, concrete_target=avatar_gdb, use_sim_procedures=Fals
                  page_size=0x1000)
 entry_state = p.factory.entry_state()
 solv_concrete_engine_linux_x86(p, entry_state)
-'''
+"""

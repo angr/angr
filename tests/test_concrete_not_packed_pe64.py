@@ -129,7 +129,7 @@ def solv_concrete_engine_windows_x64(p, entry_state):
 
 
 # MANUAL TEST
-'''
+"""
 setup_x64()
 print("test_concrete_engine_windows_x64_no_simprocedures")
 avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
@@ -137,4 +137,4 @@ p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=Fals
                  page_size=0x1000)
 entry_state = p.factory.entry_state()
 solv_concrete_engine_windows_x64(p, entry_state)
-'''
+"""
