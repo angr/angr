@@ -18,7 +18,7 @@ from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSB
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
-from .cfg_node import CFGNode, CFGNodeA
+from .cfg_node import CFGNode, CFGENode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger(name=__name__)
@@ -1153,7 +1153,7 @@ class CFGBase(Analysis):
                                        thumb=n.thumb
                                        )
                 elif self.tag == "CFGEmulated":
-                    new_node = CFGNodeA(n.addr, new_size, self, callstack_key=callstack_key,
+                    new_node = CFGENode(n.addr, new_size, self, callstack_key=callstack_key,
                                         function_address=n.function_address, block_id=n.block_id,
                                         instruction_addrs=tuple([i for i in n.instruction_addrs
                                                            if n.addr <= i <= n.addr + new_size
