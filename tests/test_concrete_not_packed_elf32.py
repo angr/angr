@@ -5,7 +5,7 @@ import subprocess
 
 try:
     import avatar2 as avatar2
-except ValueError:
+except Exception:
     sys.exit()
 
 import angr
