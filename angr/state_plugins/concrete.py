@@ -1,9 +1,11 @@
-import struct
+
+import cle
+import io
 import logging
 import os
 import re
+import struct
 
-import cle
 
 from .plugin import SimStatePlugin
 from ..errors import SimConcreteRegisterError
@@ -218,9 +220,9 @@ class Concrete(SimStatePlugin):
                     # let's make sure that we have the header at this address to confirm that it is the
                     # base address.
                     # That's not a perfect solution, but should work most of the time.
-                    result = target.read_memory(mmap.start_address, 10)
+                    result = target.read_memory(mmap.start_address, 0x10)
 
-                    if self.state.project.simos.get_binary_header_name() in str(result):
+                    if self.state.project.loader.main_object.check_magic_compatibility(io.BytesIO(result)):
                         if mapped_object.mapped_base == mmap.start_address:
                             # We already have the correct address for this memory mapping
                             l.debug("Object %s is already rebased correctly at 0x%x", binary_name,
