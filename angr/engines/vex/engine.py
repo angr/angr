@@ -27,6 +27,7 @@ class SimEngineVEX(SimEngine):
     """
     Execution engine based on VEX, Valgrind's IR.
     """
+    requires_project = False
 
     def __init__(self, project=None,
             stop_points=None,
@@ -64,13 +65,6 @@ class SimEngineVEX(SimEngine):
         self._block_cache_misses = 0
 
         self._initialize_block_cache()
-
-    def is_stop_point(self, addr):
-        if self.project is not None and addr in self.project._sim_procedures:
-            return True
-        elif self._stop_points is not None and addr in self._stop_points:
-            return True
-        return False
 
     def _initialize_block_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
@@ -121,6 +115,10 @@ class SimEngineVEX(SimEngine):
                 raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
                                         " string is correct.")
 
+        base_stop_points = None
+        if 'base_stop_points' in kwargs:
+            base_stop_points = kwargs['base_stop_points']
+
         return super(SimEngineVEX, self).process(state, irsb,
                 skip_stmts=skip_stmts,
                 last_stmt=last_stmt,
@@ -132,12 +130,13 @@ class SimEngineVEX(SimEngine):
                 num_inst=num_inst,
                 traceflags=traceflags,
                 thumb=thumb,
-                opt_level=opt_level)
+                opt_level=opt_level,
+                base_stop_points=base_stop_points)
 
     def _check(self, state, *args, **kwargs):
         return True
 
-    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=None, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
+    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=None, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None, base_stop_points=None):
         successors.sort = 'IRSB'
         successors.description = 'IRSB'
         state.history.recent_block_count = 1
@@ -156,7 +155,8 @@ class SimEngineVEX(SimEngine):
                     num_inst=num_inst,
                     traceflags=traceflags,
                     thumb=thumb,
-                    opt_level=opt_level)
+                    opt_level=opt_level,
+                    base_stop_points=base_stop_points)
 
             if irsb.size == 0:
                 if irsb.jumpkind == 'Ijk_NoDecode' and not state.project.is_hooked(irsb.addr):
@@ -431,7 +431,8 @@ class SimEngineVEX(SimEngine):
              opt_level=None,
              strict_block_end=None,
              skip_stmts=False,
-             collect_data_refs=False):
+             collect_data_refs=False,
+             **kwargs):
 
         """
         Lift an IRSB.
@@ -526,7 +527,14 @@ class SimEngineVEX(SimEngine):
             if cache_key in self._block_cache:
                 self._block_cache_hits += 1
                 irsb = self._block_cache[cache_key]
-                stop_point = self._first_stoppoint(irsb)
+
+                base_stop_points = None
+                if 'base_stop_points' in kwargs:
+                    base_stop_points = kwargs['base_stop_points']
+                elif self.project is not None:
+                    base_stop_points = self.project.engines.list_stop_points(self)
+
+                stop_point = self._first_stoppoint(irsb, base_stop_points)
                 if stop_point is None:
                     return irsb
                 else:
@@ -575,7 +583,12 @@ class SimEngineVEX(SimEngine):
 
                 if subphase == 0 and irsb.statements is not None:
                     # check for possible stop points
-                    stop_point = self._first_stoppoint(irsb)
+                    base_stop_points = None
+                    if 'base_stop_points' in kwargs:
+                        base_stop_points = kwargs['base_stop_points']
+                    elif self.project is not None:
+                        base_stop_points = self.project.engines.list_stop_points(self)
+                    stop_point = self._first_stoppoint(irsb, base_stop_points)
                     if stop_point is not None:
                         size = stop_point - addr
                         continue
@@ -662,12 +675,15 @@ class SimEngineVEX(SimEngine):
         size = min(max_size, size)
         return buff, size
 
-    def _first_stoppoint(self, irsb):
+    def _first_stoppoint(self, irsb, base_stop_points=None):
         """
         Enumerate the imarks in the block. If any of them (after the first one) are at a stop point, returns the address
         of the stop point. None is returned otherwise.
         """
-        if self._stop_points is None and self.project is None:
+        if self._stop_points is not None:
+            base_stop_points |= set(self._stop_points)
+
+        if not base_stop_points:
             return None
 
         first_imark = True
@@ -675,10 +691,10 @@ class SimEngineVEX(SimEngine):
             if type(stmt) is pyvex.stmt.IMark:  # pylint: disable=unidiomatic-typecheck
                 addr = stmt.addr + stmt.delta
                 if not first_imark:
-                    if self.is_stop_point(addr):
+                    if addr in base_stop_points:
                         # could this part be moved by pyvex?
                         return addr
-                    if stmt.delta != 0 and self.is_stop_point(stmt.addr):
+                    if stmt.delta != 0 and stmt.addr in base_stop_points:
                         return addr
 
                 first_imark = False

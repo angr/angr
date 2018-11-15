@@ -12,9 +12,7 @@ class SimEngineUnicorn(SimEngine):
     """
     Concrete execution in the Unicorn Engine, a fork of qemu.
     """
-    def __init__(self, project):
-        super(SimEngineUnicorn, self).__init__(project)
-        self.base_stop_points = project._sim_procedures
+    requires_project = False
 
     def process(self, state,
             step=None,
@@ -32,11 +30,16 @@ class SimEngineUnicorn(SimEngine):
         :returns:                   A SimSuccessors object categorizing the results of the run and
                                     whether it succeeded.
         """
+        base_stop_points = None
+        if 'base_stop_points' in kwargs:
+            base_stop_points = kwargs['base_stop_points']
+
         return super(SimEngineUnicorn, self).process(state,
                 step=step,
                 extra_stop_points=extra_stop_points,
                 inline=inline,
-                force_addr=force_addr)
+                force_addr=force_addr,
+                base_stop_points=base_stop_points)
 
     def _check(self, state, **kwargs):
         if o.UNICORN not in state.options:
@@ -79,16 +82,23 @@ class SimEngineUnicorn(SimEngine):
 
         return True
 
-    def _process(self, state, successors, step, extra_stop_points):
+    def _process(self, state, successors, step, extra_stop_points, base_stop_points=None):
         if o.UNICORN not in state.options:
             return
-        if extra_stop_points is None:
-            extra_stop_points = set(self.base_stop_points)
+
+        if base_stop_points is not None:
+            if not isinstance(base_stop_points, set):
+                base_stop_points = set(base_stop_points)
         else:
-            # convert extra_stop_points to a set
-            extra_stop_points = set(extra_stop_points)
-            extra_stop_points.update(self.base_stop_points)
-        if successors.addr in extra_stop_points:
+            project = self.project if self.project is not None else state.project
+            base_stop_points = project.engines.list_stop_points(self)
+        if extra_stop_points is not None:
+            if not isinstance(extra_stop_points, set):
+                extra_stop_points = set(extra_stop_points)
+        else:
+            extra_stop_points = set()
+        stop_points = base_stop_points | extra_stop_points
+        if successors.addr in stop_points:
             return  # trying to start unicorn execution on a stop point
 
         successors.sort = 'Unicorn'
@@ -105,12 +115,12 @@ class SimEngineUnicorn(SimEngine):
                 # add the breakpoint to extra_stop_points. We don't care if the breakpoint is BP_BEFORE or
                 # BP_AFTER, this is only to stop unicorn when we get near a breakpoint. The breakpoint itself
                 # will then be handled by another engine that can more accurately step instruction-by-instruction.
-                extra_stop_points.add(bp.kwargs["instruction"])
+                stop_points.add(bp.kwargs["instruction"])
 
         # initialize unicorn plugin
         state.unicorn.setup()
         try:
-            state.unicorn.set_stops(extra_stop_points)
+            state.unicorn.set_stops(stop_points)
             state.unicorn.set_tracking(track_bbls=o.UNICORN_TRACK_BBL_ADDRS in state.options,
                                        track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()

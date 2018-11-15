@@ -10,6 +10,8 @@ from ...analyses.code_location import CodeLocation
 
 
 class SimEngineLight(SimEngine):
+    requires_project = False
+
     def __init__(self, engine_type='vex'):
         super(SimEngineLight, self).__init__()
 

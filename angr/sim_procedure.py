@@ -3,13 +3,17 @@ import copy
 import itertools
 from cle import Symbol
 
+from angr.state_plugins import BP_BEFORE, BP_AFTER
+from angr.engines import SimEngine
+from angr.misc.immutability import ImmutabilityMixin
+
 import logging
 l = logging.getLogger(name=__name__)
 
 symbolic_count = itertools.count()
 
 
-class SimProcedure:
+class SimProcedure(SimEngine, ImmutabilityMixin):
     """
     A SimProcedure is a wonderful object which describes a procedure to run on a state.
 
@@ -17,34 +21,55 @@ class SimProcedure:
     and then either returning a value or jumping away somehow.
 
     A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/docs/simprocedures.md
-
-    :param arch:            The architecture to use for this procedure
-
-    The following parameters are optional:
-
-    :param symbolic_return: Whether the procedure's return value should be stubbed into a
-                            single symbolic variable constratined to the real return value
-    :param returns:         Whether the procedure should return to its caller afterwards
-    :param is_syscall:      Whether this procedure is a syscall
-    :param num_args:        The number of arguments this procedure should extract
-    :param display_name:    The name to use when displaying this procedure
-    :param cc:              The SimCC to use for this procedure
-    :param sim_kwargs:      Additional keyword arguments to be passed to run()
-    :param is_function:     Whether this procedure emulates a function
     """
-    def __init__(
-        self, project=None, cc=None, symbolic_return=None,
-        returns=None, is_syscall=False, is_stub=False,
-        num_args=None, display_name=None, library_name=None,
-        is_function=None, **kwargs
-    ):
+    requires_project = False
+
+    #
+    # Implement these in a subclass of SimProcedure!
+    #
+    NO_RET = False          # set this to true if control flow will never return from this function
+    ADDS_EXITS = False      # set this to true if you do any control flow other than returning
+    IS_SYSCALL = False      # self-explanatory.
+    IS_FUNCTION = True      # does this procedure simulate a function?
+    ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
+                            # function specification? This may happen when we manually extract arguments in the run()
+                            # method of a SimProcedure.
+
+    local_vars = ()         # if you use self.call(), set this to a list of all the local variable
+                            # names in your class. They will be restored on return.
+
+    def __init__(self, project=None, cc=None, symbolic_return=None, returns=None, is_syscall=None, is_stub=False,
+                 num_args=None, display_name=None, library_name=None, is_function=None, **kwargs):
+        """
+        SimProcedure initialization routine.
+
+        :param arch:            The architecture to use for this procedure
+
+        The following parameters are optional:
+
+        :param symbolic_return: Whether the procedure's return value should be stubbed into a
+                                single symbolic variable constratined to the real return value
+        :param returns:         Whether the procedure should return to its caller afterwards
+        :param is_syscall:      Whether this procedure is a syscall
+        :param num_args:        The number of arguments this procedure should extract
+        :param display_name:    The name to use when displaying this procedure
+        :param cc:              The SimCC to use for this procedure
+        :param sim_kwargs:      Additional keyword arguments to be passed to run()
+        :param is_function:     Whether this procedure emulates a function
+        """
+        SimEngine.__init__(self, project=project)
+        ImmutabilityMixin.__init__(self, immutable=True)
+
         # WE'LL FIGURE IT OUT
+        # self._project = project
+        # self._arch = None
+        # self._cc = cc
         self.project = project
         self.arch = project.arch if project is not None else None
         self.addr = None
         self.cc = cc
-        self.canonical = self
 
+        self.canonical = self
         self.kwargs = kwargs
         self.display_name = type(self).__name__ if display_name is None else display_name
         self.library_name = library_name
@@ -76,11 +101,12 @@ class SimProcedure:
         self.state = None
         self.successors = None
         self.arguments = None
-        self.use_state_arguments = True
+        self.use_state_arguments = None
         self.ret_to = None
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
+        self.should_add_successors = None
 
     def __repr__(self):
         return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
@@ -97,6 +123,14 @@ class SimProcedure:
             ' (stub)' if self.is_stub else '',
         )
 
+    def copy(self):
+        return copy.copy(self)
+
+    #
+    #   Backwards compatibility layer
+    #
+
+    @ImmutabilityMixin.immutable
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
         Call this method with a SimState and a SimSuccessors to execute the procedure.
@@ -104,6 +138,23 @@ class SimProcedure:
         Alternately, successors may be none if this is an inline call. In that case, you should
         provide arguments to the function.
         """
+        _ = self.process(state, arguments=arguments, ret_to=ret_to, user_successors=successors, inline=True)
+        return self
+
+    #
+    #   SimEngine related stuff
+    #
+
+    @ImmutabilityMixin.immutable
+    def process(self, state, arguments=None, ret_to=None, **kwargs):
+        return super(SimProcedure, self).process(state, arguments=arguments, ret_to=ret_to, **kwargs)
+
+    def _check(self, state, *args, **kwargs):
+        return state.history.jumpkind != 'Ijk_NoHook'
+
+    def _process(self, state, successors, arguments=None, ret_to=None, **kwargs):
+        assert self.canonical is not self, 'Mutating canonical SimProcedure!'
+
         # fill out all the fun stuff we don't want to frontload
         if self.addr is None and not state.regs.ip.symbolic:
             self.addr = state.addr
@@ -116,37 +167,64 @@ class SimProcedure:
                 self.cc = DEFAULT_CC[self.arch.name](self.arch)
             else:
                 raise SimProcedureError('There is no default calling convention for architecture %s.'
-                                        ' You must specify a calling convention.' % self.arch.name)
+                                        ' You must specify a calling convention.', self.arch.name)
 
-        inst = copy.copy(self)
-        inst.state = state
-        inst.successors = successors
-        inst.ret_to = ret_to
-        inst.inhibit_autoret = False
+        self.state = state
+        self.ret_to = ret_to
+        self.inhibit_autoret = False
+
+        self.successors = kwargs.get('user_successors') or successors
+        self.should_add_successors = bool(kwargs.get('user_successors', True))
+
+        successors.sort = 'SimProcedure'
+
+        # fill in artifacts
+        successors.artifacts['is_syscall'] = self.is_syscall
+        successors.artifacts['name'] = self.display_name
+        successors.artifacts['no_ret'] = self.NO_RET
+        successors.artifacts['adds_exits'] = self.ADDS_EXITS
+
+        # Update state.scratch
+        state.scratch.sim_procedure = self
+        state.history.recent_block_count = 1
+
+        # prepare and run!
+        state._inspect('simprocedure',
+                       BP_BEFORE,
+                       simprocedure_name=self.display_name,
+                       simprocedure_addr=successors.addr,
+                       simprocedure=self
+                       )
+        if self.is_syscall:
+            state._inspect('syscall', BP_BEFORE, syscall_name=self.display_name)
+
+        if o.AUTO_REFS not in state.options:
+            state.options.add(o.AST_DEPS)
+            state.options.add(o.AUTO_REFS)
 
         # check to see if this is a syscall and if we should override its return value
         override = None
-        if inst.is_syscall:
+        if self.is_syscall:
             state.history.recent_syscall_count = 1
             if len(state.posix.queued_syscall_returns):
                 override = state.posix.queued_syscall_returns.pop(0)
 
         if callable(override):
             try:
-                r = override(state, run=inst)
+                r = override(state, run=self)
             except TypeError:
                 r = override(state)
-            inst.use_state_arguments = True
+            self.use_state_arguments = True
 
         elif override is not None:
             r = override
-            inst.use_state_arguments = True
+            self.use_state_arguments = True
 
         else:
             # get the arguments
 
             # handle if this is a continuation from a return
-            if inst.is_continuation:
+            if self.is_continuation:
                 if state.callstack.top.procedure_data is None:
                     raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
@@ -154,29 +232,54 @@ class SimProcedure:
                 state.regs.sp = saved_sp
                 if saved_lr is not None:
                     state.regs.lr = saved_lr
-                inst.arguments = sim_args
-                inst.use_state_arguments = True
-                inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
+                self.arguments = sim_args
+                self.use_state_arguments = True
+                self.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
                 for name, val in saved_local_vars:
-                    setattr(inst, name, val)
+                    setattr(self, name, val)
             else:
                 if arguments is None:
-                    inst.use_state_arguments = True
-                    sim_args = [ inst.arg(_) for _ in range(inst.num_args) ]
-                    inst.arguments = sim_args
+                    self.use_state_arguments = True
+                    sim_args = [ self.arg(_) for _ in range(self.num_args) ]
+                    self.arguments = sim_args
                 else:
-                    inst.use_state_arguments = False
-                    sim_args = arguments[:inst.num_args]
-                    inst.arguments = arguments
+                    self.use_state_arguments = False
+                    sim_args = arguments[:self.num_args]
+                    self.arguments = arguments
 
             # run it
-            l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
-            r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
+            l.debug("Executing %s%s%s%s%s with %s, %s", *(self._describe_me() + (sim_args, self.kwargs)))
+            r = getattr(self, self.run_func)(*sim_args, **self.kwargs)
 
-        if inst.returns and inst.is_function and not inst.inhibit_autoret:
-            inst.ret(r)
+        if self.returns and self.is_function and not self.inhibit_autoret:
+            self.ret(r)
 
-        return inst
+        if o.AUTO_REFS not in state.options:
+            state.options.discard(o.AST_DEPS)
+            state.options.discard(o.AUTO_REFS)
+
+        if self.is_syscall:
+            state._inspect('syscall', BP_AFTER, syscall_name=self.display_name)
+        state._inspect('simprocedure',
+                       BP_AFTER,
+                       simprocedure_name=self.display_name,
+                       simprocedure_addr=successors.addr,
+                       simprocedure=self
+                       )
+
+        successors.description = 'SimProcedure ' + self.display_name
+        if self.is_syscall:
+            successors.description += ' (syscall)'
+        if self.is_stub:
+            successors.description += ' (stub)'
+        successors.processed = True
+
+        successors.artifacts['procedure'] = self
+        return  # _process
+
+    #
+    #   SimProcedure API
+    #
 
     def make_continuation(self, name):
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
@@ -194,20 +297,6 @@ class SimProcedure:
             self.canonical.continuations[name] = cont
             self.project.hook(cont.addr, cont)
         return self.canonical.continuations[name].addr
-
-    #
-    # Implement these in a subclass of SimProcedure!
-    #
-
-    NO_RET = False          # set this to true if control flow will never return from this function
-    ADDS_EXITS = False      # set this to true if you do any control flow other than returning
-    IS_FUNCTION = True      # does this procedure simulate a function?
-    ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
-                            # function specification? This may happen when we manually extract arguments in the run()
-                            # method of a SimProcedure.
-
-    local_vars = ()         # if you use self.call(), set this to a list of all the local variable
-                            # names in your class. They will be restored on return.
 
     def run(self, *args, **kwargs): # pylint: disable=unused-argument
         """
@@ -230,14 +319,6 @@ class SimProcedure:
         else:
             # This SimProcedure does not add any new exit
             return [ ]
-
-    #
-    # misc properties
-    #
-
-    @property
-    def should_add_successors(self):
-        return self.successors is not None
 
     #
     # Working with calling conventions
@@ -285,8 +366,7 @@ class SimProcedure:
                                 procedure construtor
         """
         e_args = [ self.state.solver.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments ]
-        p = procedure(project=self.project, **kwargs)
-        return p.execute(self.state, None, arguments=e_args)
+        return procedure(project=self.project, **kwargs).execute(self.state, arguments=e_args)
 
     def ret(self, expr=None):
         """

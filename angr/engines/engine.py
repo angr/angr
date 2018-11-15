@@ -8,9 +8,14 @@ l = logging.getLogger(name=__name__)
 class SimEngine(object):
     """
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.
-    """
 
-    def __init__(self, project=None):
+    :cvar requires_project: True, if this engine requires a project to operate.
+    """
+    requires_project = True
+
+    def __init__(self, project=None, *args, **kwargs):
+        if project is None and self.requires_project:
+            raise ValueError("%s requires project to operate" % self.__class__)
         self.project = project
 
     def process(self, state, *args, **kwargs):
@@ -43,11 +48,20 @@ class SimEngine(object):
         # data - move the "present" into the "past" by pushing an entry on the history stack.
         # nuance: make sure to copy from the PREVIOUS state to the CURRENT one
         # to avoid creating a dead link in the history, messing up the statehierarchy
-        new_state.register_plugin('history', old_state.history.make_child())
+        if not inline:
+            new_state.register_plugin('history', old_state.history.make_child())
         new_state.history.recent_bbl_addrs.append(addr)
-        new_state.scratch.executed_pages_set = {addr & ~0xFFF}
 
-        successors = SimSuccessors(addr, old_state)
+        if not inline:
+            new_state.scratch.clear()
+            new_state.scratch.executed_pages_set = set()
+
+        if new_state.scratch.executed_pages_set is None:
+            new_state.scratch.executed_pages_set = set()
+
+        new_state.scratch.executed_pages_set |= {addr & ~0xFFF}
+
+        successors = self._empty_successors(addr, old_state)
 
         new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=successors, address=addr)
         successors = new_state._inspect_getattr('sim_successors', successors)
@@ -98,6 +112,10 @@ class SimEngine(object):
 
     def _process(self, new_state, successors, *args, **kwargs):
         raise NotImplementedError
+
+    def _empty_successors(self, addr, initial_state, *args, **kwargs):  # pylint:disable=unused-arguments
+        return SimSuccessors(addr, initial_state)
+
 
 from .. import sim_options as o
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

@@ -2,12 +2,22 @@ import logging
 
 from .engine import SimEngine
 from .successors import SimSuccessors
+from ..misc.ux import once
 
 l = logging.getLogger(name=__name__)
 
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ
 class SimEngineHook(SimEngine):
+
+    def __init__(self, *args, **kwargs):
+        super(SimEngineHook, self).__init__(*args, **kwargs)
+
+        if once('sim_engine_hook'):
+            print("\x1b[31;1mDeprecation warning: SimProcedures are now engines on their own."
+                  "Consider using EngineSelector.insert_engine() to mark an address (or a memory range)"
+                  "to be executed with a particular SimProcedure.\x1b[0m")
+
     def _check(self, state, procedure=None, **kwargs):
         # we have not yet entered the next step - we should check the "current" jumpkind
         if state.history.jumpkind == 'Ijk_NoHook':
