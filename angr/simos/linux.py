@@ -253,6 +253,34 @@ class SimLinux(SimUserland):
         state.posix.auxv = auxv
         self.set_entry_register_values(state)
 
+        # set __progname
+        progname_full = 0
+        progname = 0
+        if args:
+            progname_full = state.mem[argv].long.concrete
+            progname_cur = progname_full
+            progname = progname_full
+            while True:
+                byte = state.mem[progname_cur].byte.resolved
+                if byte.symbolic:
+                    break
+                else:
+                    if state.solver.eval(byte) == ord('/'):
+                        progname = progname_cur + 1
+                    elif state.solver.eval(byte) == 0:
+                        break
+
+                progname_cur += 1
+
+        for sym in self.project.loader.find_all_symbols('__progname_full'):
+            if sym.size != self.arch.bytes:
+                continue  # should there be a warning here?
+            state.mem[sym.rebased_addr].long = progname_full
+        for sym in self.project.loader.find_all_symbols('__progname'):
+            if sym.size != self.arch.bytes:
+                continue
+            state.mem[sym.rebased_addr].long = progname
+
         return state
 
     def set_entry_register_values(self, state):
