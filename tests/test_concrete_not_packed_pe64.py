@@ -126,4 +126,3 @@ def solv_concrete_engine_windows_x64(p, entry_state):
 
     print("[4]Malware execution ends, the configuration value downloaded from C&C is: " + hex(
         new_symbolic_state.solver.eval(arg0, cast_to=int)))
-
