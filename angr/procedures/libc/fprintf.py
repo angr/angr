@@ -2,7 +2,7 @@ import logging
 
 from angr.procedures.stubs.format_parser import FormatParser
 
-from . import io_file_data_for_arch
+from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 l = logging.getLogger(name=__name__)
 

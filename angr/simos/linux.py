@@ -57,6 +57,7 @@ class SimLinux(SimUserland):
             self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch), ld_obj)
 
             # set up some static data in the loader object...
+            # TODO it should be legal to get these from the externs now
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
                 if isinstance(self.project.arch, ArchAMD64):
@@ -252,6 +253,40 @@ class SimLinux(SimUserland):
         state.posix.environ = envp
         state.posix.auxv = auxv
         self.set_entry_register_values(state)
+
+        # set __progname
+        progname_full = 0
+        progname = 0
+        if args:
+            progname_full = state.mem[argv].long.concrete
+            progname_cur = progname_full
+            progname = progname_full
+            while True:
+                byte = state.mem[progname_cur].byte.resolved
+                if byte.symbolic:
+                    break
+                else:
+                    if state.solver.eval(byte) == ord('/'):
+                        progname = progname_cur + 1
+                    elif state.solver.eval(byte) == 0:
+                        break
+
+                progname_cur += 1
+
+        # there will be multiple copies of these symbol but the canonical ones (in the main binary,
+        # or elsewhere if the main binary didn't have one) should get picked up here
+        for name, val in [
+                ('__progname_full', progname_full),
+                ('__progname', progname),
+                ('__environ', envp),
+                ('environ', envp),
+                ('__libc_stack_end', state.regs.sp)]:
+            sym = self.project.loader.find_symbol(name)
+            if sym is not None:
+                if sym.size != self.arch.bytes:
+                    _l.warning("Something is wrong with %s - bad size", name)
+                else:
+                    state.mem[sym.rebased_addr].long = val
 
         return state
 
