@@ -1103,6 +1103,36 @@ class Function(object):
                 return ast.__str__()
         return self.name
 
+    def copy(self):
+        func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
+        func.transition_graph = networkx.DiGraph(self.transition_graph)
+        func.normalized = self.normalized
+        func._ret_sites = self._ret_sites.copy()
+        func._jumpout_sites = self._jumpout_sites.copy()
+        func._retout_sites = self._retout_sites.copy()
+        func._endpoints = self._endpoints.copy()
+        func._call_sites = self._call_sites.copy()
+        func._project = self._project
+        func.is_plt = self.is_plt
+        func.is_simprocedure = self.is_simprocedure
+        func.binary_name = self.binary_name
+        func.bp_on_stack = self.bp_on_stack
+        func.retaddr_on_stack = self.retaddr_on_stack
+        func.sp_delta = self.sp_delta
+        func.calling_convention = self.calling_convention
+        func.prototype = self.prototype
+        func._returning = self._returning
+        func.startpoint = self.startpoint
+        func._addr_to_block_node = self._addr_to_block_node.copy()
+        func._block_sizes = self._block_sizes.copy()
+        func._block_cache = self._block_cache.copy()
+        func._local_blocks = self._local_blocks.copy()
+        func._local_block_addrs = self._local_block_addrs.copy()
+        func.info = self.info.copy()
+        func.tags = self.tags
+
+        return func
+
 
 from ...codenode import BlockNode, HookNode
 from ...errors import AngrValueError

@@ -62,8 +62,10 @@ class CFGBase(Analysis):
 
     tag = None
 
-    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None,
-                 resolve_indirect_jumps=True, indirect_jump_resolvers=None, indirect_jump_target_limit=100000):
+    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
+                 iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
+                 indirect_jump_target_limit=100000, detect_tail_calls=False,
+                 ):
         """
         :param str sort:                            'fast' or 'emulated'.
         :param int context_sensitivity_level:       The level of context-sensitivity of this CFG (see documentation for
@@ -80,6 +82,8 @@ class CFGBase(Analysis):
                                                     default indirect jump resolvers specific to this architecture and binary
                                                     types will be loaded.
         :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
+        :param bool detect_tail_calls:              Aggressive tail-call optimization detection. This option is only
+                                                    respected in make_functions().
 
         :return: None
         """
@@ -95,6 +99,7 @@ class CFGBase(Analysis):
         self._force_segment = force_segment
         self._iropt_level = iropt_level
         self._base_state = base_state
+        self._detect_tail_calls = detect_tail_calls
 
         # Initialization
         self._graph = None
@@ -1452,9 +1457,9 @@ class CFGBase(Analysis):
                     to_remove.add(fn.addr)
 
         # remove empty functions
-        for function in self.kb.functions.values():
-            if function.startpoint is None:
-                to_remove.add(function.addr)
+        for func in self.kb.functions.values():
+            if func.startpoint is None:
+                to_remove.add(func.addr)
 
         for addr in to_remove:
             del self.kb.functions[addr]
@@ -1687,7 +1692,6 @@ class CFGBase(Analysis):
 
         return functions_to_remove
 
-
     def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
         """
         Convert an address to a Function object, and store the mapping in a dict. If the block is known to be part of a
@@ -1727,6 +1731,46 @@ class CFGBase(Analysis):
                     self._updated_nonreturning_functions.add(addr)
 
         return f
+
+    def _is_tail_call_optimization(self, src_addr, dst_addr, src_function, all_edges, known_functions,
+                                       blockaddr_to_function):
+        """
+        If source and destination belong to the same function, and the following criteria apply:
+        - source node has only one default exit
+        - destination is in front of the function that the source node belongs to
+        - destination is not one of the known functions
+        - destination does not belong to another function, or destination belongs to the same function that
+          source belongs to
+        - at the end of the block, the SP offset is 0
+
+        :return:    True if it is a tail-call optimization. False otherwise.
+        :rtype:     bool
+        """
+
+        if len(all_edges) == 1 and dst_addr != src_addr and dst_addr < src_function.addr:
+            candidate = False
+            if dst_addr in known_functions:
+                # dst_addr cannot be the same as src_function.addr. Pass
+                pass
+            elif dst_addr in blockaddr_to_function:
+                # it seems that we already know where this function should belong to. Pass.
+                dst_func = blockaddr_to_function[dst_addr]
+                if dst_func is src_function:
+                    # they belong to the same function right now, but they'd better not
+                    candidate = True
+                    # treat it as a tail-call optimization
+            else:
+                # we don't know where it belongs to
+                # treat it as a tail-call optimization
+                candidate = True
+
+            if candidate:
+                sptracker = self.project.analyses.StackPointerTracker(src_function)
+                sp_delta = sptracker.sp_offset_out(src_addr)
+                if sp_delta == 0:
+                    return True
+
+        return False
 
     def _graph_bfs_custom(self, g, starts, callback, blockaddr_to_function, known_functions, traversed_cfg_nodes=None):
         """
@@ -1880,8 +1924,21 @@ class CFGBase(Analysis):
 
             # pre-check: if source and destination do not belong to the same section, it must be jumping to another
             # function
-            if not self._addrs_belong_to_same_section(src_addr, dst_addr):
+            belong_to_same_section = self._addrs_belong_to_same_section(src_addr, dst_addr)
+            if not belong_to_same_section:
                 _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+
+            if self._detect_tail_calls:
+                if self._is_tail_call_optimization(src_addr, dst_addr, src_function, all_edges, known_functions,
+                                                   blockaddr_to_function):
+                    l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
+                    # it's (probably) a tail-call optimization. we should make the destination node a new function
+                    # instead.
+                    blockaddr_to_function.pop(dst_addr, None)
+                    _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                    self.kb.functions._add_outside_transition_to(src_function.addr, src_node, dst_node,
+                                                                 to_function_addr=dst_addr
+                                                                 )
 
             # is it a jump to another function?
             if dst_addr in known_functions or (
@@ -2063,6 +2120,7 @@ class CFGBase(Analysis):
     #
     # Indirect jumps processing
     #
+
     def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
         """
         Checks if MIPS32 and calls MIPS32 check, otherwise false
