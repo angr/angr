@@ -8,12 +8,10 @@ from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 l = logging.getLogger("angr.engines.concrete")
 # l.setLevel(logging.DEBUG)
 
-no_angr_target = False
-
 try:
     from angr_targets.concrete import ConcreteTarget
 except ImportError:
-    no_angr_target = True
+    ConcreteTarget = None
 
 
 class SimEngineConcrete(SimEngine):
@@ -21,7 +19,7 @@ class SimEngineConcrete(SimEngine):
     Concrete execution using a concrete target provided by the user.
     """
     def __init__(self, project):
-        if no_angr_target:
+        if not ConcreteTarget:
             l.critical("Error, can't find angr_target project")
             raise AngrError
 
