@@ -1111,7 +1111,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     if state.project.simos.name == "Win32" and segment_selector_val == 0x6 and state.project.concrete_target is not None:
             return bad("angr doesn't support Windows Heaven's gate calls http://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
-                   "Please use a 32 bit OS when analysing a 32 bit binary or implement a simprocedure to avoid executing these instructions"
+                   "Please use the native 32 bit libs (not WoW64) or implement a simprocedure to avoid executing these instructions"
                    )
 
 
