@@ -103,11 +103,8 @@ def solv_concrete_engine_linux_x86(p, entry_state):
     simgr = p.factory.simgr(new_concrete_state)
     print("[2]Symbolically executing BINARY to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]")
     exploration = simgr.explore(find=DROP_STAGE2_V1, avoid=[DROP_STAGE2_V2, VENV_DETECTED, FAKE_CC])
-    if not exploration.stashes['found'] and exploration.errored and exploration.errored[0].state.history.jumpkind == 'Ijk_NoDecode':
+    if not exploration.stashes['found'] and exploration.errored and type(exploration.errored[0].error) is angr.errors.SimIRSBNoDecodeError:
         raise nose.SkipTest()
-    import sys
-    print(exploration, file=sys.__stdout__)
-    print(exploration.errored, file=sys.__stdout__)
     new_symbolic_state = exploration.stashes['found'][0]
 
     binary_configuration = new_symbolic_state.solver.eval(arg0, cast_to=int)

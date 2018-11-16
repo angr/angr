@@ -107,7 +107,7 @@ def solv_concrete_engine_linux_x64(p, state):
     simgr = p.factory.simgr(new_concrete_state)
     print("[2]Symbolically executing binary to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V2) + " ]")
     exploration = simgr.explore(find=DROP_STAGE2_V2, avoid=[DROP_STAGE2_V1, VENV_DETECTED, FAKE_CC])
-    if not exploration.stashes['found'] and exploration.errored and exploration.errored[0].state.history.jumpkind == 'Ijk_NoDecode':
+    if not exploration.stashes['found'] and exploration.errored and type(exploration.errored[0].error) is angr.errors.SimIRSBNoDecodeError:
         raise nose.SkipTest()
     new_symbolic_state = exploration.stashes['found'][0]
 
