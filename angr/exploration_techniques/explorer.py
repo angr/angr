@@ -1,7 +1,6 @@
 from . import ExplorationTechnique
 from .common import condition_to_lambda
 from .. import sim_options
-from ..errors import SimIRSBNoDecodeError, AngrExplorationTechniqueError
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -109,23 +108,6 @@ class Explorer(ExplorationTechnique):
                 return self.avoid_stash
         return None
 
-    def _classify_all(self, addrs, findable, avoidable):
-        if self.avoid_priority:
-            for i, addr in enumerate(addrs):
-                if addr in avoidable:
-                    return i, self.avoid_stash
-            for i, addr in enumerate(addrs):
-                if addr in findable:
-                    return i, self.find_stash
-        else:
-            for i, addr in enumerate(addrs):
-                if addr in findable:
-                    return i, self.find_stash
-            for i, addr in enumerate(addrs):
-                if addr in avoidable:
-                    return i, self.avoid_stash
-        return None, None
-
     # make it more natural to deal with the intended dataflow
     def filter(self, simgr, state, **kwargs):
         stash = self._filter_inner(state)
@@ -162,56 +144,7 @@ class Explorer(ExplorationTechnique):
         if stash is not None:
             return stash
 
-        # at this point the state is definitely either findable or avoidable... but not at the current address.
-        # SOME people are apparently just too good to always specify basic block addresses and deal with the fact
-        # that angr's understanding of basic blocks isn't the one that most program analysts use. </sarcasm>
-
-        # refuse to try to work with unsatisfiable states
-        if not state.history.reachable:
-            return 'unsat'
-
-        current_block = state.block()
-        target_addr = min(findable | avoidable)
-        target_instruction_idx = current_block.instruction_addrs.index(target_addr)
-        if target_instruction_idx <= 0:
-            raise AngrExplorationTechniqueError("Something went very wrong during explorer windup: idx <= 0")
-
-        try:
-            useful_block = state.block(num_inst=target_instruction_idx)
-        except SimIRSBNoDecodeError as ex:
-            if state.arch.name.startswith("MIPS") and target_instruction_idx == current_block.instructions - 1:
-                l.warning("You specified a MIPS delay slot as a find-avoid target. We can't deal with that.")
-                l.warning("Returning the state at the associated jump instruction.")
-                if target_instruction_idx == 1:
-                    stash = self._classify(current_block.instruction_addrs[1], findable, avoidable)
-                    if stash is None:
-                        raise AngrExplorationTechniqueError(
-                            "Something went very wrong during explorer windup: stash is None (mips edge case)")
-                    return stash
-
-                useful_block = state.block(num_inst=target_instruction_idx - 1)
-            else:
-                raise ex
-
-        succ = state.step(irsb=useful_block.vex)
-        if not succ.flat_successors:
-            l.warning("Something weird happened during explorer windup: windup step produced no successors")
-            return None
-        if len(succ.flat_successors) > 1:
-            idx, stash = self._classify_all([s.addr for s in succ.flat_successors], findable, avoidable)
-            if stash is not None:
-                # FIXME this is a nasty limitation in the exploration technique architecture
-                # should we make it so that filter can return multiple states?
-                l.warning("State split during explorer windup, but one of the split states was found/avoided.")
-                l.warning("This may lead to a loss of coverage.")
-                l.warning("Set project.engines.vex.default_strict_block_end = True if you believe this is an issue.")
-                return stash, succ.flat_successors[idx]
-            return None
-
-        stash = self._classify(succ.flat_successors[0].addr, findable, avoidable)
-        if stash is None:
-            l.warning("Explorer entered windup but did not produce a found/avoided state")
-        return stash, succ.flat_successors[0]
+        return None
 
     def complete(self, simgr):
         return len(simgr.stashes[self.find_stash]) >= self.num_find
