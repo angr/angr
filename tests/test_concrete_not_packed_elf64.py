@@ -25,8 +25,8 @@ BINARY_EXECUTION_END = 0x400C03
 
 
 def setup_x64():
-    print("gdbserver %s:%s %s" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64))
-    subprocess.Popen("gdbserver %s:%s %s" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64), stdout=subprocess.PIPE,
+    print("gdbserver %s:%s '%s'" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64))
+    subprocess.Popen("gdbserver %s:%s '%s'" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64), stdout=subprocess.PIPE,
                      stderr=subprocess.PIPE, shell=True)
 
 
@@ -43,60 +43,48 @@ def teardown():
 def test_concrete_engine_linux_x64_simprocedures():
     print("test_concrete_engine_linux_x64_simprocedures")
     global avatar_gdb
-    try:
-        # pylint: disable=no-member
-        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=True,
-                         page_size=0x1000)
-        entry_state = p.factory.entry_state()
-        solv_concrete_engine_linux_x64(p, entry_state)
-    except ValueError:
-        print("Failing executing test")
+    # pylint: disable=no-member
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=True,
+                     page_size=0x1000)
+    entry_state = p.factory.entry_state()
+    solv_concrete_engine_linux_x64(p, entry_state)
 
 
 @nose.with_setup(setup_x64, teardown)
 def test_concrete_engine_linux_x64_no_simprocedures():
     print("test_concrete_engine_linux_x64_no_simprocedures")
     global avatar_gdb
-    try:
-        # pylint: disable=no-member
-        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
-                         page_size=0x1000)
-        entry_state = p.factory.entry_state()
-        solv_concrete_engine_linux_x64(p, entry_state)
-    except ValueError:
-        print("Failing executing test")
+    # pylint: disable=no-member
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
+                     page_size=0x1000)
+    entry_state = p.factory.entry_state()
+    solv_concrete_engine_linux_x64(p, entry_state)
 
 
 @nose.with_setup(setup_x64, teardown)
 def test_concrete_engine_linux_x64_unicorn_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_simprocedures")
     global avatar_gdb
-    try:
-        # pylint: disable=no-member
-        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=True,
-                         page_size=0x1000)
-        entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
-        solv_concrete_engine_linux_x64(p, entry_state)
-    except ValueError:
-        print("Failing executing test")
+    # pylint: disable=no-member
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=True,
+                     page_size=0x1000)
+    entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
+    solv_concrete_engine_linux_x64(p, entry_state)
 
 
 @nose.with_setup(setup_x64, teardown)
 def test_concrete_engine_linux_x64_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
     global avatar_gdb
-    try:
-        # pylint: disable=no-member
-        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
-                         page_size=0x1000)
-        entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
-        solv_concrete_engine_linux_x64(p, entry_state)
-    except ValueError:
-        print("Failing executing test")
+    # pylint: disable=no-member
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
+                     page_size=0x1000)
+    entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
+    solv_concrete_engine_linux_x64(p, entry_state)
 
 
 def execute_concretly(project, state, address, concretize):
@@ -119,6 +107,8 @@ def solv_concrete_engine_linux_x64(p, state):
     simgr = p.factory.simgr(new_concrete_state)
     print("[2]Symbolically executing binary to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V2) + " ]")
     exploration = simgr.explore(find=DROP_STAGE2_V2, avoid=[DROP_STAGE2_V1, VENV_DETECTED, FAKE_CC])
+    if not exploration.stashes['found'] and exploration.errored and exploration.errored[0].state.history.jumpkind == 'Ijk_NoDecode':
+        raise nose.SkipTest()
     new_symbolic_state = exploration.stashes['found'][0]
 
     print("[3]Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
@@ -130,3 +120,24 @@ def solv_concrete_engine_linux_x64(p, state):
     correct_solution = 0xa00000006000000f6ffffff0000000000000000000000000000000000000000
 
     nose.tools.assert_true(binary_configuration == correct_solution)
+
+def run_all():
+    functions = globals()
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
+    for f in sorted(all_functions.keys()):
+        if hasattr(all_functions[f], '__call__'):
+            if hasattr(all_functions[f], 'setup'):
+                all_functions[f].setup()
+            try:
+                all_functions[f]()
+            finally:
+                if hasattr(all_functions[f], 'teardown'):
+                    all_functions[f].teardown()
+
+if __name__ == "__main__":
+    logging.getLogger("identifier").setLevel("DEBUG")
+    import sys
+    if len(sys.argv) > 1:
+        globals()['test_' + sys.argv[1]]()
+    else:
+        run_all()

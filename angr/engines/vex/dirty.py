@@ -85,11 +85,11 @@ def amd64g_dirtyhelper_XSAVE_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
     mxcsr = amd64g_create_mxcsr(state, state.regs.sseround)
     mxcsr = mxcsr[15:0]
 
-    state.mem[state.solver.eval(addr) + 12].short = mxcsr
-    state.mem[state.solver.eval(addr) + 14].short = mxcsr >> 16
+    state.mem[state.solver.eval(addr) + 12*2].short = mxcsr
+    state.mem[state.solver.eval(addr) + 13*2].short = mxcsr >> 16
 
-    state.mem[state.solver.eval(addr) + 16].short = 0xffff
-    state.mem[state.solver.eval(addr) + 18].short = 0x0000
+    state.mem[state.solver.eval(addr) + 14*2].short = 0xffff
+    state.mem[state.solver.eval(addr) + 15*2].short = 0x0000
 
     return None, []
 
@@ -131,8 +131,8 @@ def amd64g_check_ldmxcsr(state, mxcsr):
 def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
 
     w32 = state.solver.BVV(
-             (state.mem[state.solver.eval(addr) + 12].short.concrete & 0xFFFF) |
-             ((state.mem[state.solver.eval(addr) + 16].short.concrete & 0xFFFF) << 16)
+             (state.mem[state.solver.eval(addr) + 12*2].short.concrete & 0xFFFF) |
+             ((state.mem[state.solver.eval(addr) + 13*2].short.concrete & 0xFFFF) << 16)
              , 64)
 
     w64, _ = amd64g_check_ldmxcsr(state, w32)

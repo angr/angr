@@ -29,8 +29,8 @@ avatar_gdb = None
 
 
 def setup_x64():
-    print("gdbserver %s:%s %s" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64))
-    subprocess.Popen("gdbserver %s:%s %s" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64), stdout=subprocess.PIPE,
+    print("gdbserver %s:%s '%s'" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64))
+    subprocess.Popen("gdbserver %s:%s '%s'" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x64), stdout=subprocess.PIPE,
                      stderr=subprocess.PIPE, shell=True)
 
 
@@ -44,30 +44,24 @@ def teardown():
 def test_concrete_engine_linux_x64_no_simprocedures():
     print("test_concrete_engine_linux_x64_no_simprocedures")
     global avatar_gdb
-    try:
-        # pylint: disable=no-member
-        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
-                         page_size=0x1000)
-        entry_state = p.factory.entry_state()
-        solv_concrete_engine_linux_x64(p, entry_state)
-    except ValueError:
-        print("Failing executing test")
+    # pylint: disable=no-member
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
+                     page_size=0x1000)
+    entry_state = p.factory.entry_state()
+    solv_concrete_engine_linux_x64(p, entry_state)
 
 
 @nose.with_setup(setup_x64, teardown)
 def test_concrete_engine_linux_x64_unicorn_no_simprocedures():
     print("test_concrete_engine_linux_x64_unicorn_no_simprocedures")
     global avatar_gdb
-    try:
-        # pylint: disable=no-member
-        avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
-        p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
-                         page_size=0x1000)
-        entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
-        solv_concrete_engine_linux_x64(p, entry_state)
-    except ValueError:
-        print("Failing executing test")
+    # pylint: disable=no-member
+    avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86_64, GDB_SERVER_IP, GDB_SERVER_PORT)
+    p = angr.Project(binary_x64, concrete_target=avatar_gdb, use_sim_procedures=False,
+                     page_size=0x1000)
+    entry_state = p.factory.entry_state(add_options=angr.options.unicorn)
+    solv_concrete_engine_linux_x64(p, entry_state)
 
 
 def execute_concretly(project, state, address, concretize):
