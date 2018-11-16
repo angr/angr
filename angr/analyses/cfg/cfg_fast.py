@@ -816,6 +816,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
+    SPECIAL_THUNKS = {
+        'AMD64': {
+            bytes.fromhex('E807000000F3900FAEE8EBF9488D642408C3'): ('ret',),
+            bytes.fromhex('E807000000F3900FAEE8EBF948890424C3'): ('jmp', 'rax'),
+        }
+    }
 
     tag = "CFGFast"
 
@@ -982,6 +988,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._memory_data = { }
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data = { }
+
+        # mapping to all known thunks
+        self._known_thunks = {}
 
         self._initial_state = None
         self._next_addr = None
@@ -1305,6 +1314,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Call _initialize_cfg() before self.functions is used.
         self._initialize_cfg()
+
+        # Scan for __x86_return_thunk and friends
+        self._known_thunks = self._find_thunks()
 
         # Initialize variables used during analysis
         self._pending_jobs = PendingJobs(self.functions, self._deregister_analysis_job)
@@ -1867,6 +1879,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             target_addr = target
         else:
             target_addr = None
+
+        if target_addr in self._known_thunks and jumpkind == 'Ijk_Boring':
+            thunk_kind = self._known_thunks[target_addr][0]
+            if thunk_kind == 'ret':
+                jumpkind = 'Ijk_Ret'
+                target_addr = None
+            elif thunk_kind == 'jmp':
+                pass # ummmmmm not sure about this one
+            else:
+                raise Exception("This shouldn't be possible")
 
         jobs = [ ]
         is_syscall = jumpkind.startswith("Ijk_Sys")
@@ -3666,6 +3688,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 state = succ.flat_successors[0]
                 if not state.regs.gp.symbolic and state.solver.is_false(state.regs.gp == 0xffffffff):
                     function.info['gp'] = state.regs.gp._model_concrete.value
+
+    def _find_thunks(self):
+        if self.project.arch.name not in self.SPECIAL_THUNKS:
+            return {}
+        result = {}
+        for code, meaning in self.SPECIAL_THUNKS[self.project.arch.name].items():
+            for addr in self.project.loader.memory.find(code):
+                if self._addr_in_exec_memory_regions(addr):
+                    result[addr] = meaning
+
+        return result
+
+    def _lift(self, *args, **kwargs):
+        kwargs['extra_stop_points'] = self._known_thunks
+        return super(CFGFast, self)._lift(*args, **kwargs)
 
     #
     # Public methods
