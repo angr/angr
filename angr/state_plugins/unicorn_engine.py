@@ -1,7 +1,6 @@
 import os
 import sys
 import copy
-import struct
 import ctypes
 import threading
 import itertools
@@ -42,7 +41,7 @@ TRANSMIT_RECORD._fields_ = [
         ('count', ctypes.c_uint32)
     ]
 
-class STOP(object): # stop_t
+class STOP:  # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
     STOP_SYMBOLIC_MEM   = 2
@@ -1084,10 +1083,13 @@ class Unicorn(SimStatePlugin):
             flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
+
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
             fs = self.state.solver.eval(self.state.regs.fs) << 16
             gs = self.state.solver.eval(self.state.regs.gs) << 16
-            self.setup_gdt(fs, gs)
+            gdt = self.state.project.simos.generate_gdt(fs, gs)
+            self.setup_gdt(gdt)
+
 
         for r, c in self._uc_regs.items():
             if r in self.reg_blacklist:
@@ -1151,58 +1153,22 @@ class Unicorn(SimStatePlugin):
 
             uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
 
-    # this stuff is 100% copied from the unicorn regression tests
-    def setup_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
-        GDT_ADDR = 0x1000
-        GDT_LIMIT = 0x1000
-        A_PRESENT = 0x80
-        A_DATA = 0x10
-        A_DATA_WRITABLE = 0x2
-        A_PRIV_0 = 0x0
-        A_DIR_CON_BIT = 0x4
-        F_PROT_32 = 0x4
-        S_GDT = 0x0
-        S_PRIV_0 = 0x0
-
+    def setup_gdt(self, gdt):
         uc = self.uc
 
-        uc.mem_map(GDT_ADDR, GDT_LIMIT)
-        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0, F_PROT_32)
-        fs_entry = self.create_gdt_entry(fs, fs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        gs_entry = self.create_gdt_entry(gs, gs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        uc.mem_write(GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry)
+        uc.mem_map(gdt.addr, gdt.limit)
+        uc.mem_write(gdt.addr + 8, gdt.table)
+        uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, gdt.addr, gdt.limit, 0x0))
 
-        uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, GDT_ADDR, GDT_LIMIT, 0x0))
+        uc.reg_write(self._uc_const.UC_X86_REG_CS, gdt.cs)
+        uc.reg_write(self._uc_const.UC_X86_REG_DS, gdt.ds)
+        uc.reg_write(self._uc_const.UC_X86_REG_ES, gdt.es)
+        uc.reg_write(self._uc_const.UC_X86_REG_SS, gdt.ss)
+        uc.reg_write(self._uc_const.UC_X86_REG_FS, gdt.fs)
+        uc.reg_write(self._uc_const.UC_X86_REG_GS, gdt.gs)
+        # if programs want to access this memory....... let them
+        # uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
 
-        selector = self.create_selector(1, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_CS, selector)
-        uc.reg_write(self._uc_const.UC_X86_REG_DS, selector)
-        uc.reg_write(self._uc_const.UC_X86_REG_ES, selector)
-        selector = self.create_selector(2, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_SS, selector)
-        selector = self.create_selector(3, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
-        selector = self.create_selector(4, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
-        #if programs want to access this memory....... let them
-        #uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
-
-    @staticmethod
-    def create_selector(idx, flags):
-        to_ret = flags
-        to_ret |= idx << 3
-        return to_ret
-
-    @staticmethod
-    def create_gdt_entry(base, limit, access, flags):
-        to_ret = limit & 0xffff
-        to_ret |= (base & 0xffffff) << 16
-        to_ret |= (access & 0xff) << 40
-        to_ret |= ((limit >> 16) & 0xf) << 48
-        to_ret |= (flags & 0xff) << 52
-        to_ret |= ((base >> 24) & 0xff) << 56
-        return struct.pack('<Q', to_ret)
 
 
     # do NOT call either of these functions in a callback, lmao

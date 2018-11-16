@@ -6,6 +6,7 @@ import random
 import struct
 
 import claripy
+from archinfo import ArchX86, ArchAMD64
 import cle.backends
 
 from ..errors import (
@@ -461,6 +462,67 @@ class SimWindows(SimOS):
         state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved
         state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
 
+    def initialize_segment_register_x64(self, state, concrete_target):
+        """
+        Set the gs register in the angr to the value of the fs register in the concrete process
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return: None
+       """
+        _l.debug("Synchronizing gs segment register")
+        state.regs.gs = self._read_gs_register_x64(concrete_target)
+
+    def initialize_gdt_x86(self, state, concrete_target):
+        """
+        Create a GDT in the state memory and populate the segment registers.
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return: the created GlobalDescriptorTable object
+        """
+        _l.debug("Creating Global Descriptor Table and synchronizing fs segment register")
+        fs = self._read_fs_register_x86(concrete_target)
+        gdt = self.generate_gdt(fs,0x0)
+        self.setup_gdt(state,gdt)
+        return gdt
+
+    @staticmethod
+    def _read_fs_register_x86(concrete_target):
+        '''
+        Injects small shellcode to leak the fs segment register address. In Windows x86 this address is pointed by gs:[0x18]
+        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        :return: fs register address
+        :rtype string
+        '''
+        exfiltration_reg = "eax"
+        # instruction to inject for reading the value at segment value = offset
+        read_fs0_x86 = b"\x64\xA1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
+        return concrete_target.execute_shellcode(read_fs0_x86, exfiltration_reg)
+
+    @staticmethod
+    def _read_gs_register_x64(concrete_target):
+        '''
+        Injects small shellcode to leak the gs segment register address. In Windows x64 this address is pointed by gs:[0x30]
+        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        :return: gs register address
+        :rtype string
+        '''
+        exfiltration_reg = "rax"
+        # instruction to inject for reading the value at segment value = offset
+        read_gs0_x64 = b"\x65\x48\x8B\x04\x25\x30\x00\x00\x00\x90\x90\x90\x90"  # mov rax, gs:[0x30]
+        return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
+
+    def get_segment_register_name(self):
+        if isinstance(self.arch, ArchAMD64):
+            for register in self.arch.register_list:
+                if register.name == 'gs':
+                    return register.vex_offset
+        elif isinstance(self.arch, ArchX86):
+            for register in self.arch.register_list:
+                if register.name == 'fs':
+                    return register.vex_offset
+        return None
 
     def _init_object_pe_security_cookie(self, pe_object, state, state_kwargs):
         sc_init = state_kwargs.pop('security_cookie_init', SecurityCookieInit.STATIC)

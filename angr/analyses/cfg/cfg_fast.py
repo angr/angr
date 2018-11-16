@@ -24,6 +24,7 @@ from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslat
 
 VEX_IRSB_MAX_SIZE = 400
 
+
 l = logging.getLogger(name=__name__)
 
 
@@ -1368,7 +1369,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._nodes = {}
         self._nodes_by_addr = defaultdict(list)
 
-        if self._use_function_prologues:
+        if self._use_function_prologues and self.project.concrete_target is None:
             self._function_prologue_addrs = sorted(self._func_addrs_from_prologues())
             # make a copy of those prologue addresses, so that we can pop from the list
             self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
@@ -2023,6 +2024,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 # TODO: Support more jumpkinds
                 l.debug("Unsupported jumpkind %s", jumpkind)
+                l.debug("Instruction address: %#x", ins_addr)
 
         return jobs
 

@@ -850,6 +850,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return stored_values
 
+    def flush_pages(self,whitelist):
+        self.mem.flush_pages(whitelist)
+
     @staticmethod
     def _create_segment(addr, size, s_options, idx, segments):
         segment = dict(start=addr, size=size, options=s_options)

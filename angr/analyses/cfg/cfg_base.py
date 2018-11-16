@@ -14,7 +14,7 @@ from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
-    AngrUnsupportedSyscallError, SimError
+    AngrUnsupportedSyscallError, SimError, SimConcreteMemoryError
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
@@ -24,7 +24,7 @@ from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_res
 l = logging.getLogger(name=__name__)
 
 
-class IndirectJump(object):
+class IndirectJump:
 
     __slots__ = [ "addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
                   "jumptable_addr", "jumptable_entries",

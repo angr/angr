@@ -10,6 +10,7 @@ from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
+
 from ...misc.ux import once
 from ..engine import SimEngine
 from .statements import translate_stmt
@@ -570,6 +571,7 @@ class SimEngineVEX(SimEngine):
         # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in range(2):
+
                 irsb = pyvex.lift(buff, addr + thumb, arch,
                                   max_bytes=size,
                                   max_inst=num_inst,

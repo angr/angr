@@ -32,11 +32,13 @@ def amd64g_dirtyhelper_RDTSC(state):
         val = state.solver.BVS('RDTSC', 64, key=('hardware', 'rdtsc'))
     return val, []
 
+
 x86g_dirtyhelper_RDTSC = amd64g_dirtyhelper_RDTSC
 
 # For all the CPUID helpers: we've implemented the very nice CPUID functions, but we don't use them.
 # we claim to be a much dumber cpu than we can support because otherwise we get bogged down doing
 # various tasks in the libc initializers.
+
 
 # Copied basically directly from the vex source
 def amd64g_dirtyhelper_CPUID_baseline(state, _):
@@ -71,6 +73,74 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
 
 amd64g_dirtyhelper_CPUID_avx_and_cx16 = amd64g_dirtyhelper_CPUID_baseline
 amd64g_dirtyhelper_CPUID_avx2 = amd64g_dirtyhelper_CPUID_baseline
+
+
+def amd64g_create_mxcsr(_, sseround):
+    return 0x1F80 | ((sseround & 3) << 13)
+
+
+# see canonical implementation of this in guest_amd64_helpers.c
+def amd64g_dirtyhelper_XSAVE_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
+
+    mxcsr = amd64g_create_mxcsr(state, state.regs.sseround)
+    mxcsr = mxcsr[15:0]
+
+    state.mem[state.solver.eval(addr) + 12*2].short = mxcsr
+    state.mem[state.solver.eval(addr) + 13*2].short = mxcsr >> 16
+
+    state.mem[state.solver.eval(addr) + 14*2].short = 0xffff
+    state.mem[state.solver.eval(addr) + 15*2].short = 0x0000
+
+    return None, []
+
+EmNote_NONE = 0
+EmWarn_X86_x87exns = 1
+EmWarn_X86_x87precision = 2
+EmWarn_X86_sseExns = 3
+EmWarn_X86_fz = 4
+EmWarn_X86_daz = 5
+EmWarn_X86_acFlag = 6
+EmWarn_PPCexns = 7
+EmWarn_PPC64_redir_overflow = 8
+EmWarn_PPC64_redir_underflow = 9
+EmWarn_S390X_fpext_rounding = 10
+EmWarn_S390X_invalid_rounding = 11
+
+def amd64g_check_ldmxcsr(state, mxcsr):
+
+    rmode = state.solver.LShR(mxcsr, 13) & 3
+
+    ew = state.solver.If(
+            (mxcsr & 0x1F80) != 0x1F80,
+            state.solver.BVV(EmWarn_X86_sseExns, 64),
+            state.solver.If(
+                mxcsr & (1 << 15) != 0,
+                state.solver.BVV(EmWarn_X86_fz, 64),
+                state.solver.If(
+                    mxcsr & (1 << 6) != 0,
+                    state.solver.BVV(EmWarn_X86_daz, 64),
+                    state.solver.BVV(EmNote_NONE, 64)
+                )
+            )
+         )
+
+    return (ew << 32) | rmode, ()
+
+
+# see canonical implementation of this in guest_amd64_helpers.c
+def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
+
+    w32 = state.solver.BVV(
+             (state.mem[state.solver.eval(addr) + 12*2].short.concrete & 0xFFFF) |
+             ((state.mem[state.solver.eval(addr) + 13*2].short.concrete & 0xFFFF) << 16)
+             , 64)
+
+    w64, _ = amd64g_check_ldmxcsr(state, w32)
+    warnXMM = w64 >> 32
+    state.regs.sseround = w64 & 0xFFFFFFFF
+
+    return warnXMM, []
+
 
 def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
     old_eax = state.regs.rax[31:0]

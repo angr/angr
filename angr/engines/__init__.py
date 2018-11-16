@@ -6,6 +6,7 @@ from .procedure import SimEngineProcedure
 from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
+from .concrete import SimEngineConcrete
 from .hook import SimEngineHook
 
 from .hub import EngineHub, EnginePreset
@@ -28,6 +29,7 @@ EngineHub.register_preset('default', vex_preset)
 
 vex_preset.add_default_plugin('unicorn', SimEngineUnicorn)
 vex_preset.add_default_plugin('vex', SimEngineVEX)
+vex_preset.add_default_plugin('concrete', SimEngineConcrete)
 
-vex_preset.order = 'unicorn', 'vex'
+vex_preset.order = 'unicorn', 'vex', 'concrete'
 vex_preset.default_engine = 'vex'
