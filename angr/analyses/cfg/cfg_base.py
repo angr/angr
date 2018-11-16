@@ -24,7 +24,7 @@ from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_res
 l = logging.getLogger(name=__name__)
 
 
-class IndirectJump():
+class IndirectJump:
 
     __slots__ = [ "addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
                   "jumptable_addr", "jumptable_entries",

@@ -468,18 +468,18 @@ class SimWindows(SimOS):
 
         :param state:               state which will be modified
         :param concrete_target:     concrete target that will be used to read the fs register
-        :return:
+        :return: None
        """
         _l.debug("Synchronizing gs segment register")
         state.regs.gs = self._read_gs_register_x64(concrete_target)
 
-    def initialize_gdt_x86(self,state,concrete_target):
+    def initialize_gdt_x86(self, state, concrete_target):
         """
         Create a GDT in the state memory and populate the segment registers.
 
         :param state:               state which will be modified
         :param concrete_target:     concrete target that will be used to read the fs register
-        :return:
+        :return: the created GlobalDescriptorTable object
         """
         _l.debug("Creating Global Descriptor Table and synchronizing fs segment register")
         fs = self._read_fs_register_x86(concrete_target)

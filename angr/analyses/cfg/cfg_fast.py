@@ -1998,7 +1998,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 # TODO: Support more jumpkinds
                 l.debug("Unsupported jumpkind %s", jumpkind)
-                l.debug("Instruction address: 0x%x" , ins_addr)
+                l.debug("Instruction address: %#x", ins_addr)
 
         return jobs
 

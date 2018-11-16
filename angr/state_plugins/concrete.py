@@ -12,7 +12,7 @@ from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-# l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
@@ -95,7 +95,7 @@ class Concrete(SimStatePlugin):
         # Setting a concrete memory backend
         self.state.memory.mem._memory_backer.set_concrete_target(target)
 
-        # Sync Angr registers with the one getting from the concrete target
+        # Sync angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
         l.debug("Synchronizing general purpose registers")
 
@@ -123,10 +123,10 @@ class Concrete(SimStatePlugin):
             for reloc in self.state.project.loader.main_object.relocs:
                 if reloc.symbol:  # consider only reloc with a symbol
                     l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
-                    # l.debug("reloc.rebased_addr: %s " % hex(reloc.rebased_addr))
+                    # l.debug("reloc.rebased_addr: %#x " % reloc.rebased_addr)
                     func_address = target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
                     func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
-                    l.debug("Function address hook is now: %s ", hex(func_address))
+                    l.debug("Function address hook is now: %#x ", func_address)
                     self.state.project.rehook_symbol(func_address, reloc.symbol.name)
 
                     if self.synchronize_cle and not self.state.project.loader.main_object.contains_addr(func_address):

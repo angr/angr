@@ -19,7 +19,7 @@ class Symbion(ExplorationTechnique):
                         the concrete process.
     """
 
-    def __init__(self, find=None, concretize=None, find_stash='found'):
+    def __init__(self, find=None, concretize=None, timeout=0, find_stash='found'):
         super(Symbion, self).__init__()
 
         # need to keep the raw list of addresses to
@@ -27,6 +27,7 @@ class Symbion(ExplorationTechnique):
         self.find = condition_to_lambda(find)
         self.concretize = concretize
         self.find_stash = find_stash
+        self.timeout = timeout
 
     def setup(self, simgr):
         # adding the 'found' stash during the setup
@@ -50,9 +51,16 @@ class Symbion(ExplorationTechnique):
 
     def step_state(self, simgr, state, **kwargs):
         ss = self.project.factory.successors(state, engines=['concrete'],
-                                             extra_stop_points=self.breakpoints, concretize=self.concretize)
+                                             extra_stop_points=self.breakpoints,
+                                             concretize=self.concretize,
+                                             timeout=self.timeout)
 
-        return {'found': ss.successors}
+        new_state = ss.successors
+
+        if new_state[0].timeout:
+            return {'timeout': new_state}
+
+        return {'found': new_state}
 
     def complete(self, simgr):
         # We are done if we have hit at least one breakpoint in

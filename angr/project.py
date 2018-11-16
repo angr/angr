@@ -555,7 +555,7 @@ class Project:
         Move the hook for a symbol to a specific address
         :param new_address: the new address that will trigger the SimProc execution
         :param symbol_name: the name of the symbol (f.i. strcmp )
-        :return:
+        :return: None
         """
         new_sim_procedures = {}
         for key_address, simproc_obj in self._sim_procedures.items():

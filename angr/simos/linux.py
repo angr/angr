@@ -316,7 +316,7 @@ class SimLinux(SimUserland):
 
         :param state:               state which will be modified
         :param concrete_target:     concrete target that will be used to read the fs register
-        :return:
+        :return: None
         """
         _l.debug("Synchronizing fs segment register")
         state.regs.fs = self._read_fs_register_x64(concrete_target)
