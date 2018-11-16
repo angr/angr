@@ -1116,7 +1116,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return address
 
         try:
-            return next(self._regions.irange(minimum=address, reverse=True))
+            return next(self._regions.irange(minimum=address, reverse=False))
         except StopIteration:
             return None
 
@@ -1488,6 +1488,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self._force_complete_scan:
             addr = self._next_code_addr()
+            if addr is None:
+                l.debug("Force-scan jumping failed")
+            else:
+                l.debug("Force-scanning to %#x", addr)
 
             if addr is not None:
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJob.JOB_TYPE_COMPLETE_SCANNING)
