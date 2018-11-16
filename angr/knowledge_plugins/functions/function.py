@@ -993,6 +993,9 @@ class Function(object):
                 original_successors = list(graph.out_edges([n], data=True))
 
                 for _, d, data in original_successors:
+                    ins_addr = data.get('ins_addr', data.get('pseudo_ins_addr', None))
+                    if ins_addr is not None and ins_addr < d.addr:
+                        continue
                     if d not in graph[smallest_node]:
                         if d is n:
                             graph.add_edge(smallest_node, new_node, **data)
@@ -1024,7 +1027,14 @@ class Function(object):
                                   if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor, type="transition", outside=is_outside_node)
+                    graph.add_edge(new_node, new_successor,
+                                   type="transition",
+                                   outside=is_outside_node,
+                                   # it's named "pseudo_ins_addr" because we have no way to know what the actual last
+                                   # instruction is at this moment (without re-lifting the block, which would be a
+                                   # waste of time).
+                                   pseudo_ins_addr=new_node.addr + new_node.size - 1,
+                                   )
                 else:
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish/maybe john.')

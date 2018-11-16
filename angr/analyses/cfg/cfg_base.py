@@ -1181,6 +1181,9 @@ class CFGBase(Analysis):
                 continue
 
             for _, d, data in original_successors:
+                ins_addr = data['ins_addr']
+                if ins_addr < smallest_node.addr:
+                    continue
                 if d not in graph[smallest_node]:
                     if d is n:
                         graph.add_edge(smallest_node, new_node, **data)
@@ -1212,7 +1215,7 @@ class CFGBase(Analysis):
                               if i.addr == smallest_node.addr]
             if new_successors:
                 new_successor = new_successors[0]
-                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
+                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring', ins_addr=new_node.instruction_addrs[-1])
             else:
                 # We gotta create a new one
                 l.error('normalize(): Please report it to Fish.')
