@@ -1180,7 +1180,16 @@ class CFGBase(Analysis):
             if smallest_node not in graph:
                 continue
 
-            for _, d, data in original_successors:
+            for _s, d, data in original_successors:
+                ins_addr = data.get('ins_addr', None)  # ins_addr might be None for FakeRet edges
+                if ins_addr is None and data.get('jumpkind', None) != "Ijk_FakeRet":
+                    l.warning("Unexpected edge with ins_addr being None: %s -> %s, data = %s.",
+                              _s,
+                              d,
+                              str(data),
+                              )
+                if ins_addr is not None and ins_addr < smallest_node.addr:
+                    continue
                 if d not in graph[smallest_node]:
                     if d is n:
                         graph.add_edge(smallest_node, new_node, **data)
@@ -1212,7 +1221,7 @@ class CFGBase(Analysis):
                               if i.addr == smallest_node.addr]
             if new_successors:
                 new_successor = new_successors[0]
-                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
+                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring', ins_addr=new_node.instruction_addrs[-1])
             else:
                 # We gotta create a new one
                 l.error('normalize(): Please report it to Fish.')
