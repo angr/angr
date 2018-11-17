@@ -1732,22 +1732,42 @@ class CFGBase(Analysis):
 
         return f
 
-    def _is_tail_call_optimization(self, src_addr, dst_addr, src_function, all_edges, known_functions,
-                                       blockaddr_to_function):
+    def _is_tail_call_optimization(self, g : networkx.DiGraph, src_addr, dst_addr, src_function, all_edges,
+                                   known_functions, blockaddr_to_function):
         """
         If source and destination belong to the same function, and the following criteria apply:
         - source node has only one default exit
-        - destination is in front of the function that the source node belongs to
         - destination is not one of the known functions
         - destination does not belong to another function, or destination belongs to the same function that
           source belongs to
         - at the end of the block, the SP offset is 0
+        - for all other edges that are pointing to the destination node, their source nodes must only have one default
+          exit, too
 
         :return:    True if it is a tail-call optimization. False otherwise.
         :rtype:     bool
         """
 
-        if len(all_edges) == 1 and dst_addr != src_addr and dst_addr < src_function.addr:
+        def _has_more_than_one_exit(node_):
+            return len(g.out_edges(node_)) > 1
+
+        if len(all_edges) == 1 and dst_addr != src_addr:
+            the_edge = next(iter(all_edges))
+            _, dst, data = the_edge
+            if data.get('stmt_idx', None) != 'default':
+                return False
+
+            dst_in_edges = g.in_edges(dst, data=True)
+            if len(dst_in_edges) > 1:
+                # there are other edges going to the destination node. check all edges to make sure all source nodes
+                # only have one default exit
+                if any(data.get('stmt_idx', None) != 'default' for _, _, data in dst_in_edges):
+                    # some nodes are jumping to the destination node via non-default edges. skip.
+                    return False
+                if any(_has_more_than_one_exit(src_) for src_, _, _ in dst_in_edges):
+                    # at least one source node has more than just the default exit. skip.
+                    return False
+
             candidate = False
             if dst_addr in known_functions:
                 # dst_addr cannot be the same as src_function.addr. Pass
@@ -1799,18 +1819,18 @@ class CFGBase(Analysis):
             traversed.add(n)
 
             if n.has_return:
-                callback(n, None, {'jumpkind': 'Ijk_Ret'}, blockaddr_to_function, known_functions, None)
+                callback(g, n, None, {'jumpkind': 'Ijk_Ret'}, blockaddr_to_function, known_functions, None)
             # NOTE: A block that has_return CAN have successors that aren't the return.
             # This is particularly the case for ARM conditional instructions.  Yes, conditional rets are a thing.
 
             if g.out_degree(n) == 0:
                 # it's a single node
-                callback(n, None, None, blockaddr_to_function, known_functions, None)
+                callback(g, n, None, None, blockaddr_to_function, known_functions, None)
 
             else:
                 all_out_edges = g.out_edges(n, data=True)
                 for src, dst, data in all_out_edges:
-                    callback(src, dst, data, blockaddr_to_function, known_functions, all_out_edges)
+                    callback(g, src, dst, data, blockaddr_to_function, known_functions, all_out_edges)
 
                     jumpkind = data.get('jumpkind', "")
                     if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
@@ -1818,11 +1838,12 @@ class CFGBase(Analysis):
                         if dst not in stack and dst not in traversed:
                             stack.add(dst)
 
-    def _graph_traversal_handler(self, src, dst, data, blockaddr_to_function, known_functions, all_edges):
+    def _graph_traversal_handler(self, g, src, dst, data, blockaddr_to_function, known_functions, all_edges):
         """
         Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
         functions accordingly. Oh, it also create edges on the transition map of functions.
 
+        :param g:           The control flow graph that is currently being traversed.
         :param CFGNode src: Beginning of the edge, or a single node when dst is None.
         :param CFGNode dst: Destination of the edge. For processing a single node, `dst` is None.
         :param dict data: Edge data in the CFG. 'jumpkind' should be there if it's not None.
@@ -1929,7 +1950,7 @@ class CFGBase(Analysis):
                 _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             if self._detect_tail_calls:
-                if self._is_tail_call_optimization(src_addr, dst_addr, src_function, all_edges, known_functions,
+                if self._is_tail_call_optimization(g, src_addr, dst_addr, src_function, all_edges, known_functions,
                                                    blockaddr_to_function):
                     l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
                     # it's (probably) a tail-call optimization. we should make the destination node a new function

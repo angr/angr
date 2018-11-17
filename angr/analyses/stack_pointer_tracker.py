@@ -1,4 +1,6 @@
 
+# pylint:disable=abstract-method
+
 import logging
 
 import pyvex
@@ -46,7 +48,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         )
 
         if not func.normalized:
-            _l.warning("The provided function is not normalized. It will be normalized now.")
+            # Make a copy before normalizing the function
             func = func.copy()
             func.normalize()
 
