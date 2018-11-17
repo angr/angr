@@ -849,6 +849,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  exclude_sparse_regions=True,
                  skip_specific_regions=True,
                  heuristic_plt_resolving=None,
+                 detect_tail_calls=False,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -884,6 +885,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                              default indirect jump resolvers specific to this architecture and binary
                                              types will be loaded.
         :param base_state:              A state to use as a backer for all memory loads
+        :param bool detect_tail_calls:  Enable aggressive tail-call optimization detection.
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -911,6 +913,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             resolve_indirect_jumps=resolve_indirect_jumps,
             indirect_jump_resolvers=indirect_jump_resolvers,
             indirect_jump_target_limit=indirect_jump_target_limit,
+            detect_tail_calls=detect_tail_calls,
         )
 
         # necessary warnings

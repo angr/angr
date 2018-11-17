@@ -489,6 +489,35 @@ def test_block_instruction_addresses_armhf():
         nose.tools.assert_true(instr_addr % 2 == 1)
 
 #
+# Tail-call optimization detection
+#
+
+def test_tail_call_optimization_detection_armel():
+
+    # GitHub issue #1286
+
+    path = os.path.join(test_location, 'armel', 'Nucleo_read_hyperterminal-stripped.elf')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True,
+                                force_complete_scan=False,
+                                normalize=True,
+                                symbols=False,
+                                detect_tail_calls=True
+                                )
+
+    all_func_addrs = set(cfg.functions.keys())
+    nose.tools.assert_not_in(0x80010b5, all_func_addrs, "0x80010b5 is inside Reset_Handler().")
+    nose.tools.assert_not_in(0x8003ef9, all_func_addrs, "0x8003ef9 is inside memcpy().")
+    nose.tools.assert_not_in(0x8008419, all_func_addrs, "0x8008419 is inside __mulsf3().")
+
+    # Functions that are jumped to from tail-calls
+    tail_call_funcs = [ 0x8002bc1, 0x80046c1, 0x8000281, 0x8000c0f, 0x8000be3, 0x8001bdb, 0x8002839, 0x80037ad,
+                        0x8002c09, 0x8004165, 0x8004be1, 0x8002eb1 ]
+    for member in tail_call_funcs:
+        nose.tools.assert_in(member, all_func_addrs)
+
+#
 # Blanket
 #
 
@@ -565,6 +594,7 @@ def run_all():
     test_resolve_x86_elf_pic_plt()
     test_function_names_for_unloaded_libraries()
     test_block_instruction_addresses_armhf()
+    test_tail_call_optimization_detection_armel()
     test_blanket_fauxware()
     test_collect_data_references()
 
