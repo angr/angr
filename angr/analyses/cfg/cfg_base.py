@@ -1180,9 +1180,15 @@ class CFGBase(Analysis):
             if smallest_node not in graph:
                 continue
 
-            for _, d, data in original_successors:
-                ins_addr = data['ins_addr']
-                if ins_addr < smallest_node.addr:
+            for _s, d, data in original_successors:
+                ins_addr = data.get('ins_addr', None)  # ins_addr might be None for FakeRet edges
+                if ins_addr is None and data.get('jumpkind', None) != "Ijk_FakeRet":
+                    l.warning("Unexpected edge with ins_addr being None: %s -> %s, data = %s.",
+                              _s,
+                              d,
+                              str(data),
+                              )
+                if ins_addr is not None and ins_addr < smallest_node.addr:
                     continue
                 if d not in graph[smallest_node]:
                     if d is n:
