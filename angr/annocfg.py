@@ -143,7 +143,7 @@ class AnnotatedCFG(object):
         """
         if addr in self._run_statement_whitelist:
             if self._run_statement_whitelist[addr] is True:
-                return None # This is the default value used to say
+                return True # This is the default value used to say
                             # we execute all statements in this basic block. A
                             # little weird...
 
