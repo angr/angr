@@ -281,7 +281,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     all_targets.append(target)
 
                 if stmts_adding_base_addr:
-                    stmt_adding_base_addr : pyvex.IRExpr.WrTmp = stmts_adding_base_addr[0]
+                    stmt_adding_base_addr = stmts_adding_base_addr[0]
                     base_addr = stmt_adding_base_addr.data.args[0].con.value
                     mask = (2 ** self.project.arch.bits) - 1
                     all_targets = [ (target + base_addr) & mask for target in all_targets ]
