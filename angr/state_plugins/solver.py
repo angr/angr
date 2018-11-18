@@ -264,6 +264,7 @@ class SimSolver(SimStatePlugin):
             return self._stored_solver
 
         track = o.CONSTRAINT_TRACKING_IN_SOLVER in self.state.options
+        approximate_first = o.APPROXIMATE_FIRST in self.state.options
 
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
@@ -274,7 +275,9 @@ class SimSolver(SimStatePlugin):
         elif o.SYMBOLIC in self.state.options and o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverComposite(track=track)
         elif o.SYMBOLIC in self.state.options and any(opt in self.state.options for opt in o.approximation):
-            self._stored_solver = claripy.SolverHybrid(track=track)
+            self._stored_solver = claripy.SolverHybrid(track=track, approximate_first=approximate_first)
+        elif o.HYBRID_SOLVER in self.state.options:
+            self._stored_solver = claripy.SolverHybrid(track=track, approximate_first=approximate_first)
         elif o.SYMBOLIC in self.state.options:
             self._stored_solver = claripy.Solver(track=track)
         else:

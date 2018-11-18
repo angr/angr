@@ -276,6 +276,14 @@ SYNC_CLE_BACKEND_CONCRETE = 'SYNC_CLE_BACKEND_CONCRETE'
 # Allow POSIX API send() to fail
 ALLOW_SEND_FAILURES = 'ALLOW_SEND_FAILURES'
 
+# Use hybrid solver
+HYBRID_SOLVER = 'HYBRID_SOLVER'
+
+# This tells the hybrid solver to use the approximate backend first. The exact backend will be used
+# only if the number of possible approximate solutions is greater than what was request by user.
+# Note, that this option will only take effect if a hybrid solver used.
+APPROXIMATE_FIRST = 'APPROXIMATE_FIRST'
+
 #
 # CGC specific state options
 #

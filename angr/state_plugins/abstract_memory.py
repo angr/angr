@@ -7,7 +7,8 @@ from claripy.vsa import ValueSet, RegionAnnotation
 
 from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest
 from ..errors import SimMemoryError, SimAbstractMemoryError
-from ..sim_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING
+from ..sim_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING, \
+    CONSERVATIVE_READ_STRATEGY, CONSERVATIVE_WRITE_STRATEGY, HYBRID_SOLVER, APPROXIMATE_FIRST
 from .symbolic_memory import SimSymbolicMemory
 from ..state_plugins.sim_action_object import _raw_ast
 
@@ -21,7 +22,7 @@ READ_TARGETS_LIMIT = 4096
 
 invalid_read_ctr = count()
 
-class MemoryRegion(object):
+class MemoryRegion:
     def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None, endness=None): #pylint:disable=redefined-builtin,unused-argument
         self._endness = endness
         self._id = id
@@ -275,8 +276,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         stack_base = self._stack_region_map.stack_base
 
-        if (relative_address <= stack_base and
-                relative_address > stack_base - self._stack_size) or \
+        if stack_base - self._stack_size < relative_address <= stack_base and \
                 (target_region is not None and target_region.startswith('stack_')):
             # The absolute address seems to be in the stack region.
             # Map it to stack
@@ -339,6 +339,12 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param target_region: Which region to normalize the address to. To leave the decision to SimuVEX, set it to None
         :return: A list of AddressWrapper or ValueSet objects
         """
+        targets_limit = WRITE_TARGETS_LIMIT if is_write else READ_TARGETS_LIMIT
+
+        if type(addr) is not int:
+            for constraint in self.state.solver.constraints:
+                if getattr(addr, 'variables', set()) & constraint.variables:
+                    addr = self._apply_condition_to_symbolic_addr(addr, constraint)
 
         # Apply the condition if necessary
         if condition is not None:
@@ -351,14 +357,17 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         address_wrappers = [ ]
 
         for region, addr_si in addr_with_regions:
-            if is_write:
-                concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
-                if len(concrete_addrs) == WRITE_TARGETS_LIMIT:
-                    self.state.history.add_event('mem', message='too many targets to write to. address = %s' % addr_si)
-            else:
-                concrete_addrs = addr_si.eval(READ_TARGETS_LIMIT)
-                if len(concrete_addrs) == READ_TARGETS_LIMIT:
-                    self.state.history.add_event('mem', message='too many targets to read from. address = %s' % addr_si)
+            concrete_addrs = addr_si.eval(targets_limit)
+
+            if len(concrete_addrs) == targets_limit and HYBRID_SOLVER in self.state.options:
+                exact = True if APPROXIMATE_FIRST not in self.state.options else None
+                solutions = self.state.solver.eval_upto(addr, targets_limit, exact=exact)
+
+                if len(solutions) < len(concrete_addrs):
+                    concrete_addrs = [addr_si.intersection(s).eval(1)[0] for s in solutions]
+
+            if len(concrete_addrs) == targets_limit:
+                self.state.history.add_event('mem', message='concretized too many targets. address = %s' % addr_si)
 
             for c in concrete_addrs:
                 aw = self._normalize_address(region, c, target_region=target_region)
@@ -397,6 +406,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     # FIXME: symbolic_length is also a hack!
     def _store(self, req):
         address_wrappers = self.normalize_address(req.addr, is_write=True, convert_to_valueset=False)
+        if len(address_wrappers) == WRITE_TARGETS_LIMIT and CONSERVATIVE_WRITE_STRATEGY in self.state.options:
+            return req
+
         req.actual_addresses = [ ]
         req.stored_values = [ ]
 
@@ -446,7 +458,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         val = None
 
-        if len(address_wrappers) > 1 and AVOID_MULTIVALUED_READS in self.state.options:
+        if (len(address_wrappers) > 1 and AVOID_MULTIVALUED_READS in self.state.options) or \
+                (len(address_wrappers) == READ_TARGETS_LIMIT and CONSERVATIVE_READ_STRATEGY in self.state.options):
             val = self.state.solver.Unconstrained('unconstrained_read', size * self.state.arch.byte_width)
             return address_wrappers, val, [True]
 
@@ -497,7 +510,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         dst_memory.store(dst, data, size=size, condition=condition, inspect=inspect, disable_actions=disable_actions)
         return data
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1, chunk_size=None):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1, chunk_size=None):  # pylint:disable=arguments-differ
         if type(addr) is int:
             addr = self.state.solver.BVV(addr, self.state.arch.bits)
 
@@ -645,7 +658,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return False
 
-    def map_region(self, addr, length, permissions, init_zero=False): # pylint: disable=unused-argument
+    def map_region(self, addr, length, permissions, init_zero=False): # pylint: disable=no-self-use,unused-argument
         """
         Map a number of pages at address `addr` with permissions `permissions`.
         :param addr: address to map the pages at
@@ -654,16 +667,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param init_zero: Initialize page with zeros
         """
         l.warning('map_region() is not yet supported by SimAbstractMmeory.')
-        return
 
-    def unmap_region(self, addr, length): # pylint: disable=unused-argument
+    def unmap_region(self, addr, length): # pylint: disable=no-self-use,unused-argument
         """
         Unmap a number of pages at address `addr`
         :param addr: address to unmap the pages at
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         """
         l.warning('unmap_region() is not yet supported by SimAbstractMmeory.')
-        return
 
     def was_written_to(self, dst):
 
