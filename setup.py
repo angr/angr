@@ -122,7 +122,7 @@ setup(
     install_requires=[
         'ana',
         'sortedcontainers',
-        'cachetools<3',
+        'cachetools',
         'capstone>=3.0.5rc2',
         'cooldict',
         'dpkt',
