@@ -194,7 +194,11 @@ class JumpTableResolver(IndirectJumpResolver):
                 bss_memory_read_bp = BP(when=BP_BEFORE, enabled=True, action=self._bss_memory_read_hook)
                 start_state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
 
-            start_state.regs.bp = start_state.arch.initial_sp + 0x2000
+            # FIXME:
+            # this is a hack: for certain architectures, we do not initialize the base pointer, since the jump table on
+            # those architectures may use the bp register to store value
+            if not self.project.arch.name in {'S390X'}:
+                start_state.regs.bp = start_state.arch.initial_sp + 0x2000
 
             init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=self._init_registers_on_demand)
             start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
@@ -277,9 +281,10 @@ class JumpTableResolver(IndirectJumpResolver):
                     all_targets.append(target)
 
                 if stmts_adding_base_addr:
-                    stmt_adding_base_addr = stmts_adding_base_addr[0]
-                    base_addr = stmt_adding_base_addr.args[0].con.value
-                    all_targets = [ target + base_addr for target in all_targets ]
+                    stmt_adding_base_addr : pyvex.IRExpr.WrTmp = stmts_adding_base_addr[0]
+                    base_addr = stmt_adding_base_addr.data.args[0].con.value
+                    mask = (2 ** self.project.arch.bits) - 1
+                    all_targets = [ (target + base_addr) & mask for target in all_targets ]
 
                 for target in all_targets:
                     jump_table.append(target)

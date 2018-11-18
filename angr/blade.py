@@ -301,16 +301,19 @@ class Blade(object):
             if type(next_expr) is pyvex.IRExpr.RdTmp:
                 temps.add(next_expr.tmp)
 
-        else:
-            exit_stmt = self._get_irsb(run).statements[exit_stmt_idx]
+        # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
+        # lose the condition)
+        for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
+            if not type(s_) is pyvex.IRStmt.Exit:
+                continue
 
-            if type(exit_stmt.guard) is pyvex.IRExpr.RdTmp:
-                temps.add(exit_stmt.guard.tmp)
+            if type(s_.guard) is pyvex.IRExpr.RdTmp:
+                temps.add(s_.guard.tmp)
 
             # Put it in our slice
             irsb_addr = self._get_addr(run)
-            self._inslice_callback(exit_stmt_idx, exit_stmt, {'irsb_addr': irsb_addr, 'prev': prev})
-            prev = (irsb_addr, exit_stmt_idx)
+            self._inslice_callback(stmt_idx_, s_, {'irsb_addr': irsb_addr, 'prev': prev})
+            prev = (irsb_addr, stmt_idx_)
 
         infodict = {'irsb_addr' : self._get_addr(run),
                     'prev' : prev,
