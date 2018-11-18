@@ -350,8 +350,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         :param load_stmt:   The VEX statement for loading the jump target addresses.
         :param state:       The SimState instance (in static mode).
-        :return:            A tuple of an abstract value (or a concrete value) representing the jump target addresses,
-                            and a set of extra concrete targets. Return (None, None) if we fail to parse the statement.
+        :return:            An abstract value (or a concrete value) representing the jump target addresses. Return None
+                            if we fail to parse the statement.
         """
 
         # The jump table address is stored in a tmp. In this case, we find the jump-target loading tmp.
