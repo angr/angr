@@ -75,6 +75,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         load_stmt_loc, load_stmt = None, None
         stmts_to_remove = [stmt_loc]
+        stmts_adding_base_addr = [ ]
+
         while True:
             preds = list(b.slice.predecessors(stmt_loc))
             if len(preds) != 1:
@@ -93,6 +95,58 @@ class JumpTableResolver(IndirectJumpResolver):
                     # > t44 = ITE(t43,t16,0x0000c844)
                     stmts_to_remove.append(stmt_loc)
                     continue
+                elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith('Iop_Add'):
+                    # GitHub issue #1289, a S390X binary
+                    # jump_label = &jump_table + *(jump_table[index])
+                    #       IRSB 0x4007c0
+                    #   00 | ------ IMark(0x4007c0, 4, 0) ------
+                    # + 01 | t0 = GET:I32(212)
+                    # + 02 | t1 = Add32(t0,0xffffffff)
+                    #   03 | PUT(352) = 0x0000000000000003
+                    #   04 | t13 = 32Sto64(t0)
+                    #   05 | t6 = t13
+                    #   06 | PUT(360) = t6
+                    #   07 | PUT(368) = 0xffffffffffffffff
+                    #   08 | PUT(376) = 0x0000000000000000
+                    #   09 | PUT(212) = t1
+                    #   10 | PUT(ia) = 0x00000000004007c4
+                    #   11 | ------ IMark(0x4007c4, 6, 0) ------
+                    # + 12 | t14 = 32Uto64(t1)
+                    # + 13 | t8 = t14
+                    # + 14 | t16 = CmpLE64U(t8,0x000000000000000b)
+                    # + 15 | t15 = 1Uto32(t16)
+                    # + 16 | t10 = t15
+                    # + 17 | t11 = CmpNE32(t10,0x00000000)
+                    # + 18 | if (t11) { PUT(offset=336) = 0x4007d4; Ijk_Boring }
+                    #   Next: 0x4007ca
+                    #
+                    #       IRSB 0x4007d4
+                    #   00 | ------ IMark(0x4007d4, 6, 0) ------
+                    # + 01 | t8 = GET:I64(r2)
+                    # + 02 | t7 = Shr64(t8,0x3d)
+                    # + 03 | t9 = Shl64(t8,0x03)
+                    # + 04 | t6 = Or64(t9,t7)
+                    # + 05 | t11 = And64(t6,0x00000007fffffff8)
+                    #   06 | ------ IMark(0x4007da, 6, 0) ------
+                    #   07 | PUT(r1) = 0x0000000000400a50
+                    #   08 | PUT(ia) = 0x00000000004007e0
+                    #   09 | ------ IMark(0x4007e0, 6, 0) ------
+                    # + 10 | t12 = Add64(0x0000000000400a50,t11)
+                    # + 11 | t16 = LDbe:I64(t12)
+                    #   12 | PUT(r2) = t16
+                    #   13 | ------ IMark(0x4007e6, 4, 0) ------
+                    # + 14 | t17 = Add64(0x0000000000400a50,t16)
+                    # + Next: t17
+                    #
+                    # Special case: a base address is added to the loaded offset before jumping to it.
+                    if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
+                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+                        stmts_adding_base_addr.append(stmt)
+                        stmts_to_remove.append(stmt_loc)
+                    else:
+                        # not supported
+                        pass
+                    continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
                     load_stmt, load_stmt_loc = stmt, stmt_loc
@@ -109,6 +163,10 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if load_stmt_loc is None:
             # the load statement is not found
+            return False, None
+
+        if len(stmts_adding_base_addr) > 1:
+            # there are more than one statement that is trying to mess with the loaded address. unsupported for now.
             return False, None
 
         # skip all statements before the load statement
@@ -174,6 +232,15 @@ class JumpTableResolver(IndirectJumpResolver):
                 jump_addr = self._parse_load_statement(load_stmt, state)
                 if jump_addr is None:
                     continue
+
+                # sanity check
+                if stmts_adding_base_addr:
+                    assert len(stmts_adding_base_addr) == 1  # Making sure we are only dealing with one operation here
+                    stmt_adding_base_addr = stmts_adding_base_addr[0]
+                    if stmt_adding_base_addr.data.args[1].tmp != load_stmt.tmp:
+                        # for some reason it's trying to add a base address onto a different temporary variable. skip.
+                        continue
+
                 all_targets = [ ]
                 total_cases = jump_addr._model_vsa.cardinality
 
@@ -208,6 +275,13 @@ class JumpTableResolver(IndirectJumpResolver):
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
                     target = cfg._fast_memory_load_pointer(a)
                     all_targets.append(target)
+
+                if stmts_adding_base_addr:
+                    stmt_adding_base_addr = stmts_adding_base_addr[0]
+                    base_addr = stmt_adding_base_addr.args[0].con.value
+                    all_targets = [ target + base_addr for target in all_targets ]
+
+                for target in all_targets:
                     jump_table.append(target)
 
                 l.info("Resolved %d targets from %#x.", len(all_targets), addr)
