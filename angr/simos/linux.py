@@ -65,6 +65,10 @@ class SimLinux(SimUserland):
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF00, self._loader_lock_addr)
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_unlock_addr)
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
+                elif isinstance(self.project.arch, ArchX86):
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7f4, self._loader_lock_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7f8, self._loader_unlock_addr)
+                    #self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
 
             # TODO: what the hell is this
             _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
