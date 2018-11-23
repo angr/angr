@@ -41,6 +41,33 @@ class PosixDevFS(SimMount): # this'll be mounted at /dev
     def copy(self, _):
         return self # this holds no state!
 
+
+class PosixProcFS(SimMount):
+    """
+    The virtual file system mounted at /proc (as of now, on Linux).
+    """
+    def get(self, path):
+        if path == [b"uptime"]:
+            return SimFile(b"uptime", content=b"0 0")
+        else:
+            return None
+
+    def insert(self, path, simfile): # pylint: disable=unused-argument
+        return False
+
+    def delete(self, path): # pylint: disable=unused-argument
+        return False
+
+    def merge(self, others, conditions, common_ancestor=None): # pylint: disable=unused-argument
+        return False
+
+    def widen(self, others): # pylint: disable=unused-argument
+        return False
+
+    def copy(self, _):
+        return self # this holds no state!
+
+
 class SimSystemPosix(SimStatePlugin):
     """
     Data storage and interaction mechanisms for states with an environment conforming to posix.
@@ -128,6 +155,7 @@ class SimSystemPosix(SimStatePlugin):
         self.uid = 1000 if uid is None else uid
         self.gid = 1000 if gid is None else gid
         self.dev_fs = None
+        self.proc_fs = None
         self.autotmp_counter = 0
 
         self.sockets = sockets if sockets is not None else {}
@@ -164,6 +192,9 @@ class SimSystemPosix(SimStatePlugin):
         if self.dev_fs is None:
             self.dev_fs = PosixDevFS()
             self.state.fs.mount(b"/dev", self.dev_fs)
+        if self.proc_fs is None:
+            self.proc_fs = PosixProcFS()
+            self.state.fs.mount(b"/proc", self.proc_fs)
 
     def set_brk(self, new_brk):
         # arch word size is not available at init for some reason, fix that here
@@ -440,6 +471,7 @@ class SimSystemPosix(SimStatePlugin):
                 gid=self.gid,
                 brk=self.brk)
         o.dev_fs = self.dev_fs.copy(memo)
+        o.proc_fs = self.proc_fs.copy(memo)
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):
