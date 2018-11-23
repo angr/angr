@@ -289,6 +289,10 @@ class SimSystemPosix(SimStatePlugin):
                 sockpair = self.socket_queue.pop(0)
                 if sockpair is not None:
                     memo = {}
+                    # Since we are not copying sockpairs when the FS state plugin branches, their original SimState
+                    # instances might have long gone. Update their states before making copies.
+                    sockpair[0].set_state(self.state)
+                    sockpair[1].set_state(self.state)
                     sockpair = sockpair[0].copy(memo), sockpair[1].copy(memo)
 
             if sockpair is None:
@@ -420,7 +424,9 @@ class SimSystemPosix(SimStatePlugin):
                 stderr=self.stderr.copy(memo),
                 fd={k: self.fd[k].copy(memo) for k in self.fd},
                 sockets={ident: tuple(x.copy(memo) for x in self.sockets[ident]) for ident in self.sockets},
-                socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use
+                socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use.
+                                                # as a result, we must update the state of each socket before making
+                                                # copies.
                 argv=self.argv,
                 argc=self.argc,
                 environ=self.environ,
