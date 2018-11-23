@@ -217,7 +217,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         :return: A tuple of the mount and a list of path elements traversing from the mountpoint to the specified file.
         """
         path_chunks = self._normalize_path(path)
-        for i in range(len(path_chunks)):
+        for i in range(len(path_chunks) - 1, -1, -1):
             partial_path = self._join_chunks(path_chunks[:-i])
             if partial_path in self._mountpoints:
                 mountpoint = self._mountpoints[partial_path]
