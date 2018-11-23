@@ -594,6 +594,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         cases = [ ]
         match_indices = [ ]
         offsets_matched = [ ] # Only used in static mode
+        byte_width = self.state.arch.byte_width
+        cond_prefix = None
 
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
@@ -611,11 +613,20 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                                   disable_actions=disable_actions, inspect=inspect)
 
             chunk_off = i-chunk_start
-            b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
+            b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
             condition = b == what
             if not self.state.solver.is_false(condition):
-                cases.append([b == what, claripy.BVV(i, len(start))])
+                if self.state.mode == 'tracing' and cond_prefix is not None:
+                    condition = claripy.And(cond_prefix, condition)
+                cases.append([condition, claripy.BVV(i, len(start))])
                 match_indices.append(i)
+
+            if self.state.mode == 'tracing' and b.symbolic:
+                # in tracing mode, we need to make sure that all previous bytes are not equal to what
+                if cond_prefix is None:
+                    cond_prefix = b != what
+                else:
+                    cond_prefix = claripy.And(cond_prefix, cond_prefix)
 
             if self.state.mode == 'static':
                 si = b._model_vsa
