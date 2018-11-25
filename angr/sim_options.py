@@ -284,6 +284,10 @@ HYBRID_SOLVER = 'HYBRID_SOLVER'
 # Note, that this option will only take effect if a hybrid solver used.
 APPROXIMATE_FIRST = 'APPROXIMATE_FIRST'
 
+# Disable optimizations based on symbolic memory bytes being single-valued in SimSymbolicMemory. This is useful in
+# tracing mode since such optimizations are unreliable since preconstraints will be removed after tracing is done.
+SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS = 'SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS'
+
 #
 # CGC specific state options
 #
@@ -331,5 +335,5 @@ modes = {
     'symbolic_approximating': common_options | symbolic | approximation | { TRACK_CONSTRAINT_ACTIONS },
     'static': (common_options - simplification) | { REGION_MAPPING, BEST_EFFORT_MEMORY_STORING, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP },
     'fastpath': (common_options - simplification ) | (symbolic - { SYMBOLIC, DO_CCALLS }) | resilience | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS },
-    'tracing': (common_options - simplification - {SUPPORT_FLOATING_POINT, ALL_FILES_EXIST}) | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { CGC_NO_SYMBOLIC_RECEIVE_LENGTH, REPLACEMENT_SOLVER, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, PRODUCE_ZERODIV_SUCCESSORS, ALLOW_SEND_FAILURES },
+    'tracing': (common_options - simplification - {SUPPORT_FLOATING_POINT, ALL_FILES_EXIST}) | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { CGC_NO_SYMBOLIC_RECEIVE_LENGTH, REPLACEMENT_SOLVER, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, PRODUCE_ZERODIV_SUCCESSORS, ALLOW_SEND_FAILURES, SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS },
 }
