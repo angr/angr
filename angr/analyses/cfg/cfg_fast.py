@@ -2232,9 +2232,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         next_instr_addr = None
         for stmt_idx, stmt in enumerate(irsb.statements):
             if type(stmt) is pyvex.IRStmt.IMark:  # pylint: disable=unidiomatic-typecheck
-                instr_addr = instr_addrs[0]
-                instr_addrs = instr_addrs[1 : ]
-                next_instr_addr = instr_addrs[0] if instr_addrs else None
+                instr_addr = stmt.addr + stmt.delta
+                # there can be weird cases sometimes... I've seen two IMarks with the exact same address showing up one
+                # after the other.
+                if instr_addrs and instr_addr == instr_addrs[0]:
+                    instr_addr = instr_addrs[0]
+                    instr_addrs = instr_addrs[1 : ]
+                    next_instr_addr = instr_addrs[0] if instr_addrs else None
 
             elif type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
