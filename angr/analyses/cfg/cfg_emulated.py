@@ -1449,6 +1449,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if sim_successors.sort == 'IRSB' and input_state.thumb:
             successors = self._arm_thumb_filter_jump_successors(sim_successors.addr,
+                                                                sim_successors.artifacts['irsb'].size,
                                                                 successors,
                                                                 lambda state: state.scratch.ins_addr,
                                                                 lambda state: state.scratch.exit_stmt_idx
