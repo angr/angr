@@ -514,6 +514,48 @@ class CFGBase(Analysis):
         if edge in self._graph:
             self._graph.remove_edge(*edge)
 
+    def _merge_cfgnodes(self, cfgnode_0, cfgnode_1):
+        """
+        Merge two adjacent CFGNodes into one.
+
+        :param CFGNode cfgnode_0:   The first CFGNode.
+        :param CFGNode cfgnode_1:   The second CFGNode.
+        :return:                    None
+        """
+
+        assert cfgnode_0.addr + cfgnode_0.size == cfgnode_1.addr
+        addr0, addr1 = cfgnode_0.addr, cfgnode_1.addr
+        new_node = cfgnode_0.copy()
+        new_node.size += cfgnode_1.size
+
+        # Update the graph and the nodes dict accordingly
+        if addr1 in self._nodes_by_addr:
+            self._nodes_by_addr[addr1].remove(cfgnode_1)
+            if not self._nodes_by_addr[addr1]:
+                del self._nodes_by_addr[addr1]
+        del self._nodes[cfgnode_1.block_id]
+
+        self._nodes_by_addr[addr0].remove(cfgnode_0)
+        if not self._nodes_by_addr[addr0]:
+            del self._nodes_by_addr[addr0]
+        del self._nodes[cfgnode_0.block_id]
+
+        in_edges = list(self._graph.in_edges(cfgnode_0, data=True))
+        out_edges = list(self._graph.out_edges(cfgnode_1, data=True))
+
+        self._graph.remove_node(cfgnode_0)
+        self._graph.remove_node(cfgnode_1)
+
+        for src, _, data in in_edges:
+            self._graph.add_edge(src, new_node, **data)
+        for _, dst, data in out_edges:
+            self._graph.add_edge(new_node, dst, **data)
+
+        # Put the new node into node dicts
+        self._nodes[new_node.block_id] = new_node
+        self._nodes_by_addr[addr0].append(new_node)
+
+
     def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
         """
         Convert a CFGNode instance to a CodeNode object.
@@ -1389,12 +1431,14 @@ class CFGBase(Analysis):
                                                                  called_function_addrs,
                                                                  blockaddr_to_function
                                                                  )
-        removed_functions_b = self._process_irrational_function_starts(tmp_functions,
-                                                                       called_function_addrs,
-                                                                       blockaddr_to_function
-                                                                       )
+        removed_functions_b, adjusted_cfgnodes = self._process_irrational_function_starts(tmp_functions,
+                                                                                          called_function_addrs,
+                                                                                          blockaddr_to_function
+                                                                                          )
         removed_functions = removed_functions_a | removed_functions_b
 
+        # Remove all nodes that are adjusted
+        function_nodes.difference_update(adjusted_cfgnodes)
         for n in self.graph.nodes():
             if n.addr in tmp_functions or n.addr in removed_functions:
                 function_nodes.add(n)
@@ -1647,6 +1691,7 @@ class CFGBase(Analysis):
 
         addrs = sorted(functions.keys())
         functions_to_remove = set()
+        adjusted_cfgnodes = set()
 
         for addr_0, addr_1 in zip(addrs[:-1], addrs[1:]):
 
@@ -1680,9 +1725,19 @@ class CFGBase(Analysis):
 
                 l.debug("Merging function %#x into %#x.", addr_1, addr_0)
 
+                # Merge block addr_0 and block addr_1
+                cfgnode_0 = self.get_any_node(addr_0)
+                cfgnode_1 = self.get_any_node(addr_1)
+                self._merge_cfgnodes(cfgnode_0, cfgnode_1)
+                adjusted_cfgnodes.add(cfgnode_0)
+                adjusted_cfgnodes.add(cfgnode_1)
+
                 # Merge it
                 func_1 = functions[addr_1]
                 for block_addr in func_1.block_addrs:
+                    if block_addr == addr_1:
+                        # Skip addr_1 (since it has been merged to the preceding block)
+                        continue
                     merge_with = self._addr_to_function(addr_0, blockaddr_to_function, functions)
                     blockaddr_to_function[block_addr] = merge_with
 
@@ -1691,7 +1746,7 @@ class CFGBase(Analysis):
         for to_remove in functions_to_remove:
             del functions[to_remove]
 
-        return functions_to_remove
+        return functions_to_remove, adjusted_cfgnodes
 
     def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
         """
