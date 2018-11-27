@@ -1432,11 +1432,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _widen_jobs(self, *jobs):
         pass
 
-    def _post_process_successors(self, addr, successors):
+    def _post_process_successors(self, addr, size, successors):
 
         if self.project.arch.name in ('ARMEL', 'ARMHF') and addr % 2 == 1:
             # we are in thumb mode. filter successors
             successors = self._arm_thumb_filter_jump_successors(addr,
+                                                                size,
                                                                 successors,
                                                                 lambda tpl: tpl[1],
                                                                 lambda tpl: tpl[0]
@@ -1846,7 +1847,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         entries = [ ]
 
-        successors = self._post_process_successors(addr, successors)
+        successors = self._post_process_successors(addr, irsb.size, successors)
 
         # Process each successor
         for suc in successors:
@@ -3526,17 +3527,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     distance = min(distance, VEX_IRSB_MAX_SIZE)
                 # TODO: handle segment information as well
 
-            if cfg_job.job_type == CFGJob.JOB_TYPE_COMPLETE_SCANNING:
-                # also check the distance between `addr` and the closest function.
-                # we don't want to have a basic block that spans across function boundaries
-                next_func = self.functions.ceiling_func(addr)
-                if next_func is not None:
-                    distance_to_func = (next_func.addr & (~1) if is_arm_arch else next_func.addr) - real_addr
-                    if distance_to_func != 0:
-                        if distance is None:
-                            distance = distance_to_func
-                        else:
-                            distance = min(distance, distance_to_func)
+            # also check the distance between `addr` and the closest function.
+            # we don't want to have a basic block that spans across function boundaries
+            next_func = self.functions.ceiling_func(addr)
+            if next_func is not None:
+                distance_to_func = (next_func.addr & (~1) if is_arm_arch else next_func.addr) - real_addr
+                if distance_to_func != 0:
+                    if distance is None:
+                        distance = distance_to_func
+                    else:
+                        distance = min(distance, distance_to_func)
 
             # in the end, check the distance between `addr` and the closest occupied region in segment list
             next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, { "code" }, max_distance=distance)
