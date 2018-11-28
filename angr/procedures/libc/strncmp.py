@@ -168,6 +168,6 @@ class strncmp_old(angr.SimProcedure):
 class strncmp(strncmp_old):
     def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False): #pylint:disable=arguments-differ
         try:
-            super().run(a_addr, b_addr, limit, a_len, b_len, wchar, ignore_case)
+            return super().run(a_addr, b_addr, limit, a_len, b_len, wchar, ignore_case)
         except angr.SimUnsatError:
             return self.state.solver.Unconstrained('stncmp', 32, uninitialized=False)

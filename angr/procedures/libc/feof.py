@@ -15,5 +15,5 @@ class feof(angr.SimProcedure):
         fileno = self.state.mem[file_ptr + fd_offset:].int.concrete
         simfd = self.state.posix.get_fd(fileno)
         if simfd is None:
-            return None
+            return self.state.solver.If(self.state.solver.BVS('feof', self.arch.bits), self.state.solver.BVV(1, self.state.arch.bits), 0)
         return self.state.solver.If(simfd.eof(), self.state.solver.BVV(1, self.state.arch.bits), 0)

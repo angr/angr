@@ -64,6 +64,6 @@ class memcmp_old(angr.SimProcedure):
 class memcmp(memcmp_old):
     def run(self, s1_addr, s2_addr, n):
         try:
-            super().run(s1_addr, s2_addr, n)
+            return super().run(s1_addr, s2_addr, n)
         except angr.SimUnsatError:
             return self.state.solver.Unconstrained('memcmp', 32, uninitialized=False)

@@ -75,6 +75,6 @@ class strstr_old(angr.SimProcedure):
 class strstr(strstr_old):
     def run(self, haystack_addr, needle_addr, haystack_strlen=None, needle_strlen=None):
         try:
-            super().run(haystack_strlen, needle_addr, haystack_strlen, needle_strlen)
+            return super().run(haystack_addr, needle_addr, haystack_strlen, needle_strlen)
         except angr.SimUnsatError:
             return self.state.solver.Unconstrained('strstr', self.state.arch.bits, uninitialized=False)
