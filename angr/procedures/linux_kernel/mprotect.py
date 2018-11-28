@@ -8,19 +8,22 @@ class mprotect(angr.SimProcedure):
     def run(self, addr, length, prot): #pylint:disable=arguments-differ,unused-argument
 
         try:
-            addr = self.state.solver.eval_one(addr)
-        except angr.errors.SimValueError:
-            raise angr.errors.SimValueError("mprotect can't handle symbolic addr")
+            try:
+                addr = self.state.solver.eval_one(addr)
+            except angr.errors.SimValueError:
+                raise angr.errors.SimValueError("mprotect can't handle symbolic addr")
 
-        try:
-            length = self.state.solver.eval_one(length)
-        except angr.errors.SimValueError:
-            raise angr.errors.SimValueError("mprotect can't handle symbolic length")
+            try:
+                length = self.state.solver.eval_one(length)
+            except angr.errors.SimValueError:
+                raise angr.errors.SimValueError("mprotect can't handle symbolic length")
 
-        try:
-            prot = self.state.solver.eval_one(prot)
+            try:
+                prot = self.state.solver.eval_one(prot)
+            except angr.errors.SimValueError:
+                raise angr.errors.SimValueError("mprotect can't handle symbolic prot")
         except angr.errors.SimValueError:
-            raise angr.errors.SimValueError("mprotect can't handle symbolic prot")
+            return self.state.solver.Unconstrained('mprotect', 32, uninitialized=False)
 
         l.debug('mprotect(%#x, %#x, %#x) = ...', addr, length, prot)
 
