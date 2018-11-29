@@ -1196,7 +1196,7 @@ class Data(object):
                 # it's not aligned?
                 raise BinaryError('Fails at Data.shrink()')
 
-            pointers = self.size / pointer_size
+            pointers = int( self.size / pointer_size )
             self._content = self._content[ : pointers]
 
         else:
@@ -1222,7 +1222,7 @@ class Data(object):
 
         # TODO: What if it's not aligned for some sort of data, like pointer array?
 
-        if self.addr is None:
+        if self.addr is None or self.size is None:
             # this piece of data comes from a patch, not from the original binary
             return
 
@@ -2486,6 +2486,9 @@ class Reassembler(Analysis):
         for i, data in enumerate(self.data):
 
             if i in data_indices_to_remove:
+                continue
+            
+            if data.size is None:
                 continue
 
             # process the overlapping ones
