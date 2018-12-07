@@ -18,6 +18,7 @@ event_types = {
     'constraints',
     'exit',
     'fork',
+    'successor',
     'symbolic_variable',
     'call',
     'return',

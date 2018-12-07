@@ -114,6 +114,7 @@ class SimSuccessors(object):
         state.scratch.exit_ins_addr = exit_ins_addr
 
         self._preprocess_successor(state, add_guard=add_guard)
+        state._inspect('successor', BP_AFTER)
 
         if state.history.jumpkind == 'Ijk_SigFPE_IntDiv' and o.PRODUCE_ZERODIV_SUCCESSORS not in state.options:
             return
