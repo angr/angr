@@ -510,7 +510,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         dst_memory.store(dst, data, size=size, condition=condition, inspect=inspect, disable_actions=disable_actions)
         return data
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1, chunk_size=None):  # pylint:disable=arguments-differ
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+             disable_actions=False, inspect=True, chunk_size=None):
         if type(addr) is int:
             addr = self.state.solver.BVV(addr, self.state.arch.bits)
 
@@ -649,7 +650,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             dst = self.state.solver.BVV(dst, self.state.arch.bits)
 
         addrs = self._normalize_address_type(dst)
-
 
         for region, addr in addrs:
             address_wrapper = self._normalize_address(region, addr.min)
