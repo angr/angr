@@ -83,7 +83,7 @@ class CFGNode(object):
         self._hash = None
 
         # Sanity check
-        if self.block_id is None:
+        if self.block_id is None and type(self) is CFGNode:  # pylint: disable=unidiomatic-typecheck
             _l.warning("block_id is unspecified for %s. Default to its address %#x.", str(self), self.addr)
             self.block_id = self.addr
 
