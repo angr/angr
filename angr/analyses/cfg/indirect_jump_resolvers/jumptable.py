@@ -84,7 +84,8 @@ class JumpTableResolver(IndirectJumpResolver):
         :return: A bool indicating whether the indirect jump is resolved successfully, and a list of resolved targets
         :rtype: tuple
         """
-
+        if addr == 0x4002e7:
+            import ipdb; ipdb.set_trace()
         project = self.project  # short-hand
         self._max_targets = cfg._indirect_jump_target_limit
         # Perform a backward slicing from the jump target
@@ -251,13 +252,6 @@ class JumpTableResolver(IndirectJumpResolver):
             # the load statement is not found
             return False, None
 
-        if len(stmts_adding_base_addr) > 1:
-            # there are more than one statement that is trying to mess with the loaded address. unsupported for now.
-            return False, None
-
-        # skip all statements before the load statement
-        b.slice.remove_nodes_from(stmts_to_remove)
-
         # If we're just reading a constant, don't bother with the rest of this mess!
         if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
             if type(load_stmt.data.addr) is pyvex.IRExpr.Const:
@@ -298,7 +292,6 @@ class JumpTableResolver(IndirectJumpResolver):
         # We want to leave the final loaded value as symbolic, so we can
         # get the full range of possibilities
         b.slice.remove_nodes_from(stmts_to_remove)
->>>>>>> ff84f1f1... Jump on tables, faster.  Fix previous commit and cut out symexec if we don't need it
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -423,12 +416,16 @@ class JumpTableResolver(IndirectJumpResolver):
                 min_jumptable_addr = state.solver.min(jumptable_addr)
                 max_jumptable_addr = state.solver.max(jumptable_addr)
 
-                # The beginning of the jump table and the end of the jump table should be within a mapped memory region
-                if not cfg.project.loader.find_object_containing(min_jumptable_addr) or \
-                        not cfg.project.loader.find_object_containing(max_jumptable_addr):
-                    l.debug("Indirect jump at block %#x seems to be referencing a jumptable outside mapped memory"
-                            "regions. Attempt to resolve it from the next data source.", addr)
-                    continue
+                # Both the min jump target and the max jump target should be within a mapped memory region
+                # i.e., we shouldn't be jumping to the stack or somewhere unmapped
+                if (not project.loader.find_segment_containing(min_jump_target) or \
+                        not project.loader.find_segment_containing(max_jump_target)):
+                    if (not project.loader.find_section_containing(min_jump_target) or \
+                            not project.loader.find_section_containing(max_jump_target)):
+
+                        l.debug("Jump table %#x might have jump targets outside mapped memory regions. "
+                                "Continue to resolve it from the next data source.", addr)
+                        continue
 
                 # Load the jump table from memory
                 for idx, a in enumerate(state.solver.eval_upto(jumptable_addr, total_cases)):
