@@ -2685,6 +2685,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         dst_node = CFGNode(self._unresolvable_target_addr, 0, self,
                            function_address=self._unresolvable_target_addr,
                            simprocedure_name='UnresolvableTarget',
+                           block_id=self._unresolvable_target_addr,
                            )
 
         # add the dst_node to self._nodes
@@ -2771,6 +2772,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                     ),
                                             thumb=a.thumb,
                                             byte_string=None if a.byte_string is None else a.byte_string[nop_length:],
+                                            block_id=next_node_addr,
                                             )
                         self.graph.add_node(next_node)
 
@@ -2931,7 +2933,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                      if node.addr <= i < node.addr + new_size
                                                    ),
                            thumb=node.thumb,
-                           byte_string=None if node.byte_string is None else node.byte_string[:new_size]
+                           byte_string=None if node.byte_string is None else node.byte_string[:new_size],
+                           block_id=node.addr,
                            )
 
         old_in_edges = self.graph.in_edges(node, data=True)

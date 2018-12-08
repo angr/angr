@@ -1683,6 +1683,7 @@ class CFGBase(Analysis):
         If the following conditions are met, we will remove the second function and merge it into the first function:
         - The second function is not called by other code.
         - The first function has only one jumpout site, which points to the second function.
+        - The first function and the second function are adjacent.
 
         :param FunctionManager functions:   All functions that angr recovers.
         :return:                            A set of addresses of all removed functions.
@@ -1721,6 +1722,10 @@ class CFGBase(Analysis):
                     continue
 
                 if target_addr != addr_1:
+                    continue
+
+                # Are func_0 adjacent to func_1?
+                if block.addr + block.size != addr_1:
                     continue
 
                 l.debug("Merging function %#x into %#x.", addr_1, addr_0)
