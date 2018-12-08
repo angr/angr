@@ -5,11 +5,11 @@ class ExplorationTechniqueMeta(type):
     def __new__(cls, name, bases, attrs):
         import inspect
         if name != 'ExplorationTechniqueCompat':
-            if 'step' in attrs and not inspect.getargspec(attrs['step']).defaults:
+            if 'step' in attrs and not inspect.getfullargspec(attrs['step']).defaults:
                 attrs['step'] = cls._step_factory(attrs['step'])
-            if 'filter' in attrs and inspect.getargspec(attrs['filter']).args[1] != 'simgr':
+            if 'filter' in attrs and inspect.getfullargspec(attrs['filter']).args[1] != 'simgr':
                 attrs['filter'] = cls._filter_factory(attrs['filter'])
-            if 'step_state' in attrs and inspect.getargspec(attrs['step_state']).args[1] != 'simgr':
+            if 'step_state' in attrs and inspect.getfullargspec(attrs['step_state']).args[1] != 'simgr':
                 attrs['step_state'] = cls._step_state_factory(attrs['step_state'])
         return type.__new__(cls, name, bases, attrs)
 
