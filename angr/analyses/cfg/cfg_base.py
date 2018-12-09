@@ -546,6 +546,7 @@ class CFGBase(Analysis):
         self._graph.remove_node(cfgnode_0)
         self._graph.remove_node(cfgnode_1)
 
+        self._graph.add_node(new_node)
         for src, _, data in in_edges:
             self._graph.add_edge(src, new_node, **data)
         for _, dst, data in out_edges:
