@@ -1,9 +1,12 @@
 import traceback
+import logging
 
 import archinfo
 
 from ...codenode import BlockNode, HookNode
 from ...engines.successors import SimSuccessors
+
+_l = logging.getLogger(__name__)
 
 
 class CFGNodeCreationFailure(object):
@@ -78,6 +81,11 @@ class CFGNode(object):
         self.irsb = None #irsb
         self.has_return = False
         self._hash = None
+
+        # Sanity check
+        if self.block_id is None and type(self) is CFGNode:  # pylint: disable=unidiomatic-typecheck
+            _l.warning("block_id is unspecified for %s. Default to its address %#x.", str(self), self.addr)
+            self.block_id = self.addr
 
     @property
     def name(self):
