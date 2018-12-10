@@ -355,6 +355,12 @@ class Function(object):
             # don't trace outside of the binary
             if not self._project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
                 continue
+            # don't trace unreachable blocks
+            if state.history.jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode',
+                                          'Ijk_MapFail', 'Ijk_NoRedir',
+                                          'Ijk_SigTRAP', 'Ijk_SigSEGV',
+                                          'Ijk_ClientReq'}:
+                continue
 
             curr_ip = state.solver.eval(state.ip)
 
