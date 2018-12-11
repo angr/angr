@@ -408,7 +408,13 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         ip_addr = ip_data.get_first_element()
         if not isinstance(ip_addr, int):
-            l.error('Invalid type %s for IP.', type(ip_addr).__name__)
+            l.warning('Invalid type %s for IP.', type(ip_addr).__name__)
+            handler_name = 'handle_unknown_call'
+            if hasattr(self._function_handler, handler_name):
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                self.state = state
+            else:
+                l.warning('Please implement the unknown function handler with your own logic.')
             return None
 
         is_internal = False
