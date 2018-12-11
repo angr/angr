@@ -10,7 +10,7 @@ from ...block import Block, BlockNode
 from .. import Analysis, register_analysis
 from .region_identifier import RegionIdentifier, MultiNode, GraphRegion
 
-l = logging.getLogger('angr.analyses.structurer')
+l = logging.getLogger(name=__name__)
 
 INDENT_DELTA = 2
 

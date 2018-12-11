@@ -1,4 +1,8 @@
+
+import pycparser
+
 from .calling_conventions import DEFAULT_CC
+
 
 class Callable(object):
     """
@@ -76,5 +80,49 @@ class Callable(object):
         if self._perform_merge:
             caller.merge()
             self.result_state = caller.active[0]
+
+    def call_c(self, c_args):
+        """
+        Call this Callable with a string of C-style arguments.
+
+        :param str c_args:  C-style arguments.
+        :return:            The return value from the call.
+        :rtype:             claripy.Ast
+        """
+
+        c_args = c_args.strip()
+        if c_args[0] != "(":
+            c_args = "(" + c_args
+        if c_args[-1] != ")":
+            c_args += ")"
+
+        # Parse arguments
+        content = "int main() { func%s; }" % c_args
+        ast = pycparser.CParser().parse(content)
+
+        if not ast.ext or not isinstance(ast.ext[0], pycparser.c_ast.FuncDef):
+            raise AngrCallableError("Error in parsing the given C-style argument string.")
+
+        if not ast.ext[0].body.block_items or not isinstance(ast.ext[0].body.block_items[0], pycparser.c_ast.FuncCall):
+            raise AngrCallableError("Error in parsing the given C-style argument string: "
+                                    "Cannot find the expected function call.")
+
+        arg_exprs = ast.ext[0].body.block_items[0].args.exprs
+
+        args = [ ]
+        for expr in arg_exprs:
+            if isinstance(expr, pycparser.c_ast.Constant):
+                # string
+                if expr.type == "string":
+                    args.append(expr.value[1:-1])
+                elif expr.type == "int":
+                    args.append(int(expr.value))
+                else:
+                    raise AngrCallableError("Unsupported expression type %s." % expr.type)
+            else:
+                raise AngrCallableError("Unsupported expression type %s." % type(expr))
+
+        return self.__call__(*args)
+
 
 from .errors import AngrCallableError, AngrCallableMultistateError

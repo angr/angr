@@ -4,7 +4,7 @@ import itertools
 from cle import Symbol
 
 import logging
-l = logging.getLogger("angr.sim_procedure")
+l = logging.getLogger(name=__name__)
 
 symbolic_count = itertools.count()
 
@@ -67,7 +67,7 @@ class SimProcedure:
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
-            run_spec = inspect.getargspec(self.run)
+            run_spec = inspect.getfullargspec(self.run)
             self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         else:
             self.num_args = num_args

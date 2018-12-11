@@ -4,7 +4,7 @@ from .... import sim_options as o
 from ....errors import UnsupportedDirtyError
 
 import logging
-l = logging.getLogger("angr.engines.vex.statements.dirty")
+l = logging.getLogger(name=__name__)
 
 class SimIRStmt_Dirty(SimIRStmt):
     # Example:
@@ -27,6 +27,7 @@ class SimIRStmt_Dirty(SimIRStmt):
                 tmp_deps = None
 
             func = getattr(dirty, self.stmt.cee.name)
+
             retval, retval_constraints = func(self.state, *s_args)
 
             self._add_constraints(*retval_constraints)

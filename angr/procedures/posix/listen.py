@@ -4,7 +4,7 @@ import angr
 # listen (but not really)
 ######################################
 import logging
-l = logging.getLogger("angr.procedures.posix.listen")
+l = logging.getLogger(name=__name__)
 
 class listen(angr.SimProcedure):
     #pylint:disable=arguments-differ

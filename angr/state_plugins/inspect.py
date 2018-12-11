@@ -1,7 +1,7 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
 
 import logging
-l = logging.getLogger("angr.state_plugins.inspect")
+l = logging.getLogger(name=__name__)
 
 event_types = {
     'mem_read',

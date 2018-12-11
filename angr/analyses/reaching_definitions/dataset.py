@@ -4,7 +4,7 @@ import operator
 from .constants import DEBUG
 from .undefined import Undefined
 
-l = logging.getLogger('angr.analyses.reaching_definitions.dataset')
+l = logging.getLogger(name=__name__)
 
 
 class DataSet(object):

@@ -44,7 +44,6 @@ def run_all():
             all_functions[f]()
 
 if __name__ == "__main__":
-    logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.bindiff").setLevel(logging.DEBUG)
 
     import sys

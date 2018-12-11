@@ -10,7 +10,7 @@ from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
 from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, \
     SimStackVariable
 
-l = logging.getLogger("angr.analyses.ddg")
+l = logging.getLogger(name=__name__)
 
 
 class AST(object):

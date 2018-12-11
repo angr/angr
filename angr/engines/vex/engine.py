@@ -1,4 +1,3 @@
-
 from cachetools import LRUCache
 
 import pyvex
@@ -11,13 +10,14 @@ from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError)
+
 from ...misc.ux import once
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
 
 import logging
-l = logging.getLogger("angr.engines.vex.engine")
+l = logging.getLogger(name=__name__)
 
 #pylint: disable=arguments-differ
 
@@ -66,10 +66,12 @@ class SimEngineVEX(SimEngine):
 
         self._initialize_block_cache()
 
-    def is_stop_point(self, addr):
+    def is_stop_point(self, addr, extra_stop_points=None):
         if self.project is not None and addr in self.project._sim_procedures:
             return True
         elif self._stop_points is not None and addr in self._stop_points:
+            return True
+        elif extra_stop_points is not None and addr in extra_stop_points:
             return True
         return False
 
@@ -90,6 +92,7 @@ class SimEngineVEX(SimEngine):
             num_inst=None,
             traceflags=0,
             thumb=False,
+            extra_stop_points=None,
             opt_level=None,
             **kwargs):
         """
@@ -101,12 +104,14 @@ class SimEngineVEX(SimEngine):
         :param inline:      This is an inline execution. Do not bother copying the state.
         :param force_addr:  Force execution to pretend that we're working at this concrete address
 
-        :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
-        :param opt_level:       The VEX optimization level to use.
-        :param insn_bytes:      A string of bytes to use for the block instead of the project.
-        :param size:            The maximum size of the block, in bytes.
-        :param num_inst:        The maximum number of instructions.
-        :param traceflags:      traceflags to be passed to VEX. (default: 0)
+        :param thumb:       Whether the block should be lifted in ARM's THUMB mode.
+        :param extra_stop_points:
+                            An extra set of points at which to break basic blocks
+        :param opt_level:   The VEX optimization level to use.
+        :param insn_bytes:  A string of bytes to use for the block instead of the project.
+        :param size:        The maximum size of the block, in bytes.
+        :param num_inst:    The maximum number of instructions.
+        :param traceflags:  traceflags to be passed to VEX. (default: 0)
         :returns:           A SimSuccessors object categorizing the block's successors
         """
         if 'insn_text' in kwargs:
@@ -116,7 +121,7 @@ class SimEngineVEX(SimEngine):
 
             insn_bytes = \
                 self.project.arch.asm(kwargs['insn_text'], addr=kwargs.get('addr', 0),
-                                      thumb=kwargs.get('thumb', False), as_bytes=True)
+                                      thumb=thumb, as_bytes=True)
 
             if insn_bytes is None:
                 raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
@@ -133,12 +138,13 @@ class SimEngineVEX(SimEngine):
                 num_inst=num_inst,
                 traceflags=traceflags,
                 thumb=thumb,
+                extra_stop_points=extra_stop_points,
                 opt_level=opt_level)
 
     def _check(self, state, *args, **kwargs):
         return True
 
-    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=99999999, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
+    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=None, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, extra_stop_points=None, opt_level=None):
         successors.sort = 'IRSB'
         successors.description = 'IRSB'
         state.history.recent_block_count = 1
@@ -157,6 +163,7 @@ class SimEngineVEX(SimEngine):
                     num_inst=num_inst,
                     traceflags=traceflags,
                     thumb=thumb,
+                    extra_stop_points=extra_stop_points,
                     opt_level=opt_level)
 
             if irsb.size == 0:
@@ -230,7 +237,7 @@ class SimEngineVEX(SimEngine):
 
         # if we've told the block to truncate before it ends, it will definitely have a default
         # exit barring errors
-        has_default_exit = has_default_exit and (last_stmt == 'default' or num_stmts <= last_stmt)
+        has_default_exit = has_default_exit and (last_stmt in (None, 'default') or num_stmts <= last_stmt)
 
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:
@@ -262,8 +269,10 @@ class SimEngineVEX(SimEngine):
             try:
                 state.scratch.stmt_idx = stmt_idx
                 state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-                self._handle_statement(state, successors, stmt)
+                cont = self._handle_statement(state, successors, stmt)
                 state._inspect('statement', BP_AFTER)
+                if not cont:
+                    return
             except UnsupportedDirtyError:
                 if o.BYPASS_UNSUPPORTED_IRDIRTY not in state.options:
                     raise
@@ -379,14 +388,43 @@ class SimEngineVEX(SimEngine):
 
             # Produce our successor state!
             # Let SimSuccessors.add_successor handle the nitty gritty details
-            exit_state = state.copy()
-            successors.add_successor(exit_state, s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
-                                     exit_stmt_idx=state.scratch.stmt_idx, exit_ins_addr=state.scratch.ins_addr)
+
+            cont_state = None
+            exit_state = None
+
+            if o.COPY_STATES not in state.options:
+                # very special logic to try to minimize copies
+                # first, check if this branch is impossible
+                if s_stmt.guard.is_false():
+                    cont_state = state
+                elif o.LAZY_SOLVES not in state.options and not state.solver.satisfiable(extra_constraints=(s_stmt.guard,)):
+                    cont_state = state
+
+                # then, check if it's impossible to continue from this branch
+                elif s_stmt.guard.is_true():
+                    exit_state = state
+                elif o.LAZY_SOLVES not in state.options and not state.solver.satisfiable(extra_constraints=(claripy.Not(s_stmt.guard),)):
+                    exit_state = state
+                else:
+                    exit_state = state.copy()
+                    cont_state = state
+            else:
+                exit_state = state.copy()
+                cont_state = state
+
+            if exit_state is not None:
+                successors.add_successor(exit_state, s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
+                                         exit_stmt_idx=state.scratch.stmt_idx, exit_ins_addr=state.scratch.ins_addr)
+
+            if cont_state is None:
+                return False
 
             # Do our bookkeeping on the continuing state
             cont_condition = claripy.Not(s_stmt.guard)
-            state.add_constraints(cont_condition)
-            state.scratch.guard = claripy.And(state.scratch.guard, cont_condition)
+            cont_state.add_constraints(cont_condition)
+            cont_state.scratch.guard = claripy.And(cont_state.scratch.guard, cont_condition)
+
+        return True
 
     def lift(self,
              state=None,
@@ -398,6 +436,7 @@ class SimEngineVEX(SimEngine):
              num_inst=None,
              traceflags=0,
              thumb=False,
+             extra_stop_points=None,
              opt_level=None,
              strict_block_end=None,
              skip_stmts=False,
@@ -496,7 +535,7 @@ class SimEngineVEX(SimEngine):
             if cache_key in self._block_cache:
                 self._block_cache_hits += 1
                 irsb = self._block_cache[cache_key]
-                stop_point = self._first_stoppoint(irsb)
+                stop_point = self._first_stoppoint(irsb, extra_stop_points)
                 if stop_point is None:
                     return irsb
                 else:
@@ -532,6 +571,7 @@ class SimEngineVEX(SimEngine):
         # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
         try:
             for subphase in range(2):
+
                 irsb = pyvex.lift(buff, addr + thumb, arch,
                                   max_bytes=size,
                                   max_inst=num_inst,
@@ -545,7 +585,7 @@ class SimEngineVEX(SimEngine):
 
                 if subphase == 0 and irsb.statements is not None:
                     # check for possible stop points
-                    stop_point = self._first_stoppoint(irsb)
+                    stop_point = self._first_stoppoint(irsb, extra_stop_points)
                     if stop_point is not None:
                         size = stop_point - addr
                         continue
@@ -632,12 +672,12 @@ class SimEngineVEX(SimEngine):
         size = min(max_size, size)
         return buff, size
 
-    def _first_stoppoint(self, irsb):
+    def _first_stoppoint(self, irsb, extra_stop_points=None):
         """
         Enumerate the imarks in the block. If any of them (after the first one) are at a stop point, returns the address
         of the stop point. None is returned otherwise.
         """
-        if self._stop_points is None and self.project is None:
+        if self._stop_points is None and extra_stop_points is None and self.project is None:
             return None
 
         first_imark = True
@@ -645,10 +685,10 @@ class SimEngineVEX(SimEngine):
             if type(stmt) is pyvex.stmt.IMark:  # pylint: disable=unidiomatic-typecheck
                 addr = stmt.addr + stmt.delta
                 if not first_imark:
-                    if self.is_stop_point(addr):
+                    if self.is_stop_point(addr, extra_stop_points):
                         # could this part be moved by pyvex?
                         return addr
-                    if stmt.delta != 0 and self.is_stop_point(stmt.addr):
+                    if stmt.delta != 0 and self.is_stop_point(stmt.addr, extra_stop_points):
                         return addr
 
                 first_imark = False

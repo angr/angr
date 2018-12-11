@@ -10,7 +10,7 @@ from .undefined import Undefined
 from ...engines.light import SimEngineLightAIL, RegisterOffset, SpOffset
 from ...errors import SimEngineError
 
-l = logging.getLogger('angr.analyses.reaching_definitions.engine_ail')
+l = logging.getLogger(name=__name__)
 
 
 class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
@@ -200,7 +200,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
     def _ail_handle_Const(self, expr):
-        return expr
+        return DataSet(expr, expr.bits)
 
     #
     # User defined high level statement handlers

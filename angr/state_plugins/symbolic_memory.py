@@ -3,7 +3,7 @@ from collections import defaultdict
 import logging
 import itertools
 
-l = logging.getLogger("angr.state_plugins.symbolic_memory")
+l = logging.getLogger(name=__name__)
 
 import claripy
 
@@ -570,7 +570,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return addrs, read_value, load_constraint
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
-              disable_actions=False, inspect=True):
+              disable_actions=False, inspect=True, chunk_size=None):
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
@@ -581,16 +581,22 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)//self.state.arch.byte_width
         symbolic_what = self.state.solver.symbolic(what)
+
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         chunk_start = 0
-        chunk_size = max(0x100, seek_size + 0x80)
+        if chunk_size is None:
+            chunk_size = max(0x100, seek_size + 0x80)
+
         chunk = self.load(start, chunk_size, endness="Iend_BE",
                           disable_actions=disable_actions, inspect=inspect)
 
         cases = [ ]
         match_indices = [ ]
         offsets_matched = [ ] # Only used in static mode
+        byte_width = self.state.arch.byte_width
+        no_singlevalue_opt = options.SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS in self.state.options
+        cond_prefix = [ ]
 
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
@@ -608,11 +614,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                                   disable_actions=disable_actions, inspect=inspect)
 
             chunk_off = i-chunk_start
-            b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
+            b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
             condition = b == what
             if not self.state.solver.is_false(condition):
-                cases.append([b == what, claripy.BVV(i, len(start))])
+                if no_singlevalue_opt and cond_prefix:
+                    condition = claripy.And(*(cond_prefix + [condition]))
+                cases.append([condition, claripy.BVV(i, len(start))])
                 match_indices.append(i)
+
+            if b.symbolic and no_singlevalue_opt:
+                # in tracing mode, we need to make sure that all previous bytes are not equal to what
+                cond_prefix.append(b != what)
 
             if self.state.mode == 'static':
                 si = b._model_vsa
@@ -846,6 +858,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             stored_values.append(dict(value=conditional_value, addr=segment['start'], size=segment['size']))
 
         return stored_values
+
+    def flush_pages(self,whitelist):
+        self.mem.flush_pages(whitelist)
 
     @staticmethod
     def _create_segment(addr, size, s_options, idx, segments):

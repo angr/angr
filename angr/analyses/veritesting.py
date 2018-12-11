@@ -12,7 +12,7 @@ from ..sim_manager import SimulationManager
 from ..utils.graph import shallow_reverse
 from . import Analysis
 
-l = logging.getLogger("angr.analyses.veritesting")
+l = logging.getLogger(name=__name__)
 
 
 class VeritestingError(Exception):
@@ -190,9 +190,10 @@ class Veritesting(Analysis):
         branches = block.vex.constant_jump_targets_and_jumpkinds
 
         # if we are not at a conditional jump, just do a normal step
-        if not branches.values() == ['Ijk_Boring', 'Ijk_Boring']:
+        if list(branches.values()) != ['Ijk_Boring', 'Ijk_Boring']:
             self.result, self.final_manager = False, None
             return
+
         # otherwise do a veritesting step
 
         self._input_state = input_state.copy()
@@ -205,7 +206,7 @@ class Veritesting(Analysis):
         # set up the cfg stuff
         self._cfg, self._loop_graph = self._make_cfg()
         self._loop_backedges = self._cfg._loop_back_edges
-        self._loop_heads = set([ dst.addr for _, dst in self._loop_backedges ])
+        self._loop_heads = {dst.addr for _, dst in self._loop_backedges}
 
         l.info("Static symbolic execution starts at %#x", self._input_state.addr)
         l.debug(

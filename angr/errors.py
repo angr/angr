@@ -395,3 +395,19 @@ class SimZeroDivisionException(SimException, SimOperationError):
 
 class AngrNoPluginError(AngrError):
     pass
+
+#
+# Concrete Targets Execution errors
+#
+
+
+class SimConcreteMemoryError(AngrError):
+    pass
+
+
+class SimConcreteRegisterError(AngrError):
+    pass
+
+
+class SimConcreteBreakpointError(AngrError):
+    pass

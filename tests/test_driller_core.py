@@ -10,17 +10,18 @@ from test_tracer import tracer_cgc
 
 def test_cgc():
     binary = os.path.join(bin_location, "tests/cgc/sc1_0b32aa01_01")
-    simgr, tracer = tracer_cgc(binary, 'driller_core_cgc', b'AAAA')
+    simgr, tracer = tracer_cgc(binary, 'driller_core_cgc', b'AAAA', copy_states=True)
     simgr.use_technique(angr.exploration_techniques.DrillerCore(tracer._trace))
     simgr.run()
 
     nose.tools.assert_true('diverted' in simgr.stashes)
+    nose.tools.assert_equal(len(simgr.diverted), 3)
 
 def test_simprocs():
     binary = os.path.join(bin_location, "tests/i386/driller_simproc")
     memcmp = angr.SIM_PROCEDURES['libc']['memcmp']()
 
-    simgr, tracer = tracer_cgc(binary, 'driller_core_simprocs', b'A'*128)
+    simgr, tracer = tracer_cgc(binary, 'driller_core_simprocs', b'A'*128, copy_states=True)
     p = simgr._project
     p.hook(0x8048200, memcmp)
 
@@ -28,7 +29,8 @@ def test_simprocs():
     simgr.use_technique(d)
 
     simgr.run()
-    nose.tools.assert_true('diverted' in simgr.stashes)
+    nose.tools.assert_in('diverted', simgr.stashes)
+    nose.tools.assert_greater(len(simgr.diverted), 0)
 
 
 def run_all():

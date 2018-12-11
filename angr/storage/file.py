@@ -8,7 +8,7 @@ from ..state_plugins.sim_action_object import SimActionObject
 from ..state_plugins.symbolic_memory import SimSymbolicMemory
 from .. import sim_options
 
-l = logging.getLogger("angr.storage.file")
+l = logging.getLogger(name=__name__)
 
 file_counter = itertools.count()
 dialogue_counter = itertools.count()
@@ -1024,7 +1024,7 @@ class SimPacketsSlots(SimFileBase):
             real_size = avail_size
             self.read_sizes.pop(0)
 
-        data = self.state.solver.BVS('packet_%d_%s' % (len(self.read_data), self.ident), real_size*self.state.arch.byte_width, key=('file', self.ident, 'packet'))
+        data = self.state.solver.BVS('packet_%d_%s' % (len(self.read_data), self.ident), real_size*self.state.arch.byte_width, key=('file', self.ident, 'packet', len(self.read_data)))
         self.read_data.append(data)
         return data, real_size, None
 

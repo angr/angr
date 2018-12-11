@@ -216,7 +216,7 @@ class SimStateLibc(SimStatePlugin):
         self.ctype_tolower_loc_table_ptr = None
         self.ctype_toupper_loc_table_ptr = None
 
-        self._errno_location = None
+        self.errno_location = None
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
@@ -239,7 +239,7 @@ class SimStateLibc(SimStatePlugin):
         c.ctype_b_loc_table_ptr = self.ctype_b_loc_table_ptr
         c.ctype_tolower_loc_table_ptr = self.ctype_tolower_loc_table_ptr
         c.ctype_toupper_loc_table_ptr = self.ctype_toupper_loc_table_ptr
-        c._errno_location = self._errno_location
+        c.errno_location = self.errno_location
         #c.aa = self.aa
 
         return c
@@ -267,6 +267,25 @@ class SimStateLibc(SimStatePlugin):
         except SimMemoryError:
             self.state.memory.map_region(HEAP_LOCATION, 4096*64, 3)
 
+    @property
+    def errno(self):
+        return self.state.mem[self.errno_location].int.resolved
+
+    @errno.setter
+    def errno(self, val):
+        self.state.mem[self.errno_location].int = val
+
+    def ret_errno(self, val):
+        try:
+            ival = getattr(self.state.posix, val)
+        except AttributeError as e:
+            raise ValueError("Invalid errno constant %s" % val) from e
+
+        if self.state.scratch.sim_procedure.is_syscall:
+            return -ival
+        else:
+            self.errno = ival
+            return -1
 
 from angr.sim_state import SimState
 SimState.register_default('libc', SimStateLibc)

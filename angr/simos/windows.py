@@ -1,7 +1,13 @@
+import enum
 import os
 import logging
+import collections
+import random
+import struct
 
 import claripy
+from archinfo import ArchX86, ArchAMD64
+import cle.backends
 
 from ..errors import (
     AngrSimOSError,
@@ -9,12 +15,28 @@ from ..errors import (
     SimUnsupportedError,
     SimZeroDivisionException,
 )
+from .. import errors
 from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
 from .simos import SimOS
 
-_l = logging.getLogger('angr.simos.windows')
+_l = logging.getLogger(name=__name__)
+
+
+_VS_Security_Cookie = collections.namedtuple('_VS_Security_Cookie', ('default', 'width'))
+# security cookie details from visual studio, keyed by architecture name
+VS_SECURITY_COOKIES = {
+    'AMD64': _VS_Security_Cookie(0x2b992ddfa232, 48),
+    'X86': _VS_Security_Cookie(0xbb40e64e, 32)
+}
+
+
+class SecurityCookieInit(enum.Enum):
+    NONE = 0
+    RANDOM = 1
+    STATIC = 2
+    SYMBOLIC = 3
 
 
 class SimWindows(SimOS):
@@ -277,6 +299,10 @@ class SimWindows(SimOS):
             link_list(mem_order, 8)
             link_list(init_order, 16)
 
+        for loaded_object in self.project.loader.all_objects:
+            if isinstance(loaded_object, cle.backends.pe.PE):
+                self._init_object_pe_security_cookie(loaded_object, state, kwargs)
+
         return state
 
     def handle_exception(self, successors, engine, exception):
@@ -435,3 +461,94 @@ class SimWindows(SimOS):
         state.regs.eip = state.mem[addr + 0xb8].uint32_t.resolved
         state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved
         state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
+
+    def initialize_segment_register_x64(self, state, concrete_target):
+        """
+        Set the gs register in the angr to the value of the fs register in the concrete process
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return: None
+       """
+        _l.debug("Synchronizing gs segment register")
+        state.regs.gs = self._read_gs_register_x64(concrete_target)
+
+    def initialize_gdt_x86(self, state, concrete_target):
+        """
+        Create a GDT in the state memory and populate the segment registers.
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return: the created GlobalDescriptorTable object
+        """
+        _l.debug("Creating Global Descriptor Table and synchronizing fs segment register")
+        fs = self._read_fs_register_x86(concrete_target)
+        gdt = self.generate_gdt(fs,0x0)
+        self.setup_gdt(state,gdt)
+        return gdt
+
+    @staticmethod
+    def _read_fs_register_x86(concrete_target):
+        '''
+        Injects small shellcode to leak the fs segment register address. In Windows x86 this address is pointed by gs:[0x18]
+        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        :return: fs register address
+        :rtype string
+        '''
+        exfiltration_reg = "eax"
+        # instruction to inject for reading the value at segment value = offset
+        read_fs0_x86 = b"\x64\xA1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
+        return concrete_target.execute_shellcode(read_fs0_x86, exfiltration_reg)
+
+    @staticmethod
+    def _read_gs_register_x64(concrete_target):
+        '''
+        Injects small shellcode to leak the gs segment register address. In Windows x64 this address is pointed by gs:[0x30]
+        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        :return: gs register address
+        :rtype string
+        '''
+        exfiltration_reg = "rax"
+        # instruction to inject for reading the value at segment value = offset
+        read_gs0_x64 = b"\x65\x48\x8B\x04\x25\x30\x00\x00\x00\x90\x90\x90\x90"  # mov rax, gs:[0x30]
+        return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
+
+    def get_segment_register_name(self):
+        if isinstance(self.arch, ArchAMD64):
+            for register in self.arch.register_list:
+                if register.name == 'gs':
+                    return register.vex_offset
+        elif isinstance(self.arch, ArchX86):
+            for register in self.arch.register_list:
+                if register.name == 'fs':
+                    return register.vex_offset
+        return None
+
+    def _init_object_pe_security_cookie(self, pe_object, state, state_kwargs):
+        sc_init = state_kwargs.pop('security_cookie_init', SecurityCookieInit.STATIC)
+        if sc_init is SecurityCookieInit.NONE or sc_init is None:
+            return
+        pe = getattr(pe_object, '_pe', None)
+        if pe is None:
+            # this is a code compatibility issue because we're using the private member
+            raise errors.AngrSimOSError('cle backend object has no _pe attribute')
+        if not hasattr(pe, 'DIRECTORY_ENTRY_LOAD_CONFIG'):
+            return
+        config = pe.DIRECTORY_ENTRY_LOAD_CONFIG.struct
+        if not config.SecurityCookie:
+            return
+        vs_cookie = VS_SECURITY_COOKIES.get(self.project.arch.name)
+        if vs_cookie is None:
+            _l.warning('Unsupported architecture: %s for /GS, leaving _security_cookie uninitialized', self.project.arch.name)
+            return
+        if sc_init is SecurityCookieInit.RANDOM:
+            sc_value = random.randint(1, (2 ** vs_cookie.width - 1))
+            if sc_value == vs_cookie.default:
+                sc_value += 1
+        elif sc_init is SecurityCookieInit.STATIC:
+            sc_value = struct.unpack('>I', b'cook')[0]
+        elif sc_init is SecurityCookieInit.SYMBOLIC:
+            sc_value = claripy.BVS('_security_cookie', state.arch.bits)
+        else:
+            raise TypeError("security_cookie_init must SecurityCookieInit, not {0}".format(type(sc_init).__name__))
+        setattr(state.mem[config.SecurityCookie], "uint{0}_t".format(state.arch.bits), sc_value)

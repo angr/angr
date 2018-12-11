@@ -5,12 +5,13 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
+from itanium_demangler import parse
 
 import claripy
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 
-l = logging.getLogger("angr.knowledge.function")
+l = logging.getLogger(name=__name__)
 
 
 class Function(object):
@@ -353,6 +354,12 @@ class Function(object):
                 continue
             # don't trace outside of the binary
             if not self._project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
+                continue
+            # don't trace unreachable blocks
+            if state.history.jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode',
+                                          'Ijk_MapFail', 'Ijk_NoRedir',
+                                          'Ijk_SigTRAP', 'Ijk_SigSEGV',
+                                          'Ijk_ClientReq'}:
                 continue
 
             curr_ip = state.solver.eval(state.ip)
@@ -992,6 +999,9 @@ class Function(object):
                 original_successors = list(graph.out_edges([n], data=True))
 
                 for _, d, data in original_successors:
+                    ins_addr = data.get('ins_addr', data.get('pseudo_ins_addr', None))
+                    if ins_addr is not None and ins_addr < d.addr:
+                        continue
                     if d not in graph[smallest_node]:
                         if d is n:
                             graph.add_edge(smallest_node, new_node, **data)
@@ -1023,7 +1033,14 @@ class Function(object):
                                   if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor, type="transition", outside=is_outside_node)
+                    graph.add_edge(new_node, new_successor,
+                                   type="transition",
+                                   outside=is_outside_node,
+                                   # it's named "pseudo_ins_addr" because we have no way to know what the actual last
+                                   # instruction is at this moment (without re-lifting the block, which would be a
+                                   # waste of time).
+                                   pseudo_ins_addr=new_node.addr + new_node.size - 1,
+                                   )
                 else:
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish/maybe john.')
@@ -1081,6 +1098,46 @@ class Function(object):
         if self.calling_convention is not None:
             self.calling_convention.args = None
             self.calling_convention.func_ty = proto
+
+
+    @property
+    def demangled_name(self):
+
+        if self.name[0:2] == "_Z":
+            ast = parse(self.name)
+            if ast:
+                return ast.__str__()
+        return self.name
+
+    def copy(self):
+        func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
+        func.transition_graph = networkx.DiGraph(self.transition_graph)
+        func.normalized = self.normalized
+        func._ret_sites = self._ret_sites.copy()
+        func._jumpout_sites = self._jumpout_sites.copy()
+        func._retout_sites = self._retout_sites.copy()
+        func._endpoints = self._endpoints.copy()
+        func._call_sites = self._call_sites.copy()
+        func._project = self._project
+        func.is_plt = self.is_plt
+        func.is_simprocedure = self.is_simprocedure
+        func.binary_name = self.binary_name
+        func.bp_on_stack = self.bp_on_stack
+        func.retaddr_on_stack = self.retaddr_on_stack
+        func.sp_delta = self.sp_delta
+        func.calling_convention = self.calling_convention
+        func.prototype = self.prototype
+        func._returning = self._returning
+        func.startpoint = self.startpoint
+        func._addr_to_block_node = self._addr_to_block_node.copy()
+        func._block_sizes = self._block_sizes.copy()
+        func._block_cache = self._block_cache.copy()
+        func._local_blocks = self._local_blocks.copy()
+        func._local_block_addrs = self._local_block_addrs.copy()
+        func.info = self.info.copy()
+        func.tags = self.tags
+
+        return func
 
 
 from ...codenode import BlockNode, HookNode

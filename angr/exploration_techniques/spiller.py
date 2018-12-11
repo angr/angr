@@ -1,6 +1,6 @@
 import logging
 
-l = logging.getLogger("angr.exploration_techniques.spiller")
+l = logging.getLogger(name=__name__)
 
 import ana
 from . import ExplorationTechnique

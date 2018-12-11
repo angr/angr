@@ -1,9 +1,12 @@
 import traceback
+import logging
 
 import archinfo
 
 from ...codenode import BlockNode, HookNode
 from ...engines.successors import SimSuccessors
+
+_l = logging.getLogger(__name__)
 
 
 class CFGNodeCreationFailure(object):
@@ -78,6 +81,11 @@ class CFGNode(object):
         self.irsb = None #irsb
         self.has_return = False
         self._hash = None
+
+        # Sanity check
+        if self.block_id is None and type(self) is CFGNode:  # pylint: disable=unidiomatic-typecheck
+            _l.warning("block_id is unspecified for %s. Default to its address %#x.", str(self), self.addr)
+            self.block_id = self.addr
 
     @property
     def name(self):
@@ -179,7 +187,7 @@ class CFGNode(object):
         return b
 
 
-class CFGNodeA(CFGNode):
+class CFGENode(CFGNode):
     """
     The CFGNode that is used in CFGEmulated.
     """
@@ -213,7 +221,7 @@ class CFGNodeA(CFGNode):
                  creation_failure_info=None,
                  ):
 
-        super(CFGNodeA, self).__init__(addr, size, cfg,
+        super(CFGENode, self).__init__(addr, size, cfg,
                                        simprocedure_name=simprocedure_name,
                                        is_syscall=is_syscall,
                                        no_ret=no_ret,
@@ -263,7 +271,7 @@ class CFGNodeA(CFGNode):
         self.final_states = [ ]
 
     def __repr__(self):
-        s = "<CFGNodeA "
+        s = "<CFGENode "
         if self.name is not None:
             s += self.name + " "
         s += hex(self.addr)
@@ -279,7 +287,7 @@ class CFGNodeA(CFGNode):
     def __eq__(self, other):
         if isinstance(other, SimSuccessors):
             raise ValueError("You do not want to be comparing a SimSuccessors instance to a CFGNode.")
-        if not isinstance(other, CFGNodeA):
+        if not isinstance(other, CFGENode):
             return False
         return (self.callstack_key == other.callstack_key and
                 self.addr == other.addr and
@@ -292,7 +300,7 @@ class CFGNodeA(CFGNode):
         return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info))
 
     def copy(self):
-        return CFGNodeA(
+        return CFGENode(
             self.addr,
             self.size,
             self._cfg,

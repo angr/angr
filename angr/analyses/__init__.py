@@ -9,7 +9,7 @@ from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
 from .boyscout import BoyScout
-from .girlscout import GirlScout
+#from .girlscout import GirlScout
 from .backward_slice import BackwardSlice
 from .veritesting import Veritesting
 from .vsa_ddg import VSA_DDG
@@ -26,3 +26,4 @@ from .callee_cleanup_finder import CalleeCleanupFinder
 from .reaching_definitions import ReachingDefinitionAnalysis
 from .calling_convention import CallingConventionAnalysis
 from .code_tagging import CodeTagging
+from .stack_pointer_tracker import StackPointerTracker

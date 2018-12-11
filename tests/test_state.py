@@ -109,7 +109,7 @@ def test_state_merge():
     # test merging posix with different open files (illegal!)
     a = SimState(arch='AMD64', mode='symbolic')
     b = a.copy()
-    a.posix.open('/tmp/idk', 1)
+    a.posix.open(b'/tmp/idk', 1)
     nose.tools.assert_raises(angr.errors.SimMergeError, lambda: a.copy().merge(b.copy()))
 
 def test_state_merge_static():

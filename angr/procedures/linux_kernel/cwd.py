@@ -1,7 +1,7 @@
 import angr
 import logging
 
-l = logging.getLogger('angr.procedures.linux_kernel.cwd')
+l = logging.getLogger(name=__name__)
 
 class getcwd(angr.SimProcedure):
     def run(self, buf, size):

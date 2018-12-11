@@ -146,8 +146,10 @@ class SimEngineLightVEX(SimEngineLight):
 
     def _handle_Unop(self, expr):
         handler = None
-        simop = vex_operations[expr.op]
-        if simop.op_attrs['conversion']:
+
+        # All conversions are handled by the Conversion handler
+        simop = vex_operations.get(expr.op)
+        if simop is not None and simop.op_attrs['conversion']:
             handler = '_handle_Conversion'
         # Notice order of "Not" comparisons
         elif expr.op == 'Iop_Not1':
@@ -159,8 +161,7 @@ class SimEngineLightVEX(SimEngineLight):
             return getattr(self, handler)(expr)
         else:
             self.l.error('Unsupported Unop %s.', expr.op)
-
-        return None
+            return None
 
     def _handle_Binop(self, expr):
         handler = None

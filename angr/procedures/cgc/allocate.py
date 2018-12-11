@@ -2,7 +2,7 @@ import claripy
 import angr
 import logging
 
-l = logging.getLogger("angr.procedures.cgc.allocate")
+l = logging.getLogger(name=__name__)
 
 class allocate(angr.SimProcedure):
     #pylint:disable=arguments-differ

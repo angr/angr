@@ -1,7 +1,7 @@
 import angr
 import logging
 
-l = logging.getLogger('angr.procedures.win32.GetModuleHandle')
+l = logging.getLogger(name=__name__)
 
 class GetModuleHandleA(angr.SimProcedure):
     def run(self, pointer):

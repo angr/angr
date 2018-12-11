@@ -12,7 +12,7 @@ import cle
 
 from .misc.ux import deprecated
 
-l = logging.getLogger("angr.project")
+l = logging.getLogger(name=__name__)
 projects = weakref.WeakValueDictionary()
 
 def fake_project_unpickler(name):
@@ -83,8 +83,6 @@ class Project:
     :ivar filename:     The filename of the executable.
     :ivar loader:       The program loader.
     :type loader:       cle.Loader
-    :ivar surveyors:    The available surveyors.
-    :type surveyors:    angr.surveyors.surveyor.Surveyors
     :ivar storage:      Dictionary of things that should be loaded/stored with the Project.
     :type storage:      defaultdict(list)
     """
@@ -102,11 +100,14 @@ class Project:
                  store_function=None,
                  load_function=None,
                  analyses_preset=None,
+                 concrete_target=None,
                  engines_preset=None,
                  **kwargs):
 
         # Step 1: Load the binary
+
         if load_options is None: load_options = {}
+
         load_options.update(kwargs)
 
         if isinstance(thing, cle.Loader):
@@ -124,7 +125,7 @@ class Project:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
             self.filename = thing
-            self.loader = cle.Loader(self.filename, **load_options)
+            self.loader = cle.Loader(self.filename, concrete_target=concrete_target, **load_options)
 
         if self.filename is not None:
             projects[self.filename] = self
@@ -146,9 +147,25 @@ class Project:
             ignore_functions = []
 
         if isinstance(exclude_sim_procedures_func, types.LambdaType):
-            l.warning("Passing a lambda type as the exclude_sim_procedures_func argument to Project causes the resulting object to be un-serializable.")
+            l.warning("Passing a lambda type as the exclude_sim_procedures_func argument to "
+                      "Project causes the resulting object to be un-serializable.")
 
         self._sim_procedures = {}
+
+        self.concrete_target = concrete_target
+
+        # It doesn't make any sense to have auto_load_libs
+        # if you have the concrete target, let's warn the user about this.
+        if self.concrete_target and load_options.get('auto_load_libs', None):
+
+            l.critical("Incompatible options selected for this project, please disable auto_load_libs if "
+                       "you want to use a concrete target.")
+            raise Exception("Incompatible options for the project")
+
+        if self.concrete_target and self.arch.name not in ['X86', 'AMD64']:
+            l.critical("Concrete execution does not support yet the selected architecture. Aborting.")
+            raise Exception("Incompatible options for the project")
+
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
@@ -193,7 +210,6 @@ class Project:
         self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
 
         # Step 4.3: ...etc
-        self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
 
         # Step 5: determine the guest OS
@@ -534,6 +550,22 @@ class Project:
         self.unhook(hook_addr)
         return True
 
+    def rehook_symbol(self, new_address, symbol_name):
+        """
+        Move the hook for a symbol to a specific address
+        :param new_address: the new address that will trigger the SimProc execution
+        :param symbol_name: the name of the symbol (f.i. strcmp )
+        :return: None
+        """
+        new_sim_procedures = {}
+        for key_address, simproc_obj in self._sim_procedures.items():
+            if simproc_obj.display_name == symbol_name:
+                new_sim_procedures[new_address] = simproc_obj
+            else:
+                new_sim_procedures[key_address] = simproc_obj
+
+        self._sim_procedures = new_sim_procedures
+
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
     #
@@ -665,7 +697,6 @@ from .errors import AngrError, AngrNoPluginError
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub
-from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
 from .engines import EngineHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

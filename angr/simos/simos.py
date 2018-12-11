@@ -1,4 +1,5 @@
 import logging
+import struct
 
 import claripy
 from archinfo import ArchMIPS32, ArchS390X
@@ -8,7 +9,6 @@ from ..errors import (
     AngrCallableMultistateError,
     AngrSimOSError,
 )
-
 from ..sim_state import SimState
 from ..state_plugins import SimSystemPosix
 from ..calling_conventions import DEFAULT_CC
@@ -18,10 +18,10 @@ from ..storage.file import SimFileStream, SimFileBase
 from ..misc import IRange
 
 
-_l = logging.getLogger("angr.simos.simos")
+_l = logging.getLogger(name=__name__)
 
 
-class SimOS(object):
+class SimOS:
     """
     A class describing OS/arch-level configuration.
     """
@@ -80,8 +80,7 @@ class SimOS(object):
                     return
             self.project.hook(sym.rebased_addr, hook)
 
-    def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8,
-            stdin=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, **kwargs):
         """
         Initialize a blank state.
 
@@ -89,7 +88,9 @@ class SimOS(object):
 
         :param addr:            The execution start address.
         :param initial_prefix:
+        :param stack_end:       The end of the stack (i.e., the byte after the last valid stack address).
         :param stack_size:      The number of bytes to allocate for stack space
+        :param brk:             The address of the process' break.
         :return:                The initialized SimState.
 
         Any additional arguments will be passed to the SimState constructor
@@ -127,20 +128,20 @@ class SimOS(object):
                 stdin = SimFileStream(name='stdin', content=stdin, has_end=True)
 
         last_addr = self.project.loader.main_object.max_addr
-        brk = last_addr - last_addr % 0x1000 + 0x1000
-        state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=brk))
+        actual_brk = (last_addr - last_addr % 0x1000 + 0x1000) if brk is None else brk
+        state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
 
-        stack_end = state.arch.initial_sp
+        actual_stack_end = state.arch.initial_sp if stack_end is None else stack_end
         if o.ABSTRACT_MEMORY not in state.options:
-            state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
+            state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
 
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
             highest_reg_offset, reg_size = max(state.arch.registers.values())
             for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
                 state.registers.store(i, state.solver.BVV(0, state.arch.bits))
         if state.arch.sp_offset is not None:
-            state.regs.sp = stack_end
+            state.regs.sp = actual_stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -165,6 +166,10 @@ class SimOS(object):
                 else:
                     raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
 
+            # special case for stack pointer override
+            if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
+                continue
+
             if o.ABSTRACT_MEMORY in state.options and is_addr:
                 address = claripy.ValueSet(state.arch.bits, mem_region, region_base, val)
                 state.registers.store(reg, address)
@@ -179,6 +184,7 @@ class SimOS(object):
         state.scratch.bbl_addr = addr
         state.scratch.stmt_idx = 0
         state.history.jumpkind = 'Ijk_Boring'
+
         return state
 
     def state_entry(self, **kwargs):
@@ -281,3 +287,96 @@ class SimOS(object):
 
     def syscall_from_number(self, number, allow_unsupported=True, abi=None):
         return None
+
+    def setup_gdt(self, state, gdt):
+        """
+        Write the GlobalDescriptorTable object in the current state memory
+
+        :param state: state in which to write the GDT
+        :param gdt: GlobalDescriptorTable object
+        :return:
+        """
+        state.memory.store(gdt.addr+8, gdt.table)
+        state.regs.gdt = gdt.gdt
+        state.regs.cs = gdt.cs
+        state.regs.ds = gdt.ds
+        state.regs.es = gdt.es
+        state.regs.ss = gdt.ss
+        state.regs.fs = gdt.fs
+        state.regs.gs = gdt.gs
+
+    def generate_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
+        """
+        Generate a GlobalDescriptorTable object and populate it using the value of the gs and fs register
+
+        :param fs:      value of the fs segment register
+        :param gs:      value of the gs segment register
+        :param fs_size: size of the fs segment register
+        :param gs_size: size of the gs segment register
+        :return: gdt a GlobalDescriptorTable object
+        """
+        A_PRESENT = 0x80
+        A_DATA = 0x10
+        A_DATA_WRITABLE = 0x2
+        A_PRIV_0 = 0x0
+        A_DIR_CON_BIT = 0x4
+        F_PROT_32 = 0x4
+        S_GDT = 0x0
+        S_PRIV_0 = 0x0
+        GDT_ADDR = 0x4000
+        GDT_LIMIT = 0x1000
+
+        normal_entry = self._create_gdt_entry(0, 0xFFFFFFFF,
+                                             A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT,
+                                             F_PROT_32)
+        stack_entry = self._create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0,
+                                            F_PROT_32)
+        fs_entry = self._create_gdt_entry(fs, fs_size,
+                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        gs_entry = self._create_gdt_entry(gs, gs_size,
+                                         A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+
+        table = normal_entry + stack_entry + fs_entry + gs_entry
+        gdt =  (GDT_ADDR << 16 | GDT_LIMIT)
+        selector = self._create_selector(1, S_GDT | S_PRIV_0)
+        cs = selector
+        ds = selector
+        es = selector
+        selector = self._create_selector(2, S_GDT | S_PRIV_0)
+        ss = selector
+        selector = self._create_selector(3, S_GDT | S_PRIV_0)
+        fs = selector
+        selector = self._create_selector(4, S_GDT | S_PRIV_0)
+        gs = selector
+        global_descriptor_table = GlobalDescriptorTable(GDT_ADDR, GDT_LIMIT, table, gdt, cs, ds, es, ss, fs, gs)
+        return global_descriptor_table
+
+    @staticmethod
+    def _create_selector(idx, flags):
+        to_ret = flags
+        to_ret |= idx << 3
+        return to_ret
+
+    @staticmethod
+    def _create_gdt_entry(base, limit, access, flags):
+        to_ret = limit & 0xffff
+        to_ret |= (base & 0xffffff) << 16
+        to_ret |= (access & 0xff) << 40
+        to_ret |= ((limit >> 16) & 0xf) << 48
+        to_ret |= (flags & 0xff) << 52
+        to_ret |= ((base >> 24) & 0xff) << 56
+        return struct.pack('<Q', to_ret)
+
+
+class GlobalDescriptorTable:
+    def __init__(self, addr, limit, table, gdt_sel, cs_sel, ds_sel, es_sel, ss_sel, fs_sel, gs_sel):
+        self.addr = addr
+        self.limit = limit
+        self.table = table
+        self.gdt = gdt_sel
+        self.cs = cs_sel
+        self.ds = ds_sel
+        self.es = es_sel
+        self.ss = ss_sel
+        self.fs = fs_sel
+        self.gs = gs_sel

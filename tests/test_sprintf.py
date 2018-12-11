@@ -9,8 +9,7 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def test_sprintf():
     p = angr.Project(os.path.join(test_location, "../../binaries/tests/x86_64/sprintf_test"))
-    a = p.surveyors.Explorer(find=0x4005c0)
-    a.run()
+    a = p.factory.simulation_manager().explore(find=0x4005c0)
     state = a.found[0]
 
     str1 = state.solver.eval(state.memory.load(0x600ad0, 13), cast_to=bytes)

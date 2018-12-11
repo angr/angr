@@ -7,7 +7,7 @@ import cle
 from .resolver import IndirectJumpResolver
 
 
-l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.x86_elf_pic_plt")
+l = logging.getLogger(name=__name__)
 
 
 class X86ElfPicPltResolver(IndirectJumpResolver):
@@ -51,6 +51,10 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
             return False
 
         section = self.project.loader.find_section_containing(addr)
+
+        if section is None:
+            return False
+
         if section.name != '.plt':
             return False
 

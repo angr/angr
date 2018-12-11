@@ -6,10 +6,10 @@ from sortedcontainers import SortedDict
 
 from ..analysis import Analysis
 
-_l = logging.getLogger('angr.analyses.cfg.cfb')
+_l = logging.getLogger(name=__name__)
 
 
-class CFBlanketView(object):
+class CFBlanketView:
     """
     A view into the control-flow blanket.
     """
@@ -41,7 +41,7 @@ class CFBlanketView(object):
 #
 
 
-class Unknown(object):
+class Unknown:
     def __init__(self, addr, size, bytes_=None, object_=None, segment=None, section=None):
         self.addr = addr
         self.size = size

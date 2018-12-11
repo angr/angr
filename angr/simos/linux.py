@@ -1,5 +1,6 @@
 import os
 import logging
+import struct
 
 import claripy
 from cle import MetaELF
@@ -13,7 +14,7 @@ from ..storage.file import SimFile, SimFileBase
 from ..errors import AngrSyscallError
 from .userland import SimUserland
 
-_l = logging.getLogger('angr.simos.linux')
+_l = logging.getLogger(name=__name__)
 
 
 class SimLinux(SimUserland):
@@ -32,14 +33,14 @@ class SimLinux(SimUserland):
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
         self._error_catch_tsd_addr = None
-        self._vsyscall_addr = None
+        self.vsyscall_addr = None
 
     def configure_project(self): # pylint: disable=arguments-differ
         self._loader_addr = self.project.loader.extern_object.allocate()
         self._loader_lock_addr = self.project.loader.extern_object.allocate()
         self._loader_unlock_addr = self.project.loader.extern_object.allocate()
         self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
-        self._vsyscall_addr = self.project.loader.extern_object.allocate()
+        self.vsyscall_addr = self.project.loader.extern_object.allocate()
         self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
         self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
         self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
@@ -48,7 +49,7 @@ class SimLinux(SimUserland):
                               static_addr=self.project.loader.extern_object.allocate()
                           )
                           )
-        self.project.hook(self._vsyscall_addr, P['linux_kernel']['_vsyscall']())
+        self.project.hook(self.vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
         ld_obj = self.project.loader.linux_loader_object
         if ld_obj is not None:
@@ -57,6 +58,7 @@ class SimLinux(SimUserland):
             self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch), ld_obj)
 
             # set up some static data in the loader object...
+            # TODO it should be legal to get these from the externs now
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
                 if isinstance(self.project.arch, ArchAMD64):
@@ -79,7 +81,7 @@ class SimLinux(SimUserland):
                 self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
                 self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
             elif isinstance(self.project.arch, ArchX86):
-                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
             elif isinstance(self.project.arch, ArchARM):
                 self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
@@ -166,8 +168,9 @@ class SimLinux(SimUserland):
             elif isinstance(state.arch, ArchAArch64):
                 state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
 
+        if fs is None:
+            fs = {}
 
-        if fs is None: fs = {}
         for name in fs:
             if type(fs[name]) is str:
                 fs[name] = fs[name].encode('utf-8')
@@ -253,6 +256,40 @@ class SimLinux(SimUserland):
         state.posix.auxv = auxv
         self.set_entry_register_values(state)
 
+        # set __progname
+        progname_full = 0
+        progname = 0
+        if args:
+            progname_full = state.mem[argv].long.concrete
+            progname_cur = progname_full
+            progname = progname_full
+            while True:
+                byte = state.mem[progname_cur].byte.resolved
+                if byte.symbolic:
+                    break
+                else:
+                    if state.solver.eval(byte) == ord('/'):
+                        progname = progname_cur + 1
+                    elif state.solver.eval(byte) == 0:
+                        break
+
+                progname_cur += 1
+
+        # there will be multiple copies of these symbol but the canonical ones (in the main binary,
+        # or elsewhere if the main binary didn't have one) should get picked up here
+        for name, val in [
+                ('__progname_full', progname_full),
+                ('__progname', progname),
+                ('__environ', envp),
+                ('environ', envp),
+                ('__libc_stack_end', state.regs.sp)]:
+            sym = self.project.loader.find_symbol(name)
+            if sym is not None:
+                if sym.size != self.arch.bytes:
+                    _l.warning("Something is wrong with %s - bad size", name)
+                else:
+                    state.mem[sym.rebased_addr].long = val
+
         return state
 
     def set_entry_register_values(self, state):
@@ -307,3 +344,75 @@ class SimLinux(SimUserland):
             if basic_addr is None:
                 basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
             return basic_addr, basic_addr
+
+    def initialize_segment_register_x64(self, state, concrete_target):
+        """
+        Set the fs register in the angr to the value of the fs register in the concrete process
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return: None
+        """
+        _l.debug("Synchronizing fs segment register")
+        state.regs.fs = self._read_fs_register_x64(concrete_target)
+
+    def initialize_gdt_x86(self,state,concrete_target):
+        """
+        Create a GDT in the state memory and populate the segment registers.
+        Rehook the vsyscall address using the real value in the concrete process memory
+
+        :param state:               state which will be modified
+        :param concrete_target:     concrete target that will be used to read the fs register
+        :return:
+        """
+        _l.debug("Creating fake Global Descriptor Table and synchronizing gs segment register")
+        gs = self._read_gs_register_x86(concrete_target)
+        gdt = self.generate_gdt(0x0, gs)
+        self.setup_gdt(state, gdt)
+
+        # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
+        _vsyscall_address = concrete_target.read_memory(gs + 0x10, state.project.arch.bits / 8)
+        _vsyscall_address = struct.unpack(state.project.arch.struct_fmt(), _vsyscall_address)[0]
+        state.project.rehook_symbol(_vsyscall_address, '_vsyscall')
+
+        return gdt
+
+    @staticmethod
+    def _read_fs_register_x64(concrete_target):
+        '''
+        Injects a small shellcode to leak the fs segment register address. In Linux x64 this address is pointed by fs[0]
+        :param concrete_target: ConcreteTarget which will be used to get the fs register address
+        :return: fs register address
+        :rtype string
+        '''
+        # register used to read the value of the segment register
+        exfiltration_reg = "rax"
+        # instruction to inject for reading the value at segment value = offset
+        read_fs0_x64 = b"\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
+
+        return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
+
+    @staticmethod
+    def _read_gs_register_x86(concrete_target):
+        '''
+        Injects a small shellcode to leak the gs segment register address. In Linux x86 this address is pointed by gs[0]
+        :param concrete_target: ConcreteTarget which will be used to get the gs register address
+        :return: gs register address
+        :rtype :str
+        '''
+        # register used to read the value of the segment register
+        exfiltration_reg = "eax"
+        # instruction to inject for reading the value at segment value = offset
+        read_gs0_x64 = b"\x65\xA1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
+        return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
+
+    def get_segment_register_name(self):
+        if isinstance(self.arch, ArchAMD64):
+            for register in self.arch.register_list:
+                if register.name == 'fs':
+                    return register.vex_offset
+        elif isinstance(self.arch, ArchX86):
+            for register in self.arch.register_list:
+                if register.name == 'gs':
+                    return register.vex_offset
+        return None

@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("angr.block")
+l = logging.getLogger(name=__name__)
 
 import pyvex
 from archinfo import ArchARM
@@ -16,7 +16,7 @@ class Block(object):
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
+                 extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
 
         # set up arch
         if project is not None:
@@ -55,6 +55,7 @@ class Block(object):
                         insn_bytes=byte_string,
                         addr=addr,
                         thumb=thumb,
+                        extra_stop_points=extra_stop_points,
                         opt_level=opt_level,
                         num_inst=num_inst,
                         traceflags=traceflags,

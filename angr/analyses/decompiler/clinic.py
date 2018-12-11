@@ -11,7 +11,7 @@ import ailment
 import ailment.analyses
 
 
-l = logging.getLogger('angr.analyses.clinic')
+l = logging.getLogger(name=__name__)
 
 
 class Clinic(Analysis):

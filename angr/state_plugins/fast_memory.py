@@ -5,7 +5,7 @@ import claripy
 from ..storage.memory import SimMemory
 from ..errors import SimFastMemoryError
 
-l = logging.getLogger("angr.state_plugins.fast_memory")
+l = logging.getLogger(name=__name__)
 #l.setLevel(logging.DEBUG)
 
 class SimFastMemory(SimMemory):
@@ -194,7 +194,7 @@ class SimFastMemory(SimMemory):
         else:
             return [addr], claripy.Concat(*[self._single_load(a, o, s) for a,o,s in accesses]), []
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1): # pylint: disable=unused-argument
+    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1, chunk_size=None): # pylint: disable=unused-argument
         raise SimFastMemoryError("find unsupported")
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None): # pylint: disable=unused-argument

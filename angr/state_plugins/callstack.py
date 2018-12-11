@@ -6,7 +6,7 @@ import logging
 from .plugin import SimStatePlugin
 from ..errors import AngrError, SimEmptyCallStackError
 
-l = logging.getLogger("angr.state_plugins.callstack")
+l = logging.getLogger(name=__name__)
 
 class CallStack(SimStatePlugin):
     """

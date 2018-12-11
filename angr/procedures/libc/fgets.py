@@ -2,7 +2,7 @@ import angr
 from angr.storage.file import SimFile
 from angr.sim_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 
-from . import io_file_data_for_arch
+from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 ######################################
 # fgets

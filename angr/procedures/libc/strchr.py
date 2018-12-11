@@ -1,9 +1,10 @@
 import angr
 from angr.state_plugins.symbolic_memory import MultiwriteAnnotation
 from angr.sim_type import SimTypeString, SimTypeInt, SimTypeChar
+from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging
-l = logging.getLogger("angr.procedures.libc.strchr")
+l = logging.getLogger(name=__name__)
 
 class strchr(angr.SimProcedure):
     #pylint:disable=arguments-differ
@@ -17,6 +18,10 @@ class strchr(angr.SimProcedure):
 
         s_strlen = self.inline_call(angr.SIM_PROCEDURES['libc']['strlen'], s_addr)
 
+        chunk_size = None
+        if MEMORY_CHUNK_INDIVIDUAL_READS in self.state.options:
+            chunk_size = 1
+
         if self.state.solver.symbolic(s_strlen.ret_expr):
             l.debug("symbolic strlen")
             # TODO: more constraints here to make sure we don't search too little
@@ -25,7 +30,7 @@ class strchr(angr.SimProcedure):
         else:
             l.debug("concrete strlen")
             max_search = self.state.solver.eval(s_strlen.ret_expr)
-            a, c, i = self.state.memory.find(s_addr, c, max_search, default=0)
+            a, c, i = self.state.memory.find(s_addr, c, max_search, default=0, chunk_size=chunk_size)
 
         if len(i) > 1:
             a = a.annotate(MultiwriteAnnotation())

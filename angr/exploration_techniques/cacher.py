@@ -8,7 +8,7 @@ from . import ExplorationTechnique
 from .common import condition_to_lambda
 
 
-l = logging.getLogger("angr.exploration_techniques.cacher")
+l = logging.getLogger(name=__name__)
 
 
 class Cacher(ExplorationTechnique):
@@ -107,7 +107,6 @@ class Cacher(ExplorationTechnique):
 
         if cached_project is not None:
             cached_project.analyses = project.analyses
-            cached_project.surveyors = project.surveyors
             cached_project.store_function = project.store_function
             cached_project.load_function = project.load_function
 

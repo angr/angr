@@ -12,7 +12,7 @@ from .variable_access import VariableAccess
 
 from ..plugin import KnowledgeBasePlugin
 
-l = logging.getLogger("angr.knowledge.variable_manager")
+l = logging.getLogger(name=__name__)
 
 
 class VariableType(object):

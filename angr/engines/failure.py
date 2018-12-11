@@ -1,7 +1,7 @@
 from .engine import SimEngine
 
 import logging
-l = logging.getLogger("angr.engines.failure")
+l = logging.getLogger(name=__name__)
 
 class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
     def _check(self, state, *args, **kwargs):

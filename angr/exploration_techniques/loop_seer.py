@@ -1,12 +1,11 @@
 import logging
 
 from . import ExplorationTechnique
-from ..analyses.loopfinder import Loop
 from ..knowledge_base import KnowledgeBase
 from ..knowledge_plugins.functions import Function
 
 
-l = logging.getLogger("angr.exploration_techniques.loop_seer")
+l = logging.getLogger(name=__name__)
 
 
 class LoopSeer(ExplorationTechnique):
@@ -81,8 +80,6 @@ class LoopSeer(ExplorationTechnique):
                     self.loops[entry.addr] = loop
 
     def step(self, simgr, stash='active', **kwargs):
-        kwargs['successor_func'] = self._normalized_step
-
         for state in simgr.stashes[stash]:
             # Processing a currently running loop
             if state.loop_data.current_loop:
@@ -127,9 +124,11 @@ class LoopSeer(ExplorationTechnique):
 
         return simgr
 
-    def _normalized_step(self, state):
+    def successors(self, simgr, state, **kwargs):
         node = self.cfg.get_any_node(state.addr)
-        return state.step(num_inst=len(node.instruction_addrs) if node is not None else None)
+        if node is not None:
+            kwargs['num_inst'] = min(kwargs.get('num_inst', float('inf')), len(node.instruction_addrs))
+        return simgr.successors(state, **kwargs)
 
     def _get_function(self, func):
         f = None
@@ -147,3 +146,5 @@ class LoopSeer(ExplorationTechnique):
             f = func
 
         return f
+
+from ..analyses.loopfinder import Loop

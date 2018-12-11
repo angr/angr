@@ -12,21 +12,22 @@ from .sim_type import SimTypeFunction
 from .sim_type import SimTypeFloat
 from .sim_type import SimTypeDouble
 from .sim_type import SimStruct
-from .sim_type import SimTypeInt
+from .sim_type import parse_file
 
 from .state_plugins.sim_action_object import SimActionObject
 
-l = logging.getLogger("angr.calling_conventions")
+l = logging.getLogger(name=__name__)
 
 # TODO: This file contains explicit and implicit byte size assumptions all over. A good attempt to fix them was made.
 # If your architecture hails from the astral plane, and you're reading this, start fixing here.
 
-class PointerWrapper(object):
+
+class PointerWrapper:
     def __init__(self, value):
         self.value = value
 
 
-class AllocHelper(object):
+class AllocHelper:
     def __init__(self, ptr, grow_like_stack, reverse_result):
         self.ptr = ptr
         self.grow_like_stack = grow_like_stack
@@ -44,7 +45,7 @@ class AllocHelper(object):
             return out.reversed if self.reverse_result else out
 
 
-class SimFunctionArgument(object):
+class SimFunctionArgument:
     def __init__(self, size):
         self.size = size
 
@@ -175,7 +176,7 @@ class SimComboArg(SimFunctionArgument):
         return claripy.Concat(*vals)
 
 
-class ArgSession(object):
+class ArgSession:
     """
     A class to keep track of the state accumulated in laying parameters out into memory
     """
@@ -236,7 +237,7 @@ class ArgSession(object):
         return SimComboArg(locations)
 
 
-class SimCC(object):
+class SimCC:
     """
     A calling convention allows you to extract from a state the data passed from function to
     function by calls and returns. Most of the methods provided by SimCC that operate on a state
@@ -253,11 +254,28 @@ class SimCC(object):
         :param args:        A list of SimFunctionArguments describing where the arguments go
         :param ret_val:     A SimFunctionArgument describing where the return value goes
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :parmm func_ty:     A SimType for the function itself
+        :param func_ty:     A SimTypeFunction for the function itself, or a string that can be parsed into a
+                            SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         """
         if func_ty is not None:
+            if isinstance(func_ty, str):
+                if not func_ty.endswith(";"):
+                    func_ty += ";"  # Make pycparser happy
+                parsed = parse_file(func_ty)
+                parsed_decl = parsed[0]
+                if not parsed_decl:
+                    raise ValueError('Cannot parse the provided function prototype.')
+                _, func_ty = next(iter(parsed_decl.items()))
+
             if not isinstance(func_ty, SimTypeFunction):
-                raise TypeError("Function prototype must be a function!")
+                raise TypeError("Function prototype must be a SimTypeFunction instance or a string that can be parsed "
+                                "into a SimTypeFunction instance.")
 
         self.arch = arch
         self.args = args

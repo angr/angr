@@ -6,7 +6,7 @@ from .filesystem import SimMount
 from ..storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
 from .. import sim_options as options
 
-l = logging.getLogger("angr.state_plugins.posix")
+l = logging.getLogger(name=__name__)
 
 max_fds = 8192
 
@@ -40,6 +40,33 @@ class PosixDevFS(SimMount): # this'll be mounted at /dev
 
     def copy(self, _):
         return self # this holds no state!
+
+
+class PosixProcFS(SimMount):
+    """
+    The virtual file system mounted at /proc (as of now, on Linux).
+    """
+    def get(self, path):
+        if path == [b"uptime"]:
+            return SimFile(b"uptime", content=b"0 0")
+        else:
+            return None
+
+    def insert(self, path, simfile): # pylint: disable=unused-argument
+        return False
+
+    def delete(self, path): # pylint: disable=unused-argument
+        return False
+
+    def merge(self, others, conditions, common_ancestor=None): # pylint: disable=unused-argument
+        return False
+
+    def widen(self, others): # pylint: disable=unused-argument
+        return False
+
+    def copy(self, _):
+        return self # this holds no state!
+
 
 class SimSystemPosix(SimStatePlugin):
     """
@@ -128,6 +155,7 @@ class SimSystemPosix(SimStatePlugin):
         self.uid = 1000 if uid is None else uid
         self.gid = 1000 if gid is None else gid
         self.dev_fs = None
+        self.proc_fs = None
         self.autotmp_counter = 0
 
         self.sockets = sockets if sockets is not None else {}
@@ -164,6 +192,9 @@ class SimSystemPosix(SimStatePlugin):
         if self.dev_fs is None:
             self.dev_fs = PosixDevFS()
             self.state.fs.mount(b"/dev", self.dev_fs)
+        if self.proc_fs is None:
+            self.proc_fs = PosixProcFS()
+            self.state.fs.mount(b"/proc", self.proc_fs)
 
     def set_brk(self, new_brk):
         # arch word size is not available at init for some reason, fix that here
@@ -208,6 +239,14 @@ class SimSystemPosix(SimStatePlugin):
         self.stdout.set_state(state)
         self.stderr.set_state(state)
 
+        if self.socket_queue:
+            for sock_pair in self.socket_queue:
+                if not sock_pair:
+                    continue
+                sock_pair[0].set_state(state)
+                sock_pair[1].set_state(state)
+
+
     def _pick_fd(self):
         for fd in range(0, 8192):
             if fd not in self.fd:
@@ -226,6 +265,10 @@ class SimSystemPosix(SimStatePlugin):
 
         ``mode`` from open(2) is unsupported at present.
         """
+
+        # FIXME: HACK
+        if self.uid != 0 and name.startswith(b'/var/run'):
+            return None
 
         if len(name) == 0:
             return None
@@ -277,6 +320,10 @@ class SimSystemPosix(SimStatePlugin):
                 sockpair = self.socket_queue.pop(0)
                 if sockpair is not None:
                     memo = {}
+                    # Since we are not copying sockpairs when the FS state plugin branches, their original SimState
+                    # instances might have long gone. Update their states before making copies.
+                    sockpair[0].set_state(self.state)
+                    sockpair[1].set_state(self.state)
                     sockpair = sockpair[0].copy(memo), sockpair[1].copy(memo)
 
             if sockpair is None:
@@ -307,7 +354,7 @@ class SimSystemPosix(SimStatePlugin):
             if not self.state.solver.satisfiable():
                 raise SimPosixError("Tried to do operation on symbolic but partially constrained file descriptor")
             fd = ideal
-            new_filename = '/tmp/angr_implicit_%d' % self.autotmp_counter
+            new_filename = b'/tmp/angr_implicit_%d' % self.autotmp_counter
             l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", ideal, new_filename)
             self.autotmp_counter += 1
             if self.open(new_filename, Flags.O_RDWR, preferred_fd=fd) != fd:
@@ -408,7 +455,9 @@ class SimSystemPosix(SimStatePlugin):
                 stderr=self.stderr.copy(memo),
                 fd={k: self.fd[k].copy(memo) for k in self.fd},
                 sockets={ident: tuple(x.copy(memo) for x in self.sockets[ident]) for ident in self.sockets},
-                socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use
+                socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use.
+                                                # as a result, we must update the state of each socket before making
+                                                # copies.
                 argv=self.argv,
                 argc=self.argc,
                 environ=self.environ,
@@ -422,6 +471,7 @@ class SimSystemPosix(SimStatePlugin):
                 gid=self.gid,
                 brk=self.brk)
         o.dev_fs = self.dev_fs.copy(memo)
+        o.proc_fs = self.proc_fs.copy(memo)
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):

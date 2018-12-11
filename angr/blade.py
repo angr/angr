@@ -87,11 +87,12 @@ class Blade(object):
         block_addrs = list(set([ a for a, _ in self.slice.nodes() ]))
 
         for block_addr in block_addrs:
-            block_str = "IRSB %#x\n" % block_addr
+            block_str = "       IRSB %#x\n" % block_addr
 
             block = self.project.factory.block(block_addr, backup_state=self._base_state).vex
 
             included_stmts = set([ stmt for _, stmt in self.slice.nodes() if _ == block_addr ])
+            default_exit_included = any(stmt == 'default' for _, stmt in self.slice.nodes() if _ == block_addr)
 
             for i, stmt in enumerate(block.statements):
                 if arch is not None:
@@ -106,9 +107,18 @@ class Blade(object):
                 else:
                     stmt_str = str(stmt)
 
-                block_str += "%02s: %s\n" % ("+" if i in included_stmts else " ",
-                                   stmt_str
-                                   )
+                block_str += "%02s %02d | %s\n" % ("+" if i in included_stmts else " ",
+                                                   i,
+                                                   stmt_str
+                                                   )
+
+            block_str += " + " if default_exit_included else "   "
+            if isinstance(block.next, pyvex.IRExpr.Const):
+                block_str += "Next: %#x\n" % block.next.con.value
+            elif isinstance(block.next, pyvex.IRExpr.RdTmp):
+                block_str += "Next: t%d\n" % block.next.tmp
+            else:
+                block_str += "Next: %s\n" % str(block.next)
 
             s += block_str
             s += "\n"
@@ -291,16 +301,19 @@ class Blade(object):
             if type(next_expr) is pyvex.IRExpr.RdTmp:
                 temps.add(next_expr.tmp)
 
-        else:
-            exit_stmt = self._get_irsb(run).statements[exit_stmt_idx]
+        # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
+        # lose the condition)
+        for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
+            if not type(s_) is pyvex.IRStmt.Exit:
+                continue
 
-            if type(exit_stmt.guard) is pyvex.IRExpr.RdTmp:
-                temps.add(exit_stmt.guard.tmp)
+            if type(s_.guard) is pyvex.IRExpr.RdTmp:
+                temps.add(s_.guard.tmp)
 
             # Put it in our slice
             irsb_addr = self._get_addr(run)
-            self._inslice_callback(exit_stmt_idx, exit_stmt, {'irsb_addr': irsb_addr, 'prev': prev})
-            prev = (irsb_addr, exit_stmt_idx)
+            self._inslice_callback(stmt_idx_, s_, {'irsb_addr': irsb_addr, 'prev': prev})
+            prev = (irsb_addr, stmt_idx_)
 
         infodict = {'irsb_addr' : self._get_addr(run),
                     'prev' : prev,

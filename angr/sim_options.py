@@ -151,8 +151,9 @@ REVERSE_MEMORY_HASH_MAP = "REVERSE_MEMORY_HASH_MAP"
 # This enables tracking of which bytes in the state are symbolic
 MEMORY_SYMBOLIC_BYTES_MAP = "MEMORY_SYMBOLIC_BYTES_MAP"
 
-# this makes s_run() copy states
-COW_STATES = "COW_STATES"
+# this makes engine copy states
+COPY_STATES = "COPY_STATES"
+COW_STATES = COPY_STATES
 
 # this replaces calls with an unconstraining of the return register
 CALLLESS = "CALLLESS"
@@ -270,6 +271,23 @@ EXTENDED_IROP_SUPPORT = 'EXTENDED_IROP_SUPPORT'
 # For each division operation, produce a successor state with the constraint that the divisor is zero
 PRODUCE_ZERODIV_SUCCESSORS = 'PRODUCE_ZERODIV_SUCCESSORS'
 
+SYNC_CLE_BACKEND_CONCRETE = 'SYNC_CLE_BACKEND_CONCRETE'
+
+# Allow POSIX API send() to fail
+ALLOW_SEND_FAILURES = 'ALLOW_SEND_FAILURES'
+
+# Use hybrid solver
+HYBRID_SOLVER = 'HYBRID_SOLVER'
+
+# This tells the hybrid solver to use the approximate backend first. The exact backend will be used
+# only if the number of possible approximate solutions is greater than what was request by user.
+# Note, that this option will only take effect if a hybrid solver used.
+APPROXIMATE_FIRST = 'APPROXIMATE_FIRST'
+
+# Disable optimizations based on symbolic memory bytes being single-valued in SimSymbolicMemory. This is useful in
+# tracing mode since such optimizations are unreliable since preconstraints will be removed after tracing is done.
+SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS = 'SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS'
+
 #
 # CGC specific state options
 #
@@ -283,6 +301,9 @@ CGC_ENFORCE_FD = 'CGC_ENFORCE_FD'
 # FDWAIT will always return FDs as non blocking
 CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 
+# Allows memory breakpoints to get more accurate sizes in case of reading large chunks
+# Sacrafice performance for more fine tune memory read size
+MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 
 #
 # Register those variables as Boolean state options
@@ -291,7 +312,7 @@ CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 _g = globals().copy()
 for k, v in _g.items():
     if all([ char in string.ascii_uppercase + "_" + string.digits for char in k ]) and type(v) is str:
-        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY"):
+        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY", "COW_STATES"):
             # UNKNOWN_FILES_HAVE_EOF == FILES_HAVE_EOF
             # CGC_ZERO_FILL_UNCONSTRAINED_MEMORY == ZERO_FILL_UNCONSTRAINED_MEMORY
             continue
@@ -307,11 +328,12 @@ symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, SYMBOLIC_INITIAL_VALUES, CO
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_REGISTER_WRITES }
 common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT, EXTENDED_IROP_SUPPORT, ALL_FILES_EXIST, FILES_HAVE_EOF } | simplification
 unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, INITIALIZE_ZERO_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL, UNICORN_TRACK_BBL_ADDRS, UNICORN_TRACK_STACK_POINTERS }
+concrete = { SYNC_CLE_BACKEND_CONCRETE }
 
 modes = {
     'symbolic': common_options | symbolic | { TRACK_CONSTRAINT_ACTIONS }, #| approximation | { VALIDATE_APPROXIMATIONS }
     'symbolic_approximating': common_options | symbolic | approximation | { TRACK_CONSTRAINT_ACTIONS },
     'static': (common_options - simplification) | { REGION_MAPPING, BEST_EFFORT_MEMORY_STORING, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP },
     'fastpath': (common_options - simplification ) | (symbolic - { SYMBOLIC, DO_CCALLS }) | resilience | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS },
-    'tracing': (common_options - simplification - {SUPPORT_FLOATING_POINT}) | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { CGC_NO_SYMBOLIC_RECEIVE_LENGTH, REPLACEMENT_SOLVER, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, USE_SYSTEM_TIMES, PRODUCE_ZERODIV_SUCCESSORS },
+    'tracing': (common_options - simplification - {SUPPORT_FLOATING_POINT, ALL_FILES_EXIST}) | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { CGC_NO_SYMBOLIC_RECEIVE_LENGTH, REPLACEMENT_SOLVER, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, PRODUCE_ZERODIV_SUCCESSORS, ALLOW_SEND_FAILURES, SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS },
 }

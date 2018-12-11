@@ -8,7 +8,7 @@ from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
 from ..errors import AngrAnalysisError
 
-l = logging.getLogger("angr.analysis")
+l = logging.getLogger(name=__name__)
 
 
 class AnalysisLogEntry(object):
