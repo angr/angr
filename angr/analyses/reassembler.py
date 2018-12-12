@@ -2284,7 +2284,6 @@ class Reassembler(Analysis):
             '__progname_full',
             '_IO_stdin_used',
             'obstack_alloc_failed_hand',
-            'program_invocation_short_',
             'optind',
             'optarg',
             '__progname',
