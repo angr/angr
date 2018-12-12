@@ -1,11 +1,11 @@
 import angr
 
 ######################################
-# Unresolvable Target
+# Unresolvable Jump Target
 ######################################
 
 
-class UnresolvableTarget(angr.SimProcedure):
+class UnresolvableJumpTarget(angr.SimProcedure):
     NO_RET = True
 
     def run(self):
