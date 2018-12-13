@@ -562,6 +562,17 @@ def test_collect_data_references():
     nose.tools.assert_equal(sneaky_str.sort, "string")
     nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
 
+def test_unresolvale_targtes():
+
+    path = os.path.join(test_location, 'cgc', 'CADET_00002')
+    proj = angr.Project(path)
+
+    proj.analyses.CFGFast(normalize=True)
+    func = proj.kb.functions[0x080489E0]
+
+    true_endpoint_addrs = {0x8048bbc, 0x8048af5, 0x8048b5c, 0x8048a41, 0x8048aa8}
+    endpoint_addrs = {node.addr for node in func.endpoints}
+    nose.tools.assert_equal(len(endpoint_addrs.symmetric_difference(true_endpoint_addrs)), 0)
 
 def run_all():
 

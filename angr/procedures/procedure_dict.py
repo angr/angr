@@ -17,6 +17,8 @@ for pkg_name, package in autoimport.auto_import_packages('angr.procedures', path
     for _, mod in autoimport.filter_module(package, type_req=type(os)):
         for name, proc in autoimport.filter_module(mod, type_req=type, subclass_req=SimProcedure):
             SIM_PROCEDURES[pkg_name][name] = proc
+            if name == 'UnresolvableJumpTarget':
+                SIM_PROCEDURES[pkg_name]['UnresolvableTarget'] = proc
 
 class _SimProcedures(object):
     def __getitem__(self, k):

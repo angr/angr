@@ -31,7 +31,8 @@ class SimOS:
         self.project = project
         self.name = name
         self.return_deadend = None
-        self.unresolvable_target = None
+        self.unresolvable_jump_target = None
+        self.unresolvable_call_target = None
 
     def configure_project(self):
         """
@@ -40,8 +41,10 @@ class SimOS:
         self.return_deadend = self.project.loader.extern_object.allocate()
         self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
-        self.unresolvable_target = self.project.loader.extern_object.allocate()
-        self.project.hook(self.unresolvable_target, P['stubs']['UnresolvableTarget']())
+        self.unresolvable_jump_target = self.project.loader.extern_object.allocate()
+        self.project.hook(self.unresolvable_jump_target, P['stubs']['UnresolvableJumpTarget']())
+        self.unresolvable_call_target = self.project.loader.extern_object.allocate()
+        self.project.hook(self.unresolvable_call_target, P['stubs']['UnresolvableCallTarget']())
 
         def irelative_resolver(resolver_addr):
             # autohooking runs before this does, might have provided this already

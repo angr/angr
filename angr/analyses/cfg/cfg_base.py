@@ -1,7 +1,5 @@
 
-import itertools
 import logging
-import struct
 from collections import defaultdict
 
 import cffi
@@ -14,7 +12,7 @@ from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
-    AngrUnsupportedSyscallError, SimError, SimConcreteMemoryError
+    AngrUnsupportedSyscallError, SimError
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
@@ -152,12 +150,16 @@ class CFGBase(Analysis):
         self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
         self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
-        # initialize an UnresolvableTarget SimProcedure
+        # initialize UnresolvableJumpTarget and UnresolvableCallTarget SimProcedure
         # but we do not want to hook the same symbol multiple times
-        ut_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableTarget')
-        if not self.project.is_hooked(ut_addr):
-            self.project.hook(ut_addr, SIM_PROCEDURES['stubs']['UnresolvableTarget']())
-        self._unresolvable_target_addr = ut_addr
+        ut_jump_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableJumpTarget')
+        if not self.project.is_hooked(ut_jump_addr):
+            self.project.hook(ut_jump_addr, SIM_PROCEDURES['stubs']['UnresolvableJumpTarget']())
+        self._unresolvable_jump_target_addr = ut_jump_addr
+        ut_call_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableCallTarget')
+        if not self.project.is_hooked(ut_call_addr):
+            self.project.hook(ut_call_addr, SIM_PROCEDURES['stubs']['UnresolvableCallTarget']())
+        self._unresolvable_call_target_addr = ut_call_addr
 
         # partially and fully analyzed functions
         # this is implemented as a state machine: jobs (CFGJob instances) of each function are put into
@@ -1961,7 +1963,7 @@ class CFGBase(Analysis):
             # For now, assume UnresolvedTarget returns if we're calling to it
 
             # If the function doesn't return, don't add a fakeret!
-            if not all_edges or (dst_function.returning is False and not dst_function.name == b'UnresolvableTarget'):
+            if not all_edges or (dst_function.returning is False and not dst_function.name == 'UnresolvableCallTarget'):
                 fakeret_node = None
             else:
                 fakeret_node = self._one_fakeret_node(all_edges)
@@ -2084,10 +2086,8 @@ class CFGBase(Analysis):
                         break
             # We may have since figured out that the called function doesn't ret.
             # It's important to assume that all unresolved targets do return
-            # FIXME: Remove the last check after we split UnresolvableTarget into UnresolvableJump and UnresolvableCall.
             if called_function is not None and \
-                    called_function.returning is False and \
-                    (not called_function.is_simprocedure or called_function.name not in ('UnresolvableTarget',)):
+                    called_function.returning is False:
                 return
 
             to_outside = not target_function is src_function
@@ -2302,7 +2302,7 @@ class CFGBase(Analysis):
         Resolve all unresolved indirect jumps found in previous scanning.
 
         Currently we support resolving the following types of indirect jumps:
-        - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
+        - Ijk_Call: indirect calls where the function address is passed in from a proceeding basic block
         - Ijk_Boring: jump tables
         - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
 

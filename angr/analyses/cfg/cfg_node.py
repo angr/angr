@@ -9,7 +9,7 @@ from ...engines.successors import SimSuccessors
 _l = logging.getLogger(__name__)
 
 
-class CFGNodeCreationFailure(object):
+class CFGNodeCreationFailure:
     """
     This class contains additional information for whenever creating a CFGNode failed. It includes a full traceback
     and the exception messages.
@@ -31,7 +31,7 @@ class CFGNodeCreationFailure(object):
         return hash((self.short_reason, self.long_reason, self.traceback))
 
 
-class CFGNode(object):
+class CFGNode:
     """
     This class stands for each single node in CFG.
     """

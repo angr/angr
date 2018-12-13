@@ -180,8 +180,8 @@ class SimSuccessors(object):
                 else:
                     ret_addr = state.solver.eval(state.regs._lr)
             except SimSolverModeError:
-                # Use the address for UnresolvableTarget instead.
-                ret_addr = state.project.simos.unresolvable_target
+                # Use the address for UnresolvableCallTarget instead.
+                ret_addr = state.project.simos.unresolvable_call_target
 
             try:
                 state_addr = state.addr
