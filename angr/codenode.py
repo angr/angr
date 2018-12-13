@@ -81,6 +81,9 @@ class HookNode(CodeNode):
 
     is_hook = True
     def __init__(self, addr, size, sim_procedure, **kwargs):
+        """
+        :param type sim_procedure: the the sim_procedure class
+        """
         super(HookNode, self).__init__(addr, size, **kwargs)
         self.sim_procedure = sim_procedure
 

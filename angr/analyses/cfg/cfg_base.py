@@ -1,7 +1,5 @@
 
-import itertools
 import logging
-import struct
 from collections import defaultdict
 
 import cffi
@@ -14,7 +12,7 @@ from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
-    AngrUnsupportedSyscallError, SimError, SimConcreteMemoryError
+    AngrUnsupportedSyscallError, SimError
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
