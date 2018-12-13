@@ -268,10 +268,6 @@ class Instruction(DisassemblyPiece):
                 else:
                     in_word = True
                     pieces.append(c)
-            elif c == '%':
-                in_word = False
-                pieces.append('%%')
-
             else:
                 in_word = False
                 pieces.append(c)
