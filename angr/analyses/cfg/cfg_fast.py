@@ -1484,6 +1484,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._insert_job(job)
                 return
 
+        # Try to see if there is any indirect jump left to be resolved
+        if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
+            self._process_unresolved_indirect_jumps()
+
+            if self._job_info_queue:
+                return
+
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
             while self._remaining_function_prologue_addrs:
                 prolog_addr = self._remaining_function_prologue_addrs[0]
@@ -1494,13 +1501,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 job = CFGJob(prolog_addr, prolog_addr, 'Ijk_Boring')
                 self._insert_job(job)
                 self._register_analysis_job(prolog_addr, job)
-                return
-
-        # Try to see if there is any indirect jump left to be resolved
-        if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
-            self._process_unresolved_indirect_jumps()
-
-            if self._job_info_queue:
                 return
 
         if self._force_complete_scan:
