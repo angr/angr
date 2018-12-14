@@ -191,7 +191,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 # this is how an ARM jump table is translated to VEX
                 # > t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
                 load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
-                                                      block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width
+                                                      block.tyenv.sizeof(stmt.dst) // self.project.arch.byte_width
                 stmts_to_remove.append(stmt_loc)
 
             break
