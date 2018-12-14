@@ -449,12 +449,12 @@ class JumpTableResolver(IndirectJumpResolver):
             print("  ####")
 
             for i, stmt in enumerate(irsb.statements):
-                taken = i in stmt_ids
-                flag = (in_slice_stmts_only and taken) or not in_slice_stmts_only
-                if flag:
-                    s = "%s %x:%02d | " % ("+" if taken else " ", addr, i)
+                stmt_taken = i in stmt_ids
+                display = stmt_taken if in_slice_stmts_only else True
+                if display:
+                    s = "%s %x:%02d | " % ("+" if stmt_taken else " ", addr, i)
                     s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)
-                    if taken:
+                    if stmt_taken:
                         s += "IN: %d" % blade.slice.in_degree((addr, i))
                     print(s)
 
