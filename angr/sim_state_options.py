@@ -10,7 +10,7 @@ class StateOption(object):
     Describes a state option.
     """
 
-    __slots__ = [ 'name', 'types', 'default', 'description' ]
+    __slots__ = [ 'name', 'types', 'default', 'description', '_one_type' ]
 
     def __init__(self, name, types, default=_NO_DEFAULT_VALUE, description=None):
         self.name = name
@@ -23,15 +23,18 @@ class StateOption(object):
             raise SimStateOptionsError("The type of the default value does not match the expected types of this state "
                                        "option.")
 
+        # Speed optimization
+        if len(self.types) == 1:
+            self._one_type = next(iter(self.types))
+        else:
+            self._one_type = None
+
     @property
     def has_default_value(self):
         return self.default != _NO_DEFAULT_VALUE
 
     def one_type(self):
-        if len(self.types) == 1:
-            return next(iter(self.types))
-
-        return None
+        return self._one_type
 
     def __hash__(self):
         return hash(self.name)
@@ -103,10 +106,10 @@ class SimStateOptions(object):
         :rtype:         StateOption
         """
 
-        if key not in self.OPTIONS:
+        try:
+            return self.OPTIONS[key]
+        except KeyError:
             raise SimStateOptionsError("The state option '%s' does not exist." % key)
-
-        return self.OPTIONS[key]
 
     def __repr__(self):
         s = "<SimStateOptions>"
