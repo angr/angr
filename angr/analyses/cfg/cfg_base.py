@@ -1727,15 +1727,15 @@ class CFGBase(Analysis):
                 if target_addr != addr_1:
                     continue
 
-                # Are func_0 adjacent to func_1?
-                if block.addr + block.size != addr_1:
-                    continue
-
-                l.debug("Merging function %#x into %#x.", addr_1, addr_0)
-
-                # Merge block addr_0 and block addr_1
                 cfgnode_0 = self.get_any_node(addr_0)
                 cfgnode_1 = self.get_any_node(addr_1)
+
+                # Are func_0 adjacent to func_1?
+                if cfgnode_0.addr + cfgnode_0.size != addr_1:
+                    continue
+
+                # Merge block addr_0 and block addr_1
+                l.debug("Merging function %#x into %#x.", addr_1, addr_0)
                 self._merge_cfgnodes(cfgnode_0, cfgnode_1)
                 adjusted_cfgnodes.add(cfgnode_0)
                 adjusted_cfgnodes.add(cfgnode_1)
