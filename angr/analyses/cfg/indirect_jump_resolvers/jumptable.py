@@ -1,6 +1,6 @@
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import pyvex
 
@@ -17,8 +17,13 @@ from .resolver import IndirectJumpResolver
 l = logging.getLogger(name=__name__)
 
 
-class UninitReadMeta(object):
+class UninitReadMeta:
     uninit_read_base = 0xc000000
+
+
+class AddressTransferringTypes:
+    Assignment = 0
+    SignedExtension32to64 = 1
 
 
 class JumpTableResolver(IndirectJumpResolver):
@@ -73,9 +78,25 @@ class JumpTableResolver(IndirectJumpResolver):
         if stmt_loc not in b.slice:
             return False, None
 
-        load_stmt_loc, load_stmt = None, None
+        load_stmt_loc, load_stmt, load_size = None, None, None
         stmts_to_remove = [stmt_loc]
-        stmts_adding_base_addr = [ ]
+        stmts_adding_base_addr = [ ]  # type: list[tuple[tuple, pyvex.IRStmt.WrTmp]]
+        # All temporary variables that hold indirect addresses loaded out of the memory
+        # Obviously, load_stmt.tmp must be here
+        # if there are additional data transferring statements between the Load statement and the base-address-adding
+        # statement, all_addr_holders will have more than one temporary variables
+        #
+        # Here is an example:
+        #
+        # IRSB 0x4c64c4
+        #  + 06 | t12 = LDle:I32(t7)
+        #  + 07 | t11 = 32Sto64(t12)
+        #  + 10 | t2 = Add64(0x0000000000571df0,t11)
+        #
+        # all_addr_holders will be {(0x4c64c4, 11): AddressTransferringTypes.SignedExtension32to64,
+        #           (0x4c64c4, 12); AddressTransferringTypes.Assignment,
+        #           }
+        all_addr_holders = OrderedDict()
 
         while True:
             preds = list(b.slice.predecessors(stmt_loc))
@@ -88,13 +109,25 @@ class JumpTableResolver(IndirectJumpResolver):
                 if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
                     # data transferring
                     stmts_to_remove.append(stmt_loc)
+                    if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                        all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.ITE):
                     # data transferring
                     #   t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
                     # > t44 = ITE(t43,t16,0x0000c844)
                     stmts_to_remove.append(stmt_loc)
+                    if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                        all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
                     continue
+                elif isinstance(stmt.data, pyvex.IRExpr.Unop):
+                    if stmt.data.op == 'Iop_32Sto64':
+                        # data transferring with conversion
+                        # t11 = 32Sto64(t12)
+                        stmts_to_remove.append(stmt_loc)
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.SignedExtension32to64
+                        continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith('Iop_Add'):
                     # GitHub issue #1289, a S390X binary
                     # jump_label = &jump_table + *(jump_table[index])
@@ -141,7 +174,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     # Special case: a base address is added to the loaded offset before jumping to it.
                     if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
                             isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
-                        stmts_adding_base_addr.append(stmt)
+                        stmts_adding_base_addr.append((stmt_loc, stmt))
                         stmts_to_remove.append(stmt_loc)
                     else:
                         # not supported
@@ -149,14 +182,16 @@ class JumpTableResolver(IndirectJumpResolver):
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
-                    load_stmt, load_stmt_loc = stmt, stmt_loc
+                    load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
+                                                          block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width
                     stmts_to_remove.append(stmt_loc)
             elif isinstance(stmt, pyvex.IRStmt.LoadG):
                 # Got it!
                 #
                 # this is how an ARM jump table is translated to VEX
                 # > t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
-                load_stmt, load_stmt_loc = stmt, stmt_loc
+                load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
+                                                      block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width
                 stmts_to_remove.append(stmt_loc)
 
             break
@@ -240,9 +275,11 @@ class JumpTableResolver(IndirectJumpResolver):
                 # sanity check
                 if stmts_adding_base_addr:
                     assert len(stmts_adding_base_addr) == 1  # Making sure we are only dealing with one operation here
-                    stmt_adding_base_addr = stmts_adding_base_addr[0]
-                    if stmt_adding_base_addr.data.args[1].tmp != load_stmt.tmp:
-                        # for some reason it's trying to add a base address onto a different temporary variable. skip.
+                    stmt_adding_base_addr_loc, stmt_adding_base_addr = stmts_adding_base_addr[0]
+                    addr_holder = (stmt_adding_base_addr_loc[0], stmt_adding_base_addr.data.args[1].tmp)
+                    if addr_holder not in all_addr_holders:
+                        # for some reason it's trying to add a base address onto a different temporary variable that we
+                        # are not aware of. skip.
                         continue
 
                 all_targets = [ ]
@@ -277,14 +314,30 @@ class JumpTableResolver(IndirectJumpResolver):
                 for idx, a in enumerate(state.solver.eval_upto(jump_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
-                    target = cfg._fast_memory_load_pointer(a)
+                    target = cfg._fast_memory_load_pointer(a, size=load_size)
                     all_targets.append(target)
 
                 if stmts_adding_base_addr:
-                    stmt_adding_base_addr = stmts_adding_base_addr[0]
+                    _, stmt_adding_base_addr = stmts_adding_base_addr[0]
                     base_addr = stmt_adding_base_addr.data.args[0].con.value
+                    conversion_ops = list(reversed(list(v for v in all_addr_holders.values()
+                                                   if v is not AddressTransferringTypes.Assignment)))
+                    if conversion_ops:
+                        invert_conversion_ops = [ ]
+                        for conversion_op in conversion_ops:
+                            if conversion_op is AddressTransferringTypes.SignedExtension32to64:
+                                lam = lambda a: (a | 0xffffffff00000000) if a >= 0x80000000 else a
+                            else:
+                                raise NotImplementedError("Unsupported conversion operation.")
+                            invert_conversion_ops.append(lam)
+                        all_targets_copy = all_targets
+                        all_targets = [ ]
+                        for target_ in all_targets_copy:
+                            for lam in invert_conversion_ops:
+                                target_ = lam(target_)
+                            all_targets.append(target_)
                     mask = (2 ** self.project.arch.bits) - 1
-                    all_targets = [ (target + base_addr) & mask for target in all_targets ]
+                    all_targets = [(target + base_addr) & mask for target in all_targets]
 
                 for target in all_targets:
                     jump_table.append(target)

@@ -875,17 +875,18 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_pointer(self, addr):
+    def _fast_memory_load_pointer(self, addr, size=None):
         """
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
+        :param int size: Size of the pointer. Default to machine-word size.
         :return:         A pointer or None if the address does not exist.
         :rtype:          int
         """
 
         try:
-            return self.project.loader.memory.unpack_word(addr)
+            return self.project.loader.memory.unpack_word(addr, size=size)
         except KeyError:
             return None
 
