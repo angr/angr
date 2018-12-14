@@ -721,19 +721,20 @@ class CFGBase(Analysis):
 
         return False
 
-    def _executable_memory_regions(self, binary=None, force_segment=False):
+    def _executable_memory_regions(self, objects=None, force_segment=False):
         """
         Get all executable memory regions from the binaries
 
-        :param binary: Binary object to collect regions from. If None, regions from all project binary objects are used.
+        :param objects: A collection of binary objects to collect regions from. If None, regions from all project
+                        binary objects are used.
         :param bool force_segment: Rely on binary segments instead of sections.
         :return: A sorted list of tuples (beginning_address, end_address)
         """
 
-        if binary is None:
+        if objects is None:
             binaries = self.project.loader.all_objects
         else:
-            binaries = [ binary ]
+            binaries = objects
 
         memory_regions = [ ]
 
@@ -875,17 +876,18 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_pointer(self, addr):
+    def _fast_memory_load_pointer(self, addr, size=None):
         """
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
+        :param int size: Size of the pointer. Default to machine-word size.
         :return:         A pointer or None if the address does not exist.
         :rtype:          int
         """
 
         try:
-            return self.project.loader.memory.unpack_word(addr)
+            return self.project.loader.memory.unpack_word(addr, size=size)
         except KeyError:
             return None
 

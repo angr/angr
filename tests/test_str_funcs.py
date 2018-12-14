@@ -18,7 +18,8 @@ def test_strncpy():
 def test_strncpy_size():
     strncpy_size_amd64 = angr.Project(test_location + "/x86_64/strncpy-size", load_options={'auto_load_libs': True}, exclude_sim_procedures_list=['strncpy'])
     explorer = strncpy_size_amd64.factory.simulation_manager()
-    explorer.use_technique(angr.exploration_techniques.LoopSeer(bound=50))
+    cfg = strncpy_size_amd64.analyses.CFG(objects=[strncpy_size_amd64.loader.main_object], normalize=True)
+    explorer.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, bound=50))
     explorer.explore(find=[0x40064C])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.registers.load(16), 40), cast_to=bytes)
@@ -27,7 +28,8 @@ def test_strncpy_size():
 def test_strncpy_verify_null():
     strncpy_verify_null_amd64 = angr.Project(test_location + "/x86_64/strncpy-verify-null", load_options={'auto_load_libs': True}, exclude_sim_procedures_list=['strncpy'])
     explorer = strncpy_verify_null_amd64.factory.simulation_manager()
-    explorer.use_technique(angr.exploration_techniques.LoopSeer(bound=50))
+    cfg = strncpy_verify_null_amd64.analyses.CFG(objects=[strncpy_verify_null_amd64.loader.main_object], normalize=True)
+    explorer.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, bound=50))
     explorer.explore(find=[0x40064C])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.registers.load(16), 40), cast_to=bytes)
@@ -36,7 +38,8 @@ def test_strncpy_verify_null():
 def test_strstr_and_strncpy():
     strstr_and_strncpy_amd64 = angr.Project(test_location + "/x86_64/strstr_and_strncpy", load_options={'auto_load_libs': True}, exclude_sim_procedures_list=['strstr'])
     explorer = strstr_and_strncpy_amd64.factory.simulation_manager()
-    explorer.use_technique(angr.exploration_techniques.LoopSeer(bound=50))
+    cfg = strstr_and_strncpy_amd64.analyses.CFG(objects=[strstr_and_strncpy_amd64.loader.main_object], normalize=True)
+    explorer.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, bound=50))
     explorer.explore(find=[0x400657])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.registers.load(16), 15), cast_to=bytes)

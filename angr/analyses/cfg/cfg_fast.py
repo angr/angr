@@ -828,6 +828,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def __init__(self,
                  binary=None,
+                 objects=None,
                  regions=None,
                  pickle_intermediate_results=False,
                  symbols=True,
@@ -856,6 +857,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
+        :param objects:                 A list of objects to recover the CFG on. By default it will recover the CFG of
+                                        all loaded objects.
         :param iterable regions:        A list of tuples in the form of (start address, end address) describing memory
                                         regions that the CFG should cover.
         :param bool pickle_intermediate_results: If we want to store the intermediate results or not.
@@ -917,8 +920,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         )
 
         # necessary warnings
+        regions_not_specified = regions is None and binary is None and not objects
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3 \
-                and regions is None:
+                and regions_not_specified:
             l.warning('"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
                       'which may take significantly more time than expected. You may reload the binary with '
                       '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
@@ -933,7 +937,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
 
-        regions = regions if regions is not None else self._executable_memory_regions(binary=None,
+        if binary is not None and not objects:
+            objects = [ binary ]
+        regions = regions if regions is not None else self._executable_memory_regions(objects=objects,
                                                                                       force_segment=force_segment
                                                                                       )
         if exclude_sparse_regions:
@@ -2816,7 +2822,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         a = None  # it always hold the very recent non-removed node
 
-        for i in range(len(sorted_nodes)):
+        for i in range(len(sorted_nodes)):  # pylint:disable=consider-using-enumerate
 
             if a is None:
                 a = sorted_nodes[0]
@@ -3528,7 +3534,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 return addr, current_function_addr, cfg_node, irsb
 
-            is_arm_arch = True if self.project.arch.name in ('ARMHF', 'ARMEL') else False
+            is_arm_arch = self.project.arch.name in ('ARMHF', 'ARMEL')
 
             if is_arm_arch:
                 real_addr = addr & (~1)
