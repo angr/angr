@@ -1693,15 +1693,14 @@ class CFGBase(Analysis):
         :rtype:                             set
         """
 
-        addrs = sorted(functions.keys())
+        addrs = sorted(k for k in functions.keys()
+                       if not self.project.is_hooked(k) and not self.project.simos.is_syscall_addr(k))
         functions_to_remove = set()
         adjusted_cfgnodes = set()
 
         for addr_0, addr_1 in zip(addrs[:-1], addrs[1:]):
 
             if addr_1 in predetermined_function_addrs:
-                continue
-            if self.project.is_hooked(addr_0) or self.project.is_hooked(addr_1):
                 continue
 
             func_0 = functions[addr_0]
