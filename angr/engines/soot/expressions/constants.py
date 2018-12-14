@@ -7,18 +7,18 @@ from .base import SimSootExpr
 
 class SimSootExpr_IntConstant(SimSootExpr):
     def _execute(self):
-        self.expr = self.state.se.BVV(self.expr.value, 32)
+        self.expr = self.state.solver.BVV(self.expr.value, 32)
 
 
 class SimSootExpr_LongConstant(SimSootExpr):
     def _execute(self):
-        self.expr = self.state.se.BVV(self.expr.value, 64)
+        self.expr = self.state.solver.BVV(self.expr.value, 64)
 
 
 class SimSootExpr_StringConstant(SimSootExpr):
     def _execute(self):
         # strip away quotes introduced by soot
-        str_val = self.state.se.StringV(self.expr.value.strip("\""))
+        str_val = self.state.solver.StringV(self.expr.value.strip("\""))
         str_ref = SimSootValue_StringRef(self.state.memory.get_new_uuid())
         self.state.memory.store(str_ref, str_val)
         self.expr = str_ref

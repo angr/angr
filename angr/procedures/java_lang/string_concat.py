@@ -13,10 +13,9 @@ class StringConcat(JavaSimProcedure):
         ("java.lang.String", "concat(java.lang.String)"),
     )
 
-    def run(self, str_1, str_2): # pylint: disable=arguments-differ
-        l.debug("Called SimProcedure java.string.concat with args: %s (%r), %s (%r)", str_1, str_1, str_2, str_2)
-        str_1 = str_1 if "String" in str_1.__class__.__name__ else self.state.memory.load(str_1)
-        str_2 = str_2 if "String" in str_2.__class__.__name__ else self.state.memory.load(str_2)
-        import ipdb; ipdb.set_trace()
+    def run(self, str_1_ref, str_2_ref): # pylint: disable=arguments-differ
+        l.debug("Called SimProcedure java.string.concat with args: {} {}".format(str_1_ref, str_2_ref))
+        str_1 = self.state.memory.load(str_1_ref)
+        str_2 = self.state.memory.load(str_2_ref)
         result = claripy.StrConcat(str_1, str_2)
         return result

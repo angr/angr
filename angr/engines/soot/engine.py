@@ -122,7 +122,7 @@ class SimEngineSoot(SimEngine):
                 next_addr = self._get_next_linear_instruction(state, stmt_idx)
                 l.debug("Advancing execution linearly to %s", next_addr)
                 if next_addr is not None:
-                    successors.add_successor(state.copy(), next_addr, state.se.true, 'Ijk_Boring')
+                    successors.add_successor(state.copy(), next_addr, state.solver.true, 'Ijk_Boring')
 
     def _handle_statement(self, state, successors, stmt_idx, stmt):
         # execute statement
@@ -160,7 +160,7 @@ class SimEngineSoot(SimEngine):
             # add invoke state as the successor and terminate execution
             # prematurely, since Soot does not guarantee that an invoke stmt
             # terminates a block
-            successors.add_successor(invoke_state, addr, state.se.true, 'Ijk_Call')
+            successors.add_successor(invoke_state, addr, state.solver.true, 'Ijk_Call')
             return True
 
         # add jmp exit
@@ -186,7 +186,7 @@ class SimEngineSoot(SimEngine):
     def _add_return_exit(cls, state, successors, return_val=None):
         ret_state = state.copy()
         cls.prepare_return_state(ret_state, return_val)
-        successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.se.true, 'Ijk_Ret')
+        successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.solver.true, 'Ijk_Ret')
         successors.processed = True
 
     def _get_sim_procedure(self, addr):
@@ -296,9 +296,9 @@ class SimEngineSoot(SimEngine):
         if type(statement) is SimSootStmt_Return:
             exit_code = statement.return_value
             # TODO symbolic exit code?
-            exit_code = state.se.BVV(exit_code, state.arch.bits)
+            exit_code = state.solver.BVV(exit_code, state.arch.bits)
         state.history.add_event('terminate', exit_code=exit_code)
-        successors.add_successor(state, state.regs.ip, state.se.true, 'Ijk_Exit')
+        successors.add_successor(state, state.regs.ip, state.solver.true, 'Ijk_Exit')
         successors.processed = True
         raise BlockTerminationNotice()
 
@@ -320,7 +320,7 @@ class SimEngineSoot(SimEngine):
 
         # set successor flags
         ret_state.regs._ip = ret_state.callstack.ret_addr
-        ret_state.scratch.guard = ret_state.se.true
+        ret_state.scratch.guard = ret_state.solver.true
         ret_state.history.jumpkind = 'Ijk_Ret'
 
         # if available, lookup the return value in native memory
