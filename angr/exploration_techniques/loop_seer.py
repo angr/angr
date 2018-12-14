@@ -53,7 +53,7 @@ class LoopSeer(ExplorationTechnique):
             cfg_kb = KnowledgeBase(self.project, self.project.loader.main_object)
             self.cfg = self.project.analyses.CFGFast(kb=cfg_kb, normalize=True)
         elif not self.cfg.normalized:
-            l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...")
+            l.warning("LoopSeer must use a normalized CFG. Normalizing the provided CFG...")
             self.cfg.normalize()
 
         funcs = None
