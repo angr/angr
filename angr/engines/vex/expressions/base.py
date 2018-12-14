@@ -48,7 +48,8 @@ class SimIRExpr(object):
         if o.SIMPLIFY_EXPRS in self.state.options:
             self.expr = self.state.solver.simplify(self.expr)
 
-        self.state.add_constraints(*self._constraints)
+        if self._constraints:
+            self.state.add_constraints(*self._constraints)
 
         if self.state.solver.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
