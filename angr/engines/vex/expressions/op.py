@@ -7,7 +7,11 @@ from .... import sim_options as o
 from ....errors import UnsupportedIROpError, SimOperationError
 from ....state_plugins.sim_action import SimActionOperation, SimActionObject
 
+
 class SimIRExpr_Op(SimIRExpr):
+
+    __slots__ = []
+
     def _execute(self):
         exprs = self._translate_exprs(self._expr.args)
 

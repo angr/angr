@@ -3,9 +3,14 @@
 import logging
 l = logging.getLogger(name=__name__)
 from pyvex.const import get_type_size
+
 _nonset = frozenset()
 
-class SimIRExpr(object):
+
+class SimIRExpr:
+
+    __slots__ = ('state', 'child_exprs', 'actions', 'expr', 'type', '_expr', '_constraints', '_post_processed')
+
     def __init__(self, expr, state):
         self.state = state
         self._constraints = [ ]

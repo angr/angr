@@ -5,7 +5,11 @@ from .... import sim_options as o
 from ....state_plugins.sim_action_object import SimActionObject
 from ....state_plugins.sim_action import SimActionExit
 
+
 class SimIRStmt_Exit(SimIRStmt):
+
+    __slots__ = ('guard', 'target', 'jumpkind')
+
     def __init__(self, stmt, state):
         SimIRStmt.__init__(self, stmt, state)
 

@@ -4,7 +4,11 @@ from ....state_plugins.sim_action import SimActionData
 from ....state_plugins.sim_action_object import SimActionObject
 from ....errors import SimUninitializedAccessError
 
+
 class SimIRExpr_Load(SimIRExpr):
+
+    __slots__ = []
+
     def _execute(self):
         # size of the load
         size = self.size_bytes(self._expr.type)
