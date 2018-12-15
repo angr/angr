@@ -205,7 +205,6 @@ class JumpTableResolver(IndirectJumpResolver):
             return False, None
 
         # skip all statements before the load statement
-        slice_copy = b.slice.copy(as_view=False)
         b.slice.remove_nodes_from(stmts_to_remove)
 
         # Debugging output
@@ -224,6 +223,9 @@ class JumpTableResolver(IndirectJumpResolver):
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
             start_state = self._initial_state(src_irsb)
+            # Keep IP symbolic to avoid unnecessary concretization
+            start_state.options.add(o.KEEP_IP_SYMBOLIC)
+            start_state.options.add(o.NO_IP_CONCRETIZATION)
 
             # any read from an uninitialized segment should be unconstrained
             if self._bss_regions:
@@ -257,10 +259,8 @@ class JumpTableResolver(IndirectJumpResolver):
             # Get the jumping targets
             for r in simgr.found:
                 try:
-                    new_annocfg = AnnotatedCFG(project, None, detect_loops=False)
-                    new_annocfg.from_digraph(slice_copy)
-                    whitelist = new_annocfg.get_whitelisted_statements(r.addr)
-                    last_stmt = new_annocfg.get_last_statement_index(r.addr)
+                    whitelist = annotatedcfg.get_whitelisted_statements(r.addr)
+                    last_stmt = annotatedcfg.get_last_statement_index(r.addr)
                     succ = project.factory.successors(r, whitelist=whitelist, last_stmt=last_stmt)
                 except (AngrError, SimError):
                     # oops there are errors
