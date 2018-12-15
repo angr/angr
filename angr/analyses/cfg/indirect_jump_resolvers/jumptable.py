@@ -205,6 +205,7 @@ class JumpTableResolver(IndirectJumpResolver):
             return False, None
 
         # skip all statements before the load statement
+        slice_copy = b.slice.copy(as_view=False)
         b.slice.remove_nodes_from(stmts_to_remove)
 
         # Debugging output
@@ -240,7 +241,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Create the slicecutor
             simgr = self.project.factory.simulation_manager(start_state, resilience=True)
-            simgr.use_technique(Slicecutor(annotatedcfg, force_taking_exit=True))
+            slicecutor = Slicecutor(annotatedcfg, force_taking_exit=True)
+            simgr.use_technique(slicecutor)
             simgr.use_technique(Explorer(find=load_stmt_loc[0]))
 
             # Run it!
@@ -255,7 +257,11 @@ class JumpTableResolver(IndirectJumpResolver):
             # Get the jumping targets
             for r in simgr.found:
                 try:
-                    succ = project.factory.successors(r)
+                    new_annocfg = AnnotatedCFG(project, None, detect_loops=False)
+                    new_annocfg.from_digraph(slice_copy)
+                    whitelist = new_annocfg.get_whitelisted_statements(r.addr)
+                    last_stmt = new_annocfg.get_last_statement_index(r.addr)
+                    succ = project.factory.successors(r, whitelist=whitelist, last_stmt=last_stmt)
                 except (AngrError, SimError):
                     # oops there are errors
                     l.warning('Cannot get jump successor states from a path that has reached the target. Skip it.')
@@ -427,7 +433,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # job done :-)
 
-    def _dbg_repr_slice(self, blade):
+    def _dbg_repr_slice(self, blade, in_slice_stmts_only=False):
 
         stmts = defaultdict(set)
 
@@ -443,12 +449,14 @@ class JumpTableResolver(IndirectJumpResolver):
             print("  ####")
 
             for i, stmt in enumerate(irsb.statements):
-                taken = i in stmt_ids
-                s = "%s %x:%02d | " % ("+" if taken else " ", addr, i)
-                s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)
-                if taken:
-                    s += "IN: %d" % blade.slice.in_degree((addr, i))
-                print(s)
+                stmt_taken = i in stmt_ids
+                display = stmt_taken if in_slice_stmts_only else True
+                if display:
+                    s = "%s %x:%02d | " % ("+" if stmt_taken else " ", addr, i)
+                    s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)
+                    if stmt_taken:
+                        s += "IN: %d" % blade.slice.in_degree((addr, i))
+                    print(s)
 
             # the default exit
             default_exit_taken = 'default' in stmt_ids
