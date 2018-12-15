@@ -6,7 +6,11 @@ from ....errors import SimCCallError, UnsupportedCCallError
 import logging
 l = logging.getLogger(name=__name__)
 
+
 class SimIRExpr_CCall(SimIRExpr):
+
+    __slots__ = []
+
     def _execute(self):
         exprs = self._translate_exprs(self._expr.args)
 

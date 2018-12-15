@@ -2,7 +2,11 @@ from .base import SimIRExpr
 from .... import sim_options as o
 from ....state_plugins.sim_action import SimActionData
 
+
 class SimIRExpr_RdTmp(SimIRExpr):
+
+    __slots__ = []
+
     def _execute(self):
         if (o.SUPER_FASTPATH in self.state.options
                 and self._expr.tmp not in self.state.scratch.temps):

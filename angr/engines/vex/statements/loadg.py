@@ -4,7 +4,11 @@ from ....state_plugins.sim_action import SimActionData
 
 from . import SimIRStmt, SimStatementError
 
+
 class SimIRStmt_LoadG(SimIRStmt):
+
+    __slots__ = []
+
     def _execute(self):
         addr = self._translate_expr(self.stmt.addr)
         alt = self._translate_expr(self.stmt.alt)

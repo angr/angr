@@ -8,6 +8,9 @@ l = logging.getLogger(name=__name__)
 # TODO: tmp write SimActions
 
 class SimIRStmt_LLSC(SimIRStmt):
+
+    __slots__ = []
+
     def _execute(self):
         #l.warning("LLSC is handled soundly but imprecisely.")
         addr = self._translate_expr(self.stmt.addr)

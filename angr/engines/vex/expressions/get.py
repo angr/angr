@@ -2,7 +2,11 @@ from .base import SimIRExpr
 from .... import sim_options as o
 from ....state_plugins.sim_action import SimActionData
 
+
 class SimIRExpr_Get(SimIRExpr):
+
+    __slots__ = []
+
     def _execute(self):
         size = self.size_bytes(self._expr.type)
         size_in_bits = self.size_bits(self._expr.type)
