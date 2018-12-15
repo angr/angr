@@ -358,7 +358,7 @@ class CFGBase(Analysis):
             return self._nodes[block_id]
         return None
 
-    def get_any_node(self, addr, is_syscall=None, anyaddr=False):
+    def get_any_node(self, addr, is_syscall=None, anyaddr=False, force_fastpath=False):
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
@@ -373,13 +373,20 @@ class CFGBase(Analysis):
                                 containing the specific address is returned, which is slow. If you need to do many such
                                 queries, you may first call `generate_index()` to create some indices that may speed up the
                                 query.
+        :param bool force_fastpath: If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
+                                    dict.
         :return: A CFGNode if there is any that satisfies given conditions, or None otherwise
         """
 
         # fastpath: directly look in the nodes list
-        if not anyaddr and self._nodes_by_addr and \
-                addr in self._nodes_by_addr and self._nodes_by_addr[addr]:
-            return self._nodes_by_addr[addr][0]
+        if not anyaddr:
+            try:
+                return self._nodes_by_addr[addr][0]
+            except (KeyError, IndexError):
+                pass
+
+        if force_fastpath:
+            return None
 
         # slower path
         #if self._node_lookup_index is not None:
