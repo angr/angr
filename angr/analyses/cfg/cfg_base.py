@@ -59,6 +59,7 @@ class CFGBase(Analysis):
     """
 
     tag = None
+    _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
@@ -776,7 +777,7 @@ class CFGBase(Analysis):
                 tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
 
-            elif isinstance(b, (ExternObject, KernelObject, TLSObject)):
+            elif isinstance(b, self._cle_pseudo_objects):
                 pass
 
             else:

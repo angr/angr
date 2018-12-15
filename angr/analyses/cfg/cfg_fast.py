@@ -16,7 +16,7 @@ from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .cfg_node import CFGNode
-from ..forward_analysis import ForwardAnalysis
+from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
                        AngrUnsupportedSyscallError
@@ -942,6 +942,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         regions = regions if regions is not None else self._executable_memory_regions(objects=objects,
                                                                                       force_segment=force_segment
                                                                                       )
+
         if exclude_sparse_regions:
             new_regions = [ ]
             for start_, end_ in regions:
@@ -1396,6 +1397,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)
+
+        if not self._inside_regions(job.addr):
+            obj = self.project.loader.find_object_containing(job.addr)
+            if obj is not None and isinstance(obj, self._cle_pseudo_objects):
+                pass
+            else:
+                # it's outside permitted regions. skip.
+                raise AngrSkipJobNotice()
 
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
