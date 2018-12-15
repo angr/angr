@@ -26,6 +26,21 @@ class AddressTransferringTypes:
     SignedExtension32to64 = 1
 
 
+class JumpTargetBaseAddr:
+    def __init__(self, stmt_loc, stmt, tmp, base_addr=None, tmp_1=None):
+        self.stmt_loc = stmt_loc
+        self.stmt = stmt
+        self.tmp = tmp  # type:int
+        self.tmp_1 = tmp_1
+        self.base_addr = base_addr  # type:int
+
+        assert base_addr is not None or tmp_1 is not None
+
+    @property
+    def base_addr_available(self):
+        return self.base_addr is not None
+
+
 class JumpTableResolver(IndirectJumpResolver):
     """
     A generic jump table resolver.
@@ -80,7 +95,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         load_stmt_loc, load_stmt, load_size = None, None, None
         stmts_to_remove = [stmt_loc]
-        stmts_adding_base_addr = [ ]  # type: list[tuple[tuple, pyvex.IRStmt.WrTmp]]
+        stmts_adding_base_addr = [ ]  # type: list[JumpTargetBaseAddr]
         # All temporary variables that hold indirect addresses loaded out of the memory
         # Obviously, load_stmt.tmp must be here
         # if there are additional data transferring statements between the Load statement and the base-address-adding
@@ -174,7 +189,25 @@ class JumpTableResolver(IndirectJumpResolver):
                     # Special case: a base address is added to the loaded offset before jumping to it.
                     if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
                             isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
-                        stmts_adding_base_addr.append((stmt_loc, stmt))
+                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                                                                         stmt.data.args[1].tmp,
+                                                                         base_addr=stmt.data.args[0].con.value)
+                                                      )
+                        stmts_to_remove.append(stmt_loc)
+                    elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                            isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                                                                         stmt.data.args[0].tmp,
+                                                                         base_addr=stmt.data.args[1].con.value)
+                                                      )
+                        stmts_to_remove.append(stmt_loc)
+                    elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+                        # one of the tmps must be holding a concrete value at this point
+                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                                                                         stmt.data.args[0].tmp,
+                                                                         tmp_1=stmt.data.args[1].tmp)
+                                                      )
                         stmts_to_remove.append(stmt_loc)
                     else:
                         # not supported
@@ -205,7 +238,6 @@ class JumpTableResolver(IndirectJumpResolver):
             return False, None
 
         # skip all statements before the load statement
-        slice_copy = b.slice.copy(as_view=False)
         b.slice.remove_nodes_from(stmts_to_remove)
 
         # Debugging output
@@ -224,6 +256,9 @@ class JumpTableResolver(IndirectJumpResolver):
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
             start_state = self._initial_state(src_irsb)
+            # Keep IP symbolic to avoid unnecessary concretization
+            start_state.options.add(o.KEEP_IP_SYMBOLIC)
+            start_state.options.add(o.NO_IP_CONCRETIZATION)
 
             # any read from an uninitialized segment should be unconstrained
             if self._bss_regions:
@@ -257,10 +292,8 @@ class JumpTableResolver(IndirectJumpResolver):
             # Get the jumping targets
             for r in simgr.found:
                 try:
-                    new_annocfg = AnnotatedCFG(project, None, detect_loops=False)
-                    new_annocfg.from_digraph(slice_copy)
-                    whitelist = new_annocfg.get_whitelisted_statements(r.addr)
-                    last_stmt = new_annocfg.get_last_statement_index(r.addr)
+                    whitelist = annotatedcfg.get_whitelisted_statements(r.addr)
+                    last_stmt = annotatedcfg.get_last_statement_index(r.addr)
                     succ = project.factory.successors(r, whitelist=whitelist, last_stmt=last_stmt)
                 except (AngrError, SimError):
                     # oops there are errors
@@ -278,24 +311,39 @@ class JumpTableResolver(IndirectJumpResolver):
                 if jump_addr is None:
                     continue
 
-                # sanity check
+                # sanity check and necessary pre-processing
                 if stmts_adding_base_addr:
                     assert len(stmts_adding_base_addr) == 1  # Making sure we are only dealing with one operation here
-                    stmt_adding_base_addr_loc, stmt_adding_base_addr = stmts_adding_base_addr[0]
-                    addr_holder = (stmt_adding_base_addr_loc[0], stmt_adding_base_addr.data.args[1].tmp)
-                    if addr_holder not in all_addr_holders:
+                    jump_base_addr = stmts_adding_base_addr[0]
+                    if jump_base_addr.base_addr_available:
+                        addr_holders = { (jump_base_addr.stmt_loc[0], jump_base_addr.tmp) }
+                    else:
+                        addr_holders = { (jump_base_addr.stmt_loc[0], jump_base_addr.tmp),
+                                         (jump_base_addr.stmt_loc[0], jump_base_addr.tmp_1)
+                                         }
+                    if len(set(all_addr_holders.keys()).intersection(addr_holders)) != 1:
                         # for some reason it's trying to add a base address onto a different temporary variable that we
                         # are not aware of. skip.
                         continue
+
+                    if not jump_base_addr.base_addr_available:
+                        # we need to decide which tmp is the address holder and which tmp holds the base address
+                        addr_holder = next(iter(set(all_addr_holders.keys()).intersection(addr_holders)))
+                        if jump_base_addr.tmp_1 == addr_holder[1]:
+                            # swap the two tmps
+                            jump_base_addr.tmp, jump_base_addr.tmp_1 = jump_base_addr.tmp_1, jump_base_addr.tmp
+                        # Load the concrete base address
+                        jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
 
                 all_targets = [ ]
                 total_cases = jump_addr._model_vsa.cardinality
 
                 if total_cases > self._max_targets:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
+                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table. Try the "
+                            "next source, if there is any.",
                             total_cases, addr)
-                    return False, None
+                    continue
 
                     # Or alternatively, we can ask user, which is meh...
                     #
@@ -324,8 +372,8 @@ class JumpTableResolver(IndirectJumpResolver):
                     all_targets.append(target)
 
                 if stmts_adding_base_addr:
-                    _, stmt_adding_base_addr = stmts_adding_base_addr[0]
-                    base_addr = stmt_adding_base_addr.data.args[0].con.value
+                    stmt_adding_base_addr = stmts_adding_base_addr[0]
+                    base_addr = stmt_adding_base_addr.base_addr
                     conversion_ops = list(reversed(list(v for v in all_addr_holders.values()
                                                    if v is not AddressTransferringTypes.Assignment)))
                     if conversion_ops:
