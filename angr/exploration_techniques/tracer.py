@@ -243,7 +243,7 @@ class Tracer(ExplorationTechnique):
         if state.globals['sync_idx'] is not None:
             l.debug("Trace: %d-%d/%d synchronizing %d", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
         else:
-            l.debug("Trace: %d/%d", state.globals['trace_idx'], len(self._trace))
+            l.debug("Trace: %d/%d (0x%x)", state.globals['trace_idx'], len(self._trace), state.addr)
 
     def _translate_state_addr(self, state_addr, obj=None):
         if obj is None:
