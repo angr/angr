@@ -37,5 +37,5 @@ class SimKVStore(SimMemory):
         return SimKVStore(store=self._store.copy())
 
     def __str__(self):
-        return "\n".join(["%s: %s (%s)" % (k, v.value, v.type) for k,v in self._store.iteritems()])
+        return "\n".join(["%s: %s (%s)" % (k, v.value, v.type) for k,v in self._store.items()])
 

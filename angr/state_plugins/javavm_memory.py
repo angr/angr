@@ -259,7 +259,8 @@ class SimJavaVmMemory(SimMemory):
         if value is None:
             value = array.get_default_value(self.state)
             l.debug("Init %s with %s", heap_elem_id, value)
-            self.heap.store(heap_elem_id, value)
+            element_type = value.element_type if hasattr(value, 'element_type') else None
+            self.heap.store(heap_elem_id, value, type_=element_type)
         else:
             l.debug("Load %s from %s", heap_elem_id, value)
         return value

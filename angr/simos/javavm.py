@@ -4,7 +4,7 @@ from angr import SIM_PROCEDURES, options
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootAddressTerminator, SootArgument,
                                 SootNullConstant)
-from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV
+from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
@@ -269,13 +269,13 @@ class SimJavaVM(SimOS):
         :return:            Default value for this type.
         """
         if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
-            return BVV(0, 32)
+            return BVS('default_value_{}'.format(type_), 32)
         elif type_ == "long":
-            return BVV(0, 64)
+            return BVS('default_value_{}'.format(type_), 64)
         elif type_ == 'float':
-            return FPV(0, FSORT_FLOAT)
+            return FPS('default_value_{}'.format(type_), FSORT_FLOAT)
         elif type_ == 'double':
-            return FPV(0, FSORT_DOUBLE)
+            return FPS('default_value_{}'.format(type_), FSORT_DOUBLE)
         else:
             # not a primitive type
             # => treat it as a reference
