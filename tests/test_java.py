@@ -380,7 +380,7 @@ def test_array_operations():
                                     method_fullname="MixedJava.test_symbolic_array_read")
     stdin_packets = winning_path.posix.stdin.content
     input_char, _ = stdin_packets[0]
-    solutions = winning_path.solver.eval_exact(input_char, 2)
+    solutions = winning_path.solver.eval_upto(input_char, 2)
     assert ord('A') in solutions
     assert ord('C') in solutions
 
@@ -391,17 +391,17 @@ def test_array_operations():
     idx_symbol, _ = stdin_packets[0]
     val_symbol, _ = stdin_packets[1]
     winning_path.solver.add(val_symbol != 0)  # exclude trivial solution
-    idx = winning_path.solver.eval_one(idx_symbol)
-    val = winning_path.solver.eval_one(val_symbol)
-    assert idx == ord('I')
-    assert val == ord('5')
+    idx = winning_path.solver.eval(idx_symbol)
+    val = winning_path.solver.eval(val_symbol)
+    assert idx == 41
+    assert val == 200
 
     # test_symbolic_array_length
     winning_path = get_winning_path(project=project,
                                     method_fullname="MixedJava.test_symbolic_array_length")
     stdin_packets = winning_path.posix.stdin.content
     input_char, _ = stdin_packets[0]
-    solution = winning_path.solver.eval_one(input_char)
+    solution = winning_path.solver.eval(input_char)
     assert solution == ord('F')
 
     # test_index_of_of_bound0
@@ -536,7 +536,7 @@ def run_method(project, method, assert_locals=None, assertions=None):
     if assert_locals:
         for symbol_name, assert_value in assert_locals.items():
             symbol = load_value_from_stack(end_state, symbol_name)
-            val = end_state.solver.eval_one(symbol)
+            val = end_state.solver.eval(symbol)
             assert val == assert_value
 
     if assertions:
