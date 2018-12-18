@@ -19,9 +19,13 @@ class fgets(angr.SimProcedure):
         if simfd is None:
             return -1
 
+        # case 0: empty read
+        if self.state.solver.is_true(size == 0):
+            return 0
+
         # case 1: the data is concrete. we should read it a byte at a time since we can't seek for
         # the newline and we don't have any notion of buffering in-memory
-        if simfd.read_storage.concrete and not size.symbolic:
+        elif simfd.read_storage.concrete and not size.symbolic:
             size = self.state.solver.eval(size)
             count = 0
             while count < size - 1:
