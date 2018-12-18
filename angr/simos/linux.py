@@ -5,8 +5,10 @@ import struct
 import claripy
 from cle import MetaELF
 from cle.address_translator import AT
+from cle.backends.symbol import Symbol
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
+from .. import sim_options as options
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
@@ -29,26 +31,83 @@ class SimLinux(SimUserland):
                 name="Linux",
                 **kwargs)
 
-        self._loader_addr = None
+        self._full_init_addr = None
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
         self._error_catch_tsd_addr = None
+
+        self._rtld_global_addr = None
+        self._rtld_global_offsets = {}
         self.vsyscall_addr = None
 
+    def _ld_get_or_allocate(self, name, **kwargs):
+        try:
+            return self.project.loader.linux_loader_object.get_symbol(name).rebased_addr
+        except AttributeError:
+            return self.project.loader.extern_object.make_extern(name, **kwargs).rebased_addr
+
+    def _analyze_loader_addrs(self):
+        ld = self.project.loader
+        if ld is None:
+            return
+        rtld_global_sym = ld.linux_loader_object.get_symbol('_rtld_global')
+        if rtld_global_sym is None:
+            return
+        self._rtld_global_addr = rtld_global_sym.rebased_addr
+
+        self._loader_lock_addr = self._ld_get_or_allocate('_dl_rtld_lock_recursive')
+        self._loader_unlock_addr = self._ld_get_or_allocate('_dl_rtld_unlock_recursive')
+        self._error_catch_tsd_addr = self._ld_get_or_allocate('_dl_initial_error_catch_tsd')
+
+        try:
+            dl_addr = ld.find_symbol('_dl_addr').rebased_addr # from libc
+        except AttributeError:
+            pass
+        else:
+            # pointer to rtld_global should already be relocated correctly
+            base_addr = 0x998f000
+            state = self.project.factory.call_state(addr=dl_addr, add_options={options.ZERO_FILL_UNCONSTRAINED_MEMORY, options.INITIALIZE_ZERO_REGISTERS, options.LAZY_SOLVES})
+            for addr in range(0, 0 + 0x1000, self.project.arch.bytes):
+                state.memory.store(self._rtld_global_addr + addr, base_addr + addr, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+            cfg = self.project.analyses.CFGEmulated(initial_state=state, starts=(dl_addr,), call_depth=0)
+            simgr = self.project.factory.simulation_manager(state, save_unconstrained=True)
+
+
     def configure_project(self): # pylint: disable=arguments-differ
-        self._loader_addr = self.project.loader.extern_object.allocate()
-        self._loader_lock_addr = self.project.loader.extern_object.allocate()
-        self._loader_unlock_addr = self.project.loader.extern_object.allocate()
-        self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
+        # maybe move this into archinfo?
+        if self.arch.name == 'X86':
+            syscall_abis = ['i386']
+        elif self.arch.name == 'AMD64':
+            syscall_abis = ['i386', 'amd64']
+        elif self.arch.name.startswith('ARM'):
+            syscall_abis = ['arm']
+            if self.arch.name == 'ARMHF':
+                syscall_abis.append('armhf')
+        elif self.arch.name == 'AARCH64':
+            syscall_abis = ['aarch64']
+        # https://www.linux-mips.org/wiki/WhatsWrongWithO32N32N64
+        elif self.arch.name == 'MIPS32':
+            syscall_abis = ['mips-o32']
+        elif self.arch.name == 'MIPS64':
+            syscall_abis = ['mips-n32', 'mips-n64']
+        elif self.arch.name == 'PPC32':
+            syscall_abis = ['ppc']
+        elif self.arch.name == 'PPC64':
+            syscall_abis = ['ppc64']
+        else:
+            syscall_abis = [] # ?
+
+        super(SimLinux, self).configure_project(syscall_abis)
+
+        self._analyze_loader_addrs()
+        self._full_init_addr = self.project.loader.extern_object.make_extern('LinuxLoader')
         self.vsyscall_addr = self.project.loader.extern_object.allocate()
-        self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
+        self.project.hook(self._full_init_addr, P['linux_loader']['LinuxLoader']())
         self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
         self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
         self.project.hook(self._error_catch_tsd_addr,
-                          P['linux_loader']['_dl_initial_error_catch_tsd'](
-                              static_addr=self.project.loader.extern_object.allocate()
-                          )
-                          )
+            P['linux_loader']['_dl_initial_error_catch_tsd'](static_addr=self.project.loader.extern_object.allocate())
+        )
         self.project.hook(self.vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
         ld_obj = self.project.loader.linux_loader_object
@@ -114,30 +173,6 @@ class SimLinux(SimUserland):
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                         self.project.loader.memory.pack_word(gotaddr, randaddr)
 
-        # maybe move this into archinfo?
-        if self.arch.name == 'X86':
-            syscall_abis = ['i386']
-        elif self.arch.name == 'AMD64':
-            syscall_abis = ['i386', 'amd64']
-        elif self.arch.name.startswith('ARM'):
-            syscall_abis = ['arm']
-            if self.arch.name == 'ARMHF':
-                syscall_abis.append('armhf')
-        elif self.arch.name == 'AARCH64':
-            syscall_abis = ['aarch64']
-        # https://www.linux-mips.org/wiki/WhatsWrongWithO32N32N64
-        elif self.arch.name == 'MIPS32':
-            syscall_abis = ['mips-o32']
-        elif self.arch.name == 'MIPS64':
-            syscall_abis = ['mips-n32', 'mips-n64']
-        elif self.arch.name == 'PPC32':
-            syscall_abis = ['ppc']
-        elif self.arch.name == 'PPC64':
-            syscall_abis = ['ppc64']
-        else:
-            syscall_abis = [] # ?
-
-        super(SimLinux, self).configure_project(syscall_abis)
 
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':
@@ -320,7 +355,7 @@ class SimLinux(SimUserland):
                 _l.error('What the ass kind of default value is %s?', val)
 
     def state_full_init(self, **kwargs):
-        kwargs['addr'] = self._loader_addr
+        kwargs['addr'] = self._full_init_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
     def prepare_function_symbol(self, symbol_name, basic_addr=None):
