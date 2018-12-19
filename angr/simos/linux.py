@@ -5,7 +5,6 @@ import struct
 import claripy
 from cle import MetaELF
 from cle.address_translator import AT
-from cle.backends.symbol import Symbol
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
 from .. import sim_options as options
@@ -14,6 +13,7 @@ from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
 from ..storage.file import SimFile, SimFileBase
 from ..errors import AngrSyscallError
+from ..knowledge_base import KnowledgeBase
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)
@@ -32,12 +32,9 @@ class SimLinux(SimUserland):
                 **kwargs)
 
         self._full_init_addr = None
-        self._loader_lock_addr = None
-        self._loader_unlock_addr = None
-        self._error_catch_tsd_addr = None
-
         self._rtld_global_addr = None
         self._rtld_global_offsets = {}
+        self._loader_func_addrs = {}
         self.vsyscall_addr = None
 
     def _ld_get_or_allocate(self, name, **kwargs):
@@ -55,9 +52,10 @@ class SimLinux(SimUserland):
             return
         self._rtld_global_addr = rtld_global_sym.rebased_addr
 
-        self._loader_lock_addr = self._ld_get_or_allocate('_dl_rtld_lock_recursive')
-        self._loader_unlock_addr = self._ld_get_or_allocate('_dl_rtld_unlock_recursive')
-        self._error_catch_tsd_addr = self._ld_get_or_allocate('_dl_initial_error_catch_tsd')
+        for name in ['_dl_rtld_lock_recursive', '_dl_rtld_unlock_recursive', '_dl_initial_error_catch_tsd']:
+            self._loader_func_addrs[name] = self._ld_get_or_allocate(name)
+
+        dummy_kb = KnowledgeBase(self.project, self.project.loader.main_object)
 
         try:
             dl_addr = ld.find_symbol('_dl_addr').rebased_addr # from libc
@@ -65,12 +63,39 @@ class SimLinux(SimUserland):
             pass
         else:
             # pointer to rtld_global should already be relocated correctly
+            cfg = self.project.analyses.CFGFast(regions=((dl_addr, dl_addr+4096),), function_starts=(dl_addr,), force_complete_scan=False, symbols=False, function_prologues=False, kb=dummy_kb)
             base_addr = 0x998f000
             state = self.project.factory.call_state(addr=dl_addr, add_options={options.ZERO_FILL_UNCONSTRAINED_MEMORY, options.INITIALIZE_ZERO_REGISTERS, options.LAZY_SOLVES})
             for addr in range(0, 0 + 0x1000, self.project.arch.bytes):
                 state.memory.store(self._rtld_global_addr + addr, base_addr + addr, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
-            cfg = self.project.analyses.CFGEmulated(initial_state=state, starts=(dl_addr,), call_depth=0)
-            simgr = self.project.factory.simulation_manager(state, save_unconstrained=True)
+
+            succ = state.step()
+            if len(succ.flat_successors) != 1:
+                _l.error("Analyzing _dl_init failed")
+                return
+            state = succ.flat_successors[0]
+            if state.history.jumpkind != 'Ijk_Call':
+                _l.error("Analyzing _dl_init failed")
+                return
+            self._rtld_global_offsets['_dl_rtld_lock_recursive'] = state.addr - base_addr
+
+            state.regs.ip = cfg.functions['_dl_addr'].endpoints[0].predecessors()[0].addr
+            succ = state.step()
+            if len(succ.flat_successors) != 1:
+                _l.error("Analyzing _dl_init failed")
+                return
+            state = succ.flat_successors[0]
+            if state.history.jumpkind != 'Ijk_Call':
+                _l.error("Analyzing _dl_init failed")
+                return
+            self._rtld_global_offsets['_dl_rtld_unlock_recursive'] = state.addr - base_addr
+
+        if self.project.arch.name == 'AMD64':
+            # I have... no idea where I initially found this number
+            self._rtld_global_offsets['_dl_initial_error_catch_tsd'] = 0x990
+
+        for name, offset in self._rtld_global_offsets.items():
+            self.project.loader.memory.pack_word(self._rtld_global_addr + offset, self._loader_func_addrs[name])
 
 
     def configure_project(self): # pylint: disable=arguments-differ
@@ -103,11 +128,12 @@ class SimLinux(SimUserland):
         self._full_init_addr = self.project.loader.extern_object.make_extern('LinuxLoader')
         self.vsyscall_addr = self.project.loader.extern_object.allocate()
         self.project.hook(self._full_init_addr, P['linux_loader']['LinuxLoader']())
-        self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
-        self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
-        self.project.hook(self._error_catch_tsd_addr,
-            P['linux_loader']['_dl_initial_error_catch_tsd'](static_addr=self.project.loader.extern_object.allocate())
-        )
+
+        for name, kwargs in [
+                ('_dl_rtld_lock_recursive', {}),
+                ('_dl_rtld_unlock_recursive', {}),
+                ('_dl_initial_error_catch_tsd', {'static_addr': self.project.loader.extern_object.allocate()})]:
+            self.project.hook(self._loader_func_addrs[name], P['linux_loader'][name](**kwargs))
         self.project.hook(self.vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
         ld_obj = self.project.loader.linux_loader_object
@@ -115,20 +141,6 @@ class SimLinux(SimUserland):
             # there are some functions we MUST use the simprocedures for, regardless of what the user wants
             self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch), ld_obj)
             self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch), ld_obj)
-
-            # set up some static data in the loader object...
-            # TODO it should be legal to get these from the externs now
-            _rtld_global = ld_obj.get_symbol('_rtld_global')
-            if _rtld_global is not None:
-                if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
-
-            # TODO: what the hell is this
-            _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
-            if _rtld_global_ro is not None:
-                pass
 
         libc_obj = self.project.loader.find_object('libc.so.6')
         if libc_obj:
