@@ -394,7 +394,7 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self):
+    def _handle_function(self, *args, **kwargs):
         if self._current_local_call_depth > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return None
