@@ -452,6 +452,19 @@ def test_array_operations():
 
 
 #
+# MultiArray Operations
+#
+
+
+def test_multiarray_operations():
+    project = create_project("multiarray_operations", load_native_libs=False)
+
+    run_method(project=project,
+               method="MixedJava.basic_multiarray_ops",
+               assert_locals={'d1': 4})
+
+
+#
 # Loading
 #
 
