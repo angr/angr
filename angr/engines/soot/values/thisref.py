@@ -7,24 +7,26 @@ from .base import SimSootValue
 from .instancefieldref import SimSootValue_InstanceFieldRef
 from .local import SimSootValue_Local
 from ..method_dispatcher import resolve_method
+from cle.errors import CLEError
 
 l = logging.getLogger("angr.engines.soot.values.thisref")
 
 
 class SimSootValue_ThisRef(SimSootValue):
 
-    def __init__(self, heap_alloc_id, type_):
+    def __init__(self, heap_alloc_id, type_, symbolic=False):
         self.heap_alloc_id = heap_alloc_id
         self.type = type_
+        self.symbolic = symbolic
 
     def __repr__(self):
         return self.id
 
     def __eq__(self, other):
         return isinstance(other, SimSootValue_ThisRef) and \
-               self.id == other.id and \
-               self.heap_alloc_id == other.heap_alloc_id and \
-               self.type == other.type
+            self.id == other.id and \
+            self.heap_alloc_id == other.heap_alloc_id and \
+            self.type == other.type
 
     @property
     def id(self):
@@ -77,6 +79,7 @@ class SimSootValue_ThisRef(SimSootValue):
             # find initializer method
             # TODO: add support for non-default initializing methods
             init_method = resolve_method(state, '<init>', type_, init_class=False).address()
+
             # setup init state
             args = [SootArgument(obj_ref, obj_ref.type, is_this_ref=True)]
             init_state = state.project.simos.state_call(init_method, *args,

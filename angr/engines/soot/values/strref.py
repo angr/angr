@@ -21,3 +21,22 @@ class SimSootValue_StringRef(SimSootValue):
     @classmethod
     def from_sootvalue(cls, soot_value, state):
         raise NotImplementedError()
+
+    @staticmethod
+    def new_string(state, value):
+        """
+        Allocate and initialize a new string in the context of the state passed.
+
+        The method returns the reference to the newly allocated string
+
+        :param state: angr state where we want to allocate the string
+        :type SimState
+        :param value: value of the string to initialize
+        :type claripy.String
+
+        :return SimSootValue_StringRef
+        """
+        str_ref = SimSootValue_StringRef(state.memory.get_new_uuid())
+        state.memory.store(str_ref, value)
+        return str_ref
+

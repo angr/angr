@@ -78,7 +78,8 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
             # available from the invoke expression
             return SootMethodDescriptor(self.expr.class_name,
                                         self.expr.method_name,
-                                        self.expr.method_params)
+                                        self.expr.method_params,
+                                        type_=self.expr.type)
 
 
 

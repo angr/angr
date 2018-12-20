@@ -91,8 +91,14 @@ class SimEngineSoot(SimEngine):
             # We may want soot -> pysoot -> cle to export at least the method names of the libraries
             # (soot has a way to deal with this), as of now we just "simulate" a return.
             # Note: If we have a sim procedure, we should not reach this point.
-            l.warning("Try to execute non-loaded code %s. Continue with a return-void.", addr)
-            self._add_return_exit(state, successors)
+            l.warning("Try to execute non-loaded code %s. Execute unconstrained SimProcedure.", addr)
+            # STEP 1: Get unconstrained SimProcedure
+            procedure = self.get_unconstrained_simprocedure(addr)
+            # STEP 2: Pass Method descriptor as Parameter
+            state.memory.store(SimSootValue_ParamRef(0, None), addr.method)
+            # STEP 4: Execute unconstrained procedure
+            self.project.factory.procedure_engine._process(state, successors, procedure)
+            # self._add_return_exit(state, successors)
             return
 
         block = method.blocks[addr.block_idx]
@@ -212,6 +218,21 @@ class SimEngineSoot(SimEngine):
         self.project._sim_procedures[addr] = proc
 
         return proc
+
+    def get_unconstrained_simprocedure(self, addr):
+        # Delayed import
+        from ...procedures import SIM_PROCEDURES
+
+        # TODO: fix method prototype
+        procedure_cls = SIM_PROCEDURES["angr.unconstrained"]["unconstrained()"]
+
+        # Lazy-initialize it
+        proc = procedure_cls(project=self.project)
+        self.project._sim_procedures[addr] = proc
+
+        return proc
+
+
 
     @staticmethod
     def _is_method_beginning(addr):
