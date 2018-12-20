@@ -93,6 +93,11 @@ CONCRETIZE_SYMBOLIC_WRITE_SIZES = "CONCRETIZE_SYMBOLIC_WRITE_SIZES"
 # This option concretizes the read size if it's symbolic from the file
 CONCRETIZE_SYMBOLIC_FILE_READ_SIZES = "CONCRETIZE_SYMBOLIC_FILE_READ_SIZES"
 
+# This option ignores memory address constraints generated from loads and
+# stores. This is particularly useful if you know the memory addresess in advance and
+# don't care about the constraints on the load and store registers.
+IGNORE_MEMADDR_CONSTRAINTS = "IGNORE_MEMADDR_CONSTRAINTS"
+
 # If absent, treat the end of files as a frontier at which new data will be created
 # If present, treat the end of files as an EOF
 FILES_HAVE_EOF = "FILES_HAVE_EOF"

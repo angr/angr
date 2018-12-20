@@ -546,7 +546,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if len(addrs) == 1:
             # It's not an conditional reaed
-            constraint_options.append(dst == addrs[0])
+            if options.IGNORE_MEMADDR_CONSTRAINTS not in self.state.options:
+                constraint_options.append(dst == addrs[0])
+            else:
+                constraints_options = [True]
+
             read_value = self._read_from(addrs[0], size, inspect=inspect, events=events)
         else:
             read_value = DUMMY_SYMBOLIC_READ_VALUE  # it's a sentinel value and should never be touched
@@ -735,11 +739,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        if type(req.addr) is not int and req.addr.symbolic:
-            conditional_constraint = self.state.solver.Or(*[ req.addr == a for a in req.actual_addresses ])
-            if (conditional_constraint.symbolic or  # if the constraint is symbolic
-                    conditional_constraint.is_false()):  # if it makes the state go unsat
-                req.constraints.append(conditional_constraint)
+        if options.IGNORE_MEMADDR_CONSTRAINTS not in self.state.options:
+            if type(req.addr) is not int and req.addr.symbolic:
+                conditional_constraint = self.state.solver.Or(*[ req.addr == a for a in req.actual_addresses ])
+                if (conditional_constraint.symbolic or  # if the constraint is symbolic
+                        conditional_constraint.is_false()):  # if it makes the state go unsat
+                    req.constraints.append(conditional_constraint)
+        else:
+            req.constraints = []
 
         #
         # Prepare memory objects
