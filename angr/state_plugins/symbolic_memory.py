@@ -549,7 +549,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if options.IGNORE_MEMADDR_CONSTRAINTS not in self.state.options:
                 constraint_options.append(dst == addrs[0])
             else:
-                constraints_options = [True]
+                constraint_options = [True]
 
             read_value = self._read_from(addrs[0], size, inspect=inspect, events=events)
         else:
