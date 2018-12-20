@@ -31,8 +31,8 @@ class SwitchBase(SimSootStmt):
         default_jmp_cond = self.state.solver.And(*default_jmp_conditions)
         self._add_jmp_target(default_jmp_target, default_jmp_cond)
 
-class SimSootStmt_TableSwitch(SimSootStmt):
+class SimSootStmt_TableSwitch(SwitchBase):
     pass
 
-class SimSootStmt_LookupSwitch(SimSootStmt):
+class SimSootStmt_LookupSwitch(SwitchBase):
     pass
