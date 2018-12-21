@@ -30,7 +30,7 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
         if self._default_value_generator:
             return self._default_value_generator(state)
         else:
-            return state.project.simos.get_default_value_by_type(self.element_type)
+            return state.project.simos.get_default_value_by_type(self.element_type, state=state)
 
     def add_default_value_generator(self, generator):
         """

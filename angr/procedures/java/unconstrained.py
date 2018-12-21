@@ -10,12 +10,16 @@ class UnconstrainedMethod(JavaSimProcedure):
         ('angr.unconstrained', 'unconstrained()'),
     )
 
-    def run(self, this_ref, method_descriptor, *args):
+    def run(self, thing, *args):
         # FIXME: implement this method for static methods as well
 
         # mMark object as symbolic
-        if isinstance(this_ref, SimSootValue_ThisRef):
+        if isinstance(thing, SimSootValue_ThisRef):
+            this_ref = thing
             this_ref.symbolic = True
+
+        method_descriptor = args[-1]
+
         # return the appropriate value based on the return type of the method
         if method_descriptor.ret == 'int':
             return claripy.BVS('unc_int_{}'.format(method_descriptor.name), 32)

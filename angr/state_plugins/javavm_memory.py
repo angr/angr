@@ -92,7 +92,7 @@ class SimJavaVmMemory(SimMemory):
             value = self.vm_static_table.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
-                value = self.state.project.simos.get_default_value_by_type(addr.type)
+                value = self.state.project.simos.get_default_value_by_type(addr.type, state=self.state)
                 l.debug("Initializing static field %s with %s.", addr, value)
                 self.store(addr, value)
             return value
@@ -101,7 +101,7 @@ class SimJavaVmMemory(SimMemory):
             value = self.heap.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
-                value = self.state.project.simos.get_default_value_by_type(addr.type)
+                value = self.state.project.simos.get_default_value_by_type(addr.type, state=self.state)
                 l.debug("Initializing field %s with %s.", addr, value)
                 self.store(addr, value)
             return value

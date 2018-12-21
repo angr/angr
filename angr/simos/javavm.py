@@ -8,7 +8,7 @@ from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, 
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
-from ..engines.soot.expressions import SimSootExpr_NewArray
+from ..engines.soot.expressions import SimSootExpr_NewArray, SimSootExpr_NewMultiArray
 from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_StringRef,
                                    SimSootValue_ThisRef,
@@ -260,7 +260,7 @@ class SimJavaVM(SimOS):
     #
 
     @staticmethod
-    def get_default_value_by_type(type_):
+    def get_default_value_by_type(type_, state=None):
         """
         Java specify defaults values for primitive and reference types. This
         method returns the default value for a given type.
@@ -276,6 +276,21 @@ class SimJavaVM(SimOS):
             return FPS('default_value_{}'.format(type_), FSORT_FLOAT)
         elif type_ == 'double':
             return FPS('default_value_{}'.format(type_), FSORT_DOUBLE)
+        elif state is not None:
+            if type_ == 'java.lang.String':
+                return SimSootValue_StringRef.new_string(state, StringS('default_value_{}'.format(type_), 1000))
+            if type_.endswith('[][]'):
+                raise NotImplementedError
+                # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)
+                # multiarray.add_default_value_generator(lambda s: SimSootExpr_NewMultiArray._generate_inner_array(s, element_type, sizes))
+                # return  multiarray
+            elif type_.endswith('[]'):
+                array = SimSootExpr_NewArray.new_array(state, type_[:-2], BVV(2, 32))
+                return array
+            else:
+                return SimSootValue_ThisRef.new_object(state, type_, init_object=True)
+
+
         else:
             # not a primitive type
             # => treat it as a reference

@@ -95,7 +95,16 @@ class SimEngineSoot(SimEngine):
             # STEP 1: Get unconstrained SimProcedure
             procedure = self.get_unconstrained_simprocedure(addr)
             # STEP 2: Pass Method descriptor as Parameter
-            state.memory.store(SimSootValue_ParamRef(0, None), addr.method)
+
+            # check if there are already params in the stack
+            param_idx = 0
+            param_ref = state.javavm_memory.load(SimSootValue_ParamRef(param_idx, None), none_if_missing=True)
+            while param_ref is not None:
+                param_idx += 1
+                param_ref = state.javavm_memory.load(SimSootValue_ParamRef(param_idx, None), none_if_missing=True)
+
+            # store all function arguments in memory, starting from the last param index
+            state.memory.store(SimSootValue_ParamRef(param_idx, None), addr.method)
             # STEP 4: Execute unconstrained procedure
             self.project.factory.procedure_engine._process(state, successors, procedure)
             # self._add_return_exit(state, successors)
@@ -228,7 +237,6 @@ class SimEngineSoot(SimEngine):
 
         # Lazy-initialize it
         proc = procedure_cls(project=self.project)
-        self.project._sim_procedures[addr] = proc
 
         return proc
 
