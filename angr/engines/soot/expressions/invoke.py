@@ -72,6 +72,7 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
                                   method_name=self.expr.method_name,
                                   class_name=base_type,
                                   params=self.expr.method_params,
+                                  ret_type=self.expr.type,
                                   raise_exception_if_not_found=True)
         except SootMethodNotLoadedException:
             # in case that the method is not loaded, continue with the infos
@@ -79,7 +80,7 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
             return SootMethodDescriptor(self.expr.class_name,
                                         self.expr.method_name,
                                         self.expr.method_params,
-                                        type_=self.expr.type)
+                                        ret_type=self.expr.type)
 
 
 
@@ -95,7 +96,8 @@ class SimSootExpr_SpecialInvoke(InvokeBase):
         return resolve_method(state=self.state,
                               method_name=self.expr.method_name,
                               class_name=self.expr.class_name,
-                              params=self.expr.method_params)
+                              params=self.expr.method_params,
+                              ret_type=self.expr.type)
 
 
 class SimSootExpr_StaticInvoke(InvokeBase):
@@ -103,7 +105,8 @@ class SimSootExpr_StaticInvoke(InvokeBase):
         return resolve_method(state=self.state,
                               method_name=self.expr.method_name,
                               class_name=self.expr.class_name,
-                              params=self.expr.method_params)
+                              params=self.expr.method_params,
+                              ret_type=self.expr.type)
 
 class SimSootExpr_InterfaceInvoke(SimSootExpr_VirtualInvoke):
     def _resolve_invoke_target(self, expr, state):

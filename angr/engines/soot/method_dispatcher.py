@@ -8,7 +8,7 @@ from .exceptions import SootMethodNotLoadedException
 l = logging.getLogger('angr.engines.soot.method_dispatcher')
 
 
-def resolve_method(state, method_name, class_name, params=(),
+def resolve_method(state, method_name, class_name, params=(), ret_type=None,
                    include_superclasses=True, init_class=True,
                    raise_exception_if_not_found=False):
     """
@@ -41,4 +41,4 @@ def resolve_method(state, method_name, class_name, params=(),
     if raise_exception_if_not_found:
         raise SootMethodNotLoadedException()
     else:
-        return SootMethodDescriptor(class_name, method_name, params)
+        return SootMethodDescriptor(class_name, method_name, params, ret_type=ret_type)
