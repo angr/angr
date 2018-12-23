@@ -12,7 +12,7 @@ from ..errors import AngrAnalysisError
 l = logging.getLogger(name=__name__)
 
 
-class AnalysisLogEntry(object):
+class AnalysisLogEntry:
     def __init__(self, message, exc_info=False):
         if exc_info:
             (e_type, value, traceback) = sys.exc_info()
@@ -76,7 +76,7 @@ class AnalysesHub(PluginVendor):
         super(AnalysesHub, self).__setstate__(s)
 
 
-class AnalysisFactory(object):
+class AnalysisFactory:
     def __init__(self, project, analysis_cls):
         self._project = project
         self._analysis_cls = analysis_cls
@@ -110,7 +110,7 @@ class AnalysisFactory(object):
         return oself
 
 
-class Analysis(object):
+class Analysis:
     """
     This class represents an analysis on the program.
 
@@ -202,7 +202,8 @@ class Analysis(object):
         if self._progress_callback is not None:
             self._progress_callback(100.0)  # pylint:disable=not-callable
 
-    def _release_gil(self, ctr, freq, sleep_time=0.001):
+    @staticmethod
+    def _release_gil(ctr, freq, sleep_time=0.001):
         """
         Periodically calls time.sleep() and releases the GIL so other threads (like, GUI threads) have a much better
         chance to be scheduled, and other critical components (like the GUI) can be kept responsiveness.

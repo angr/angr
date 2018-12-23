@@ -408,7 +408,7 @@ class CFGBase(Analysis):
             else:
                 cond = True
             if anyaddr and n.size is not None:
-                cond = cond and (addr >= n.addr and addr < n.addr + n.size)
+                cond = cond and n.addr <= addr < n.addr + n.size
             else:
                 cond = cond and (addr == n.addr)
             if cond:
@@ -1439,7 +1439,7 @@ class CFGBase(Analysis):
 
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
-        called_function_addrs = set([n.addr for n in function_nodes])
+        called_function_addrs = { n.addr for n in function_nodes }
 
         removed_functions_a = self._process_irrational_functions(tmp_functions,
                                                                  called_function_addrs,
@@ -2326,9 +2326,9 @@ class CFGBase(Analysis):
         l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         all_targets = set()
-        for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type: IndirectJump
+        for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type:int,IndirectJump
             if self._low_priority:
-                self._release_gil(len(self._nodes), 20, 0.0001)
+                self._release_gil(idx, 20, 0.0001)
             all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()
