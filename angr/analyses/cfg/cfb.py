@@ -34,6 +34,20 @@ class CFBlanketView:
 
 
 #
+# Memory region
+#
+
+
+class MemoryRegion:
+    def __init__(self, addr, size, type_, object_, cle_region):
+        self.addr = addr
+        self.size = size
+        self.type = type_
+        self.object = object_
+        self.cle_region = cle_region
+
+
+#
 # An address can be mapped to one of the following types of object
 # - Block
 # - MemoryData
@@ -68,6 +82,9 @@ class CFBlanket(Analysis):
         self._blanket = SortedDict()
 
         self._ffi = cffi.FFI()
+        self._regions = [ ]
+
+        self._init_regions()
 
         if cfg is not None:
             self._from_cfg(cfg)
@@ -75,6 +92,32 @@ class CFBlanket(Analysis):
             _l.debug("CFG is not specified. Initialize CFBlanket from the knowledge base.")
             for func in self.kb.functions.values():
                 self.add_function(func)
+
+    def _init_regions(self):
+
+        for obj in self.project.loader.all_objects:
+            if isinstance(obj, cle.MetaELF):
+                if obj.sections:
+                    # Enumerate sections in an ELF file
+                    for section in obj.sections:
+                        mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
+                        self._regions.append(mr)
+                else:
+                    raise NotImplementedError()
+            else:
+                mr = MemoryRegion(obj.min_addr, obj.size if hasattr(obj, 'size') else 80, 'TODO', obj, None)
+                self._regions.append(mr)
+
+        # Sort them just in case
+        self._regions = list(sorted(self._regions, key=lambda x: x.addr))
+
+    @property
+    def regions(self):
+        """
+        Return all memory regions.
+        """
+
+        return self._regions
 
     def floor_addr(self, addr):
         try:
@@ -86,7 +129,7 @@ class CFBlanket(Analysis):
         key = self.floor_addr(addr)
         return key, self._blanket[key]
 
-    def floor_items(self, addr=None):
+    def floor_items(self, addr=None, reverse=False):
         if addr is None:
             start_addr = None
         else:
@@ -95,18 +138,30 @@ class CFBlanket(Analysis):
             except StopIteration:
                 start_addr = addr
 
-        for key in self._blanket.irange(minimum=start_addr):
+        for key in self._blanket.irange(minimum=start_addr, reverse=reverse):
             yield key, self._blanket[key]
 
     def ceiling_addr(self, addr):
         try:
-            return next(self._blanket.irange(minimum=addr, reverse=False))
+            return next(self._blanket.irange(minimum=addr))
         except StopIteration:
             raise KeyError(addr)
 
     def ceiling_item(self, addr):
         key = self.ceiling_addr(addr)
         return key, self._blanket[key]
+
+    def ceiling_items(self, addr=None, reverse=False, include_first=True):
+        if addr is None:
+            start_addr = None
+        else:
+            try:
+                start_addr = next(self._blanket.irange(minimum=addr))
+            except StopIteration:
+                start_addr = addr
+
+        for key in self._blanket.irange(maximum=start_addr if include_first else start_addr - 1, reverse=reverse):
+            yield key, self._blanket[key]
 
     def __getitem__(self, addr):
         return self._blanket[addr]
