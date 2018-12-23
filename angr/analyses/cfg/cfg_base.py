@@ -63,7 +63,7 @@ class CFGBase(Analysis):
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
-                 indirect_jump_target_limit=100000, detect_tail_calls=False,
+                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -99,6 +99,7 @@ class CFGBase(Analysis):
         self._iropt_level = iropt_level
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
+        self._low_priority = low_priority
 
         # Initialization
         self._graph = None
@@ -1465,6 +1466,9 @@ class CFGBase(Analysis):
         nodes_count = len(function_nodes)
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
 
+            if self._low_priority:
+                self._release_gil(i, 20)
+
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
                 self._update_progress(progress)
@@ -2322,7 +2326,9 @@ class CFGBase(Analysis):
         l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         all_targets = set()
-        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
+        for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type: IndirectJump
+            if self._low_priority:
+                self._release_gil(len(self._nodes), 20, 0.0001)
             all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()
