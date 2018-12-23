@@ -306,9 +306,9 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 state = all_states[0]  # Just take the first state
 
-                # Parse the memory load statement
-                jump_addr = self._parse_load_statement(load_stmt, state)
-                if jump_addr is None:
+                # Parse the memory load statement and get the memory address of where the jump table is stored
+                jumptable_addr = self._parse_load_statement(load_stmt, state)
+                if jumptable_addr is None:
                     continue
 
                 # sanity check and necessary pre-processing
@@ -336,7 +336,7 @@ class JumpTableResolver(IndirectJumpResolver):
                         jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
 
                 all_targets = [ ]
-                total_cases = jump_addr._model_vsa.cardinality
+                total_cases = jumptable_addr._model_vsa.cardinality
 
                 if total_cases > self._max_targets:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
@@ -354,23 +354,24 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 jump_table = [ ]
 
-                min_jump_target = state.solver.min(jump_addr)
-                max_jump_target = state.solver.max(jump_addr)
+                min_jumptable_addr = state.solver.min(jumptable_addr)
+                max_jumptable_addr = state.solver.max(jumptable_addr)
 
-                # Both the min jump target and the max jump target should be within a mapped memory region
-                # i.e., we shouldn't be jumping to the stack or somewhere unmapped
-                if not project.loader.find_segment_containing(min_jump_target) or \
-                        not project.loader.find_segment_containing(max_jump_target):
-                    l.debug("Jump table %#x might have jump targets outside mapped memory regions. "
-                            "Continue to resolve it from the next data source.", addr)
+                # The beginning of the jump table and the end of the jump table should be within a mapped memory region
+                if not cfg.project.loader.find_object_containing(min_jumptable_addr) or \
+                        not cfg.project.loader.find_object_containing(max_jumptable_addr):
+                    l.debug("Indirect jump at block %#x seems to be referencing a jumptable outside mapped memory"
+                            "regions. Attempt to resolve it from the next data source.", addr)
                     continue
 
-                for idx, a in enumerate(state.solver.eval_upto(jump_addr, total_cases)):
+                # Load the jump table from memory
+                for idx, a in enumerate(state.solver.eval_upto(jumptable_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
                     target = cfg._fast_memory_load_pointer(a, size=load_size)
                     all_targets.append(target)
 
+                # Adjust entries inside the jump table
                 if stmts_adding_base_addr:
                     stmt_adding_base_addr = stmts_adding_base_addr[0]
                     base_addr = stmt_adding_base_addr.base_addr
@@ -393,6 +394,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     mask = (2 ** self.project.arch.bits) - 1
                     all_targets = [(target + base_addr) & mask for target in all_targets]
 
+                # Finally... all targets are ready
                 for target in all_targets:
                     jump_table.append(target)
 
@@ -403,7 +405,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 if total_cases > 1:
                     # It can be considered a jump table only if there are more than one jump target
                     ij.jumptable = True
-                    ij.jumptable_addr = state.solver.min(jump_addr)
+                    ij.jumptable_addr = state.solver.min(jumptable_addr)
                     ij.resolved_targets = set(jump_table)
                     ij.jumptable_entries = jump_table
                 else:
