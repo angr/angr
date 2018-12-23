@@ -918,7 +918,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             indirect_jump_resolvers=indirect_jump_resolvers,
             indirect_jump_target_limit=indirect_jump_target_limit,
             detect_tail_calls=detect_tail_calls,
-            low_priority = low_priority,
+            low_priority=low_priority,
         )
 
         # necessary warnings
