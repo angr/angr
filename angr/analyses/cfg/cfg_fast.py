@@ -851,6 +851,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  skip_specific_regions=True,
                  heuristic_plt_resolving=None,
                  detect_tail_calls=False,
+                 low_priority=False,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -917,6 +918,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             indirect_jump_resolvers=indirect_jump_resolvers,
             indirect_jump_target_limit=indirect_jump_target_limit,
             detect_tail_calls=detect_tail_calls,
+            low_priority=low_priority,
         )
 
         # necessary warnings
@@ -1395,6 +1397,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
+        if self._low_priority:
+            self._release_gil(len(self._nodes), 20, 0.0001)
+
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)
 
@@ -1413,7 +1418,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if percentage > max_percentage_stage_1:
                 percentage = max_percentage_stage_1
 
-            self._update_progress(percentage)
+            self._update_progress(percentage, cfg=self)
 
     def _intra_analysis(self):
         pass

@@ -63,7 +63,7 @@ class CFGBase(Analysis):
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
-                 indirect_jump_target_limit=100000, detect_tail_calls=False,
+                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -99,6 +99,7 @@ class CFGBase(Analysis):
         self._iropt_level = iropt_level
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
+        self._low_priority = low_priority
 
         # Initialization
         self._graph = None
@@ -407,7 +408,7 @@ class CFGBase(Analysis):
             else:
                 cond = True
             if anyaddr and n.size is not None:
-                cond = cond and (addr >= n.addr and addr < n.addr + n.size)
+                cond = cond and n.addr <= addr < n.addr + n.size
             else:
                 cond = cond and (addr == n.addr)
             if cond:
@@ -1438,7 +1439,7 @@ class CFGBase(Analysis):
 
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
-        called_function_addrs = set([n.addr for n in function_nodes])
+        called_function_addrs = { n.addr for n in function_nodes }
 
         removed_functions_a = self._process_irrational_functions(tmp_functions,
                                                                  called_function_addrs,
@@ -1464,6 +1465,9 @@ class CFGBase(Analysis):
         max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
+
+            if self._low_priority:
+                self._release_gil(i, 20)
 
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
@@ -2322,7 +2326,9 @@ class CFGBase(Analysis):
         l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         all_targets = set()
-        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
+        for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type:int,IndirectJump
+            if self._low_priority:
+                self._release_gil(idx, 20, 0.0001)
             all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()
