@@ -12,6 +12,7 @@ import cle
 import pyvex
 from cle.address_translator import AT
 
+from ...misc.ux import deprecated
 from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
@@ -852,6 +853,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  heuristic_plt_resolving=None,
                  detect_tail_calls=False,
                  low_priority=False,
+                 cfb=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -992,6 +994,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.project.arch, **extra_arch_options)
 
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
+
+        self._cfb = cfb
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
         for start_addr in self._regions:
@@ -3663,6 +3667,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                thumb=is_thumb,
                                byte_string=irsb_string,
                                )
+            if self._cfb is not None:
+                self._cfb.add_obj(addr, lifted_block)
 
             self._nodes[addr] = cfg_node
             self._nodes_by_addr[addr].append(cfg_node)
@@ -3795,6 +3801,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return s
 
+    @deprecated(replacement="angr.analyses.CFB")
     def generate_code_cover(self):
         """
         Generate a list of all recovered basic blocks.
