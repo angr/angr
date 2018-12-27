@@ -54,6 +54,8 @@ class VariableManagerInternal(object):
             'phi': count(),
         }
 
+        self._phi_variables = defaultdict(dict)
+
     #
     # Public methods
     #
@@ -111,42 +113,25 @@ class VariableManagerInternal(object):
             self._block_to_variable[location.block_addr].add((variable, offset))
             self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add((variable, offset))
 
-    def make_phi_node(self, *variables):
-
-        # unpack phi nodes
-        existing_phi = [ ]
-        unpacked = set()
-        for var in variables:
-            if isinstance(var, (SimRegisterVariablePhi, SimStackVariablePhi, SimMemoryVariablePhi)):
-                unpacked |= var.variables
-                existing_phi.append(var)
-            else:
-                unpacked.add(var)
-
-        # optimization: if a phi node already contains all of the unpacked variables, just return that phi node
-        for phi_node in existing_phi:
-            if phi_node.variables.issuperset(unpacked):
-                return phi_node
-
-        variables = unpacked
+    def make_phi_node(self, block_addr, *variables):
 
         repre = next(iter(variables))
         repre_type = type(repre)
         if repre_type is SimRegisterVariable:
-            cls = SimRegisterVariablePhi
             ident_sort = 'register'
+            a = SimRegisterVariable(repre.reg, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimMemoryVariable:
-            cls = SimMemoryVariablePhi
             ident_sort = 'memory'
+            a = SimMemoryVariable(repre.addr, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimStackVariable:
-            cls = SimStackVariablePhi
             ident_sort = 'stack'
+            a = SimStackVariable(repre.offset, repre.size, ident=self.next_variable_ident(ident_sort))
         else:
             raise TypeError('make_phi_node(): Unsupported variable type "%s".' % type(repre))
-        a = cls(ident=self.next_variable_ident(ident_sort),
-                   region=self.func_addr,
-                   variables=variables,
-                   )
+
+        # Keep a record of all phi variables
+        self._phi_variables[block_addr][a] = variables
+
         return a
 
     def set_live_variables(self, addr, register_region, stack_region):
@@ -240,6 +225,18 @@ class VariableManagerInternal(object):
             variables.append(var)
 
         return variables
+
+    def get_phi_variables(self, block_addr):
+        """
+        Get a dict of phi variables and their corresponding variables.
+
+        :param int block_addr:  Address of the block.
+        :return:                A dict of phi variables of an empty dict if there are no phi variables at the block.
+        """
+
+        if block_addr not in self._phi_variables:
+            return dict()
+        return self._phi_variables[block_addr]
 
     def input_variables(self, exclude_specials=True):
         """

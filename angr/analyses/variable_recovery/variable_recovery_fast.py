@@ -4,20 +4,21 @@ from collections import defaultdict
 
 import ailment
 
-from .. import Analysis
-from ..calling_convention import CallingConventionAnalysis
-from ..code_location import CodeLocation
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
 from ...errors import SimEngineError
 from ...keyed_region import KeyedRegion
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
+from ...utils.graph import PostDominators, compute_dominance_frontier
+from .. import Analysis
+from ..calling_convention import CallingConventionAnalysis
+from ..code_location import CodeLocation
+from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 
 l = logging.getLogger(name=__name__)
 
 
-class ProcessorState(object):
+class ProcessorState:
 
     __slots__ = ['_arch', 'sp_adjusted', 'sp_adjustment', 'bp_as_base', 'bp']
 
@@ -68,6 +69,7 @@ class ProcessorState(object):
         return "<ProcessorState %s%#x%s %s>" % (self.bp, self.sp_adjustment,
             " adjusted" if self.sp_adjusted else "", self.bp_as_base)
 
+
 def get_engine(base_engine):
     class SimEngineVR(base_engine):
         def __init__(self):
@@ -86,13 +88,14 @@ def get_engine(base_engine):
             # we are using a completely different state. Therefore, we directly call our _process() method before
             # SimEngine becomes flexible enough.
             try:
-                self._process(state, None, block=kwargs.pop('block', None))
+                self._process(state, None, block=kwargs.pop('block', None), analysis=kwargs.pop('analysis', None))
             except SimEngineError as e:
                 if kwargs.pop('fail_fast', False) is True:
                     raise e
 
-        def _process(self, state, successors, block=None, func_addr=None):  # pylint:disable=unused-argument
+        def _process(self, state, successors, block=None, func_addr=None, analysis=None):  # pylint:disable=unused-argument
 
+            self.analysis = analysis
             self.processor_state = state.processor_state
             self.variable_manager = state.variable_manager
 
@@ -109,6 +112,8 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
             size = stmt.data.result_size(self.tyenv) // 8
 
+            if offset == self.arch.ip_offset:
+                return
             self._assign_to_register(offset, data, size)
 
         def _handle_Store(self, stmt):
@@ -241,6 +246,7 @@ def get_engine(base_engine):
                                                     )
 
                         self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                        self.analysis.record_variable_definition(self.block.addr, variable)
                         l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
                     else:
                         variable = next(iter(existing_vars))
@@ -267,7 +273,8 @@ def get_engine(base_engine):
                                                    'register'),
                                                region=self.func_addr
                                                )
-                self.variable_manager[self.func_addr].add_variable('register', offset, variable)
+                self.variable_manager[self.func_addr].set_variable('register', offset, variable)
+                self.analysis.record_variable_definition(self.block.addr, variable)
             else:
                 variable, _ = existing_vars[0]
 
@@ -294,7 +301,8 @@ def get_engine(base_engine):
                                                 ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                                 region=self.func_addr,
                                                 )
-                    self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                    self.variable_manager[self.func_addr].set_variable('stack', stack_offset, variable)
+                    self.analysis.record_variable_definition(self.block.addr, variable)
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
                 else:
@@ -330,6 +338,7 @@ def get_engine(base_engine):
                     self.state.stack_region.add_variable(stack_offset, variable)
 
                     self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                    self.analysis.record_variable_definition(self.block.addr, variable)
 
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
@@ -371,6 +380,7 @@ def get_engine(base_engine):
                                                )
                 self.state.register_region.add_variable(offset, variable)
                 self.variable_manager[self.func_addr].add_variable('register', offset, variable)
+                self.analysis.record_variable_definition(self.block.addr, variable)
 
             for var in self.state.register_region.get_variables_by_offset(offset):
                 self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
@@ -381,17 +391,20 @@ def get_engine(base_engine):
     return SimEngineVR
 
 
-class VariableRecoveryFastState(object):
+class VariableRecoveryFastState:
     """
     The abstract state of variable recovery analysis.
+
+    :ivar KeyedRegion stack_region: The stack store.
+    :ivar KeyedRegion register_region:  The register store.
     """
 
-    def __init__(self, variable_manager, arch, func, stack_region=None, register_region=None, processor_state=None,
-                 make_phi=None):
-        self.variable_manager = variable_manager
+    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None,
+                 processor_state=None):
+        self.block_addr = block_addr
+        self._analysis = analysis
         self.arch = arch
         self.function = func
-        self._make_phi = make_phi
 
         if stack_region is not None:
             self.stack_region = stack_region
@@ -403,6 +416,24 @@ class VariableRecoveryFastState(object):
             self.register_region = KeyedRegion()
 
         self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
+
+    @property
+    def dominance_frontiers(self):
+        return self._analysis._dominance_frontiers
+
+    @property
+    def variable_manager(self):
+        return self._analysis.variable_manager
+
+    def get_variable_definitions(self, block_addr):
+        """
+        Get variables that are defined at the specified block.
+
+        :param int block_addr:  Address of the block.
+        :return:                A set of variables.
+        """
+
+        return self._analysis.get_variable_definitions(block_addr)
 
     def __repr__(self):
         return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self.register_region), len(self.stack_region))
@@ -416,13 +447,13 @@ class VariableRecoveryFastState(object):
     def copy(self):
 
         state = VariableRecoveryFastState(
-            self.variable_manager,
+            self.block_addr,
+            self._analysis,
             self.arch,
             self.function,
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
             processor_state=self.processor_state.copy(),
-            make_phi=self._make_phi,
         )
 
         return state
@@ -431,28 +462,67 @@ class VariableRecoveryFastState(object):
         """
         Merge two abstract states.
 
+        For any node A whose dominance frontier that the current node (at the current program location) belongs to, we
+        create a phi variable V' for each variable V that is defined in A, and then replace all existence of V with V'
+        in the merged abstract state.
+
         :param VariableRecoveryState other: The other abstract state to merge.
         :return:                            The merged abstract state.
         :rtype:                             VariableRecoveryState
         """
 
-        def _make_phi(*variables):
-            return self._make_phi(successor, *variables)
+        replacements = None
+        if successor in self.dominance_frontiers:
+            replacements = self._make_phi_variables(successor)
 
-        merged_stack_region = self.stack_region.copy().merge(other.stack_region, make_phi_func=_make_phi)
-        merged_register_region = self.register_region.copy().merge(other.register_region, make_phi_func=_make_phi)
+        merged_stack_region = self.stack_region.copy().replace(replacements).merge(other.stack_region,
+                                                                                   replacements=replacements)
+        merged_register_region = self.register_region.copy().replace(replacements).merge(other.register_region,
+                                                                                         replacements=replacements)
 
         state = VariableRecoveryFastState(
-            self.variable_manager,
+            self.block_addr,
+            self._analysis,
             self.arch,
             self.function,
             stack_region=merged_stack_region,
             register_region=merged_register_region,
             processor_state=self.processor_state.copy().merge(other.processor_state),
-            make_phi=self._make_phi,
         )
 
         return state
+
+    #
+    # Private methods
+    #
+
+    def _make_phi_variables(self, successor):
+
+        stack_variables = defaultdict(set)
+        register_variables = defaultdict(set)
+
+        for dominatee in self.dominance_frontiers[successor]:
+            vardefs = self._analysis.get_variable_definitions(dominatee)
+            for var in vardefs:
+                if isinstance(var, SimStackVariable):
+                    stack_variables[(var.offset, var.size)].add(var)
+                elif isinstance(var, SimRegisterVariable):
+                    register_variables[(var.reg, var.size)].add(var)
+                else:
+                    l.warning("Unsupported variable type %s.", type(var))
+
+        replacements = {}
+
+        for variable_dict in [stack_variables, register_variables]:
+            for _, variables in variable_dict.items():
+                if len(variables) > 1:
+                    # Create a new phi variable
+                    phi_node = self.variable_manager[self.function.addr].make_phi_node(successor, *variables)
+                    # Fill the replacements dict
+                    for var in variables:
+                        replacements[var] = phi_node
+
+        return replacements
 
     #
     # Util methods
@@ -504,13 +574,39 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         self._vex_engine = get_engine(SimEngineLightVEX)()
 
         self._node_iterations = defaultdict(int)
-
-        # phi nodes dict
-        self._cached_phi_nodes = { }
+        self._dominance_frontiers = None
+        self._variable_definitions = defaultdict(set)
 
         self._node_to_cc = { }
 
         self._analyze()
+
+    #
+    # Public methods
+    #
+
+    def record_variable_definition(self, block_addr, variable):
+        """
+        Record variable that is defined at the specified block.
+
+        :param int block_addr:  Address of the block.
+        :param variable:        The variable defined at this block.
+        :return:                None
+        """
+
+        self._variable_definitions[block_addr].add(variable)
+
+    def get_variable_definitions(self, block_addr):
+        """
+        Get variables that are defined at the specified block.
+
+        :param int block_addr:  Address of the block.
+        :return:                A set of variables.
+        """
+
+        if block_addr not in self._variable_definitions:
+            return set()
+        return self._variable_definitions[block_addr]
 
     #
     # Main analysis routines
@@ -525,6 +621,13 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
             for callsite_node in self.function.transition_graph.predecessors(func_node):
                 self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
+        # Computer the dominance frontier for each node in the graph
+        df = self.project.analyses.DominanceFrontier(self.function)
+        self._dominance_frontiers = defaultdict(set)
+        for b0, domfront in df.frontiers.items():
+            for d in domfront:
+                self._dominance_frontiers[d.addr].add(b0.addr)
+
     def _pre_job_handling(self, job):
         pass
 
@@ -536,8 +639,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         # give it enough stack space
         # concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        state = VariableRecoveryFastState(self.variable_manager, self.project.arch, self.function,
-                                          make_phi=self._make_phi_node
+        state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function,
                                           )
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
@@ -581,6 +683,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
                 input_state = prev_state.merge(input_state, successor=node.addr)
 
         state = input_state.copy()
+        state.block_addr = node.addr
         self._node_to_input_state[node.addr] = input_state
 
         if self._node_iterations[node.addr] >= self._max_iterations:
@@ -611,7 +714,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     # Private methods
     #
 
-    def _process_block(self, state, block):  #pylint:disable=no-self-use
+    def _process_block(self, state, block):  # pylint:disable=no-self-use
         """
         Scan through all statements and perform the following tasks:
         - Find stack pointers and the VEX temporary variable storing stack pointers
@@ -625,7 +728,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         l.debug('Processing block %#x.', block.addr)
 
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
-        processor.process(state, block=block, fail_fast=self._fail_fast)
+        processor.process(state, block=block, fail_fast=self._fail_fast, analysis=self)
 
         # readjusting sp at the end for blocks that end in a call
         if block.addr in self._node_to_cc:
@@ -633,21 +736,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
             if cc is not None:
                 state.processor_state.sp_adjustment += cc.sp_delta
                 state.processor_state.sp_adjusted = True
-                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
-
-    def _make_phi_node(self, block_addr, *variables):
-
-        key = tuple(sorted(variables, key=lambda v: v.ident))
-
-        if block_addr not in self._cached_phi_nodes:
-            self._cached_phi_nodes[block_addr] = { }
-
-        if key in self._cached_phi_nodes[block_addr]:
-            return self._cached_phi_nodes[block_addr][key]
-
-        phi_node = self.variable_manager[self.function.addr].make_phi_node(*variables)
-        self._cached_phi_nodes[block_addr][key] = phi_node
-        return phi_node
+                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.',
+                        block.addr, state.processor_state.sp_adjustment)
 
 
 from angr.analyses import AnalysesHub
