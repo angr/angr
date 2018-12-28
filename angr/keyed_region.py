@@ -78,6 +78,11 @@ class RegionObject:
         return a, b
 
     def add_object(self, obj):
+        if obj in self.stored_objects:
+            # another StoredObject with the same hash exists, but they may not have the same ID
+            # remove the existing StoredObject and replace it with the new one
+            self.stored_objects.remove(obj)
+
         self.stored_objects.add(obj)
         self._internal_objects.add(obj.obj)
 
@@ -100,11 +105,12 @@ class KeyedRegion:
     Registers and function frames can all be viewed as a keyed region.
     """
 
-    __slots__ = ('_storage', '_object_mapping', )
+    __slots__ = ('_storage', '_object_mapping', '_phi_node_contains' )
 
-    def __init__(self, tree=None):
+    def __init__(self, tree=None, phi_node_contains=None):
         self._storage = SortedDict() if tree is None else tree
         self._object_mapping = weakref.WeakValueDictionary()
+        self._phi_node_contains = phi_node_contains
 
     def _get_container(self, offset):
         try:
@@ -145,9 +151,9 @@ class KeyedRegion:
 
     def copy(self):
         if not self._storage:
-            return KeyedRegion()
+            return KeyedRegion(phi_node_contains=self._phi_node_contains)
 
-        kr = KeyedRegion()
+        kr = KeyedRegion(phi_node_contains=self._phi_node_contains)
         for key, ro in self._storage.items():
             kr._storage[key] = ro.copy()
         kr._object_mapping = self._object_mapping.copy()
@@ -416,8 +422,20 @@ class KeyedRegion:
 
         return False
 
-    @staticmethod
-    def _add_object_with_check(item, stored_object):
+    def _add_object_with_check(self, item, stored_object):
         if len({stored_object.obj} | item.internal_objects) > 1:
+            if self._phi_node_contains is not None:
+                # check if `item` is a phi node that contains stored_object.obj
+                for so in item.internal_objects:
+                    if self._phi_node_contains(so, stored_object.obj):
+                        # yes! so we want to skip this object
+                        return
+                # check if `stored_object.obj` is a phi node that contains item.internal_objects
+                if all(self._phi_node_contains(stored_object.obj, o) for o in item.internal_objects):
+                    # yes!
+                    item.set_object(stored_object)
+                    return
+
             l.warning("Overlapping objects %s.", str({stored_object.obj} | item.internal_objects))
+            # import ipdb; ipdb.set_trace()
         item.add_object(stored_object)

@@ -1,5 +1,6 @@
 
 import logging
+import itertools
 from collections import defaultdict
 
 import ailment
@@ -88,14 +89,13 @@ def get_engine(base_engine):
             # we are using a completely different state. Therefore, we directly call our _process() method before
             # SimEngine becomes flexible enough.
             try:
-                self._process(state, None, block=kwargs.pop('block', None), analysis=kwargs.pop('analysis', None))
+                self._process(state, None, block=kwargs.pop('block', None))
             except SimEngineError as e:
                 if kwargs.pop('fail_fast', False) is True:
                     raise e
 
-        def _process(self, state, successors, block=None, func_addr=None, analysis=None):  # pylint:disable=unused-argument
+        def _process(self, state, successors, block=None, func_addr=None):  # pylint:disable=unused-argument
 
-            self.analysis = analysis
             self.processor_state = state.processor_state
             self.variable_manager = state.variable_manager
 
@@ -246,7 +246,6 @@ def get_engine(base_engine):
                                                     )
 
                         self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-                        self.analysis.record_variable_definition(self.block.addr, variable)
                         l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
                     else:
                         variable = next(iter(existing_vars))
@@ -274,7 +273,6 @@ def get_engine(base_engine):
                                                region=self.func_addr
                                                )
                 self.variable_manager[self.func_addr].set_variable('register', offset, variable)
-                self.analysis.record_variable_definition(self.block.addr, variable)
             else:
                 variable, _ = existing_vars[0]
 
@@ -302,7 +300,6 @@ def get_engine(base_engine):
                                                 region=self.func_addr,
                                                 )
                     self.variable_manager[self.func_addr].set_variable('stack', stack_offset, variable)
-                    self.analysis.record_variable_definition(self.block.addr, variable)
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
                 else:
@@ -338,7 +335,6 @@ def get_engine(base_engine):
                     self.state.stack_region.add_variable(stack_offset, variable)
 
                     self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-                    self.analysis.record_variable_definition(self.block.addr, variable)
 
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
@@ -347,7 +343,11 @@ def get_engine(base_engine):
                 codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
                 all_vars = self.state.stack_region.get_variables_by_offset(base_offset)
-                assert len(all_vars) == 1  # we enabled phi nodes
+
+                if len(all_vars) > 1:
+                    # overlapping variables
+                    l.warning("Reading memory with overlapping variables: %s. Ignoring all but the first one.",
+                              all_vars)
 
                 var = next(iter(all_vars))
                 self.variable_manager[self.func_addr].read_from(var,
@@ -380,7 +380,6 @@ def get_engine(base_engine):
                                                )
                 self.state.register_region.add_variable(offset, variable)
                 self.variable_manager[self.func_addr].add_variable('register', offset, variable)
-                self.analysis.record_variable_definition(self.block.addr, variable)
 
             for var in self.state.register_region.get_variables_by_offset(offset):
                 self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
@@ -409,11 +408,11 @@ class VariableRecoveryFastState:
         if stack_region is not None:
             self.stack_region = stack_region
         else:
-            self.stack_region = KeyedRegion()
+            self.stack_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
         if register_region is not None:
             self.register_region = register_region
         else:
-            self.register_region = KeyedRegion()
+            self.register_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
 
         self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
 
@@ -424,6 +423,15 @@ class VariableRecoveryFastState:
     @property
     def variable_manager(self):
         return self._analysis.variable_manager
+
+    @property
+    def variables(self):
+        for ro in self.stack_region:
+            for var in ro.internal_objects:
+                yield var
+        for ro in self.register_region:
+            for var in ro.internal_objects:
+                yield var
 
     def get_variable_definitions(self, block_addr):
         """
@@ -471,9 +479,9 @@ class VariableRecoveryFastState:
         :rtype:                             VariableRecoveryState
         """
 
-        replacements = None
+        replacements = {}
         if successor in self.dominance_frontiers:
-            replacements = self._make_phi_variables(successor)
+            replacements = self._make_phi_variables(successor, self, other)
 
         merged_stack_region = self.stack_region.copy().replace(replacements).merge(other.stack_region,
                                                                                    replacements=replacements)
@@ -481,7 +489,7 @@ class VariableRecoveryFastState:
                                                                                          replacements=replacements)
 
         state = VariableRecoveryFastState(
-            self.block_addr,
+            successor,
             self._analysis,
             self.arch,
             self.function,
@@ -496,7 +504,7 @@ class VariableRecoveryFastState:
     # Private methods
     #
 
-    def _make_phi_variables(self, successor):
+    def _make_phi_variables(self, successor, state0, state1):
 
         stack_variables = defaultdict(set)
         register_variables = defaultdict(set)
@@ -506,8 +514,24 @@ class VariableRecoveryFastState:
             for var in vardefs:
                 if isinstance(var, SimStackVariable):
                     stack_variables[(var.offset, var.size)].add(var)
+                    if dominatee != state0.block_addr:
+                        v0s = state0.stack_region.get_variables_by_offset(var.offset)
+                        for v0 in v0s:
+                            stack_variables[(v0.offset, v0.size)].add(v0)
+                    if dominatee != state1.block_addr:
+                        v1s = state1.stack_region.get_variables_by_offset(var.offset)
+                        for v1 in v1s:
+                            stack_variables[(v1.offset, v1.size)].add(v1)
                 elif isinstance(var, SimRegisterVariable):
                     register_variables[(var.reg, var.size)].add(var)
+                    if dominatee != state0.block_addr:
+                        v0s = state0.register_region.get_variables_by_offset(var.reg)
+                        for v0 in v0s:
+                            register_variables[(v0.reg, v0.size)].add(v0)
+                    if dominatee != state1.block_addr:
+                        v1s = state1.register_region.get_variables_by_offset(var.reg)
+                        for v1 in v1s:
+                            register_variables[(v1.reg, v1.size)].add(v1)
                 else:
                     l.warning("Unsupported variable type %s.", type(var))
 
@@ -523,6 +547,19 @@ class VariableRecoveryFastState:
                         replacements[var] = phi_node
 
         return replacements
+
+    def _phi_node_contains(self, phi_variable, variable):
+        """
+        Checks if `phi_variable` is a phi variable, and if it contains `variable` as a sub-variable.
+
+        :param phi_variable:
+        :param variable:
+        :return:
+        """
+
+        if self.variable_manager[self.function.addr].is_phi_variable(phi_variable):
+            return variable in self.variable_manager[self.function.addr].get_phi_subvariables(phi_variable)
+        return False
 
     #
     # Util methods
@@ -562,8 +599,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
                                  graph_visitor=function_graph_visitor)
 
         self.function = func
-        self._node_to_state = { }
-        self._node_to_input_state = { }
+        self._outstates = { }
+        self._instates = { }
 
         self.variable_manager = self.kb.variables
 
@@ -575,7 +612,6 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         self._node_iterations = defaultdict(int)
         self._dominance_frontiers = None
-        self._variable_definitions = defaultdict(set)
 
         self._node_to_cc = { }
 
@@ -585,17 +621,6 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     # Public methods
     #
 
-    def record_variable_definition(self, block_addr, variable):
-        """
-        Record variable that is defined at the specified block.
-
-        :param int block_addr:  Address of the block.
-        :param variable:        The variable defined at this block.
-        :return:                None
-        """
-
-        self._variable_definitions[block_addr].add(variable)
-
     def get_variable_definitions(self, block_addr):
         """
         Get variables that are defined at the specified block.
@@ -604,9 +629,9 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         :return:                A set of variables.
         """
 
-        if block_addr not in self._variable_definitions:
-            return set()
-        return self._variable_definitions[block_addr]
+        if block_addr in self._outstates:
+            return self._outstates[block_addr].variables
+        return set()
 
     #
     # Main analysis routines
@@ -673,8 +698,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
             # VEX mode
             block = self.project.factory.block(node.addr, node.size, opt_level=0)
 
-        if node.addr in self._node_to_input_state:
-            prev_state = self._node_to_input_state[node.addr]
+        if node.addr in self._instates:
+            prev_state = self._instates[node.addr]
             if input_state == prev_state:
                 l.debug('Skip node %#x as we have reached a fixed-point', node.addr)
                 return False, input_state
@@ -682,9 +707,13 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
                 l.debug('Merging input state of node %#x with the previous state.', node.addr)
                 input_state = prev_state.merge(input_state, successor=node.addr)
 
+        # Copy variable definitions from the previous block to this block
+        #if input_state.block_addr in self._variable_definitions:
+        #    self._variable_definitions[node.addr] = self._variable_definitions[input_state.block_addr].copy()
+
         state = input_state.copy()
         state.block_addr = node.addr
-        self._node_to_input_state[node.addr] = input_state
+        self._instates[node.addr] = input_state
 
         if self._node_iterations[node.addr] >= self._max_iterations:
             l.debug('Skip node %#x as we have iterated %d times on it.', node.addr, self._node_iterations[node.addr])
@@ -692,7 +721,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         self._process_block(state, block)
 
-        self._node_to_state[node.addr] = state
+        self._outstates[node.addr] = state
 
         self._node_iterations[node.addr] += 1
 
@@ -704,7 +733,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     def _post_analysis(self):
         self.variable_manager.initialize_variable_names()
 
-        for addr, state in self._node_to_state.items():
+        for addr, state in self._outstates.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,
                                                                          state.register_region,
                                                                          state.stack_region
@@ -728,7 +757,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         l.debug('Processing block %#x.', block.addr)
 
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
-        processor.process(state, block=block, fail_fast=self._fail_fast, analysis=self)
+        processor.process(state, block=block, fail_fast=self._fail_fast)
 
         # readjusting sp at the end for blocks that end in a call
         if block.addr in self._node_to_cc:
