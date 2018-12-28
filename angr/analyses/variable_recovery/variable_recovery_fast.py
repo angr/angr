@@ -238,8 +238,8 @@ def get_engine(base_engine):
                     # TODO: how to determine the size for a lea?
                     existing_vars = self.state.stack_region.get_variables_by_offset(stack_offset)
                     if not existing_vars:
-                        size = 1
-                        variable = SimStackVariable(stack_offset, size, base='bp',
+                        lea_size = 1
+                        variable = SimStackVariable(stack_offset, lea_size, base='bp',
                                                     ident=self.variable_manager[self.func_addr].next_variable_ident(
                                                         'stack'),
                                                     region=self.func_addr,
