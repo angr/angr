@@ -295,13 +295,14 @@ class Dominators:
             traversed_nodes.add(container_node)
 
             if len(successors) == 0:
+                # Note that this condition may never be satisfied if there is no real "end node" in the graph: the graph
+                # may end with a loop.
                 if self._reverse:
                     # Add an edge between the start node and this node
                     new_graph.add_edge(start_node, container_node)
                 else:
                     # Add an edge between our this node and end node
                     new_graph.add_edge(container_node, end_node)
-
 
             for s in successors:
                 if s in container_nodes:
@@ -323,7 +324,7 @@ class Dominators:
             # Add the start node
             new_graph.add_edge(start_node, container_nodes[n])
 
-        all_nodes_count = len(traversed_nodes) + 2  # A start node and an end node
+        all_nodes_count = new_graph.number_of_nodes()
         self._l.debug("There should be %d nodes in all", all_nodes_count)
         counter = 0
         vertices = [ContainerNode("placeholder")]
