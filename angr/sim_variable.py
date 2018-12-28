@@ -106,7 +106,6 @@ class SimRegisterVariable(SimVariable):
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):
             return self.ident == other.ident and \
-                   self.name == other.name and \
                    self.reg == other.reg and \
                    self.size == other.size and \
                    self.region == other.region and \
@@ -131,7 +130,7 @@ class SimRegisterVariablePhi(SimRegisterVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.name, self.region, self.size, self.ident, tuple(self.variables)))
+            self._hash = hash((self.region, self.size, self.ident, tuple(self.variables)))
         return self._hash
 
     def __eq__(self, other):
@@ -140,7 +139,6 @@ class SimRegisterVariablePhi(SimRegisterVariable):
 
         return self.ident == other.ident and \
                self.variables == other.variables and \
-               self.name == other.name and \
                self.region == other.region and \
                self.size == other.size
 
@@ -202,7 +200,6 @@ class SimMemoryVariable(SimVariable):
         if isinstance(other, SimMemoryVariable):
             return self.ident == other.ident and \
                    self.addr == other.addr and \
-                   self.name == other.name and \
                    self.size == other.size and \
                    self.phi == other.phi
 
@@ -235,7 +232,6 @@ class SimMemoryVariablePhi(SimMemoryVariable):
         return self.ident == other.ident and \
                self.variables == other.variables and \
                self.addr == other.addr and \
-               self.name == other.name and \
                self.region == other.region and \
                self.size == other.size
 
@@ -296,14 +292,13 @@ class SimStackVariable(SimMemoryVariable):
             return False
 
         return self.ident == other.ident and \
-               self.name == other.name and \
                self.base == other.base and \
                self.offset == other.offset and \
                self.size == other.size and \
                self.phi == other.phi
 
     def __hash__(self):
-        return hash((self.ident, self.name, self.base, self.offset, self.size, self.phi))
+        return hash((self.ident, self.base, self.offset, self.size, self.phi))
 
 
 class SimStackVariablePhi(SimStackVariable):
@@ -332,7 +327,6 @@ class SimStackVariablePhi(SimStackVariable):
         return self.ident == other.ident and \
                self.variables == other.variables and \
                self.addr == other.addr and \
-               self.name == other.name and \
                self.region == other.region and \
                self.size == other.size
 
