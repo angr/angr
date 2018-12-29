@@ -1,6 +1,5 @@
 
 import logging
-import itertools
 from collections import defaultdict
 
 import ailment
@@ -10,7 +9,6 @@ from ...errors import SimEngineError
 from ...keyed_region import KeyedRegion
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
-from ...utils.graph import PostDominators, compute_dominance_frontier
 from .. import Analysis
 from ..calling_convention import CallingConventionAnalysis
 from ..code_location import CodeLocation
@@ -706,10 +704,6 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
             else:
                 l.debug('Merging input state of node %#x with the previous state.', node.addr)
                 input_state = prev_state.merge(input_state, successor=node.addr)
-
-        # Copy variable definitions from the previous block to this block
-        #if input_state.block_addr in self._variable_definitions:
-        #    self._variable_definitions[node.addr] = self._variable_definitions[input_state.block_addr].copy()
 
         state = input_state.copy()
         state.block_addr = node.addr

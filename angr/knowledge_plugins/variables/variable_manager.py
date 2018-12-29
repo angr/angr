@@ -4,8 +4,7 @@ from collections import defaultdict
 from itertools import count
 
 from claripy.utils.orderedset import OrderedSet
-from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimMemoryVariablePhi, \
-    SimStackVariablePhi, SimRegisterVariablePhi
+from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable
 
 from ...keyed_region import KeyedRegion
 from .variable_access import VariableAccess
@@ -15,12 +14,12 @@ from ..plugin import KnowledgeBasePlugin
 l = logging.getLogger(name=__name__)
 
 
-class VariableType(object):
+class VariableType:
     REGISTER = 0
     MEMORY = 1
 
 
-class LiveVariables(object):
+class LiveVariables:
     """
     A collection of live variables at a program point.
     """
@@ -29,7 +28,7 @@ class LiveVariables(object):
         self.stack_region = stack_region
 
 
-class VariableManagerInternal(object):
+class VariableManagerInternal:
     """
     Manage variables for a function. It is meant to be used internally by VariableManager.
     """
@@ -168,10 +167,10 @@ class VariableManagerInternal(object):
         if ins_addr not in self._insn_to_variable:
             return None
 
-        if sort == VariableType.MEMORY or sort == 'memory':
+        if sort in (VariableType.MEMORY, 'memory'):
             vars_and_offset = [(var, offset) for var, offset in self._insn_to_variable[ins_addr]
                         if isinstance(var, (SimStackVariable, SimMemoryVariable))]
-        elif sort == VariableType.REGISTER or sort == 'register':
+        elif sort in (VariableType.REGISTER, 'register'):
             vars_and_offset = [(var, offset) for var, offset in self._insn_to_variable[ins_addr]
                         if isinstance(var, SimRegisterVariable)]
         else:
