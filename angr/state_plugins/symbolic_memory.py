@@ -452,8 +452,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if all_missing:
             if (self.category == 'mem' and
                     options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and
-                    options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options) or (
-                    self.category == 'reg' and
+                    options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options) or \
+                (self.category == 'reg' and
                     options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options and
                     options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options):
                 if once('mem_fill_warning'):
@@ -471,8 +471,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 else:
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
                     l.warning("Filling register %s with %d unconstrained bytes", reg_str, num_bytes)
-            else:
-                pass
+
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
