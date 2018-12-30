@@ -450,12 +450,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
         if all_missing:
-            if (self.category == 'mem' and
-                    options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and
-                    options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options) or \
-                (self.category == 'reg' and
-                    options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options and
-                    options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options):
+            is_mem = self.category == 'mem' and \
+                    options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and \
+                    options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+            is_reg = self.category == 'reg' and \
+                    options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options and \
+                    options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
+            if is_mem or is_reg:
                 if once('mem_fill_warning'):
                     l.warning("The program is accessing memory or registers with an unspecified value. "
                         "This could indicate unwanted behavior.")
@@ -466,7 +467,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         "to make unknown regions hold null")
                     l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
                         "to suppress these messages.")
-                if self.category == 'mem':
+                if is_mem:
                     l.warning("Filling memory at %#x with %d unconstrained bytes", addr, num_bytes)
                 else:
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
@@ -906,7 +907,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     @staticmethod
     def _get_segment_index(addr, segments):
         for i, segment in enumerate(segments):
-            if segment['start'] <= addr and addr < segment['start'] + segment['size']:
+            if segment['start'] <= addr < segment['start'] + segment['size']:
                 return i
 
         return -1
