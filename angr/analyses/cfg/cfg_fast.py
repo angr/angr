@@ -1350,7 +1350,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(mode="fastpath")
         initial_options = self._initial_state.options - {o.TRACK_CONSTRAINTS} - o.refs
-        initial_options |= {o.SUPER_FASTPATH}
+        initial_options |= {o.SUPER_FASTPATH, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS, o.SYMBOL_FILL_UNCONSTRAINED_MEMORY}
         # initial_options.remove(o.COW_STATES)
         self._initial_state.options = initial_options
 

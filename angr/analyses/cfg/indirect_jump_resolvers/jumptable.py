@@ -259,6 +259,9 @@ class JumpTableResolver(IndirectJumpResolver):
             # Keep IP symbolic to avoid unnecessary concretization
             start_state.options.add(o.KEEP_IP_SYMBOLIC)
             start_state.options.add(o.NO_IP_CONCRETIZATION)
+            # be quiet!!!!!!
+            start_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+            start_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
 
             # any read from an uninitialized segment should be unconstrained
             if self._bss_regions:
