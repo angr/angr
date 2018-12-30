@@ -459,7 +459,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 if once('mem_fill_warning'):
                     l.warning("The program is accessing memory or registers with an unspecified value. "
                         "This could indicate unwanted behavior.")
-                    l.warning("angr will cope with this by generating an unconstrained symbol and continuing. "
+                    l.warning("angr will cope with this by generating an unconstrained symbolic variable and continuing. "
                         "You can resolve this by:")
                     l.warning("1) setting a value to the initial state")
                     l.warning("2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "

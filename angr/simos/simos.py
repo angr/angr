@@ -53,8 +53,10 @@ class SimOS:
             if self.project.is_hooked(resolver_addr):
                 return resolver_addr
 
-            resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
-            resolver._base_state.options |= {o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS}
+
+            base_state = self.state_blank(addr=0,
+                add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+            resolver = self.project.factory.callable(resolver_addr, concrete_only=True, base_state=base_state)
             try:
                 if isinstance(self.arch, ArchS390X):
                     # On s390x ifunc resolvers expect hwcaps.

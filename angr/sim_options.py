@@ -64,7 +64,7 @@ DO_RET_EMULATION = "DO_RET_EMULATION"
 # If this option is present, the guards to emulated ret exits are True instead of False
 TRUE_RET_EMULATION_GUARD = "TRUE_RET_EMULATION_GUARD"
 
-# This option causes the analysis to immediately concretize any symbol that it comes across
+# This option causes the analysis to immediately concretize any symbolic value that it comes across
 CONCRETIZE = "CONCRETIZE"
 
 # This option prevents angr from doing hundreds of constraint solves to resolve symbolic jump targets
@@ -267,8 +267,8 @@ ZERO_FILL_UNCONSTRAINED_MEMORY = 'ZERO_FILL_UNCONSTRAINED_MEMORY'
 ZERO_FILL_UNCONSTRAINED_REGISTERS = 'ZERO_FILL_UNCONSTRAINED_REGISTERS'
 INITIALIZE_ZERO_REGISTERS = ZERO_FILL_UNCONSTRAINED_REGISTERS
 
-# Return a new symbol for any unspecified bytes in memory/registers
-# If neither these nor the above options are specified, a warning will be issued and a symbol will be generated
+# Return a new symbolic variable for any unspecified bytes in memory/registers. If neither these nor the above options
+# are specified, a warning will be issued and an unconstrained symbolic variable will be generated
 SYMBOL_FILL_UNCONSTRAINED_MEMORY = 'SYMBOL_FILL_UNCONSTRAINED_MEMORY'
 SYMBOL_FILL_UNCONSTRAINED_REGISTERS = 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS'
 
