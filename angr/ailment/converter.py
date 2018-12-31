@@ -256,4 +256,4 @@ class IRSBConverter(Converter):
                                        )
                                   )
 
-        return Block(addr, statements)
+        return Block(addr, irsb.size, statements=statements)

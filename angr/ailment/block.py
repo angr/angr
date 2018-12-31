@@ -1,15 +1,20 @@
 
-class Block(object):
+class Block:
     """
     Describes an AIL block.
     """
-    def __init__(self, addr, statements=None):
+
+    __slots__ = ('addr', 'original_size', 'statements')
+
+    def __init__(self, addr, original_size, statements=None):
         self.addr = addr
+        self.original_size = original_size
         self.statements = [ ] if statements is None else statements
 
     def copy(self):
         return Block(
             addr=self.addr,
+            original_size=self.original_size,
             statements=self.statements[::],
         )
 
