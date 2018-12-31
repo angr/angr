@@ -180,15 +180,20 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         state.inspect.reg_write_expr = reg_write_expr
 
-        # create the variable
-        variable = SimRegisterVariable(reg_write_offset, reg_write_length,
-                                       ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                       region=self.func_addr,
-                                       )
-        var_offset = self._normalize_register_offset(reg_write_offset)
-        self.register_region.set_variable(var_offset, variable)
-        # record this variable in variable manager
-        self.variable_manager[self.func_addr].add_variable('register', var_offset, variable)
+        existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(state.scratch.bbl_addr,
+                                                                                     state.scratch.stmt_idx,
+                                                                                     'register')
+        if not existing_vars:
+            # create the variable
+            variable = SimRegisterVariable(reg_write_offset, reg_write_length,
+                                           ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
+                                           region=self.func_addr,
+                                           )
+            var_offset = self._normalize_register_offset(reg_write_offset)
+            self.register_region.set_variable(var_offset, variable)
+            # record this variable in variable manager
+            self.variable_manager[self.func_addr].set_variable('register', var_offset, variable)
+            self.variable_manager[self.func_addr].write_to(variable, 0, self._codeloc_from_state(state))
 
         # is it writing a pointer to a stack variable into the register?
         # e.g. lea eax, [ebp-0x40]
@@ -198,7 +203,8 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             # unfortunately we don't know the size. We use size None for now.
 
             if stack_offset not in self.stack_region:
-                new_var = SimStackVariable(stack_offset, None, base='bp',
+                lea_size = 1
+                new_var = SimStackVariable(stack_offset, lea_size, base='bp',
                                             ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                             region=self.func_addr,
                                             )
@@ -429,7 +435,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         if len(states) == 1:
             return states[0]
 
-        return reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
+        return reduce(lambda s_0, s_1: s_0.merge(s_1, successor=node.addr), states[1:], states[0])
 
     def _run_on_node(self, node, state):
         """
