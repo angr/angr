@@ -12,7 +12,10 @@ from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 l = logging.getLogger('ailment.analyses.propagator')
 
 
-class Atom(object):
+class Atom:
+
+    __slots__ = [ ]
+
     def __init__(self):
         pass
 
@@ -109,12 +112,12 @@ class PropagatorState(object):
 
 
 def get_engine(base_engine):
-    class SimEngineProp(base_engine):
+    class SimEnginePropagator(base_engine):
         def __init__(self):
-            super(SimEngineProp, self).__init__()
+            super(SimEnginePropagator, self).__init__()
 
         def _process(self, state, successors, block=None):
-            super(SimEngineProp, self)._process(state, successors, block=block)
+            super(SimEnginePropagator, self)._process(state, successors, block=block)
 
         #
         # VEX statement handlers
@@ -270,7 +273,7 @@ def get_engine(base_engine):
 
             return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ])
 
-    return SimEngineProp
+    return SimEnginePropagator
 
 
 class Propagator(ForwardAnalysis, Analysis):
