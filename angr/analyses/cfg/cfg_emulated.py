@@ -232,6 +232,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._max_steps = max_steps
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
+        self._state_add_options.update([o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS])
 
         # add the track_memory_option if the enable function hint flag is set
         if self._enable_function_hints and o.TRACK_MEMORY_ACTIONS not in self._state_add_options:
