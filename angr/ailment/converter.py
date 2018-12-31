@@ -176,7 +176,7 @@ class VEXStmtConverter(Converter):
         return Store(idx,
                      VEXExprConverter.convert(stmt.addr, manager),
                      VEXExprConverter.convert(stmt.data, manager),
-                     stmt.data.result_size(manager.tyenv) / 8,
+                     stmt.data.result_size(manager.tyenv) // 8,
                      ins_addr=manager.ins_addr,
                      )
 
