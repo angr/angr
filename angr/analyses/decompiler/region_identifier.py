@@ -9,7 +9,7 @@ from ...utils.graph import dfs_back_edges
 l = logging.getLogger(name=__name__)
 
 
-class MultiNode(object):
+class MultiNode:
     def __init__(self, nodes):
         self.nodes = [ ]
 
@@ -40,7 +40,7 @@ class MultiNode(object):
         return self.nodes[0].addr
 
 
-class GraphRegion(object):
+class GraphRegion:
     def __init__(self, head, graph):
         self.head = head
         self.graph = graph

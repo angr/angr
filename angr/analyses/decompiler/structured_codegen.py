@@ -8,7 +8,7 @@ from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakN
 INDENT_DELTA = 4
 
 
-class CConstruct(object):
+class CConstruct:
     """
     Represents a program construct in C.
     """
