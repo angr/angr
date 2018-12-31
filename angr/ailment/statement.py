@@ -73,7 +73,7 @@ class Store(Statement):
                self.variable == other.variable
 
     def __repr__(self):
-        return "Store (%s, %s[%d])" % (self.address, str(self.data), self.size)
+        return "Store (%s, %s[%d])" % (self.addr, str(self.data), self.size)
 
     def __str__(self):
         if self.variable is None:
@@ -102,6 +102,9 @@ class Jump(Statement):
                self.idx == other.idx and \
                self.target == other.target
 
+    def __repr__(self):
+        return "Jump (%s)" % self.target
+
     def __str__(self):
         return "Goto(%s)" % self.target
 
@@ -128,6 +131,10 @@ class ConditionalJump(Statement):
                self.condition == other.condition and \
                self.true_target == other.true_target and \
                self.false_target == other.false_target
+
+    def __repr__(self):
+        return "ConditionalJump (condition: %s, true: %s, false: %s)" % (self.condition, self.true_target,
+                                                                         self.false_target)
 
     def __str__(self):
         return "if (%s) { Goto %s } else { Goto %s }" % (
@@ -165,6 +172,9 @@ class Call(Statement):
                self.calling_convention == other.calling_convention and \
                self.prototype == other.prototype and \
                self.args == other.args
+
+    def __repr__(self):
+        return "Call (target: %s, prototype: %s, args: %s)" % (self.target, self.prototype, self.args)
 
     def __str__(self):
 
