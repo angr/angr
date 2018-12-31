@@ -24,12 +24,15 @@ class Simplifier(Analysis):
     def _analyze(self):
 
         block = self.block
-        block = self._simplify_block_once(block)
-        #print str(block)
-        block = self._simplify_block_once(block)
-        #print str(block)
-        #block = self._simplify_block_once(block)
-        #print str(block)
+
+        while True:
+            # print(str(block))
+            new_block = self._simplify_block_once(block)
+            # print()
+            # print(str(new_block))
+            if new_block == block:
+                break
+            block = new_block
 
         self.result_block = block
 
