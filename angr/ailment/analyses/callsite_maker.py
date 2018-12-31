@@ -2,7 +2,7 @@
 import logging
 
 from angr import Analysis, register_analysis
-from angr.analyses.reaching_definitions import OP_BEFORE
+from angr.sim_variable import SimStackVariable
 from angr.calling_conventions import SimRegArg, SimStackArg
 
 from .. import Stmt, Expr
@@ -62,14 +62,24 @@ class CallSiteMaker(Analysis):
                 else:
                     raise NotImplementedError('Not implemented yet.')
 
-        new_stmts = self.block.statements[::]
+        new_stmts = self.block.statements[:-1]
 
-        new_stmts[-1] = Stmt.Call(last_stmt, last_stmt.target,
-                                  calling_convention=func.calling_convention,
-                                  prototype=func.prototype,
-                                  args=args,
-                                  **last_stmt.tags
-                                  )
+        if self.project.arch.call_pushes_ret:
+            # check if the last statement is storing the return address onto the top of the stack
+            if len(new_stmts) >= 1:
+                the_stmt = new_stmts[-1]
+                if isinstance(the_stmt, Stmt.Store) and isinstance(the_stmt.data, Expr.Const):
+                    if isinstance(the_stmt.variable, SimStackVariable) and \
+                            the_stmt.data.value == self.block.addr + self.block.original_size:
+                        # yes it is!
+                        new_stmts = new_stmts[:-1]
+
+        new_stmts.append(Stmt.Call(last_stmt, last_stmt.target,
+                                   calling_convention=func.calling_convention,
+                                   prototype=func.prototype,
+                                   args=args,
+                                   **last_stmt.tags,
+                                   ))
 
         new_block = self.block.copy()
         new_block.statements = new_stmts
