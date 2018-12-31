@@ -45,11 +45,10 @@ class MemoryLocation(Atom):
         self.size = size
 
 
-class PropagatorState(object):
-    def __init__(self, arch, reaching_definitions=None):
+class PropagatorState:
+    def __init__(self, arch):
 
         self.arch = arch
-        self.reaching_definitions = reaching_definitions
 
         self._replacements = { }
         self._final_replacements = [ ]
@@ -60,7 +59,6 @@ class PropagatorState(object):
     def copy(self):
         rd = PropagatorState(
             self.arch,
-            reaching_definitions=self.reaching_definitions,
         )
 
         rd._replacements = self._replacements.copy()
@@ -318,7 +316,7 @@ class Propagator(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        return PropagatorState(self.project.arch, reaching_definitions=self._reaching_definitions)
+        return PropagatorState(self.project.arch)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
