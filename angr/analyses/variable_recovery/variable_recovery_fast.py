@@ -13,6 +13,7 @@ from .. import Analysis
 from ..calling_convention import CallingConventionAnalysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 
 l = logging.getLogger(name=__name__)
 
@@ -388,7 +389,7 @@ def get_engine(base_engine):
     return SimEngineVR
 
 
-class VariableRecoveryFastState:
+class VariableRecoveryFastState(VariableRecoveryStateBase):
     """
     The abstract state of variable recovery analysis.
 
@@ -398,48 +399,10 @@ class VariableRecoveryFastState:
 
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None,
                  processor_state=None):
-        self.block_addr = block_addr
-        self._analysis = analysis
-        self.arch = arch
-        self.function = func
 
-        if stack_region is not None:
-            self.stack_region = stack_region
-        else:
-            self.stack_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
-        if register_region is not None:
-            self.register_region = register_region
-        else:
-            self.register_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
+        super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region)
 
         self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
-
-    @property
-    def dominance_frontiers(self):
-        return self._analysis._dominance_frontiers
-
-    @property
-    def variable_manager(self):
-        return self._analysis.variable_manager
-
-    @property
-    def variables(self):
-        for ro in self.stack_region:
-            for var in ro.internal_objects:
-                yield var
-        for ro in self.register_region:
-            for var in ro.internal_objects:
-                yield var
-
-    def get_variable_definitions(self, block_addr):
-        """
-        Get variables that are defined at the specified block.
-
-        :param int block_addr:  Address of the block.
-        :return:                A set of variables.
-        """
-
-        return self._analysis.get_variable_definitions(block_addr)
 
     def __repr__(self):
         return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self.register_region), len(self.stack_region))
@@ -447,7 +410,6 @@ class VariableRecoveryFastState:
     def __eq__(self, other):
         if type(other) is not VariableRecoveryFastState:
             return False
-
         return self.stack_region == other.stack_region and self.register_region == other.register_region
 
     def copy(self):
@@ -499,67 +461,6 @@ class VariableRecoveryFastState:
         return state
 
     #
-    # Private methods
-    #
-
-    def _make_phi_variables(self, successor, state0, state1):
-
-        stack_variables = defaultdict(set)
-        register_variables = defaultdict(set)
-
-        for dominatee in self.dominance_frontiers[successor]:
-            vardefs = self._analysis.get_variable_definitions(dominatee)
-            for var in vardefs:
-                if isinstance(var, SimStackVariable):
-                    stack_variables[(var.offset, var.size)].add(var)
-                    if dominatee != state0.block_addr:
-                        v0s = state0.stack_region.get_variables_by_offset(var.offset)
-                        for v0 in v0s:
-                            stack_variables[(v0.offset, v0.size)].add(v0)
-                    if dominatee != state1.block_addr:
-                        v1s = state1.stack_region.get_variables_by_offset(var.offset)
-                        for v1 in v1s:
-                            stack_variables[(v1.offset, v1.size)].add(v1)
-                elif isinstance(var, SimRegisterVariable):
-                    register_variables[(var.reg, var.size)].add(var)
-                    if dominatee != state0.block_addr:
-                        v0s = state0.register_region.get_variables_by_offset(var.reg)
-                        for v0 in v0s:
-                            register_variables[(v0.reg, v0.size)].add(v0)
-                    if dominatee != state1.block_addr:
-                        v1s = state1.register_region.get_variables_by_offset(var.reg)
-                        for v1 in v1s:
-                            register_variables[(v1.reg, v1.size)].add(v1)
-                else:
-                    l.warning("Unsupported variable type %s.", type(var))
-
-        replacements = {}
-
-        for variable_dict in [stack_variables, register_variables]:
-            for _, variables in variable_dict.items():
-                if len(variables) > 1:
-                    # Create a new phi variable
-                    phi_node = self.variable_manager[self.function.addr].make_phi_node(successor, *variables)
-                    # Fill the replacements dict
-                    for var in variables:
-                        replacements[var] = phi_node
-
-        return replacements
-
-    def _phi_node_contains(self, phi_variable, variable):
-        """
-        Checks if `phi_variable` is a phi variable, and if it contains `variable` as a sub-variable.
-
-        :param phi_variable:
-        :param variable:
-        :return:
-        """
-
-        if self.variable_manager[self.function.addr].is_phi_variable(phi_variable):
-            return variable in self.variable_manager[self.function.addr].get_phi_subvariables(phi_variable)
-        return False
-
-    #
     # Util methods
     #
 
@@ -578,7 +479,7 @@ class VariableRecoveryFastState:
         return n
 
 
-class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract-method
+class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=abstract-method
     """
     Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
     """
@@ -593,49 +494,29 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         function_graph_visitor = FunctionGraphVisitor(func)
 
+        VariableRecoveryBase.__init__(self, func, max_iterations)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
-        self.function = func
-        self._outstates = { }
-        self._instates = { }
-
-        self.variable_manager = self.kb.variables
-
-        self._max_iterations = max_iterations
         self._clinic = clinic
 
         self._ail_engine = get_engine(SimEngineLightAIL)()
         self._vex_engine = get_engine(SimEngineLightVEX)()
 
         self._node_iterations = defaultdict(int)
-        self._dominance_frontiers = None
 
         self._node_to_cc = { }
 
         self._analyze()
 
     #
-    # Public methods
-    #
-
-    def get_variable_definitions(self, block_addr):
-        """
-        Get variables that are defined at the specified block.
-
-        :param int block_addr:  Address of the block.
-        :return:                A set of variables.
-        """
-
-        if block_addr in self._outstates:
-            return self._outstates[block_addr].variables
-        return set()
-
-    #
     # Main analysis routines
     #
 
     def _pre_analysis(self):
+
+        self.initialize_dominance_frontiers()
+
         CallingConventionAnalysis.recover_calling_conventions(self.project)
 
         # initialize node_to_cc map
@@ -643,13 +524,6 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         for func_node in function_nodes:
             for callsite_node in self.function.transition_graph.predecessors(func_node):
                 self._node_to_cc[callsite_node.addr] = func_node.calling_convention
-
-        # Computer the dominance frontier for each node in the graph
-        df = self.project.analyses.DominanceFrontier(self.function)
-        self._dominance_frontiers = defaultdict(set)
-        for b0, domfront in df.frontiers.items():
-            for d in domfront:
-                self._dominance_frontiers[d.addr].add(b0.addr)
 
     def _pre_job_handling(self, job):
         pass

@@ -169,5 +169,6 @@ if __name__ == '__main__':
 
     l.setLevel(logging.DEBUG)
     logging.getLogger('angr.analyses.variable_recovery_fast').setLevel(logging.DEBUG)
+    logging.getLogger('angr.analyses.variable_recovery').setLevel(logging.DEBUG)
 
     main()
