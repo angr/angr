@@ -4,8 +4,6 @@ from functools import reduce
 
 import angr # type annotations; pylint: disable=unused-import
 
-from .. import Analysis
-
 from ... import BP, BP_AFTER
 from ...sim_variable import SimRegisterVariable, SimStackVariable
 from ..code_location import CodeLocation

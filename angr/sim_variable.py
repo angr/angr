@@ -1,7 +1,7 @@
 import collections
 import claripy
 
-class SimVariable(object):
+class SimVariable:
 
     __slots__ = ['ident', 'name', 'region', 'category']
 
@@ -245,7 +245,7 @@ class SimVariableSet(collections.MutableSet):
         # For the sake of performance, we have another set that stores memory addresses of memory_variables
         self.memory_variable_addresses = set()
 
-    def add(self, item):
+    def add(self, item):  # pylint:disable=arguments-differ
         if type(item) is SimRegisterVariable:
             if not self.contains_register_variable(item):
                 self.add_register_variable(item)
@@ -266,7 +266,7 @@ class SimVariableSet(collections.MutableSet):
         for i in range(mem_var.size):
             self.memory_variable_addresses.add(base_address + i)
 
-    def discard(self, item):
+    def discard(self, item):  # pylint:disable=arguments-differ
         if type(item) is SimRegisterVariable:
             if self.contains_register_variable(item):
                 self.discard_register_variable(item)

@@ -1,9 +1,12 @@
 
+import logging
 from collections import defaultdict
 
 from ...keyed_region import KeyedRegion
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 from ..analysis import Analysis
+
+l = logging.getLogger(name=__name__)
 
 
 class VariableRecoveryBase(Analysis):

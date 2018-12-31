@@ -6,10 +6,8 @@ import ailment
 
 from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
 from ...errors import SimEngineError
-from ...keyed_region import KeyedRegion
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
-from .. import Analysis
 from ..calling_convention import CallingConventionAnalysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
