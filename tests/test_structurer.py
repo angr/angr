@@ -25,7 +25,7 @@ def test_smoketest():
     st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
 
     # simplify it
-    s = p.analyses.RegionSimplifier(st.result)
+    _ = p.analyses.RegionSimplifier(st.result)
 
 
 def test_smoketest_cm3_firmware():

@@ -15,6 +15,24 @@ class RegionSimplifier(Analysis):
 
         self.result = None
 
+        # Initialize handler map
+        self.GOTO_HANDLERS = {
+            SequenceNode: self._goto_handle_sequencenode,
+            CodeNode: self._goto_handle_codenode,
+            MultiNode: self._goto_handle_multinode,
+            LoopNode: self._goto_handle_loopnode,
+            ConditionNode: self._goto_handle_conditionnode,
+            ailment.Block: self._goto_handle_block,
+        }
+        self.IFS_HANDLERS = {
+            SequenceNode: self._ifs_handle_sequencenode,
+            CodeNode: self._ifs_handle_codenode,
+            MultiNode: self._ifs_handle_multinode,
+            LoopNode: self._ifs_handle_loopnode,
+            ConditionNode: self._ifs_handle_conditionnode,
+            ailment.Block: self._ifs_handle_block,
+        }
+
         self._simplify()
 
     def _simplify(self):
@@ -37,15 +55,6 @@ class RegionSimplifier(Analysis):
     # Goto simplifier
 
     def _simplify_gotos(self, region):
-
-        self.GOTO_HANDLERS = {
-            SequenceNode: self._goto_handle_sequencenode,
-            CodeNode: self._goto_handle_codenode,
-            MultiNode: self._goto_handle_multinode,
-            LoopNode: self._goto_handle_loopnode,
-            ConditionNode: self._goto_handle_conditionnode,
-            ailment.Block: self._goto_handle_block,
-        }
 
         self._goto_handle(region, None)
 
@@ -109,7 +118,7 @@ class RegionSimplifier(Analysis):
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
             self._goto_handle(n0, n1)
 
-    def _goto_handle_block(self, block, successor):
+    def _goto_handle_block(self, block, successor):  # pylint:disable=no-self-use
         """
 
         :param ailment.Block block:
@@ -125,15 +134,6 @@ class RegionSimplifier(Analysis):
     # Ifs simplifier
 
     def _simplify_ifs(self, region):
-
-        self.IFS_HANDLERS = {
-            SequenceNode: self._ifs_handle_sequencenode,
-            CodeNode: self._ifs_handle_codenode,
-            MultiNode: self._ifs_handle_multinode,
-            LoopNode: self._ifs_handle_loopnode,
-            ConditionNode: self._ifs_handle_conditionnode,
-            ailment.Block: self._ifs_handle_block,
-        }
 
         self._ifs_handle(region, None)
 
@@ -197,7 +197,7 @@ class RegionSimplifier(Analysis):
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
             self._ifs_handle(n0, n1)
 
-    def _ifs_handle_block(self, block, successor):
+    def _ifs_handle_block(self, block, successor):  # pylint:disable=no-self-use
         """
 
         :param ailment.Block block:

@@ -893,7 +893,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     @staticmethod
     def _get_segment_index(addr, segments):
         for i, segment in enumerate(segments):
-            if segment['start'] <= addr and addr < segment['start'] + segment['size']:
+            if segment['start'] <= addr < segment['start'] + segment['size']:
                 return i
 
         return -1
