@@ -15,7 +15,7 @@ l = logging.getLogger(name=__name__)
 INDENT_DELTA = 2
 
 
-class SequenceNode(object):
+class SequenceNode:
     def __init__(self, nodes=None):
         self.nodes = nodes if nodes is not None else [ ]
 
@@ -64,7 +64,7 @@ class SequenceNode(object):
         return s
 
 
-class CodeNode(object):
+class CodeNode:
     def __init__(self, node, reaching_condition):
         self.node = node
         self.reaching_condition = reaching_condition
@@ -94,7 +94,7 @@ class CodeNode(object):
         return CodeNode(self.node, self.reaching_condition)
 
 
-class ConditionNode(object):
+class ConditionNode:
     def __init__(self, addr, reaching_condition, condition, true_node, false_node=None):
         self.addr = addr
         self.reaching_condition = reaching_condition
@@ -121,7 +121,7 @@ class ConditionNode(object):
         return s
 
 
-class LoopNode(object):
+class LoopNode:
     def __init__(self, sort, condition, sequence_node):
         self.sort = sort
         self.condition = condition
@@ -132,7 +132,7 @@ class LoopNode(object):
         return self.sequence_node.addr
 
 
-class BreakNode(object):
+class BreakNode:
     def __init__(self, target):
         self.target = target
 
