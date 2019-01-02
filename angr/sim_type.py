@@ -811,7 +811,7 @@ class SimStruct(SimType):
             raise TypeError("Can't store struct of type %s" % type(value))
 
         if len(value) != len(self.fields):
-            raise ValueError("Passed bad values for %s; expected %d, got %d" % self, len(self.offsets), len(value))
+            raise ValueError("Passed bad values for %s; expected %d, got %d" % (self, len(self.offsets), len(value)))
 
         for field, offset in self.offsets.items():
             ty = self.fields[field]
