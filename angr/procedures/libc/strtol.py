@@ -103,8 +103,17 @@ class strtol(angr.SimProcedure):
 
             # if it was the end we'll get the current val
             cases.append((num_bytes == i, current_val))
+
+            # identify the constraints necessary to set num_bytes to the current value
+            # the current char (i.e. the terminator if this is satisfied) should not be a char,
+            # so `condition` should be false, plus all the previous conditions should be satisfied
             case_constraints = conditions + [state.solver.Not(condition)] + [num_bytes == i]
             constraints_num_bytes.append(state.solver.And(*case_constraints))
+
+            # break the loop early if no value past this is viable
+            if condition.is_false():
+                cutoff = True  # ???
+                break
 
             # add the value and the condition
             current_val = current_val*base + value.zero_extend(num_bits-8)
@@ -118,9 +127,16 @@ class strtol(angr.SimProcedure):
 
         # only one of the constraints need to hold
         # since the constraints look like (num_bytes == 2 and the first 2 chars are valid, and the 3rd isn't)
-        state.add_constraints(state.solver.Or(*constraints_num_bytes))
 
-        result = state.solver.ite_cases(cases, 0)
+        final_constraint = state.solver.Or(*constraints_num_bytes)
+        if final_constraint.op == '__eq__' and final_constraint.args[0] is num_bytes and not final_constraint.args[1].symbolic:
+            # CONCRETE CASE
+            result = cases[state.solver.eval(final_constraint.args[1])][1]
+            num_bytes = final_constraint.args[1]
+        else:
+            # symbolic case
+            state.add_constraints(final_constraint)
+            result = state.solver.ite_cases(cases, 0)
 
         # overflow check
         max_bits = state.arch.bits-1 if signed else state.arch.bits
