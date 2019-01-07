@@ -210,6 +210,7 @@ class Structurer(Analysis):
 
         self._reaching_conditions = None
         self._predicate_mapping = None
+        self._condition_mapping = {}
 
         self.result = None
 
@@ -479,6 +480,27 @@ class Structurer(Analysis):
         self._reaching_conditions = reaching_conditions
         self._predicate_mapping = predicate_mapping
 
+    def _convert_claripy_bool_ast(self, cond):
+        """
+        Convert recovered reaching conditions from claripy ASTs to ailment Expressions
+
+        :return: None
+        """
+
+        if claripy.is_true(cond):
+            return cond
+        if cond in self._condition_mapping:
+            return self._condition_mapping[cond]
+
+        _mapping = {
+            'Not': lambda cond_: ailment.Expr.UnaryOp(None, 'Not', self._convert_claripy_bool_ast(cond_.args[0])),
+        }
+
+        if cond.op in _mapping:
+            return _mapping[cond.op](cond)
+        raise NotImplementedError(("Condition variable %s has an unsupported operator %s. "
+                                   "Consider implementing.") % cond.op)
+
     def _make_sequence(self):
 
         seq = SequenceNode()
@@ -519,11 +541,11 @@ class Structurer(Analysis):
         for i in range(len(seq.nodes)):
             node = seq.nodes[i]
             if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
-                new_node = ConditionNode(node.addr, None, node.reaching_condition, node, None)
+                new_node = ConditionNode(node.addr, None, self._convert_claripy_bool_ast(node.reaching_condition), node,
+                                         None)
                 seq.nodes[i] = new_node
 
-    @staticmethod
-    def _make_ite(seq, node_0, node_1):
+    def _make_ite(self, seq, node_0, node_1):
 
         pos = max(seq.node_position(node_0), seq.node_position(node_1))
 
@@ -532,7 +554,8 @@ class Structurer(Analysis):
         node_0_.reaching_condition = None
         node_1_.reaching_condition = None
 
-        seq.insert_node(pos, ConditionNode(0, None, node_0.reaching_condition, node_0_, node_1_))
+        seq.insert_node(pos, ConditionNode(0, None, self._convert_claripy_bool_ast(node_0.reaching_condition), node_0_,
+                                           node_1_))
 
         seq.remove_node(node_0)
         seq.remove_node(node_1)
@@ -608,9 +631,10 @@ class Structurer(Analysis):
 
         return targets
 
-    @staticmethod
-    def _bool_variable_from_ail_condition(block, condition):
-        return claripy.BoolS('structurer-cond_%#x_%s' % (block.addr, repr(condition)), explicit_name=True)
+    def _bool_variable_from_ail_condition(self, block, condition):
+        var = claripy.BoolS('structurer-cond_%#x_%s' % (block.addr, repr(condition)), explicit_name=True)
+        self._condition_mapping[var] = condition
+        return var
 
 
 register_analysis(RecursiveStructurer, 'RecursiveStructurer')
