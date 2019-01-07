@@ -2,7 +2,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-class CodeNode(object):
+class CodeNode:
 
     __slots__ = ['addr', 'size', '_graph', 'thumb', '_hash']
 

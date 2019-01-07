@@ -292,7 +292,7 @@ class SingleNodeGraphVisitor(GraphVisitor):
 #
 
 
-class JobInfo(object):
+class JobInfo:
     """
     Stores information of each job.
     """
@@ -352,7 +352,7 @@ class JobInfo(object):
         self.jobs.append((job, job_type))
 
 
-class ForwardAnalysis(object):
+class ForwardAnalysis:
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.

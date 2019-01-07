@@ -22,7 +22,7 @@ from ...keyed_region import KeyedRegion
 l = logging.getLogger(name=__name__)
 
 
-class LiveDefinitions(object):
+class LiveDefinitions:
     def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
 
         # handy short-hands
@@ -346,9 +346,6 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     #
 
     def _pre_analysis(self):
-        pass
-
-    def _pre_job_handling(self, job):
         pass
 
     def _initial_abstract_state(self, node):
