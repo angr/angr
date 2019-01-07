@@ -1,4 +1,4 @@
 
-from .simplifier import Simplifier
+from .block_simplifier import BlockSimplifier
 from .propagator import Propagator
 from .callsite_maker import CallSiteMaker
