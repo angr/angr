@@ -98,6 +98,10 @@ class Register(Atom):
         self.reg_offset = reg_offset
         self.bits = bits
 
+    @property
+    def size(self):
+        return self.bits // 8
+
     def __repr__(self):
         return str(self)
 
