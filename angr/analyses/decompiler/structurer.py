@@ -375,7 +375,7 @@ class Structurer(Analysis):
 
         queue = [ loop_head ]
         traversed = set()
-        loop_successors = set(loop_successors)
+        loop_successors = set(s.addr for s in loop_successors)
 
         while queue:
             node = queue[0]
@@ -385,35 +385,40 @@ class Structurer(Analysis):
 
             traversed.add(node)
 
-            successors = graph.successors(node)
-            for dst in successors:
-                if dst in loop_successors:
-                    # add a break or a conditional break node
-                    last_stmt = self._get_last_statement(node)
-                    if type(last_stmt) is ailment.Stmt.Jump:
-                        # add a break
-                        seq.nodes.append(BreakNode(dst))
-                        # shrink the block to remove the last statement
-                        self._remove_last_statement(node)
-                    elif type(last_stmt) is ailment.Stmt.ConditionalJump:
-                        # add a conditional break
-                        if last_stmt.true_target.value == dst.addr:
-                            cond = last_stmt.condition
-                        elif last_stmt.false_target.value == dst.addr:
-                            cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
-                        else:
-                            l.warning("I'm not sure which branch is jumping out of the loop...")
-                            raise Exception()
-                        seq.nodes.append(ConditionalBreakNode(cond, dst))
-                        # remove the last statement from the node
-                        self._remove_last_statement(node)
-                    continue
-                else:
-                    # sanity check
-                    if dst not in loop_subgraph:
-                        # what's this node?
-                        l.error("Found a node that belongs to neither loop body nor loop successors. Something is wrong.")
+            successors = list(graph.successors(node))  # successors are all inside the current region
+
+            last_stmt = self._get_last_statement(node)
+            real_successor_addrs = self._extract_jump_targets(last_stmt)
+
+            if any(succ_addr in loop_successors for succ_addr in real_successor_addrs):
+                # This node has an exit to the outside of the loop
+                # add a break or a conditional break node
+                if type(last_stmt) is ailment.Stmt.Jump:
+                    # add a break
+                    seq.nodes.append(BreakNode(last_stmt.target.value))
+                    # shrink the block to remove the last statement
+                    self._remove_last_statement(node)
+                elif type(last_stmt) is ailment.Stmt.ConditionalJump:
+                    # add a conditional break
+                    if last_stmt.true_target.value in loop_successors:
+                        cond = last_stmt.condition
+                        target = last_stmt.true_target.value
+                    elif last_stmt.false_target.value in loop_successors:
+                        cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
+                        target = last_stmt.false_target.value
+                    else:
+                        l.warning("I'm not sure which branch is jumping out of the loop...")
                         raise Exception()
+                    seq.nodes.append(ConditionalBreakNode(cond, target))
+                    # remove the last statement from the node
+                    self._remove_last_statement(node)
+
+            for dst in successors:
+                # sanity check
+                if dst not in loop_subgraph:
+                    # what's this node?
+                    l.error("Found a node that belongs to neither loop body nor loop successors. Something is wrong.")
+                    raise Exception()
                 if dst in traversed:
                     continue
                 queue.append(dst)
@@ -577,6 +582,27 @@ class Structurer(Analysis):
 
         else:
             raise NotImplementedError()
+
+    def _extract_jump_targets(self, stmt):
+        """
+        Extract goto targets from a Jump or a ConditionalJump statement.
+
+        :param stmt:    The statement to analyze.
+        :return:        A list of known concrete jump targets.
+        :rtype:         list
+        """
+
+        targets = [ ]
+
+        # FIXME: We are assuming all jump targets are concrete targets. They may not be.
+
+        if isinstance(stmt, ailment.Stmt.Jump):
+            targets.append(stmt.target.value)
+        elif isinstance(stmt, ailment.Stmt.ConditionalJump):
+            targets.append(stmt.true_target.value)
+            targets.append(stmt.false_target.value)
+
+        return targets
 
     @staticmethod
     def _bool_variable_from_ail_condition(block, condition):
