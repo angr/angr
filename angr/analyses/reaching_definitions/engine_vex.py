@@ -49,12 +49,12 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     def _handle_Stmt(self, stmt):
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         super(SimEngineRDVEX, self)._handle_Stmt(stmt)
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
