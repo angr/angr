@@ -2,11 +2,39 @@
 import logging
 from collections import defaultdict
 
+from ailment.expression import BinaryOp, StackBaseOffset
+
 from ...keyed_region import KeyedRegion
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 from ..analysis import Analysis
 
 l = logging.getLogger(name=__name__)
+
+
+def parse_stack_pointer(sp):
+    """
+    Convert multiple supported forms of stack pointer representations into stack offsets.
+
+    :param sp:  A stack pointer representation.
+    :return:    A stack pointer offset.
+    :rtype:     int
+    """
+    if isinstance(sp, int):
+        return sp
+
+    if isinstance(sp, StackBaseOffset):
+        return sp.offset
+
+    if isinstance(sp, BinaryOp):
+        op0, op1 = sp.operands
+        off0 = parse_stack_pointer(op0)
+        off1 = parse_stack_pointer(op1)
+        if sp.op == "Sub":
+            return off0 - off1
+        elif sp.op == "Add":
+            return off0 + off1
+
+    raise NotImplementedError("Unsupported stack pointer representation type %s." % type(sp))
 
 
 class VariableRecoveryBase(Analysis):
