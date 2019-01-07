@@ -38,6 +38,15 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def _external_codeloc():
         return ExternalCodeLocation()
 
+    @staticmethod
+    def _dataset_unpack(d):
+        if type(d) is DataSet and len(d) == 1:
+            return next(iter(d.data))
+        return d
+
+    def _expr(self, expr):
+        return self._dataset_unpack(super()._expr(expr))
+
     #
     # AIL statement handlers
     #
