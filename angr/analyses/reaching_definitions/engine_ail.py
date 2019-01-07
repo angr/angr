@@ -202,6 +202,9 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def _ail_handle_Const(self, expr):
         return DataSet(expr, expr.bits)
 
+    def _ail_handle_StackBaseOffset(self, expr):
+        return SpOffset(self.arch.bits, expr.offset, is_base=False)
+
     #
     # User defined high level statement handlers
     #

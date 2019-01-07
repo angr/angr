@@ -249,6 +249,7 @@ class RegionIdentifier(Analysis):
         loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
         nodes = set(loop_subgraph.nodes())
         return nodes
+
     @staticmethod
     def _dominates(idom, dominator_node, node):
         n = node
@@ -357,7 +358,8 @@ class RegionIdentifier(Analysis):
 
                     l.debug("Initial exit nodes %s", self._dbg_block_list(initial_exit_nodes))
 
-                    refined_loop_nodes, refined_exit_nodes = self._refine_loop(graph, node, initial_loop_nodes, initial_exit_nodes)
+                    refined_loop_nodes, refined_exit_nodes = self._refine_loop(graph, node, initial_loop_nodes,
+                                                                               initial_exit_nodes)
                     l.debug("Refined loop nodes %s", self._dbg_block_list(refined_loop_nodes))
                     l.debug("Refined exit nodes %s", self._dbg_block_list(refined_exit_nodes))
 
@@ -371,7 +373,8 @@ class RegionIdentifier(Analysis):
                         normal_exit_node = next(iter(refined_exit_nodes)) if len(refined_exit_nodes) > 0 else None
                         abnormal_exit_nodes = set()
 
-                    self._abstract_cyclic_region(graph, refined_loop_nodes, node, normal_entries, abnormal_entries, normal_exit_node, abnormal_exit_nodes)
+                    self._abstract_cyclic_region(graph, refined_loop_nodes, node, normal_entries, abnormal_entries,
+                                                 normal_exit_node, abnormal_exit_nodes)
                     break
                 # acyclic region
                 else:
