@@ -12,39 +12,6 @@ from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 l = logging.getLogger('ailment.analyses.propagator')
 
 
-class Atom:
-
-    __slots__ = [ ]
-
-    def __init__(self):
-        pass
-
-    def __repr__(self):
-        raise NotImplementedError()
-
-
-class Register(Atom):
-
-    __slots__ = [ 'reg_offset', 'size' ]
-
-    def __init__(self, reg_offset, size):
-        super(Register, self).__init__()
-
-        self.reg_offset = reg_offset
-        self.size = size
-
-
-class MemoryLocation(Atom):
-
-    __slots__ = [ 'addr', 'size' ]
-
-    def __init__(self, addr, size):
-        super(MemoryLocation, self).__init__()
-
-        self.addr = addr
-        self.size = size
-
-
 class PropagatorState:
     def __init__(self, arch):
 
