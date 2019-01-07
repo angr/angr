@@ -265,6 +265,37 @@ def get_engine(base_engine):
 
             return Expr.BinaryOp(expr.idx, 'CmpEQ', [ operand_0, operand_1 ])
 
+        def _ail_handle_Add(self, expr):
+            operand_0 = self._expr(expr.operands[0])
+            operand_1 = self._expr(expr.operands[1])
+
+            if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
+                return Expr.Const(expr.idx, None, operand_0.value + operand_1.value, expr.bits)
+            elif isinstance(operand_0, Expr.BasePointerOffset) and isinstance(operand_1, Expr.Const):
+                r = operand_0.copy()
+                r.offset += operand_1.value
+                return r
+            return Expr.BinaryOp(expr.idx, 'Add', [operand_0 if operand_0 is not None else expr.operands[0],
+                                                   operand_1 if operand_1 is not None else expr.operands[1]
+                                                   ])
+
+        def _ail_handle_Sub(self, expr):
+            operand_0 = self._expr(expr.operands[0])
+            operand_1 = self._expr(expr.operands[1])
+
+            if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
+                return Expr.Const(expr.idx, None, operand_0.value - operand_1.value, expr.bits)
+            elif isinstance(operand_0, Expr.BasePointerOffset) and isinstance(operand_1, Expr.Const):
+                r = operand_0.copy()
+                r.offset -= operand_1.value
+                return r
+            return Expr.BinaryOp(expr.idx, 'Sub', [ operand_0 if operand_0 is not None else expr.operands[0],
+                                                    operand_1 if operand_1 is not None else expr.operands[1]
+                                                    ])
+
+        def _ail_handle_StackBaseOffset(self, expr):
+            return expr
+
         def _ail_handle_Xor(self, expr):
             operand_0 = self._expr(expr.operands[0])
             operand_1 = self._expr(expr.operands[1])

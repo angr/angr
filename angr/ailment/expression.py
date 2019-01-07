@@ -288,3 +288,47 @@ class DirtyExpression(Expression):
 
     def __str__(self):
         return "[D] %s" % str(self.dirty_expr)
+
+
+#
+# Special (Dummy) expressions
+#
+
+
+class BasePointerOffset(Expression):
+    def __init__(self, idx, bits, base, offset, **kwargs):
+        super().__init__(idx, **kwargs)
+        self.bits = bits
+        self.base = base
+        self.offset = offset
+
+    def __repr__(self):
+        return "BaseOffset(%s, %d)" % (self.base, self.offset)
+
+    def __str__(self):
+        return "%s%+d" % (self.base, self.offset)
+
+    def replace(self, old_expr, new_expr):
+        if isinstance(self.base, Expression):
+            base_replaced, new_base = self.base.replace(old_expr, new_expr)
+        else:
+            base_replaced, new_base = False, self.base
+        if isinstance(self.offset, Expression):
+            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
+        else:
+            offset_replaced, new_offset = False, self.offset
+
+        if base_replaced or offset_replaced:
+            return True, BasePointerOffset(self.idx, self.bits, new_base, new_offset, **self.tags)
+        return False, self
+
+    def copy(self):
+        return BasePointerOffset(self.idx, self.bits, self.base, self.offset, **self.tags)
+
+
+class StackBaseOffset(BasePointerOffset):
+    def __init__(self, idx, bits, offset, **kwargs):
+        super().__init__(idx, bits, 'stack_base', offset, **kwargs)
+
+    def copy(self):
+        return StackBaseOffset(self.idx, self.bits, self.offset, **self.tags)
