@@ -158,7 +158,7 @@ def test_while():
     # simplify it
     s = p.analyses.RegionSimplifier(rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(s.result)
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
 
     print(codegen.text)
 
