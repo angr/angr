@@ -55,7 +55,7 @@ class MemoryLocation(Atom):
         self.size = size
 
     def __repr__(self):
-        return "<Mem %#x<%d>>" % (self.addr, self.size)
+        return "<Mem %s<%d>>" % (hex(self.addr) if type(self.addr) is int else self.addr, self.size)
 
     @property
     def bits(self):
