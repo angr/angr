@@ -69,7 +69,7 @@ class BlockSimplifier(Analysis):
 
         rd = self.project.analyses.ReachingDefinitions(block=block,
                                                        track_tmps=True,
-                                                       observation_points=[ (block.statements[-1].ins_addr, OP_AFTER )]
+                                                       observation_points=[('insn', block.statements[-1].ins_addr, OP_AFTER)]
                                                        )
 
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
