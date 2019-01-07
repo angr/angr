@@ -45,12 +45,12 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def _ail_handle_Stmt(self, stmt):
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         super(SimEngineRDAIL, self)._ail_handle_Stmt(stmt)
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     def _ail_handle_Assignment(self, stmt):
         """
