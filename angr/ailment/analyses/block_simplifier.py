@@ -8,7 +8,7 @@ from ..statement import Assignment
 from ..expression import Tmp, Register
 
 
-class Simplifier(Analysis):
+class BlockSimplifier(Analysis):
     def __init__(self, block):
         """
 
@@ -46,7 +46,8 @@ class Simplifier(Analysis):
 
         return new_block
 
-    def _replace_and_build(self, block, replacements):
+    @staticmethod
+    def _replace_and_build(block, replacements):
 
         new_statements = block.statements[::]
 
@@ -86,6 +87,10 @@ class Simplifier(Analysis):
                 if idx in dead_virgins_stmt_idx:
                     continue
 
+                # is it an assignment to an artificial register?
+                if type(stmt.dst) is Register and self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size):
+                    continue
+
             new_statements.append(stmt)
 
         new_block = block.copy()
@@ -94,4 +99,4 @@ class Simplifier(Analysis):
         return new_block
 
 
-register_analysis(Simplifier, 'AILSimplifier')
+register_analysis(BlockSimplifier, 'AILBlockSimplifier')
