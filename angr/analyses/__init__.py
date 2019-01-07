@@ -28,3 +28,4 @@ from .calling_convention import CallingConventionAnalysis
 from .code_tagging import CodeTagging
 from .stack_pointer_tracker import StackPointerTracker
 from .dominance_frontier import DominanceFrontier
+from .decompiler import Decompiler
