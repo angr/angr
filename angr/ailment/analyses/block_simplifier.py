@@ -9,13 +9,17 @@ from ..expression import Tmp, Register
 
 
 class BlockSimplifier(Analysis):
-    def __init__(self, block):
+    """
+    Simplify an AIL block.
+    """
+    def __init__(self, block, stack_pointer_tracker=None):
         """
 
         :param Block block:
         """
 
         self.block = block
+        self._stack_pointer_tracker = stack_pointer_tracker
 
         self.result_block = None
 
@@ -39,7 +43,7 @@ class BlockSimplifier(Analysis):
     def _simplify_block_once(self, block):
 
         # propagator
-        propagator = self.project.analyses.AILPropagator(block=block)
+        propagator = self.project.analyses.AILPropagator(block=block, stack_pointer_tracker=self._stack_pointer_tracker)
         replacements = list(propagator._states.values())[0]._final_replacements
         new_block = self._replace_and_build(block, replacements)
         new_block = self._eliminate_dead_assignments(new_block)

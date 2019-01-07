@@ -78,8 +78,9 @@ class PropagatorState:
 
 def get_engine(base_engine):
     class SimEnginePropagator(base_engine):
-        def __init__(self):
+        def __init__(self, stack_pointer_tracker=None):
             super(SimEnginePropagator, self).__init__()
+            self._stack_pointer_tracker = stack_pointer_tracker
 
         def _process(self, state, successors, block=None):
             super(SimEnginePropagator, self)._process(state, successors, block=block)
@@ -184,6 +185,21 @@ def get_engine(base_engine):
             return expr
 
         def _ail_handle_Register(self, expr):
+            # Special handling for SP and BP
+            if self._stack_pointer_tracker is not None:
+                if expr.reg_offset == self.arch.sp_offset:
+                    sb_offset = self._stack_pointer_tracker.insn_sp_offset_in(self.ins_addr)
+                    if sb_offset is not None:
+                        new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
+                        self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+                        return new_expr
+                elif expr.reg_offset == self.arch.bp_offset:
+                    sb_offset = self._stack_pointer_tracker.insn_bp_offset_in(self.ins_addr)
+                    if sb_offset is not None:
+                        new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
+                        self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+                        return new_expr
+
             new_expr = self.state.get_replacement(expr)
             if new_expr is not None:
                 l.debug("Add a final replacement: %s with %s", expr, new_expr)
@@ -273,7 +289,7 @@ def get_engine(base_engine):
 
 
 class Propagator(ForwardAnalysis, Analysis):
-    def __init__(self, func=None, block=None, reaching_definitions=None, max_iterations=3):
+    def __init__(self, func=None, block=None, max_iterations=3, stack_pointer_tracker=None):
         """
 
         """
@@ -293,13 +309,13 @@ class Propagator(ForwardAnalysis, Analysis):
         self._max_iterations = max_iterations
         self._function = func
         self._block = block
-        self._reaching_definitions = reaching_definitions
+        self._stack_pointer_tracker = stack_pointer_tracker
 
         self._node_iterations = defaultdict(int)
         self._states = { }
 
-        self._engine_vex = get_engine(SimEngineLightVEX)()
-        self._engine_ail = get_engine(SimEngineLightAIL)()
+        self._engine_vex = get_engine(SimEngineLightVEX)(stack_pointer_tracker=self._stack_pointer_tracker)
+        self._engine_ail = get_engine(SimEngineLightAIL)(stack_pointer_tracker=self._stack_pointer_tracker)
 
         self._analyze()
 
