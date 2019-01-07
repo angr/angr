@@ -1,5 +1,6 @@
 
 from .atoms import MemoryLocation, Register
+from .undefined import Undefined
 from .dataset import DataSet
 
 
@@ -23,14 +24,15 @@ class Definition:
         self.dummy = dummy
 
         # convert everything into a DataSet
-        if not isinstance(self.data, DataSet):
+        if not isinstance(self.data, (DataSet, Undefined)):
             self.data = DataSet(self.data, self.data.bits)
 
     def __eq__(self, other):
         return self.atom == other.atom and self.codeloc == other.codeloc and self.data == other.data
 
     def __repr__(self):
-        return 'Definition %#x {Atom: %s, Codeloc: %s, Data: %s}' % (id(self), self.atom, self.codeloc, self.data)
+        return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
+                                                                  "" if not self.dummy else " dummy")
 
     def __hash__(self):
         return hash((self.atom, self.codeloc, self.data))
