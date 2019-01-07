@@ -3,12 +3,24 @@ from .atoms import MemoryLocation, Register
 from .dataset import DataSet
 
 
-class Definition(object):
-    def __init__(self, atom, codeloc, data):
+class Definition:
+    """
+    An atom definition.
+
+    :ivar Atom atom:            The atom being defined.
+    :ivar CodeLocation codeloc: Where this definition is created.
+    :ivar data:                 A concrete value (or many concrete values) that the atom holds when the definition is
+                                created.
+    """
+
+    __slots__ = ('atom', 'codeloc', 'data', 'dummy')
+
+    def __init__(self, atom, codeloc, data, dummy):
 
         self.atom = atom
         self.codeloc = codeloc
         self.data = data
+        self.dummy = dummy
 
         # convert everything into a DataSet
         if not isinstance(self.data, DataSet):
