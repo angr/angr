@@ -145,13 +145,13 @@ class LiveDefinitions(object):
         if data is None:
             data = DataSet(Undefined(), 8)
 
-        self.kill_and_add_definition(atom, code_loc, data)
+        self.kill_and_add_definition(atom, code_loc, data, dummy=True)
 
-    def kill_and_add_definition(self, atom, code_loc, data):
+    def kill_and_add_definition(self, atom, code_loc, data, dummy=False):
         if type(atom) is Register:
-            self._kill_and_add_register_definition(atom, code_loc, data)
+            self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is MemoryLocation:
-            self._kill_and_add_memory_definition(atom, code_loc, data)
+            self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is Tmp:
             self._add_tmp_definition(atom, code_loc)
         else:
@@ -169,7 +169,7 @@ class LiveDefinitions(object):
     # Private methods
     #
 
-    def _kill_and_add_register_definition(self, atom, code_loc, data):
+    def _kill_and_add_register_definition(self, atom, code_loc, data, dummy=False):
 
         # FIXME: check correctness
         current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
@@ -180,12 +180,12 @@ class LiveDefinitions(object):
             if not uses:
                 self._dead_virgin_definitions |= current_defs
 
-        definition = Definition(atom, code_loc, data)
+        definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
 
-    def _kill_and_add_memory_definition(self, atom, code_loc, data):
-        definition = Definition(atom, code_loc, data)
+    def _kill_and_add_memory_definition(self, atom, code_loc, data, dummy=False):
+        definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.memory_definitions.set_object(atom.addr, definition, atom.size)
 
