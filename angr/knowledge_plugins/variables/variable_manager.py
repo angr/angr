@@ -46,6 +46,7 @@ class VariableManagerInternal:
         self._insn_to_variable = defaultdict(set)
         self._block_to_variable = defaultdict(set)
         self._stmt_to_variable = defaultdict(set)
+        self._atom_to_variable = defaultdict(lambda: defaultdict(set))
         self._variable_counters = {
             'register': count(),
             'stack': count(),
@@ -92,27 +93,32 @@ class VariableManagerInternal:
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def write_to(self, variable, offset, location, overwrite=False):
-        self._record_variable_access('write', variable, offset, location, overwrite=overwrite)
+    def write_to(self, variable, offset, location, overwrite=False, atom=None):
+        self._record_variable_access('write', variable, offset, location, overwrite=overwrite, atom=atom)
 
-    def read_from(self, variable, offset, location, overwrite=False):
-        self._record_variable_access('read', variable, offset, location, overwrite=overwrite)
+    def read_from(self, variable, offset, location, overwrite=False, atom=None):
+        self._record_variable_access('read', variable, offset, location, overwrite=overwrite, atom=atom)
 
-    def reference_at(self, variable, offset, location, overwrite=False):
-        self._record_variable_access('reference', variable, offset, location, overwrite=overwrite)
+    def reference_at(self, variable, offset, location, overwrite=False, atom=None):
+        self._record_variable_access('reference', variable, offset, location, overwrite=overwrite, atom=atom)
 
-    def _record_variable_access(self, sort, variable, offset, location, overwrite=False):
+    def _record_variable_access(self, sort, variable, offset, location, overwrite=False, atom=None):
         self._variables.add(variable)
+        var_and_offset = variable, offset
         if overwrite:
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location)}
-            self._insn_to_variable[location.ins_addr] = {(variable, offset)}
-            self._block_to_variable[location.block_addr] = {(variable, offset)}
-            self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {(variable, offset)}
+            self._insn_to_variable[location.ins_addr] = {var_and_offset}
+            self._block_to_variable[location.block_addr] = {var_and_offset}
+            self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {var_and_offset}
+            if atom is not None:
+                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom] = var_and_offset
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location))
-            self._insn_to_variable[location.ins_addr].add((variable, offset))
-            self._block_to_variable[location.block_addr].add((variable, offset))
-            self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add((variable, offset))
+            self._insn_to_variable[location.ins_addr].add(var_and_offset)
+            self._block_to_variable[location.block_addr].add(var_and_offset)
+            self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add(var_and_offset)
+            if atom is not None:
+                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom].add(var_and_offset)
 
     def make_phi_node(self, block_addr, *variables):
         """
@@ -204,6 +210,21 @@ class VariableManagerInternal:
             return [ ]
 
         return var_and_offsets
+
+    def find_variable_by_atom(self, block_addr, stmt_idx, atom):
+        return next(iter(self.find_variables_by_atom(block_addr, stmt_idx, atom)), None)
+
+    def find_variables_by_atom(self, block_addr, stmt_idx, atom):
+
+        key = block_addr, stmt_idx
+
+        if key not in self._atom_to_variable:
+            return [ ]
+
+        if atom not in self._atom_to_variable[key]:
+            return [ ]
+
+        return self._atom_to_variable[key][atom]
 
     def get_variable_accesses(self, variable, same_name=False):
 
