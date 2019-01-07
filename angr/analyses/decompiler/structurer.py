@@ -122,14 +122,18 @@ class ConditionNode:
 
 
 class LoopNode:
-    def __init__(self, sort, condition, sequence_node):
+    def __init__(self, sort, condition, sequence_node, addr=None):
         self.sort = sort
         self.condition = condition
         self.sequence_node = sequence_node
+        self._addr = addr
 
     @property
     def addr(self):
-        return self.sequence_node.addr
+        if self._addr is None:
+            return self.sequence_node.addr
+        else:
+            return self._addr
 
 
 class BreakNode:
@@ -314,7 +318,7 @@ class Structurer(Analysis):
         loop_body = self._to_loop_body_sequence(loop_head, loop_subgraph, loop_successors)
 
         # create a while(true) loop with sequence node being the loop body
-        loop_node = LoopNode('while', None, loop_body)
+        loop_node = LoopNode('while', None, loop_body, addr=loop_head.addr)
 
         return loop_node
 
@@ -344,7 +348,7 @@ class Structurer(Analysis):
                 while_cond = ailment.Expr.UnaryOp(0, 'Not', first_node.condition)
                 new_seq = loop_node.sequence_node.copy()
                 new_seq.nodes = new_seq.nodes[1:]
-                new_loop_node = LoopNode('while', while_cond, new_seq)
+                new_loop_node = LoopNode('while', while_cond, new_seq, addr=loop_node.addr)
 
                 return True, new_loop_node
 
