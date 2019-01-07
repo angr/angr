@@ -75,7 +75,7 @@ class BlockSimplifier(Analysis):
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
         dead_virgins = rd.one_result._dead_virgin_definitions
         dead_virgins_stmt_idx = set([ d.codeloc.stmt_idx for d in dead_virgins
-                                      if not isinstance(d.codeloc, ExternalCodeLocation) ])
+                                      if not isinstance(d.codeloc, ExternalCodeLocation) and not d.dummy ])
 
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
