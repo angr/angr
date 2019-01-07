@@ -174,7 +174,7 @@ def get_engine(base_engine):
             pass
 
         def _ail_handle_ConditionalJump(self, stmt):
-            pass
+            self._expr(stmt.condition)
 
         def _ail_handle_Call(self, stmt):
             pass
@@ -192,6 +192,20 @@ def get_engine(base_engine):
             size = expr.size
 
             return self._load(addr, size)
+
+        def _ail_handle_BinaryOp(self, expr):
+            r = super()._ail_handle_BinaryOp(expr)
+            if r is None:
+                # Treat it as a normal binaryop expression
+                self._expr(expr.operands[0])
+                self._expr(expr.operands[1])
+            return r
+
+        def _ail_handle_Convert(self, expr):
+            return self._expr(expr.operand)
+
+        def _ail_handle_StackBaseOffset(self, expr):
+            return SpOffset(self.arch.bits, expr.offset, is_base=False)
 
         #
         # Logic
