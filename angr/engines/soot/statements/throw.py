@@ -10,4 +10,5 @@ l = logging.getLogger(name=__name__)
 class SimSootStmt_Throw(SimSootStmt):
     def _execute(self):
         # TODO: implement simprocedure to throw exception
-        pass
+        self._add_jmp_target(target=SootAddressTerminator(),
+                             condition=self.state.solver.true)
