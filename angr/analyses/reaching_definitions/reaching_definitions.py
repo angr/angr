@@ -8,7 +8,7 @@ from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
 from ...block import Block
-from ...codenode import CodeNode
+from ...codenode import CodeNode, BlockNode, HookNode
 from ...misc.ux import deprecated
 from .. import register_analysis
 from ..analysis import Analysis
@@ -423,7 +423,12 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
         if not self._graph_visitor.successors(node):
             # no more successors. kill definitions of certain registers
-            codeloc = CodeLocation(node.addr, len(node.statements))
+            if isinstance(node, ailment.Block):
+                codeloc = CodeLocation(node.addr, len(node.statements))
+            elif isinstance(node, Block):
+                codeloc = CodeLocation(node.addr, len(node.vex.statements))
+            else: #if isinstance(node, CodeNode):
+                codeloc = CodeLocation(node.addr, 0)
             state.kill_definitions(Register(self.project.arch.sp_offset, self.project.arch.bytes),
                                    codeloc)
             state.kill_definitions(Register(self.project.arch.ip_offset, self.project.arch.bytes),
