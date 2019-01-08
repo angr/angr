@@ -67,8 +67,7 @@ class CallSiteMaker(Analysis):
                             # Find its definition
                             ins_addr = last_stmt.tags['ins_addr']
                             try:
-                                rd = self._reaching_definitions.get_reaching_definitions(ins_addr,
-                                                                                         OP_BEFORE)
+                                rd = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
                             except KeyError:
                                 rd = None
 
