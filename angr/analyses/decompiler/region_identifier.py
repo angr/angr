@@ -324,15 +324,15 @@ class RegionIdentifier(Analysis):
             self._update_start_node(graph)
 
             for node in networkx.dfs_postorder_nodes(graph, source=self._start_node):
-                succs = graph.successors(node)
-                if not succs:
+                out_degree = graph.out_degree[node]
+                if out_degree == 0:
                     # the root element of the region hierarchy should always be a GraphRegion,
                     # so we transform it into one, if necessary
-                    if not graph.predecessors(node) and not isinstance(node, GraphRegion):
+                    if graph.in_degree(node) == 0 and not isinstance(node, GraphRegion):
                         subgraph = networkx.DiGraph()
                         subgraph.add_node(node)
                         self._abstract_acyclic_region(graph, GraphRegion(node, subgraph), [])
-                    break
+                    continue
 
                 # cyclic region
                 # TODO optimize
