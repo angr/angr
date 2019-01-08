@@ -84,8 +84,8 @@ class CAILBlock(CStatement):
         r = str(self.block)
 
         indent_str = self.indent_str(indent=indent)
-        for l in r.split("\n"):
-            lines.append(indent_str + l)
+        for line in r.split("\n"):
+            lines.append(indent_str + line)
 
         return "\n".join(lines)
 
@@ -94,7 +94,6 @@ class CLoop(CStatement):  # pylint:disable=abstract-method
     """
     Represents a loop in C.
     """
-    pass
 
 
 class CWhileLoop(CLoop):
@@ -327,7 +326,8 @@ class CExpression:
     def c_repr(self):
         raise NotImplementedError()
 
-    def _try_c_repr(self, expr):
+    @staticmethod
+    def _try_c_repr(expr):
         if hasattr(expr, 'c_repr'):
             return expr.c_repr()
         else:
@@ -569,8 +569,6 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Loop(self, loop_node):
 
-        lines = [ ]
-
         if loop_node.sort == 'while':
             return CWhileLoop(self._handle(loop_node.condition),
                               self._handle(loop_node.sequence_node)
@@ -685,7 +683,7 @@ class StructuredCodeGenerator(Analysis):
     # AIL expression handlers
     #
 
-    def _handle_Expr_Register(self, expr):
+    def _handle_Expr_Register(self, expr):  # pylint:disable=no-self-use
 
         return expr
 
@@ -698,12 +696,12 @@ class StructuredCodeGenerator(Analysis):
 
         return CVariable(variable, offset=offset)
 
-    def _handle_Expr_Tmp(self, expr):
+    def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
         l.warning("FIXME: Leftover Tmp expressions are found.")
         return CVariable(SimTemporaryVariable(expr.tmp_idx))
 
-    def _handle_Expr_Const(self, expr):
+    def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
         return expr.value
 
@@ -734,7 +732,7 @@ class StructuredCodeGenerator(Analysis):
 
         return CTypeCast(None, dst_type, self._handle(expr.operand))
 
-    def _handle_Expr_StackBaseOffset(self, expr):
+    def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
         if hasattr(expr, 'referenced_variable') and expr.referenced_variable is not None:
             return CUnaryOp('Reference', expr, referenced_variable=expr.referenced_variable)

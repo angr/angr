@@ -20,7 +20,7 @@ class Clinic(Analysis):
     def __init__(self, func):
 
         # Delayed import
-        import ailment.analyses
+        import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
 
         self.function = func
 
@@ -148,7 +148,7 @@ class Clinic(Analysis):
 
         # First of all, let's simplify blocks one by one
 
-        for key in self._blocks.keys():
+        for key in self._blocks:
             ail_block = self._blocks[key]
             simplified = self._simplify_block(ail_block, stack_pointer_tracker=stack_pointer_tracker)
             self._blocks[key] = simplified
@@ -266,26 +266,26 @@ class Clinic(Analysis):
 
         elif type(expr) is ailment.Expr.Load:
             # import ipdb; ipdb.set_trace()
-            vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(vars) == 1:
-                var = next(iter(vars))[0]
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            if len(variables) == 1:
+                var = next(iter(variables))[0]
                 expr.variable = var
             else:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.addr)
 
         elif type(expr) is ailment.Expr.BinaryOp:
-            vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(vars) == 1:
-                var = next(iter(vars))[0]
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            if len(variables) == 1:
+                var = next(iter(variables))[0]
                 expr.referenced_variable = var
             else:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[0])
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[1])
 
         elif type(expr) is ailment.Expr.UnaryOp:
-            vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(vars) == 1:
-                var = next(iter(vars))[0]
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            if len(variables) == 1:
+                var = next(iter(variables))[0]
                 expr.referenced_variable = var
             else:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands)
@@ -294,9 +294,9 @@ class Clinic(Analysis):
             self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operand)
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
-            vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(vars) == 1:
-                var = next(iter(vars))[0]
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            if len(variables) == 1:
+                var = next(iter(variables))[0]
                 expr.referenced_variable = var
 
     def _update_graph(self):

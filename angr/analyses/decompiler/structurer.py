@@ -610,7 +610,8 @@ class Structurer(Analysis):
         else:
             raise NotImplementedError()
 
-    def _extract_jump_targets(self, stmt):
+    @staticmethod
+    def _extract_jump_targets(stmt):
         """
         Extract goto targets from a Jump or a ConditionalJump statement.
 

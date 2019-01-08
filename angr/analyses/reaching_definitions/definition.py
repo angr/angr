@@ -16,7 +16,7 @@ class Definition:
 
     __slots__ = ('atom', 'codeloc', 'data', 'dummy')
 
-    def __init__(self, atom, codeloc, data, dummy):
+    def __init__(self, atom, codeloc, data, dummy=False):
 
         self.atom = atom
         self.codeloc = codeloc
