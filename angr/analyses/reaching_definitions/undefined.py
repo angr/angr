@@ -1,8 +1,9 @@
 class Undefined:
 
-    __slots__ = ('_type', '_meta')
+    __slots__ = ('bits', '_type', '_meta')
 
-    def __init__(self, type_=None, meta=None):
+    def __init__(self, bits, type_=None, meta=None):
+        self.bits = bits
         self._type = type_
         self._meta = meta
 
@@ -61,11 +62,12 @@ class Undefined:
 
     def __eq__(self, other):
         return type(other) is Undefined and \
+               self.bits == other.bits and \
                self._type == other.type_ and \
                self._meta == other.meta
 
     def __hash__(self):
-        return hash((self._type, self._meta))
+        return hash(('undefined', self.bits, self._type, self._meta))
 
     def __str__(self):
         type_ = (', type=%s' % self._type) if self._type is not None else ''

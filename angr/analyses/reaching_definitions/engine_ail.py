@@ -72,7 +72,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         dst = stmt.dst
 
         if src is None:
-            src = DataSet(Undefined(), dst.bits)
+            src = DataSet(Undefined(dst.bits), dst.bits)
 
         if type(dst) is ailment.Tmp:
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), src)

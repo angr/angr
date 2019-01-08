@@ -64,7 +64,7 @@ class DataSet(object):
 
         for s in self:
             if type(s) is Undefined:
-                res.add(Undefined())
+                res.add(Undefined(s.bits))
             else:
                 try:
                     tmp = op(s)
@@ -72,7 +72,7 @@ class DataSet(object):
                         tmp &= self._mask
                     res.add(tmp)
                 except TypeError as e:
-                    res.add(Undefined())
+                    res.add(Undefined(self._bits))
                     l.warning(e)
 
         return DataSet(res, self._bits)
@@ -88,7 +88,7 @@ class DataSet(object):
         for o in other:
             for s in self:
                 if type(o) is Undefined or type(s) is Undefined:
-                    res.add(Undefined())
+                    res.add(Undefined(s.bits))
                 else:
                     try:
                         tmp = op(s, o)
@@ -96,7 +96,7 @@ class DataSet(object):
                             tmp &= self._mask
                         res.add(tmp)
                     except TypeError as e:
-                        res.add(Undefined())
+                        res.add(Undefined(self._bits))
                         l.warning(e)
 
         return DataSet(res, self._bits)

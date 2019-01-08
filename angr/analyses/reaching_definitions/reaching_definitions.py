@@ -148,7 +148,7 @@ class LiveDefinitions:
         """
 
         if data is None:
-            data = DataSet(Undefined(), 8)
+            data = DataSet(Undefined(atom.size), atom.size)
 
         self.kill_and_add_definition(atom, code_loc, data, dummy=True)
 
