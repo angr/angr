@@ -581,7 +581,7 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Loop(self, loop_node):
 
         if loop_node.sort == 'while':
-            return CWhileLoop(self._handle(loop_node.condition),
+            return CWhileLoop(None if loop_node.condition is None else self._handle(loop_node.condition),
                               self._handle(loop_node.sequence_node)
                               )
         elif loop_node.sort == 'do-while':
