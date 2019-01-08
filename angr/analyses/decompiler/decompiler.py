@@ -12,6 +12,10 @@ class Decompiler(Analysis):
         self._decompile()
 
     def _decompile(self):
+
+        if self.func.is_simprocedure:
+            return
+
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func)
 
