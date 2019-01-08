@@ -1,10 +1,14 @@
 
+import logging
+
 import pyvex
 from angr.engines.vex.irop import operations as vex_operations
 
 from .block import Block
 from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement
 from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
+
+l = logging.getLogger(name=__name__)
 
 
 class Converter(object):
@@ -30,7 +34,8 @@ class VEXExprConverter(Converter):
         try:
             func = EXPRESSION_MAPPINGS[type(expr)]
         except KeyError:
-            return DirtyExpression(manager.next_atom(), expr)
+            l.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
+            return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
 
         return func(expr, manager)
 
