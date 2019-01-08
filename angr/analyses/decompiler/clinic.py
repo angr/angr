@@ -115,7 +115,7 @@ class Clinic(Analysis):
         :return:
         """
 
-        for block_node in self.function.transition_graph.nodes():
+        for block_node in self.function.graph.nodes():
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
@@ -304,13 +304,13 @@ class Clinic(Analysis):
         node_to_block_mapping = {}
         self.graph = networkx.DiGraph()
 
-        for node in self.function.transition_graph.nodes():
+        for node in self.function.graph.nodes():
             ail_block = self._blocks.get((node.addr, node.size), node)
             node_to_block_mapping[node] = ail_block
 
             self.graph.add_node(ail_block)
 
-        for src_node, dst_node, data in self.function.transition_graph.edges(data=True):
+        for src_node, dst_node, data in self.function.graph.edges(data=True):
             src = node_to_block_mapping[src_node]
             dst = node_to_block_mapping[dst_node]
 
