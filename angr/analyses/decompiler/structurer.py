@@ -346,7 +346,7 @@ class Structurer(Analysis):
             # it's an endless loop
             first_node = loop_node.sequence_node.nodes[0]
             if type(first_node) is ConditionalBreakNode:
-                while_cond = ailment.Expr.UnaryOp(0, 'Not', first_node.condition)
+                while_cond = Structurer._negate_cond(first_node.condition)
                 new_seq = loop_node.sequence_node.copy()
                 new_seq.nodes = new_seq.nodes[1:]
                 new_loop_node = LoopNode('while', while_cond, new_seq, addr=loop_node.addr)
@@ -362,7 +362,7 @@ class Structurer(Analysis):
             # it's an endless loop
             last_node = loop_node.sequence_node.nodes[-1]
             if type(last_node) is ConditionalBreakNode:
-                while_cond = ailment.Expr.UnaryOp(0, 'Not', last_node.condition)
+                while_cond = Structurer._negate_cond(last_node.condition)
                 new_seq = loop_node.sequence_node.copy()
                 new_seq.nodes = new_seq.nodes[:-1]
                 new_loop_node = LoopNode('do-while', while_cond, new_seq)
@@ -635,6 +635,13 @@ class Structurer(Analysis):
         var = claripy.BoolS('structurer-cond_%#x_%s' % (block.addr, repr(condition)), explicit_name=True)
         self._condition_mapping[var] = condition
         return var
+
+    @staticmethod
+    def _negate_cond(cond):
+        if isinstance(cond, ailment.Expr.UnaryOp) and cond.op == 'Not':
+            # Unpacck it
+            return cond.operand
+        return ailment.Expr.UnaryOp(0, 'Not', cond)
 
 
 register_analysis(RecursiveStructurer, 'RecursiveStructurer')
