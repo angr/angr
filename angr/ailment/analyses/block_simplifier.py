@@ -70,6 +70,8 @@ class BlockSimplifier(Analysis):
     def _eliminate_dead_assignments(self, block):
 
         new_statements = [ ]
+        if not block.statements:
+            return block
 
         rd = self.project.analyses.ReachingDefinitions(block=block,
                                                        track_tmps=True,

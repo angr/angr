@@ -27,6 +27,9 @@ class CallSiteMaker(Analysis):
 
     def _analyze(self):
 
+        if not self.block.statements:
+            return
+
         last_stmt = self.block.statements[-1]
 
         if not type(last_stmt) is Stmt.Call:
