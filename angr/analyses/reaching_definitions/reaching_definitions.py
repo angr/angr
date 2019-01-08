@@ -8,7 +8,7 @@ from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
 from ...block import Block
-from ...codenode import CodeNode, BlockNode, HookNode
+from ...codenode import CodeNode
 from ...misc.ux import deprecated
 from .. import register_analysis
 from ..analysis import Analysis

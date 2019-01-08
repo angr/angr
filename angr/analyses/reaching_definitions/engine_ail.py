@@ -214,7 +214,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def _ail_handle_StackBaseOffset(self, expr):
         return SpOffset(self.arch.bits, expr.offset, is_base=False)
 
-    def _ail_handle_DirtyExpression(self, expr):
+    def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
         return expr
 
     #
