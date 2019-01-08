@@ -510,6 +510,7 @@ class StructuredCodeGenerator(Analysis):
             Expr.BinaryOp: self._handle_Expr_BinaryOp,
             Expr.Convert: self._handle_Expr_Convert,
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
+            Expr.DirtyExpression: self._handle_Expr_Dirty,
         }
 
         self._analyze()
@@ -744,6 +745,9 @@ class StructuredCodeGenerator(Analysis):
             raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
 
         return CTypeCast(None, dst_type, self._handle(expr.operand))
+
+    def _handle_Expr_Dirty(self, expr):
+        return expr
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
