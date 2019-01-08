@@ -197,7 +197,9 @@ class RegionIdentifier(Analysis):
 
         self._make_regions(graph)
 
-        assert len(graph.nodes()) == 1
+        if len(graph.nodes()) > 1:
+            l.warning("RegionIdentifier is unable to make one region out of the function graph of %s.",
+                      repr(self.function))
 
         self.region = next(iter(graph.nodes()))
 
