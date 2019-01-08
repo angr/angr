@@ -743,6 +743,8 @@ class StructuredCodeGenerator(Analysis):
             dst_type = SimTypeShort()
         elif expr.to_bits == 8:
             dst_type = SimTypeChar()
+        elif expr.to_bits == 1:
+            dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
         else:
             raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
 
