@@ -122,14 +122,18 @@ class ConditionNode:
 
 
 class LoopNode:
-    def __init__(self, sort, condition, sequence_node):
+    def __init__(self, sort, condition, sequence_node, addr=None):
         self.sort = sort
         self.condition = condition
         self.sequence_node = sequence_node
+        self._addr = addr
 
     @property
     def addr(self):
-        return self.sequence_node.addr
+        if self._addr is None:
+            return self.sequence_node.addr
+        else:
+            return self._addr
 
 
 class BreakNode:
@@ -206,6 +210,7 @@ class Structurer(Analysis):
 
         self._reaching_conditions = None
         self._predicate_mapping = None
+        self._condition_mapping = {}
 
         self.result = None
 
@@ -314,7 +319,7 @@ class Structurer(Analysis):
         loop_body = self._to_loop_body_sequence(loop_head, loop_subgraph, loop_successors)
 
         # create a while(true) loop with sequence node being the loop body
-        loop_node = LoopNode('while', None, loop_body)
+        loop_node = LoopNode('while', None, loop_body, addr=loop_head.addr)
 
         return loop_node
 
@@ -341,10 +346,10 @@ class Structurer(Analysis):
             # it's an endless loop
             first_node = loop_node.sequence_node.nodes[0]
             if type(first_node) is ConditionalBreakNode:
-                while_cond = ailment.Expr.UnaryOp(0, 'Not', first_node.condition)
+                while_cond = Structurer._negate_cond(first_node.condition)
                 new_seq = loop_node.sequence_node.copy()
                 new_seq.nodes = new_seq.nodes[1:]
-                new_loop_node = LoopNode('while', while_cond, new_seq)
+                new_loop_node = LoopNode('while', while_cond, new_seq, addr=loop_node.addr)
 
                 return True, new_loop_node
 
@@ -357,7 +362,7 @@ class Structurer(Analysis):
             # it's an endless loop
             last_node = loop_node.sequence_node.nodes[-1]
             if type(last_node) is ConditionalBreakNode:
-                while_cond = ailment.Expr.UnaryOp(0, 'Not', last_node.condition)
+                while_cond = Structurer._negate_cond(last_node.condition)
                 new_seq = loop_node.sequence_node.copy()
                 new_seq.nodes = new_seq.nodes[:-1]
                 new_loop_node = LoopNode('do-while', while_cond, new_seq)
@@ -375,7 +380,7 @@ class Structurer(Analysis):
 
         queue = [ loop_head ]
         traversed = set()
-        loop_successors = set(loop_successors)
+        loop_successors = set(s.addr for s in loop_successors)
 
         while queue:
             node = queue[0]
@@ -385,35 +390,40 @@ class Structurer(Analysis):
 
             traversed.add(node)
 
-            successors = graph.successors(node)
-            for dst in successors:
-                if dst in loop_successors:
-                    # add a break or a conditional break node
-                    last_stmt = self._get_last_statement(node)
-                    if type(last_stmt) is ailment.Stmt.Jump:
-                        # add a break
-                        seq.nodes.append(BreakNode(dst))
-                        # shrink the block to remove the last statement
-                        self._remove_last_statement(node)
-                    elif type(last_stmt) is ailment.Stmt.ConditionalJump:
-                        # add a conditional break
-                        if last_stmt.true_target.value == dst.addr:
-                            cond = last_stmt.condition
-                        elif last_stmt.false_target.value == dst.addr:
-                            cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
-                        else:
-                            l.warning("I'm not sure which branch is jumping out of the loop...")
-                            raise Exception()
-                        seq.nodes.append(ConditionalBreakNode(cond, dst))
-                        # remove the last statement from the node
-                        self._remove_last_statement(node)
-                    continue
-                else:
-                    # sanity check
-                    if dst not in loop_subgraph:
-                        # what's this node?
-                        l.error("Found a node that belongs to neither loop body nor loop successors. Something is wrong.")
+            successors = list(graph.successors(node))  # successors are all inside the current region
+
+            last_stmt = self._get_last_statement(node)
+            real_successor_addrs = self._extract_jump_targets(last_stmt)
+
+            if any(succ_addr in loop_successors for succ_addr in real_successor_addrs):
+                # This node has an exit to the outside of the loop
+                # add a break or a conditional break node
+                if type(last_stmt) is ailment.Stmt.Jump:
+                    # add a break
+                    seq.nodes.append(BreakNode(last_stmt.target.value))
+                    # shrink the block to remove the last statement
+                    self._remove_last_statement(node)
+                elif type(last_stmt) is ailment.Stmt.ConditionalJump:
+                    # add a conditional break
+                    if last_stmt.true_target.value in loop_successors:
+                        cond = last_stmt.condition
+                        target = last_stmt.true_target.value
+                    elif last_stmt.false_target.value in loop_successors:
+                        cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
+                        target = last_stmt.false_target.value
+                    else:
+                        l.warning("I'm not sure which branch is jumping out of the loop...")
                         raise Exception()
+                    seq.nodes.append(ConditionalBreakNode(cond, target))
+                    # remove the last statement from the node
+                    self._remove_last_statement(node)
+
+            for dst in successors:
+                # sanity check
+                if dst not in loop_subgraph:
+                    # what's this node?
+                    l.error("Found a node that belongs to neither loop body nor loop successors. Something is wrong.")
+                    raise Exception()
                 if dst in traversed:
                     continue
                 queue.append(dst)
@@ -470,6 +480,27 @@ class Structurer(Analysis):
         self._reaching_conditions = reaching_conditions
         self._predicate_mapping = predicate_mapping
 
+    def _convert_claripy_bool_ast(self, cond):
+        """
+        Convert recovered reaching conditions from claripy ASTs to ailment Expressions
+
+        :return: None
+        """
+
+        if claripy.is_true(cond):
+            return cond
+        if cond in self._condition_mapping:
+            return self._condition_mapping[cond]
+
+        _mapping = {
+            'Not': lambda cond_: ailment.Expr.UnaryOp(None, 'Not', self._convert_claripy_bool_ast(cond_.args[0])),
+        }
+
+        if cond.op in _mapping:
+            return _mapping[cond.op](cond)
+        raise NotImplementedError(("Condition variable %s has an unsupported operator %s. "
+                                   "Consider implementing.") % cond.op)
+
     def _make_sequence(self):
 
         seq = SequenceNode()
@@ -510,11 +541,11 @@ class Structurer(Analysis):
         for i in range(len(seq.nodes)):
             node = seq.nodes[i]
             if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
-                new_node = ConditionNode(node.addr, None, node.reaching_condition, node, None)
+                new_node = ConditionNode(node.addr, None, self._convert_claripy_bool_ast(node.reaching_condition), node,
+                                         None)
                 seq.nodes[i] = new_node
 
-    @staticmethod
-    def _make_ite(seq, node_0, node_1):
+    def _make_ite(self, seq, node_0, node_1):
 
         pos = max(seq.node_position(node_0), seq.node_position(node_1))
 
@@ -523,7 +554,8 @@ class Structurer(Analysis):
         node_0_.reaching_condition = None
         node_1_.reaching_condition = None
 
-        seq.insert_node(pos, ConditionNode(0, None, node_0.reaching_condition, node_0_, node_1_))
+        seq.insert_node(pos, ConditionNode(0, None, self._convert_claripy_bool_ast(node_0.reaching_condition), node_0_,
+                                           node_1_))
 
         seq.remove_node(node_0)
         seq.remove_node(node_1)
@@ -579,8 +611,38 @@ class Structurer(Analysis):
             raise NotImplementedError()
 
     @staticmethod
-    def _bool_variable_from_ail_condition(block, condition):
-        return claripy.BoolS('structurer-cond_%#x_%s' % (block.addr, repr(condition)), explicit_name=True)
+    def _extract_jump_targets(stmt):
+        """
+        Extract goto targets from a Jump or a ConditionalJump statement.
+
+        :param stmt:    The statement to analyze.
+        :return:        A list of known concrete jump targets.
+        :rtype:         list
+        """
+
+        targets = [ ]
+
+        # FIXME: We are assuming all jump targets are concrete targets. They may not be.
+
+        if isinstance(stmt, ailment.Stmt.Jump):
+            targets.append(stmt.target.value)
+        elif isinstance(stmt, ailment.Stmt.ConditionalJump):
+            targets.append(stmt.true_target.value)
+            targets.append(stmt.false_target.value)
+
+        return targets
+
+    def _bool_variable_from_ail_condition(self, block, condition):
+        var = claripy.BoolS('structurer-cond_%#x_%s' % (block.addr, repr(condition)), explicit_name=True)
+        self._condition_mapping[var] = condition
+        return var
+
+    @staticmethod
+    def _negate_cond(cond):
+        if isinstance(cond, ailment.Expr.UnaryOp) and cond.op == 'Not':
+            # Unpacck it
+            return cond.operand
+        return ailment.Expr.UnaryOp(0, 'Not', cond)
 
 
 register_analysis(RecursiveStructurer, 'RecursiveStructurer')

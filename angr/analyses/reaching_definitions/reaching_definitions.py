@@ -4,6 +4,16 @@ from collections import defaultdict
 import ailment
 import pyvex
 
+from ...calling_conventions import SimRegArg, SimStackArg
+from ...engines.light import SpOffset
+from ...keyed_region import KeyedRegion
+from ...block import Block
+from ...codenode import CodeNode
+from ...misc.ux import deprecated
+from .. import register_analysis
+from ..analysis import Analysis
+from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from ..code_location import CodeLocation
 from .atoms import Register, MemoryLocation, Tmp, Parameter
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
@@ -12,17 +22,12 @@ from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .undefined import Undefined
 from .uses import Uses
-from .. import register_analysis
-from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from ...calling_conventions import SimRegArg, SimStackArg
-from ...engines.light import SpOffset
-from ...keyed_region import KeyedRegion
+
 
 l = logging.getLogger(name=__name__)
 
 
-class LiveDefinitions(object):
+class LiveDefinitions:
     def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
 
         # handy short-hands
@@ -143,15 +148,15 @@ class LiveDefinitions(object):
         """
 
         if data is None:
-            data = DataSet(Undefined(), 8)
+            data = DataSet(Undefined(atom.size), atom.size)
 
-        self.kill_and_add_definition(atom, code_loc, data)
+        self.kill_and_add_definition(atom, code_loc, data, dummy=True)
 
-    def kill_and_add_definition(self, atom, code_loc, data):
+    def kill_and_add_definition(self, atom, code_loc, data, dummy=False):
         if type(atom) is Register:
-            self._kill_and_add_register_definition(atom, code_loc, data)
+            self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is MemoryLocation:
-            self._kill_and_add_memory_definition(atom, code_loc, data)
+            self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is Tmp:
             self._add_tmp_definition(atom, code_loc)
         else:
@@ -169,7 +174,7 @@ class LiveDefinitions(object):
     # Private methods
     #
 
-    def _kill_and_add_register_definition(self, atom, code_loc, data):
+    def _kill_and_add_register_definition(self, atom, code_loc, data, dummy=False):
 
         # FIXME: check correctness
         current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
@@ -180,12 +185,12 @@ class LiveDefinitions(object):
             if not uses:
                 self._dead_virgin_definitions |= current_defs
 
-        definition = Definition(atom, code_loc, data)
+        definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
 
-    def _kill_and_add_memory_definition(self, atom, code_loc, data):
-        definition = Definition(atom, code_loc, data)
+    def _kill_and_add_memory_definition(self, atom, code_loc, data, dummy=False):
+        definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.memory_definitions.set_object(atom.addr, definition, atom.size)
 
@@ -231,7 +236,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def __init__(self, func=None, block=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state=None, init_func=False, cc=None, function_handler=None,
-                 current_local_call_depth=1, maximum_local_call_depth=5):
+                 current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -252,6 +257,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                 <ReachingDefinitions>, <Codeloc>, <IP address>).
         :param int current_local_call_depth:    Current local function recursion depth.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
+        :param bool observa_all:                Observe every statement, both before and after.
         """
 
         if func is not None:
@@ -292,11 +298,13 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             self._cc = None
             self._func_addr = None
 
+        self._observe_all = observe_all
+
         # sanity check
         if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
             raise ValueError('"observation_points" must be tuples.')
 
-        if type(self) is ReachingDefinitionAnalysis and not self._observation_points:
+        if type(self) is ReachingDefinitionAnalysis and not self._observe_all and not self._observation_points:
             l.warning('No observation point is specified. '
                       'You cannot get any analysis result from performing the analysis.'
                       )
@@ -323,32 +331,59 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
         return next(iter(self.observed_results.values()))
 
-    def observe(self, ins_addr, stmt, block, state, ob_type):
-        if self._observation_points is not None and (ins_addr, ob_type) in self._observation_points:
+    @deprecated(replacement="get_reaching_definitions_by_insn")
+    def get_reaching_definitions(self, ins_addr, ob_type):
+        return self.get_reaching_definitions_by_insn(ins_addr, ob_type)
+
+    def get_reaching_definitions_by_insn(self, ins_addr, ob_type):
+
+        key = 'insn', ins_addr, ob_type
+        if key not in self.observed_results:
+            raise KeyError(("Reaching definitions are not available at observation point %s. "
+                            "Did you specify that observation point?") % key)
+
+        return self.observed_results[key]
+
+    def get_reaching_definitions_by_node(self, node_addr, ob_type):
+
+        key = 'node', node_addr, ob_type
+        if key not in self.observed_results:
+            raise KeyError(("Reaching definitions are not available at observation point %s. "
+                            "Did you specify that observation point?") % key)
+
+        return self.observed_results[key]
+
+    def node_observe(self, node_addr, state, ob_type):
+        key = 'node', node_addr, ob_type
+        if self._observe_all or \
+                self._observation_points is not None and key in self._observation_points:
+            self.observed_results[key] = state
+
+    def insn_observe(self, ins_addr, stmt, block, state, ob_type):
+        key = 'insn', ins_addr, ob_type
+        if self._observe_all or \
+                self._observation_points is not None and key in self._observation_points:
             if isinstance(stmt, pyvex.IRStmt.IRStmt):
                 # it's an angr block
                 vex_block = block.vex
                 # OP_BEFORE: stmt has to be IMark
                 if ob_type == OP_BEFORE and type(stmt) is pyvex.IRStmt.IMark:
-                    self.observed_results[(ins_addr, ob_type)] = state.copy()
+                    self.observed_results[key] = state.copy()
                 # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
                 elif ob_type == OP_AFTER:
                     idx = vex_block.statements.index(stmt)
                     if idx == len(vex_block.statements) - 1 or type(
                             vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
-                        self.observed_results[(ins_addr, ob_type)] = state.copy()
+                        self.observed_results[key] = state.copy()
             elif isinstance(stmt, ailment.Stmt.Statement):
                 # it's an AIL block
-                self.observed_results[(ins_addr, ob_type)] = state.copy()
+                self.observed_results[key] = state.copy()
 
     #
     # Main analysis routines
     #
 
     def _pre_analysis(self):
-        pass
-
-    def _pre_job_handling(self, job):
         pass
 
     def _initial_abstract_state(self, node):
@@ -367,12 +402,17 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             block = node
             block_key = node.addr
             engine = self._engine_ail
-        else:
+        elif isinstance(node, (Block, CodeNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=0)
             block_key = node.addr
             engine = self._engine_vex
+        else:
+            l.warning("Unsupported node type %s.", node.__class__)
+            return False, state.copy()
 
-        state = state.copy()
+        self.node_observe(node.addr, state, OP_BEFORE)
+
+        state = state.copy()  # type: LiveDefinitions
         state = engine.process(state, block=block, fail_fast=self._fail_fast)
 
         # clear the tmp store
@@ -380,6 +420,20 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         # state.tmp_definitions.clear()
 
         self._node_iterations[block_key] += 1
+
+        if not self._graph_visitor.successors(node):
+            # no more successors. kill definitions of certain registers
+            if isinstance(node, ailment.Block):
+                codeloc = CodeLocation(node.addr, len(node.statements))
+            elif isinstance(node, Block):
+                codeloc = CodeLocation(node.addr, len(node.vex.statements))
+            else: #if isinstance(node, CodeNode):
+                codeloc = CodeLocation(node.addr, 0)
+            state.kill_definitions(Register(self.project.arch.sp_offset, self.project.arch.bytes),
+                                   codeloc)
+            state.kill_definitions(Register(self.project.arch.ip_offset, self.project.arch.bytes),
+                                   codeloc)
+        self.node_observe(node.addr, state, OP_AFTER)
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state

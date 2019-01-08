@@ -49,12 +49,12 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     def _handle_Stmt(self, stmt):
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         super(SimEngineRDVEX, self)._handle_Stmt(stmt)
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
@@ -165,13 +165,15 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         if tmp in self.tmps:
             return self.tmps[tmp]
-        return DataSet(Undefined(), expr.result_size(self.tyenv))
+        bits = expr.result_size(self.tyenv)
+        return DataSet(Undefined(bits), bits)
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_Get(self, expr):
 
         reg_offset = expr.offset
-        size = expr.result_size(self.tyenv)
+        bits = expr.result_size(self.tyenv)
+        size = bits // self.arch.byte_width
 
         # FIXME: size, overlapping
         data = set()
@@ -179,7 +181,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         for current_def in current_defs:
             data.update(current_def.data)
         if len(data) == 0:
-            data.add(Undefined())
+            data.add(Undefined(bits))
         if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
@@ -192,7 +194,8 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     # caution: Is also called from StoreG
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
-        size = expr.result_size(self.tyenv) // 8
+        bits = expr.result_size(self.tyenv)
+        size = bits // self.arch.byte_width
 
         data = set()
         for a in addr:
@@ -215,9 +218,9 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(Undefined())
+            data.add(Undefined(bits))
 
-        return DataSet(data, expr.result_size(self.tyenv))
+        return DataSet(data, bits)
 
     # CAUTION: experimental
     def _handle_ITE(self, expr):
@@ -301,18 +304,18 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
 
-        size = expr.result_size(self.tyenv)
+        bits = expr.result_size(self.tyenv)
         data = set()
         for e0 in expr_0:
             for e1 in expr_1:
                 try:
-                    if e0 >> (size - 1) == 0:
+                    if e0 >> (bits - 1) == 0:
                         head = 0
                     else:
-                        head = ((1 << e1) - 1) << (size - e1)
+                        head = ((1 << e1) - 1) << (bits - e1)
                     data.add(head | (e0 >> e1))
                 except (ValueError, TypeError) as e:
-                    data.add(Undefined())
+                    data.add(Undefined(bits))
                     l.warning(e)
 
         return DataSet(data, expr.result_size(self.tyenv))
@@ -380,7 +383,8 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CCall(self, expr):
-        return DataSet(Undefined(), expr.result_size(self.tyenv))
+        bits = expr.result_size(self.tyenv)
+        return DataSet(Undefined(bits), bits)
 
     #
     # User defined high level statement handlers

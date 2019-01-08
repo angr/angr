@@ -38,6 +38,15 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def _external_codeloc():
         return ExternalCodeLocation()
 
+    @staticmethod
+    def _dataset_unpack(d):
+        if type(d) is DataSet and len(d) == 1:
+            return next(iter(d.data))
+        return d
+
+    def _expr(self, expr):
+        return self._dataset_unpack(super()._expr(expr))
+
     #
     # AIL statement handlers
     #
@@ -45,12 +54,12 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
     def _ail_handle_Stmt(self, stmt):
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         super(SimEngineRDAIL, self)._ail_handle_Stmt(stmt)
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     def _ail_handle_Assignment(self, stmt):
         """
@@ -63,7 +72,7 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         dst = stmt.dst
 
         if src is None:
-            src = DataSet(Undefined(), dst.bits)
+            src = DataSet(Undefined(dst.bits), dst.bits)
 
         if type(dst) is ailment.Tmp:
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), src)
@@ -201,6 +210,12 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
 
     def _ail_handle_Const(self, expr):
         return DataSet(expr, expr.bits)
+
+    def _ail_handle_StackBaseOffset(self, expr):
+        return SpOffset(self.arch.bits, expr.offset, is_base=False)
+
+    def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
+        return expr
 
     #
     # User defined high level statement handlers

@@ -150,7 +150,7 @@ def get_engine(base_engine):
                 data = self._expr(stmt.src)
                 size = stmt.src.bits // 8
 
-                self._assign_to_register(offset, data, size)
+                self._assign_to_register(offset, data, size, src=stmt.src, dst=stmt.dst)
 
             elif dst_type is ailment.Expr.Tmp:
                 # simply write to self.tmps
@@ -174,7 +174,7 @@ def get_engine(base_engine):
             pass
 
         def _ail_handle_ConditionalJump(self, stmt):
-            pass
+            self._expr(stmt.condition)
 
         def _ail_handle_Call(self, stmt):
             pass
@@ -191,13 +191,27 @@ def get_engine(base_engine):
             addr = self._expr(expr.addr)
             size = expr.size
 
-            return self._load(addr, size)
+            return self._load(addr, size, expr=expr)
+
+        def _ail_handle_BinaryOp(self, expr):
+            r = super()._ail_handle_BinaryOp(expr)
+            if r is None:
+                # Treat it as a normal binaryop expression
+                self._expr(expr.operands[0])
+                self._expr(expr.operands[1])
+            return r
+
+        def _ail_handle_Convert(self, expr):
+            return self._expr(expr.operand)
+
+        def _ail_handle_StackBaseOffset(self, expr):
+            return SpOffset(self.arch.bits, expr.offset, is_base=False)
 
         #
         # Logic
         #
 
-        def _assign_to_register(self, offset, data, size):
+        def _assign_to_register(self, offset, data, size, src=None, dst=None):
             """
 
             :param int offset:
@@ -253,7 +267,8 @@ def get_engine(base_engine):
                 self.state.stack_region.add_variable(stack_offset, variable)
                 base_offset = self.state.stack_region.get_base_addr(stack_offset)
                 for var in self.state.stack_region.get_variables_by_offset(base_offset):
-                    self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset, codeloc)
+                    self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset, codeloc,
+                                                                       atom=src)
 
             else:
                 pass
@@ -274,7 +289,7 @@ def get_engine(base_engine):
                 variable, _ = existing_vars[0]
 
             self.state.register_region.set_variable(offset, variable)
-            self.variable_manager[self.func_addr].write_to(variable, 0, codeloc)
+            self.variable_manager[self.func_addr].write_to(variable, 0, codeloc, atom=dst)
 
         def _store(self, addr, data, size):  # pylint:disable=unused-argument
             """
@@ -312,7 +327,7 @@ def get_engine(base_engine):
                                                                    codeloc
                                                                    )
 
-        def _load(self, addr, size):
+        def _load(self, addr, size, expr=None):
             """
 
             :param addr:
@@ -350,6 +365,7 @@ def get_engine(base_engine):
                 self.variable_manager[self.func_addr].read_from(var,
                                                                 stack_offset - base_offset,
                                                                 codeloc,
+                                                                atom=expr,
                                                                 # overwrite=True
                                                                 )
 
