@@ -127,7 +127,8 @@ class RegionSimplifier(Analysis):
 
         if block.statements and isinstance(block.statements[-1], ailment.Stmt.Jump):
             goto_stmt = block.statements[-1]  # ailment.Stmt.Jump
-            if successor and goto_stmt.target.value == successor.addr:
+            if successor and isinstance(goto_stmt.target, ailment.Expr.Const) \
+                    and goto_stmt.target.value == successor.addr:
                 # we can remove this statement
                 block.statements = block.statements[:-1]
 
