@@ -346,13 +346,18 @@ class CVariable(CExpression):
         if self.offset is None:
             if isinstance(self.variable, SimVariable):
                 return self.variable.name
+            elif isinstance(self.variable, CExpression):
+                return "*(%s)" % self.variable.c_repr()
             else:
                 return str(self.variable)
         else:
             if isinstance(self.variable, SimVariable):
                 return "*(%s[%d])" % (self.variable.name, self.offset)
             elif isinstance(self.variable, CExpression):
-                return "*(%s:%d)" % (self.variable.c_repr(), self.offset)
+                if self.offset:
+                    return "*(%s:%d)" % (self.variable.c_repr(), self.offset)
+                else:
+                    return "*(%s)" % self.variable.c_repr()
             elif isinstance(self.variable, Expr.Register):
                 return "%s:%x" % (self.variable.reg_name if hasattr(self.variable, 'reg_name') else self.variable,
                                    self.offset)
@@ -464,9 +469,13 @@ class CConstant(CExpression):
                     return hex(self.reference_values[self.type])
                 elif isinstance(self.type, SimTypePointer) and isinstance(self.type.pts_to, SimTypeChar):
                     refval = self.reference_values[self.type]  # angr.analyses.cfg.MemoryData
-                    return '"' + refval.content.decode('utf-8') + '"'
+                    return '"' + repr(refval.content.decode('utf-8')).strip("'").strip('"') + '"'
                 else:
                     return self.reference_values[self.type]
+
+        # Print pointers in hex
+        if isinstance(self.type, SimTypePointer) and isinstance(self.value, int):
+            return hex(self.value)
 
         return str(self.value)
 
@@ -539,7 +548,8 @@ class StructuredCodeGenerator(Analysis):
                 if expr.op == "Sub":
                     return lhs, -rhs
                 return lhs, rhs
-
+        elif isinstance(expr, int):
+            return None, expr
 
         raise NotImplementedError("Unsupported address %s." % addr)
 
@@ -694,7 +704,10 @@ class StructuredCodeGenerator(Analysis):
 
         variable, offset = self._parse_load_addr(expr.addr)
 
-        return CVariable(variable, offset=offset)
+        if variable is not None:
+            return CVariable(variable, offset=offset)
+        else:
+            return CVariable(CConstant(offset, SimTypePointer(SimTypeInt)))
 
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
