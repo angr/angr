@@ -666,7 +666,7 @@ class StructuredCodeGenerator(Analysis):
             target_func = None
 
         args = [ ]
-        if target_func.prototype is not None:
+        if target_func is not None and target_func.prototype is not None:
             for i, arg in enumerate(stmt.args):
                 if i < len(target_func.prototype.args):
                     type_ = target_func.prototype.args[i].with_arch(self.project.arch)
@@ -688,7 +688,9 @@ class StructuredCodeGenerator(Analysis):
                     new_arg = arg
                 args.append(new_arg)
 
-        return CFunctionCall(target, target_func, args, returning=target_func.returning)
+        return CFunctionCall(target, target_func, args,
+                             returning=target_func.returning if target_func is not None else True
+                             )
 
     #
     # AIL expression handlers
