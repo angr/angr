@@ -1,5 +1,6 @@
 
 from archinfo.arch_soot import SootClassDescriptor, SootNullConstant
+from claripy import  FSORT_DOUBLE, FSORT_FLOAT
 
 from ..values import SimSootValue_StringRef
 from .base import SimSootExpr
@@ -13,6 +14,16 @@ class SimSootExpr_IntConstant(SimSootExpr):
 class SimSootExpr_LongConstant(SimSootExpr):
     def _execute(self):
         self.expr = self.state.solver.BVV(self.expr.value, 64)
+
+
+class SimSootExpr_FloatConstant(SimSootExpr):
+    def _execute(self):
+        self.expr = self.state.solver.FPV(self.expr.value, FSORT_FLOAT)
+
+
+class SimSootExpr_DoubleConstant(SimSootExpr):
+    def _execute(self):
+        self.expr = self.state.solver.FPV(self.expr.value, FSORT_DOUBLE)
 
 
 class SimSootExpr_StringConstant(SimSootExpr):

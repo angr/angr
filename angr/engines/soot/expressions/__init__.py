@@ -27,6 +27,8 @@ from .cast import SimSootExpr_Cast
 from .condition import SimSootExpr_Condition
 from .constants import (SimSootExpr_IntConstant,
                         SimSootExpr_LongConstant,
+                        SimSootExpr_FloatConstant,
+                        SimSootExpr_DoubleConstant,
                         SimSootExpr_StringConstant,
                         SimSootExpr_ClassConstant,
                         SimSootExpr_NullConstant)
