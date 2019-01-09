@@ -3767,32 +3767,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def copy(self):
         n = CFGFast.__new__(CFGFast)
-        super(CFGFast, self).make_copy(n)
 
-        n._binary = self._binary
-        n._regions = self._regions
-        n._pickle_intermediate_results = self._pickle_intermediate_results
-        n._indirect_jump_target_limit = self._indirect_jump_target_limit
-        n._collect_data_ref = self._collect_data_ref
-        n._use_symbols = self._use_symbols
-        n._use_function_prologues = self._use_function_prologues
-        n._resolve_indirect_jumps = self._resolve_indirect_jumps
-        n._force_segment = self._force_segment
-        n._force_complete_scan = self._force_complete_scan
-
-        n._progress_callback = self._progress_callback
-        n._show_progressbar = self._show_progressbar
+        for attr, value in self.__dict__.items():
+            setattr(n, attr, value)
 
         n._exec_mem_regions = self._exec_mem_regions[::]
-        n._exec_mem_region_size = self._exec_mem_region_size
-
         n._memory_data = self._memory_data.copy()
-
         n._seg_list = self._seg_list.copy()
-
         n._function_addresses_from_symbols = self._function_addresses_from_symbols.copy()
 
-        n._graph = self._graph
+        n._graph = self._graph.copy()
 
         return n
 
