@@ -5,6 +5,7 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootAddressTerminator, SootArgument,
                                 SootNullConstant)
 from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
+from claripy.ast.fp import FP, fpToIEEEBV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
@@ -313,6 +314,11 @@ class SimJavaVM(SimOS):
             value = float(state.solver.eval(value))
             sort = FSORT_FLOAT if to_type == 'float' else FSORT_DOUBLE
             return FPV(value, sort)
+
+        elif to_type == 'int' and isinstance(value, FP):
+            # TODO fix fpToIEEEBV in claripty
+            l.warning('Converting FP to BV might provide incorrect results.')
+            return fpToIEEEBV(value)[63:32]
 
         else:
             # lookup the type size and extract value

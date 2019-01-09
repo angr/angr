@@ -23,6 +23,5 @@ class SimSootExpr_Binop(SimSootExpr):
         # "ushr": operator.rshift, #TODO
         "xor": operator.xor,
         "rem": operator.imod,
-        "cmpl": operator.lt,
-        "<=": operator.le
+        "cmpl": operator.lt
     }

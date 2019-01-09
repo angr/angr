@@ -95,7 +95,7 @@ class SimSootValue_ArrayRef(SimSootValue):
 
         # There are 3 cases:
         # 1) idx has only valid solutions
-        # 2) idx has only invalid soultions
+        # 2) idx has only invalid solutions
         #    TODO: raise a java.lang.ArrayIndexOutOfBoundsException
         # 3) idx has some valid and some invalid solutions
         #    TODO: split current SimState into two successors:
