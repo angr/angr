@@ -7,7 +7,8 @@ class UserHook(angr.SimProcedure):
     def run(self, user_func=None, length=None):
         result = user_func(self.state)
         if result is None:
-            self.successors.add_successor(self.state, self.state.addr+length, self.state.solver.true, 'Ijk_NoHook')
+            jumpkind = 'Ijk_NoHook' if length == 0 else 'Ijk_Boring'
+            self.successors.add_successor(self.state, self.state.addr+length, self.state.solver.true, jumpkind)
         else:
             for state in result:
                 self.successors.add_successor(state, state.addr, state.scratch.guard, state.history.jumpkind)
