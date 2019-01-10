@@ -18,7 +18,11 @@ class UnconstrainedMethod(JavaSimProcedure):
             this_ref = thing
             this_ref.symbolic = True
 
-        method_descriptor = args[-1]
+        if args:
+            method_descriptor = args[-1]
+        else:
+            # if args is empty, method is static and has no params
+            method_descriptor = thing
 
         # return the appropriate value based on the return type of the method
         if method_descriptor.ret in ['byte', 'char', 'short', 'int', 'boolean']:
