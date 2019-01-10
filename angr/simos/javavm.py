@@ -320,6 +320,11 @@ class SimJavaVM(SimOS):
             l.warning('Converting FP to BV might provide incorrect results.')
             return fpToIEEEBV(value)[63:32]
 
+        elif to_type == 'long' and isinstance(value, FP):
+            # TODO fix fpToIEEEBV in claripty
+            l.warning('Converting FP to BV might provide incorrect results.')
+            return fpToIEEEBV(value)
+
         else:
             # lookup the type size and extract value
             value_size = ArchSoot.sizeof[to_type]
