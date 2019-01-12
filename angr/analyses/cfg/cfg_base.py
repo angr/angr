@@ -234,6 +234,8 @@ class CFGBase(Analysis):
         """
 
         for attr, value in self.__dict__.items():
+            if attr.startswith('__') and attr.endswith('__'):
+                continue
             setattr(copy_to, attr, value)
 
     # pylint: disable=no-self-use

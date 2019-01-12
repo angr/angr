@@ -450,6 +450,7 @@ class SegmentList:
 
         n._list = [ a.copy() for a in self._list ]
         n._bytes_occupied = self._bytes_occupied
+        return n
 
     #
     # Properties
@@ -3769,6 +3770,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         n = CFGFast.__new__(CFGFast)
 
         for attr, value in self.__dict__.items():
+            if attr.startswith('__') and attr.endswith('__'):
+                continue
             setattr(n, attr, value)
 
         n._exec_mem_regions = self._exec_mem_regions[::]
