@@ -5,7 +5,7 @@ from collections import defaultdict
 import ailment
 
 from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
-from ...errors import SimEngineError
+from ...errors import SimEngineError, AngrVariableRecoveryError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 from ..calling_convention import CallingConventionAnalysis
@@ -507,6 +507,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         """
 
         function_graph_visitor = FunctionGraphVisitor(func)
+
+        # Make sure the function is not empty
+        if not func.block_addrs_set or func.startpoint is None:
+            raise AngrVariableRecoveryError("Function %s is empty." % repr(func))
 
         VariableRecoveryBase.__init__(self, func, max_iterations)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,

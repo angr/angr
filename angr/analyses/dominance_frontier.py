@@ -29,6 +29,9 @@ class DominanceFrontier(Analysis):
         g = self._get_graph()
 
         # Compute the dominator tree
+        if self.function.startpoint is None:
+            # The function might be empty or is corrupted (maybe the object is created manually)
+            raise TypeError("Startpoint of function %s is None. Is this function empty?" % repr(self.function))
         doms = Dominators(g, self.function.startpoint)
 
         # Compute the dominance frontier

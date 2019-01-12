@@ -1,4 +1,5 @@
 
+import sys
 import os
 import logging
 
@@ -127,11 +128,11 @@ def run_variable_recovery_analysis(project, func, groundtruth, is_fast):
             l.debug("Found phi variable %s at %#x.", the_var, block_addr)
 
 
-def test_variable_analysis():
+def test_variable_recovery_fauxware():
 
     binary_path = os.path.join(test_location, 'x86_64', 'fauxware')
     project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-    cfg = project.analyses.CFG()
+    cfg = project.analyses.CFG(normalize=True)
 
     groundtruth = {
         'authenticate': {
@@ -205,12 +206,20 @@ def test_variable_analysis():
 def main():
 
     g = globals()
-    for func_name, func in g.items():
-        if func_name.startswith('test_') and hasattr(func, '__call__'):
-            print(func_name)
-            for testfunc_and_args in func():
-                testfunc, args = testfunc_and_args[0], testfunc_and_args[1:]
-                testfunc(*args)
+    if len(sys.argv) > 1:
+        func_name = "test_%s" % sys.argv[1]
+        if func_name not in g:
+            func_name = "test_variable_recovery_%s" % sys.argv[1]
+        for testfunc_and_args in g[func_name]():
+            testfunc, args = testfunc_and_args[0], testfunc_and_args[1:]
+            testfunc(*args)
+    else:
+        for func_name, func in g.items():
+            if func_name.startswith('test_') and hasattr(func, '__call__'):
+                print(func_name)
+                for testfunc_and_args in func():
+                    testfunc, args = testfunc_and_args[0], testfunc_and_args[1:]
+                    testfunc(*args)
 
 
 if __name__ == '__main__':

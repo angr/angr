@@ -125,6 +125,14 @@ class AngrDirectorError(AngrExplorationTechniqueError):
 class AngrTracerError(AngrExplorationTechniqueError):
     pass
 
+
+#
+# VariableRecovery errors
+#
+
+class AngrVariableRecoveryError(AngrAnalysisError):
+    pass
+
 #
 # Tracer
 #
