@@ -418,6 +418,24 @@ def test_segment_list_6():
     nose.tools.assert_equal(seg_list._list[1].sort, 'code')
 
 #
+# CFG instance copy
+#
+
+def test_cfg_copy():
+    path = os.path.join(test_location, "cgc/CADET_00002")
+    proj = angr.Project(path)
+
+    cfg = proj.analyses.CFGFast()
+    cfg_copy = cfg.copy()
+    for attr, value in cfg_copy.__dict__.items():
+        if attr in ['_graph', '_seg_list']:
+            continue
+        nose.tools.assert_equal(getattr(cfg, attr), getattr(cfg_copy, attr))
+
+    nose.tools.assert_not_equal(id(cfg._graph), id(cfg_copy._graph))
+    nose.tools.assert_not_equal(id(cfg._seg_list), id(cfg_copy._seg_list))
+
+#
 # Indirect jump resolvers
 #
 
