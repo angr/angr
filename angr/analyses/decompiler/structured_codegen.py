@@ -7,7 +7,7 @@ from sortedcontainers import SortedDict
 from ailment import Block, Expr, Stmt
 
 from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer
-from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
 from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode
@@ -1002,7 +1002,7 @@ class StructuredCodeGenerator(Analysis):
 
         return CTypeCast(None, dst_type, self._handle(expr.operand))
 
-    def _handle_Expr_Dirty(self, expr):
+    def _handle_Expr_Dirty(self, expr):  # pylint:disable=no-self-use
         return expr
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
@@ -1012,7 +1012,7 @@ class StructuredCodeGenerator(Analysis):
 
         return expr
 
-    def _handle_Variable_SimStackVariable(self, variable):
+    def _handle_Variable_SimStackVariable(self, variable):  # pylint:disable=no-self-use
 
         return CVariable(variable)
 
