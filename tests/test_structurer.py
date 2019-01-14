@@ -1,6 +1,7 @@
 
-
 import os
+
+import nose.tools
 
 import angr
 import angr.analyses.decompiler
@@ -90,6 +91,9 @@ def test_simple_loop():
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
     print(codegen.text)
+
+    nose.tools.assert_greater(len(codegen.posmap._posmap), 1)
+    nose.tools.assert_greater(len(codegen.nodemap), 1)
 
 
 def test_recursive_structuring():
