@@ -800,6 +800,8 @@ class StructuredCodeGenerator(Analysis):
                 if expr.op == "Sub":
                     return lhs, -rhs
                 return lhs, rhs
+        elif isinstance(expr, CConstant):
+            return None, expr.value
         elif isinstance(expr, int):
             return None, expr
 
