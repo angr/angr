@@ -422,12 +422,12 @@ def test_segment_list_6():
 #
 
 def test_cfg_copy():
-    path = os.path.join(test_location, "cgc/CADET_00002")
+    path = os.path.join(test_location, "cgc", "CADET_00002")
     proj = angr.Project(path)
 
     cfg = proj.analyses.CFGFast()
     cfg_copy = cfg.copy()
-    for attr, value in cfg_copy.__dict__.items():
+    for attr in cfg_copy.__dict__:
         if attr in ['_graph', '_seg_list']:
             continue
         nose.tools.assert_equal(getattr(cfg, attr), getattr(cfg_copy, attr))
