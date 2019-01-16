@@ -7,6 +7,9 @@ from ...errors import SimEngineError
 from ..plugin import KnowledgeBasePlugin
 
 from .function import Function
+from .soot_function import  SootFunction
+
+from archinfo.arch_soot import  SootMethodDescriptor
 
 l = logging.getLogger(name=__name__)
 
@@ -28,7 +31,10 @@ class FunctionDict(SortedDict):
             if not isinstance(addr, self._key_types):
                 raise TypeError("FunctionDict only supports %s as key type" % self._key_types)
 
-            t = Function(self._backref, addr)
+            if isinstance(addr, SootMethodDescriptor):
+                t = SootFunction(self._backref, addr)
+            else:
+                t = Function(self._backref, addr)
             try:
                 self[addr] = t
             except:

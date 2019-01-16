@@ -1,6 +1,7 @@
 
 import logging
 
+from archinfo.arch_soot import SootAddressDescriptor
 
 from ...errors import SimValueError, SimSolverModeError
 from ...state_plugins.callstack import CallStack
@@ -172,4 +173,7 @@ class CFGJobBase(object):
         return self._call_stack.current_stack_pointer
 
     def __repr__(self):
-        return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)
+        if isinstance(self.addr, SootAddressDescriptor):
+            return "<Entry {} {}>".format(self.addr, self.jumpkind)
+        else:
+            return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)

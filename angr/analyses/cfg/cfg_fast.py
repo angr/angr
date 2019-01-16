@@ -588,7 +588,7 @@ class PendingJobs:
                 if func is None:
                     # Why does it happen?
                     l.warning("An expected function at %s is not found. Please report it to Fish.",
-                              hex(pe.returning_source) if pe.returning_source is not None else 'None')
+                              pe.returning_source if pe.returning_source is not None else 'None')
                     continue
 
                 if func.returning is False:
@@ -768,7 +768,10 @@ class CFGJob:
             self._func_edges = None
 
     def __repr__(self):
-        return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
+        if isinstance(self.addr, SootAddressDescriptor):
+            return "<CFGJob {}>".format(self.addr)
+        else:
+            return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
                                             
     def __eq__(self, other):
         return self.addr == other.addr and \

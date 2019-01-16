@@ -7,6 +7,7 @@ import networkx
 import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
+from archinfo.arch_soot import SootAddressDescriptor
 
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
@@ -1803,8 +1804,8 @@ class CFGBase(Analysis):
             blockaddr_to_function[addr] = f
 
             function_is_returning = False
-            if addr in known_functions:
-                if known_functions.function(addr).returning:
+            if funcloc in known_functions:
+                if known_functions.function(funcloc).returning:
                     f.returning = True
                     function_is_returning = True
 
@@ -1812,7 +1813,7 @@ class CFGBase(Analysis):
                 # We will rerun function feature analysis on this function later. Add it to
                 # self._updated_nonreturning_functions so it can be picked up by function feature analysis later.
                 if self._updated_nonreturning_functions is not None:
-                    self._updated_nonreturning_functions.add(addr)
+                    self._updated_nonreturning_functions.add(funcloc)
 
         return f
 
@@ -1993,6 +1994,9 @@ class CFGBase(Analysis):
             else:
                 fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
 
+            if isinstance(dst_addr, SootAddressDescriptor):
+                dst_addr = dst_addr.method
+
             self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
 
@@ -2046,7 +2050,12 @@ class CFGBase(Analysis):
                                                                  )
 
             # is it a jump to another function?
-            if dst_addr in known_functions or (
+            if isinstance(dst_addr, SootAddressDescriptor):
+                is_known_function_addr = dst_addr.method in known_functions and dst_addr.method.addr == dst_addr
+            else:
+                is_known_function_addr = dst_addr in known_functions
+
+            if is_known_function_addr or (
                 dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
             ):
                 # yes it is
@@ -2086,11 +2095,18 @@ class CFGBase(Analysis):
 
 
             if dst_addr not in blockaddr_to_function:
-                if dst_addr not in known_functions:
-                    blockaddr_to_function[dst_addr] = src_function
-                    target_function = src_function
+                if isinstance(dst_addr, SootAddressDescriptor):
+                    if dst_addr.method not in known_functions:
+                        blockaddr_to_function[dst_addr] = src_function
+                        target_function = src_function
+                    else:
+                        target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
                 else:
-                    target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                    if dst_addr not in known_functions:
+                        blockaddr_to_function[dst_addr] = src_function
+                        target_function = src_function
+                    else:
+                        target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
             else:
                 target_function = blockaddr_to_function[dst_addr]
 
