@@ -350,9 +350,6 @@ class CFGFastSoot(CFGFast):
                              )
         self._function_add_node(cfg_node, function_addr)
 
-        # if self.functions.get_by_addr(function_addr).returning is not True:
-        #     self._updated_nonreturning_functions.add(function_addr)
-
         # If we have traced it before, don't trace it anymore
         real_addr = self._real_address(self.project.arch, addr)
         if real_addr in self._traced_addresses:
@@ -363,7 +360,7 @@ class CFGFastSoot(CFGFast):
             self._traced_addresses.add(real_addr)
 
         # soot_block is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
-        # cfg_node.soot_block = None
+        cfg_node.soot_block = None
 
         successors = self._soot_get_successors(addr, current_func_addr, soot_block, cfg_node)
 
@@ -400,15 +397,6 @@ class CFGFastSoot(CFGFast):
 
         jobs = [ ]
 
-        # Special handling:
-        # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring jump
-        # if jumpkind == "Ijk_Call" and \
-        #         not self.project.arch.call_pushes_ret and \
-        #         cfg_node.instruction_addrs and \
-        #         stmt_addr == cfg_node.instruction_addrs[-1] and \
-        #         target_addr == soot_block.addr + soot_block.size:
-        #     jumpkind = "Ijk_Boring"
-
         if target_addr is None:
             # The target address is not a concrete value
 
@@ -427,22 +415,17 @@ class CFGFastSoot(CFGFast):
 
             # pylint: disable=too-many-nested-blocks
             if jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
-                # # if the target address is at another section, it has to be jumping to a new function
-                # if not self._addrs_belong_to_same_section(addr, target_addr):
-                #     target_func_addr = target_addr
-                #     to_outside = True
-                if True:
-                    # it might be a jumpout
-                    target_func_addr = None
-                    real_target_addr = self._real_address(self.project.arch, target_addr)
-                    if real_target_addr in self._traced_addresses:
-                        node = self.get_any_node(target_addr)
-                        if node is not None:
-                            target_func_addr = node.function_address
-                    if target_func_addr is None:
-                        target_func_addr = current_function_addr
+                # it might be a jumpout
+                target_func_addr = None
+                real_target_addr = self._real_address(self.project.arch, target_addr)
+                if real_target_addr in self._traced_addresses:
+                    node = self.get_any_node(target_addr)
+                    if node is not None:
+                        target_func_addr = node.function_address
+                if target_func_addr is None:
+                    target_func_addr = current_function_addr
 
-                    to_outside = not target_func_addr == current_function_addr
+                to_outside = not target_func_addr == current_function_addr
 
                 edge = FunctionTransitionEdge(cfg_node, target_addr, current_function_addr,
                                               to_outside=to_outside,
@@ -484,9 +467,6 @@ class CFGFastSoot(CFGFast):
         :return: None
         """
 
-        # TODO: Is it required that PLT stubs are always aligned by 16? If so, on what architectures and platforms is it
-        # TODO:  enforced?
-
         tmp_functions = self.kb.functions.copy()
 
         for function in tmp_functions.values():
@@ -510,23 +490,9 @@ class CFGFastSoot(CFGFast):
         if entry_node is not None:
             function_nodes.add(entry_node)
 
-        # aggressively remove and merge functions
-        # For any function, if there is a call to it, it won't be removed
-        # called_function_addrs = set([n.addr for n in function_nodes])
-
-        # removed_functions_a = self._process_irrational_functions(tmp_functions,
-        #                                                          called_function_addrs,
-        #                                                          blockaddr_to_function
-        #                                                          )
-        # removed_functions_b = self._process_irrational_function_starts(tmp_functions,
-        #                                                                called_function_addrs,
-        #                                                                blockaddr_to_function
-        #                                                                )
-        # removed_functions = removed_functions_a | removed_functions_b
-        #
         for n in self.graph.nodes():
             funcloc = self._loc_to_funcloc(n.addr)
-            if funcloc in tmp_functions: # or funcloc in removed_functions:
+            if funcloc in tmp_functions:
                 function_nodes.add(n)
 
         # traverse the graph starting from each node, not following call edges

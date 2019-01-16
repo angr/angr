@@ -34,7 +34,7 @@ class SootClassHierarchy(Analysis):
 
     def init_hierarchy(self):
         for class_name, cls in self.project.loader.main_object.classes.items():
-            # resolvingLevel?
+
             if 'INTERFACE' in cls.attrs:
                 self.interface_implementers[cls] = []
                 self.dir_sub_interfaces[cls] = []
@@ -194,7 +194,6 @@ class SootClassHierarchy(Analysis):
 
         res = []
         for c in self.dir_sub_classes[cls]:
-            # resolving level > HIERACHY?
             res.extend(self.get_sub_classes_including(c))
 
         self.sub_classes[cls] = res
@@ -252,10 +251,9 @@ class SootClassHierarchy(Analysis):
         else:
             return method
 
-        # Generic method to resolve invoke
-        # Given an invoke expression it figures out which "technique" should apply
-
     def resolve_invoke(self, invoke_expr, method, container):
+        # Generic method to resolve invoke
+        # Given an invoke expression it figures out which "technique" should be applied
         invoke_type = str(type(invoke_expr))
         cls = self.project.loader.main_object.classes[method.class_name]
 
