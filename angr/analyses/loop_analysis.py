@@ -2,7 +2,6 @@
 from pysoot.sootir.soot_value import SootValue, SootLocal
 
 from ..block import SootBlockNode
-from ..misc import repr_addr
 from ..errors import AngrLoopAnalysisError
 from . import register_analysis
 from .analysis import Analysis
@@ -198,7 +197,7 @@ class LoopAnalysisState(object):
         self.loop_exit_stmts = set()
 
     def __repr__(self):
-        return "<LoopAnalysisState %s>" % repr_addr(self.block.addr)
+        return "<LoopAnalysisState %s>" % self.block.addr
 
     def copy(self):
 

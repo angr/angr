@@ -20,13 +20,15 @@ class SimJavaVmClassloader(SimStatePlugin):
         super(SimJavaVmClassloader, self).__init__()
         self._initialized_classes = set() if initialized_classes is None else initialized_classes
 
-    def get_class(self, class_name, init_class=False):
+    def get_class(self, class_name, init_class=False, step_func=None):
         """
         Get a class descriptor for the class.
 
         :param str class_name:  Name of class.
         :param bool init_class: Whether the class initializer <clinit> should be
                                 executed.
+        :param func step_func: Callback function executed at every step of the simulation manager during
+                             the execution of the main <clinit> method
         """
         # try to get the soot class object from CLE
         java_binary = self.state.javavm_registers.load('ip_binary')
@@ -35,7 +37,7 @@ class SimJavaVmClassloader(SimStatePlugin):
         class_descriptor = SootClassDescriptor(class_name, soot_class)
         # load/initialize class
         if init_class:
-            self.init_class(class_descriptor)
+            self.init_class(class_descriptor, step_func=step_func)
         return class_descriptor
 
     def get_superclass(self, class_):
@@ -63,7 +65,7 @@ class SimJavaVmClassloader(SimStatePlugin):
         """
         return class_ in self.initialized_classes
 
-    def init_class(self, class_):
+    def init_class(self, class_, step_func=None):
         """
         This method simulates the loading of a class by the JVM, during which
         parts of the class (e.g. static fields) are initialized. For this, we
@@ -93,13 +95,13 @@ class SimJavaVmClassloader(SimStatePlugin):
                                                    ret_addr=SootAddressTerminator())
             simgr = self.state.project.factory.simgr(clinit_state)
             l.info(">"*15 + " Run class initializer %r ... " + ">"*15, clinit_method)
-            simgr.run()
+            simgr.run(step_func=step_func)
             l.debug("<"*15 + " Run class initializer %r ... done " + "<"*15, clinit_method)
             # The only thing that can be updated during initialization are
             # static or rather global information, which are either stored on
             # the heap or in the vm_static_table
-            self.state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
-            self.state.memory.heap = simgr.deadended[0].memory.heap.copy()
+            self.state.memory.vm_static_table = simgr.deadended[-1].memory.vm_static_table.copy()
+            self.state.memory.heap = simgr.deadended[-1].memory.heap.copy()
         else:
             l.debug("Class initializer <clinit> is not loaded in CLE. Skip initializiation.")
 

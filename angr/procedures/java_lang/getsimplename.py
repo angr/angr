@@ -1,8 +1,9 @@
 import logging
 
 from ..java import JavaSimProcedure
+from angr.engines.soot.values.strref import SimSootValue_StringRef
 
-l = logging.getLogger('angr.procedures.java.class.getSimpleName')
+l = logging.getLogger(name=__name__)
 
 
 class GetSimpleName(JavaSimProcedure):
@@ -11,6 +12,7 @@ class GetSimpleName(JavaSimProcedure):
         ("java.lang.Class", "getSimpleName()"),
     )
 
-    def run(self, class_descriptor): # pylint: disable=arguments-differ
-        class_name = class_descriptor.name
-        return class_name.split('.')[-1]
+    def run(self, this): # pylint: disable=arguments-differ
+        class_simple_name = this.type.split('.')[-1]
+        str_ref = SimSootValue_StringRef.new_string(self.state, self.state.solver.StringV(class_simple_name))
+        return str_ref

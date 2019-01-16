@@ -148,7 +148,8 @@ class SimJavaVM(SimOS):
         state.callstack.push(new_frame)
 
         # initialize class containing the current method
-        state.javavm_classloader.get_class(state.addr.method.class_name, init_class=True)
+        state.javavm_classloader.get_class(state.addr.method.class_name,
+                                           init_class=True, step_func=kwargs.get('step_function', None))
 
         # initialize the Java environment
         # TODO move this to `state_full_init?

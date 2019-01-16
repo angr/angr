@@ -46,3 +46,4 @@ from .phi import SimSootExpr_Phi
 from .staticfieldref import SimSootExpr_StaticFieldRef
 from .thisref import SimSootExpr_ThisRef
 from .unsupported import SimSootExpr_Unsupported
+from .instanceOf import SimSootExpr_InstanceOf
