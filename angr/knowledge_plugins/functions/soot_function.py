@@ -611,7 +611,7 @@ class SootFunction(object):
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
                 self._block_sizes[node.addr] = node.size
-            if node.addr == self.addr:
+            if node.addr == self.addr.addr:
                 if self.startpoint is None or not self.startpoint.is_hook:
                     self.startpoint = node
             if is_local:
