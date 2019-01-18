@@ -39,7 +39,8 @@ class SootFunction(object):
         """
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
-        self.normalized = False
+        # The Shimple CFG is already normalized.
+        self.normalized = True
 
         # block nodes at whose ends the function returns
         self._ret_sites = set()
@@ -901,117 +902,8 @@ class SootFunction(object):
         return self._project.factory.callable(self.addr)
 
     def normalize(self):
-        """
-        Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
-        that IDA Pro generates.
-
-        This method does not touch the CFG result. You may call CFG{Emulated, Fast}.normalize() for that matter.
-
-        :return: None
-        """
-
-        # let's put a check here
-        if self.startpoint is None:
-            # this function is empty
-            l.debug('Unexpected error: %s does not have any blocks. normalize() fails.', repr(self))
-            return
-
-        graph = self.transition_graph
-        end_addresses = defaultdict(list)
-
-        for block in self.nodes:
-            if isinstance(block, BlockNode):
-                end_addr = block.addr + block.size
-                end_addresses[end_addr].append(block)
-
-        while any(len(x) > 1 for x in end_addresses.values()):
-            end_addr, all_nodes = \
-                next((end_addr, x) for (end_addr, x) in end_addresses.items() if len(x) > 1)
-
-            all_nodes = sorted(all_nodes, key=lambda node: node.size)
-            smallest_node = all_nodes[0]
-            other_nodes = all_nodes[1:]
-
-            is_outside_node = False
-            if smallest_node not in graph:
-                is_outside_node = True
-
-            # Break other nodes
-            for n in other_nodes:
-                new_size = smallest_node.addr - n.addr
-                if new_size == 0:
-                    # This is the node that has the same size as the smallest one
-                    continue
-
-                new_end_addr = n.addr + new_size
-
-                # Does it already exist?
-                new_node = None
-                if new_end_addr in end_addresses:
-                    nodes = [i for i in end_addresses[new_end_addr] if i.addr == n.addr]
-                    if len(nodes) > 0:
-                        new_node = nodes[0]
-
-                if new_node is None:
-                    # TODO: Do this correctly for hook nodes
-                    # Create a new one
-                    new_node = BlockNode(n.addr, new_size, graph=graph, thumb=n.thumb)
-                    self._block_sizes[n.addr] = new_size
-                    self._addr_to_block_node[n.addr] = new_node
-                    # Put the newnode into end_addresses
-                    end_addresses[new_end_addr].append(new_node)
-
-                # Modify the CFG
-                original_predecessors = list(graph.in_edges([n], data=True))
-                original_successors = list(graph.out_edges([n], data=True))
-
-                for _, d, data in original_successors:
-                    if d not in graph[smallest_node]:
-                        if d is n:
-                            graph.add_edge(smallest_node, new_node, **data)
-                        else:
-                            graph.add_edge(smallest_node, d, **data)
-
-                for p, _, _ in original_predecessors:
-                    graph.remove_edge(p, n)
-                graph.remove_node(n)
-
-                # update local_blocks
-                if n.addr in self._local_blocks and self._local_blocks[n.addr].size != new_node.size:
-                    del self._local_blocks[n.addr]
-                    self._local_blocks[n.addr] = new_node
-
-                # update block_cache and block_sizes
-                if (n.addr in self._block_cache and self._block_cache[n.addr].size != new_node.size) or \
-                        (n.addr in self._block_sizes and self._block_sizes[n.addr] != new_node.size):
-                    # the cache needs updating
-                    self._block_cache.pop(n.addr, None)
-                    self._block_sizes[n.addr] = new_node.size
-
-                for p, _, data in original_predecessors:
-                    if p not in other_nodes:
-                        graph.add_edge(p, new_node, **data)
-
-                # We should find the correct successor
-                new_successors = [i for i in all_nodes
-                                  if i.addr == smallest_node.addr]
-                if new_successors:
-                    new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor, type="transition", outside=is_outside_node)
-                else:
-                    # We gotta create a new one
-                    l.error('normalize(): Please report it to Fish/maybe john.')
-
-            end_addresses[end_addr] = [smallest_node]
-
-        # Rebuild startpoint
-        if self.startpoint.size != self._block_sizes[self.startpoint.addr]:
-            self.startpoint = self.get_node(self.startpoint.addr)
-
-        # Clear the cache
-        self._local_transition_graph = None
-
-        self.normalized = True
+        # The Shimple CFG is already normalized.
+        pass
 
     def find_declaration(self):
         """

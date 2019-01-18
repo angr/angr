@@ -172,7 +172,7 @@ class CFGFastSoot(CFGFast):
             elif isinstance(stmt, InvokeStmt):
                 invoke_expr = stmt.invoke_expr
 
-                succs = self._soot_create_invoke_successor(stmt, addr, invoke_expr)
+                succs = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
                 if succs:
                     successors.extend(succs)
                     has_default_exit = False
@@ -193,7 +193,7 @@ class CFGFastSoot(CFGFast):
                 expr = stmt.right_op
 
                 if isinstance(expr, SootInvokeExpr):
-                    succs = self._soot_create_invoke_successor(stmt, addr, expr)
+                    succs = self._soot_create_invoke_successors(stmt, addr, expr)
                     if succs:
                         successors.extend(succs)
                         has_default_exit = False
@@ -209,7 +209,7 @@ class CFGFastSoot(CFGFast):
 
         return successors
 
-    def _soot_create_invoke_successor(self, stmt, addr, invoke_expr):
+    def _soot_create_invoke_successors(self, stmt, addr, invoke_expr):
 
         method_class = invoke_expr.class_name
         method_name = invoke_expr.method_name
