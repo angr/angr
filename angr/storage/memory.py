@@ -512,6 +512,11 @@ class SimMemory(SimStatePlugin):
         elif size_e is None:
             size_e = self.state.solver.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
 
+        if len(data_e) % self.state.arch.byte_width != 0:
+            raise SimMemoryError("Attempting to store non-byte data to memory")
+        if not size_e.symbolic and (len(data_e) < size_e*self.state.arch.byte_width).is_true():
+            raise SimMemoryError("Provided data is too short for this memory store")
+
         if inspect is True:
             if self.category == 'reg':
                 self.state._inspect(
