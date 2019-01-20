@@ -133,8 +133,7 @@ def get_engine(base_engine):
 
             elif type(dst) is Expr.Register:
                 l.debug("New replacement: %s with %s", dst, src)
-                if type(src) is Expr.Const:
-                    self.state.add_replacement(dst, src)
+                self.state.add_replacement(dst, src)
 
                 # remove previous replacements whose source contains this register
                 self.state.filter_replacements(dst)
