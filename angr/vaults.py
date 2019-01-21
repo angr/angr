@@ -1,6 +1,7 @@
 import collections
 import contextlib
 import tempfile
+import weakref
 import logging
 import claripy
 import pickle
@@ -30,8 +31,8 @@ class VaultUnpickler(pickle.Unpickler):
 		super().__init__(file, *args, **kwargs)
 		self.vault = vault
 
-	def persistent_load(self, obj):
-		return self.vault.load(obj)
+	def persistent_load(self, pid):
+		return self.vault.load(pid)
 
 class Vault(collections.MutableMapping):
 	"""
@@ -61,8 +62,11 @@ class Vault(collections.MutableMapping):
 		raise NotImplementedError()
 
 	#
-	# These CAN be overriden.
+	# Persistance managers
 	#
+
+	def __init__(self):
+		self._object_cache = weakref.WeakValueDictionary()
 
 	@staticmethod
 	def _get_persistent_id(o):
@@ -72,6 +76,8 @@ class Vault(collections.MutableMapping):
 		"""
 		if isinstance(o, claripy.ast.Base):
 			return "AST-" + str(hash(o))
+		elif isinstance(o, SimState):
+			return "STATE-" + str(hash(o))
 		return None
 
 	def _persistent_store(self, o, p): #pylint:disable=redefined-builtin
@@ -97,6 +103,10 @@ class Vault(collections.MutableMapping):
 
 		return self.store(o, id=pid)
 
+	#
+	# Other stuff
+	#
+
 	def is_stored(self, id): #pylint:disable=redefined-builtin
 		"""
 		Checks if the provided id is already in the vault.
@@ -114,8 +124,14 @@ class Vault(collections.MutableMapping):
 
 		@param id: an ID to use
 		"""
-		with self.unpickler_context(id) as u:
-			return u.load()
+		l.debug("LOAD: %s", id)
+		try:
+			l.debug("... trying cached")
+			return self._object_cache[id]
+		except KeyError:
+			l.debug("... cached failed")
+			with self.unpickler_context(id) as u:
+				return u.load()
 
 	@staticmethod
 	def _get_id(o):
@@ -135,6 +151,7 @@ class Vault(collections.MutableMapping):
 		l.debug("STORE: %s %s", o, actual_id)
 		with self.pickler_context(actual_id) as p:
 			p.dump(o)
+		self._object_cache[actual_id] = o
 		return actual_id
 
 	def dumps(self, o):
@@ -176,6 +193,32 @@ class Vault(collections.MutableMapping):
 	def __len__(self):
 		return len(self.keys())
 
+class VaultDict(Vault):
+	"""
+	A Vault that uses a directory for storage.
+	"""
+	def __init__(self, d=None):
+		super().__init__()
+		self._dict = { } if d is None else d
+
+	@contextlib.contextmanager
+	def pickler_context(self, id): #pylint:disable=redefined-builtin
+		f = io.BytesIO()
+		yield VaultPickler(self, f, assigned_objects=(id))
+		f.seek(0)
+		self._dict[id] = f.read()
+
+	@contextlib.contextmanager
+	def unpickler_context(self, id): #pylint:disable=redefined-builtin
+		try:
+			f = io.BytesIO(self._dict[id])
+			yield VaultUnpickler(self, f)
+		except KeyError as e:
+			raise AngrVaultError from e
+
+	def keys(self):
+		return self._dict.keys()
+
 class VaultDir(Vault):
 	"""
 	A Vault that uses a directory for storage.
@@ -202,31 +245,14 @@ class VaultDir(Vault):
 	def keys(self):
 		return os.listdir(self._dir)
 
-class VaultShelf(Vault):
+class VaultShelf(VaultDict):
 	"""
 	A Vault that uses a shelve.Shelf for storage.
 	"""
 	def __init__(self, path=None):
-		super().__init__()
 		self._path = tempfile.mktemp() if path is None else path
-		self._shelf = shelve.open(self._path)
-
-	@contextlib.contextmanager
-	def pickler_context(self, id): #pylint:disable=redefined-builtin
-		f = io.BytesIO()
-		yield VaultPickler(self, f, assigned_objects=(id))
-		f.seek(0)
-		self._shelf[id] = f.read()
-
-	@contextlib.contextmanager
-	def unpickler_context(self, id): #pylint:disable=redefined-builtin
-		try:
-			f = io.BytesIO(self._shelf[id])
-			yield VaultUnpickler(self, f)
-		except KeyError as e:
-			raise AngrVaultError from e
-
-	def keys(self):
-		return list(self._shelf.keys())
+		s = shelve.open(self._path)
+		super().__init__(s)
 
 from .errors import AngrVaultError
+from .sim_state import SimState
