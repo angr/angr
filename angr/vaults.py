@@ -92,14 +92,17 @@ class Vault(collections.MutableMapping):
 		"""
 		Generates an id for an object.
 		"""
-		return self._uuid_cache.setdefault(o, o.__class__.__name__.split(".")[-1] + '-' + str(uuid.uuid4()))
+		oid = o.__class__.__name__.split(".")[-1] + '-' + str(uuid.uuid4())
+		with contextlib.suppress(TypeError):
+			self._uuid_cache[o] = oid
+		return oid
 
 	def _persistent_store(self, o): #pylint:disable=redefined-builtin
 		"""
 		This function should return a persistent ID for deduplication purposes.
 		If it does so, it should handle the storage of the object!
 
-		@param o: the object
+		:param o: the object
 		"""
 
 		pid = self._get_persistent_id(o)
@@ -132,7 +135,7 @@ class Vault(collections.MutableMapping):
 		"""
 		Retrieves one object from the pickler with the provided id.
 
-		@param id: an ID to use
+		:param id: an ID to use
 		"""
 		l.debug("LOAD: %s", id)
 		try:
@@ -147,21 +150,22 @@ class Vault(collections.MutableMapping):
 		"""
 		Stores an object and returns its ID.
 
-		@param o: the object
-		@param id: an ID to use
+		:param o: the object
+		:param id: an ID to use
 		"""
 		actual_id = id or self._get_persistent_id(o) or self._get_id(o)
 		l.debug("STORE: %s %s", o, actual_id)
 		with self._write_context(actual_id) as output:
 			VaultPickler(self, output, assigned_objects=(o,)).dump(o)
-		self._object_cache[actual_id] = o
+		with contextlib.suppress(TypeError):
+			self._object_cache[actual_id] = o
 		return actual_id
 
 	def dumps(self, o):
 		"""
 		Returns a serialized string representing the object, post-deduplication.
 
-		@param o: the object
+		:param o: the object
 		"""
 		f = io.BytesIO()
 		VaultPickler(self, f).dump(o)
@@ -172,10 +176,14 @@ class Vault(collections.MutableMapping):
 		"""
 		Deserializes a string representation of the object.
 
-		@param s: the string
+		:param s: the string
 		"""
 		f = io.BytesIO(s)
 		return VaultUnpickler(self, f).load()
+
+	@staticmethod
+	def close():
+		pass
 
 	#
 	# For MutableMapping.
@@ -257,8 +265,11 @@ class VaultShelf(VaultDict):
 	"""
 	def __init__(self, path=None):
 		self._path = tempfile.mktemp() if path is None else path
-		s = shelve.open(self._path)
+		s = shelve.open(self._path, protocol=-1)
 		super().__init__(s)
+
+	def close(self):
+		self._dict.close()
 
 from .errors import AngrVaultError
 from .sim_state import SimState
