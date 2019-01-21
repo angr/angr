@@ -1,9 +1,8 @@
+import tempfile
 import pickle
 import nose
 import angr
-import ana
 import os
-import tempfile
 
 internaltest_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 internaltest_files = [ 'argc_decide', 'argc_symbol', 'argv_test', 'counter', 'fauxware', 'fauxware.idb', 'manysum', 'pw', 'strlen', 'test_arrays', 'test_division', 'test_loops' ]
@@ -57,13 +56,6 @@ def internaltest_project(p):
     nose.tools.assert_equal(p.filename, loaded_p.filename)
     nose.tools.assert_equal(p.entry, loaded_p.entry)
 
-def setup():
-    tmp_dir = tempfile.mkdtemp(prefix='test_serialization_ana')
-    ana.set_dl(ana.DirDataLayer(tmp_dir))
-def teardown():
-    ana.set_dl(ana.SimpleDataLayer())
-
-@nose.with_setup(setup, teardown)
 def test_serialization():
     for d in internaltest_arch:
         for f in internaltest_files:

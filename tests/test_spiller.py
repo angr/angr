@@ -1,8 +1,7 @@
-import os
-import gc
-import ana
 import angr
 import nose
+import os
+import gc
 
 def _bin(s):
     return os.path.join(os.path.dirname(__file__), '../../binaries', s)
@@ -15,9 +14,8 @@ def setup():
     claripy.ast.bv._bvv_cache.clear()
     claripy.ast.bv.BV._hash_cache.clear()
 
-    ana.set_dl(ana.DictDataLayer())
 def teardown():
-    ana.set_dl(ana.SimpleDataLayer())
+    pass
 
 def pickle_callback(state):
     state.globals['pickled'] = True
