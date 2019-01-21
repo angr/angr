@@ -431,6 +431,7 @@ class CFunctionCall(CStatement):
         for arg in self.args:
             if isinstance(arg, CExpression):
                 arg_str = arg.c_repr(posmap=posmap)
+                if posmap: posmap.tick_pos(len(", "))
             else:
                 arg_str = str(arg)
                 if posmap: posmap.tick_pos(len(arg_str) + len(", "))
@@ -497,6 +498,14 @@ class CVariable(CExpression):
         self.variable = variable
         self.offset = offset
 
+    def _get_offset_string(self, in_hex=False, posmap=None):
+        if type(self.offset) is int:
+            if in_hex:
+                return "%#x" % self.offset
+            return "%d" % self.offset
+        else:
+            return self.offset.c_repr(posmap=posmap)
+
     def c_repr(self, posmap=None):
         if self.offset is None:
             if isinstance(self.variable, SimVariable):
@@ -518,20 +527,25 @@ class CVariable(CExpression):
                 return s
         else:
             if isinstance(self.variable, SimVariable):
-                s0 = "*("
-                if posmap: posmap.tick_pos(len(s0))
                 s_v = self.variable.name
-                s1 = "[%d]" % self.offset
+                if posmap: posmap.add_mapping(posmap.pos, len(s_v), self)
+                s1 = "["
                 if posmap: posmap.tick_pos(len(s_v) + len(s1))
-                return s0 + s_v + s1
+                s2 = self._get_offset_string(posmap=posmap)
+                s3 = "]"
+                if posmap: posmap.tick_pos(len(s2))
+                return s_v + s1 + s2 + s3
             elif isinstance(self.variable, CExpression):
                 if self.offset:
                     s0 = "*("
                     if posmap: posmap.tick_pos(len(s0))
                     s_v = self.variable.c_repr(posmap=posmap)
-                    s1 = ":%d)" % self.offset
+                    s1 = ":"
                     if posmap: posmap.tick_pos(len(s1))
-                    return s0 + s_v + s1
+                    s2 = self._get_offset_string(posmap=posmap)
+                    s3 = ")"
+                    if posmap: posmap.tick_pos(len(s3))
+                    return s0 + s_v + s1 + s2 + s3
                 else:
                     s0 = "*("
                     if posmap: posmap.tick_pos(len(s0))
@@ -544,9 +558,10 @@ class CVariable(CExpression):
                 if posmap:
                     posmap.add_mapping(posmap.pos, len(s0), self)
                     posmap.tick_pos(len(s0))
-                s1 = ":%#x" % self.offset
+                s1 = ":"
                 if posmap: posmap.tick_pos(len(s1))
-                return s0 + s1
+                s2 = self._get_offset_string(in_hex=True, posmap=posmap)
+                return s0 + s1 + s2
             else:
                 s0 = "*("
                 if posmap: posmap.tick_pos(len(s0))
@@ -554,9 +569,12 @@ class CVariable(CExpression):
                 if posmap:
                     posmap.add_mapping(posmap.pos, len(s), self)
                     posmap.tick_pos(len(s))
-                s1 = ":%d)" % self.offset
+                s1 = ":"
                 if posmap: posmap.tick_pos(len(s1))
-                return s0 + s + s1
+                s2 = self._get_offset_string(posmap=posmap)
+                s3 = ")"
+                if posmap: posmap.tick_pos(len(s3))
+                return s0 + s + s1 + s2 + s3
 
 
 class CUnaryOp(CExpression):
@@ -571,7 +589,10 @@ class CUnaryOp(CExpression):
 
     def c_repr(self, posmap=None):
         if self.referenced_variable is not None:
-            return "&%s" % self.referenced_variable.name
+            if posmap:
+                posmap.tick_pos(1)
+            s = self.referenced_variable.c_repr(posmap=posmap)
+            return "&" + s
 
         OP_MAP = {
             'Not': self._c_repr_not,
@@ -607,6 +628,10 @@ class CBinaryOp(CExpression):
     def c_repr(self, posmap=None):
 
         if self.referenced_variable is not None:
+            if posmap:
+                posmap.tick_pos(1)
+                posmap.add_mapping(posmap.pos, len(self.referenced_variable.name), self)
+                posmap.tick_pos(len(self.referenced_variable.name))
             return "&%s" % self.referenced_variable.name
 
         OP_MAP = {
@@ -957,7 +982,11 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_Load(self, expr):
 
         if hasattr(expr, 'variable') and expr.variable is not None:
-            return CVariable(expr.variable)
+            if expr.offset is not None:
+                offset = self._handle(expr.offset)
+            else:
+                offset = None
+            return CVariable(expr.variable, offset=offset)
 
         variable, offset = self._parse_load_addr(expr.addr)
 
@@ -978,13 +1007,13 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_UnaryOp(self, expr):
 
         return CUnaryOp(expr.op, self._handle(expr.operand),
-                        referenced_variable=expr.referenced_variable if hasattr(expr, 'referenced_variable') else None
+                        referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
 
         return CBinaryOp(expr.op, self._handle(expr.operands[0]), self._handle(expr.operands[1]),
-                         referenced_variable=expr.referenced_variable if hasattr(expr, 'referenced_variable') else None
+                         referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
                          )
 
     def _handle_Expr_Convert(self, expr):
@@ -1010,7 +1039,7 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
         if hasattr(expr, 'referenced_variable') and expr.referenced_variable is not None:
-            return CUnaryOp('Reference', expr, referenced_variable=expr.referenced_variable)
+            return CUnaryOp('Reference', expr, referenced_variable=self._handle(expr.referenced_variable))
 
         return expr
 
