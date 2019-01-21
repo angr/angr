@@ -63,8 +63,36 @@ def test_ast_vault():
 	yield do_ast_vault, angr.vaults.VaultShelf()
 	yield do_ast_vault, angr.vaults.VaultDict()
 
+def test_project():
+	v = angr.vaults.VaultDir()
+	p = angr.Project("/bin/false")
+	pid = id(p)
+	ps = v.store(p)
+	pp = v.load(ps)
+	assert p is pp
+	assert len(v.keys()) == 1
+
+	pstring = v.dumps(p)
+	assert len(v.keys()) == 1
+	pp2 = v.loads(pstring)
+	assert len(v.keys()) == 1
+	assert p is pp
+
+	del pp2
+	del pp
+	del p
+	import gc
+	gc.collect()
+
+	p = v.load(ps)
+	assert id(p) != pid
+	assert len(v.keys()) == 1
+
+
+
 if __name__ == '__main__':
 	for _a,_b in test_vault():
 		_a(_b)
 	for _a,_b in test_ast_vault():
 		_a(_b)
+	test_project()
