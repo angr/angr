@@ -165,6 +165,10 @@ class SimMemoryVariable(SimVariable):
 
         return False
 
+    @property
+    def bits(self):
+        return self.size * 8
+
 
 class SimStackVariable(SimMemoryVariable):
 

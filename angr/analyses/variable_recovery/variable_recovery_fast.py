@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import ailment
 
-from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
+from ...engines.light import SpOffset, ArithmeticExpression, SimEngineLightVEX, SimEngineLightAIL
 from ...errors import SimEngineError, AngrVariableRecoveryError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
@@ -127,7 +127,7 @@ def get_engine(base_engine):
             reg_offset = expr.offset
             reg_size = expr.result_size(self.tyenv) // 8
 
-            return self._read_from_register(reg_offset, reg_size)
+            return self._read_from_register(reg_offset, reg_size, expr=expr)
 
 
         def _handle_Load(self, expr):
@@ -185,7 +185,7 @@ def get_engine(base_engine):
             offset = expr.reg_offset
             size = expr.bits // 8
 
-            return self._read_from_register(offset, size)
+            return self._read_from_register(offset, size, expr=expr)
 
         def _ail_handle_Load(self, expr):
             addr = self._expr(expr.addr)
@@ -207,6 +207,11 @@ def get_engine(base_engine):
         def _ail_handle_StackBaseOffset(self, expr):
             return SpOffset(self.arch.bits, expr.offset, is_base=False)
 
+        def _ail_handle_CmpEQ(self, expr):
+            self._expr(expr.operands[0])
+            self._expr(expr.operands[1])
+            return None
+
         #
         # Logic
         #
@@ -220,7 +225,7 @@ def get_engine(base_engine):
             :return:
             """
 
-            codeloc = self._codeloc()
+            codeloc = self._codeloc()  # type: CodeLocation
 
             if offset == self.arch.sp_offset:
                 if type(data) is SpOffset:
@@ -267,7 +272,9 @@ def get_engine(base_engine):
                 self.state.stack_region.add_variable(stack_offset, variable)
                 base_offset = self.state.stack_region.get_base_addr(stack_offset)
                 for var in self.state.stack_region.get_variables_by_offset(base_offset):
-                    self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset, codeloc,
+                    offset_into_var = stack_offset - base_offset
+                    if offset_into_var == 0: offset_into_var = None
+                    self.variable_manager[self.func_addr].reference_at(var, offset_into_var, codeloc,
                                                                        atom=src)
 
             else:
@@ -289,7 +296,7 @@ def get_engine(base_engine):
                 variable, _ = existing_vars[0]
 
             self.state.register_region.set_variable(offset, variable)
-            self.variable_manager[self.func_addr].write_to(variable, 0, codeloc, atom=dst)
+            self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
 
         def _store(self, addr, data, size):  # pylint:disable=unused-argument
             """
@@ -322,8 +329,11 @@ def get_engine(base_engine):
                 base_offset = self.state.stack_region.get_base_addr(stack_offset)
                 codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
                 for var in self.state.stack_region.get_variables_by_offset(stack_offset):
+                    offset_into_var = stack_offset - base_offset
+                    if offset_into_var == 0:
+                        offset_into_var = None
                     self.variable_manager[self.func_addr].write_to(var,
-                                                                   stack_offset - base_offset,
+                                                                   offset_into_var,
                                                                    codeloc
                                                                    )
 
@@ -339,38 +349,68 @@ def get_engine(base_engine):
                 # Loading data from stack
                 stack_offset = addr.offset
 
-                if stack_offset not in self.state.stack_region:
-                    variable = SimStackVariable(stack_offset, size, base='bp',
+                # split the offset into a concrete offset and a dynamic offset
+                # the stack offset may not be a concrete offset
+                # for example, SP-0xe0+var_1
+                if type(stack_offset) is ArithmeticExpression:
+                    if type(stack_offset.operands[0]) is int:
+                        concrete_offset = stack_offset.operands[0]
+                        dynamic_offset = stack_offset.operands[1]
+                    elif type(stack_offset.operands[1]) is int:
+                        concrete_offset = stack_offset.operands[1]
+                        dynamic_offset = stack_offset.operands[0]
+                    else:
+                        # cannot determine the concrete offset. give up
+                        concrete_offset = None
+                        dynamic_offset = stack_offset
+                else:
+                    # type(stack_offset) is int
+                    concrete_offset = stack_offset
+                    dynamic_offset = None
+
+                # decide which base variable is being accessed using the concrete offset
+                if concrete_offset is not None and concrete_offset not in self.state.stack_region:
+                    variable = SimStackVariable(concrete_offset, size, base='bp',
                                                 ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                                 region=self.func_addr,
                                                 )
-                    self.state.stack_region.add_variable(stack_offset, variable)
+                    self.state.stack_region.add_variable(concrete_offset, variable)
 
-                    self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                    self.variable_manager[self.func_addr].add_variable('stack', concrete_offset, variable)
 
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
-                base_offset = self.state.stack_region.get_base_addr(stack_offset)
-
+                base_offset = self.state.stack_region.get_base_addr(concrete_offset)
                 codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
                 all_vars = self.state.stack_region.get_variables_by_offset(base_offset)
-
                 if len(all_vars) > 1:
                     # overlapping variables
                     l.warning("Reading memory with overlapping variables: %s. Ignoring all but the first one.",
                               all_vars)
 
                 var = next(iter(all_vars))
+                # calculate variable_offset
+                if dynamic_offset is None:
+                    offset_into_variable = concrete_offset - base_offset
+                    if offset_into_variable == 0:
+                        offset_into_variable = None
+                else:
+                    if concrete_offset == base_offset:
+                        offset_into_variable = dynamic_offset
+                    else:
+                        offset_into_variable = ArithmeticExpression(ArithmeticExpression.Add,
+                                                                    (dynamic_offset, concrete_offset - base_offset, )
+                                                                    )
                 self.variable_manager[self.func_addr].read_from(var,
-                                                                stack_offset - base_offset,
+                                                                offset_into_variable,
                                                                 codeloc,
                                                                 atom=expr,
                                                                 # overwrite=True
                                                                 )
+                return var
 
-
-        def _read_from_register(self, offset, size):
+        def _read_from_register(self, offset, size, expr=None):
             """
 
             :param offset:
@@ -395,7 +435,7 @@ def get_engine(base_engine):
                 self.variable_manager[self.func_addr].add_variable('register', offset, variable)
 
             for var in self.state.register_region.get_variables_by_offset(offset):
-                self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
+                self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
 
             return None
 

@@ -187,8 +187,11 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         return MemoryLocation(addr, size)
 
     def _ail_handle_Convert(self, expr):
-        return ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
-                                    self._expr(expr.operand))
+        r = super()._ail_handle_Convert(expr)
+        if r is None:
+            r = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
+                                     self._expr(expr.operand))
+        return r
 
     def _ail_handle_CmpEQ(self, expr):
         op0 = self._expr(expr.operands[0])

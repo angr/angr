@@ -125,11 +125,14 @@ class KeyedRegion:
 
     def __contains__(self, offset):
         """
-        Test if there is at least one varaible covering the given offset.
+        Test if there is at least one variable covering the given offset.
 
         :param offset:
         :return:
         """
+
+        if type(offset) is not int:
+            raise TypeError("KeyedRegion only accepts concrete offsets.")
 
         return self._get_container(offset)[1] is not None
 

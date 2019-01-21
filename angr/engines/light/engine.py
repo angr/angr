@@ -468,3 +468,14 @@ class SimEngineLightAIL(SimEngineLight):
             return expr_0 - expr_1
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], **expr.tags)
+
+    #
+    # Unary operation handlers
+    #
+
+    def _ail_handle_Convert(self, expr):
+        data = self._expr(expr.operand)
+        if data is not None:
+            if type(data) is int:
+                return data
+        return None
