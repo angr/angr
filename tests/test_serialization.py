@@ -1,5 +1,6 @@
 import tempfile
 import pickle
+import shutil
 import nose
 import angr
 import os
@@ -46,23 +47,28 @@ def internaltest_cfgfast(p):
     cfg2 = pickle.load(state)
     nose.tools.assert_equal(set(cfg.nodes()), set(cfg2.nodes()))
 
-def internaltest_project(p):
-    state = tempfile.TemporaryFile()
-    pickle.dump(p, state, -1)
+def internaltest_project(fpath):
+    tpath = tempfile.mktemp()
+    shutil.copy(fpath, tpath)
 
-    state.seek(0)
-    loaded_p = pickle.load(state)
-    nose.tools.assert_equal(p.arch, loaded_p.arch)
-    nose.tools.assert_equal(p.filename, loaded_p.filename)
-    nose.tools.assert_equal(p.entry, loaded_p.entry)
+    p = angr.Project(tpath)
+    state = pickle.dumps(p, -1)
+    loaded_p = pickle.loads(state)
+    assert p is not loaded_p
+    assert p.arch == loaded_p.arch
+    assert p.filename == loaded_p.filename
+    assert p.entry == loaded_p.entry
+
+    simgr = loaded_p.factory.simulation_manager()
+    simgr.step(n=10)
+    assert len(simgr.errored) == 0
 
 def test_serialization():
     for d in internaltest_arch:
         for f in internaltest_files:
             fpath = os.path.join(internaltest_location, d,f)
             if os.path.isfile(fpath) and os.access(fpath, os.X_OK):
-                p = angr.Project(fpath)
-                internaltest_project(p)
+                internaltest_project(fpath)
 
     p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
     internaltest_cfgfast(p)
