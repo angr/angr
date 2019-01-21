@@ -3,9 +3,10 @@ from .. import Analysis, AnalysesHub
 
 
 class Decompiler(Analysis):
-    def __init__(self, func, cfg=None):
+    def __init__(self, func, cfg=None, optimization_passes=None):
         self.func = func
         self._cfg = cfg
+        self._optimization_passes = optimization_passes
 
         self.codegen = None
 
@@ -17,18 +18,18 @@ class Decompiler(Analysis):
             return
 
         # convert function blocks to AIL blocks
-        clinic = self.project.analyses.Clinic(self.func)
+        clinic = self.project.analyses.Clinic(self.func, kb=self.kb, optimization_passes=self._optimization_passes)
 
         # recover regions
-        ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph)
+        ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, kb=self.kb)
 
         # structure it
-        rs = self.project.analyses.RecursiveStructurer(ri.region)
+        rs = self.project.analyses.RecursiveStructurer(ri.region, kb=self.kb)
 
         # simplify it
-        s = self.project.analyses.RegionSimplifier(rs.result)
+        s = self.project.analyses.RegionSimplifier(rs.result, kb=self.kb)
 
-        codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg)
+        codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg, kb=self.kb)
 
         self.codegen = codegen
 
