@@ -158,6 +158,8 @@ class CStatements(CStatement):
             if posmap:
                 old_pos = posmap.pos
             stmt_str = stmt.c_repr(indent=indent, posmap=posmap)
+            if not stmt_str:
+                continue
             if posmap:
                 posmap.pos = old_pos + len(stmt_str) + 1  # account for the newline
             stmt_strings.append(stmt_str)
