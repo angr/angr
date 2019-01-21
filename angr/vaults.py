@@ -69,11 +69,12 @@ class Vault(collections.MutableMapping):
 
 	def __init__(self):
 		self._object_cache = weakref.WeakValueDictionary()
+		self._uuid_cache = weakref.WeakKeyDictionary()
 		self.hash_dedup = {
 			claripy.ast.Base, claripy.ast.BV, claripy.ast.FP, claripy.ast.Bool, claripy.ast.Int, claripy.ast.Bits,
 		}
 		self.uuid_dedup = {
-			SimState
+			SimState, Project
 		}
 
 	def _get_persistent_id(self, o):
@@ -87,12 +88,11 @@ class Vault(collections.MutableMapping):
 			return self._get_id(o)
 		return None
 
-	@staticmethod
-	def _get_id(o):
+	def _get_id(self, o):
 		"""
 		Generates an id for an object.
 		"""
-		return o.__class__.__name__.split(".")[-1] + '-' + str(uuid.uuid4())
+		return self._uuid_cache.setdefault(o, o.__class__.__name__.split(".")[-1] + '-' + str(uuid.uuid4()))
 
 	def _persistent_store(self, o): #pylint:disable=redefined-builtin
 		"""
@@ -118,12 +118,12 @@ class Vault(collections.MutableMapping):
 	# Other stuff
 	#
 
-	def is_stored(self, id): #pylint:disable=redefined-builtin
+	def is_stored(self, i):
 		"""
 		Checks if the provided id is already in the vault.
 		"""
 		try:
-			with self._read_context(id):
+			with self._read_context(i):
 				return True
 		except (AngrVaultError, EOFError):
 			return False
@@ -219,6 +219,9 @@ class VaultDict(Vault):
 		except KeyError as e:
 			raise AngrVaultError from e
 
+	def is_stored(self, i):
+		return i in self._dict
+
 	def keys(self):
 		return self._dict.keys()
 
@@ -259,3 +262,4 @@ class VaultShelf(VaultDict):
 
 from .errors import AngrVaultError
 from .sim_state import SimState
+from .project import Project
