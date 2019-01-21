@@ -57,6 +57,34 @@ class SimSootValue_ThisRef(SimSootValue):
         # load value from java memory
         return state.memory.load(field_ref, none_if_missing=True)
 
+    def store_field(self, state, field_name, field_type, value):
+        """
+        Store a field of a given object, without resolving hierachy
+
+        :param state: angr state where we want to allocate the object attribute
+        :type SimState
+        :param field_name: name of the attribute
+        :type str
+        :param field_value: attibute's value
+        :type SimSootValue
+        """
+        field_ref = SimSootValue_InstanceFieldRef(self.heap_alloc_id, self.type, field_name, field_type)
+        state.memory.store(field_ref, value)
+
+    def load_field(self, state, field_name, field_type):
+        """
+        Load a field of a given object, without resolving hierachy
+
+        :param state: angr state where we want to load the object attribute
+        :type SimState
+        :param field_name: name of the attribute
+        :type str
+        :param field_type: type of the attribute
+        :type str
+        """
+        field_ref = SimSootValue_InstanceFieldRef(self.heap_alloc_id, self.type, field_name, field_type)
+        return state.memory.load(field_ref, none_if_missing=False)
+
     @classmethod
     def from_sootvalue(cls, soot_value, state):
         local = SimSootValue_Local("this", soot_value.type)

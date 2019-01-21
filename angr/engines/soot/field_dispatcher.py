@@ -5,7 +5,7 @@ from archinfo.arch_soot import SootFieldDescriptor
 from .exceptions import SootFieldNotLoadedException
 
 
-l = logging.getLogger('angr.engines.soot.method_dispatcher')
+l = logging.getLogger('angr.engines.soot.field_dispatcher')
 
 
 def resolve_field(state, field_class, field_name, field_type,
@@ -30,7 +30,7 @@ def resolve_field(state, field_class, field_name, field_type,
             return field_id
 
     # field could not be found
-    l.warning("Couldn't find field %s in classes %s.", class_hierarchy, field_name)
+    l.warning("Couldn't find field %s in classes %s.", field_name, class_hierarchy)
     if raise_exception_if_not_found:
         raise SootFieldNotLoadedException()
     else:
