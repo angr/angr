@@ -8,7 +8,6 @@ l = logging.getLogger(name=__name__)
 
 import angr # type annotations; pylint:disable=unused-import
 import claripy
-import ana
 import archinfo
 
 from .misc.plugins import PluginHub, PluginPreset
@@ -30,7 +29,7 @@ merge_counter = itertools.count()
 _complained_se = False
 
 # pylint: disable=not-callable
-class SimState(PluginHub, ana.Storable):
+class SimState(PluginHub):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
@@ -140,10 +139,6 @@ class SimState(PluginHub, ana.Storable):
         # This is used in static mode as we don't have any constraints there
         self._satisfiable = True
 
-        # states are big, so let's give them UUIDs for ANA right away to avoid
-        # extra pickling
-        self.make_uuid()
-
         self.uninitialized_access_handler = None
         self._special_memory_filler = special_memory_filler
 
@@ -151,14 +146,13 @@ class SimState(PluginHub, ana.Storable):
         self._global_condition = None
         self.ip_constraints = []
 
-    def _ana_getstate(self):
-        s = dict(ana.Storable._ana_getstate(self))
-        s = { k:v for k,v in s.items() if k not in ('inspect', 'regs', 'mem')}
+    def __getstate__(self):
+        s = { k:v for k,v in self.__dict__.items() if k not in ('inspect', 'regs', 'mem')}
         s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].items() if k not in ('inspect', 'regs', 'mem') }
         return s
 
-    def _ana_setstate(self, s):
-        ana.Storable._ana_setstate(self, s)
+    def __setstate__(self, s):
+        self.__dict__.update(s)
         for p in self.plugins.values():
             p.set_state(self)
             if p.STRONGREF_STATE:

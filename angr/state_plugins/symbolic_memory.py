@@ -797,7 +797,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return req
 
     def _insert_memory_object(self, value, address, size):
-        value.make_uuid()
         if self.category == 'mem':
             self.state.scratch.dirty_addrs.update(range(address, address+size))
         mo = SimMemoryObject(value, address, length=size, byte_width=self.state.arch.byte_width)

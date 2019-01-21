@@ -3,7 +3,6 @@ import itertools
 import types
 from collections import defaultdict
 
-import ana
 import claripy
 import mulpyplexer
 
@@ -14,7 +13,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-class SimulationManager(ana.Storable):
+class SimulationManager:
     """
     The Simulation Manager is the future future.
 
@@ -750,7 +749,7 @@ class SimulationManager(ana.Storable):
     # Pickling
     #
 
-    def _ana_getstate(self):
+    def __getstate__(self):
         self.prune()
         s = {k: v for k, v in self.__dict__.items()
              if not isinstance(v, types.MethodType)}
@@ -758,7 +757,7 @@ class SimulationManager(ana.Storable):
             s['_hierarchy'] = None
         return s
 
-    def _ana_setstate(self, s):
+    def __setstate__(self, s):
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()
