@@ -307,6 +307,8 @@ class BasePointerOffset(Expression):
         self.offset = offset
 
     def __repr__(self):
+        if self.offset is None:
+            return "BaseOffset(%s)" % self.base
         return "BaseOffset(%s, %d)" % (self.base, self.offset)
 
     def __str__(self):
