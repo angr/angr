@@ -10,13 +10,10 @@ internaltest_files = [ 'argc_decide', 'argc_symbol', 'argv_test', 'counter', 'fa
 internaltest_arch = [ 'i386', 'armel' ]
 
 def internaltest_vfg(p, cfg):
-    state = tempfile.TemporaryFile()
-
     vfg = p.analyses.VFG(cfg=cfg)
-    pickle.dump(vfg, state, -1)
-
-    state.seek(0)
-    vfg2 = pickle.load(state)
+    v = angr.vaults.VaultDict()
+    state = v.dumps(vfg)
+    vfg2 = v.loads(state)
     nose.tools.assert_equal(vfg.final_states, vfg2.final_states)
     nose.tools.assert_equal(set(vfg.graph.nodes()), set(vfg2.graph.nodes()))
 
