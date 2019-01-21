@@ -27,6 +27,8 @@ class LiveVariables:
         self.register_region = register_region
         self.stack_region = stack_region
 
+def _defaultdict_set():
+    return defaultdict(set)
 
 class VariableManagerInternal:
     """
@@ -46,7 +48,7 @@ class VariableManagerInternal:
         self._insn_to_variable = defaultdict(set)
         self._block_to_variable = defaultdict(set)
         self._stmt_to_variable = defaultdict(set)
-        self._atom_to_variable = defaultdict(lambda: defaultdict(set))
+        self._atom_to_variable = defaultdict(_defaultdict_set)
         self._variable_counters = {
             'register': count(),
             'stack': count(),

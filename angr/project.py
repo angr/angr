@@ -13,14 +13,6 @@ import cle
 from .misc.ux import deprecated
 
 l = logging.getLogger(name=__name__)
-projects = weakref.WeakValueDictionary()
-
-def fake_project_unpickler(name):
-    if name not in projects:
-        raise AngrError("Project %s has not been opened." % name)
-    return projects[name]
-fake_project_unpickler.__safe_for_unpickling__ = True
-
 
 def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
     """
@@ -126,9 +118,6 @@ class Project:
             l.info("Loading binary %s", thing)
             self.filename = thing
             self.loader = cle.Loader(self.filename, concrete_target=concrete_target, **load_options)
-
-        if self.filename is not None:
-            projects[self.filename] = self
 
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
         if isinstance(arch, str):

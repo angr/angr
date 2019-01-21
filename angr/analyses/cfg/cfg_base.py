@@ -179,8 +179,6 @@ class CFGBase(Analysis):
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
 
-        self._ffi = cffi.FFI()
-
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
 

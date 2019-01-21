@@ -112,6 +112,13 @@ class KeyedRegion:
         self._object_mapping = weakref.WeakValueDictionary()
         self._phi_node_contains = phi_node_contains
 
+    def __getstate__(self):
+        return self._storage, dict(self._object_mapping), self._phi_node_contains
+
+    def __setstate__(self, s):
+        self._storage, om, self._phi_node_contains = s
+        self._object_mapping = weakref.WeakValueDictionary(om)
+
     def _get_container(self, offset):
         try:
             base_offset = next(self._storage.irange(maximum=offset, reverse=True))

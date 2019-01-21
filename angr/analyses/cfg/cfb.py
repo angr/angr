@@ -81,7 +81,6 @@ class CFBlanket(Analysis):
     def __init__(self, cfg=None):
         self._blanket = SortedDict()
 
-        self._ffi = cffi.FFI()
         self._regions = [ ]
 
         self._init_regions()

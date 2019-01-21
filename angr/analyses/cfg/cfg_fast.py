@@ -1039,6 +1039,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Start working!
         self._analyze()
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        d['_progress_callback'] = None
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+
     #
     # Utils
     #
@@ -1078,25 +1086,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _insn_addr_to_memory_data(self):
         l.warning('_insn_addr_to_memory_data has been made public and is deprecated. Please fix your code accordingly.')
         return self.insn_addr_to_memory_data
-
-    #
-    # Private methods
-    #
-
-    def __setstate__(self, s):
-        self._graph = s['graph']
-        self.indirect_jumps = s['indirect_jumps']
-        self._nodes_by_addr = s['_nodes_by_addr']
-        self._memory_data = s['_memory_data']
-
-    def __getstate__(self):
-        s = {
-            "graph": self.graph,
-            "indirect_jumps": self.indirect_jumps,
-            '_nodes_by_addr': self._nodes_by_addr,
-            '_memory_data': self._memory_data,
-        }
-        return s
 
     # Methods for determining scanning scope
 
