@@ -63,7 +63,32 @@ def internaltest_project(fpath):
     simgr.step(n=10)
     assert len(simgr.errored) == 0
 
+def test_analyses():
+    p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
+    cfg = p.analyses.CFG()
+    cfb = p.analyses.CFB(cfg)
+    vrf = p.analyses.VariableRecoveryFast(p.kb.functions['main'])
+
+    assert len(p.kb.functions) > 0
+    assert len(pickle.loads(pickle.dumps(p.kb)).functions) > 0
+
+    state = pickle.dumps((p,cfg,cfb,vrf))
+    del p
+    del cfg
+    del cfb
+    del vrf
+    import gc
+    gc.collect()
+
+    p,cfg,cfb,vrf = pickle.loads(state)
+    assert p.kb is not None
+    assert p.kb.functions is not None
+    assert cfg.kb is not None
+    assert len(p.kb.functions) > 0
+
 def test_serialization():
+    test_analyses()
+
     for d in internaltest_arch:
         for f in internaltest_files:
             fpath = os.path.join(internaltest_location, d,f)

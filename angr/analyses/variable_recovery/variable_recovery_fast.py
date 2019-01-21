@@ -527,6 +527,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._analyze()
 
+        # cleanup (for cpython pickle)
+        self._ail_engine = None
+        self._vex_engine = None
+
     #
     # Main analysis routines
     #

@@ -1674,8 +1674,6 @@ class Reassembler(Analysis):
 
         self._symbolization_needed = True
 
-        self._ffi = cffi.FFI()
-
         # section names to alignments
         self._section_alignments = {}
 
