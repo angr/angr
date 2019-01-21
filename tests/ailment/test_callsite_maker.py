@@ -31,7 +31,7 @@ def test_callsite_maker():
     main_func = cfg.kb.functions['main']
 
     for block in sorted(main_func.blocks, key=lambda x: x.addr):
-        print block.vex.pp()
+        print(block.vex.pp())
         ail_block = ailment.IRSBConverter.convert(block.vex, manager)
         simp = project.analyses.AILSimplifier(ail_block)
 
@@ -40,7 +40,7 @@ def test_callsite_maker():
             ail_block = csm.result_block
             simp = project.analyses.AILSimplifier(ail_block)
 
-        print simp.result_block
+        print(simp.result_block)
 
 
 
