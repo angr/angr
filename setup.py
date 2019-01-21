@@ -120,7 +120,6 @@ setup(
     url='https://github.com/angr/angr',
     packages=packages,
     install_requires=[
-        'ana',
         'sortedcontainers',
         'cachetools',
         'capstone>=3.0.5rc2',
