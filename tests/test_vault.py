@@ -24,12 +24,18 @@ def do_vault(v):
 	bb = v.load(bid)
 	cc = v.load(cid)
 
-	assert aa is not a
-	assert bb is not b
-	assert cc is not c
-	assert aa.n == a.n
-	assert bb.n == b.n
-	assert cc.n == c.n
+	assert aa is a
+	assert bb is b
+	assert cc is c
+
+	bb.n = 1337
+	del bb
+	del b
+	import gc
+	gc.collect()
+	bbb = v.load(bid)
+	assert bbb.n == 1
+
 
 def do_ast_vault(v):
 	x = claripy.BVS("x", 32)
@@ -48,15 +54,17 @@ def do_ast_vault(v):
 	assert zzz is z
 
 def test_vault():
-	yield do_vault, (angr.vaults.VaultDir(),)
-	yield do_vault, (angr.vaults.VaultShelf(),)
+	yield do_vault, angr.vaults.VaultDir()
+	yield do_vault, angr.vaults.VaultShelf()
+	yield do_vault, angr.vaults.VaultDict()
 
 def test_ast_vault():
-	yield do_ast_vault, (angr.vaults.VaultDir(),)
-	yield do_ast_vault, (angr.vaults.VaultShelf(),)
+	yield do_ast_vault, angr.vaults.VaultDir()
+	yield do_ast_vault, angr.vaults.VaultShelf()
+	yield do_ast_vault, angr.vaults.VaultDict()
 
 if __name__ == '__main__':
 	for _a,_b in test_vault():
-		_a(*_b)
+		_a(_b)
 	for _a,_b in test_ast_vault():
-		_a(*_b)
+		_a(_b)

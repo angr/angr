@@ -24,7 +24,9 @@ class VaultPickler(pickle.Pickler):
 		self.assigned_objects = assigned_objects
 
 	def persistent_id(self, obj):
-		return self.vault._persistent_store(obj, self)
+		if any(obj is o for o in self.assigned_objects):
+			return None
+		return self.vault._persistent_store(obj)
 
 class VaultUnpickler(pickle.Unpickler):
 	def __init__(self, vault, file, *args, **kwargs):
@@ -43,15 +45,15 @@ class Vault(collections.MutableMapping):
 	# These MUST be overriden.
 	#
 
-	def pickler_context(self, id): #pylint:disable=redefined-builtin
+	def _read_context(self, i):
 		"""
-		Retrieves a pickler with the provided id, for pickling streams of objects.
+		Should be a context that yields a pickle-read()able file object for the given id i.
 		"""
 		raise NotImplementedError()
 
-	def unpickler_context(self, id): #pylint:disable=redefined-builtin
+	def _write_context(self, i):
 		"""
-		Retrieves an unpickler with the provided id, for unpickling streams of objects.
+		Should be a context that yields a pickle-write()able file object for the given id i.
 		"""
 		raise NotImplementedError()
 
@@ -67,20 +69,32 @@ class Vault(collections.MutableMapping):
 
 	def __init__(self):
 		self._object_cache = weakref.WeakValueDictionary()
+		self.hash_dedup = {
+			claripy.ast.Base, claripy.ast.BV, claripy.ast.FP, claripy.ast.Bool, claripy.ast.Int, claripy.ast.Bits,
+		}
+		self.uuid_dedup = {
+			SimState
+		}
 
-	@staticmethod
-	def _get_persistent_id(o):
+	def _get_persistent_id(self, o):
 		"""
 		Determines a persistent ID for an object.
 		Does NOT do stores.
 		"""
-		if isinstance(o, claripy.ast.Base):
-			return "AST-" + str(hash(o))
-		elif isinstance(o, SimState):
-			return "STATE-" + str(hash(o))
+		if type(o) in self.hash_dedup:
+			return o.__class__.__name__ + "-" + str(hash(o))
+		elif type(o) in self.uuid_dedup:
+			return self._get_id(o)
 		return None
 
-	def _persistent_store(self, o, p): #pylint:disable=redefined-builtin
+	@staticmethod
+	def _get_id(o):
+		"""
+		Generates an id for an object.
+		"""
+		return o.__class__.__name__.split(".")[-1] + '-' + str(uuid.uuid4())
+
+	def _persistent_store(self, o): #pylint:disable=redefined-builtin
 		"""
 		This function should return a persistent ID for deduplication purposes.
 		If it does so, it should handle the storage of the object!
@@ -93,9 +107,6 @@ class Vault(collections.MutableMapping):
 			return None
 		l.debug("Persistent store: %s", o)
 		l.debug("... pid: %s", pid)
-		if pid in p.assigned_objects:
-			l.debug("... in assigned objects")
-			return None
 		if self.is_stored(pid):
 			l.debug("... already stored")
 			return pid
@@ -112,8 +123,7 @@ class Vault(collections.MutableMapping):
 		Checks if the provided id is already in the vault.
 		"""
 		try:
-			with self.unpickler_context(id) as p:
-				p.load()
+			with self._read_context(id):
 				return True
 		except (AngrVaultError, EOFError):
 			return False
@@ -130,15 +140,8 @@ class Vault(collections.MutableMapping):
 			return self._object_cache[id]
 		except KeyError:
 			l.debug("... cached failed")
-			with self.unpickler_context(id) as u:
-				return u.load()
-
-	@staticmethod
-	def _get_id(o):
-		"""
-		Generates an id for an object.
-		"""
-		return o.__class__.__name__ + '-' + str(uuid.uuid1())
+			with self._read_context(id) as u:
+				return VaultUnpickler(self, u).load()
 
 	def store(self, o, id=None): #pylint:disable=redefined-builtin
 		"""
@@ -149,8 +152,8 @@ class Vault(collections.MutableMapping):
 		"""
 		actual_id = id or self._get_persistent_id(o) or self._get_id(o)
 		l.debug("STORE: %s %s", o, actual_id)
-		with self.pickler_context(actual_id) as p:
-			p.dump(o)
+		with self._write_context(actual_id) as output:
+			VaultPickler(self, output, assigned_objects=(o,)).dump(o)
 		self._object_cache[actual_id] = o
 		return actual_id
 
@@ -202,17 +205,17 @@ class VaultDict(Vault):
 		self._dict = { } if d is None else d
 
 	@contextlib.contextmanager
-	def pickler_context(self, id): #pylint:disable=redefined-builtin
+	def _write_context(self, i):
 		f = io.BytesIO()
-		yield VaultPickler(self, f, assigned_objects=(id))
+		yield f
 		f.seek(0)
-		self._dict[id] = f.read()
+		self._dict[i] = f.read()
 
 	@contextlib.contextmanager
-	def unpickler_context(self, id): #pylint:disable=redefined-builtin
+	def _read_context(self, i):
 		try:
-			f = io.BytesIO(self._dict[id])
-			yield VaultUnpickler(self, f)
+			f = io.BytesIO(self._dict[i])
+			yield f
 		except KeyError as e:
 			raise AngrVaultError from e
 
@@ -230,15 +233,15 @@ class VaultDir(Vault):
 			os.makedirs(self._dir)
 
 	@contextlib.contextmanager
-	def pickler_context(self, id): #pylint:disable=redefined-builtin
-		with open(os.path.join(self._dir, id), "wb") as o:
-			yield VaultPickler(self, o, assigned_objects=(id))
+	def _write_context(self, i):
+		with open(os.path.join(self._dir, i), "wb") as o:
+			yield o
 
 	@contextlib.contextmanager
-	def unpickler_context(self, id): #pylint:disable=redefined-builtin
+	def _read_context(self, i):
 		try:
-			with open(os.path.join(self._dir, id), "rb") as o:
-				yield VaultUnpickler(self, o)
+			with open(os.path.join(self._dir, i), "rb") as o:
+				yield o
 		except FileNotFoundError as e:
 			raise AngrVaultError from e
 
