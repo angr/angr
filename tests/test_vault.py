@@ -100,7 +100,6 @@ def test_ast_vault():
 def test_project():
 	v = angr.vaults.VaultDir()
 	p = angr.Project("/bin/false")
-	pid = id(p)
 	ps = v.store(p)
 	pp = v.load(ps)
 	assert p is pp
@@ -112,6 +111,7 @@ def test_project():
 	assert sum(1 for k in v.keys() if k.startswith('Project')) == 1
 	assert p is pp
 
+	p._asdf = 'fdsa'
 	del pp2
 	del pp
 	del p
@@ -119,7 +119,7 @@ def test_project():
 	gc.collect()
 
 	p = v.load(ps)
-	assert id(p) != pid
+	assert not hasattr(p, '_asdf')
 	assert sum(1 for k in v.keys() if k.startswith('Project')) == 1
 
 
