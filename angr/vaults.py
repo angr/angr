@@ -26,7 +26,13 @@ class VaultPickler(pickle.Pickler):
 	def persistent_id(self, obj):
 		if any(obj is o for o in self.assigned_objects):
 			return None
-		return self.vault._persistent_store(obj)
+
+		pid = self.vault._get_persistent_id(obj)
+		if pid is None:
+			return None
+
+		l.debug("Persistent store: %s %s", obj, pid)
+		return self.vault.store(obj, id=pid)
 
 class VaultUnpickler(pickle.Unpickler):
 	def __init__(self, vault, file, *args, **kwargs):
@@ -70,11 +76,15 @@ class Vault(collections.MutableMapping):
 	def __init__(self):
 		self._object_cache = weakref.WeakValueDictionary()
 		self._uuid_cache = weakref.WeakKeyDictionary()
+		self.stored = set()
+		self.storing = set()
 		self.hash_dedup = {
 			claripy.ast.Base, claripy.ast.BV, claripy.ast.FP, claripy.ast.Bool, claripy.ast.Int, claripy.ast.Bits,
 		}
-		self.uuid_dedup = {
-			SimState, Project
+		self.module_dedup = set() # {'claripy', 'angr', 'archinfo', 'pyvex' } # cle causes recursion
+		self.uuid_dedup = { SimState, Project }
+		self.unsafe_key_baseclasses = {
+			claripy.ast.Base, SimType
 		}
 
 	def _get_persistent_id(self, o):
@@ -83,39 +93,29 @@ class Vault(collections.MutableMapping):
 		Does NOT do stores.
 		"""
 		if type(o) in self.hash_dedup:
-			return o.__class__.__name__ + "-" + str(hash(o))
-		elif type(o) in self.uuid_dedup:
-			return self._get_id(o)
-		return None
+			oid = o.__class__.__name__ + "-" + str(hash(o))
+			self._object_cache[oid] = o
+			return oid
 
-	def _get_id(self, o):
-		"""
-		Generates an id for an object.
-		"""
-		oid = o.__class__.__name__.split(".")[-1] + '-' + str(uuid.uuid4())
-		with contextlib.suppress(TypeError):
-			self._uuid_cache[o] = oid
-		return oid
-
-	def _persistent_store(self, o): #pylint:disable=redefined-builtin
-		"""
-		This function should return a persistent ID for deduplication purposes.
-		If it does so, it should handle the storage of the object!
-
-		:param o: the object
-		"""
-
-		pid = self._get_persistent_id(o)
-		if pid is None:
+		if any(isinstance(o,c) for c in self.unsafe_key_baseclasses):
 			return None
-		l.debug("Persistent store: %s", o)
-		l.debug("... pid: %s", pid)
-		if self.is_stored(pid):
-			l.debug("... already stored")
-			return pid
-		l.debug("... not stored")
 
-		return self.store(o, id=pid)
+		try:
+			return self._uuid_cache[o]
+		except KeyError:
+			pass
+		except TypeError:
+			return None
+
+		#if type(o) in self.uuid_dedup:
+		#	return self._get_id(o)
+		if o.__class__.__module__.split('.')[0] in self.module_dedup or o.__class__ in self.uuid_dedup:
+			oid = o.__class__.__name__.split(".")[-1] + '-' + str(uuid.uuid4())
+			self._object_cache[oid] = o
+			self._uuid_cache[o] = oid
+			return oid
+
+		return None
 
 	#
 	# Other stuff
@@ -125,6 +125,9 @@ class Vault(collections.MutableMapping):
 		"""
 		Checks if the provided id is already in the vault.
 		"""
+		if i in self.stored:
+			return True
+
 		try:
 			with self._read_context(i):
 				return True
@@ -153,12 +156,23 @@ class Vault(collections.MutableMapping):
 		:param o: the object
 		:param id: an ID to use
 		"""
-		actual_id = id or self._get_persistent_id(o) or self._get_id(o)
+		actual_id = id or self._get_persistent_id(o) or "TMP-"+str(uuid.uuid4())
+
 		l.debug("STORE: %s %s", o, actual_id)
+
+		# this handles recursive objects
+		if actual_id in self.storing:
+			return actual_id
+
+		if self.is_stored(actual_id):
+			l.debug("... already stored")
+			return actual_id
+
 		with self._write_context(actual_id) as output:
+			self.storing.add(actual_id)
 			VaultPickler(self, output, assigned_objects=(o,)).dump(o)
-		with contextlib.suppress(TypeError):
-			self._object_cache[actual_id] = o
+			self.stored.add(actual_id)
+
 		return actual_id
 
 	def dumps(self, o):
@@ -272,5 +286,6 @@ class VaultShelf(VaultDict):
 		self._dict.close()
 
 from .errors import AngrVaultError
-from .sim_state import SimState
 from .project import Project
+from .sim_type import SimType
+from .sim_state import SimState
