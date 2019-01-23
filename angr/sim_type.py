@@ -35,6 +35,8 @@ class SimType:
             return False
 
         for attr in self._fields:
+            if attr == 'size' and self._arch is None and other._arch is None:
+                continue
             if getattr(self, attr) != getattr(other, attr):
                 return False
 
@@ -96,7 +98,7 @@ class SimType:
 
 class SimTypeBottom(SimType):
     """
-    SimTypeBottom basically repesents a type error.
+    SimTypeBottom basically represents a type error.
     """
 
     def __repr__(self):
