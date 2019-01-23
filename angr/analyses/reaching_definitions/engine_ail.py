@@ -86,8 +86,27 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
     def _ail_handle_Store(self, stmt):
-        data = self._expr(stmt.data)  # pylint:disable=unused-variable
-        addr = self._expr(stmt.addr)  # pylint:disable=unused-variable
+        data = self._expr(stmt.data)
+        addr = self._expr(stmt.addr)
+        size = stmt.size
+
+        for a in addr:
+            if type(a) is Undefined:
+                l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
+            else:
+                if any(type(d) is Undefined for d in data):
+                    l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
+
+                if type(a) is SpOffset:
+                    # Writing to stack
+                    memloc = a
+                else:
+                    # Writing to a non-stack memory region
+                    memloc = MemoryLocation(a, size)
+
+                # different addresses are not killed by a subsequent iteration, because kill only removes entries
+                # with same index and same size
+                self.state.kill_and_add_definition(memloc, self._codeloc(), data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)  # pylint:disable=unused-variable
