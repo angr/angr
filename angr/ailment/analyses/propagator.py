@@ -7,6 +7,7 @@ from .. import Stmt, Expr, Block
 from angr.engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from angr import Analysis, register_analysis
 from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr.utils.constants import is_alignment_mask
 
 
 l = logging.getLogger('ailment.analyses.propagator')
@@ -281,6 +282,17 @@ def get_engine(base_engine):
 
         def _ail_handle_StackBaseOffset(self, expr):
             return expr
+
+        def _ail_handle_And(self, expr):
+            operand_0 = self._expr(expr.operands[0])
+            operand_1 = self._expr(expr.operands[1])
+
+            # Special logic for SP alignment
+            if type(operand_0) is Expr.StackBaseOffset and \
+                    type(operand_1) is Expr.Const and is_alignment_mask(operand_1.value):
+                return operand_0
+
+            return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ])
 
         def _ail_handle_Xor(self, expr):
             operand_0 = self._expr(expr.operands[0])
