@@ -123,17 +123,16 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         self.state.kill_definitions(ip, self._codeloc(), )
 
         # kill all cc_ops
-        # TODO: make it architecture agnostic
-        self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
-        self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
-        self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
-        self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
+        if 'cc_op' in self.arch.registers:
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
     def _ail_handle_Call(self, stmt):
         target = self._expr(stmt.target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
-
         self.state.kill_definitions(ip, self._codeloc())
 
         # if arguments exist, use them
@@ -175,11 +174,11 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             self.state.kill_definitions(var, self._codeloc())
 
         # kill all cc_ops
-        # TODO: make it architecture agnostic
-        self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
-        self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
-        self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
-        self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
+        if 'cc_op' in self.arch.registers:
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
     #
     # AIL expression handlers
