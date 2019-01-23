@@ -1,11 +1,14 @@
 
 import ailment
 
+from ...utils.constants import is_alignment_mask
+
 
 class ArithmeticExpression:
 
     Add = 0
     Sub = 1
+    And = 4
 
     CONST_TYPES = (int, ailment.expression.Const)
 
@@ -20,6 +23,8 @@ class ArithmeticExpression:
             return "%s + %s" % self.operands
         elif self.op == ArithmeticExpression.Sub:
             return "%s - %s" % self.operands
+        elif self.op == ArithmeticExpression.And:
+            return "%s & %s" % self.operands
         else:
             return "Unsupported op %s" % self.op
 
@@ -41,12 +46,20 @@ class ArithmeticExpression:
                 return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] - other,))
         return ArithmeticExpression(self.op, (self, other, ))
 
-    def _unpack_const(self, expr):
+    @staticmethod
+    def _unpack_const(expr):
         if type(expr) is int:
             return expr
         elif type(expr) is ailment.expression.Const:
             return expr.value
         raise NotImplementedError("Unsupported const expression type %s." % type(expr))
+
+    @staticmethod
+    def try_unpack_const(expr):
+        try:
+            return ArithmeticExpression._unpack_const(expr)
+        except NotImplementedError:
+            return expr
 
 
 class RegisterOffset:
@@ -117,6 +130,7 @@ class SpOffset(RegisterOffset):
         return "%s%s" % ('BP' if self.is_base else 'SP', offset_str)
 
     def __add__(self, other):
+        other = ArithmeticExpression.try_unpack_const(other)
         if not self.symbolic and type(other) is int:
             return SpOffset(self._bits, self._to_signed(self.offset + other))
         else:
@@ -126,6 +140,7 @@ class SpOffset(RegisterOffset):
                 return SpOffset(self._bits, ArithmeticExpression(ArithmeticExpression.Add, (self.offset, other, )))
 
     def __sub__(self, other):
+        other = ArithmeticExpression.try_unpack_const(other)
         if not self.symbolic and type(other) is int:
             return SpOffset(self._bits, self._to_signed(self.offset - other))
         else:
@@ -133,6 +148,14 @@ class SpOffset(RegisterOffset):
                 return SpOffset(self._bits, self.offset - other)
             else:
                 return SpOffset(self._bits, ArithmeticExpression(ArithmeticExpression.Sub, (self.offset, other, )))
+
+    def __and__(self, other):
+        other = ArithmeticExpression.try_unpack_const(other)
+        if is_alignment_mask(other):
+            # stack pointer alignment. ignore it.
+            return SpOffset(self._bits, self.offset)
+        else:
+            return SpOffset(self._bits, ArithmeticExpression(ArithmeticExpression.And, (self, other, )))
 
     def __eq__(self, other):
         return type(other) is SpOffset and self._bits == other.bits and self.reg == other.reg and \
