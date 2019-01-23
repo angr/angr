@@ -1321,7 +1321,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _job_key(self, job):
         return job.addr
 
-    def _pre_analysis_common(self):
+    def _pre_analysis(self):
+
+        # Call _initialize_cfg() before self.functions is used.
+        self._initialize_cfg()
 
         # Scan for __x86_return_thunk and friends
         self._known_thunks = self._find_thunks()
