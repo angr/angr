@@ -406,18 +406,29 @@ class CFunctionCall(CStatement):
 
     :ivar Function callee_func:  The function getting called.
     """
-    def __init__(self, callee_target, callee_func, args, returning=True):
+    def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None):
         super().__init__()
 
         self.callee_target = callee_target
         self.callee_func = callee_func
         self.args = args if args is not None else [ ]
         self.returning = returning
+        self.ret_expr = ret_expr
 
     def c_repr(self, indent=0, posmap=None):
 
         indent_str = self.indent_str(indent=indent)
         if posmap: posmap.tick_pos(len(indent_str))
+
+        ret_expr_str = ""
+        if self.ret_expr is not None:
+            if isinstance(self.ret_expr, CExpression):
+                ret_expr_str = self.ret_expr.c_repr(posmap=posmap)
+            else:
+                ret_expr_str = str(self.ret_expr)
+                if posmap: posmap.tick_pos(len(ret_expr_str))
+            ret_expr_str += " = "
+            if posmap: posmap.tick_pos(3)
 
         if self.callee_func is not None:
             func_name = self.callee_func.name
@@ -439,7 +450,10 @@ class CFunctionCall(CStatement):
             args_list.append(arg_str)
         args_str = ", ".join(args_list)
 
-        return indent_str + s_func + "%s);%s" % (args_str, " /* do not return */" if not self.returning else "")
+        return indent_str + ret_expr_str +  s_func + "%s);%s" % (
+            args_str,
+            " /* do not return */" if not self.returning else ""
+        )
 
 
 class CReturn(CStatement):
@@ -971,8 +985,13 @@ class StructuredCodeGenerator(Analysis):
                     new_arg = self._handle(arg)
                 args.append(new_arg)
 
+        ret_expr = None
+        if stmt.ret_expr is not None:
+            ret_expr = self._handle(stmt.ret_expr)
+
         return CFunctionCall(target, target_func, args,
-                             returning=target_func.returning if target_func is not None else True
+                             returning=target_func.returning if target_func is not None else True,
+                             ret_expr=ret_expr,
                              )
 
     #
