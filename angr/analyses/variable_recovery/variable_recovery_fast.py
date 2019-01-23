@@ -125,7 +125,7 @@ def get_engine(base_engine):
             size = stmt.data.result_size(self.tyenv) // 8
             data = self._expr(stmt.data)
 
-            self._store(addr, data, size)
+            self._store(addr, data, size, stmt=stmt)
 
 
         # Expression handlers
@@ -175,7 +175,7 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
             size = stmt.data.bits // 8
 
-            self._store(addr, data, size)
+            self._store(addr, data, size, stmt=stmt)
 
         def _ail_handle_Jump(self, stmt):
             pass
@@ -325,7 +325,7 @@ def get_engine(base_engine):
             self.state.register_region.set_variable(offset, variable)
             self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
 
-        def _store(self, addr, data, size):  # pylint:disable=unused-argument
+        def _store(self, addr, data, size, stmt=None):  # pylint:disable=unused-argument
             """
 
             :param addr:
@@ -338,8 +338,16 @@ def get_engine(base_engine):
                 # Storing data to stack
                 stack_offset = addr.offset
 
-                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                             'memory')
+                if stmt is None:
+                    existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr,
+                                                                                                 self.stmt_idx,
+                                                                                                 'memory'
+                                                                                                 )
+                else:
+                    existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(self.block.addr,
+                                                                                                 self.stmt_idx,
+                                                                                                 stmt
+                                                                                                 )
                 if not existing_vars:
                     variable = SimStackVariable(stack_offset, size, base='bp',
                                                 ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
@@ -349,7 +357,7 @@ def get_engine(base_engine):
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
                 else:
-                    variable, _ = existing_vars[0]
+                    variable, _ = next(iter(existing_vars))
 
                 self.state.stack_region.set_variable(stack_offset, variable)
 
@@ -361,7 +369,8 @@ def get_engine(base_engine):
                         offset_into_var = None
                     self.variable_manager[self.func_addr].write_to(var,
                                                                    offset_into_var,
-                                                                   codeloc
+                                                                   codeloc,
+                                                                   atom=stmt,
                                                                    )
 
         def _load(self, addr, size, expr=None):
