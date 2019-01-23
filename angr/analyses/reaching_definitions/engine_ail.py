@@ -300,11 +300,17 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
 
+        if op0 is None: op0 = expr.operands[0]
+        if op1 is None: op1 = expr.operands[1]
+
         return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
     def _ail_handle_CmpLE(self, expr):
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
+
+        if op0 is None: op0 = expr.operands[0]
+        if op1 is None: op1 = expr.operands[1]
 
         return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
