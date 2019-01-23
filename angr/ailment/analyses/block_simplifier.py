@@ -66,9 +66,15 @@ class BlockSimplifier(Analysis):
 
         new_statements = block.statements[::]
 
-        for codeloc, old_expr, new_expr in replacements:
+        for codeloc, old, new in replacements:
             stmt = new_statements[codeloc.stmt_idx]
-            r, new_stmt = stmt.replace(old_expr, new_expr)
+            if stmt == old:
+                # replace this statement
+                r = True
+                new_stmt = new
+            else:
+                # replace the expressions involved in this statement
+                r, new_stmt = stmt.replace(old, new)
 
             if r:
                 new_statements[codeloc.stmt_idx] = new_stmt
