@@ -49,7 +49,8 @@ class CFGFastSoot(CFGFast):
         obj = self.project.loader.main_object
 
         if entry_func is not None:
-            method_inst = obj.get_soot_method(entry_func.name, class_name=entry_func.class_name)
+            method_inst = obj.get_soot_method(
+                entry_func.name, class_name=entry_func.class_name, params=entry_func.params)
         else:
             l.warning('The entry method is unknown. Try to find a main method.')
             method_inst = next(obj.main_methods, None)

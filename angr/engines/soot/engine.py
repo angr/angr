@@ -34,7 +34,7 @@ class SimEngineSoot(SimEngine):
         method, stmt_idx = addr.method, addr.stmt_idx
 
         try:
-            method = the_binary.get_soot_method(method)
+            method = the_binary.get_soot_method(method, params=method.params)
         except CLEError as ex:
             raise SimTranslationError("CLE error: {}".format(ex))
 
