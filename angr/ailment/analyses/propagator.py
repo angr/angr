@@ -186,9 +186,10 @@ def get_engine(base_engine):
                     false_target is stmt.false_target:
                 pass
             else:
+                new_jump_stmt = Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target, **stmt.tags)
                 self.state.add_final_replacement(self._codeloc(),
                                                  stmt,
-                                                 Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target)
+                                                 new_jump_stmt,
                                                  )
 
         #
