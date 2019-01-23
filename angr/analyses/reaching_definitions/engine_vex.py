@@ -16,8 +16,9 @@ l = logging.getLogger(name=__name__)
 
 
 class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
-    def __init__(self, current_local_call_depth, maximum_local_call_depth, function_handler=None):
+    def __init__(self, project, current_local_call_depth, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDVEX, self).__init__()
+        self.project = project
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
@@ -478,11 +479,11 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                     sp_data.update(d.data)
 
             if len(sp_data) != 1:
-                raise ValueError('Invalid number of values for SP')
+                raise ValueError('Invalid number of values for stack pointer.')
 
             sp_addr = next(iter(sp_data))
             if not isinstance(sp_addr, int):
-                raise TypeError('Invalid type %s for SP' % type(sp_addr).__name__)
+                raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)
             sp_addr -= self.arch.stack_change

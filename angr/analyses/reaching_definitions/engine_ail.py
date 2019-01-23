@@ -14,8 +14,9 @@ l = logging.getLogger(name=__name__)
 
 
 class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
-    def __init__(self, current_local_call_depth, maximum_local_call_depth, function_handler=None):
+    def __init__(self, project, current_local_call_depth, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDAIL, self).__init__()
+        self.project = project
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
@@ -139,12 +140,38 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             for arg in stmt.args:
                 self._expr(arg)
 
-        # kill all caller-saved registers
-        if stmt.calling_convention is not None and stmt.calling_convention.CALLER_SAVED_REGS:
-            for reg_name in stmt.calling_convention.CALLER_SAVED_REGS:
-                offset, size = self.arch.registers[reg_name]
-                reg = Register(offset, size)
-                self.state.kill_definitions(reg, self._codeloc())
+        # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
+        # to using all caller-saved registers.
+        if stmt.args is not None:
+            used_vars = stmt.args
+        else:
+            used_vars = None
+
+        # All caller-saved registers will always be killed.
+        if stmt.calling_convention is not None:
+            cc = stmt.calling_convention
+        else:
+            # Fall back to the default calling convention
+            l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
+            cc = self.project.factory.cc()
+
+        killed_vars = [ Register(*self.arch.registers[reg_name]) for reg_name in cc.CALLER_SAVED_REGS ]
+        return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+
+        # Add uses
+        if used_vars is None:
+            used_vars = [ var for var in killed_vars if var.reg_offset != return_reg_offset ]
+        for var in used_vars:
+            self.state.add_use(var, self._codeloc())
+
+        # Return value is redefined here, so it is not a dummy value
+        self.state.kill_definitions(Register(return_reg_offset, return_reg_size), self._codeloc(), dummy=False)
+        # Kill those ones that should be killed
+        for var in killed_vars:
+            if var.reg_offset == return_reg_offset:
+                # Skip the return variable
+                continue
+            self.state.kill_definitions(var, self._codeloc())
 
         # kill all cc_ops
         # TODO: make it architecture agnostic

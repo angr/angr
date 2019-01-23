@@ -360,9 +360,9 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._node_iterations = defaultdict(int)
         self._states = {}
 
-        self._engine_vex = SimEngineRDVEX(self._current_local_call_depth, self._maximum_local_call_depth,
+        self._engine_vex = SimEngineRDVEX(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
-        self._engine_ail = SimEngineRDAIL(self._current_local_call_depth, self._maximum_local_call_depth,
+        self._engine_ail = SimEngineRDAIL(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
 
         self.observed_results = {}
