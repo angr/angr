@@ -6,7 +6,7 @@ from angr.analyses.reaching_definitions.definition import Definition
 from angr.analyses.reaching_definitions.constants import OP_AFTER
 
 from ..block import Block
-from ..statement import Assignment
+from ..statement import Assignment, Store, Call
 
 
 class Simplifier(Analysis):
@@ -61,8 +61,16 @@ class Simplifier(Analysis):
 
             for idx, stmt in enumerate(block.statements):
                 if idx in stmts_to_remove:
-                    assert isinstance(stmt, Assignment)
-                    continue
+                    if isinstance(stmt, (Assignment, Store)):
+                        # Skip Assignment and Store statements
+                        continue
+                    elif isinstance(stmt, Call):
+                        # the return expr is not used. it should not have return expr
+                        stmt = stmt.copy()
+                        stmt.ret_expr = None
+                    else:
+                        # Should not happen!
+                        raise NotImplementedError()
 
                 new_statements.append(stmt)
 

@@ -7,6 +7,7 @@ from .. import Stmt, Expr, Block
 from angr.engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from angr import Analysis, register_analysis
 from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr.utils.constants import is_alignment_mask
 
 
 l = logging.getLogger('ailment.analyses.propagator')
@@ -141,8 +142,12 @@ def get_engine(base_engine):
                 l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
         def _ail_handle_Store(self, stmt):
-            _ = self._expr(stmt.addr)
-            _ = self._expr(stmt.data)
+            addr = self._expr(stmt.addr)
+            data = self._expr(stmt.data)
+
+            if isinstance(addr, Expr.StackBaseOffset):
+                # Storing data to a stack variable
+                self.state.add_replacement(Expr.Load(None, addr, data.bits // 8, stmt.endness), data)
 
         def _ail_handle_Jump(self, stmt):
             target = self._expr(stmt.target)
@@ -150,9 +155,26 @@ def get_engine(base_engine):
         def _ail_handle_Call(self, stmt):
             target = self._expr(stmt.target)
 
+            new_args = None
+
             if stmt.args:
+                new_args = [ ]
                 for arg in stmt.args:
-                    self._expr(arg)
+                    new_arg = self._expr(arg)
+                    replacement = self.state.get_replacement(new_arg)
+                    if replacement is not None:
+                        new_args.append(replacement)
+                    else:
+                        new_args.append(arg)
+
+            if new_args != stmt.args:
+                new_call_stmt = Stmt.Call(stmt.idx, target, calling_convention=stmt.calling_convention,
+                                          prototype=stmt.prototype, args=new_args, ret_expr=stmt.ret_expr,
+                                          **stmt.tags)
+                self.state.add_final_replacement(self._codeloc(),
+                                                 stmt,
+                                                 new_call_stmt,
+                                                 )
 
         def _ail_handle_ConditionalJump(self, stmt):
             cond = self._expr(stmt.condition)
@@ -164,9 +186,10 @@ def get_engine(base_engine):
                     false_target is stmt.false_target:
                 pass
             else:
+                new_jump_stmt = Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target, **stmt.tags)
                 self.state.add_final_replacement(self._codeloc(),
                                                  stmt,
-                                                 Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target)
+                                                 new_jump_stmt,
                                                  )
 
         #
@@ -208,6 +231,9 @@ def get_engine(base_engine):
 
         def _ail_handle_Load(self, expr):
             addr = self._expr(expr.addr)
+
+            if addr != expr.addr:
+                return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
             return expr
 
         def _ail_handle_Convert(self, expr):
@@ -277,6 +303,17 @@ def get_engine(base_engine):
 
         def _ail_handle_StackBaseOffset(self, expr):
             return expr
+
+        def _ail_handle_And(self, expr):
+            operand_0 = self._expr(expr.operands[0])
+            operand_1 = self._expr(expr.operands[1])
+
+            # Special logic for SP alignment
+            if type(operand_0) is Expr.StackBaseOffset and \
+                    type(operand_1) is Expr.Const and is_alignment_mask(operand_1.value):
+                return operand_0
+
+            return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ])
 
         def _ail_handle_Xor(self, expr):
             operand_0 = self._expr(expr.operands[0])

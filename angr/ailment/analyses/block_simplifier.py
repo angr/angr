@@ -1,4 +1,6 @@
 
+import logging
+
 from angr import Analysis, register_analysis
 from angr.analyses.reaching_definitions import OP_AFTER
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
@@ -6,6 +8,8 @@ from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLoca
 from ..block import Block
 from ..statement import Assignment
 from ..expression import Tmp, Register
+
+_l = logging.getLogger(name=__name__)
 
 
 class BlockSimplifier(Analysis):
@@ -28,8 +32,11 @@ class BlockSimplifier(Analysis):
     def _analyze(self):
 
         block = self.block
+        ctr = 0
+        max_ctr = 30
 
         while True:
+            ctr += 1
             # print(str(block))
             new_block = self._simplify_block_once(block)
             # print()
@@ -37,6 +44,10 @@ class BlockSimplifier(Analysis):
             if new_block == block:
                 break
             block = new_block
+            if ctr >= max_ctr:
+                _l.error("Simplification does not reach a fixed point after %d iterations. "
+                         "Block comparison is probably incorrect." % max_ctr)
+                break
 
         self.result_block = block
 
@@ -55,9 +66,15 @@ class BlockSimplifier(Analysis):
 
         new_statements = block.statements[::]
 
-        for codeloc, old_expr, new_expr in replacements:
+        for codeloc, old, new in replacements:
             stmt = new_statements[codeloc.stmt_idx]
-            r, new_stmt = stmt.replace(old_expr, new_expr)
+            if stmt == old:
+                # replace this statement
+                r = True
+                new_stmt = new
+            else:
+                # replace the expressions involved in this statement
+                r, new_stmt = stmt.replace(old, new)
 
             if r:
                 new_statements[codeloc.stmt_idx] = new_stmt

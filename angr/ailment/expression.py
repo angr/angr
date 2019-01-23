@@ -50,6 +50,10 @@ class Const(Atom):
         self.value = value
         self.bits = bits
 
+    @property
+    def size(self):
+        return self.bits // 8
+
     def __repr__(self):
         return str(self)
 
@@ -201,6 +205,15 @@ class BinaryOp(Op):
     def __repr__(self):
         return "%s(%s, %s)" % (self.op, self.operands[0], self.operands[1])
 
+    def __eq__(self, other):
+        return type(other) is BinaryOp and \
+               self.operands == other.operands and \
+               self.op == other.op and \
+               self.bits == other.bits
+
+    def __hash__(self):
+        return hash((self.op, tuple(self.operands), self.bits))
+
     def has_atom(self, atom):
         for op in self.operands:
             if op == atom or op.has_atom(atom):
@@ -247,6 +260,15 @@ class Load(Expression):
             return True, Load(self.idx, replaced_addr, self.size, self.endness, **self.tags)
         else:
             return False, self
+
+    def __eq__(self, other):
+        return type(other) is Load and \
+               self.addr == other.addr and \
+               self.size == other.size and \
+               self.endness == other.endness
+
+    def __hash__(self):
+        return hash(('Load', self.addr, self.size, self.endness))
 
 
 class ITE(Expression):
@@ -306,13 +328,28 @@ class BasePointerOffset(Expression):
         self.base = base
         self.offset = offset
 
+    @property
+    def size(self):
+        return self.bits // 8
+
     def __repr__(self):
         if self.offset is None:
             return "BaseOffset(%s)" % self.base
         return "BaseOffset(%s, %d)" % (self.base, self.offset)
 
     def __str__(self):
+        if self.offset is None:
+            return str(self.base)
         return "%s%+d" % (self.base, self.offset)
+
+    def __eq__(self, other):
+        return type(other) is type(self) and \
+               self.bits == other.bits and \
+               self.base == other.base and \
+               self.offset == other.offset
+
+    def __hash__(self):
+        return hash((self.bits, self.base, self.offset))
 
     def replace(self, old_expr, new_expr):
         if isinstance(self.base, Expression):

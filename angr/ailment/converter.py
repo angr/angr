@@ -117,6 +117,11 @@ class VEXExprConverter(Converter):
         return Const(manager.next_atom(), None, expr.con.value, expr.result_size(manager.tyenv))
 
     @staticmethod
+    def const_32(expr, manager):
+        # pyvex.const.xxx
+        return Const(manager.next_atom(), None, expr.value, 32)
+
+    @staticmethod
     def const_64(expr, manager):
         # pyvex.const.xxx
         return Const(manager.next_atom(), None, expr.value, 64)
@@ -136,6 +141,7 @@ EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.Unop: VEXExprConverter.Unop,
     pyvex.IRExpr.Binop: VEXExprConverter.Binop,
     pyvex.IRExpr.Const: VEXExprConverter.Const,
+    pyvex.const.U32: VEXExprConverter.const_32,
     pyvex.const.U64: VEXExprConverter.const_64,
     pyvex.IRExpr.Load: VEXExprConverter.Load,
     pyvex.IRExpr.ITE: VEXExprConverter.ITE,
@@ -182,6 +188,7 @@ class VEXStmtConverter(Converter):
                      VEXExprConverter.convert(stmt.addr, manager),
                      VEXExprConverter.convert(stmt.data, manager),
                      stmt.data.result_size(manager.tyenv) // 8,
+                     stmt.endness,
                      ins_addr=manager.ins_addr,
                      )
 
@@ -242,8 +249,12 @@ class IRSBConverter(Converter):
 
             # TODO: is there a conditional call?
 
+            ret_reg_offset = manager.arch.ret_offset
+            ret_expr = Register(None, None, ret_reg_offset, manager.arch.bits)
+
             statements.append(Call(manager.next_atom(),
                                    VEXExprConverter.convert(irsb.next, manager),
+                                   ret_expr=ret_expr,
                                    ins_addr=manager.ins_addr
                                    )
                               )

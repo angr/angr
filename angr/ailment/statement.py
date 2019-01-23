@@ -56,12 +56,13 @@ class Assignment(Statement):
 
 
 class Store(Statement):
-    def __init__(self, idx, addr, data, size, variable=None, **kwargs):
+    def __init__(self, idx, addr, data, size, endness, variable=None, **kwargs):
         super(Store, self).__init__(idx, **kwargs)
 
         self.addr = addr
         self.data = data
         self.size = size
+        self.endness = endness
         self.variable = variable
 
     def __eq__(self, other):
@@ -70,7 +71,11 @@ class Store(Statement):
                self.addr == other.addr and \
                self.data == other.data and \
                self.size == other.size and \
+               self.endness == other.endness and \
                self.variable == other.variable
+
+    def __hash__(self):
+        return hash((Store, self.idx, self.addr, self.data, self.size, self.endness))
 
     def __repr__(self):
         return "Store (%s, %s[%d])" % (self.addr, str(self.data), self.size)
@@ -86,7 +91,8 @@ class Store(Statement):
         r_data, replaced_data = self.data.replace(old_expr, new_expr)
 
         if r_addr or r_data:
-            return True, Store(self.idx, replaced_addr, replaced_data, self.size, self.variable, **self.tags)
+            return True, Store(self.idx, replaced_addr, replaced_data, self.size, self.endness,
+                               variable=self.variable, **self.tags)
         else:
             return False, self
 
@@ -157,13 +163,14 @@ class ConditionalJump(Statement):
 
 
 class Call(Statement):
-    def __init__(self, idx, target, calling_convention=None, prototype=None, args=None, **kwargs):
+    def __init__(self, idx, target, calling_convention=None, prototype=None, args=None, ret_expr=None, **kwargs):
         super(Call, self).__init__(idx, **kwargs)
 
         self.target = target
         self.calling_convention = calling_convention
         self.prototype = prototype
         self.args = args
+        self.ret_expr = ret_expr
 
     def __eq__(self, other):
         return type(other) is Call and \
@@ -171,7 +178,8 @@ class Call(Statement):
                self.target == other.target and \
                self.calling_convention == other.calling_convention and \
                self.prototype == other.prototype and \
-               self.args == other.args
+               self.args == other.args and \
+               self.ret_expr == other.ret_expr
 
     def __repr__(self):
         return "Call (target: %s, prototype: %s, args: %s)" % (self.target, self.prototype, self.args)
@@ -202,15 +210,33 @@ class Call(Statement):
                 r |= r_arg
                 new_args.append(replaced_arg)
 
+        new_ret_expr = None
+        if self.ret_expr:
+            r_ret, replaced_ret = self.ret_expr.replace(old_expr, new_expr)
+            r |= r_ret
+            new_ret_expr = replaced_ret
+
         if r:
             return True, Call(self.idx, replaced_target,
                               calling_convention=self.calling_convention,
                               prototype=self.prototype,
                               args=new_args,
+                              ret_expr=new_ret_expr,
                               **self.tags
                               )
         else:
             return False, self
+
+    def copy(self):
+        return Call(
+            self.idx,
+            self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=self.args[::] if self.args is not None else None,
+            ret_expr=self.ret_expr,
+            **self.tags,
+        )
 
 
 class DirtyStatement(Statement):
