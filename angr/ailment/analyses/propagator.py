@@ -155,9 +155,26 @@ def get_engine(base_engine):
         def _ail_handle_Call(self, stmt):
             target = self._expr(stmt.target)
 
+            new_args = None
+
             if stmt.args:
+                new_args = [ ]
                 for arg in stmt.args:
-                    self._expr(arg)
+                    new_arg = self._expr(arg)
+                    replacement = self.state.get_replacement(new_arg)
+                    if replacement is not None:
+                        new_args.append(replacement)
+                    else:
+                        new_args.append(arg)
+
+            if new_args != stmt.args:
+                new_call_stmt = Stmt.Call(stmt.idx, target, calling_convention=stmt.calling_convention,
+                                          prototype=stmt.prototype, args=new_args, ret_expr=stmt.ret_expr,
+                                          **stmt.tags)
+                self.state.add_final_replacement(self._codeloc(),
+                                                 stmt,
+                                                 new_call_stmt,
+                                                 )
 
         def _ail_handle_ConditionalJump(self, stmt):
             cond = self._expr(stmt.condition)
