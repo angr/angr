@@ -141,8 +141,12 @@ def get_engine(base_engine):
                 l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
         def _ail_handle_Store(self, stmt):
-            _ = self._expr(stmt.addr)
-            _ = self._expr(stmt.data)
+            addr = self._expr(stmt.addr)
+            data = self._expr(stmt.data)
+
+            if isinstance(addr, Expr.StackBaseOffset):
+                # Storing data to a stack variable
+                self.state.add_replacement(Expr.Load(None, addr, data.bits // 8, stmt.endness), data)
 
         def _ail_handle_Jump(self, stmt):
             target = self._expr(stmt.target)
