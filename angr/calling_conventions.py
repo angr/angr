@@ -887,6 +887,7 @@ class SimCCCdecl(SimCC):
     ARG_REGS = [] # All arguments are passed in stack
     FP_ARG_REGS = []
     STACKARG_SP_DIFF = 4 # Return address is pushed on to stack by call
+    CALLER_SAVED_REGS = ['eax', 'ecx', 'edx']
     RETURN_VAL = SimRegArg('eax', 4)
     FP_RETURN_VAL = SimLyingRegArg('st0')
     RETURN_ADDR = SimStackArg(0, 4)
@@ -1012,6 +1013,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
+    CALLER_SAVED_REGS = []   # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = archinfo.ArchARM
@@ -1061,6 +1063,7 @@ class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 16
+    CALLER_SAVED_REGS = []   # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('v0', 4)
     ARCH = archinfo.ArchMIPS32
