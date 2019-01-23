@@ -181,7 +181,7 @@ class LiveDefinitions:
         if current_defs:
             uses = set()
             for current_def in current_defs:
-                uses |= self.register_uses.get_current_uses(current_def)
+                uses |= self.register_uses.get_uses(current_def)
             if not uses:
                 self._dead_virgin_definitions |= current_defs
 
