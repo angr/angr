@@ -8,6 +8,7 @@ from ailment import Block, Expr, Stmt
 
 from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
+from ...utils.constants import is_alignment_mask
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
 from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode
@@ -815,6 +816,9 @@ class StructuredCodeGenerator(Analysis):
         expr = self._handle(addr)
 
         if isinstance(expr, CBinaryOp):
+            if expr.op == "And" and isinstance(expr.rhs, CConstant) and is_alignment_mask(expr.rhs.value):
+                # alignment - ignore it
+                expr = expr.lhs
             if expr.op in ("Add", "Sub"):
                 lhs, rhs = expr.lhs, expr.rhs
                 if isinstance(lhs, CConstant):
