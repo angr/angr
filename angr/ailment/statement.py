@@ -56,12 +56,13 @@ class Assignment(Statement):
 
 
 class Store(Statement):
-    def __init__(self, idx, addr, data, size, variable=None, **kwargs):
+    def __init__(self, idx, addr, data, size, endness, variable=None, **kwargs):
         super(Store, self).__init__(idx, **kwargs)
 
         self.addr = addr
         self.data = data
         self.size = size
+        self.endness = endness
         self.variable = variable
 
     def __eq__(self, other):
@@ -70,7 +71,11 @@ class Store(Statement):
                self.addr == other.addr and \
                self.data == other.data and \
                self.size == other.size and \
+               self.endness == other.endness and \
                self.variable == other.variable
+
+    def __hash__(self):
+        return hash((Store, self.idx, self.addr, self.data, self.size, self.endness))
 
     def __repr__(self):
         return "Store (%s, %s[%d])" % (self.addr, str(self.data), self.size)
@@ -86,7 +91,8 @@ class Store(Statement):
         r_data, replaced_data = self.data.replace(old_expr, new_expr)
 
         if r_addr or r_data:
-            return True, Store(self.idx, replaced_addr, replaced_data, self.size, self.variable, **self.tags)
+            return True, Store(self.idx, replaced_addr, replaced_data, self.size, self.endness,
+                               variable=self.variable, **self.tags)
         else:
             return False, self
 

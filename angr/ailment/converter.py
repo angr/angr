@@ -182,6 +182,7 @@ class VEXStmtConverter(Converter):
                      VEXExprConverter.convert(stmt.addr, manager),
                      VEXExprConverter.convert(stmt.data, manager),
                      stmt.data.result_size(manager.tyenv) // 8,
+                     stmt.endness,
                      ins_addr=manager.ins_addr,
                      )
 
