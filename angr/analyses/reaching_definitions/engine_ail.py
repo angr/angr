@@ -45,9 +45,6 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             return next(iter(d.data))
         return d
 
-    def _expr(self, expr):
-        return self._dataset_unpack(super()._expr(expr))
-
     #
     # AIL statement handlers
     #
@@ -199,9 +196,9 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         self.state.add_use(Register(reg_offset, bits // 8), self._codeloc())
 
         if reg_offset == self.arch.sp_offset:
-            return SpOffset(bits, 0)
+            return DataSet(SpOffset(bits, 0), bits)
         elif reg_offset == self.arch.bp_offset:
-            return SpOffset(bits, 0, is_base=True)
+            return DataSet(SpOffset(bits, 0, is_base=True), bits)
 
         try:
             data = DataSet(set(), bits)
@@ -222,21 +219,78 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
                               )
             return data
         except KeyError:
-            return RegisterOffset(bits, reg_offset, 0)
+            return DataSet(RegisterOffset(bits, reg_offset, 0), bits)
 
     def _ail_handle_Load(self, expr):
 
-        addr = self._expr(expr.addr)
+        addrs = self._expr(expr.addr)
         size = expr.size
+        bits = expr.bits
 
-        # TODO: Load from memory
-        return MemoryLocation(addr, size)
+        data = set()
+        for addr in addrs:
+            if isinstance(addr, int):
+                current_defs = self.state.memory_definitions.get_objects_by_offset(addr)
+                if current_defs:
+                    for current_def in current_defs:
+                        data.update(current_def.data)
+                    if any(type(d) is Undefined for d in data):
+                        l.info('Memory at address %#x undefined, ins_addr = %#x.', addr, self.ins_addr)
+                else:
+                    try:
+                        data.add(self.state.loader.memory.unpack_word(addr, size=size))
+                    except KeyError:
+                        pass
+
+                # FIXME: _add_memory_use() iterates over the same loop
+                self.state.add_use(MemoryLocation(addr, size), self._codeloc())
+            elif isinstance(addr, SpOffset):
+                current_defs = self.state.stack_definitions.get_objects_by_offset(addr.offset)
+                if current_defs:
+                    for current_def in current_defs:
+                        data.update(current_def.data)
+                    if any(type(d) is Undefined for d in data):
+                        l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
+                else:
+                    data.add(Undefined(bits))
+
+                self.state.add_use(addr, self._codeloc())
+            else:
+                l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
+
+        if len(data) == 0:
+            data.add(Undefined(bits))
+
+        return DataSet(data, bits)
 
     def _ail_handle_Convert(self, expr):
         r = super()._ail_handle_Convert(expr)
         if r is None:
-            r = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
-                                     self._expr(expr.operand))
+            to_conv = self._expr(expr.operand)
+            if expr.from_bits == to_conv.bits and \
+                    isinstance(to_conv, DataSet):
+                if len(to_conv) == 1 and type(next(iter(to_conv.data))) is Undefined:
+                    r = DataSet(to_conv.data.copy(), expr.to_bits)
+                elif all(isinstance(d, (ailment.Expr.Const, int)) for d in to_conv.data):
+                    converted = set()
+                    for d in to_conv.data:
+                        if isinstance(d, ailment.Expr.Const):
+                            converted.add(ailment.Expr.Const(d.idx, d.variable, d.value, expr.to_bits))
+                        else:  # isinstance(d, int)
+                            converted.add(d)
+                    r = DataSet(converted, expr.to_bits)
+
+            if r is None:
+                r = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
+                                         self._expr(expr.operand))
+                r = DataSet(r, expr.to_bits)
+        return r
+
+    def _ail_handle_BinaryOp(self, expr):
+        r = super()._ail_handle_BinaryOp(expr)
+        if isinstance(r, ailment.Expr.BinaryOp):
+            # Repack it with DataSet
+            return DataSet({r}, r.bits)
         return r
 
     def _ail_handle_CmpEQ(self, expr):
@@ -251,17 +305,16 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
 
         return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
-    def _ail_handle_Xor(self, expr):
-        op0 = self._expr(expr.operands[0])
-        op1 = self._expr(expr.operands[1])
-
-        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
-
     def _ail_handle_Const(self, expr):
-        return DataSet(expr, expr.bits)
+        return DataSet(expr.value, expr.bits)
 
     def _ail_handle_StackBaseOffset(self, expr):
-        return SpOffset(self.arch.bits, expr.offset, is_base=False)
+        return DataSet(SpOffset(self.arch.bits,
+                                expr.offset if expr.offset is not None else 0,
+                                is_base=False
+                                ),
+                       self.arch.bits
+                       )
 
     def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
         return expr
