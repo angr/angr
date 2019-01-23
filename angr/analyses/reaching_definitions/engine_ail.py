@@ -80,6 +80,10 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
             reg = Register(dst.reg_offset, dst.bits // 8)
             self.state.kill_and_add_definition(reg, self._codeloc(), src)
 
+            if dst.reg_offset == self.arch.sp_offset:
+                # TODO: Special logic that frees all definitions above the current stack pointer
+                pass
+
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
