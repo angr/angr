@@ -966,7 +966,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if not self._should_skip_region(start_):
                     new_regions.append((start_, end_))
             regions = new_regions
-        if not regions:
+        if not regions and self.project.arch.name != 'Soot':
             raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
         # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
@@ -1118,7 +1118,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         if not self._regions:
-            l.error("self._regions is empty or not properly set.")
+            if self.project.arch.name != "Soot":
+                l.error("self._regions is empty or not properly set.")
             return None
 
         return next(self._regions.irange())

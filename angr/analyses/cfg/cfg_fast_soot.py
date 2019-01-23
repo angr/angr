@@ -25,13 +25,7 @@ class CFGFastSoot(CFGFast):
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
-        super(CFGFastSoot, self).__init__(**kwargs)
-
-    def _initialize_regions(self, exclude_sparse_regions, skip_specific_regions, force_segment, base_state,
-                           initial_regions=None):
-        # Don't do anything
-        self._regions = SortedDict({})
-        return
+        super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
 
     def _pre_analysis(self):
 
