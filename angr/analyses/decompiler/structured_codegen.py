@@ -914,7 +914,7 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_ConditionalBreak(self, node):  # pylint:disable=no-self-use
 
-        return CIfBreak(node.condition)
+        return CIfBreak(self._handle(node.condition))
 
     def _handle_MultiNode(self, node):  # pylint:disable=no-self-use
 
