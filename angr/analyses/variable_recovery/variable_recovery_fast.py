@@ -239,6 +239,11 @@ def get_engine(base_engine):
             self._expr(expr.operands[1])
             return None
 
+        def _ail_handle_CmpLE(self, expr):
+            self._expr(expr.operands[0])
+            self._expr(expr.operands[1])
+            return None
+
         #
         # Logic
         #
