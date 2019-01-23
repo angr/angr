@@ -82,8 +82,8 @@ class StackCanarySimplifier(OptimizationPass):
 
         pred = self._get_block(next(iter(preds)).addr)
 
-        if len(pred.statements) < 2:
-            _l.debug("The predecessor node has less than two statements.")
+        if len(pred.statements) < 1:
+            _l.debug("The predecessor node is empty.")
             return
 
         # Check the last statement
@@ -106,9 +106,6 @@ class StackCanarySimplifier(OptimizationPass):
                                                      ailment.Expr.Const(None, None, other_node.addr,
                                                                         self.project.arch.bits)
                                                      )
-
-        # Remove the statement that calculates xor of stored canary value and real canary value
-        pred_copy.statements.pop(canary_check_stmt_idx)
 
         self._update_block(pred, pred_copy)
 
@@ -144,12 +141,26 @@ class StackCanarySimplifier(OptimizationPass):
     def _find_canary_xor_stmt(self, block, canary_value_stack_offset):
 
         for idx, stmt in enumerate(block.statements):
-            if isinstance(stmt, ailment.Stmt.Assignment) \
-                    and isinstance(stmt.dst, ailment.Expr.Register) \
-                    and isinstance(stmt.src, ailment.Expr.BinaryOp):
-                if stmt.src.op != "Xor":
+            if isinstance(stmt, ailment.Stmt.ConditionalJump):
+                if isinstance(stmt.condition, ailment.Expr.UnaryOp) and stmt.condition.op == "Not":
+                    # !(s_10 ^ fs:0x28 == 0)
+                    negated = True
+                    condition = stmt.condition.operand
+                else:
+                    negated = False
+                    condition = stmt.condition
+                if isinstance(condition, ailment.Expr.BinaryOp) and (
+                        not negated and condition.op == "CmpEQ" or
+                        negated and condition.op == "CmpNE"
+                ):
+                   pass
+                else:
                     continue
-                op0, op1 = stmt.src.operands
+
+                expr = condition.operands[0]
+                if expr.op != "Xor":
+                    continue
+                op0, op1 = expr.operands
                 if not isinstance(op0, ailment.Expr.Load):
                     continue
                 if not isinstance(op0.addr, ailment.Expr.StackBaseOffset):
