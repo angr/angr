@@ -163,13 +163,14 @@ class ConditionalJump(Statement):
 
 
 class Call(Statement):
-    def __init__(self, idx, target, calling_convention=None, prototype=None, args=None, **kwargs):
+    def __init__(self, idx, target, calling_convention=None, prototype=None, args=None, ret_expr=None, **kwargs):
         super(Call, self).__init__(idx, **kwargs)
 
         self.target = target
         self.calling_convention = calling_convention
         self.prototype = prototype
         self.args = args
+        self.ret_expr = ret_expr
 
     def __eq__(self, other):
         return type(other) is Call and \
@@ -177,7 +178,8 @@ class Call(Statement):
                self.target == other.target and \
                self.calling_convention == other.calling_convention and \
                self.prototype == other.prototype and \
-               self.args == other.args
+               self.args == other.args and \
+               self.ret_expr == other.ret_expr
 
     def __repr__(self):
         return "Call (target: %s, prototype: %s, args: %s)" % (self.target, self.prototype, self.args)
@@ -208,15 +210,33 @@ class Call(Statement):
                 r |= r_arg
                 new_args.append(replaced_arg)
 
+        new_ret_expr = None
+        if self.ret_expr:
+            r_ret, replaced_ret = self.ret_expr.replace(old_expr, new_expr)
+            r |= r_ret
+            new_ret_expr = replaced_ret
+
         if r:
             return True, Call(self.idx, replaced_target,
                               calling_convention=self.calling_convention,
                               prototype=self.prototype,
                               args=new_args,
+                              ret_expr=new_ret_expr,
                               **self.tags
                               )
         else:
             return False, self
+
+    def copy(self):
+        return Call(
+            self.idx,
+            self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=self.args[::] if self.args is not None else None,
+            ret_expr=self.ret_expr,
+            **self.tags,
+        )
 
 
 class DirtyStatement(Statement):
