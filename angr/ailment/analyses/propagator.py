@@ -231,6 +231,9 @@ def get_engine(base_engine):
 
         def _ail_handle_Load(self, expr):
             addr = self._expr(expr.addr)
+
+            if addr != expr.addr:
+                return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
             return expr
 
         def _ail_handle_Convert(self, expr):
