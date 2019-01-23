@@ -36,22 +36,27 @@ class LiveDefinitions:
         self._track_tmps = track_tmps
         self.analysis = analysis
 
-        self.register_definitions = KeyedRegion()
-        self.memory_definitions = KeyedRegion()
+        self.register_definitions = KeyedRegion()  # register region
+        self.stack_definitions = KeyedRegion()  # stack region
+        self.memory_definitions = KeyedRegion()  # non-stack memory region
         self.tmp_definitions = {}
 
         if init_func:
             self._init_func(cc, func_addr)
 
         self.register_uses = Uses()
+        self.stack_uses = Uses()
         self.memory_uses = Uses()
         self.tmp_uses = defaultdict(set)
 
         self._dead_virgin_definitions = set()  # definitions that are killed before used
 
     def __repr__(self):
-        ctnt = "LiveDefs, %d regdefs, %d memdefs" % (len(self.register_definitions),
-                                                                len(self.memory_definitions))
+        ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d memdefs" % (
+            len(self.register_definitions),
+            len(self.stack_definitions),
+            len(self.memory_definitions),
+        )
         if self._track_tmps:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
@@ -86,7 +91,7 @@ class LiveDefinitions:
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
 
-        # architecture depended initialization
+        # architecture dependent initialization
         if self.arch.name.lower().find('ppc64') > -1:
             rtoc_value = self.loader.main_object.ppc64_initial_rtoc
             if rtoc_value:
@@ -110,9 +115,11 @@ class LiveDefinitions:
         )
 
         rd.register_definitions = self.register_definitions.copy()
+        rd.stack_definitions = self.stack_definitions.copy()
         rd.memory_definitions = self.memory_definitions.copy()
         rd.tmp_definitions = self.tmp_definitions.copy()
         rd.register_uses = self.register_uses.copy()
+        rd.stack_uses = self.stack_uses.copy()
         rd.memory_uses = self.memory_uses.copy()
         rd.tmp_uses = self.tmp_uses.copy()
         rd._dead_virgin_definitions = self._dead_virgin_definitions.copy()
@@ -125,9 +132,11 @@ class LiveDefinitions:
 
         for other in others:
             state.register_definitions.merge(other.register_definitions)
+            state.stack_definitions.merge(other.stack_definitions)
             state.memory_definitions.merge(other.memory_definitions)
 
             state.register_uses.merge(other.register_uses)
+            state.stack_uses.merge(other.stack_uses)
             state.memory_uses.merge(other.memory_uses)
 
             state._dead_virgin_definitions |= other._dead_virgin_definitions
@@ -137,9 +146,10 @@ class LiveDefinitions:
     def downsize(self):
         self.analysis = None
 
-    def kill_definitions(self, atom, code_loc, data=None):
+    def kill_definitions(self, atom, code_loc, data=None, dummy=True):
         """
-        Overwrite existing definitions w.r.t 'atom' with a dummy definition instance.
+        Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
+        removed during simplification.
 
         :param Atom atom:
         :param CodeLocation code_loc:
@@ -150,11 +160,13 @@ class LiveDefinitions:
         if data is None:
             data = DataSet(Undefined(atom.size), atom.size)
 
-        self.kill_and_add_definition(atom, code_loc, data, dummy=True)
+        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
 
     def kill_and_add_definition(self, atom, code_loc, data, dummy=False):
         if type(atom) is Register:
             self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
+        elif type(atom) is SpOffset:
+            self._kill_and_add_stack_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is MemoryLocation:
             self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is Tmp:
@@ -165,6 +177,8 @@ class LiveDefinitions:
     def add_use(self, atom, code_loc):
         if type(atom) is Register:
             self._add_register_use(atom, code_loc)
+        elif type(atom) is SpOffset:
+            self._add_stack_use(atom, code_loc)
         elif type(atom) is MemoryLocation:
             self._add_memory_use(atom, code_loc)
         elif type(atom) is Tmp:
@@ -181,13 +195,34 @@ class LiveDefinitions:
         if current_defs:
             uses = set()
             for current_def in current_defs:
-                uses |= self.register_uses.get_current_uses(current_def)
+                uses |= self.register_uses.get_uses(current_def)
             if not uses:
                 self._dead_virgin_definitions |= current_defs
 
         definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
+
+    def _kill_and_add_stack_definition(self, atom, code_loc, data, dummy=False):
+        """
+
+        :param SpOffset atom:
+        :param code_loc:
+        :param data:
+        :param dummy:
+        :return:
+        """
+
+        current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
+        if current_defs:
+            uses = set()
+            for current_def in current_defs:
+                uses |= self.stack_uses.get_uses(current_def)
+            if not uses:
+                self._dead_virgin_definitions |= current_defs
+
+        definition = Definition(atom, code_loc, data, dummy=dummy)
+        self.stack_definitions.set_object(atom.offset, definition, data.bits // 8)
 
     def _kill_and_add_memory_definition(self, atom, code_loc, data, dummy=False):
         definition = Definition(atom, code_loc, data, dummy=dummy)
@@ -205,6 +240,19 @@ class LiveDefinitions:
 
         for current_def in current_defs:
             self.register_uses.add_use(current_def, code_loc)
+
+    def _add_stack_use(self, atom, code_loc):
+        """
+
+        :param SpOffset atom:
+        :param code_loc:
+        :return:
+        """
+
+        current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
+
+        for current_def in current_defs:
+            self.stack_uses.add_use(current_def, code_loc)
 
     def _add_memory_use(self, atom, code_loc):
 
@@ -312,9 +360,9 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._node_iterations = defaultdict(int)
         self._states = {}
 
-        self._engine_vex = SimEngineRDVEX(self._current_local_call_depth, self._maximum_local_call_depth,
+        self._engine_vex = SimEngineRDVEX(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
-        self._engine_ail = SimEngineRDAIL(self._current_local_call_depth, self._maximum_local_call_depth,
+        self._engine_ail = SimEngineRDAIL(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
 
         self.observed_results = {}

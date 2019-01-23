@@ -52,7 +52,13 @@ class ProcessorState:
         if self.bp is None:
             self.bp = other.bp
         elif other.bp is not None:  # and self.bp is not None
-            self.bp = max(self.bp, other.bp)
+            if self.bp == other.bp:
+                pass
+            else:
+                if type(self.bp) is int and type(other.bp) is int:
+                    self.bp = max(self.bp, other.bp)
+                else:
+                    self.bp = None
         return self
 
     def __eq__(self, other):
@@ -70,9 +76,10 @@ class ProcessorState:
 
 def get_engine(base_engine):
     class SimEngineVR(base_engine):
-        def __init__(self):
+        def __init__(self, project):
             super(SimEngineVR, self).__init__()
 
+            self.project = project
             self.processor_state = None
             self.variable_manager = None
 
@@ -118,7 +125,7 @@ def get_engine(base_engine):
             size = stmt.data.result_size(self.tyenv) // 8
             data = self._expr(stmt.data)
 
-            self._store(addr, data, size)
+            self._store(addr, data, size, stmt=stmt)
 
 
         # Expression handlers
@@ -168,7 +175,7 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
             size = stmt.data.bits // 8
 
-            self._store(addr, data, size)
+            self._store(addr, data, size, stmt=stmt)
 
         def _ail_handle_Jump(self, stmt):
             pass
@@ -177,7 +184,27 @@ def get_engine(base_engine):
             self._expr(stmt.condition)
 
         def _ail_handle_Call(self, stmt):
-            pass
+            target = stmt.target
+            if stmt.args:
+                for arg in stmt.args:
+                    self._expr(arg)
+
+            ret_expr = stmt.ret_expr
+            if ret_expr is None:
+                if stmt.calling_convention is not None:
+                    # return value
+                    ret_expr = stmt.calling_convention.RETURN_VAL
+                else:
+                    l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
+                    ret_expr = self.project.factory.cc().RETURN_VAL
+
+            if ret_expr is not None:
+                self._assign_to_register(
+                    ret_expr.reg_offset,
+                    None,
+                    self.state.arch.bytes,
+                    dst=ret_expr,
+                )
 
         # Expression handlers
 
@@ -208,6 +235,11 @@ def get_engine(base_engine):
             return SpOffset(self.arch.bits, expr.offset, is_base=False)
 
         def _ail_handle_CmpEQ(self, expr):
+            self._expr(expr.operands[0])
+            self._expr(expr.operands[1])
+            return None
+
+        def _ail_handle_CmpLE(self, expr):
             self._expr(expr.operands[0])
             self._expr(expr.operands[1])
             return None
@@ -298,7 +330,7 @@ def get_engine(base_engine):
             self.state.register_region.set_variable(offset, variable)
             self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
 
-        def _store(self, addr, data, size):  # pylint:disable=unused-argument
+        def _store(self, addr, data, size, stmt=None):  # pylint:disable=unused-argument
             """
 
             :param addr:
@@ -311,8 +343,16 @@ def get_engine(base_engine):
                 # Storing data to stack
                 stack_offset = addr.offset
 
-                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                             'memory')
+                if stmt is None:
+                    existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr,
+                                                                                                 self.stmt_idx,
+                                                                                                 'memory'
+                                                                                                 )
+                else:
+                    existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(self.block.addr,
+                                                                                                 self.stmt_idx,
+                                                                                                 stmt
+                                                                                                 )
                 if not existing_vars:
                     variable = SimStackVariable(stack_offset, size, base='bp',
                                                 ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
@@ -322,7 +362,7 @@ def get_engine(base_engine):
                     l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
                 else:
-                    variable, _ = existing_vars[0]
+                    variable, _ = next(iter(existing_vars))
 
                 self.state.stack_region.set_variable(stack_offset, variable)
 
@@ -334,7 +374,8 @@ def get_engine(base_engine):
                         offset_into_var = None
                     self.variable_manager[self.func_addr].write_to(var,
                                                                    offset_into_var,
-                                                                   codeloc
+                                                                   codeloc,
+                                                                   atom=stmt,
                                                                    )
 
         def _load(self, addr, size, expr=None):
@@ -558,8 +599,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._clinic = clinic
 
-        self._ail_engine = get_engine(SimEngineLightAIL)()
-        self._vex_engine = get_engine(SimEngineLightVEX)()
+        self._ail_engine = get_engine(SimEngineLightAIL)(self.project)
+        self._vex_engine = get_engine(SimEngineLightVEX)(self.project)
 
         self._node_iterations = defaultdict(int)
 

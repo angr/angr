@@ -251,9 +251,9 @@ class Clinic(Analysis):
             stmt_type = type(stmt)
             if stmt_type is ailment.Stmt.Store:
                 # find a memory variable
-                mem_vars = variable_manager.find_variables_by_stmt(block.addr, stmt_idx, 'memory')
+                mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt)
                 if len(mem_vars) == 1:
-                    stmt.variable, stmt.offset = mem_vars[0]
+                    stmt.variable, stmt.offset = next(iter(mem_vars))
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.data)
 
             elif stmt_type is ailment.Stmt.Assignment:
@@ -262,6 +262,10 @@ class Clinic(Analysis):
 
             elif stmt_type is ailment.Stmt.ConditionalJump:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.condition)
+
+            elif stmt_type is ailment.Stmt.Call:
+                if stmt.ret_expr:
+                    self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.ret_expr)
 
     def _link_variables_on_expr(self, variable_manager, block, stmt_idx, stmt, expr):
         """
@@ -287,12 +291,16 @@ class Clinic(Analysis):
         elif type(expr) is ailment.Expr.Load:
             # import ipdb; ipdb.set_trace()
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(variables) == 1:
+            if len(variables) == 0:
+                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.addr)
+            else:
+                if len(variables) > 1:
+                    l.error("More than one variable are available for atom %s. Consider fixing it using phi nodes.",
+                            expr
+                            )
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.offset = offset
-            else:
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.addr)
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)

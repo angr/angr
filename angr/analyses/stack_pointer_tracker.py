@@ -171,10 +171,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     arg0, arg1 = stmt.data.args
                     if type(arg0) is pyvex.IRExpr.RdTmp and arg0.tmp in tmps and \
                             type(arg1) is pyvex.IRExpr.Const:
-                        if stmt.data.op.startswith('Iop_Add'):
+                        if stmt.data.op.startswith('Iop_Add') and tmps[arg0.tmp] is not None:
                             tmps[stmt.tmp] = tmps[arg0.tmp] + arg1.con.value
-                        elif stmt.data.op.startswith('Iop_Sub'):
+                        elif stmt.data.op.startswith('Iop_Sub') and tmps[arg0.tmp] is not None:
                             tmps[stmt.tmp] = tmps[arg0.tmp] - arg1.con.value
+                        elif stmt.data.op.startswith('Iop_And') and tmps[arg0.tmp] is not None:
+                            tmps[stmt.tmp] = tmps[arg0.tmp] & arg1.con.value
 
             elif type(stmt) is pyvex.IRStmt.Put:
                 if stmt.offset == sp_offset:

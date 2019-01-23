@@ -1,4 +1,5 @@
 
+from ...engines.light import SpOffset
 from .atoms import MemoryLocation, Register
 from .undefined import Undefined
 from .dataset import DataSet
@@ -39,18 +40,22 @@ class Definition:
 
     @property
     def offset(self):
-        if type(self.atom) is MemoryLocation:
-            return self.atom.addr
-        elif type(self.atom) is Register:
+        if type(self.atom) is Register:
             return self.atom.reg_offset
+        elif type(self.atom) is SpOffset:
+            return self.atom.offset
+        elif type(self.atom) is MemoryLocation:
+            return self.atom.addr
         else:
             raise ValueError('Unsupported operation offset on %s.' % type(self.atom))
 
     @property
     def size(self):
-        if type(self.atom) is MemoryLocation:
+        if type(self.atom) is Register:
             return self.atom.size
-        elif type(self.atom) is Register:
+        elif type(self.atom) is SpOffset:
+            return self.atom.bits // 8
+        elif type(self.atom) is MemoryLocation:
             return self.atom.size
         else:
             raise ValueError('Unsupported operation size on %s.' % type(self.atom))

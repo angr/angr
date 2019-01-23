@@ -8,6 +8,7 @@ from ailment import Block, Expr, Stmt
 
 from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
+from ...utils.constants import is_alignment_mask
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
 from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode
@@ -405,18 +406,29 @@ class CFunctionCall(CStatement):
 
     :ivar Function callee_func:  The function getting called.
     """
-    def __init__(self, callee_target, callee_func, args, returning=True):
+    def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None):
         super().__init__()
 
         self.callee_target = callee_target
         self.callee_func = callee_func
         self.args = args if args is not None else [ ]
         self.returning = returning
+        self.ret_expr = ret_expr
 
     def c_repr(self, indent=0, posmap=None):
 
         indent_str = self.indent_str(indent=indent)
         if posmap: posmap.tick_pos(len(indent_str))
+
+        ret_expr_str = ""
+        if self.ret_expr is not None:
+            if isinstance(self.ret_expr, CExpression):
+                ret_expr_str = self.ret_expr.c_repr(posmap=posmap)
+            else:
+                ret_expr_str = str(self.ret_expr)
+                if posmap: posmap.tick_pos(len(ret_expr_str))
+            ret_expr_str += " = "
+            if posmap: posmap.tick_pos(3)
 
         if self.callee_func is not None:
             func_name = self.callee_func.name
@@ -438,7 +450,10 @@ class CFunctionCall(CStatement):
             args_list.append(arg_str)
         args_str = ", ".join(args_list)
 
-        return indent_str + s_func + "%s);%s" % (args_str, " /* do not return */" if not self.returning else "")
+        return indent_str + ret_expr_str +  s_func + "%s);%s" % (
+            args_str,
+            " /* do not return */" if not self.returning else ""
+        )
 
 
 class CReturn(CStatement):
@@ -630,14 +645,14 @@ class CBinaryOp(CExpression):
         if self.referenced_variable is not None:
             if posmap:
                 posmap.tick_pos(1)
-                posmap.add_mapping(posmap.pos, len(self.referenced_variable.name), self)
-                posmap.tick_pos(len(self.referenced_variable.name))
-            return "&%s" % self.referenced_variable.name
+            return "&%s" % self.referenced_variable.c_repr(posmap=posmap)
 
         OP_MAP = {
             'Add': self._c_repr_add,
             'Sub': self._c_repr_sub,
+            'And': self._c_repr_and,
             'Xor': self._c_repr_xor,
+            'Shr': self._c_repr_shr,
             'CmpLE': self._c_repr_cmple,
             'CmpEQ': self._c_repr_cmpeq,
         }
@@ -665,9 +680,23 @@ class CBinaryOp(CExpression):
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
 
+    def _c_repr_and(self, posmap=None):
+        lhs = self._try_c_repr(self.rhs, posmap=posmap)
+        op = " & "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
     def _c_repr_xor(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " ^ "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_shr(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " >> "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
@@ -815,6 +844,9 @@ class StructuredCodeGenerator(Analysis):
         expr = self._handle(addr)
 
         if isinstance(expr, CBinaryOp):
+            if expr.op == "And" and isinstance(expr.rhs, CConstant) and is_alignment_mask(expr.rhs.value):
+                # alignment - ignore it
+                expr = expr.lhs
             if expr.op in ("Add", "Sub"):
                 lhs, rhs = expr.lhs, expr.rhs
                 if isinstance(lhs, CConstant):
@@ -882,7 +914,7 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_ConditionalBreak(self, node):  # pylint:disable=no-self-use
 
-        return CIfBreak(node.condition)
+        return CIfBreak(self._handle(node.condition))
 
     def _handle_MultiNode(self, node):  # pylint:disable=no-self-use
 
@@ -919,7 +951,11 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Stmt_Store(self, stmt):
 
-        cvariable = self._handle(stmt.variable)
+        if stmt.variable is None:
+            l.warning("Store statement %s has no variable linked with it.", stmt)
+            cvariable = None
+        else:
+            cvariable = self._handle(stmt.variable)
         cdata = self._handle(stmt.data)
 
         return CAssignment(cvariable, cdata)
@@ -967,8 +1003,13 @@ class StructuredCodeGenerator(Analysis):
                     new_arg = self._handle(arg)
                 args.append(new_arg)
 
+        ret_expr = None
+        if stmt.ret_expr is not None:
+            ret_expr = self._handle(stmt.ret_expr)
+
         return CFunctionCall(target, target_func, args,
-                             returning=target_func.returning if target_func is not None else True
+                             returning=target_func.returning if target_func is not None else True,
+                             ret_expr=ret_expr,
                              )
 
     #

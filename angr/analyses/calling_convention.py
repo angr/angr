@@ -52,6 +52,13 @@ class CallingConventionAnalysis(Analysis):
         :return:
         """
 
+        if not self._function.is_simprocedure \
+                and not self._function.is_plt \
+                and not self._variable_manager.has_function_manager(self._function.addr):
+            l.warning("Please run variable recovery on %s before analyzing its calling conventions.",
+                      repr(self._function))
+            return None
+
         vm = self._variable_manager[self._function.addr]
 
         input_variables = vm.input_variables()
