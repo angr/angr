@@ -802,7 +802,14 @@ class SimCC:
         if not isinstance(other, self.__class__):
             return False
 
-        return set(self.args) == set(other.args) and \
+        def _compare_args(args0, args1):
+            if args0 is None and args1 is None:
+                return True
+            if args0 is None or args1 is None:
+                return False
+            return set(args0) == set(args1)
+
+        return _compare_args(self.args, other.args) and \
                self.ret_val == other.ret_val and \
                self.sp_delta == other.sp_delta
 
