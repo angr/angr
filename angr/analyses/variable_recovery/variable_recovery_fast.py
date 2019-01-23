@@ -76,9 +76,10 @@ class ProcessorState:
 
 def get_engine(base_engine):
     class SimEngineVR(base_engine):
-        def __init__(self):
+        def __init__(self, project):
             super(SimEngineVR, self).__init__()
 
+            self.project = project
             self.processor_state = None
             self.variable_manager = None
 
@@ -183,7 +184,27 @@ def get_engine(base_engine):
             self._expr(stmt.condition)
 
         def _ail_handle_Call(self, stmt):
-            pass
+            target = stmt.target
+            if stmt.args:
+                for arg in stmt.args:
+                    self._expr(arg)
+
+            ret_expr = stmt.ret_expr
+            if ret_expr is None:
+                if stmt.calling_convention is not None:
+                    # return value
+                    ret_expr = stmt.calling_convention.RETURN_VAL
+                else:
+                    l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
+                    ret_expr = self.project.factory.cc().RETURN_VAL
+
+            if ret_expr is not None:
+                self._assign_to_register(
+                    ret_expr.reg_offset,
+                    None,
+                    self.state.arch.bytes,
+                    dst=ret_expr,
+                )
 
         # Expression handlers
 
@@ -564,8 +585,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._clinic = clinic
 
-        self._ail_engine = get_engine(SimEngineLightAIL)()
-        self._vex_engine = get_engine(SimEngineLightVEX)()
+        self._ail_engine = get_engine(SimEngineLightAIL)(self.project)
+        self._vex_engine = get_engine(SimEngineLightVEX)(self.project)
 
         self._node_iterations = defaultdict(int)
 
