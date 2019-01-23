@@ -52,7 +52,13 @@ class ProcessorState:
         if self.bp is None:
             self.bp = other.bp
         elif other.bp is not None:  # and self.bp is not None
-            self.bp = max(self.bp, other.bp)
+            if self.bp == other.bp:
+                pass
+            else:
+                if type(self.bp) is int and type(other.bp) is int:
+                    self.bp = max(self.bp, other.bp)
+                else:
+                    self.bp = None
         return self
 
     def __eq__(self, other):
