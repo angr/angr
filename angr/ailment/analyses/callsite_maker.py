@@ -2,6 +2,7 @@
 import logging
 
 from angr import Analysis, register_analysis
+from angr.sim_type import SimTypeBottom
 from angr.sim_variable import SimStackVariable
 from angr.calling_conventions import SimRegArg, SimStackArg
 from angr.analyses.reaching_definitions.constants import OP_BEFORE
@@ -62,34 +63,22 @@ class CallSiteMaker(Analysis):
                         size = arg_loc.size
                         offset = arg_loc._fix_offset(None, size, arch=self.project.arch)
 
-                        arg_added = False
-                        if self._reaching_definitions is not None:
-                            # Find its definition
-                            ins_addr = last_stmt.tags['ins_addr']
-                            try:
-                                rd = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
-                            except KeyError:
-                                rd = None
+                        the_arg = self._resolve_register_argument(last_stmt, arg_loc)
 
-                            if rd is not None:
-                                defs = rd.register_definitions.get_variables_by_offset(offset)
-                                if not defs:
-                                    l.warning("Did not find any reaching definition for register %s at instruction %x.",
-                                              arg_loc, ins_addr)
-                                elif len(defs) > 1:
-                                    l.warning("TODO: More than one reaching definition are found at instruction %x.",
-                                              ins_addr)
-                                else:
-                                    # Find the definition
-                                    def_ = next(iter(defs))  # type:Definition
-                                    var_or_value = self._find_variable_from_definition(def_)
-                                    if var_or_value is not None:
-                                        args.append(var_or_value)
-                                        arg_added = True
-
-                        if not arg_added:
+                        if the_arg is not None:
+                            args.append(the_arg)
+                        else:
                             # Reaching definitions are not available. Create a register expression instead.
                             args.append(Expr.Register(None, None, offset, size * 8, reg_name=arg_loc.reg_name))
+                    elif type(arg_loc) is SimStackArg:
+
+                        the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
+
+                        if the_arg is not None:
+                            args.append(the_arg)
+                        else:
+                            args.append(None)
+
                     else:
                         raise NotImplementedError('Not implemented yet.')
 
@@ -105,10 +94,26 @@ class CallSiteMaker(Analysis):
                         # yes it is!
                         new_stmts = new_stmts[:-1]
 
+        ret_expr = last_stmt.ret_expr
+        if ret_expr is None:
+            ret_expr = None
+            if func.prototype is not None:
+                if func.prototype.returnty is not None and not isinstance(func.prototype.returnty, SimTypeBottom):
+                    # it has a return value
+                    if func.calling_convention is not None:
+                        ret_expr_size = func.prototype.returnty._with_arch(self.project.arch).size
+                        reg_offset = func.calling_convention.RETURN_VAL._fix_offset(
+                            None,
+                            ret_expr_size,
+                            arch=self.project.arch,
+                        )
+                        ret_expr = Expr.Register(None, None, reg_offset, ret_expr_size * 8)
+
         new_stmts.append(Stmt.Call(last_stmt, last_stmt.target,
                                    calling_convention=func.calling_convention,
                                    prototype=func.prototype,
                                    args=args,
+                                   ret_expr=ret_expr,
                                    **last_stmt.tags,
                                    ))
 
@@ -136,6 +141,51 @@ class CallSiteMaker(Analysis):
         else:
             l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
             return None
+
+    def _resolve_register_argument(self, call_stmt, arg_loc):
+
+        size = arg_loc.size
+        offset = arg_loc._fix_offset(None, size, arch=self.project.arch)
+
+        if self._reaching_definitions is not None:
+            # Find its definition
+            ins_addr = call_stmt.tags['ins_addr']
+            try:
+                rd = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
+            except KeyError:
+                rd = None
+
+            if rd is not None:
+                defs = rd.register_definitions.get_variables_by_offset(offset)
+                if not defs:
+                    l.warning("Did not find any reaching definition for register %s at instruction %x.",
+                              arg_loc, ins_addr)
+                elif len(defs) > 1:
+                    l.warning("TODO: More than one reaching definition are found at instruction %x.",
+                              ins_addr)
+                else:
+                    # Find the definition
+                    def_ = next(iter(defs))  # type:Definition
+                    var_or_value = self._find_variable_from_definition(def_)
+                    if var_or_value is not None:
+                        return var_or_value
+
+        return None
+
+    def _resolve_stack_argument(self, call_stmt, arg_loc):
+
+        size = arg_loc.size
+        offset = arg_loc.stack_offset
+        if self.project.arch.call_pushes_ret:
+            # adjust the offset
+            offset -= self.project.arch.bytes
+
+        return Expr.Load(None,
+                         Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits) +
+                            Expr.Const(None, None, offset, self.project.arch.bits),
+                         size,
+                         self.project.arch.memory_endness,
+                         )
 
     def _get_call_target(self, stmt):
         """
