@@ -385,6 +385,9 @@ class VariableManager(KnowledgeBasePlugin):
             # key refers to a function address
             return self.get_function_manager(key)
 
+    def has_function_manager(self, key):
+        return key in self.function_managers
+
     def get_function_manager(self, func_addr):
         if not isinstance(func_addr, int):
             raise TypeError('Argument "func_addr" must be an int.')
