@@ -645,9 +645,7 @@ class CBinaryOp(CExpression):
         if self.referenced_variable is not None:
             if posmap:
                 posmap.tick_pos(1)
-                posmap.add_mapping(posmap.pos, len(self.referenced_variable.name), self)
-                posmap.tick_pos(len(self.referenced_variable.name))
-            return "&%s" % self.referenced_variable.name
+            return "&%s" % self.referenced_variable.c_repr(posmap=posmap)
 
         OP_MAP = {
             'Add': self._c_repr_add,
@@ -953,7 +951,11 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Stmt_Store(self, stmt):
 
-        cvariable = self._handle(stmt.variable)
+        if stmt.variable is None:
+            l.warning("Store statement %s has no variable linked with it.", stmt)
+            cvariable = None
+        else:
+            cvariable = self._handle(stmt.variable)
         cdata = self._handle(stmt.data)
 
         return CAssignment(cvariable, cdata)
