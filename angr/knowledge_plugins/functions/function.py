@@ -67,7 +67,8 @@ class Function:
             # Determine whether this function is a syscall or not
             self.is_syscall = self._project.simos.is_syscall_addr(addr)
 
-        if project.is_hooked(addr):
+        # Determine whether this function is a simprocedure
+        if self.is_syscall or project.is_hooked(addr):
             self.is_simprocedure = True
 
         if project.loader.find_plt_stub_name(addr) is not None:
@@ -1075,7 +1076,7 @@ class Function:
             # PLT entries must have the same declaration as their jump targets
             # Try to determine which library this PLT entry will jump to
             edges = self.transition_graph.edges()
-            if len(edges) == 1 and type(next(iter(edges))[1]) is HookNode:
+            if len(edges) == 1 and isinstance(next(iter(edges))[1], HookNode):
                 target = next(iter(edges))[1].addr
                 if target in self._function_manager:
                     target_func = self._function_manager[target]

@@ -3,7 +3,7 @@ import logging
 
 import archinfo
 
-from ...codenode import BlockNode, HookNode
+from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
 
 _l = logging.getLogger(__name__)
@@ -174,6 +174,8 @@ class CFGNode:
         return self._hash
 
     def to_codenode(self):
+        if self.is_syscall:
+            return SyscallNode(self.addr, self.size, self.simprocedure_name)
         if self.is_simprocedure:
             return HookNode(self.addr, self.size, self.simprocedure_name)
         return BlockNode(self.addr, self.size, thumb=self.thumb)

@@ -1,7 +1,6 @@
 import logging
 import os
 import types
-import weakref
 from io import BytesIO, IOBase
 import pickle
 import string
@@ -683,7 +682,7 @@ class Project:
         return self.simos
 
 
-from .errors import AngrError, AngrNoPluginError
+from .errors import AngrNoPluginError
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub

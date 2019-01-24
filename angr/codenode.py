@@ -103,4 +103,9 @@ class HookNode(CodeNode):
     def __setstate__(self, dat):
         self.__init__(*dat)
 
+class SyscallNode(HookNode):
+    is_hook = False
+    def __repr__(self):
+        return '<SyscallNode %r at %#x (size %s)>' % (self.sim_procedure, self.addr, self.size)
+
 from .block import Block
