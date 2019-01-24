@@ -24,6 +24,8 @@ class UninitReadMeta:
 class AddressTransferringTypes:
     Assignment = 0
     SignedExtension32to64 = 1
+    UnsignedExtension32to64 = 2
+    Truncation64to32 = 3
 
 
 class JumpTargetBaseAddr:
@@ -142,6 +144,20 @@ class JumpTableResolver(IndirectJumpResolver):
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
                             all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.SignedExtension32to64
+                        continue
+                    elif stmt.data.op == 'Iop_64to32':
+                        # data transferring with conversion
+                        # t24 = 64to32(t21)
+                        stmts_to_remove.append(stmt_loc)
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Truncation64to32
+                        continue
+                    elif stmt.data.op == 'Iop_32Uto64':
+                        # data transferring with conversion
+                        # t21 = 32Uto64(t22)
+                        stmts_to_remove.append(stmt_loc)
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.UnsignedExtension32to64
                         continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith('Iop_Add'):
                     # GitHub issue #1289, a S390X binary
@@ -385,6 +401,10 @@ class JumpTableResolver(IndirectJumpResolver):
                         for conversion_op in conversion_ops:
                             if conversion_op is AddressTransferringTypes.SignedExtension32to64:
                                 lam = lambda a: (a | 0xffffffff00000000) if a >= 0x80000000 else a
+                            elif conversion_op is AddressTransferringTypes.UnsignedExtension32to64:
+                                lam = lambda a: a
+                            elif conversion_op is AddressTransferringTypes.Truncation64to32:
+                                lam = lambda a: a & 0xffffffff
                             else:
                                 raise NotImplementedError("Unsupported conversion operation.")
                             invert_conversion_ops.append(lam)
