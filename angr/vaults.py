@@ -1,7 +1,6 @@
 import collections
 import contextlib
 import tempfile
-import weakref
 import logging
 import claripy
 import pickle
@@ -9,6 +8,8 @@ import shelve
 import uuid
 import os
 import io
+
+from angr.utils import weakref
 
 l = logging.getLogger("angr.vault")
 

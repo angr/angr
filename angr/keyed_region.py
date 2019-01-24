@@ -1,6 +1,7 @@
 import logging
-import weakref
 from sortedcontainers import SortedDict
+
+from angr.utils import weakref
 
 
 l = logging.getLogger(name=__name__)

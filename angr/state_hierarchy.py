@@ -1,8 +1,8 @@
 import logging
-import weakref
 import networkx
 import itertools
 
+from angr.utils import weakref
 import claripy
 
 l = logging.getLogger(name=__name__)

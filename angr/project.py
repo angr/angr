@@ -1,12 +1,12 @@
 import logging
 import os
 import types
-import weakref
 from io import BytesIO, IOBase
 import pickle
 import string
 from collections import defaultdict
 
+from angr.utils import weakref
 import archinfo
 import cle
 

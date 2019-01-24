@@ -1,12 +1,12 @@
 import functools
 import itertools
 import contextlib
-import weakref
 
 import logging
 l = logging.getLogger(name=__name__)
 
 import angr # type annotations; pylint:disable=unused-import
+from angr.utils import weakref
 import claripy
 import archinfo
 
