@@ -577,6 +577,8 @@ class Structurer(Analysis):
             # get the last node
             the_block = block.nodes[-1]
             return self._get_last_statement(the_block)
+        elif type(block) is ConditionalBreakNode:
+            return None
         else:
             raise NotImplementedError()
 
