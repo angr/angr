@@ -69,7 +69,9 @@ class FunctionStart(DisassemblyPiece):
         self.name = func.name
         self.is_simprocedure = func.is_simprocedure
         self.sim_procedure = None
-        if self.is_simprocedure:
+        if func.is_syscall:
+            self.sim_procedure = func._project.simos.syscall_from_addr(self.addr)
+        elif func.is_simprocedure:
             self.sim_procedure = func._project.hooked_by(self.addr)
 
     def _render(self, formatting):

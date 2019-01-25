@@ -88,19 +88,15 @@ class Function:
                 syscall_inst = project.simos.syscall_from_addr(addr)
                 name = syscall_inst.display_name
 
-        # try to get the name from the symbols
-        #if name is None:
-        #   so = project.loader.find_object_containing(addr)
-        #   if so is not None and addr in so.symbols_by_addr:
-        #       name = so.symbols_by_addr[addr].name
-        #       print name
-
         # generate an IDA-style sub_X name
         if name is None:
             name = 'sub_%x' % addr
 
         binary_name = None
-        if self.is_simprocedure:
+        # if this function is a simprocedure but not a syscall, use its library name as
+        # its binary name
+        # if it is a syscall, fall back to use self.binary.binary which explicitly says cle##kernel
+        if self.is_simprocedure and not self.is_syscall:
             hooker = project.hooked_by(addr)
             if hooker is not None:
                 binary_name = hooker.library_name
@@ -133,10 +129,10 @@ class Function:
 
         # Determine returning status for SimProcedures and Syscalls
         hooker = None
-        if self.is_simprocedure:
-            hooker = project.hooked_by(addr)
-        elif self.is_syscall:
+        if self.is_syscall:
             hooker = project.simos.syscall_from_addr(addr)
+        elif self.is_simprocedure:
+            hooker = project.hooked_by(addr)
         if hooker and hasattr(hooker, 'NO_RET'):
             self.returning = not hooker.NO_RET
 
