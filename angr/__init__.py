@@ -16,6 +16,9 @@ For more information, see here: https://docs.angr.io/MIGRATION.html
 Good luck!
 """)
 
+import warnings
+warnings.simplefilter('ignore')
+
 # first: let's set up some bootstrap logging
 import logging
 logging.getLogger("angr").addHandler(logging.NullHandler())
