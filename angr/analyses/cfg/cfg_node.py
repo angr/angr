@@ -174,7 +174,9 @@ class CFGNode:
         return self._hash
 
     def to_codenode(self):
-        if self.is_syscall:
+        #TODO: after we add a new attribute to indicate whether this node is a syscall,
+        # we should change the next line to `if self.{attribute}:`
+        if self._cfg.project.simos.is_syscall_addr(self.addr):
             return SyscallNode(self.addr, self.size, self.simprocedure_name)
         if self.is_simprocedure:
             return HookNode(self.addr, self.size, self.simprocedure_name)
