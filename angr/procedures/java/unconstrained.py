@@ -11,12 +11,9 @@ class UnconstrainedMethod(JavaSimProcedure):
     )
 
     def run(self, thing, *args):
-        # FIXME: implement this method for static methods as well
-
         # mMark object as symbolic
         if isinstance(thing, SimSootValue_ThisRef):
             this_ref = thing
-            this_ref.symbolic = True
 
         if args:
             method_descriptor = args[-1]
@@ -40,5 +37,6 @@ class UnconstrainedMethod(JavaSimProcedure):
                 self.state, claripy.StringS("unc_string_{}".format(method_descriptor.name), 1000))
             return str_ref
         else:
-            obj_ref = SimSootValue_ThisRef.new_object(self.state, method_descriptor.ret, init_object=True)
+            obj_ref = SimSootValue_ThisRef.new_object(
+                self.state, method_descriptor.ret, symbolic=True, init_object=False)
             return obj_ref

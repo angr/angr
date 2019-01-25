@@ -18,6 +18,9 @@ class IteratorHasNext(JavaSimProcedure):
     def run(self, this_ref):
         log.debug('Called SimProcedure java.util.Iterator.hasNext with args: {}'.format(this_ref))
 
+        if this_ref.symbolic:
+            return claripy.BoolS('iterator.hasNext')
+
         iterator_size = this_ref.load_field(self.state, SIZE, 'int')
         iterator_index = this_ref.load_field(self.state, INDEX, 'int')
 
@@ -34,6 +37,9 @@ class IteratorNext(JavaSimProcedure):
 
     def run(self, this_ref):
         log.debug('Called SimProcedure java.util.Iterator.hasNext with args: {}'.format(this_ref))
+
+        if this_ref.symbolic:
+            return SimSootValue_ThisRef.new_object(self.state, 'java.lang.Object', symbolic=True)
 
         array_ref = this_ref.load_field(self.state, ELEMS, 'java.lang.Object[]')
         iterator_index = this_ref.load_field(self.state, INDEX, 'int')

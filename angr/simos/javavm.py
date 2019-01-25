@@ -290,7 +290,7 @@ class SimJavaVM(SimOS):
                 array = SimSootExpr_NewArray.new_array(state, type_[:-2], BVV(2, 32))
                 return array
             else:
-                return SimSootValue_ThisRef.new_object(state, type_, init_object=True)
+                return SimSootValue_ThisRef.new_object(state, type_, symbolic=True, init_object=False)
 
 
         else:

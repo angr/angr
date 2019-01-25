@@ -91,7 +91,7 @@ class SimSootValue_ThisRef(SimSootValue):
         return state.memory.load(local, none_if_missing=True)
 
     @classmethod
-    def new_object(cls, state, type_, init_object=False):
+    def new_object(cls, state, type_, symbolic=False, init_object=False):
         """
         Creates a new object reference.
         :param state: State associated to the object.
@@ -100,7 +100,7 @@ class SimSootValue_ThisRef(SimSootValue):
         :return: Reference to the new object.
         """
         # create reference
-        obj_ref = cls(heap_alloc_id=state.memory.get_new_uuid(), type_=type_)
+        obj_ref = cls(heap_alloc_id=state.memory.get_new_uuid(), type_=type_, symbolic=symbolic)
         # run initializer
         if init_object:
             l.info(">" * 15 + " Initialize object %r ... " + ">" * 15, obj_ref)

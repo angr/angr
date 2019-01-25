@@ -30,7 +30,7 @@ class StringBuilderAppend(JavaSimProcedure):
 
     def run(self, this_ref, thing):
         log.debug('Called SimProcedure java.lang.StringBuilder.append with args: {} {}'.format(this_ref, thing))
-        field = this_ref.load_field(self.state, 'str', 'java.lang.String')
+        field = this_ref.get_field(self.state, 'str', 'java.lang.String')
         field_str = self.state.memory.load(field)
 
         if isinstance(thing, SimSootValue_StringRef):

@@ -18,11 +18,9 @@ def get_map_key(state, key_ref):
         if string.concrete:
             return state.solver.eval(string)
         else:
-            # TODO should we return a symbolic string?
             return state.solver.eval(string)
 
     else:
-        # TODO is id a consistent key?
         return key_ref.id
 
 
@@ -52,6 +50,10 @@ class MapPut(JavaSimProcedure):
 
     def run(self, this_ref, key_ref, value_ref):
         log.debug('Called SimProcedure java.util.Map.add with args: {} {} {}'.format(this_ref, key_ref, value_ref))
+
+        if this_ref.symbolic:
+            return SimSootExpr_NullConstant
+
         # store value
         this_ref.store_field(self.state, get_map_key(self.state, key_ref), 'java.lang.Object', value_ref)
         # store key
@@ -79,6 +81,9 @@ class MapGet(JavaSimProcedure):
     def run(self, this_ref, key_ref):
         log.debug('Called SimProcedure java.util.Map.get with args: {} {}'.format(this_ref, key_ref))
 
+        if this_ref.symbolic:
+            return SimSootValue_ThisRef(self.state, 'java.lang.Object', symbolic=True)
+
         try:
             return this_ref.load_field(self.state, get_map_key(self.state, key_ref), 'java.lang.Object')
         except (KeyError, AttributeError):
@@ -95,12 +100,10 @@ class MapSize(JavaSimProcedure):
     def run(self, this_ref):
         log.debug('Called SimProcedure java.util.Map.size with args: {}'.format(this_ref))
 
-        try:
-            return this_ref.load_field(self.state, MAP_SIZE, 'int')
-        except KeyError:
-            log.warning('{}.size not found in memory during java.util.Map.size'.format(this_ref),
-                        'Returning a symbolic value')
+        if this_ref.symbolic:
             return claripy.BVS('map_size', 32)
+
+        return this_ref.get_field(self.state, MAP_SIZE, 'int')
 
 
 class MapContainsKey(JavaSimProcedure):
@@ -112,6 +115,9 @@ class MapContainsKey(JavaSimProcedure):
 
     def run(self, this_ref, key_ref):
         log.debug('Called SimProcedure java.util.Map.containsKey with args: {} {}'.format(this_ref, key_ref))
+
+        if this_ref.symbolic:
+            return claripy.BoolS('contains_key')
 
         try:
             this_ref.load_field(self.state, get_map_key(self.state, key_ref), 'java.lang.Object')
@@ -130,6 +136,9 @@ class MapKeySet(JavaSimProcedure):
 
     def run(self, this_ref):
         log.debug('Called SimProcedure java.util.Map.keySet with args: {}'.format(this_ref))
+
+        if this_ref.symbolic:
+            return SimSootValue_ThisRef.new_object(self.state, 'java.util.Set', symbolic=True)
 
         set_ref = SimSootValue_ThisRef.new_object(self.state, 'java.util.Set')
         keys_array_ref = this_ref.load_field(self.state, MAP_KEYS, 'java.lang.Object[]')
