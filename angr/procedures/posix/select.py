@@ -18,7 +18,7 @@ class select(angr.SimProcedure):
         arch_bytes = self.arch.bytes
 
         long_array = [ ]
-        long_array_size = ((nfds_v - 1) + 7) // arch_bits
+        long_array_size = ((nfds_v - 1) + arch_bits) // arch_bits
         for offset in range(0, long_array_size):
             long = self.state.memory.load(readfds + offset * arch_bytes, arch_bytes, endness=self.arch.memory_endness)
             long_array.append(long)
