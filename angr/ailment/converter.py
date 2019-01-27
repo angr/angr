@@ -11,7 +11,11 @@ from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Co
 l = logging.getLogger(name=__name__)
 
 
-class Converter(object):
+class SkipConversionNotice(Exception):
+    pass
+
+
+class Converter:
     @staticmethod
     def convert(thing):
         raise NotImplementedError()
@@ -195,6 +199,12 @@ class VEXStmtConverter(Converter):
     @staticmethod
     def Exit(idx, stmt, manager):
 
+        if stmt.jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode',
+                              'Ijk_MapFail', 'Ijk_NoRedir',
+                              'Ijk_SigTRAP', 'Ijk_SigSEGV',
+                              'Ijk_ClientReq'}:
+            raise SkipConversionNotice()
+
         return ConditionalJump(idx,
                                VEXExprConverter.convert(stmt.guard, manager),
                                VEXExprConverter.convert(stmt.dst, manager),
@@ -239,8 +249,12 @@ class IRSBConverter(Converter):
             elif type(stmt) is pyvex.IRStmt.AbiHint:
                 # TODO: How can we use AbiHint?
                 continue
-            converted = VEXStmtConverter.convert(idx, stmt, manager)
-            statements.append(converted)
+
+            try:
+                converted = VEXStmtConverter.convert(idx, stmt, manager)
+                statements.append(converted)
+            except SkipConversionNotice:
+                pass
 
             idx += 1
 
