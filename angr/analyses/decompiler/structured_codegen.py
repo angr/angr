@@ -886,10 +886,17 @@ class StructuredCodeGenerator(Analysis):
                 if expr.op == "Sub":
                     return lhs, -rhs
                 return lhs, rhs
+        elif isinstance(expr, CTypeCast):
+            return self._parse_load_addr(expr.expr)
         elif isinstance(expr, CConstant):
             return None, expr.value
         elif isinstance(expr, int):
             return None, expr
+        elif isinstance(expr, Expr.DirtyExpression):
+            l.warning("Got a DirtyExpression %s. It should be handled during VEX->AIL conversion.", expr)
+            return expr, None
+        elif isinstance(expr, CExpression):  # other expressions
+            return expr, None
 
         raise NotImplementedError("Unsupported address %s." % addr)
 
