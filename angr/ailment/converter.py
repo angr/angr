@@ -11,7 +11,11 @@ from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Co
 l = logging.getLogger(name=__name__)
 
 
-class Converter(object):
+class SkipConversionNotice(Exception):
+    pass
+
+
+class Converter:
     @staticmethod
     def convert(thing):
         raise NotImplementedError()
@@ -195,6 +199,12 @@ class VEXStmtConverter(Converter):
     @staticmethod
     def Exit(idx, stmt, manager):
 
+        if stmt.jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode',
+                              'Ijk_MapFail', 'Ijk_NoRedir',
+                              'Ijk_SigTRAP', 'Ijk_SigSEGV',
+                              'Ijk_ClientReq'}:
+            raise SkipConversionNotice()
+
         return ConditionalJump(idx,
                                VEXExprConverter.convert(stmt.guard, manager),
                                VEXExprConverter.convert(stmt.dst, manager),
@@ -230,6 +240,8 @@ class IRSBConverter(Converter):
 
         addr = None
 
+        conditional_jumps = [ ]
+
         for stmt in irsb.statements:
             if type(stmt) is pyvex.IRStmt.IMark:
                 if addr is None:
@@ -239,8 +251,14 @@ class IRSBConverter(Converter):
             elif type(stmt) is pyvex.IRStmt.AbiHint:
                 # TODO: How can we use AbiHint?
                 continue
-            converted = VEXStmtConverter.convert(idx, stmt, manager)
-            statements.append(converted)
+
+            try:
+                converted = VEXStmtConverter.convert(idx, stmt, manager)
+                statements.append(converted)
+                if type(converted) is ConditionalJump:
+                    conditional_jumps.append(converted)
+            except SkipConversionNotice:
+                pass
 
             idx += 1
 
@@ -259,9 +277,9 @@ class IRSBConverter(Converter):
                                    )
                               )
         elif irsb.jumpkind == 'Ijk_Boring':
-            if statements and type(statements[-1]) is ConditionalJump:
+            if len(conditional_jumps) == 1:
                 # fill in the false target
-                cond_jump = statements[-1]
+                cond_jump = conditional_jumps[0]
                 cond_jump.false_target = VEXExprConverter.convert(irsb.next, manager)
 
             else:
