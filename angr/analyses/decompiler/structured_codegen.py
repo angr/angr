@@ -656,6 +656,7 @@ class CBinaryOp(CExpression):
             'CmpLE': self._c_repr_cmple,
             'CmpLT': self._c_repr_cmplt,
             'CmpEQ': self._c_repr_cmpeq,
+            'CmpNE': self._c_repr_cmpne,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -719,6 +720,13 @@ class CBinaryOp(CExpression):
     def _c_repr_cmpeq(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " == "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_cmpne(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " != "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
