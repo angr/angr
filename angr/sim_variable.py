@@ -175,7 +175,7 @@ class SimStackVariable(SimMemoryVariable):
     __slots__ = ['base', 'offset']
 
     def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None, category=None):
-        if offset > 0x1000000 and isinstance(offset, int):
+        if isinstance(offset, int) and offset > 0x1000000:
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
             mask = (1 << offset.bit_length()) - 1
