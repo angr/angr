@@ -494,12 +494,16 @@ class Structurer(Analysis):
 
         _mapping = {
             'Not': lambda cond_: ailment.Expr.UnaryOp(None, 'Not', self._convert_claripy_bool_ast(cond_.args[0])),
+            'And': lambda cond_: ailment.Expr.BinaryOp(None, 'And', (
+                self._convert_claripy_bool_ast(cond_.args[0]),
+                self._convert_claripy_bool_ast(cond_.args[1]),)
+                                                       ),
         }
 
         if cond.op in _mapping:
             return _mapping[cond.op](cond)
         raise NotImplementedError(("Condition variable %s has an unsupported operator %s. "
-                                   "Consider implementing.") % cond.op)
+                                   "Consider implementing.") % (cond, cond.op))
 
     def _make_sequence(self):
 
