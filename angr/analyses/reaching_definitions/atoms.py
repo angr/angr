@@ -62,6 +62,10 @@ class MemoryLocation(Atom):
     def bits(self):
         return self.size * 8
 
+    @property
+    def symbolic(self):
+        return not type(self.addr) is int
+
     def __eq__(self, other):
         return type(other) is MemoryLocation and \
                self.addr == other.addr and \

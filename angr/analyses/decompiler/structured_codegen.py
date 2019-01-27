@@ -7,7 +7,7 @@ from sortedcontainers import SortedDict
 from ailment import Block, Expr, Stmt
 
 from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer
-from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
+from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
 from ...utils.constants import is_alignment_mask
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
@@ -656,6 +656,7 @@ class CBinaryOp(CExpression):
             'CmpLE': self._c_repr_cmple,
             'CmpLT': self._c_repr_cmplt,
             'CmpEQ': self._c_repr_cmpeq,
+            'CmpNE': self._c_repr_cmpne,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -723,6 +724,13 @@ class CBinaryOp(CExpression):
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
 
+    def _c_repr_cmpne(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " != "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
 
 class CTypeCast(CExpression):
     def __init__(self, src_type, dst_type, expr):
@@ -773,6 +781,16 @@ class CConstant(CExpression):
         return s
 
 
+class CRegister(CExpression):
+    def __init__(self, reg):
+        self.reg = reg
+
+    def c_repr(self, posmap=None):
+        s = str(self.reg)
+        if posmap: posmap.tick_pos(len(s))
+        return s
+
+
 class StructuredCodeGenerator(Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None):
         self._func = func
@@ -808,6 +826,7 @@ class StructuredCodeGenerator(Analysis):
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             # SimVariables
             SimStackVariable: self._handle_Variable_SimStackVariable,
+            SimRegisterVariable: self._handle_Variable_SimRegisterVariable,
         }
 
         self._analyze()
@@ -867,10 +886,17 @@ class StructuredCodeGenerator(Analysis):
                 if expr.op == "Sub":
                     return lhs, -rhs
                 return lhs, rhs
+        elif isinstance(expr, CTypeCast):
+            return self._parse_load_addr(expr.expr)
         elif isinstance(expr, CConstant):
             return None, expr.value
         elif isinstance(expr, int):
             return None, expr
+        elif isinstance(expr, Expr.DirtyExpression):
+            l.warning("Got a DirtyExpression %s. It should be handled during VEX->AIL conversion.", expr)
+            return expr, None
+        elif isinstance(expr, CExpression):  # other expressions
+            return expr, None
 
         raise NotImplementedError("Unsupported address %s." % addr)
 
@@ -1026,7 +1052,10 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Register(self, expr):  # pylint:disable=no-self-use
 
-        return expr
+        if expr.variable:
+            return self._handle(expr.variable)
+        else:
+            return CRegister(expr)
 
     def _handle_Expr_Load(self, expr):
 
@@ -1093,6 +1122,10 @@ class StructuredCodeGenerator(Analysis):
         return expr
 
     def _handle_Variable_SimStackVariable(self, variable):  # pylint:disable=no-self-use
+
+        return CVariable(variable)
+
+    def _handle_Variable_SimRegisterVariable(self, variable):  # pylint:disable=no-self-use
 
         return CVariable(variable)
 

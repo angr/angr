@@ -106,9 +106,10 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
                     # Writing to a non-stack memory region
                     memloc = MemoryLocation(a, size)
 
-                # different addresses are not killed by a subsequent iteration, because kill only removes entries
-                # with same index and same size
-                self.state.kill_and_add_definition(memloc, self._codeloc(), data)
+                if not memloc.symbolic:
+                    # different addresses are not killed by a subsequent iteration, because kill only removes entries
+                    # with same index and same size
+                    self.state.kill_and_add_definition(memloc, self._codeloc(), data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)  # pylint:disable=unused-variable

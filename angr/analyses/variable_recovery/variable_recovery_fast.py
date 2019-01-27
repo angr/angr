@@ -358,25 +358,26 @@ def get_engine(base_engine):
                                                 ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                                 region=self.func_addr,
                                                 )
-                    self.variable_manager[self.func_addr].set_variable('stack', stack_offset, variable)
-                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+                    if isinstance(stack_offset, int):
+                        self.variable_manager[self.func_addr].set_variable('stack', stack_offset, variable)
+                        l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
                 else:
                     variable, _ = next(iter(existing_vars))
 
-                self.state.stack_region.set_variable(stack_offset, variable)
-
-                base_offset = self.state.stack_region.get_base_addr(stack_offset)
-                codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-                for var in self.state.stack_region.get_variables_by_offset(stack_offset):
-                    offset_into_var = stack_offset - base_offset
-                    if offset_into_var == 0:
-                        offset_into_var = None
-                    self.variable_manager[self.func_addr].write_to(var,
-                                                                   offset_into_var,
-                                                                   codeloc,
-                                                                   atom=stmt,
-                                                                   )
+                if isinstance(stack_offset, int):
+                    self.state.stack_region.set_variable(stack_offset, variable)
+                    base_offset = self.state.stack_region.get_base_addr(stack_offset)
+                    codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+                    for var in self.state.stack_region.get_variables_by_offset(stack_offset):
+                        offset_into_var = stack_offset - base_offset
+                        if offset_into_var == 0:
+                            offset_into_var = None
+                        self.variable_manager[self.func_addr].write_to(var,
+                                                                       offset_into_var,
+                                                                       codeloc,
+                                                                       atom=stmt,
+                                                                       )
 
         def _load(self, addr, size, expr=None):
             """
