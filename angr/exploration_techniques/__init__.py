@@ -41,10 +41,8 @@ class ExplorationTechniqueMeta(type):
 
 class ExplorationTechnique:
     """
-    An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
+    An ExplorationTechnique is a set of hooks for a simulation manager that assists in the implementation of new techniques in
     symbolic exploration.
-
-    TODO: choose actual name for the functionality (techniques? strategies?)
 
     Any number of these methods may be overridden by a subclass.
     To use an exploration technique, call ``simgr.use_technique`` with an *instance* of the technique.
