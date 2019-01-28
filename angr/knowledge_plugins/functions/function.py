@@ -1072,8 +1072,9 @@ class Function:
             # PLT entries must have the same declaration as their jump targets
             # Try to determine which library this PLT entry will jump to
             edges = self.transition_graph.edges()
-            if len(edges) == 1 and isinstance(next(iter(edges))[1], HookNode):
-                target = next(iter(edges))[1].addr
+            node = next(iter(edges))[1]
+            if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
+                target = node.addr
                 if target in self._function_manager:
                     target_func = self._function_manager[target]
                     binary_name = target_func.binary_name
@@ -1137,5 +1138,5 @@ class Function:
         return func
 
 
-from ...codenode import BlockNode, HookNode
+from ...codenode import BlockNode, HookNode, SyscallNode
 from ...errors import AngrValueError

@@ -408,7 +408,7 @@ class MemoryOperand(Operand):
         if self.children[0] != '[':
             try:
                 square_bracket_pos = self.children.index('[')
-            except ValueError:#pylint: disable=try-except-raise
+            except ValueError:  #pylint: disable=try-except-raise
                 raise
 
             self.prefix = self.children[ : square_bracket_pos]
@@ -435,7 +435,7 @@ class MemoryOperand(Operand):
         if self.children[0] != '(':
             try:
                 paren_pos = self.children.index('(')
-            except ValueError:#pylint: disable=try-except-raise
+            except ValueError:  #pylint: disable=try-except-raise
                 raise
 
             self.prefix = self.children[ : paren_pos]
