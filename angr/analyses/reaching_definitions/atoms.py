@@ -1,4 +1,5 @@
-class Atom(object):
+
+class Atom:
     def __init__(self):
         pass
 
@@ -55,11 +56,15 @@ class MemoryLocation(Atom):
         self.size = size
 
     def __repr__(self):
-        return "<Mem %#x<%d>>" % (self.addr, self.size)
+        return "<Mem %s<%d>>" % (hex(self.addr) if type(self.addr) is int else self.addr, self.size)
 
     @property
     def bits(self):
         return self.size * 8
+
+    @property
+    def symbolic(self):
+        return not type(self.addr) is int
 
     def __eq__(self, other):
         return type(other) is MemoryLocation and \

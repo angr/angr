@@ -8,7 +8,7 @@ class GetModuleHandleA(angr.SimProcedure):
         if self.state.solver.is_true(pointer == 0):
             return self.handle(None)
         else:
-            return self.handle(self.state.mem[pointer].string.concrete)
+            return self.handle(self.state.mem[pointer].string.concrete.decode('utf-8'))
 
     def handle(self, module_name):
         if module_name is None:

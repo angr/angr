@@ -11,6 +11,7 @@ from ..storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
 from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 from ..sim_state_options import SimStateOptions
+from ..misc.ux import once
 
 DEFAULT_MAX_SEARCH = 8
 
@@ -448,17 +449,30 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 eternal=False) # :(
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
-        if (all_missing and
-                options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options
-                ):
-            if self.category == 'reg':
-                # try to get a register name
-                reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
-                l.warning("Register %s has an unspecified value; "
-                          "Generating an unconstrained value of %d bytes.", reg_str, num_bytes)
-            elif self.category == 'mem':
-                l.warning("Memory address %#x has an unspecified value; "
-                          "Generating an unconstrained value of %d bytes.", addr, num_bytes)
+        if all_missing:
+            is_mem = self.category == 'mem' and \
+                    options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and \
+                    options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+            is_reg = self.category == 'reg' and \
+                    options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options and \
+                    options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
+            if is_mem or is_reg:
+                if once('mem_fill_warning'):
+                    l.warning("The program is accessing memory or registers with an unspecified value. "
+                        "This could indicate unwanted behavior.")
+                    l.warning("angr will cope with this by generating an unconstrained symbolic variable and continuing. "
+                        "You can resolve this by:")
+                    l.warning("1) setting a value to the initial state")
+                    l.warning("2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
+                        "to make unknown regions hold null")
+                    l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
+                        "to suppress these messages.")
+                if is_mem:
+                    l.warning("Filling memory at %#x with %d unconstrained bytes", addr, num_bytes)
+                else:
+                    reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
+                    l.warning("Filling register %s with %d unconstrained bytes", reg_str, num_bytes)
+
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
@@ -783,7 +797,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return req
 
     def _insert_memory_object(self, value, address, size):
-        value.make_uuid()
         if self.category == 'mem':
             self.state.scratch.dirty_addrs.update(range(address, address+size))
         mo = SimMemoryObject(value, address, length=size, byte_width=self.state.arch.byte_width)
@@ -893,7 +906,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     @staticmethod
     def _get_segment_index(addr, segments):
         for i, segment in enumerate(segments):
-            if segment['start'] <= addr and addr < segment['start'] + segment['size']:
+            if segment['start'] <= addr < segment['start'] + segment['size']:
                 return i
 
         return -1
@@ -1032,10 +1045,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :return: The generated variable
         """
 
-        if (self.category == 'mem' and
-                options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options):
-            # CGC binaries zero-fill the memory for any allocated region
-            # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
+        if self.category == 'mem' and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
+            return self.state.solver.BVV(0, bits)
+        elif self.category == 'reg' and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
             return self.state.solver.BVV(0, bits)
         elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
             return self.state._special_memory_filler(name, bits, self.state)

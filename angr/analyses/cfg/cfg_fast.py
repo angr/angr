@@ -12,11 +12,12 @@ import cle
 import pyvex
 from cle.address_translator import AT
 
+from ...misc.ux import deprecated
 from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .cfg_node import CFGNode
-from ..forward_analysis import ForwardAnalysis
+from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
                        AngrUnsupportedSyscallError
@@ -449,6 +450,7 @@ class SegmentList:
 
         n._list = [ a.copy() for a in self._list ]
         n._bytes_occupied = self._bytes_occupied
+        return n
 
     #
     # Properties
@@ -643,7 +645,7 @@ class FunctionTransitionEdge(FunctionEdge):
         to_outside = self.to_outside
         if not to_outside:
             # is it jumping to outside? Maybe we are seeing more functions now.
-            dst_node = cfg.get_any_node(self.dst_addr)
+            dst_node = cfg.get_any_node(self.dst_addr, force_fastpath=True)
             if dst_node is not None and dst_node.function_address != self.src_func_addr:
                 to_outside = True
         return cfg._function_add_transition_edge(
@@ -828,6 +830,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def __init__(self,
                  binary=None,
+                 objects=None,
                  regions=None,
                  pickle_intermediate_results=False,
                  symbols=True,
@@ -850,12 +853,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  skip_specific_regions=True,
                  heuristic_plt_resolving=None,
                  detect_tail_calls=False,
+                 low_priority=False,
+                 cfb=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
+        :param objects:                 A list of objects to recover the CFG on. By default it will recover the CFG of
+                                        all loaded objects.
         :param iterable regions:        A list of tuples in the form of (start address, end address) describing memory
                                         regions that the CFG should cover.
         :param bool pickle_intermediate_results: If we want to store the intermediate results or not.
@@ -914,11 +921,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             indirect_jump_resolvers=indirect_jump_resolvers,
             indirect_jump_target_limit=indirect_jump_target_limit,
             detect_tail_calls=detect_tail_calls,
+            low_priority=low_priority,
         )
 
         # necessary warnings
+        regions_not_specified = regions is None and binary is None and not objects
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3 \
-                and regions is None:
+                and regions_not_specified:
             l.warning('"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
                       'which may take significantly more time than expected. You may reload the binary with '
                       '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
@@ -933,9 +942,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
 
-        regions = regions if regions is not None else self._executable_memory_regions(binary=None,
+        if binary is not None and not objects:
+            objects = [ binary ]
+        regions = regions if regions is not None else self._executable_memory_regions(objects=objects,
                                                                                       force_segment=force_segment
                                                                                       )
+
         if exclude_sparse_regions:
             new_regions = [ ]
             for start_, end_ in regions:
@@ -984,6 +996,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
+        self._cfb = cfb
+
         l.debug("CFG recovery covers %d regions:", len(self._regions))
         for start_addr in self._regions:
             l.debug("... %#x - %#x", start_addr, self._regions[start_addr])
@@ -1025,6 +1039,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Start working!
         self._analyze()
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        d['_progress_callback'] = None
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+
     #
     # Utils
     #
@@ -1064,25 +1086,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _insn_addr_to_memory_data(self):
         l.warning('_insn_addr_to_memory_data has been made public and is deprecated. Please fix your code accordingly.')
         return self.insn_addr_to_memory_data
-
-    #
-    # Private methods
-    #
-
-    def __setstate__(self, s):
-        self._graph = s['graph']
-        self.indirect_jumps = s['indirect_jumps']
-        self._nodes_by_addr = s['_nodes_by_addr']
-        self._memory_data = s['_memory_data']
-
-    def __getstate__(self):
-        s = {
-            "graph": self.graph,
-            "indirect_jumps": self.indirect_jumps,
-            '_nodes_by_addr': self._nodes_by_addr,
-            '_memory_data': self._memory_data,
-        }
-        return s
 
     # Methods for determining scanning scope
 
@@ -1337,7 +1340,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(mode="fastpath")
         initial_options = self._initial_state.options - {o.TRACK_CONSTRAINTS} - o.refs
-        initial_options |= {o.SUPER_FASTPATH}
+        initial_options |= {o.SUPER_FASTPATH, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS, o.SYMBOL_FILL_UNCONSTRAINED_MEMORY}
         # initial_options.remove(o.COW_STATES)
         self._initial_state.options = initial_options
 
@@ -1388,8 +1391,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
+        if self._low_priority:
+            self._release_gil(len(self._nodes), 20, 0.0001)
+
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)
+
+        if not self._inside_regions(job.addr):
+            obj = self.project.loader.find_object_containing(job.addr)
+            if obj is not None and isinstance(obj, self._cle_pseudo_objects):
+                pass
+            else:
+                # it's outside permitted regions. skip.
+                raise AngrSkipJobNotice()
 
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
@@ -1398,7 +1412,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if percentage > max_percentage_stage_1:
                 percentage = max_percentage_stage_1
 
-            self._update_progress(percentage)
+            self._update_progress(percentage, cfg=self)
 
     def _intra_analysis(self):
         pass
@@ -2816,7 +2830,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         a = None  # it always hold the very recent non-removed node
 
-        for i in range(len(sorted_nodes)):
+        for i in range(len(sorted_nodes)):  # pylint:disable=consider-using-enumerate
 
             if a is None:
                 a = sorted_nodes[0]
@@ -3528,7 +3542,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 return addr, current_function_addr, cfg_node, irsb
 
-            is_arm_arch = True if self.project.arch.name in ('ARMHF', 'ARMEL') else False
+            is_arm_arch = self.project.arch.name in ('ARMHF', 'ARMEL')
 
             if is_arm_arch:
                 real_addr = addr & (~1)
@@ -3643,6 +3657,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                thumb=is_thumb,
                                byte_string=irsb_string,
                                )
+            if self._cfb is not None:
+                self._cfb.add_obj(addr, lifted_block)
 
             self._nodes[addr] = cfg_node
             self._nodes_by_addr[addr].append(cfg_node)
@@ -3741,32 +3757,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def copy(self):
         n = CFGFast.__new__(CFGFast)
-        super(CFGFast, self).make_copy(n)
 
-        n._binary = self._binary
-        n._regions = self._regions
-        n._pickle_intermediate_results = self._pickle_intermediate_results
-        n._indirect_jump_target_limit = self._indirect_jump_target_limit
-        n._collect_data_ref = self._collect_data_ref
-        n._use_symbols = self._use_symbols
-        n._use_function_prologues = self._use_function_prologues
-        n._resolve_indirect_jumps = self._resolve_indirect_jumps
-        n._force_segment = self._force_segment
-        n._force_complete_scan = self._force_complete_scan
-
-        n._progress_callback = self._progress_callback
-        n._show_progressbar = self._show_progressbar
+        for attr, value in self.__dict__.items():
+            if attr.startswith('__') and attr.endswith('__'):
+                continue
+            setattr(n, attr, value)
 
         n._exec_mem_regions = self._exec_mem_regions[::]
-        n._exec_mem_region_size = self._exec_mem_region_size
-
         n._memory_data = self._memory_data.copy()
-
         n._seg_list = self._seg_list.copy()
-
         n._function_addresses_from_symbols = self._function_addresses_from_symbols.copy()
 
-        n._graph = self._graph
+        n._graph = self._graph.copy()
 
         return n
 
@@ -3775,6 +3777,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return s
 
+    @deprecated(replacement="angr.analyses.CFB")
     def generate_code_cover(self):
         """
         Generate a list of all recovered basic blocks.

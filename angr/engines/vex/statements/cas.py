@@ -3,6 +3,9 @@ from . import SimIRStmt
 # TODO: mem read SimActions
 
 class SimIRStmt_CAS(SimIRStmt):
+
+    __slots__ = []
+
     def _execute(self):
         # first, get the expression of the add
         addr = self._translate_expr(self.stmt.addr)

@@ -1,6 +1,10 @@
 from . import SimIRStmt, SimStatementError
 
+
 class SimIRStmt_WrTmp(SimIRStmt):
+
+    __slots__ = []
+
     def _execute(self):
         # get data and track data reads
         data = self._translate_expr(self.stmt.data)

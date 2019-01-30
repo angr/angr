@@ -7,6 +7,9 @@ import logging
 l = logging.getLogger(name=__name__)
 
 class SimIRStmt_Dirty(SimIRStmt):
+
+    __slots__ = []
+
     # Example:
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
     def _execute(self):

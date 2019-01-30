@@ -3,7 +3,11 @@ from .... import sim_options as o
 from ....state_plugins.sim_action_object import SimActionObject
 from ....state_plugins.sim_action import SimActionData
 
+
 class SimIRStmt_PutI(SimIRStmt):
+
+    __slots__ = ('ix', 'array_size', 'array_base', 'array_index', 'offset',)
+
     def _execute(self):
         #pylint:disable=attribute-defined-outside-init
 

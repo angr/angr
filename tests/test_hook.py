@@ -2,7 +2,9 @@ import nose
 import angr
 
 import os
+
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+
 
 def test_mips():
     MAIN_END = 0x4007D8
@@ -33,5 +35,71 @@ def test_mips():
     nose.tools.assert_equal(output, [1]*100 + [2]*100)
     # print 'Executed %d blocks' % len(s._f.trace)
 
+
+def test_zero_length_userhook():
+
+    # If a user hook does not overwrite any instruction (length = 0), we should not run the hook twice.
+    # jumpkind Ijk_NoHook is used for exactly this purpose.
+
+    class OneTimeHook:
+        def __init__(self):
+            self.ctr = 0
+
+        def one_time_hook(self, _):
+            self.ctr += 1
+            if self.ctr > 1:
+                raise Exception("OneTimeHook is executed multiple times.")
+
+    # Amd64
+    # 0x0:	mov	qword ptr [1], rax
+    # 0x8:	jmp	0x1b
+    # 0xa:	mov	qword ptr [2], rax
+    # 0x12:	mov	qword ptr [3], rax
+    # 0x1a:	ret
+    # 0x1b:	jmp	0xa
+    shellcode = b"\x48\x89\x04\x25\x01\x00\x00\x00\xeb\x11\x48\x89\x04\x25\x02\x00\x00\x00\x48" \
+                b"\x89\x04\x25\x03\x00\x00\x00\xc3\xeb\xed"
+    proj = angr.load_shellcode(shellcode, arch='amd64')
+
+    proj.hook(0x8, hook=OneTimeHook().one_time_hook, length=0)
+    s = proj.factory.simgr()
+    s.run()
+
+
+def test_nonzero_length_userhook():
+
+    # If a user hook overwrites any instruction (length > 0), we should allow the execution of another hook that follows
+    # this hook immediately.
+
+    class TwoTimesHook:
+        def __init__(self):
+            self.addrs = [ ]
+
+        def hook(self, state):
+            self.addrs.append(state.addr)
+
+        # Amd64
+        # 0x0:	mov	qword ptr [1], rax
+        # 0x8:	jmp	0x1b
+        # 0xa:	mov	qword ptr [2], rax
+        # 0x12:	mov	qword ptr [3], rax
+        # 0x1a:	ret
+        # 0x1b:	jmp	0xa
+
+    shellcode = b"\x48\x89\x04\x25\x01\x00\x00\x00\xeb\x11\x48\x89\x04\x25\x02\x00\x00\x00\x48" \
+                b"\x89\x04\x25\x03\x00\x00\x00\xc3\xeb\xed"
+    proj = angr.load_shellcode(shellcode, arch='amd64')
+
+    hook = TwoTimesHook()
+    proj.hook(0x8, hook=hook.hook, length=2)
+    proj.hook(0xa, hook=hook.hook, length=7)
+    s = proj.factory.simgr()
+    s.run()
+
+    nose.tools.assert_list_equal(hook.addrs, [0x8, 0xa])
+
+
 if __name__ == '__main__':
     test_mips()
+    test_zero_length_userhook()
+    test_nonzero_length_userhook()

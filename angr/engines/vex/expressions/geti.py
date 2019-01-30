@@ -2,7 +2,11 @@ from .base import SimIRExpr
 from .... import sim_options as o
 from ....state_plugins.sim_action import SimActionData
 
+
 class SimIRExpr_GetI(SimIRExpr):
+
+    __slots__ = ('ix', 'array_base', 'array_index', 'offset',)
+
     def _execute(self):
         self.ix = self._translate_expr(self._expr.ix)  # pylint:disable=attribute-defined-outside-init
         size = self.size_bytes(self._expr.descr.elemTy)

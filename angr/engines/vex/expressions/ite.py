@@ -1,6 +1,10 @@
 from .base import SimIRExpr
 
+
 class SimIRExpr_ITE(SimIRExpr):
+
+    __slots__ = []
+
     def _execute(self):
         cond = self._translate_expr(self._expr.cond)
         expr0 = self._translate_expr(self._expr.iffalse)

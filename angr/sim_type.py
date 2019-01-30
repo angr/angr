@@ -35,6 +35,8 @@ class SimType:
             return False
 
         for attr in self._fields:
+            if attr == 'size' and self._arch is None and other._arch is None:
+                continue
             if getattr(self, attr) != getattr(other, attr):
                 return False
 
@@ -96,7 +98,7 @@ class SimType:
 
 class SimTypeBottom(SimType):
     """
-    SimTypeBottom basically repesents a type error.
+    SimTypeBottom basically represents a type error.
     """
 
     def __repr__(self):
@@ -811,7 +813,7 @@ class SimStruct(SimType):
             raise TypeError("Can't store struct of type %s" % type(value))
 
         if len(value) != len(self.fields):
-            raise ValueError("Passed bad values for %s; expected %d, got %d" % self, len(self.offsets), len(value))
+            raise ValueError("Passed bad values for %s; expected %d, got %d" % (self, len(self.offsets), len(value)))
 
         for field, offset in self.offsets.items():
             ty = self.fields[field]

@@ -320,18 +320,19 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         :rtype: Function or None
         """
         if addr is not None:
-            if addr in self._function_map:
+            try:
                 f = self._function_map[addr]
                 if plt is None or f.is_plt == plt:
                     return f
-            elif create:
-                # the function is not found
-                f = self._function_map[addr]
-                if name is not None:
-                    f.name = name
-                if syscall:
-                    f.is_syscall=True
-                return f
+            except KeyError:
+                if create:
+                    # the function is not found
+                    f = self._function_map[addr]
+                    if name is not None:
+                        f.name = name
+                    if syscall:
+                        f.is_syscall=True
+                    return f
         elif name is not None:
             for func in self._function_map.values():
                 if func.name == name:

@@ -59,10 +59,11 @@ class CFGBase(Analysis):
     """
 
     tag = None
+    _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
-                 indirect_jump_target_limit=100000, detect_tail_calls=False,
+                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -98,6 +99,7 @@ class CFGBase(Analysis):
         self._iropt_level = iropt_level
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
+        self._low_priority = low_priority
 
         # Initialization
         self._graph = None
@@ -177,8 +179,6 @@ class CFGBase(Analysis):
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
 
-        self._ffi = cffi.FFI()
-
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
 
@@ -231,7 +231,10 @@ class CFGBase(Analysis):
         :return: None
         """
 
-        copy_to._normalized = self._normalized
+        for attr, value in self.__dict__.items():
+            if attr.startswith('__') and attr.endswith('__'):
+                continue
+            setattr(copy_to, attr, value)
 
     # pylint: disable=no-self-use
     def copy(self):
@@ -339,11 +342,18 @@ class CFGBase(Analysis):
         :return: A list of predecessors in the CFG
         :rtype: list
         """
+        s = set()
+        for child, parent in networkx.dfs_predecessors(self._graph, cfgnode).items():
+            s.add(child)
+            s.add(parent)
+        return list(s)
 
-        return list(networkx.dfs_predecessors(self._graph, cfgnode))
-
-    def get_all_successors(self, basic_block):
-        return list(networkx.dfs_successors(self._graph, basic_block))
+    def get_all_successors(self, cfgnode):
+        s = set()
+        for parent, children in networkx.dfs_successors(self._graph, cfgnode).items():
+            s.add(parent)
+            s = s.union(children)
+        return list(s)
 
     def get_node(self, block_id):
         """
@@ -357,7 +367,7 @@ class CFGBase(Analysis):
             return self._nodes[block_id]
         return None
 
-    def get_any_node(self, addr, is_syscall=None, anyaddr=False):
+    def get_any_node(self, addr, is_syscall=None, anyaddr=False, force_fastpath=False):
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
@@ -372,13 +382,20 @@ class CFGBase(Analysis):
                                 containing the specific address is returned, which is slow. If you need to do many such
                                 queries, you may first call `generate_index()` to create some indices that may speed up the
                                 query.
+        :param bool force_fastpath: If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
+                                    dict.
         :return: A CFGNode if there is any that satisfies given conditions, or None otherwise
         """
 
         # fastpath: directly look in the nodes list
-        if not anyaddr and self._nodes_by_addr and \
-                addr in self._nodes_by_addr and self._nodes_by_addr[addr]:
-            return self._nodes_by_addr[addr][0]
+        if not anyaddr:
+            try:
+                return self._nodes_by_addr[addr][0]
+            except (KeyError, IndexError):
+                pass
+
+        if force_fastpath:
+            return None
 
         # slower path
         #if self._node_lookup_index is not None:
@@ -399,7 +416,7 @@ class CFGBase(Analysis):
             else:
                 cond = True
             if anyaddr and n.size is not None:
-                cond = cond and (addr >= n.addr and addr < n.addr + n.size)
+                cond = cond and n.addr <= addr < n.addr + n.size
             else:
                 cond = cond and (addr == n.addr)
             if cond:
@@ -721,19 +738,20 @@ class CFGBase(Analysis):
 
         return False
 
-    def _executable_memory_regions(self, binary=None, force_segment=False):
+    def _executable_memory_regions(self, objects=None, force_segment=False):
         """
         Get all executable memory regions from the binaries
 
-        :param binary: Binary object to collect regions from. If None, regions from all project binary objects are used.
+        :param objects: A collection of binary objects to collect regions from. If None, regions from all project
+                        binary objects are used.
         :param bool force_segment: Rely on binary segments instead of sections.
         :return: A sorted list of tuples (beginning_address, end_address)
         """
 
-        if binary is None:
+        if objects is None:
             binaries = self.project.loader.all_objects
         else:
-            binaries = [ binary ]
+            binaries = objects
 
         memory_regions = [ ]
 
@@ -775,7 +793,7 @@ class CFGBase(Analysis):
                 tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
 
-            elif isinstance(b, (ExternObject, KernelObject, TLSObject)):
+            elif isinstance(b, self._cle_pseudo_objects):
                 pass
 
             else:
@@ -875,17 +893,18 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_pointer(self, addr):
+    def _fast_memory_load_pointer(self, addr, size=None):
         """
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
+        :param int size: Size of the pointer. Default to machine-word size.
         :return:         A pointer or None if the address does not exist.
         :rtype:          int
         """
 
         try:
-            return self.project.loader.memory.unpack_word(addr)
+            return self.project.loader.memory.unpack_word(addr, size=size)
         except KeyError:
             return None
 
@@ -1428,7 +1447,7 @@ class CFGBase(Analysis):
 
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
-        called_function_addrs = set([n.addr for n in function_nodes])
+        called_function_addrs = { n.addr for n in function_nodes }
 
         removed_functions_a = self._process_irrational_functions(tmp_functions,
                                                                  called_function_addrs,
@@ -1454,6 +1473,9 @@ class CFGBase(Analysis):
         max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
+
+            if self._low_priority:
+                self._release_gil(i, 20)
 
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
@@ -2312,7 +2334,9 @@ class CFGBase(Analysis):
         l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         all_targets = set()
-        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
+        for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type:int,IndirectJump
+            if self._low_priority:
+                self._release_gil(idx, 20, 0.0001)
             all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()
