@@ -976,7 +976,6 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         old_C  = r_C
 
         condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
-        compute_rC = state.solver.If(r_AL < 6, one, zero) 
         r_AL = state.solver.If(condition, r_AL - 6, old_AL)
         r_C = state.solver.If(condition, state.solver.If(r_AL < 6, one, zero), zero)
         r_A = state.solver.If(condition, one, zero)
