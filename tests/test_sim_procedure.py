@@ -38,7 +38,7 @@ def test_syscall_and_simprocedure():
     func = proj.kb.functions[node.addr]
     
     nose.tools.assert_true(node.is_simprocedure)
-    #nose.tools.assert_true(node.is_syscall)
+    nose.tools.assert_true(node.is_syscall)
     nose.tools.assert_false(node.to_codenode().is_hook)
     nose.tools.assert_false(proj.is_hooked(node.addr))
     nose.tools.assert_true(func.is_syscall)

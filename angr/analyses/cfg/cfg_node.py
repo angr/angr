@@ -46,7 +46,6 @@ class CFGNode:
                  size,
                  cfg,
                  simprocedure_name=None,
-                 is_syscall=False,
                  no_ret=False,
                  function_address=None,
                  block_id=None,
@@ -63,7 +62,6 @@ class CFGNode:
         self.simprocedure_name = simprocedure_name
         self.size = size
         self.no_ret = no_ret
-        self.is_syscall = is_syscall
         self._cfg = cfg
         self.function_address = function_address
         self.block_id = block_id
@@ -73,6 +71,7 @@ class CFGNode:
         self._name = simprocedure_name
         self.instruction_addrs = instruction_addrs if instruction_addrs is not None else tuple()
 
+        self.is_syscall = True if self.simprocedure_name and self._cfg.project.simos.is_syscall_addr(addr) else False
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
@@ -174,9 +173,7 @@ class CFGNode:
         return self._hash
 
     def to_codenode(self):
-        #TODO: after we add a new attribute to indicate whether this node is a syscall,
-        # we should change the next line to `if self.{attribute}:`
-        if self._cfg.project.simos.is_syscall_addr(self.addr):
+        if self.is_syscall:
             return SyscallNode(self.addr, self.size, self.simprocedure_name)
         if self.is_simprocedure:
             return HookNode(self.addr, self.size, self.simprocedure_name)
