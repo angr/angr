@@ -342,11 +342,18 @@ class CFGBase(Analysis):
         :return: A list of predecessors in the CFG
         :rtype: list
         """
+        s = set()
+        for child, parent in networkx.dfs_predecessors(self._graph, cfgnode).items():
+            s.add(child)
+            s.add(parent)
+        return list(s)
 
-        return list(networkx.dfs_predecessors(self._graph, cfgnode))
-
-    def get_all_successors(self, basic_block):
-        return list(networkx.dfs_successors(self._graph, basic_block))
+    def get_all_successors(self, cfgnode):
+        s = set()
+        for parent, children in networkx.dfs_successors(self._graph, cfgnode).items():
+            s.add(parent)
+            s = s.union(children)
+        return list(s)
 
     def get_node(self, block_id):
         """
