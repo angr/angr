@@ -100,11 +100,17 @@ class CodeNode:
         self.reaching_condition = reaching_condition
 
     def __repr__(self):
-        return "<CodeNode %#x>" % self.addr
+        if self.addr is not None:
+            return "<CodeNode %#x>" % self.addr
+        else:
+            return "<CodeNode %s>" % repr(self.node)
 
     @property
     def addr(self):
-        return self.node.addr
+        if hasattr(self.node, 'addr'):
+            return self.node.addr
+        else:
+            return None
 
     def dbg_repr(self, indent=0):
         indent_str = indent * " "
@@ -167,15 +173,18 @@ class LoopNode:
 
 
 class BreakNode:
-    def __init__(self, target):
+    def __init__(self, addr, target):
+        self.addr = addr
         self.target = target
 
 
 class ConditionalBreakNode(BreakNode):
-    def __init__(self, condition, target):
-        super(ConditionalBreakNode, self).__init__(target)
-
+    def __init__(self, addr, condition, target):
+        super(ConditionalBreakNode, self).__init__(addr, target)
         self.condition = condition
+
+    def __repr__(self):
+        return "<ConditionalBreakNode %#x target:%#x>" % (self.addr, self.target)
 
 
 class RecursiveStructurer(Analysis):
