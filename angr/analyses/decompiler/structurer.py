@@ -15,6 +15,10 @@ l = logging.getLogger(name=__name__)
 INDENT_DELTA = 2
 
 
+class EmptyBlockNotice(Exception):
+    pass
+
+
 class SequenceNode:
     def __init__(self, nodes=None):
         self.nodes = nodes if nodes is not None else [ ]
@@ -333,12 +337,13 @@ class Structurer(Analysis):
 
         # find loop nodes and successors
         loop_subgraph = RegionIdentifier.slice_graph(graph, head, latching_nodes, include_frontier=True)
+        loop_node_addrs = set( node.addr for node in loop_subgraph )
 
         # Case A: The loop successor is inside the current region (does it happen at all?)
         loop_successors = set()
 
         for node, successors in networkx.bfs_successors(graph, head):
-            if node in loop_subgraph:
+            if node.addr in loop_node_addrs:
                 for suc in successors:
                     if suc not in loop_subgraph:
                         loop_successors.add(suc)
@@ -347,8 +352,10 @@ class Structurer(Analysis):
         if not loop_successors:
             parent_graph = self._parent_region.graph
             for node, successors in networkx.bfs_successors(parent_graph, self._region):
-                for suc in successors:
-                    loop_successors.add(suc)
+                if node.addr in loop_node_addrs:
+                    for suc in successors:
+                        if suc not in loop_subgraph:
+                            loop_successors.add(suc)
 
         return loop_subgraph, loop_successors
 
@@ -466,7 +473,7 @@ class Structurer(Analysis):
 
                 if new_node is not None:
                     # special checks if node goes empty
-                    if not node.statements:
+                    if isinstance(node, ailment.Block) and not node.statements:
                         replaced_nodes[node] = new_node
                         preds = list(loop_region_graph.predecessors(node))
                         loop_region_graph.remove_node(node)
@@ -752,6 +759,8 @@ class Structurer(Analysis):
         elif type(block) is CodeNode:
             return self._get_last_statement(block.node)
         elif type(block) is ailment.Block:
+            if not block.statements:
+                raise EmptyBlockNotice()
             return block.statements[-1]
         elif type(block) is Block:
             return block.vex.statements[-1]
@@ -760,8 +769,12 @@ class Structurer(Analysis):
             return b.vex.statements[-1]
         elif type(block) is MultiNode:
             # get the last node
-            the_block = block.nodes[-1]
-            return self._get_last_statement(the_block)
+            for the_block in reversed(block.nodes):
+                try:
+                    last_stmt = self._get_last_statement(the_block)
+                    return last_stmt
+                except EmptyBlockNotice:
+                    continue
         elif type(block) is LoopNode:
             return self._get_last_statement(block.sequence_node)
         elif type(block) is ConditionalBreakNode:
@@ -856,8 +869,16 @@ class Structurer(Analysis):
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
         }
 
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
-            var = claripy.BVS('structurer-cond_%s' % repr(condition), condition.bits, explicit_name=True)
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.DirtyExpression)):
+            var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
+            self._condition_mapping[var] = condition
+            return var
+        elif isinstance(condition, ailment.Expr.Convert):
+            # convert is special. if it generates a 1-bit variable, it should be treated as a BVS
+            if condition.to_bits == 1:
+                var = claripy.BoolS('ailcond_%s' % repr(condition), explicit_name=True)
+            else:
+                var = claripy.BVS('ailexpr_%s' % repr(condition), condition.to_bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
