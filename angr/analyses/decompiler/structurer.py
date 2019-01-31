@@ -631,12 +631,17 @@ class Structurer(Analysis):
             else:
                 break
 
-        # make all conditionally-reachable nodes a ConditionNode
+        # make all conditionally-reachable nodes ConditionNodes
         for i in range(len(seq.nodes)):
             node = seq.nodes[i]
             if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
-                new_node = ConditionNode(node.addr, None, self._convert_claripy_bool_ast(node.reaching_condition), node,
-                                         None)
+                if isinstance(node.node, ConditionalBreakNode):
+                    # Put conditions together and simplify them
+                    cond = claripy.And(node.reaching_condition, self._bool_variable_from_ail_condition(node.node.condition))
+                    new_node = CodeNode(ConditionalBreakNode(node.node.addr, cond, node.node.target), None)
+                else:
+                    new_node = ConditionNode(node.addr, None, node.reaching_condition, node,
+                                             None)
                 seq.nodes[i] = new_node
 
     def _make_ite(self, seq, node_0, node_1):
