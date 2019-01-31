@@ -676,7 +676,11 @@ class Structurer(Analysis):
             # get the last node
             the_block = block.nodes[-1]
             return self._get_last_statement(the_block)
+        elif type(block) is LoopNode:
+            return self._get_last_statement(block.sequence_node)
         elif type(block) is ConditionalBreakNode:
+            return None
+        elif type(block) is ConditionNode:
             return None
         else:
             raise NotImplementedError()
@@ -685,31 +689,51 @@ class Structurer(Analysis):
 
     def _remove_last_statement(self, node):
 
+        stmt = None
+
         if type(node) is CodeNode:
-            self._remove_last_statement(node.node)
+            stmt = self._remove_last_statement(node.node)
         elif type(node) is ailment.Block:
+            stmt = node.statements[-1]
             node.statements = node.statements[:-1]
         elif type(node) is MultiNode:
             if node.nodes:
-                self._remove_last_statement(node.nodes[-1])
+                stmt = self._remove_last_statement(node.nodes[-1])
         elif type(node) is SequenceNode:
             if node.nodes:
-                self._remove_last_statement(node.nodes[-1])
+                stmt = self._remove_last_statement(node.nodes[-1])
         else:
             raise NotImplementedError()
 
+        return stmt
+
     def _extract_predicate(self, src_block, dst_block):
+
+        if type(src_block) is ConditionalBreakNode:
+            # bool_var = self._bool_variable_from_ail_condition(src_block.condition)
+            # if src_block.target == dst_block.addr:
+            #     return bool_var
+            # else:
+            #     return claripy.Not(bool_var)
+            if src_block.target == dst_block.addr:
+                return claripy.false
+            else:
+                return claripy.true
+
         last_stmt = self._get_last_statement(src_block)
 
+        if last_stmt is None:
+            return claripy.true
+        if type(last_stmt) is ailment.Stmt.Jump:
+            return claripy.true
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
-            bool_var = self._bool_variable_from_ail_condition(src_block, last_stmt.condition)
+            bool_var = self._bool_variable_from_ail_condition(last_stmt.condition)
             if last_stmt.true_target.value == dst_block.addr:
                 return bool_var
             else:
                 return claripy.Not(bool_var)
 
-        else:
-            raise NotImplementedError()
+        raise NotImplementedError()
 
     @staticmethod
     def _extract_jump_targets(stmt):
