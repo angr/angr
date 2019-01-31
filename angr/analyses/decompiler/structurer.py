@@ -293,6 +293,10 @@ class Structurer(Analysis):
 
         self._make_ites(seq)
 
+        seq = self._merge_conditional_breaks(seq)
+
+        seq = self._remove_claripy_bool_asts(seq)
+
         self.result = seq
 
     def _has_cycle(self):
@@ -653,11 +657,94 @@ class Structurer(Analysis):
         node_0_.reaching_condition = None
         node_1_.reaching_condition = None
 
-        seq.insert_node(pos, ConditionNode(0, None, self._convert_claripy_bool_ast(node_0.reaching_condition), node_0_,
+        seq.insert_node(pos, ConditionNode(0, None, node_0.reaching_condition, node_0_,
                                            node_1_))
 
         seq.remove_node(node_0)
         seq.remove_node(node_1)
+
+    def _merge_conditional_breaks(self, seq):
+
+        # Find consecutive ConditionalBreakNodes and merge their conditions
+
+        new_nodes = [ ]
+        i = 0
+        while i < len(seq.nodes):
+            node = seq.nodes[i]
+
+            if type(node) is CodeNode:
+                node = node.node
+
+            if isinstance(node, SequenceNode):
+                node = self._merge_conditional_breaks(node)
+            elif isinstance(node, ConditionalBreakNode) and i > 0:
+                prev_node = seq.nodes[i-1]
+                if type(prev_node) is CodeNode:
+                    prev_node = prev_node.node
+                if isinstance(prev_node, ConditionalBreakNode):
+                    # found them!
+
+                    # pop the previously added node
+                    if new_nodes:
+                        new_nodes = new_nodes[:-1]
+
+                    merged_condition = self._simplify_condition(claripy.Or(node.condition, prev_node.condition))
+                    new_node = ConditionalBreakNode(node.addr,
+                                                    merged_condition,
+                                                    node.target
+                                                    )
+                    node = new_node
+
+            new_nodes.append(node)
+            i += 1
+
+        return SequenceNode(new_nodes)
+
+    def _remove_claripy_bool_asts(self, node):
+
+        # Convert claripy Bool ASTs to AIL expressions
+
+        if isinstance(node, SequenceNode):
+            new_nodes = [ ]
+            for node in node.nodes:
+                node = self._remove_claripy_bool_asts(node)
+                new_nodes.append(node)
+            new_seq_node = SequenceNode(new_nodes)
+            return new_seq_node
+
+        elif isinstance(node, CodeNode):
+            node = CodeNode(self._remove_claripy_bool_asts(node.node),
+                            None if node.reaching_condition is None
+                            else self._convert_claripy_bool_ast(node.reaching_condition))
+            return node
+
+        elif isinstance(node, ConditionalBreakNode):
+
+            return ConditionalBreakNode(node.addr,
+                                        self._convert_claripy_bool_ast(node.condition),
+                                        node.target,
+                                        )
+
+        elif isinstance(node, ConditionNode):
+
+            return ConditionNode(node.addr,
+                                 None if node.reaching_condition is None else
+                                    self._convert_claripy_bool_ast(node.reaching_condition),
+                                 self._convert_claripy_bool_ast(node.condition),
+                                 self._remove_claripy_bool_asts(node.true_node),
+                                 self._remove_claripy_bool_asts(node.false_node),
+                                 )
+
+        elif isinstance(node, LoopNode):
+
+            return LoopNode(node.sort,
+                            node.condition,
+                            self._remove_claripy_bool_asts(node.sequence_node),
+                            addr=node.addr,
+                            )
+
+        else:
+            return node
 
     def _get_last_statement(self, block):
         if type(block) is SequenceNode:
@@ -757,10 +844,31 @@ class Structurer(Analysis):
 
         return targets
 
-    def _bool_variable_from_ail_condition(self, block, condition):
-        var = claripy.BoolS('structurer-cond_%#x_%s' % (block.addr, repr(condition)), explicit_name=True)
-        self._condition_mapping[var] = condition
-        return var
+    def _bool_variable_from_ail_condition(self, condition):
+
+        # Unpack a condition all the way to the leaves
+
+        _mapping = {
+            'LogicalAnd': lambda expr, conv: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
+            'LogicalOr': lambda expr, conv: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
+            'CmpEQ': lambda expr, conv: conv(expr.operands[0]) == conv(expr.operands[1]),
+            'CmpLE': lambda expr, conv: conv(expr.operands[0]) <= conv(expr.operands[1]),
+            'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
+            'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
+        }
+
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
+            var = claripy.BVS('structurer-cond_%s' % repr(condition), condition.bits, explicit_name=True)
+            self._condition_mapping[var] = condition
+            return var
+        elif isinstance(condition, ailment.Expr.Const):
+            var = claripy.BVV(condition.value, condition.bits)
+            return var
+
+        lambda_expr = _mapping.get(condition.op, None)
+        if lambda_expr is None:
+            raise NotImplementedError("Unsupported AIL expression operation %s. Consider implementing." % condition.op)
+        return lambda_expr(condition, self._bool_variable_from_ail_condition)
 
     @staticmethod
     def _negate_cond(cond):
