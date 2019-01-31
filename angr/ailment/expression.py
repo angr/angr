@@ -185,7 +185,11 @@ class BinaryOp(Op):
         'Add': '+',
         'Sub': '-',
         'CmpEQ': '==',
+        'CmpNE': '!=',
+        'CmpLT': '<',
         'CmpLE': '<=',
+        'CmpGT': '>',
+        'CmpGE': '>=',
     }
 
     def __init__(self, idx, op, operands, **kwargs):
