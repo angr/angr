@@ -221,7 +221,8 @@ class RegionIdentifier(Analysis):
             # find a node with a back-edge, remove the edge (deleting the loop), and replace it with a MultiNode
             changed |= self._remove_self_loop(graph)
 
-            # find a node that has only one predecessor, and merge it with its predecessor (replace them with a MultiNode)
+            # find a node that has only one predecessor, and merge it with its predecessor (replace them with a
+            # MultiNode)
             changed |= self._merge_single_entry_node(graph)
 
             if not changed:
