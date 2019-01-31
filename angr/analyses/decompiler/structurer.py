@@ -46,11 +46,41 @@ class SequenceNode:
         new_nodes = [ ]
 
         for node in self.nodes:
-            if type(node) is ailment.Block and not node.statements:
+            if type(node) is ConditionNode and self._test_empty_condition_node(node):
+                continue
+            if type(node) is CodeNode and self._test_empty_node(node.node):
+                continue
+            if self._test_empty_node(node):
                 continue
             new_nodes.append(node)
 
         self.nodes = new_nodes
+
+    def _test_empty_condition_node(self, cond_node):
+
+        for node in [ cond_node.true_node, cond_node.false_node ]:
+            if node is None:
+                continue
+            if type(node) is CodeNode and self._test_empty_node(node.node):
+                continue
+            if self._test_empty_node(node):
+                continue
+            return False
+
+        return True
+
+    def _test_empty_node(self, node):
+        if type(node) is ailment.Block:
+            if not node.statements:
+                return True
+            if len(node.statements) == 1 and type(node.statements[0]) is ailment.Stmt.ConditionalJump:
+                # conditional jumps have been taken care of during reaching condition recovery
+                return True
+            else:
+                # not empty
+                return False
+        # unsupported node type. probably not empty?
+        return False
 
     def copy(self):
         return SequenceNode(nodes=self.nodes[::])
