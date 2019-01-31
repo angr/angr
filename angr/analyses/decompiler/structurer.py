@@ -534,7 +534,7 @@ class Structurer(Analysis):
                     reaching_condition = claripy.Or(claripy.And(pred_condition, edge_condition), reaching_condition)
 
             if reaching_condition is not None:
-                reaching_conditions[node] = claripy.simplify(reaching_condition)
+                reaching_conditions[node] = self._simplify_condition(reaching_condition)
 
         self._reaching_conditions = reaching_conditions
         self._predicate_mapping = predicate_mapping
@@ -708,6 +708,54 @@ class Structurer(Analysis):
             # Unpacck it
             return cond.operand
         return ailment.Expr.UnaryOp(0, 'Not', cond)
+
+    def _simplify_condition(self, cond):
+
+        claripy_simplified = claripy.simplify(cond)
+        if not claripy_simplified.symbolic:
+            return claripy_simplified
+        simplified = self._revert_short_circuit_conditions(cond)
+        cond = simplified if simplified is not None else cond
+        return cond
+
+    def _revert_short_circuit_conditions(self, cond):
+
+        # revert short-circuit conditions
+        # !A||(A&&!B) ==> !(A&&B)
+
+        if cond.op != "Or":
+            return cond
+
+        or_arg0, or_arg1 = cond.args[:2]
+        if or_arg1.op == 'And':
+            pass
+        elif or_arg0.op == 'And':
+            or_arg0, or_arg1 = or_arg1, or_arg0
+        else:
+            return cond
+
+        not_a = or_arg0
+        solver = claripy.SolverCacheless()
+
+        if not_a.variables == or_arg1.args[0].variables:
+            solver.add(not_a == or_arg1.args[0])
+            not_b = or_arg1.args[1]
+        elif not_a.variables == or_arg1.args[1].variables:
+            solver.add(not_a == or_arg1.args[1])
+            not_b = or_arg1.args[0]
+        else:
+            return cond
+
+        if not solver.satisfiable():
+            # found it!
+            b = claripy.Not(not_b)
+            a = claripy.Not(not_a)
+            if len(cond.args) <= 2:
+                return claripy.Not(claripy.And(a, b))
+            else:
+                return claripy.Or(claripy.Not(claripy.And(a, b)), *cond.args[2:])
+        else:
+            return cond
 
 
 register_analysis(RecursiveStructurer, 'RecursiveStructurer')
