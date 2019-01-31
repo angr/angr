@@ -17,7 +17,7 @@ class SimAction(SimEvent):
     TMP = 'tmp'
     REG = 'reg'
     MEM = 'mem'
-    _MAX_ACTION_ID = 0
+    _MAX_ACTION_ID = -1
 
     def __init__(self, state, region_type):
         """
