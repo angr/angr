@@ -384,6 +384,8 @@ class Structurer(Analysis):
         if loop_node.sort == 'while' and loop_node.condition is None:
             # it's an endless loop
             first_node = loop_node.sequence_node.nodes[0]
+            if type(first_node) is CodeNode:
+                first_node = first_node.node
             if type(first_node) is ConditionalBreakNode:
                 while_cond = Structurer._negate_cond(first_node.condition)
                 new_seq = loop_node.sequence_node.copy()
