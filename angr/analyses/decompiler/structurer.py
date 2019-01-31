@@ -415,19 +415,20 @@ class Structurer(Analysis):
     def _to_loop_body_sequence(self, loop_head, loop_subgraph, loop_successors):
 
         graph = self._region.graph
-        seq = SequenceNode()
+        loop_region_graph = networkx.DiGraph()
 
         # TODO: Make sure the loop body has been structured
 
         queue = [ loop_head ]
         traversed = set()
         loop_successors = set(s.addr for s in loop_successors)
+        replaced_nodes = {}
 
         while queue:
             node = queue[0]
             queue = queue[1:]
 
-            seq.nodes.append(node)
+            loop_region_graph.add_node(node)
 
             traversed.add(node)
 
@@ -439,11 +440,12 @@ class Structurer(Analysis):
             if any(succ_addr in loop_successors for succ_addr in real_successor_addrs):
                 # This node has an exit to the outside of the loop
                 # add a break or a conditional break node
+                new_node = None
                 if type(last_stmt) is ailment.Stmt.Jump:
-                    # add a break
-                    seq.nodes.append(BreakNode(last_stmt.target.value))
                     # shrink the block to remove the last statement
                     self._remove_last_statement(node)
+                    # add a break
+                    new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
                 elif type(last_stmt) is ailment.Stmt.ConditionalJump:
                     # add a conditional break
                     if last_stmt.true_target.value in loop_successors:
@@ -455,9 +457,22 @@ class Structurer(Analysis):
                     else:
                         l.warning("I'm not sure which branch is jumping out of the loop...")
                         raise Exception()
-                    seq.nodes.append(ConditionalBreakNode(cond, target))
                     # remove the last statement from the node
                     self._remove_last_statement(node)
+                    new_node = ConditionalBreakNode(last_stmt.ins_addr, cond, target)
+
+                if new_node is not None:
+                    # special checks if node goes empty
+                    if not node.statements:
+                        replaced_nodes[node] = new_node
+                        preds = list(loop_region_graph.predecessors(node))
+                        loop_region_graph.remove_node(node)
+                        for pred in preds:
+                            loop_region_graph.add_edge(pred, new_node)
+                    else:
+                        loop_region_graph.add_edge(node, new_node)
+                    # update node
+                    node = new_node
 
             for dst in successors:
                 # sanity check
@@ -465,13 +480,16 @@ class Structurer(Analysis):
                     # what's this node?
                     l.error("Found a node that belongs to neither loop body nor loop successors. Something is wrong.")
                     raise Exception()
+                if dst is not loop_head:
+                    loop_region_graph.add_edge(node, replaced_nodes.get(dst, dst))
                 if dst in traversed:
                     continue
                 queue.append(dst)
 
-            if len(queue) > 1:
-                l.error("It seems that the loop body hasn't been properly structured.")
-                raise Exception()
+        # Create a graph region and structure it
+        region = GraphRegion(loop_head, loop_region_graph)
+        structurer = self.project.analyses.Structurer(region)
+        seq = structurer.result
 
         last_stmt = self._get_last_statement(seq)
         if type(last_stmt) is ailment.Stmt.Jump:
