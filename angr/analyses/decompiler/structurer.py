@@ -546,17 +546,48 @@ class Structurer(Analysis):
         :return: None
         """
 
-        if claripy.is_true(cond):
+        if isinstance(cond, ailment.Expr.Expression):
+            return cond
+
+        if cond.op == "BoolS" and claripy.is_true(cond):
             return cond
         if cond in self._condition_mapping:
             return self._condition_mapping[cond]
 
         _mapping = {
             'Not': lambda cond_: ailment.Expr.UnaryOp(None, 'Not', self._convert_claripy_bool_ast(cond_.args[0])),
-            'And': lambda cond_: ailment.Expr.BinaryOp(None, 'And', (
+            'And': lambda cond_: ailment.Expr.BinaryOp(None, 'LogicalAnd', (
                 self._convert_claripy_bool_ast(cond_.args[0]),
-                self._convert_claripy_bool_ast(cond_.args[1]),)
-                                                       ),
+                self._convert_claripy_bool_ast(cond_.args[1]),
+            )),
+            'Or': lambda cond_: ailment.Expr.BinaryOp(None, 'LogicalOr', (
+                self._convert_claripy_bool_ast(cond_.args[0]),
+                self._convert_claripy_bool_ast(cond_.args[1]),
+            )),
+            'ULE': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpULE',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
+            '__le__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLE',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
+            'UGT': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpUGT',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
+            '__gt__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpGT',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
+            '__eq__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpEQ',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
+            '__ne__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpNE',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
+            '__xor__': lambda cond_: ailment.Expr.BinaryOp(None, 'Xor',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
+            'BVV': lambda cond_: ailment.Expr.Const(None, None, cond_.args[0], cond_.size()),
+            'BoolV': lambda cond_: ailment.Expr.Const(None, None, True, 1) if cond_.args[0] is True
+                                                                        else ailment.Expr.Const(None, None, False, 1),
         }
 
         if cond.op in _mapping:
