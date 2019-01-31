@@ -653,8 +653,13 @@ class CBinaryOp(CExpression):
             'And': self._c_repr_and,
             'Xor': self._c_repr_xor,
             'Shr': self._c_repr_shr,
+            'LogicalAnd': self._c_repr_logicaland,
+            'LogicalOr': self._c_repr_logicalor,
             'CmpLE': self._c_repr_cmple,
+            'CmpULE': self._c_repr_cmple,  # FIXME: use the unsigned version
             'CmpLT': self._c_repr_cmplt,
+            'CmpGT': self._c_repr_cmpgt,
+            'CmpUGT': self._c_repr_cmpgt,  # FIXME: use the unsigned version
             'CmpEQ': self._c_repr_cmpeq,
             'CmpNE': self._c_repr_cmpne,
         }
@@ -676,14 +681,14 @@ class CBinaryOp(CExpression):
         return lhs + op + rhs
 
     def _c_repr_sub(self, posmap=None):
-        lhs = self._try_c_repr(self.rhs, posmap=posmap)
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " - "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
 
     def _c_repr_and(self, posmap=None):
-        lhs = self._try_c_repr(self.rhs, posmap=posmap)
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " & "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
@@ -703,6 +708,21 @@ class CBinaryOp(CExpression):
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
 
+    def _c_repr_logicaland(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " && "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_logicalor(self, posmap=None):
+        if posmap: posmap.tick_pos(1)
+        lhs = "(" + self._try_c_repr(self.lhs, posmap=posmap)
+        op = ") || ("
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs + ")"
+
     def _c_repr_cmple(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " <= "
@@ -713,6 +733,13 @@ class CBinaryOp(CExpression):
     def _c_repr_cmplt(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " < "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_cmpgt(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " > "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
