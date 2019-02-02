@@ -16,13 +16,13 @@ class ManualMergepoint(ExplorationTechnique):
     def setup(self, simgr):
         simgr.stashes[self.stash] = []
 
-    def filter(self, simgr, state):
+    def filter(self, simgr, state, **kwargs):
         if self.filter_marker not in state.globals:
             if state.addr == self.address:
                 self.wait_counter = 0
                 return self.stash
 
-        return simgr.filter(state)
+        return simgr.filter(state, **kwargs)
 
     def mark_nofilter(self, simgr, stash):
         for state in simgr.stashes[stash]:
