@@ -607,6 +607,7 @@ class Project:
 
         def hook_decorator(func):
             self.hook(addr, func, length=length, kwargs=kwargs)
+            return func
 
         return hook_decorator
 
