@@ -186,3 +186,4 @@ from .stochastic import StochasticSearch
 from .unique import UniqueSearch
 from .symbion import Symbion
 from ..errors import AngrError, AngrExplorationTechniqueError
+from .memory_watcher import MemoryWatcher
