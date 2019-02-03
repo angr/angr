@@ -138,6 +138,7 @@ setup(
         'pyvex==8.18.10.25',
         'ailment==8.18.10.25',
         'GitPython',
+        'psutil',
         'pycparser>=2.18',
         'itanium_demangler',
     ],
