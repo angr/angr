@@ -15,9 +15,6 @@ class MemoryWatcher(ExplorationTechnique):
     """
 
     def __init__(self, min_memory=512, memory_stash='lowmem'):
-        """
-        min_memory in megabytes
-        """
         super(MemoryWatcher, self).__init__()
 
         if min_memory is not None:
