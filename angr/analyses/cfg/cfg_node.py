@@ -7,7 +7,7 @@ import archinfo
 from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
 
-l = logging.getLogger(__name__)
+_l = logging.getLogger(__name__)
 
 
 class CFGNodeCreationFailure:

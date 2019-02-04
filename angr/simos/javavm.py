@@ -291,8 +291,6 @@ class SimJavaVM(SimOS):
                 return array
             else:
                 return SimSootValue_ThisRef.new_object(state, type_, symbolic=True, init_object=False)
-
-
         else:
             # not a primitive type
             # => treat it as a reference

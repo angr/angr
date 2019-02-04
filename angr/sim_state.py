@@ -9,8 +9,8 @@ l = logging.getLogger(name=__name__)
 import angr # type annotations; pylint:disable=unused-import
 import claripy
 import archinfo
-
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 

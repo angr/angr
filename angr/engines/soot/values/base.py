@@ -1,5 +1,5 @@
 
-class SimSootValue(object):
+class SimSootValue:
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):

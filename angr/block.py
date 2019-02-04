@@ -222,7 +222,7 @@ class Block(object):
         return self._instruction_addrs
 
 
-class SootBlock(object):
+class SootBlock:
     def __init__(self, addr, project=None, arch=None):
 
         self.addr = addr

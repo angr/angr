@@ -3,7 +3,7 @@ from . import translate_expr
 from ..values import translate_value
 
 
-class SimSootExpr(object):
+class SimSootExpr:
     def __init__(self, expr, state):
         self.expr = expr
         self.state = state

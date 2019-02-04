@@ -2,7 +2,7 @@
 from .memory import SimMemory
 
 
-class TypedVariable(object):
+class TypedVariable:
 
     __slots__ = ['type', 'value']
 

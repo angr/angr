@@ -14,7 +14,7 @@ from ...procedures import SIM_LIBRARIES
 l = logging.getLogger(name=__name__)
 
 
-class SootFunction(object):
+class SootFunction:
     """
     A representation of a function and various information about it.
     """

@@ -8,13 +8,13 @@ from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, LoopVisitor
 
 
-class VariableTypes(object):
+class VariableTypes:
     Iterator = 'Iterator'
     HasNext = 'HasNext'
     Next = 'Next'
 
 
-class AnnotatedVariable(object):
+class AnnotatedVariable:
 
     __slots__ = [ 'variable', 'type' ]
 
@@ -29,7 +29,7 @@ class AnnotatedVariable(object):
         return type(other) is AnnotatedVariable and other.type == self.type and other.variable == self.variable
 
 
-class Condition(object):
+class Condition:
 
     Equal = "=="
     NotEqual = "!="
@@ -55,7 +55,7 @@ class Condition(object):
         return mapping.get(opstr, None)
 
 
-class SootBlockProcessor(object):
+class SootBlockProcessor:
     def __init__(self, state, block, loop, defuse):
         self.state = state
         self.block = block
@@ -187,7 +187,7 @@ class SootBlockProcessor(object):
         return None
 
 
-class LoopAnalysisState(object):
+class LoopAnalysisState:
     def __init__(self, block):
         self.block = block
 

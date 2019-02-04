@@ -227,15 +227,6 @@ class CFGFastSoot(CFGFast):
 
         return successors
 
-    def _create_entries_filter_target(self, target):
-        """
-
-        :param target:
-        :return:
-        """
-
-        return target
-
     def _loc_to_funcloc(self, location):
 
         if isinstance(location, SootAddressDescriptor):
@@ -388,7 +379,7 @@ class CFGFastSoot(CFGFast):
         :rtype:                     list
         """
 
-        target_addr = self._create_entries_filter_target(target)
+        target_addr = target
 
         jobs = [ ]
 

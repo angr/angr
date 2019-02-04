@@ -9,7 +9,7 @@ from ..values import translate_value
 
 l = logging.getLogger('angr.engines.soot.statements.if')
 
-class SimSootStmt(object):
+class SimSootStmt:
     """
     The base class of all Soot statements.
     """

@@ -7,9 +7,9 @@ from ...errors import SimEngineError
 from ..plugin import KnowledgeBasePlugin
 
 from .function import Function
-from .soot_function import  SootFunction
+from .soot_function import SootFunction
 
-from archinfo.arch_soot import  SootMethodDescriptor
+from archinfo.arch_soot import SootMethodDescriptor
 
 l = logging.getLogger(name=__name__)
 

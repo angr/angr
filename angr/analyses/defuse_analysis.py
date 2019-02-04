@@ -9,7 +9,7 @@ from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 
 
-class Def(object):
+class Def:
 
     __slots__ = ['stmt_idx', 'expr', 'evaluated']
 
@@ -22,7 +22,7 @@ class Def(object):
         return "%d:%s" % (self.stmt_idx, self.expr)
 
 
-class SootBlockProcessor(object):
+class SootBlockProcessor:
     def __init__(self, state, block):
         self.state = state
         self.block = block
@@ -108,7 +108,7 @@ class SootBlockProcessor(object):
         return expr
 
 
-class DefUseState(object):
+class DefUseState:
     def __init__(self, block):
         self.block = block
 
