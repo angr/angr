@@ -14,9 +14,6 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 
-import logging
-l = logging.getLogger("angr.sim_state")
-
 def arch_overrideable(f):
     @functools.wraps(f)
     def wrapped_f(self, *args, **kwargs):
@@ -56,8 +53,9 @@ class SimState(PluginHub):
     :ivar str unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default', **kwargs):
+    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
+                 options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
+                 plugin_preset='default', **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
@@ -95,14 +93,26 @@ class SimState(PluginHub):
         self.mode = mode
         self.supports_inspect = False
 
+        # OS name
+        self.os_name = os_name
+
+        # This is used in static mode as we don't have any constraints there
+        self._satisfiable = True
+
+        self.uninitialized_access_handler = None
+        self._special_memory_filler = special_memory_filler
+
+        # this is a global condition, applied to all added constraints, memory reads, etc
+        self._global_condition = None
+        self.ip_constraints = []
+
+        # plugins. lord help us
         if plugin_preset is not None:
             self.use_plugin_preset(plugin_preset)
 
         if plugins is not None:
             for n,p in plugins.items():
                 self.register_plugin(n, p, inhibit_init=True)
-            for p in plugins.values():
-                p.init_state()
 
         if not self.has_plugin('memory'):
             # We don't set the memory endness because, unlike registers, it's hard to understand
@@ -139,7 +149,7 @@ class SimState(PluginHub):
 
             # Add memory plugin
             if not self._is_java_jni_project:
-                self.register_plugin('memory', sim_memory)
+                self.register_plugin('memory', sim_memory, inhibit_init=True)
 
             else:
                 # In case of the JavaVM with JNI support, we add two `memory` plugins; one for modeling the
@@ -147,8 +157,8 @@ class SimState(PluginHub):
                 native_sim_memory = sim_memory
                 javavm_sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
                 javavm_sim_memory = javavm_sim_memory_cls(memory_id='mem')
-                self.register_plugin('memory_soot', javavm_sim_memory)
-                self.register_plugin('memory_vex', native_sim_memory)
+                self.register_plugin('memory_soot', javavm_sim_memory, inhibit_init=True)
+                self.register_plugin('memory_vex', native_sim_memory, inhibit_init=True)
 
         if not self.has_plugin('registers'):
             # Same as for 'memory' plugin.
@@ -175,28 +185,18 @@ class SimState(PluginHub):
 
             # Add registers plugin
             if not self._is_java_jni_project:
-                self.register_plugin('registers', sim_registers)
+                self.register_plugin('registers', sim_registers, inhibit_init=True)
 
             else:
                 # Analog to memory, we add two registers plugins
                 native_sim_registers = sim_registers
                 javavm_sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
                 javavm_sim_registers = javavm_sim_registers_cls(memory_id='reg')
-                self.register_plugin('registers_soot', javavm_sim_registers)
-                self.register_plugin('registers_vex', native_sim_registers)
+                self.register_plugin('registers_soot', javavm_sim_registers, inhibit_init=True)
+                self.register_plugin('registers_vex', native_sim_registers, inhibit_init=True)
 
-        # OS name
-        self.os_name = os_name
-
-        # This is used in static mode as we don't have any constraints there
-        self._satisfiable = True
-
-        self.uninitialized_access_handler = None
-        self._special_memory_filler = special_memory_filler
-
-        # this is a global condition, applied to all added constraints, memory reads, etc
-        self._global_condition = None
-        self.ip_constraints = []
+        for p in plugins.values():
+            p.init_state()
 
     def __getstate__(self):
         s = { k:v for k,v in self.__dict__.items() if k not in ('inspect', 'regs', 'mem')}

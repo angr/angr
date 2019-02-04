@@ -216,6 +216,9 @@ class SimSymbolicFilesystemError(SimFilesystemError):
 class SimFileError(SimMemoryError, SimFilesystemError):
     pass
 
+class SimHeapError(SimStateError):
+    pass
+
 #
 # Error class during VEX parsing
 #

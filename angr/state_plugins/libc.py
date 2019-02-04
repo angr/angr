@@ -1,8 +1,5 @@
 from .plugin import SimStatePlugin
 
-HEAP_LOCATION = 0xc0000000
-HEAP_SIZE = 64*4096
-
 class SimStateLibc(SimStatePlugin):
     """
     This state plugin keeps track of various libc stuff:
@@ -184,8 +181,6 @@ class SimStateLibc(SimStatePlugin):
         SimStatePlugin.__init__(self)
 
         # various thresholds
-        self.heap_location = HEAP_LOCATION
-        self.mmap_base = HEAP_LOCATION + HEAP_SIZE * 2
         self.buf_symbolic_bytes = 60
         self.max_symbolic_strstr = 1
         self.max_symbolic_strchr = 16
@@ -221,8 +216,6 @@ class SimStateLibc(SimStatePlugin):
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
         c = SimStateLibc()
-        c.heap_location = self.heap_location
-        c.mmap_base = self.mmap_base
         c.buf_symbolic_bytes = self.buf_symbolic_bytes
         c.max_symbolic_strstr = self.max_symbolic_strstr
         c.max_symbolic_strchr = self.max_symbolic_strchr
@@ -244,28 +237,11 @@ class SimStateLibc(SimStatePlugin):
 
         return c
 
-    def _combine(self, others):
-        new_heap_location = max(o.heap_location for o in others)
-        if self.heap_location != new_heap_location:
-            self.heap_location = new_heap_location
-            return True
-        else:
-            return False
-
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
-        return self._combine(others)
+        return False
 
     def widen(self, others):
-        return self._combine(others)
-
-    def init_state(self):
-        if o.ABSTRACT_MEMORY in self.state.options:
-            return
-
-        try:
-            self.state.memory.permissions(HEAP_LOCATION)
-        except SimMemoryError:
-            self.state.memory.map_region(HEAP_LOCATION, 4096*64, 3)
+        return False
 
     @property
     def errno(self):
@@ -289,6 +265,3 @@ class SimStateLibc(SimStatePlugin):
 
 from angr.sim_state import SimState
 SimState.register_default('libc', SimStateLibc)
-
-from ..errors import SimMemoryError
-from .. import sim_options as o

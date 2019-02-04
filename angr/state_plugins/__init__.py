@@ -26,6 +26,7 @@ from .preconstrainer import *
 from .loop_data import *
 from .view import *
 from .filesystem import *
+from .heap import *
 from .concrete import *
 from .jni_references import *
 from .javavm_classloader import *
