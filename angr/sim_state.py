@@ -52,8 +52,9 @@ class SimState(PluginHub):
     :ivar str unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default', **kwargs):
+    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
+                 options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
+                 heap=None, plugin_preset='default', **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
@@ -145,6 +146,9 @@ class SimState(PluginHub):
         # this is a global condition, applied to all added constraints, memory reads, etc
         self._global_condition = None
         self.ip_constraints = []
+
+        if heap is not None:
+            self.register_plugin('heap', heap)
 
     def __getstate__(self):
         s = { k:v for k,v in self.__dict__.items() if k not in ('inspect', 'regs', 'mem')}
