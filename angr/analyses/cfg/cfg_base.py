@@ -1462,8 +1462,7 @@ class CFGBase(Analysis):
         # Remove all nodes that are adjusted
         function_nodes.difference_update(adjusted_cfgnodes)
         for n in self.graph.nodes():
-            funcloc = self._loc_to_funcloc(n.addr)
-            if funcloc in tmp_functions or funcloc in removed_functions:
+            if n.addr in tmp_functions or n.addr in removed_functions:
                 function_nodes.add(n)
 
         # traverse the graph starting from each node, not following call edges
@@ -1522,7 +1521,10 @@ class CFGBase(Analysis):
 
         # Remove all stubs after PLT entries
         if self.project.arch.name not in {'ARMEL', 'ARMHF'}:
-            to_remove |= set(self._get_plt_stubs(self.kb.functions))
+            for fn in self.kb.functions.values():
+                addr = fn.addr - (fn.addr % 16)
+                if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
+                    to_remove.add(fn.addr)
 
         # remove empty functions
         for func in self.kb.functions.values():
@@ -1786,7 +1788,7 @@ class CFGBase(Analysis):
         :return: a Function object
         :rtype: angr.knowledge.Function
         """
-
+        
         if addr in blockaddr_to_function:
             f = blockaddr_to_function[addr]
         else:
@@ -1796,16 +1798,17 @@ class CFGBase(Analysis):
             if n is None: node = addr
             else: node = self._to_snippet(n)
 
-            funcloc = self._loc_to_funcloc(addr)
+            if isinstance(addr, SootAddressDescriptor):
+                addr = addr.method
 
-            self.kb.functions._add_node(funcloc, node, syscall=is_syscall)
-            f = self.kb.functions.function(addr=funcloc)
+            self.kb.functions._add_node(addr, node, syscall=is_syscall)
+            f = self.kb.functions.function(addr=addr)
 
             blockaddr_to_function[addr] = f
 
             function_is_returning = False
-            if funcloc in known_functions:
-                if known_functions.function(funcloc).returning:
+            if addr in known_functions:
+                if known_functions.function(addr).returning:
                     f.returning = True
                     function_is_returning = True
 
@@ -1813,7 +1816,7 @@ class CFGBase(Analysis):
                 # We will rerun function feature analysis on this function later. Add it to
                 # self._updated_nonreturning_functions so it can be picked up by function feature analysis later.
                 if self._updated_nonreturning_functions is not None:
-                    self._updated_nonreturning_functions.add(funcloc)
+                    self._updated_nonreturning_functions.add(addr)
 
         return f
 
@@ -2139,25 +2142,6 @@ class CFGBase(Analysis):
     #
     # Other functions
     #
-
-    def _loc_to_funcloc(self, location):
-        """
-
-        :param int location:
-        :return:
-        """
-        return location
-
-    def _get_plt_stubs(self, functions):
-
-        plt_stubs = set()
-
-        for fn in functions.values():
-            addr = fn.addr - (fn.addr % 16)
-            if addr != fn.addr and addr in functions and functions[addr].is_plt:
-                plt_stubs.add(fn.addr)
-
-        return plt_stubs
 
     @staticmethod
     def _is_noop_block(arch, block):

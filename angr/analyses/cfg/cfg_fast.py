@@ -1880,7 +1880,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return entries
 
     def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
-
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -2094,7 +2093,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 except AngrUnsupportedSyscallError:
                     target_addr = self._unresolvable_call_target_addr
 
-        new_function_addr = target_addr
+        if isinstance(target_addr, SootAddressDescriptor):
+            new_function_addr = target_addr.method
+        else:
+            new_function_addr = target_addr
+
         if irsb is None:
             return_site = None
         else:
