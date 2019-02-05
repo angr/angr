@@ -28,7 +28,7 @@ class SimHeapBase(SimStatePlugin):
 
         self.heap_base = heap_base if heap_base is not None else DEFAULT_HEAP_LOCATION
         self.heap_size = heap_size if heap_size is not None else DEFAULT_HEAP_SIZE
-        self.mmap_base = DEFAULT_HEAP_LOCATION + DEFAULT_HEAP_SIZE * 2
+        self.mmap_base = self.heap_base + self.heap_size * 2
 
     def _conc_alloc_size(self, sim_size):
         """
