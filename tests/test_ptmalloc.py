@@ -239,20 +239,6 @@ def test_skips_chunks_too_small():
         yield run_skips_chunks_too_small, arch
 
 
-def run_skips_chunks_too_small(arch):
-    s = SimState(arch=arch, heap=SimHeapPTMalloc(heap_base=0xd0000000, heap_size=0x1000))
-    s.heap.malloc(30)
-    p = s.heap.malloc(50)
-    s.heap.malloc(40)
-    s.heap.free(p)
-    p2 = s.heap.calloc(20, 5)
-    nose.tools.assert_less(p, p2)
-
-def test_skips_chunks_too_small():
-    for arch in ('X86', 'AMD64'):
-        yield run_skips_chunks_too_small, arch
-
-
 def run_calloc_multiplies(arch):
     s = SimState(arch=arch, heap=SimHeapPTMalloc(heap_base=0xd0000000, heap_size=0x1000))
     s.heap.malloc(30)
