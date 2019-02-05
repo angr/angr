@@ -2,7 +2,6 @@
 import logging
 from collections import defaultdict
 
-import cffi
 import networkx
 
 import pyvex

@@ -67,7 +67,8 @@ class Function:
             # Determine whether this function is a syscall or not
             self.is_syscall = self._project.simos.is_syscall_addr(addr)
 
-        if project.is_hooked(addr):
+        # Determine whether this function is a simprocedure
+        if self.is_syscall or project.is_hooked(addr):
             self.is_simprocedure = True
 
         if project.loader.find_plt_stub_name(addr) is not None:
@@ -87,19 +88,15 @@ class Function:
                 syscall_inst = project.simos.syscall_from_addr(addr)
                 name = syscall_inst.display_name
 
-        # try to get the name from the symbols
-        #if name is None:
-        #   so = project.loader.find_object_containing(addr)
-        #   if so is not None and addr in so.symbols_by_addr:
-        #       name = so.symbols_by_addr[addr].name
-        #       print name
-
         # generate an IDA-style sub_X name
         if name is None:
             name = 'sub_%x' % addr
 
         binary_name = None
-        if self.is_simprocedure:
+        # if this function is a simprocedure but not a syscall, use its library name as
+        # its binary name
+        # if it is a syscall, fall back to use self.binary.binary which explicitly says cle##kernel
+        if self.is_simprocedure and not self.is_syscall:
             hooker = project.hooked_by(addr)
             if hooker is not None:
                 binary_name = hooker.library_name
@@ -132,10 +129,10 @@ class Function:
 
         # Determine returning status for SimProcedures and Syscalls
         hooker = None
-        if self.is_simprocedure:
-            hooker = project.hooked_by(addr)
-        elif self.is_syscall:
+        if self.is_syscall:
             hooker = project.simos.syscall_from_addr(addr)
+        elif self.is_simprocedure:
+            hooker = project.hooked_by(addr)
         if hooker and hasattr(hooker, 'NO_RET'):
             self.returning = not hooker.NO_RET
 
@@ -1075,8 +1072,9 @@ class Function:
             # PLT entries must have the same declaration as their jump targets
             # Try to determine which library this PLT entry will jump to
             edges = self.transition_graph.edges()
-            if len(edges) == 1 and type(next(iter(edges))[1]) is HookNode:
-                target = next(iter(edges))[1].addr
+            node = next(iter(edges))[1]
+            if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
+                target = node.addr
                 if target in self._function_manager:
                     target_func = self._function_manager[target]
                     binary_name = target_func.binary_name
@@ -1140,5 +1138,5 @@ class Function:
         return func
 
 
-from ...codenode import BlockNode, HookNode
+from ...codenode import BlockNode, HookNode, SyscallNode
 from ...errors import AngrValueError

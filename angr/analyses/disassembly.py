@@ -69,7 +69,9 @@ class FunctionStart(DisassemblyPiece):
         self.name = func.name
         self.is_simprocedure = func.is_simprocedure
         self.sim_procedure = None
-        if self.is_simprocedure:
+        if func.is_syscall:
+            self.sim_procedure = func._project.simos.syscall_from_addr(self.addr)
+        elif func.is_simprocedure:
             self.sim_procedure = func._project.hooked_by(self.addr)
 
     def _render(self, formatting):
@@ -406,7 +408,7 @@ class MemoryOperand(Operand):
         if self.children[0] != '[':
             try:
                 square_bracket_pos = self.children.index('[')
-            except ValueError:
+            except ValueError:  #pylint: disable=try-except-raise
                 raise
 
             self.prefix = self.children[ : square_bracket_pos]
@@ -433,7 +435,7 @@ class MemoryOperand(Operand):
         if self.children[0] != '(':
             try:
                 paren_pos = self.children.index('(')
-            except ValueError:
+            except ValueError:  #pylint: disable=try-except-raise
                 raise
 
             self.prefix = self.children[ : paren_pos]
