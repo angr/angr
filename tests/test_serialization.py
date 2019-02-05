@@ -60,7 +60,7 @@ def internaltest_project(fpath):
     assert p.entry == loaded_p.entry
 
     simgr = loaded_p.factory.simulation_manager()
-    simgr.step(n=10)
+    simgr.run(n=10)
     assert len(simgr.errored) == 0
 
 def test_analyses():

@@ -3,7 +3,7 @@ import angr
 import claripy
 import nose
 from angr.codenode import BlockNode, HookNode, SyscallNode
-
+BIN_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
 def test_ret_float():
     p = angr.load_shellcode(b'X', arch='i386')
 
@@ -29,7 +29,7 @@ def test_ret_float():
     nose.tools.assert_equal(s2.solver.eval(s2.regs.st0.raw_to_fp()), 12.5)
 
 def test_syscall_and_simprocedure():
-    bin_path = os.path.join('..', '..', 'binaries', 'tests', 'cgc', 'CADET_00002')
+    bin_path = os.path.join(BIN_PATH, 'tests', 'cgc', 'CADET_00002')
     proj = angr.Project(bin_path)
     cfg = proj.analyses.CFGFast(normalize=True)
     
