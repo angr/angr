@@ -266,3 +266,11 @@ def run_calloc_clears(arch):
 def test_calloc_clears():
     for arch in ('X86', 'AMD64'):
         yield run_calloc_clears, arch
+
+
+if __name__ == "__main__":
+    g = globals().copy()
+    for func_name, func in g.items():
+        if func_name.startswith("test_") and hasattr(func, '__call__'):
+            for r, a in func():
+                r(a)
