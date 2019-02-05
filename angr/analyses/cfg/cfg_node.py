@@ -215,7 +215,6 @@ class CFGENode(CFGNode):
                  final_states=None,
                  syscall_name=None,
                  looping_times=0,
-                 is_syscall=False,
                  syscall=None,
                  depth=None,
                  callstack_key=None,
@@ -224,7 +223,6 @@ class CFGENode(CFGNode):
 
         super(CFGENode, self).__init__(addr, size, cfg,
                                        simprocedure_name=simprocedure_name,
-                                       is_syscall=is_syscall,
                                        no_ret=no_ret,
                                        function_address=function_address,
                                        block_id=block_id,
@@ -317,7 +315,6 @@ class CFGENode(CFGNode):
             input_state=self.input_state,
             syscall_name=self.syscall_name,
             looping_times=self.looping_times,
-            is_syscall=self.is_syscall,
             syscall=self.syscall,
             depth=self.depth,
             final_states=self.final_states[::],
