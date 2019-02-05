@@ -540,9 +540,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
 
     @SimStatePlugin.memo
     def copy(self, memo):# pylint: disable=unused-argument
-        c = SimHeapPTMalloc()
-        c.heap_base = self.heap_base
-        c.heap_size = self.heap_size
+        c = SimHeapPTMalloc(heap_base=self.heap_base, heap_size=self.heap_size)
         c.mmap_base = self.mmap_base
         c._free_head_chunk_exists = True if self.free_head_chunk is not None else False
         c._free_head_chunk_init_base = self.free_head_chunk.base if self.free_head_chunk is not None else None

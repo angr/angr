@@ -105,7 +105,7 @@ class SimHeapBrk(SimHeapBase):
 
     @SimStatePlugin.memo
     def copy(self, memo):# pylint: disable=unused-argument
-        c = SimHeapBrk()
+        c = SimHeapBrk(heap_base=self.heap_base, heap_size=self.heap_size)
         c.heap_location = self.heap_location
         c.mmap_base = self.mmap_base
         return c
