@@ -3,7 +3,9 @@ import angr
 import claripy
 import nose
 from angr.codenode import BlockNode, HookNode, SyscallNode
+
 BIN_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
+
 def test_ret_float():
     p = angr.load_shellcode(b'X', arch='i386')
 
@@ -68,7 +70,6 @@ def test_syscall_and_simprocedure():
     nose.tools.assert_false(func.is_syscall)
     nose.tools.assert_true(func.is_simprocedure)
     nose.tools.assert_equal(type(proj.factory.snippet(node.addr)), HookNode)
-
 
 
 if __name__ == '__main__':
