@@ -2,7 +2,8 @@ from ..plugin import SimStatePlugin
 from .heap_freelist import SimHeapFreelist, Chunk
 from .utils import concretize
 
-from ...errors import SimHeapError, SimMergeError
+from ...errors import SimHeapError, SimMergeError, SimSolverError
+
 
 import logging
 
@@ -267,12 +268,11 @@ class SimHeapPTMalloc(SimHeapFreelist):
         :returns: a pointer to the base of the associated heap chunk, or None if ptr is null
         """
         if self.state.solver.symbolic(ptr):
-            sols = self.state.solver.eval_upto(ptr, 2)
-            if len(sols) > 1:
+            try:
+                ptr = self.state.solver.eval_one(ptr)
+            except SimSolverError:
                 l.warning("A pointer to a chunk is symbolic; maximizing it")
                 ptr = self.state.solver.max_int(ptr)
-            else:
-                ptr = sols[0]
         else:
             ptr = self.state.solver.eval(ptr)
         return PTChunk(ptr - (2 * self._chunk_size_t_size), self.state) if ptr != 0 else None

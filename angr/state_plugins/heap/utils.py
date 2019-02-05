@@ -1,3 +1,5 @@
+from ...errors import SimSolverError
+
 def concretize(x, solver, sym_handler):
     """
     For now a lot of naive concretization is done when handling heap metadata to keep things manageable. This idiom
@@ -10,10 +12,9 @@ def concretize(x, solver, sym_handler):
     :returns: a concrete value for the item
     """
     if solver.symbolic(x):
-        sols = solver.eval_upto(x, 2)
-        if len(sols) > 1:
+        try:
+            return solver.eval_one(x)
+        except SimSolverError:
             return sym_handler(x)
-        else:
-            return sols[0]
     else:
         return solver.eval(x)
