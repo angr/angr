@@ -2,6 +2,7 @@ import claripy
 
 from . import JavaSimProcedure
 from ...engines.soot.values import SimSootValue_ThisRef, SimSootValue_StringRef
+from ...engines.soot.expressions import SimSootExpr_NewArray
 
 
 class UnconstrainedMethod(JavaSimProcedure):
@@ -36,6 +37,11 @@ class UnconstrainedMethod(JavaSimProcedure):
             str_ref = SimSootValue_StringRef.new_string(
                 self.state, claripy.StringS("unc_string_{}".format(method_descriptor.name), 1000))
             return str_ref
+        elif method_descriptor.ret.endswith('[][]'):
+            raise NotImplementedError
+        elif method_descriptor.ret.endswith('[]'):
+            # TODO here array size should be symbolic
+            return SimSootExpr_NewArray.new_array(self.state, method_descriptor.ret[:-2], claripy.BVV(2, 32))
         else:
             obj_ref = SimSootValue_ThisRef.new_object(
                 self.state, method_descriptor.ret, symbolic=True, init_object=False)
