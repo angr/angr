@@ -4,9 +4,6 @@ import logging
 from collections import defaultdict
 from sortedcontainers import  SortedDict
 
-from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
-from pysoot.sootir.soot_expr import SootInterfaceInvokeExpr, SootSpecialInvokeExpr, SootStaticInvokeExpr, \
-    SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
 from .. import register_analysis
@@ -20,6 +17,15 @@ l = logging.getLogger('angr.analyses.cfg_fast_soot')
 
 class CFGFastSoot(CFGFast):
     def __init__(self, **kwargs):
+
+        # Delayed import
+        try:
+            from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
+            from pysoot.sootir.soot_expr import SootInterfaceInvokeExpr, SootSpecialInvokeExpr, SootStaticInvokeExpr, \
+                SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr
+        except ImportError:
+            l.error("Please install PySoot before analyzing Java byte code.")
+            raise
 
         if self.project.arch.name != 'Soot':
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')

@@ -1,11 +1,14 @@
 
-from pysoot.sootir.soot_value import SootValue, SootLocal
+import logging
 
 from ..block import SootBlockNode
 from ..errors import AngrLoopAnalysisError
 from . import register_analysis
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, LoopVisitor
+
+
+l = logging.getLogger(name=__name__)
 
 
 class VariableTypes:
@@ -189,6 +192,14 @@ class SootBlockProcessor:
 
 class LoopAnalysisState:
     def __init__(self, block):
+
+        # Delayed import
+        try:
+            from pysoot.sootir.soot_value import SootValue, SootLocal
+        except ImportError:
+            l.error("Please install PySoot before analyzing Java byte code.")
+            raise
+
         self.block = block
 
         self.induction_variables = { }
