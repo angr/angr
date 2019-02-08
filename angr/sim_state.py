@@ -218,7 +218,7 @@ class SimState(PluginHub):
     def __repr__(self):
         try:
             addr = self.addr
-            if type(addr) in (int, long):
+            if type(addr) is int:
                 ip_str = "%#x" % addr
             else:
                 ip_str = repr(addr)

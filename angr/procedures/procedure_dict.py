@@ -24,8 +24,11 @@ for pkg_name, package in autoimport.auto_import_packages('angr.procedures', path
                 if pkg_name not in SIM_PROCEDURES:
                     SIM_PROCEDURES[pkg_name] = { }
                 SIM_PROCEDURES[pkg_name][name] = proc
+                if name == 'UnresolvableJumpTarget':
+                    SIM_PROCEDURES[pkg_name]['UnresolvableTarget'] = proc
 
-class _SimProcedures(object):
+
+class _SimProcedures:
     def __getitem__(self, k):
         l.critical("the SimProcedures dictionary is DEPRECATED. Please use the angr.SIM_PROCEDURES global dict instead.")
         return SIM_PROCEDURES[k]
@@ -33,4 +36,5 @@ class _SimProcedures(object):
     def __setitem__(self, k, v):
         l.critical("the SimProcedures dictionary is DEPRECATED. Please use the angr.SIM_PROCEDURES global dict instead.")
         SIM_PROCEDURES[k] = v
+
 SimProcedures = _SimProcedures()
