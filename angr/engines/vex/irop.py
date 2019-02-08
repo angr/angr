@@ -848,7 +848,7 @@ class SimIROp(object):
         return self._op_concat(args)
 
     def _op_Iop_V256to64_0(self, args): return args[0][63:0]
-    def _op_Iop_V256to64_1(self, args): return args[0][127:0]
+    def _op_Iop_V256to64_1(self, args): return args[0][127:64]
     def _op_Iop_V256to64_2(self, args): return args[0][191:128]
     def _op_Iop_V256to64_3(self, args): return args[0][255:192]
     def _op_Iop_V256toV128_0(self, args): return args[0][127:0]
