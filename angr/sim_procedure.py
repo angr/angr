@@ -176,7 +176,6 @@ class SimProcedure:
                     inst.use_state_arguments = False
                     sim_args = arguments[:inst.num_args]
                     inst.arguments = arguments
-            sim_args = self._setup_args(inst, state, arguments)
 
             # run it
             l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))

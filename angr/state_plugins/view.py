@@ -3,7 +3,9 @@ import logging
 import claripy
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
-import logging
+from .plugin import SimStatePlugin
+
+
 l = logging.getLogger(name=__name__)
 
 
