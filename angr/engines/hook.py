@@ -2,6 +2,7 @@ import logging
 
 from .engine import SimEngine
 from .successors import SimSuccessors
+from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
@@ -13,7 +14,7 @@ class SimEngineHook(SimEngine):
         if state.history.jumpkind == 'Ijk_NoHook':
             return False
 
-        if state._ip.symbolic:
+        if not type(state._ip) is int and state._ip.symbolic:
             # symbolic IP is not supported
             return False
 
@@ -47,5 +48,8 @@ class SimEngineHook(SimEngine):
             else:
                 procedure = self.project._sim_procedures[addr]
 
-        l.debug("Running %s (originally at %#x)", repr(procedure), addr)
+        if isinstance(addr, SootAddressDescriptor):
+            l.debug("Running %s (originally at %r)", repr(procedure), addr)
+        else:
+            l.debug("Running %s (originally at %#x)", repr(procedure), addr)
         return self.project.factory.procedure_engine.process(state, procedure, force_addr=force_addr, **kwargs)

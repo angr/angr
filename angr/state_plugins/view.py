@@ -1,8 +1,13 @@
+import logging
+
 import claripy
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
 from .plugin import SimStatePlugin
 
-import logging
+
 l = logging.getLogger(name=__name__)
+
 
 class SimRegNameView(SimStatePlugin):
     def __getattr__(self, k):
@@ -52,10 +57,24 @@ class SimRegNameView(SimStatePlugin):
             inspect = True
             disable_actions = False
 
+        # When executing a Java JNI application, we need to update the state's
+        # instruction pointer flag every time the ip gets written.
+        # This flag will then toggle between the native and the java view of the
+        # state.
+        if self.state.project and \
+           isinstance(self.state.project.arch, ArchSoot) and \
+           k == 'ip' and \
+           self.state.project.simos.is_javavm_with_jni_support:
+            self.state.ip_is_soot_addr = True if isinstance(v, SootAddressDescriptor) else False
+
         try:
             return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
         except KeyError:
-            raise AttributeError(k)
+            # What do we do in case we are dealing with soot? there are no register
+            if isinstance(self.state.arch, ArchSoot):
+                pass
+            else:
+                raise AttributeError(k)
 
     def __dir__(self):
         if self.state.arch.name in ('X86', 'AMD64'):

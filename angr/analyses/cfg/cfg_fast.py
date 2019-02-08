@@ -11,6 +11,7 @@ import claripy
 import cle
 import pyvex
 from cle.address_translator import AT
+from archinfo.arch_soot import SootAddressDescriptor
 
 from ...misc.ux import deprecated
 from .memory_data import MemoryData
@@ -587,7 +588,7 @@ class PendingJobs:
                 if func is None:
                     # Why does it happen?
                     l.warning("An expected function at %s is not found. Please report it to Fish.",
-                              hex(pe.returning_source) if pe.returning_source is not None else 'None')
+                              pe.returning_source if pe.returning_source is not None else 'None')
                     continue
 
                 if func.returning is False:
@@ -767,8 +768,11 @@ class CFGJob:
             self._func_edges = None
 
     def __repr__(self):
-        return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
-
+        if isinstance(self.addr, SootAddressDescriptor):
+            return "<CFGJob {}>".format(self.addr)
+        else:
+            return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
+                                            
     def __eq__(self, other):
         return self.addr == other.addr and \
                 self.func_addr == other.func_addr and \
@@ -962,7 +966,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if not self._should_skip_region(start_):
                     new_regions.append((start_, end_))
             regions = new_regions
-        if not regions:
+        if not regions and self.project.arch.name != 'Soot':
             raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
         # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
@@ -1114,7 +1118,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         if not self._regions:
-            l.error("self._regions is empty or not properly set.")
+            if self.project.arch.name != "Soot":
+                l.error("self._regions is empty or not properly set.")
             return None
 
         return next(self._regions.irange())
@@ -1594,19 +1599,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # make return edges
         self._make_return_edges()
 
-        if self.project.loader.main_object.sections:
-            # this binary has sections
-            # make sure we have data entries assigned at the beginning of each data section
-            for sec in self.project.loader.main_object.sections:
-                if sec.memsize > 0 and not sec.is_executable and sec.is_readable:
-                    for seg in self.project.loader.main_object.segments:
-                        if seg.vaddr <= sec.vaddr < seg.vaddr + seg.memsize:
-                            break
-                    else:
-                        continue
+        if self.project.arch.name != 'Soot':
+            if self.project.loader.main_object.sections:
+                # this binary has sections
+                # make sure we have data entries assigned at the beginning of each data section
+                for sec in self.project.loader.main_object.sections:
+                    if sec.memsize > 0 and not sec.is_executable and sec.is_readable:
+                        for seg in self.project.loader.main_object.segments:
+                            if seg.vaddr <= sec.vaddr < seg.vaddr + seg.memsize:
+                                break
+                        else:
+                            continue
 
-                    if sec.vaddr not in self.memory_data:
-                        self.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown', None, None, None, None)
+                        if sec.vaddr not in self.memory_data:
+                            self.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown', None, None, None, None)
 
         r = True
         while r:
@@ -2087,11 +2093,26 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 except AngrUnsupportedSyscallError:
                     target_addr = self._unresolvable_call_target_addr
 
-        new_function_addr = target_addr
+        if isinstance(target_addr, SootAddressDescriptor):
+            new_function_addr = target_addr.method
+        else:
+            new_function_addr = target_addr
+
         if irsb is None:
             return_site = None
         else:
-            return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+            if self.project.arch.name != 'Soot':
+                return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+            else:
+                # For Soot, we return to the next statement, which is not necessarily the next block (as Shimple does
+                # not break blocks at calls)
+                assert isinstance(ins_addr, SootAddressDescriptor)
+                soot_block = irsb
+                return_block_idx = ins_addr.block_idx
+                if stmt_idx + 1 >= soot_block.label + len(soot_block.statements):
+                    # tick the block ID
+                    return_block_idx += 1
+                return_site = SootAddressDescriptor(ins_addr.method, return_block_idx, stmt_idx + 1)
 
         edge = None
         if new_function_addr is not None:

@@ -1,6 +1,7 @@
 import traceback
 import logging
 
+from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
 
 from ...codenode import BlockNode, HookNode, SyscallNode
@@ -38,7 +39,7 @@ class CFGNode:
 
     __slots__ = ( 'addr', 'simprocedure_name', 'syscall_name', 'size', 'no_ret', 'is_syscall', 'function_address',
                   'block_id', 'thumb', 'byte_string', '_name', 'instruction_addrs', 'irsb', 'has_return', '_cfg',
-                  '_hash',
+                  '_hash', 'soot_block'
                   )
 
     def __init__(self,
@@ -50,6 +51,7 @@ class CFGNode:
                  function_address=None,
                  block_id=None,
                  irsb=None,
+                 soot_block=None,
                  instruction_addrs=None,
                  thumb=False,
                  byte_string=None):
@@ -68,7 +70,10 @@ class CFGNode:
         self.thumb = thumb
         self.byte_string = byte_string
 
-        self._name = simprocedure_name
+        if isinstance(addr, SootAddressDescriptor):
+            self._name = repr(addr)
+        else:
+            self._name = simprocedure_name
         self.instruction_addrs = instruction_addrs if instruction_addrs is not None else tuple()
 
         self.is_syscall = True if self.simprocedure_name and self._cfg.project.simos.is_syscall_addr(addr) else False
@@ -77,7 +82,8 @@ class CFGNode:
             if irsb is not None:
                 self.instruction_addrs = irsb.instruction_addresses
 
-        self.irsb = None #irsb
+        self.irsb = None
+        self.soot_block = soot_block
         self.has_return = False
         self._hash = None
 
@@ -151,7 +157,8 @@ class CFGNode:
         s = "<CFGNode "
         if self.name is not None:
             s += self.name + " "
-        s += hex(self.addr)
+        elif not isinstance(self.addr, SootAddressDescriptor):
+            s += hex(self.addr)
         if self.size is not None:
             s += "[%d]" % self.size
         s += ">"

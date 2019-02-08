@@ -1,5 +1,7 @@
 import claripy
 
+from archinfo.arch_soot import ArchSoot
+
 import logging
 l = logging.getLogger(name=__name__)
 
@@ -66,7 +68,8 @@ class SimSuccessors(object):
                 result = ' '.join(successor_strings)
         else:
             result = 'failure'
-
+        if isinstance(self.initial_state.arch, ArchSoot):
+            return '<%s from %s: %s>' % (self.description, self.addr, result)
         return '<%s from %#x: %s>' % (self.description, self.addr, result)
 
     @property
@@ -153,7 +156,7 @@ class SimSuccessors(object):
 
         # For architectures with no stack pointer, we can't manage a callstack. This has the side effect of breaking
         # SimProcedures that call out to binary code self.call.
-        if self.initial_state.arch.sp_offset is not None:
+        if self.initial_state.arch.sp_offset is not None and not isinstance(state.arch, ArchSoot):
             self._manage_callstack(state)
 
         if len(self.successors) != 0:

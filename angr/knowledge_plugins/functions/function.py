@@ -431,7 +431,7 @@ class Function:
             return False
 
     def __str__(self):
-        s = 'Function %s [%#x]\n' % (self.name, self.addr)
+        s = 'Function %s [%s]\n' % (self.name, self.addr)
         s += '  Syscall: %s\n' % self.is_syscall
         s += '  SP difference: %d\n' % self.sp_delta
         s += '  Has return: %s\n' % self.has_return
@@ -445,8 +445,8 @@ class Function:
 
     def __repr__(self):
         if self.is_syscall:
-            return '<Syscall function %s (%#x)>' % (self.name, self.addr)
-        return '<Function %s (%#x)>' % (self.name, self.addr)
+            return '<Syscall function %s (%s)>' % (self.name, self.addr)
+        return '<Function %s (%s)>' % (self.name, self.addr)
 
     @property
     def endpoints(self):
@@ -1096,6 +1096,14 @@ class Function:
         if self.calling_convention is not None:
             self.calling_convention.args = None
             self.calling_convention.func_ty = proto
+
+    def _addr_to_funcloc(self, addr):
+
+        # FIXME
+        if isinstance(addr, tuple):
+            return addr[0]
+        else:  # int, long
+            return addr
 
 
     @property

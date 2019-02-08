@@ -222,6 +222,38 @@ class Block(object):
         return self._instruction_addrs
 
 
+class SootBlock:
+    def __init__(self, addr, project=None, arch=None):
+
+        self.addr = addr
+        self.arch = arch
+        self._project = project
+        self._the_binary = project.loader.main_object
+
+    @property
+    def _soot_engine(self):
+        if self._project is None:
+            raise Exception('SHIIIIIIIT')
+        else:
+            return self._project.factory.default_engine
+
+    @property
+    def soot(self):
+        return self._soot_engine.lift(self.addr, the_binary=self._the_binary)
+
+    @property
+    def size(self):
+        stmts = None if self.soot is None else self.soot.statements
+        stmts_len = len(stmts) if stmts else 0
+        return stmts_len
+
+    @property
+    def codenode(self):
+        stmts = None if self.soot is None else self.soot.statements
+        stmts_len = len(stmts) if stmts else 0
+        return SootBlockNode(self.addr, stmts_len, stmts=stmts)
+
+
 class CapstoneBlock(object):
     """
     Deep copy of the capstone blocks, which have serious issues with having extended lifespans
@@ -263,4 +295,4 @@ class CapstoneInsn(object):
         return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
-from .codenode import BlockNode
+from .codenode import BlockNode, SootBlockNode

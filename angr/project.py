@@ -7,6 +7,7 @@ import string
 from collections import defaultdict
 
 import archinfo
+from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
 
 from .misc.ux import deprecated
@@ -211,13 +212,20 @@ class Project:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
         # Step 6: Register simprocedures as appropriate for library functions
+        if isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support:
+            # If we execute a Java archive that includes native JNI libraries,
+            # we need to use the arch of the native simos for all (native) sim
+            # procedures.
+            sim_proc_arch = self.simos.native_arch
+        else:
+            sim_proc_arch = self.arch
         for obj in self.loader.initial_load_objects:
-            self._register_object(obj)
+            self._register_object(obj, sim_proc_arch)
 
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
 
-    def _register_object(self, obj):
+    def _register_object(self, obj, sim_proc_arch):
         """
         This scans through an objects imports and hooks them with simprocedures from our library whenever possible
         """
@@ -283,7 +291,7 @@ class Project:
                 if not sim_lib.has_implementation(export.name):
                     continue
                 l.info("Using builtin SimProcedure for %s from %s", export.name, sim_lib.name)
-                self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, self.arch))
+                self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, sim_proc_arch))
 
             # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
             # by a library we already know something about. Resolve it appropriately.
@@ -296,10 +304,10 @@ class Project:
                 if self._check_user_blacklists(export.name):
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                        self.hook_symbol(export.rebased_addr, sim_lib.get_stub(export.name, self.arch))
+                        self.hook_symbol(export.rebased_addr, sim_lib.get_stub(export.name, sim_proc_arch))
                 else:
                     l.info("Using builtin SimProcedure for unresolved %s from %s", export.name, sim_lib.name)
-                    self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, self.arch))
+                    self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, sim_proc_arch))
 
             # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider we know of), try
             # looking through each of the SimLibraries we're using to resolve unresolved
@@ -312,15 +320,15 @@ class Project:
                         if self._check_user_blacklists(export.name):
                             if not func.is_weak:
                                 l.info("Using stub SimProcedure for unresolved %s from %s", export.name, sim_lib.name)
-                                self.hook_symbol(export.rebased_addr, sim_lib.get_stub(export.name, self.arch))
+                                self.hook_symbol(export.rebased_addr, sim_lib.get_stub(export.name, sim_proc_arch))
                         else:
                             l.info("Using builtin SimProcedure for unresolved %s from %s", export.name, sim_lib.name)
-                            self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, self.arch))
+                            self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, sim_proc_arch))
                         break
                 else:
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s", export.name)
-                        self.hook_symbol(export.rebased_addr, missing_libs[0].get(export.name, self.arch))
+                        self.hook_symbol(export.rebased_addr, missing_libs[0].get(export.name, sim_proc_arch))
 
             # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
             # use the vanilla ReturnUnconstrained, assuming that this isn't a weak func
@@ -402,13 +410,14 @@ class Project:
         l.debug('hooking %#x with %s', addr, hook)
 
         if self.is_hooked(addr):
+            addr_str = "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
             if replace is True:
                 pass
             elif replace is False:
-                l.warning("Address is already hooked, during hook(%#x, %s). Not re-hooking.", addr, hook)
+                l.warning("Address is already hooked, during hook(%s, %s). Not re-hooking.", addr_str, hook)
                 return
             else:
-                l.warning("Address is already hooked, during hook(%#x, %s). Re-hooking.", addr, hook)
+                l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", addr_str, hook)
 
         if isinstance(hook, type):
             raise TypeError("Please instanciate your SimProcedure before hooking with it")
@@ -671,6 +680,14 @@ class Project:
 
     def __repr__(self):
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
+
+    #
+    # Properties
+    #
+
+    @property
+    def use_sim_procedures(self):
+        return self._should_use_sim_procedures
 
     #
     # Compatibility
