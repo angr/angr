@@ -641,26 +641,26 @@ def get_winning_path(project, method_fullname):
 
 
 def main():
-    #test_jni_object_operations()
+    test_jni_object_operations()
     test_fauxware()
-    # test_cmd_line_args()
+    test_cmd_line_args()
     # apk_loading()
-    # test_method_calls()
+    test_method_calls()
 
 if __name__ == "__main__":
     import logging
-    logging.getLogger('cle.backends.soot').setLevel('DEBUG')
-    logging.getLogger('cle.backends.apk').setLevel('DEBUG')
-    logging.getLogger('cle.backends.jar').setLevel('DEBUG')
+    # logging.getLogger('cle.backends.soot').setLevel('DEBUG')
+    # logging.getLogger('cle.backends.apk').setLevel('DEBUG')
+    # logging.getLogger('cle.backends.jar').setLevel('DEBUG')
 
-    logging.getLogger("angr").setLevel("DEBUG")
+    # logging.getLogger("angr").setLevel("DEBUG")
 
-    logging.getLogger("angr.state_plugins").setLevel("INFO")
-    logging.getLogger('angr.state_plugins.javavm_memory').setLevel("DEBUG")
-    logging.getLogger('angr.state_plugins.jni_references').setLevel("DEBUG")
-    logging.getLogger("angr.state_plugins.javavm_classloader").setLevel("DEBUG")
+    # logging.getLogger("angr.state_plugins").setLevel("INFO")
+    # logging.getLogger('angr.state_plugins.javavm_memory').setLevel("DEBUG")
+    # logging.getLogger('angr.state_plugins.jni_references').setLevel("DEBUG")
+    # logging.getLogger("angr.state_plugins.javavm_classloader").setLevel("DEBUG")
 
-    logging.getLogger('archinfo.arch_soot').setLevel("DEBUG")
+    # logging.getLogger('archinfo.arch_soot').setLevel("DEBUG")
     # logging.getLogger('angr.procedures.java_jni').setLevel("DEBUG")
     # logging.getLogger("angr.sim_procedure").setLevel("DEBUG")
     # logging.getLogger("angr.engines").setLevel("DEBUG")
