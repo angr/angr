@@ -867,6 +867,18 @@ class SimIROp(object):
         """
         return self._op_generic_pack_StoU_saturation(args, 16, 8)
 
+    def _op_Iop_MAddF64(self, args):
+        """
+        Ternary operation.
+            arg0 == 0
+            return arg1 * arg2 + arg3
+
+        :param args:    Arguments to this operation.
+        :return:        The operation result.
+        """
+
+        return args[1] * args[2] + args[3]
+
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
     #   arg2_bv = args[2].raw_to_bv()
