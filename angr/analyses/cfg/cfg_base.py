@@ -1788,7 +1788,7 @@ class CFGBase(Analysis):
         :return: a Function object
         :rtype: angr.knowledge.Function
         """
-        
+
         if addr in blockaddr_to_function:
             f = blockaddr_to_function[addr]
         else:
