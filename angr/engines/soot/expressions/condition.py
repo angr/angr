@@ -22,12 +22,13 @@ class SimSootExpr_Condition(SimSootExpr):
         else:
             self.expr = operator_func(v1.expr, v2.expr)
 
+    # Java only has signed primitives
     condition_str_to_function = {
         "eq": operator.eq,
         "ne": operator.ne,
-        "ge": operator.ge,
-        "gt": operator.gt,
-        "le": operator.le,
-        "lt": operator.lt
+        "ge": claripy.SGE,
+        "gt": claripy.SGT,
+        "le": claripy.SLE,
+        "lt": claripy.SLT
         # TODO others...
     }
