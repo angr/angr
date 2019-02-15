@@ -140,7 +140,7 @@ class SimEngineConcrete(SimEngine):
         mem_read = concrete_target.read_memory(entry_point, 0x4)
 
         if not type(mem_read) is bytes:
-            l.error("read_memory result type is %s, should be <type 'str'>", (type(mem_read)))
+            l.error("read_memory result type is %s, should be <type 'bytes'>", (type(mem_read)))
             return False
 
         try:
