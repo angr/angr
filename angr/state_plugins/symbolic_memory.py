@@ -468,7 +468,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
                         "to suppress these messages.")
                 if is_mem:
-                    l.warning("Filling memory at %#x with %d unconstrained bytes", addr, num_bytes)
+                    l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)", addr, num_bytes, self.state.solver.eval(self.state.ip), self.state.project.loader.describe_addr(self.state.solver.eval(self.state.ip)))
                 else:
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
                     l.warning("Filling register %s with %d unconstrained bytes", reg_str, num_bytes)
