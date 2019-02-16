@@ -72,6 +72,7 @@ class SimEngineConcrete(SimEngine):
 
         state.timeout = False
         state.errored = False
+        extra_stop_points = [] if extra_stop_points is None else extra_stop_points
 
         l.debug("Entering in SimEngineConcrete: simulated address %#x concrete address %#x stop points %s",
                 state.addr, self.target.read_register("pc"), map(hex, extra_stop_points))
