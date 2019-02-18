@@ -316,7 +316,7 @@ class SimJavaVmMemory(SimMemory):
         if isinstance(idx, int):
             return [idx]
         elif not self.state.solver.symbolic(idx):
-            return [self.state.se.eval(idx)]
+            return [self.state.solver.eval(idx)]
 
         strategies = self.load_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(idx, strategies, 'load')

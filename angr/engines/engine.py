@@ -31,7 +31,8 @@ class SimEngine(object):
         force_addr = kwargs.pop('force_addr', None)
 
         ip = state._ip
-        addr = (ip if isinstance(ip, SootAddressDescriptor) else state.se.eval(ip)) if force_addr is None else force_addr
+        addr = (ip if isinstance(ip, SootAddressDescriptor) else state.solver.eval(ip)) \
+            if force_addr is None else force_addr
 
         # make a copy of the initial state for actual processing, if needed
         if not inline and o.COPY_STATES in state.options:
