@@ -2,6 +2,12 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
+def repr_addr(addr):
+    if isinstance(addr, int):
+        return hex(addr)
+    return repr(addr)
+
+
 class CodeNode:
 
     __slots__ = ['addr', 'size', '_graph', 'thumb', '_hash']
