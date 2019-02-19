@@ -912,12 +912,9 @@ class CFGBase(Analysis):
     # Analyze function features
     #
 
-    def _analyze_function_features(self, all_funcs_completed=False):
+    def _determine_function_returning(self, func, all_funcs_completed=False):
         """
-        For each function in the function_manager, try to determine if it returns or not. A function does not return if
-        it calls another function that is known to be not returning, and this function does not have other exits.
-
-        We might as well analyze other features of functions in the future.
+        Determine if a function returns or not.
 
         A function does not return if
         a) it is a SimProcedure that has NO_RET being True,
@@ -926,6 +923,97 @@ class CFGBase(Analysis):
            be added to it), and it does not have a ret or any equivalent instruction.
 
         A function returns if any of its block contains a ret instruction or any equivalence.
+
+        :param Function func:   The function to work on.
+        :param bool all_funcs_completed:    Whether we treat all functions as completed functions or not.
+        :return:                True if the function returns, False if the function does not return, or None if it is
+                                not yet determinable with the information available at the moment.
+        :rtype:                 bool or None
+        """
+
+        # If there is at least one return site, then this function is definitely returning
+        if func.has_return:
+            return True
+
+        # Let's first see if it's a known SimProcedure that does not return
+        if self.project.is_hooked(func.addr):
+            procedure = self.project.hooked_by(func.addr)
+        else:
+            try:
+                procedure = self.project.simos.syscall_from_addr(func.addr, allow_unsupported=False)
+            except AngrUnsupportedSyscallError:
+                procedure = None
+
+        if procedure is not None and hasattr(procedure, 'NO_RET'):
+            return not procedure.NO_RET
+
+        # did we finish analyzing this function?
+        if not all_funcs_completed and func.addr not in self._completed_functions:
+            return None
+
+        if not func.block_addrs_set:
+            # there is no block inside this function
+            # it might happen if the function has been incorrectly identified as part of another function
+            # the error will be corrected during post-processing. In fact at this moment we cannot say anything
+            # about whether this function returns or not. We always assume it returns.
+            return True
+
+        bail_out = False
+
+        # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
+        # returns
+        for goout_site, type_ in [(site, 'jumpout') for site in func.jumpout_sites] + \
+                                 [(site, 'retout') for site in func.retout_sites]:
+
+            # determine where it jumps/returns to
+            goout_site_successors = goout_site.successors()
+            if not goout_site_successors:
+                # not sure where it jumps to. bail out
+                bail_out = True
+                continue
+
+            # for ret-out sites, determine what function it calls
+            if type_ == 'retout':
+                # see whether the function being called returns or not
+                func_successors = [succ for succ in goout_site_successors if isinstance(succ, Function)]
+                if func_successors and all(func_successor.returning in (None, False)
+                                           for func_successor in func_successors):
+                    # the returning of all possible function calls are undetermined, or they do not return
+                    # ignore this site
+                    continue
+
+            if type_ == 'retout':
+                goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
+            else:
+                goout_target = next((succ for succ in goout_site_successors), None)
+            if goout_target is None:
+                # there is no jumpout site, which is weird, but what can we do...
+                continue
+            if not self.kb.functions.contains_addr(goout_target.addr):
+                # wait it does not jump to a function?
+                bail_out = True
+                continue
+
+            target_func = self.kb.functions[goout_target.addr]
+            if target_func.returning is True:
+                return True
+            elif target_func.returning is None:
+                # the returning status of at least one of the target functions is not decided yet.
+                bail_out = True
+
+        if bail_out:
+            # We cannot determine at this point. bail out
+            return None
+
+        # well this function does not return then
+        return False
+
+    def _analyze_function_features(self, all_funcs_completed=False):
+        """
+        For each function in the function_manager, try to determine if it returns or not. A function does not return if
+        it calls another function that is known to be not returning, and this function does not have other exits.
+
+        We might as well analyze other features of functions in the future.
 
         :param bool all_funcs_completed:    Ignore _completed_functions set and treat all functions as completed. This
                                             can be set to True after the entire CFG is built and _post_analysis() is
@@ -939,136 +1027,44 @@ class CFGBase(Analysis):
 
         if self._updated_nonreturning_functions is not None:
             all_func_addrs = self._updated_nonreturning_functions
-            caller_func_addrs = set()
 
-            for func_addr in self._updated_nonreturning_functions:
-                if func_addr not in self.kb.functions.callgraph:
-                    continue
-                callers = self.kb.functions.callgraph.predecessors(func_addr)
-                for f in callers:
-                    caller_func_addrs.add(f)
-
-            # Add callers
-            all_func_addrs |= caller_func_addrs
             # Convert addresses to objects
             all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs
                               if self.kb.functions.contains_addr(f) ]
 
         else:
-            all_functions = self.kb.functions.values()
+            all_functions = list(self.kb.functions.values())
 
-        # pylint: disable=too-many-nested-blocks
-        for func in all_functions:  # type: angr.knowledge.Function
+        analyzed_functions = set()
+        # short-hand
+        functions = self.kb.functions  # type: angr.knowledge.FunctionManager
+
+        while all_functions:
+            func = all_functions.pop(-1)  # type: angr.knowledge.Function
+            analyzed_functions.add(func.addr)
 
             if func.returning is not None:
                 # It has been determined before. Skip it
                 continue
 
-            # If there is at least one return site, then this function is definitely returning
-            if func.has_return:
-                changes['functions_return'].append(func)
+            returning = self._determine_function_returning(func, all_funcs_completed=all_funcs_completed)
+
+            if returning:
                 func.returning = True
-                self._add_returning_function(func.addr)
-                continue
-
-            # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
-            # blocks of it.
-
-            if not func.block_addrs_set:
-                # the function is empty. skip
-                continue
-
-            # Let's first see if it's a known SimProcedure that does not return
-            if self.project.is_hooked(func.addr):
-                procedure = self.project.hooked_by(func.addr)
-            else:
-                try:
-                    procedure = self.project.simos.syscall_from_addr(func.addr, allow_unsupported=False)
-                except AngrUnsupportedSyscallError:
-                    procedure = None
-
-            if procedure is not None and hasattr(procedure, 'NO_RET'):
-                if procedure.NO_RET:
-                    func.returning = False
-                    changes['functions_do_not_return'].append(func)
-                else:
-                    func.returning = True
-                    self._add_returning_function(func.addr)
-                    changes['functions_return'].append(func)
-                continue
-
-            # did we finish analyzing this function?
-            if not all_funcs_completed and func.addr not in self._completed_functions:
-                continue
-
-            if not func.block_addrs_set:
-                # there is no block inside this function
-                # it might happen if the function has been incorrectly identified as part of another function
-                # the error will be corrected during post-processing. In fact at this moment we cannot say anything
-                # about whether this function returns or not. We always assume it returns.
-                func.returning = True
-                self._add_returning_function(func.addr)
                 changes['functions_return'].append(func)
-                continue
+            elif returning is False:
+                func.returning = False
+                changes['functions_do_not_return'].append(func)
 
-            bail_out = False
-
-            # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
-            # returns
-            for goout_site, type_ in [ (site, 'jumpout') for site in func.jumpout_sites ] + \
-                    [ (site, 'retout') for site in func.retout_sites ]:
-
-                if func.returning:
-                    # if there are multiple jump out sites and we have determined the "returning status" from one of
-                    # the jump out sites, we can exit the loop early
-                    break
-
-                # determine where it jumps/returns to
-                goout_site_successors = goout_site.successors()
-                if not goout_site_successors:
-                    # not sure where it jumps to. bail out
-                    bail_out = True
-                    continue
-
-                # for retout sites, determine what function it calls
-                if type_ == 'retout':
-                    # see whether the function being called returns or not
-                    func_successors = [ succ for succ in goout_site_successors if isinstance(succ, Function) ]
-                    if func_successors and all(func_successor.returning in (None, False)
-                                               for func_successor in func_successors):
-                        # the returning of all possible function calls are undermined, or they do not return
-                        # ignore this site
-                        continue
-
-                if type_ == 'retout':
-                    goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
-                else:
-                    goout_target = next((succ for succ in goout_site_successors), None)
-                if goout_target is None:
-                    # there is no jumpout site, which is weird, but what can we do...
-                    continue
-                if not self.kb.functions.contains_addr(goout_target.addr):
-                    # wait it does not jump to a function?
-                    bail_out = True
-                    continue
-
-                target_func = self.kb.functions[goout_target.addr]
-                if target_func.returning is True:
-                    func.returning = True
-                    self._add_returning_function(func.addr)
-                    changes['functions_return'].append(func)
-                    bail_out = True
-                elif target_func.returning is None:
-                    # the returning status of at least one of the target functions is not decided yet.
-                    bail_out = True
-
-            if bail_out:
-                # bail out
-                continue
-
-            # well this function does not return then
-            func.returning = False
-            changes['functions_do_not_return'].append(func)
+            if returning is not None:
+                # Add all callers of this function to all_functions list
+                if func.addr in functions.callgraph:
+                    callers = functions.callgraph.predecessors(func.addr)
+                    for caller in callers:
+                        if caller in analyzed_functions:
+                            continue
+                        if functions.contains_addr(caller):
+                            all_functions.append(functions.get_by_addr(caller))
 
         return changes
 
@@ -1378,9 +1374,6 @@ class CFGBase(Analysis):
     #
     # Function identification and such
     #
-
-    def _add_returning_function(self, func_addr):
-        pass
 
     def remove_function_alignments(self):
         """
