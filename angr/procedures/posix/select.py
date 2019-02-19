@@ -8,11 +8,16 @@ class select(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, nfds, readfds, writefds, exceptfds, timeout): # pylint: disable=unused-argument
+        try:
+            nfds_v = self.state.solver.eval_one(nfds)
+            #readfds_v = self.state.solver.eval_one(readfds)
+            writefds_v = self.state.solver.eval_one(writefds)
+            exceptfds_v = self.state.solver.eval_one(exceptfds)
+        except angr.errors.SimSolverError:
+            raise angr.errors.SimProcedureArgumentError("Can't handle symbolic select arguments")
 
-        assert not writefds.symbolic and self.state.solver.eval(writefds) == 0
-        assert not exceptfds.symbolic and self.state.solver.eval(exceptfds) == 0
-
-        nfds_v = self.state.solver.eval(nfds)
+        if writefds_v != 0 or exceptfds_v != 0:
+            raise angr.errors.SimProcedureError("Can't handle write or exception events in select")
 
         arch_bits = self.arch.bits
         arch_bytes = self.arch.bytes
