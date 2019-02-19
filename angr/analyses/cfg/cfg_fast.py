@@ -3,7 +3,7 @@ import logging
 import math
 import re
 import string
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 from sortedcontainers import SortedDict
 
@@ -512,7 +512,7 @@ class PendingJobs:
     A collection of pending jobs during CFG recovery.
     """
     def __init__(self, functions, deregister_job_callback):
-        self._jobs = defaultdict(list)  # A mapping between function addresses and lists of pending jobs
+        self._jobs = OrderedDict()  # A mapping between function addresses and lists of pending jobs
         self._functions = functions
         self._deregister_job_callback = deregister_job_callback
 
@@ -529,7 +529,7 @@ class PendingJobs:
     def _pop_job(self, func_addr):
 
         jobs = self._jobs[func_addr]
-        j = jobs.pop(0)
+        j = jobs.pop(-1)
         if not jobs:
             del self._jobs[func_addr]
         self._job_count -= 1
@@ -537,6 +537,8 @@ class PendingJobs:
 
     def add_job(self, job):
         func_addr = job.returning_source
+        if func_addr not in self._jobs:
+            self._jobs[func_addr] = [ ]
         self._jobs[func_addr].append(job)
         self._job_count += 1
 
@@ -549,16 +551,17 @@ class PendingJobs:
 
         :param bool returning: Only pop a pending job if the corresponding function returns.
         :return: A pending job if we can find one, or None if we cannot find any that satisfies the requirement.
+        :rtype: CFGJob
         """
 
         if not self:
             return None
 
         if not returning:
-            return self._pop_job(next(iter(self._jobs.keys())))
+            return self._pop_job(next(reversed(self._jobs.keys())))
 
         # Prioritize returning functions
-        for func_addr in self._jobs:
+        for func_addr in reversed(self._jobs.keys()):
             if func_addr not in self._returning_functions:
                 continue
             return self._pop_job(func_addr)
