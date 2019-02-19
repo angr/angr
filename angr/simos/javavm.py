@@ -162,7 +162,7 @@ class SimJavaVM(SimOS):
         """
         Create an entry state.
 
-        :param *args: List of SootArgument values (optional).
+        :param args: List of SootArgument values (optional).
         """
         state = self.state_blank(**kwargs)
         # for the Java main method `public static main(String[] args)`,
@@ -196,7 +196,7 @@ class SimJavaVM(SimOS):
         Create a native or a Java call state.
 
         :param addr:    Soot or native addr of the invoke target.
-        :param *args:   List of SootArgument values.
+        :param args:   List of SootArgument values.
         """
         state = kwargs.pop('base_state', None)
         # check if we need to setup a native or a java callsite
