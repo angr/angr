@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from functools import reduce
 
+import claripy
 import angr # type annotations; pylint: disable=unused-import
 
 from ... import BP, BP_AFTER
@@ -141,6 +142,12 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     def _hook_register_read(self, state):
 
         reg_read_offset = state.inspect.reg_read_offset
+        if isinstance(reg_read_offset, claripy.ast.BV):
+            if reg_read_offset.multivalued:
+                # Multi-valued register offsets are not supported
+                l.warning("Multi-valued register offsets are not supported.")
+                return
+            reg_read_offset = state.solver.eval(reg_read_offset)
         reg_read_length = state.inspect.reg_read_length
 
         if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bytes:
@@ -165,6 +172,12 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     def _hook_register_write(self, state):
 
         reg_write_offset = state.inspect.reg_write_offset
+        if isinstance(reg_write_offset, claripy.ast.BV):
+            if reg_write_offset.multivalued:
+                # Multi-valued register offsets are not supported
+                l.warning("Multi-valued register offsets are not supported.")
+                return
+            reg_write_offset = state.solver.eval(reg_write_offset)
 
         if reg_write_offset == state.arch.sp_offset:
             # it's updating stack pointer. skip
