@@ -3,7 +3,7 @@ import logging
 import math
 import re
 import string
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 from sortedcontainers import SortedDict
 
@@ -512,7 +512,7 @@ class PendingJobs:
     A collection of pending jobs during CFG recovery.
     """
     def __init__(self, functions, deregister_job_callback):
-        self._jobs = defaultdict(list)  # A mapping between function addresses and lists of pending jobs
+        self._jobs = OrderedDict()  # A mapping between function addresses and lists of pending jobs
         self._functions = functions
         self._deregister_job_callback = deregister_job_callback
 
@@ -529,7 +529,7 @@ class PendingJobs:
     def _pop_job(self, func_addr):
 
         jobs = self._jobs[func_addr]
-        j = jobs.pop(0)
+        j = jobs.pop(-1)
         if not jobs:
             del self._jobs[func_addr]
         self._job_count -= 1
@@ -537,6 +537,8 @@ class PendingJobs:
 
     def add_job(self, job):
         func_addr = job.returning_source
+        if func_addr not in self._jobs:
+            self._jobs[func_addr] = [ ]
         self._jobs[func_addr].append(job)
         self._job_count += 1
 
@@ -549,16 +551,17 @@ class PendingJobs:
 
         :param bool returning: Only pop a pending job if the corresponding function returns.
         :return: A pending job if we can find one, or None if we cannot find any that satisfies the requirement.
+        :rtype: CFGJob
         """
 
         if not self:
             return None
 
         if not returning:
-            return self._pop_job(next(iter(self._jobs.keys())))
+            return self._pop_job(next(reversed(self._jobs.keys())))
 
         # Prioritize returning functions
-        for func_addr in self._jobs:
+        for func_addr in reversed(self._jobs.keys()):
             if func_addr not in self._returning_functions:
                 continue
             return self._pop_job(func_addr)
@@ -1549,7 +1552,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
 
-        self._analyze_all_function_features()
+        self._analyze_all_function_features(all_funcs_completed=True)
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
         for f in self.functions.values():
@@ -3054,7 +3057,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         #if node.addr in self.kb.functions.callgraph:
         #    self.kb.functions.callgraph.remove_node(node.addr)
 
-    def _analyze_all_function_features(self):
+    def _analyze_all_function_features(self, all_funcs_completed=False):
         """
         Iteratively analyze all changed functions, update their returning attribute, until a fix-point is reached (i.e.
         no new returning/not-returning functions are found).
@@ -3063,7 +3066,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         while True:
-            new_changes = self._iteratively_analyze_function_features()
+            new_changes = self._iteratively_analyze_function_features(all_funcs_completed=all_funcs_completed)
             new_returning_functions = new_changes['functions_return']
             new_not_returning_functions = new_changes['functions_do_not_return']
 

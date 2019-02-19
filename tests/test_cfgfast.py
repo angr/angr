@@ -530,8 +530,8 @@ def test_tail_call_optimization_detection_armel():
     nose.tools.assert_not_in(0x8008419, all_func_addrs, "0x8008419 is inside __mulsf3().")
 
     # Functions that are jumped to from tail-calls
-    tail_call_funcs = [ 0x8002bc1, 0x80046c1, 0x8000281, 0x8000c0f, 0x8000be3, 0x8001bdb, 0x8002839, 0x80037ad,
-                        0x8002c09, 0x8004165, 0x8004be1, 0x8002eb1 ]
+    tail_call_funcs = [ 0x8002bc1, 0x80046c1, 0x8000281, 0x8001bdb, 0x8002839, 0x80037ad, 0x8002c09, 0x8004165,
+                        0x8004be1, 0x8002eb1 ]
     for member in tail_call_funcs:
         nose.tools.assert_in(member, all_func_addrs)
 

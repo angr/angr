@@ -912,7 +912,7 @@ class CFGBase(Analysis):
     # Analyze function features
     #
 
-    def _analyze_function_features(self):
+    def _analyze_function_features(self, all_funcs_completed=False):
         """
         For each function in the function_manager, try to determine if it returns or not. A function does not return if
         it calls another function that is known to be not returning, and this function does not have other exits.
@@ -926,6 +926,10 @@ class CFGBase(Analysis):
            be added to it), and it does not have a ret or any equivalent instruction.
 
         A function returns if any of its block contains a ret instruction or any equivalence.
+
+        :param bool all_funcs_completed:    Ignore _completed_functions set and treat all functions as completed. This
+                                            can be set to True after the entire CFG is built and _post_analysis() is
+                                            called (at which point analysis on all functions must be completed).
         """
 
         changes = {
@@ -994,7 +998,7 @@ class CFGBase(Analysis):
                 continue
 
             # did we finish analyzing this function?
-            if func.addr not in self._completed_functions:
+            if not all_funcs_completed and func.addr not in self._completed_functions:
                 continue
 
             if not func.block_addrs_set:
@@ -1068,7 +1072,7 @@ class CFGBase(Analysis):
 
         return changes
 
-    def _iteratively_analyze_function_features(self):
+    def _iteratively_analyze_function_features(self, all_funcs_completed=False):
         """
         Iteratively analyze function features until a fixed point is reached.
 
@@ -1082,7 +1086,7 @@ class CFGBase(Analysis):
         }
 
         while True:
-            new_changes = self._analyze_function_features()
+            new_changes = self._analyze_function_features(all_funcs_completed=all_funcs_completed)
 
             changes['functions_do_not_return'] |= set(new_changes['functions_do_not_return'])
             changes['functions_return'] |= set(new_changes['functions_return'])
