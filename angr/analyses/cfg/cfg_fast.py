@@ -1549,7 +1549,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
 
-        self._analyze_all_function_features()
+        self._analyze_all_function_features(all_funcs_completed=True)
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
         for f in self.functions.values():
@@ -3054,7 +3054,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         #if node.addr in self.kb.functions.callgraph:
         #    self.kb.functions.callgraph.remove_node(node.addr)
 
-    def _analyze_all_function_features(self):
+    def _analyze_all_function_features(self, all_funcs_completed=False):
         """
         Iteratively analyze all changed functions, update their returning attribute, until a fix-point is reached (i.e.
         no new returning/not-returning functions are found).
@@ -3063,7 +3063,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         while True:
-            new_changes = self._iteratively_analyze_function_features()
+            new_changes = self._iteratively_analyze_function_features(all_funcs_completed=all_funcs_completed)
             new_returning_functions = new_changes['functions_return']
             new_not_returning_functions = new_changes['functions_do_not_return']
 
