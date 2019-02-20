@@ -425,8 +425,18 @@ class JumpTableResolver(IndirectJumpResolver):
                     all_targets = [(target + base_addr) & mask for target in all_targets]
 
                 # Finally... all targets are ready
+                illegal_target_found = False
                 for target in all_targets:
+                    # if the total number of targets is suspicious (it usually implies a failure in applying the
+                    # constraints), check if all jump targets are legal
+                    if len(all_targets) in {0x100, 0x10000} and not self._is_jumptarget_legal(target):
+                        l.info("Jump target %#x is probably illegal. Try to resolve indirect jump at %#x from the next "
+                               "source.", target, addr)
+                        illegal_target_found = True
+                        break
                     jump_table.append(target)
+                if illegal_target_found:
+                    continue
 
                 l.info("Resolved %d targets from %#x.", len(all_targets), addr)
 
@@ -444,6 +454,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 return True, all_targets
 
+        l.info("Could not resolve indirect jump %#x in funtion %#x.", addr, func_addr)
         return False, None
 
     #
@@ -621,3 +632,15 @@ class JumpTableResolver(IndirectJumpResolver):
             jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
 
         return jump_addr
+
+    def _is_jumptarget_legal(self, target):
+
+        try:
+            vex_block = self.project.factory.block(target).vex_nostmt
+        except (AngrError, SimError):
+            return False
+        if vex_block.jumpkind == 'Ijk_NoDecode':
+            return False
+        if vex_block.size == 0:
+            return False
+        return True
