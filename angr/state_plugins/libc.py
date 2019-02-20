@@ -187,7 +187,7 @@ class SimStateLibc(SimStatePlugin):
         self.heap_location = HEAP_LOCATION
         self.mmap_base = HEAP_LOCATION + HEAP_SIZE * 2
         self.buf_symbolic_bytes = 60
-        self.max_symbolic_strstr = 1
+        self.max_symbolic_strstr = 16
         self.max_symbolic_strchr = 16
         self.max_variable_size = 128
         self.max_str_len = 128
