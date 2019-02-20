@@ -3592,6 +3592,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return addr, current_function_addr, cfg_node, irsb
 
             is_arm_arch = self.project.arch.name in ('ARMHF', 'ARMEL')
+            is_x86_x64_arch = self.project.arch.name in ('X86', 'AMD64')
 
             if is_arm_arch:
                 real_addr = addr & (~1)
@@ -3681,14 +3682,28 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     irsb_size = 0
                 else:
                     irsb_size = irsb.size
-                nodecode_size = 1
+                # special handling for ud, ud1, and ud2 on x86 and x86-64
+                if is_x86_x64_arch \
+                        and len(irsb_string) >= 2 \
+                        and irsb_string[-2:] in {
+                            b'\x0f\xff',  # ud0
+                            b'\x0f\xb9',  # ud1
+                            b'\x0f\x0b',  # ud2
+                        }:
+                    # ud0, ud1, and ud2 are actually valid instructions.
+                    valid_ins = True
+                    nodecode_size = 2
+                else:
+                    valid_ins = False
+                    nodecode_size = 1
                 self._seg_list.occupy(addr, irsb_size, 'code')
                 self._seg_list.occupy(addr + irsb_size, nodecode_size, 'nodecode')
-                l.error("Decoding error occurred at address %#x of function %#x.",
-                        addr + irsb_size,
-                        current_function_addr
-                        )
-                return None, None, None, None
+                if not valid_ins:
+                    l.error("Decoding error occurred at address %#x of function %#x.",
+                            addr + irsb_size,
+                            current_function_addr
+                            )
+                    return None, None, None, None
 
             is_thumb = False
             # Occupy the block in segment list
