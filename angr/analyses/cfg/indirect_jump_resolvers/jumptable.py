@@ -59,6 +59,10 @@ class JumpTableResolver(IndirectJumpResolver):
         # the maximum number of resolved targets. Will be initialized from CFG.
         self._max_targets = None
 
+        # cached memory read addresses that are used to initialize uninitialized registers
+        # should be cleared before every symbolic execution run on the slice
+        self._cached_memread_addrs = { }
+
         self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
@@ -290,6 +294,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if not self.project.arch.name in {'S390X'}:
                 start_state.regs.bp = start_state.arch.initial_sp + 0x2000
 
+            self._cached_memread_addrs.clear()
             init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=self._init_registers_on_demand)
             start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
 
@@ -324,6 +329,8 @@ class JumpTableResolver(IndirectJumpResolver):
                     continue
 
                 state = all_states[0]  # Just take the first state
+                self._cached_memread_addrs.clear()  # clear the cache to save some memory (and avoid confusion when
+                                                    # debugging)
 
                 # Parse the memory load statement and get the memory address of where the jump table is stored
                 jumptable_addr = self._parse_load_statement(load_stmt, state)
@@ -483,13 +490,18 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 # job done :-)
 
-    @staticmethod
-    def _init_registers_on_demand(state):
+    def _init_registers_on_demand(self, state):
         # for uninitialized read using a register as the source address, we replace them in memory on demand
         read_addr = state.inspect.mem_read_address
         cond = state.inspect.mem_read_condition
 
         if not isinstance(read_addr, int) and read_addr.uninitialized and cond is None:
+
+            # if this AST has been initialized before, just use the cached addr
+            cached_addr = self._cached_memread_addrs.get(read_addr, None)
+            if cached_addr is not None:
+                state.inspect.mem_read_address = cached_addr
+                return
 
             read_length = state.inspect.mem_read_length
             if not isinstance(read_length, int):
@@ -501,6 +513,10 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # replace the expression in registers
             state.registers.replace_all(read_addr, new_read_addr)
+
+            # extra caution: if this read_addr AST comes up again in the future, we want to replace it with the same
+            # address again.
+            self._cached_memread_addrs[read_addr] = new_read_addr
 
             state.inspect.mem_read_address = new_read_addr
 
