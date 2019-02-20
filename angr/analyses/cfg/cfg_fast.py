@@ -517,6 +517,8 @@ class PendingJobs:
         self._deregister_job_callback = deregister_job_callback
 
         self._returning_functions = set()
+        self._updated_functions = set()  # Addresses of functions whose returning status have changed between two
+                                         # consecutive calls to cleanup().
         self._job_count = 0
 
     def __len__(self):
@@ -551,7 +553,7 @@ class PendingJobs:
 
         :param bool returning: Only pop a pending job if the corresponding function returns.
         :return: A pending job if we can find one, or None if we cannot find any that satisfies the requirement.
-        :rtype: angr.analyse.cfg.cfg_fast.CFGJob
+        :rtype: angr.analyses.cfg.cfg_fast.CFGJob
         """
 
         if not self:
@@ -580,9 +582,11 @@ class PendingJobs:
 
         pending_exits_to_remove = defaultdict(list)
 
-        for func_addr, jobs in self._jobs.items():
+        for func_addr in self._updated_functions:
+            if func_addr not in self._jobs:
+                continue
+            jobs = self._jobs[func_addr]
             for i, pe in enumerate(jobs):
-
                 if pe.returning_source is None:
                     # The original call failed. This pending exit must be followed.
                     continue
@@ -609,6 +613,8 @@ class PendingJobs:
             if not jobs:
                 del self._jobs[func_addr]
 
+        self.clear_updated_functions()
+
     def add_returning_function(self, func_addr):
         """
         Mark a function as returning.
@@ -618,6 +624,26 @@ class PendingJobs:
         """
 
         self._returning_functions.add(func_addr)
+        self._updated_functions.add(func_addr)
+
+    def add_nonreturning_function(self, func_addr):
+        """
+        Mark a function as not returning.
+
+        :param int func_addr:   Address of the function that does not return.
+        :return:                None
+        """
+
+        self._updated_functions.add(func_addr)
+
+    def clear_updated_functions(self):
+        """
+        Clear the updated_functions set.
+
+        :return:    None
+        """
+
+        self._updated_functions.clear()
 
 #
 # Descriptors of edges in individual function graphs
@@ -1939,7 +1965,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._function_exits[current_function_addr].add(addr)
                     self._function_add_return_site(addr, current_function_addr)
                     self.functions[current_function_addr].returning = True
-                    self._add_returning_function(current_function_addr)
+                    self._pending_jobs.add_returning_function(current_function_addr)
 
                 cfg_node.has_return = True
 
@@ -3074,6 +3100,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 break
 
             for returning_function in new_returning_functions:
+                self._pending_jobs.add_returning_function(returning_function.addr)
                 if returning_function.addr in self._function_returns:
                     for fr in self._function_returns[returning_function.addr]:
                         # Confirm them all
@@ -3098,24 +3125,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     del self._function_returns[returning_function.addr]
 
-            for not_returning_function in new_not_returning_functions:
-                if not_returning_function.addr in self._function_returns:
-                    for fr in self._function_returns[not_returning_function.addr]:
+            for nonreturning_function in new_not_returning_functions:
+                self._pending_jobs.add_nonreturning_function(nonreturning_function.addr)
+                if nonreturning_function.addr in self._function_returns:
+                    for fr in self._function_returns[nonreturning_function.addr]:
                         # Remove all those FakeRet edges
                         if self.kb.functions.contains_addr(fr.caller_func_addr) and \
                                 self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
-                    del self._function_returns[not_returning_function.addr]
+                    del self._function_returns[nonreturning_function.addr]
 
     def _pop_pending_job(self, returning=True):
         return self._pending_jobs.pop_job(returning=returning)
 
     def _clean_pending_exits(self):
         self._pending_jobs.cleanup()
-
-    def _add_returning_function(self, func_addr):
-        self._pending_jobs.add_returning_function(func_addr)
 
     #
     # Graph utils

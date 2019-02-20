@@ -401,7 +401,7 @@ class CFGFastSoot(CFGFast):
                     self._function_exits[current_function_addr].add(addr)
                     self._function_add_return_site(addr, current_function_addr)
                     self.functions[current_function_addr].returning = True
-                    self._add_returning_function(current_function_addr)
+                    self._pending_jobs.add_returning_function(current_function_addr)
 
                 cfg_node.has_return = True
 
@@ -437,7 +437,7 @@ class CFGFastSoot(CFGFast):
                 jobs += self._create_job_call(addr, soot_block, cfg_node, stmt_idx, stmt_addr, current_function_addr,
                                               target_addr, jumpkind, is_syscall=False
                                               )
-                self._add_returning_function(target.method)
+                self._pending_jobs.add_returning_function(target.method)
 
             else:
                 # TODO: Support more jumpkinds
