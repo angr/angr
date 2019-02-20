@@ -553,7 +553,7 @@ class PendingJobs:
 
         :param bool returning: Only pop a pending job if the corresponding function returns.
         :return: A pending job if we can find one, or None if we cannot find any that satisfies the requirement.
-        :rtype: angr.analyse.cfg.cfg_fast.CFGJob
+        :rtype: angr.analyses.cfg.cfg_fast.CFGJob
         """
 
         if not self:
