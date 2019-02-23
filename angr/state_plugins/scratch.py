@@ -33,7 +33,7 @@ class SimStateScratch(SimStatePlugin):
         self.avoidable = True
 
         # information on VEX temps of this IRSB
-        self.temps = { }
+        self.temps = []
         self.tyenv = None
 
         # dirtied addresses, for dealing with self-modifying code
@@ -41,7 +41,7 @@ class SimStateScratch(SimStatePlugin):
         self.num_insns = 0
 
         if scratch is not None:
-            self.temps.update(scratch.temps)
+            self.temps = list(scratch.temps)
             self.tyenv = scratch.tyenv
             self.jumpkind = scratch.jumpkind
             self.guard = scratch.guard
@@ -78,6 +78,10 @@ class SimStateScratch(SimStatePlugin):
         if len(self._priv_stack) == 0:
             raise SimValueError("Priv stack is empty")
 
+    def set_tyenv(self, tyenv):
+        self.tyenv = tyenv
+        self.temps = [None]*len(tyenv.types)
+
     def tmp_expr(self, tmp):
         """
         Returns the Claripy expression of a VEX temp value.
@@ -87,11 +91,13 @@ class SimStateScratch(SimStatePlugin):
         :returns: a Claripy expression of the tmp
         """
         self.state._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.temps.get(tmp, None)
-        if v is None:
-            raise SimValueError('VEX temp variable %d does not exist. This is usually the result of an incorrect '
-                                'slicing.' % tmp
-                                )
+        try:
+            v = self.temps[tmp]
+            if v is None:
+                raise SimValueError('VEX temp variable %d does not exist. This is usually the result of an incorrect '
+                                    'slicing.' % tmp)
+        except IndexError:
+            raise SimValueError("Accessing a temp that is illegal in this tyenv")
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 

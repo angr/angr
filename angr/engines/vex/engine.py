@@ -186,7 +186,7 @@ class SimEngineVEX(SimEngine):
                         if not perms & 4 and o.ENABLE_NX in state.options:
                             raise SimSegfaultError(addr, 'non-executable')
 
-            state.scratch.tyenv = irsb.tyenv
+            state.scratch.set_tyenv(irsb.tyenv)
             state.scratch.irsb = irsb
 
             try:
