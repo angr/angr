@@ -1,6 +1,9 @@
 def translate_expr(expr, state):
-    expr_class = EXPR_CLASSES.get(type(expr), None)
-    if expr_class is None:
+    try:
+        expr_class = EXPR_CLASSES[expr.tag_int]
+        if expr_class is None:
+            raise IndexError
+    except IndexError:
         if o.BYPASS_UNSUPPORTED_IREXPR not in state.options:
             raise UnsupportedIRExprError("Unsupported expression type %s" % (type(expr)))
         else:
@@ -33,18 +36,11 @@ from .ite import SimIRExpr_ITE
 from .geti import SimIRExpr_GetI
 from .unsupported import SimIRExpr_Unsupported
 
-EXPR_CLASSES = {
-    pyvex.expr.GSPTR: SimIRExpr_GSPTR,
-    pyvex.expr.VECRET: SimIRExpr_VECRET,
-    pyvex.expr.Const: SimIRExpr_Const,
-    pyvex.expr.RdTmp: SimIRExpr_RdTmp,
-    pyvex.expr.Get: SimIRExpr_Get,
-    pyvex.expr.Load: SimIRExpr_Load,
-    pyvex.expr.Unop: SimIRExpr_Unop,
-    pyvex.expr.Binop: SimIRExpr_Binop,
-    pyvex.expr.Triop: SimIRExpr_Triop,
-    pyvex.expr.Qop: SimIRExpr_Qop,
-    pyvex.expr.CCall: SimIRExpr_CCall,
-    pyvex.expr.ITE: SimIRExpr_ITE,
-    pyvex.expr.GetI:SimIRExpr_GetI,
-}
+EXPR_CLASSES = [None]*pyvex.expr.tag_count
+
+for name, cls in vars(pyvex.expr).items():
+    if isinstance(cls, type) and issubclass(cls, pyvex.expr.IRExpr) and cls is not pyvex.expr.IRExpr:
+        try:
+            EXPR_CLASSES[cls.tag_int] = globals()['SimIRExpr_' + name]
+        except KeyError:
+            pass
