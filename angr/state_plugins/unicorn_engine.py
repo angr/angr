@@ -659,11 +659,10 @@ class Unicorn(SimStatePlugin):
         :param from_where: the ID of the memory region it comes from ('mem' or 'reg')
         :returns: the value to be inserted into Unicorn, or None
         """
-        #if len(d.annotations):
-        #    l.debug("Blocking annotated AST.")
-        #    return None
-        #elif not d.symbolic:
-        if not d.symbolic:
+        if len(d.annotations):
+            l.debug("Blocking annotated AST.")
+            return None
+        elif not d.symbolic:
             return d
         else:
             l.debug("Processing AST with variables %s.", d.variables)
