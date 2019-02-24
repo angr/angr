@@ -380,7 +380,7 @@ class SimEngineVEX(SimEngine):
 
         # process it!
         try:
-            stmt_handler = STMT_CLASSES[stmt.tag_int]
+            stmt_handler = self.stmt_handlers[stmt.tag_int]
         except IndexError:
             l.error("Unsupported statement type %s", (type(stmt)))
             if o.BYPASS_UNSUPPORTED_IRSTMT not in state.options:
@@ -406,7 +406,7 @@ class SimEngineVEX(SimEngine):
             if o.COPY_STATES not in state.options:
                 # very special logic to try to minimize copies
                 # first, check if this branch is impossible
-                if state.guard.is_false():
+                if guard.is_false():
                     cont_state = state
                 elif o.LAZY_SOLVES not in state.options and not state.solver.satisfiable(extra_constraints=(guard,)):
                     cont_state = state
@@ -749,6 +749,8 @@ class SimEngineVEX(SimEngine):
         self._single_step = state['_single_step']
         self._cache_size = state['_cache_size']
         self.default_strict_block_end = state['default_strict_block_end']
+        self.expr_handlers = state['expr_handlers']
+        self.stmt_handlers = state['stmt_handlers']
 
         # rebuild block cache
         self._initialize_block_cache()
@@ -763,5 +765,7 @@ class SimEngineVEX(SimEngine):
         s['_single_step'] = self._single_step
         s['_cache_size'] = self._cache_size
         s['default_strict_block_end'] = self.default_strict_block_end
+        s['expr_handlers'] = self.expr_handlers
+        s['stmt_handlers'] = self.stmt_handlers
 
         return s

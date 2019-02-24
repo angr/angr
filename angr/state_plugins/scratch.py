@@ -126,7 +126,7 @@ class SimStateScratch(SimStatePlugin):
         if o.TRACK_TMP_ACTIONS in self.state.options:
             data_ao = SimActionObject(content, reg_deps=reg_deps, tmp_deps=tmp_deps, deps=deps, state=self.state)
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=content.length)
-            self.state.history.add_event(r)
+            self.state.history.add_action(r)
 
         self.state._inspect('tmp_write', BP_AFTER)
 
