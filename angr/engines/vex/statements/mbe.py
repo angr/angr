@@ -1,9 +1,2 @@
-from . import SimIRStmt
-
-
-class SimIRStmt_MBE(SimIRStmt):
-
-    __slots__ = []
-
-    def _execute(self):
-        pass
+def SimIRStmt_MBE(_engine, _state, _stmt):
+    pass

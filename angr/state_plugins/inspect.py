@@ -64,6 +64,7 @@ inspect_attributes = {
 
     # expr
     'expr',
+    'expr_result',
 
     # statement
     'statement',
