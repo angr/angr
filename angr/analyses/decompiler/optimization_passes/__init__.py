@@ -1,9 +1,11 @@
 
 from .stack_canary_simplifier import StackCanarySimplifier
+from .return_address_save_simplifier import ReturnAddressSaveSimplifier
 
 
 _all_optimization_passes = [
     StackCanarySimplifier,
+    ReturnAddressSaveSimplifier,
 ]
 
 
