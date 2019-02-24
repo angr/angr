@@ -7,9 +7,9 @@ from .optimization_pass import OptimizationPass
 
 _l = logging.getLogger(name=__name__)
 
-class ReturnAddressSaveSimplifier(OptimizationPass):
+class BasePointerSaveSimplifier(OptimizationPass):
 
-    ARCHES = ['X86', 'AMD64']
+    ARCHES = ['X86', 'AMD64', 'ARMEL']
     PLATFORMS = ['linux']
 
     def __init__(self, func, blocks):
@@ -41,7 +41,6 @@ class ReturnAddressSaveSimplifier(OptimizationPass):
                 continue
             b_copy = b.copy()
             for idx, stmt in reversed(list(enumerate(b.statements))):
-                to_delete = idx
                 if isinstance(stmt, ailment.Stmt.Assignment) \
                         and stmt.dst == block.statements[stmt_idx].data:
                     b_copy.statements.pop(idx)
@@ -63,6 +62,6 @@ class ReturnAddressSaveSimplifier(OptimizationPass):
                     and isinstance(stmt.data, ailment.Expr.Register) \
                     and stmt.data.reg_offset == self.project.arch.bp_offset \
                     and stmt.addr.offset < 0:
-                        return first_block, idx
+                return first_block, idx
 
-AnalysesHub.register_default('ReturnAddressSaveSimplifier', ReturnAddressSaveSimplifier)
+AnalysesHub.register_default('BasePointerSaveSimplifier', BasePointerSaveSimplifier)
