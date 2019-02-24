@@ -34,15 +34,21 @@ class ReturnAddressSaveSimplifier(OptimizationPass):
 
         block, stmt_idx = save_stmt
 
+        bmap = {}
         for addr, size in self._blocks:
             b = self._get_block(addr, size)
+            if b is None:
+                continue
             b_copy = b.copy()
             for idx, stmt in reversed(list(enumerate(b.statements))):
                 to_delete = idx
                 if isinstance(stmt, ailment.Stmt.Assignment) \
                         and stmt.dst == block.statements[stmt_idx].data:
                     b_copy.statements.pop(idx)
+            bmap[b] = b_copy
+        for b, b_copy in bmap.items():
             self._update_block(b, b_copy)
+
 
         block_copy = block.copy()
         block_copy.statements.pop(stmt_idx)
