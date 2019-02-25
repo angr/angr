@@ -831,8 +831,10 @@ class StructuredCodeGenerator(Analysis):
         self._indent = indent
         self._cfunc = None
 
+        from .optimization_passes import get_structured_optimization_passes
+
         if optimization_passes is None:
-            optimization_passes = _optimization_passes.get_structured_optimization_passes(self.project.arch, self.project.simos.name)
+            optimization_passes = get_structured_optimization_passes(self.project.arch, self.project.simos.name)
             l.debug('Got %d optimization passes for the current binary', len(optimization_passes))
 
         self._optimization_passes = optimization_passes
