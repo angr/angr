@@ -10,6 +10,7 @@ from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, 
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
 from ...utils.constants import is_alignment_mask
 from .. import Analysis, register_analysis
+from . import optimization_passes as _optimization_passes
 from .region_identifier import MultiNode
 from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode
 
@@ -819,7 +820,7 @@ class CRegister(CExpression):
 
 
 class StructuredCodeGenerator(Analysis):
-    def __init__(self, func, sequence, indent=0, cfg=None):
+    def __init__(self, func, sequence, indent=0, cfg=None, optimization_passes=None):
         self._func = func
         self._sequence = sequence
         self._cfg = cfg
@@ -828,6 +829,13 @@ class StructuredCodeGenerator(Analysis):
         self.posmap = None
         self.nodemap = None
         self._indent = indent
+        self._cfunc = None
+
+        if optimization_passes is None:
+            optimization_passes = _optimization_passes.get_structured_optimization_passes(self.project.arch, self.project.simos.name)
+            l.debug('Got %d optimization passes for the current binary', len(optimization_passes))
+
+        self._optimization_passes = optimization_passes
 
         self._handlers = {
             SequenceNode: self._handle_Sequence,
@@ -859,12 +867,18 @@ class StructuredCodeGenerator(Analysis):
         self._analyze()
 
     def _analyze(self):
-
         obj = self._handle(self._sequence)
         func = CFunction(self._func.name, obj)
+        self._cfunc = func
 
+        for pass_ in self._optimization_passes:
+            pass_(self._func, self._cfunc)
+
+        self._generate_from_cfunc()
+
+    def _generate_from_cfunc(self):
         self.posmap = PositionMapping()
-        self.text = func.c_repr(indent=self._indent, posmap=self.posmap)
+        self.text = self._cfunc.c_repr(indent=self._indent, posmap=self.posmap)
 
         self.nodemap = defaultdict(set)
         for elem, node in self.posmap.items():
