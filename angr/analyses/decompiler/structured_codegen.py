@@ -10,7 +10,6 @@ from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, 
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
 from ...utils.constants import is_alignment_mask
 from .. import Analysis, register_analysis
-from . import optimization_passes as _optimization_passes
 from .region_identifier import MultiNode
 from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode
 
