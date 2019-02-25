@@ -1,11 +1,11 @@
 
 from .stack_canary_simplifier import StackCanarySimplifier
-from .return_address_save_simplifier import ReturnAddressSaveSimplifier
+from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 
 
 _all_optimization_passes = [
     StackCanarySimplifier,
-    ReturnAddressSaveSimplifier,
+    BasePointerSaveSimplifier,
 ]
 
 
