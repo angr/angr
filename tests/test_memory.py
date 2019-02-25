@@ -7,7 +7,7 @@ import nose
 from angr.storage.paged_memory import SimPagedMemory
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o
-from angr.state_plugins import SimSystemPosix
+from angr.state_plugins import SimSystemPosix, SimLightRegisters
 from angr.storage.file import SimFile
 
 
@@ -628,6 +628,22 @@ def test_fast_memory():
 
     _concrete_memory_tests(s)
 
+def test_light_memory():
+    s = SimState(arch='AMD64', plugins={'registers': SimLightRegisters()})
+    assert type(s.registers) is SimLightRegisters
+
+    s.regs.rax = 0x4142434445464748
+    s.regs.rbx = 0x5555555544444444
+    assert (s.regs.rax == 0x4142434445464748).is_true()
+    assert (s.regs.rbx == 0x5555555544444444).is_true()
+    assert s.regs.rcx.symbolic
+
+    s.regs.ah = 0
+    assert (s.regs.rax == 0x4142434445460048).is_true()
+
+    s.regs.cl = 0
+    assert s.regs.rcx.symbolic
+
 def test_crosspage_read():
     state = SimState(arch='ARM')
     state.regs.sp = 0x7fff0008
@@ -649,6 +665,7 @@ def test_crosspage_read():
 if __name__ == '__main__':
     test_crosspage_read()
     test_fast_memory()
+    test_light_memory()
     test_load_bytes()
     test_false_condition()
     test_symbolic_write()
