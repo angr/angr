@@ -1,5 +1,4 @@
 
-from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .empty_conditional_simplifier import EmptyConditionalSimplifier
 from .optimization_pass import OptimizationPass
 from .stack_canary_simplifier import StackCanarySimplifier
