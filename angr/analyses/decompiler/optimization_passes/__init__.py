@@ -7,7 +7,6 @@ from .structured_optimization_pass import StructuredOptimizationPass
 
 _all_optimization_passes = [
     StackCanarySimplifier,
-    BasePointerSaveSimplifier,
     EmptyConditionalSimplifier
 ]
 
