@@ -4,6 +4,7 @@ import claripy
 import nose
 import os
 import subprocess
+import logging
 
 from angr_targets import AvatarGDBConcreteTarget
 
