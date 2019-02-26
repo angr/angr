@@ -1823,7 +1823,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
-
+        if addr == 0x45ba:
+            import ipdb; ipdb.set_trace()
         # Add edges going to this node in function graphs
         cfg_job.apply_function_edges(self, clear=True)
 
@@ -1927,7 +1928,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
-        elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
+        elif isinstance(target, pyvex.IRConst.IRConst):  # pylint: disable=unidiomatic-typecheck
             target_addr = target.value
         elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
             target_addr = target
