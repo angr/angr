@@ -467,11 +467,20 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         "to make unknown regions hold null")
                     l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
                         "to suppress these messages.")
+
                 if is_mem:
-                    l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)", addr, num_bytes, self.state.solver.eval(self.state._ip), self.state.project.loader.describe_addr(self.state.solver.eval(self.state._ip)))
+                    refplace_int = self.state.solver.eval(self.state._ip)
+                    refplace_str = self.state.project.loader.describe_addr(self.state.solver.eval(self.state._ip))
+                    l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)", addr, num_bytes, refplace_int, refplace_str)
                 else:
+                    if addr == self.state.arch.ip_offset:
+                        refplace_int = 0
+                        refplace_str = "symbolic"
+                    else:
+                        refplace_int = self.state.solver.eval(self.state._ip)
+                        refplace_str = self.state.project.loader.describe_addr(self.state.solver.eval(self.state._ip))
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
-                    l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, num_bytes, self.state.solver.eval(self.state._ip), self.state.project.loader.describe_addr(self.state.solver.eval(self.state._ip)))
+                    l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, num_bytes, refplace_int, refplace_str)
 
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
