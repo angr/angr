@@ -210,13 +210,13 @@ def get_engine(base_engine):
             # Special handling for SP and BP
             if self._stack_pointer_tracker is not None:
                 if expr.reg_offset == self.arch.sp_offset:
-                    sb_offset = self._stack_pointer_tracker.insn_sp_offset_in(self.ins_addr)
+                    sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                     if sb_offset is not None:
                         new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
                         self.state.add_final_replacement(self._codeloc(), expr, new_expr)
                         return new_expr
                 elif expr.reg_offset == self.arch.bp_offset:
-                    sb_offset = self._stack_pointer_tracker.insn_bp_offset_in(self.ins_addr)
+                    sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
                     if sb_offset is not None:
                         new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
                         self.state.add_final_replacement(self._codeloc(), expr, new_expr)
