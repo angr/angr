@@ -470,7 +470,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
                 if is_mem:
                     refplace_int = self.state.solver.eval(self.state._ip)
-                    if self.state.project.loader:
+                    if self.state.project:
                         refplace_str = self.state.project.loader.describe_addr(refplace_int)
                     else:
                         refplace_str = "unknown"
@@ -481,7 +481,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         refplace_str = "symbolic"
                     else:
                         refplace_int = self.state.solver.eval(self.state._ip)
-                        if self.state.project.loader:
+                        if self.state.project:
                             refplace_str = self.state.project.loader.describe_addr(refplace_int)
                         else:
                             refplace_str = "unknown"
