@@ -67,7 +67,8 @@ class SimEngine(object):
         successors = new_state._inspect_getattr('sim_successors', successors)
 
         # downsizing
-        new_state.inspect.downsize()
+        if new_state.has_plugin('inspect'):
+            new_state._inspect.downsize()
         # if not TRACK, clear actions on OLD state
         #if o.TRACK_ACTION_HISTORY not in old_state.options:
         #    old_state.history.recent_events = []
