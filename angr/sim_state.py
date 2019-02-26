@@ -196,6 +196,7 @@ class SimState(PluginHub):
         # this is a global condition, applied to all added constraints, memory reads, etc
         self._global_condition = None
         self.ip_constraints = []
+        self._supports_inspect = False
 
     def __getstate__(self):
         s = { k:v for k,v in self.__dict__.items() if k not in ('inspect', 'regs', 'mem')}
@@ -323,12 +324,29 @@ class SimState(PluginHub):
     # Plugin accessors
     #
 
+    @property
+    def supports_inspect(self):
+        """
+        Return the cached result of whether this state supports state inspection (the use of SimInspect breakpoints) or
+        not. Note that this value is set during engine.process() based on the result of has_plugin('inspect'), and you
+        are not supposed to change this value when engine.process() is executing. This is done to speed up calls to
+        state._inspect() and state._inspect_getattr() since has_plugin() is not fast.
+
+        :return:    Whether this state supports state inspection or not.
+        :rtype:     bool
+        """
+        return self._supports_inspect
+
+    @supports_inspect.setter
+    def supports_inspect(self, v):
+        self._supports_inspect = v
+
     def _inspect(self, *args, **kwargs):
-        if self.has_plugin('inspect'):
+        if self._supports_inspect:
             self.inspect.action(*args, **kwargs)
 
     def _inspect_getattr(self, attr, default_value):
-        if self.has_plugin('inspect'):
+        if self._supports_inspect:
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
 
@@ -582,6 +600,7 @@ class SimState(PluginHub):
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler
         state.ip_constraints = self.ip_constraints
+        state._supports_inspect = self._supports_inspect
 
         return state
 
