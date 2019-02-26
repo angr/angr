@@ -65,7 +65,7 @@ class SimRegNameView(SimStatePlugin):
            isinstance(self.state.project.arch, ArchSoot) and \
            k == 'ip' and \
            self.state.project.simos.is_javavm_with_jni_support:
-            self.state.ip_is_soot_addr = True if isinstance(v, SootAddressDescriptor) else False
+            self.state.ip_is_soot_addr = isinstance(v, SootAddressDescriptor)
 
         try:
             return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
