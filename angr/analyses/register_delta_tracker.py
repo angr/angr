@@ -211,7 +211,7 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
 
         self._analyze()
 
-    def _offset_for(self, addr, pre_or_post):
+    def _state_for(self, addr, pre_or_post):
         if addr not in self.states:
             return None
 
@@ -221,12 +221,39 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
 
         return addr_map[pre_or_post]
 
-    def offset_after(self, addr):
-        return self._offset_for(addr, 'post')
+    def _offset_for(self, addr, pre_or_post, reg):
+        regval = dict(self._state_for(addr, pre_or_post).regs)[reg]
+        if regval is TOP or type(regval) is Constant:
+            return TOP
+        else:
+            return regval.offset
 
-    def offset_before(self, addr):
-        return self._offset_for(addr, 'pre')
 
+    def offset_after(self, addr, reg):
+        return self._offset_for(addr, 'post', reg)
+
+    def offset_before(self, addr, reg):
+        return self._offset_for(addr, 'pre', reg)
+
+    def offset_after_block(self, block_addr, reg):
+        instr_addrs = self.project.factory.block(block_addr).instruction_addrs
+        if len(instr_addrs) == 0:
+            return TOP
+        else:
+            return self.offset_after(instr_addrs[-1], reg)
+
+    def offset_before_block(self, block_addr, reg):
+        instr_addrs = self.project.factory.block(block_addr).instruction_addrs
+        if len(instr_addrs) == 0:
+            return TOP
+        else:
+            return self.offset_before(instr_addrs[0], reg)
+
+    def inconsistent_for(self, reg):
+        for endpoint in self._func.endpoints:
+            if self.offset_after_block(endpoint.addr, reg) is TOP:
+                return True
+        return False
 
     #
     # Overridable methods
@@ -246,7 +273,7 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
                                          memory={}).freeze()
 
     def _set_state(self, addr, new_val, pre_or_post):
-        previous_val = self._offset_for(addr, pre_or_post)
+        previous_val = self._state_for(addr, pre_or_post)
         does_change = previous_val is not None and previous_val != new_val
         if does_change:
             self.inconsistent = True

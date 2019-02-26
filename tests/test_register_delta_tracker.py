@@ -14,9 +14,10 @@ def test_register_delta_tracker():
     sp = p.arch.sp_offset
     bp = p.arch.bp_offset
     sptracker = p.analyses.RegisterDeltaTracker(main, {sp, bp})
-    result = sptracker.offset_after(0x4007d4).unfreeze()
-    nose.tools.assert_equal(result.regs[sp].offset, 8)
-    nose.tools.assert_equal(result.regs[bp].offset, 0)
+    sp_result = sptracker.offset_after(0x4007d4, sp)
+    bp_result = sptracker.offset_after(0x4007d4, bp)
+    nose.tools.assert_equal(sp_result, 8)
+    nose.tools.assert_equal(bp_result, 0)
 
 if __name__ == '__main__':
     logging.getLogger('angr.analyses.register_delta_tracker')

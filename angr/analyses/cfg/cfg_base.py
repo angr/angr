@@ -1874,7 +1874,7 @@ class CFGBase(Analysis):
                 if hasattr(self.project.arch, 'bp_offset'):
                     regs.add(self.project.arch.bp_offset)
                 sptracker = self.project.analyses.RegisterDeltaTracker(src_function, regs)
-                sp_delta = sptracker.offset_after(src_addr)
+                sp_delta = sptracker.offset_after(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True
 
