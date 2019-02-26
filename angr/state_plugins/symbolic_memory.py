@@ -470,7 +470,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
                 if is_mem:
                     refplace_int = self.state.solver.eval(self.state._ip)
-                    refplace_str = self.state.project.loader.describe_addr(self.state.solver.eval(self.state._ip))
+                    if self.state.project.loader:
+                        refplace_str = self.state.project.loader.describe_addr(refplace_int)
+                    else:
+                        refplace_str = "unknown"
                     l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)", addr, num_bytes, refplace_int, refplace_str)
                 else:
                     if addr == self.state.arch.ip_offset:
@@ -478,7 +481,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         refplace_str = "symbolic"
                     else:
                         refplace_int = self.state.solver.eval(self.state._ip)
-                        refplace_str = self.state.project.loader.describe_addr(self.state.solver.eval(self.state._ip))
+                        if self.state.project.loader:
+                            refplace_str = self.state.project.loader.describe_addr(refplace_int)
+                        else:
+                            refplace_str = "unknown"
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
                     l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, num_bytes, refplace_int, refplace_str)
 
