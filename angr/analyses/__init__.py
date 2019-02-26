@@ -26,7 +26,7 @@ from .callee_cleanup_finder import CalleeCleanupFinder
 from .reaching_definitions import ReachingDefinitionAnalysis
 from .calling_convention import CallingConventionAnalysis
 from .code_tagging import CodeTagging
-from .stack_pointer_tracker import StackPointerTracker
+from .register_delta_tracker import RegisterDeltaTracker
 from .dominance_frontier import DominanceFrontier
 from .decompiler import Decompiler
 from .soot_class_hierarchy import SootClassHierarchy

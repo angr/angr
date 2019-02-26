@@ -1870,8 +1870,8 @@ class CFGBase(Analysis):
                 candidate = True
 
             if candidate:
-                sptracker = self.project.analyses.StackPointerTracker(src_function)
-                sp_delta = sptracker.sp_offset_out(src_addr)
+                sptracker = self.project.analyses.RegisterDeltaTracker(src_function, self.project.arch.sp_offset)
+                sp_delta = sptracker.offset_after(src_addr)
                 if sp_delta == 0:
                     return True
 
