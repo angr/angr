@@ -1178,6 +1178,13 @@ class CFGBase(Analysis):
                             # umm, those nodes are overlapping, but they must have different end addresses
                             nodekey_a = node.addr + node.size, callstack_key
                             nodekey_b = next_node.addr + next_node.size, callstack_key
+                            if nodekey_a == nodekey_b:
+                                # error handling: this will only happen if we have completely overlapping nodes
+                                # caused by different jumps (one of the jumps is probably incorrect), which usually
+                                # indicates an error in CFG recovery. we print a warning and skip this node
+                                l.warning("Found completely overlapping nodes %s. It usually indicates an error in CFG "
+                                          "recovery. Skip.", node)
+                                continue
 
                             if nodekey_a in smallest_nodes and nodekey_b in smallest_nodes:
                                 # misuse end_addresses_to_nodes
