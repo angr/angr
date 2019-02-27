@@ -34,12 +34,6 @@ class SimEngine(object):
         addr = (ip if isinstance(ip, SootAddressDescriptor) else state.solver.eval(ip)) \
             if force_addr is None else force_addr
 
-        # decide whether this state supports inspection (SimInspect)
-        # you are not supposed to manually allow or disallow state inspection when engine.process() is being called.
-        # the enabling or disabling of state inspection will only take place from the next time engine.process() is
-        # executed (e.g., processing the next basic block).
-        state.supports_inspect = state.has_plugin('inspect')
-
         # make a copy of the initial state for actual processing, if needed
         if not inline and o.COPY_STATES in state.options:
             new_state = state.copy()

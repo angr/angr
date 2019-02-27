@@ -296,8 +296,8 @@ def test_inspect_engine_process():
     pg.run()
 
 if __name__ == '__main__':
+    test_inspect()
     test_inspect_concretization()
     test_inspect_exit()
     test_inspect_syscall()
-    test_inspect()
     test_inspect_engine_process()
