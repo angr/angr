@@ -70,9 +70,10 @@ def test_decompiling_all_i386():
 def test_decompiling_aes_armel():
     # EDG Says: This binary is invalid.
     # Consider replacing with some real firmware
-    raise nose.SkipTest()
     bin_path = os.path.join(test_location, "armel", "aes")
-    p = angr.Project(bin_path, auto_load_libs=False)
+    # TODO: FIXME: EDG says: This binary is actually CortexM
+    # It is incorrectly linked. We override this here
+    p = angr.Project(bin_path, arch='ARMEL', auto_load_libs=False)
 
     cfg = p.analyses.CFG(collect_data_references=True)
 
