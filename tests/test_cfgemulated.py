@@ -374,9 +374,14 @@ def test_armel_final_missing_block_b():
     # Fixing either bug will resolve the issue that the final block does not show up in the function graph of main. To
     # stay on the safe side, both of them are fixed. Thanks @tyb0807 for reporting this issue and providing a test
     # binary.
-
+    # EDG says: This binary is compiled incorrectly.
+    # The binary's app code was compiled as CortexM, but linked against ARM libraries.
+    # This is illegal, and does not actually execute on a real CortexM.
+    # Somebody should recompile it....
+    raise nose.SkipTest()
+    """
     binary_path = os.path.join(test_location, 'armel', 'aes')
-    b = angr.Project(binary_path, auto_load_libs=False)
+    b = angr.Project(binary_path, arch="ARMEL", auto_load_libs=False)
 
     function = b.loader.main_object.get_symbol('main').rebased_addr
     cfg = b.analyses.CFGEmulated(starts=[function],
@@ -389,7 +394,7 @@ def test_armel_final_missing_block_b():
 
     nose.tools.assert_equal(len(blocks), 2)
     nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b79, 0x10bbf })
-
+    """
 
 def test_armel_incorrect_function_detection_caused_by_branch():
 
