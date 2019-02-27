@@ -17,7 +17,7 @@ def SimIRStmt_Store(engine, state, stmt):
     if o.TRACK_MEMORY_ACTIONS in state.options:
         data_ao = SimActionObject(expr, deps=data_deps, state=state)
         addr_ao = SimActionObject(addr, deps=addr_deps, state=state)
-        size_ao = SimActionObject(len(data) // state.arch.byte_width)
+        size_ao = SimActionObject(len(data))
         a = SimActionData(state, SimActionData.MEM, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)
         state.history.add_action(a)
     else:

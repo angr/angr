@@ -33,7 +33,7 @@ def SimIRExpr_Load(engine, state, expr):
 
     if o.TRACK_MEMORY_ACTIONS in state.options:
         addr_ao = SimActionObject(addr, deps=addr_actions, state=state)
-        r = SimActionData(state, state.memory.id, SimActionData.READ, addr=addr_ao, size=size, data=result)
+        r = SimActionData(state, state.memory.id, SimActionData.READ, addr=addr_ao, size=size_bits, data=result)
         state.history.add_action(r)
 
     return result
