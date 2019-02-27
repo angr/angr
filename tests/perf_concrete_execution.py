@@ -13,7 +13,9 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '.
 
 def test_tight_loop(arch):
     b = angr.Project(os.path.join(test_location, arch, "perf_tight_loops"), auto_load_libs=False)
-    simgr = b.factory.simgr()
+    state = b.factory.full_init_state(plugins={'registers': angr.state_plugins.SimLightRegisters()},
+                                      remove_options={angr.sim_options.COPY_STATES})
+    simgr = b.factory.simgr(state)
 
     # logging.getLogger('angr.sim_manager').setLevel(logging.INFO)
 
