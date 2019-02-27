@@ -3642,6 +3642,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # also check the distance between `addr` and the closest function.
             # we don't want to have a basic block that spans across function boundaries
             next_func = self.functions.ceiling_func(addr)
+            if next_func is not None and next_func.addr == current_function_addr:
+                # The current block is the first in a function. We want the next one after that
+                next_func = self.functions.ceiling_func(addr + 1)
             if next_func is not None:
                 distance_to_func = (next_func.addr & (~1) if is_arm_arch else next_func.addr) - real_addr
                 if distance_to_func != 0:
