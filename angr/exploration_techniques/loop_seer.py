@@ -86,15 +86,6 @@ class LoopSeer(ExplorationTechnique):
                 loop = state.loop_data.current_loop[-1][0]
                 header = loop.entry.addr
 
-                if state.addr == header:
-                    continue_addrs = [e[0].addr for e in loop.continue_edges]
-                    if state.history.addr in continue_addrs:
-                        state.loop_data.back_edge_trip_counts[state.addr][-1] += 1
-                    state.loop_data.header_trip_counts[state.addr][-1] += 1
-
-                elif state.addr in state.loop_data.current_loop[-1][1]:
-                    state.loop_data.current_loop.pop()
-
                 if self.bound is not None:
                     counts = state.loop_data.back_edge_trip_counts[header][-1] if not self.use_header else \
                              state.loop_data.header_trip_counts[header][-1]
@@ -105,30 +96,60 @@ class LoopSeer(ExplorationTechnique):
                             simgr.stashes[stash].remove(state)
                             simgr.stashes[self.discard_stash].append(state)
 
-                l.debug("%s back edge based trip counts %s", state, state.loop_data.back_edge_trip_counts)
-                l.debug("%s header based trip counts %s", state, state.loop_data.header_trip_counts)
+        return simgr.step(stash=stash, **kwargs)
 
-            # Loop entry detected. This test is put here because in case of
-            # nested loops, we want to handle the outer loop before proceeding
-            # the inner loop.
-            if state.addr in self.loops:
-                loop = self.loops[state.addr]
-                header = loop.entry.addr
-                exits = [e[1].addr for e in loop.break_edges]
+    def _process_loop(self, state):
+        if state.loop_data.current_loop:
+            loop = state.loop_data.current_loop[-1][0]
+            header = loop.entry.addr
 
-                state.loop_data.back_edge_trip_counts[header].append(0)
-                state.loop_data.header_trip_counts[header].append(0)
-                state.loop_data.current_loop.append((loop, exits))
+            if state.addr == header:
+                continue_addrs = [e[0].addr for e in loop.continue_edges]
+                if state.history.addr in continue_addrs:
+                    state.loop_data.back_edge_trip_counts[state.addr][-1] += 1
+                state.loop_data.header_trip_counts[state.addr][-1] += 1
 
-        simgr.step(stash=stash, **kwargs)
+            elif state.addr in state.loop_data.current_loop[-1][1]:
+                state.loop_data.current_loop.pop()
 
-        return simgr
+            l.debug("%s back edge based trip counts %s", state, state.loop_data.back_edge_trip_counts)
+            l.debug("%s header based trip counts %s", state, state.loop_data.header_trip_counts)
 
-    def successors(self, simgr, state, **kwargs):
+        # Loop entry detected. This test is put here because in case of
+        # nested loops, we want to handle the outer loop before proceeding
+        # the inner loop.
+        if state.addr in self.loops:
+            loop = self.loops[state.addr]
+            header = loop.entry.addr
+            exits = [e[1].addr for e in loop.break_edges]
+
+            state.loop_data.back_edge_trip_counts[header].append(0)
+            state.loop_data.header_trip_counts[header].append(0)
+            state.loop_data.current_loop.append((loop, exits))
+
+    def step_state(self, simgr, state, **kwargs):
+        block = state.block()
         node = self.cfg.get_any_node(state.addr)
-        if node is not None:
-            kwargs['num_inst'] = min(kwargs.get('num_inst', float('inf')), len(node.instruction_addrs))
-        return simgr.successors(state, **kwargs)
+        traversed_len = node.size
+
+        self._process_loop(state)
+        while node.size > 0 and traversed_len < block.size:
+            # get node successor
+            successors = node.successors
+            assert len(successors) == 1, "normalized cfgnode has multiple cfgnode successors"
+            old_node = node
+            node = successors[0]
+
+            # get state successor
+            successors = simgr.step_state(state, size=old_node.size, **kwargs)
+            assert None in successors and len(successors[None]) == 1, "normalized cfgnode has multiple state successors"
+            state = successors[None][0]
+
+            # update traversed length
+            traversed_len += node.size
+            self._process_loop(state)
+
+        return simgr.step_state(state, **kwargs)
 
     def _get_function(self, func):
         f = None
