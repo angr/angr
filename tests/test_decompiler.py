@@ -1,6 +1,6 @@
 
 import os
-
+import nose
 import angr
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
@@ -68,6 +68,9 @@ def test_decompiling_all_i386():
 
 
 def test_decompiling_aes_armel():
+    # EDG Says: This binary is invalid.
+    # Consider replacing with some real firmware
+    raise nose.SkipTest()
     bin_path = os.path.join(test_location, "armel", "aes")
     p = angr.Project(bin_path, auto_load_libs=False)
 
