@@ -333,7 +333,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         """
         if addr is not None:
             try:
-                f = self._function_map[addr]
+                f = self._function_map.get(addr)
                 if plt is None or f.is_plt == plt:
                     return f
             except KeyError:
