@@ -1744,10 +1744,9 @@ class CFGBase(Analysis):
                     continue
 
                 target = block.vex.next
-                # TODO: FIXME: EDG says: WHY???
                 if isinstance(target, pyvex.IRExpr.Const):  # pylint: disable=unidiomatic-typecheck
                     target_addr = target.con.value
-                elif isinstance(target, pyvex.IRConst.IRConst):  # pylint: disable=unidiomatic-typecheck
+                elif type(target) in (pyvex.IRConst.U16, pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
                     target_addr = target.value
                 elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
                     target_addr = target
