@@ -1877,7 +1877,7 @@ class CFGBase(Analysis):
 
             if candidate:
                 regs = {self.project.arch.sp_offset}
-                if hasattr(self.project.arch, 'bp_offset'):
+                if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
                     regs.add(self.project.arch.bp_offset)
                 sptracker = self.project.analyses.StackPointerTracker(src_function, regs, track_memory=self._sp_tracking_track_memory)
                 sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)

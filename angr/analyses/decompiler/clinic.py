@@ -112,7 +112,7 @@ class Clinic(Analysis):
         """
 
         regs = {self.project.arch.sp_offset}
-        if hasattr(self.project.arch, 'bp_offset'):
+        if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
             regs.add(self.project.arch.bp_offset)
         spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=self._sp_tracker_track_memory)
         if spt.inconsistent_for(self.project.arch.sp_offset):
