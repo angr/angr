@@ -19,7 +19,7 @@ class Clinic(Analysis):
     """
     A Clinic deals with AILments.
     """
-    def __init__(self, func, optimization_passes=None):
+    def __init__(self, func, optimization_passes=None, sp_tracker_track_memory=True):
 
         # Delayed import
         import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
@@ -30,6 +30,8 @@ class Clinic(Analysis):
 
         self._ail_manager = None
         self._blocks = { }
+
+        self._sp_tracker_track_memory = sp_tracker_track_memory
 
         # sanity checks
         if not self.kb.functions:
@@ -112,7 +114,7 @@ class Clinic(Analysis):
         regs = {self.project.arch.sp_offset}
         if hasattr(self.project.arch, 'bp_offset'):
             regs.add(self.project.arch.bp_offset)
-        spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=True)
+        spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=self._sp_tracker_track_memory)
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt

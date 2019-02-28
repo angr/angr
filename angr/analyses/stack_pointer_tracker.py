@@ -47,6 +47,25 @@ class Constant:
             raise CouldNotResolveException
 
 
+class Register:
+
+    __slots__ = ( 'offset', 'bitlen' )
+
+    def __init__(self, offset, bitlen):
+        self.offset = offset
+        self.bitlen = bitlen
+
+    def __hash__(self):
+        return hash((Register, self.offset))
+
+    def __eq__(self, other):
+        if type(other) is Register or isinstance(other, Register):
+            return self.offset == other.offset
+        return False
+
+    def __repr__(self):
+        return str(self.offset)
+
 class OffsetVal:
 
     __slots__ = ( '_reg', '_offset', )
@@ -65,7 +84,7 @@ class OffsetVal:
 
     def __add__(self, other):
         if type(other) is Constant:
-            return OffsetVal(self._reg, self._offset + other.val)
+            return OffsetVal(self._reg, (self._offset + other.val) & (2**self.reg.bitlen - 1))
         else:
             raise CouldNotResolveException
 
@@ -74,7 +93,7 @@ class OffsetVal:
 
     def __sub__(self, other):
         if type(other) is Constant:
-            return OffsetVal(self._reg, self._offset - other.val)
+            return OffsetVal(self._reg, self._offset - other.val & (2**self.reg.bitlen - 1))
         else:
             raise CouldNotResolveException
 
@@ -90,7 +109,7 @@ class OffsetVal:
         return hash((type(self), self._reg, self._offset))
 
     def __repr__(self):
-        return 'reg({})+{}'.format(self.reg, self.offset)
+        return 'reg({}){:+}'.format(self.reg, (self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0)
 
 class FrozenStackPointerTrackerState:
 
@@ -113,6 +132,14 @@ class FrozenStackPointerTrackerState:
     def merge(self, other):
         return self.unfreeze().merge(other.unfreeze()).freeze()
 
+    def __eq__(self, other):
+        if type(other) is FrozenStackPointerTrackerState or isinstance(other, FrozenStackPointerTrackerState):
+            cond1 = self.regs == other.regs and self.is_tracking_memory == other.is_tracking_memory
+            if self.is_tracking_memory:
+                cond1 &= self.memory == other.memory
+            return cond1
+        return False
+
 
 class StackPointerTrackerState:
 
@@ -120,7 +147,10 @@ class StackPointerTrackerState:
 
     def __init__(self, regs, memory, is_tracking_memory):
         self.regs = regs
-        self.memory = memory
+        if is_tracking_memory:
+            self.memory = memory
+        else:
+            self.memory = {}
         self.is_tracking_memory = is_tracking_memory
 
     def give_up_on_memory_tracking(self):
@@ -128,7 +158,7 @@ class StackPointerTrackerState:
         self.is_tracking_memory = False
 
     def store(self, addr, val):
-        if self.is_tracking_memory:
+        if self.is_tracking_memory and val is not None and addr is not None:
             self.memory[addr] = val
 
     def load(self, addr):
@@ -163,9 +193,13 @@ class StackPointerTrackerState:
                                               frozenset(self.memory.items()),
                                               self.is_tracking_memory)
 
+
     def __eq__(self, other):
         if type(other) is StackPointerTrackerState or isinstance(other, StackPointerTrackerState):
-            return self.regs == other.regs and self.memory == other.memory
+            cond1 = self.regs == other.regs and self.is_tracking_memory == other.is_tracking_memory
+            if self.is_tracking_memory:
+                cond1 &= self.memory == other.memory
+            return cond1
         return False
 
     def __hash__(self):
@@ -180,22 +214,16 @@ class StackPointerTrackerState:
                                         is_tracking_memory=self.is_tracking_memory and other.is_tracking_memory)
 
 
-class MergeException(Exception):
-    pass
-
-
 def _dict_merge(d1, d2):
     all_keys = set(d1.keys()) | set(d2.keys())
     merged = {}
     for k in all_keys:
-        if k in d1 and (k not in d2 or d2[k] is None):
-            merged[k] = d1[k]
-        elif k in d2 and (k not in d1 or d1[k] is None):
-            merged[k] = d2[k]
+        if k not in d1 or d1[k] is TOP:
+            pass # don't add it to the dict, which is the same as top
+        elif k not in d2 or d2[k] is TOP:
+            pass # don't add it to the dict, which is the same as top
         elif d1[k] == d2[k]:
             merged[k] = d1[k]
-        else:
-            raise MergeException
     return merged
 
 
@@ -227,6 +255,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self.regOffsets = regOffsets
         self.states = { }
 
+        _l.debug('RUNNING ON FUNCTION %s', self._func)
         self._analyze()
 
     def _state_for(self, addr, pre_or_post):
@@ -290,31 +319,29 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _post_analysis(self):
         pass
 
+    def _get_register(self, offset):
+        name = self.project.arch.register_names[offset]
+        size = self.project.arch.registers[name][1]
+        return Register(offset, size * self.project.arch.byte_width)
+
     def _initial_abstract_state(self, node : BlockNode):
-        return StackPointerTrackerState(regs={r : OffsetVal(r, 0) for r in self.regOffsets},
+        return StackPointerTrackerState(regs={r : OffsetVal(self._get_register(r), 0) for r in self.regOffsets},
                                         memory={},
                                         is_tracking_memory=self.track_mem).freeze()
 
     def _set_state(self, addr, new_val, pre_or_post):
         previous_val = self._state_for(addr, pre_or_post)
-        does_change = previous_val is not None and previous_val != new_val
-        if does_change:
-            _l.warning("Inconsistent stack pointers (original=%s, new=%s) at instruction %#x.",
-                       previous_val,
-                       new_val,
-                       addr
-                       )
-            self.abort()
+        if previous_val is not None:
+            new_val = previous_val.merge(new_val)
         if addr not in self.states:
             self.states[addr] = { }
         self.states[addr][pre_or_post] = new_val
-        return does_change
 
     def _set_post_state(self, addr, new_val):
-        return self._set_state(addr, new_val, 'post')
+        self._set_state(addr, new_val, 'post')
 
     def _set_pre_state(self, addr, new_val):
-        return self._set_state(addr, new_val, 'pre')
+        self._set_state(addr, new_val, 'pre')
 
     def _run_on_node(self, node : BlockNode, state):
         input_state = state
@@ -322,6 +349,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         block = self.project.factory.block(node.addr, size=node.size)
 
         state = state.unfreeze()
+        _l.debug('START:       Running on block at %x', node.addr)
+        _l.debug('Regs: %s', state.regs)
+        _l.debug('Mem: %s', state.memory)
         tmps = { }
         curr_stmt_start_addr = None
 
@@ -386,6 +416,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if curr_stmt_start_addr is not None:
             self._set_post_state(curr_stmt_start_addr, state.freeze())
 
+        _l.debug('FINISH:      After running on block at %x', node.addr)
+        _l.debug('Regs: %s', state.regs)
+        _l.debug('Mem: %s', state.memory)
+
         output_state = state.freeze()
         return output_state != input_state, output_state
 
@@ -400,14 +434,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _merge_states(self, node, *states):
 
         assert len(states) == 2
-        try:
-            return states[0].merge(states[1])
-        except MergeException:
-            _l.warning('Failed to merge stack pointer tracking states')
-            self.abort()
-
-        # return the first one. It's aborting anyway.
-        return states[0]
+        return states[0].merge(states[1])
 
 
 from ..analyses import AnalysesHub

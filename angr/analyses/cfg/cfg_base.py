@@ -63,7 +63,7 @@ class CFGBase(Analysis):
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
-                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
+                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False, sp_tracking_track_memory=True
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -83,6 +83,9 @@ class CFGBase(Analysis):
         :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
         :param bool detect_tail_calls:              Aggressive tail-call optimization detection. This option is only
                                                     respected in make_functions().
+        :param bool sp_tracking_track_memory:       Whether or not to track memory writes when tracking the stack pointer. This
+                                                    increases the accuracy of stack pointer tracking, especially for architectures
+                                                    without a base pointer. Only used if detect_tail_calls is enabled.
 
         :return: None
         """
@@ -121,6 +124,9 @@ class CFGBase(Analysis):
         self._normalize = normalize
         # Flag, whether the CFG has been normalized or not
         self._normalized = False
+
+        # Flag, whether to track memory writes in stack pointer tracking
+        self._sp_tracking_track_memory = sp_tracking_track_memory
 
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
@@ -1873,7 +1879,7 @@ class CFGBase(Analysis):
                 regs = {self.project.arch.sp_offset}
                 if hasattr(self.project.arch, 'bp_offset'):
                     regs.add(self.project.arch.bp_offset)
-                sptracker = self.project.analyses.StackPointerTracker(src_function, regs)
+                sptracker = self.project.analyses.StackPointerTracker(src_function, regs, track_memory=self._sp_tracking_track_memory)
                 sp_delta = sptracker.offset_after(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True
