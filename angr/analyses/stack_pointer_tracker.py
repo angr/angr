@@ -374,8 +374,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 return state.get(expr.offset)
             elif self.track_mem and type(expr) is pyvex.IRExpr.Load:
                 return state.load(_resolve_expr(expr.addr))
-            else:
-                raise CouldNotResolveException
+            raise CouldNotResolveException
 
         def resolve_expr(expr):
             try:
