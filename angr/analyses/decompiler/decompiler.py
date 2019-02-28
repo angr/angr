@@ -22,7 +22,7 @@ class Decompiler(Analysis):
         clinic = self.project.analyses.Clinic(self.func,
                                               kb=self.kb,
                                               optimization_passes=self._optimization_passes,
-                                              sp_pointer_track_memory=self._sp_tracker_track_memory)
+                                              sp_tracker_track_memory=self._sp_tracker_track_memory)
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, kb=self.kb)

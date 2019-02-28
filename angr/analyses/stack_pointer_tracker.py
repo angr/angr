@@ -236,7 +236,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     Track the offset of stack pointer at the end of each basic block of a function.
     """
 
-    def __init__(self, func : Function, regOffsets : set, track_memory=True):
+    def __init__(self, func : Function, reg_offsets : set, track_memory=True):
 
         super().__init__(
             order_jobs=False,
@@ -252,10 +252,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         self.track_mem = track_memory
         self._func = func
-        self.regOffsets = regOffsets
+        self.reg_offsets = reg_offsets
         self.states = { }
 
-        _l.debug('RUNNING ON FUNCTION %s', self._func)
+        _l.debug('Running on function %s', self._func)
         self._analyze()
 
     def _state_for(self, addr, pre_or_post):
@@ -269,7 +269,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return addr_map[pre_or_post]
 
     def _offset_for(self, addr, pre_or_post, reg):
-        regval = dict(self._state_for(addr, pre_or_post).regs)[reg]
+        try:
+            regval = dict(self._state_for(addr, pre_or_post).regs)[reg]
+        except KeyError:
+            return TOP
         if regval is TOP or type(regval) is Constant:
             return TOP
         else:
@@ -298,7 +301,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
     @property
     def inconsistent(self):
-        return any(self.inconsistent_for(r) for r in self.regOffsets)
+        return any(self.inconsistent_for(r) for r in self.reg_offsets)
 
     def inconsistent_for(self, reg):
         for endpoint in self._func.endpoints:
@@ -325,7 +328,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return Register(offset, size * self.project.arch.byte_width)
 
     def _initial_abstract_state(self, node : BlockNode):
-        return StackPointerTrackerState(regs={r : OffsetVal(self._get_register(r), 0) for r in self.regOffsets},
+        return StackPointerTrackerState(regs={r : OffsetVal(self._get_register(r), 0)
+                                                for r in self.reg_offsets},
                                         memory={},
                                         is_tracking_memory=self.track_mem).freeze()
 
@@ -395,7 +399,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 if curr_stmt_start_addr is not None:
                     # we've reached a new instruction. Time to store the post state
                     self._set_post_state(curr_stmt_start_addr, state.freeze())
-                curr_stmt_start_addr = stmt.addr
+                curr_stmt_start_addr = stmt.addr + stmt.delta
                 self._set_pre_state(curr_stmt_start_addr, state.freeze())
             else:
                 try:
@@ -404,7 +408,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     pass
 
         # stack pointer adjustment
-        if self.project.arch.sp_offset in self.regOffsets \
+        if self.project.arch.sp_offset in self.reg_offsets \
                 and block.vex.jumpkind == 'Ijk_Call' \
                 and self.project.arch.call_pushes_ret:
             try:
