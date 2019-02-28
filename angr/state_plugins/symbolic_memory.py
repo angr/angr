@@ -543,8 +543,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             r = self.state.solver.BVV(0, 0)
         return r
 
-    def _load(self, dst, size, condition=None, fallback=None,
-            inspect=True, events=True, ret_on_segv=False):
+    def _load(self, dst, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         if self.state.solver.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 

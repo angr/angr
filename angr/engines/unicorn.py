@@ -101,7 +101,7 @@ class SimEngineUnicorn(SimEngine):
         successors.sort = 'Unicorn'
 
         # add all instruction breakpoints as extra_stop_points
-        if state.has_plugin('inspect'):
+        if state.supports_inspect:
             for bp in state.inspect._breakpoints['instruction']:
                 # if there is an instruction breakpoint on every instruction, it does not make sense
                 # to use unicorn.
@@ -140,7 +140,7 @@ class SimEngineUnicorn(SimEngine):
         state.history.recent_description = description
 
         # this can be expensive, so check first
-        if state.has_plugin('inspect'):
+        if state.supports_inspect:
             for bp in state.inspect._breakpoints['irsb']:
                 if bp.check(state, BP_AFTER):
                     for bbl_addr in state.history.recent_bbl_addrs:

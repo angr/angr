@@ -163,6 +163,8 @@ class Project:
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
+        self._is_java_project = None
+        self._is_java_jni_project = None
 
         if self._support_selfmodifying_code:
             if self._translation_cache is True:
@@ -688,6 +690,25 @@ class Project:
     @property
     def use_sim_procedures(self):
         return self._should_use_sim_procedures
+
+    @property
+    def is_java_project(self):
+        """
+        Indicates if the project's main binary is a Java Archive.
+        """
+        if self._is_java_project is None:
+            self._is_java_project = isinstance(self.arch, ArchSoot)
+        return self._is_java_project
+
+    @property
+    def is_java_jni_project(self):
+        """
+        Indicates if the project's main binary is a Java Archive, which
+        interacts during its execution with native libraries (via JNI).
+        """
+        if self._is_java_jni_project is None:
+            self._is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
+        return self._is_java_jni_project
 
     #
     # Compatibility

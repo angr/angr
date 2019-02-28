@@ -93,6 +93,7 @@ class SimState(PluginHub):
             options -= remove_options
         self._options = options
         self.mode = mode
+        self.supports_inspect = False
 
         if plugin_preset is not None:
             self.use_plugin_preset(plugin_preset)
@@ -324,11 +325,11 @@ class SimState(PluginHub):
     #
 
     def _inspect(self, *args, **kwargs):
-        if self.has_plugin('inspect'):
+        if self.supports_inspect:
             self.inspect.action(*args, **kwargs)
 
     def _inspect_getattr(self, attr, default_value):
-        if self.has_plugin('inspect'):
+        if self.supports_inspect:
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
 
@@ -343,14 +344,13 @@ class SimState(PluginHub):
             # In case of the JavaVM with JNI support, a state can store the same plugin
             # twice; one for the native and one for the java view of the state.
             suffix = '_soot' if self.ip_is_soot_addr else '_vex'
-            name = name+suffix if self.has_plugin(name+suffix) else name
+            name = name + suffix if self.has_plugin(name + suffix) else name
         return super(SimState, self).get_plugin(name)
 
     def has_plugin(self, name):
         if self._is_java_jni_project:
             # In case of the JavaVM with JNI support, also check for toggled plugins.
-            return super(SimState, self).has_plugin(name)  or \
-                   super(SimState, self).has_plugin(name+'_soot')
+            return super(SimState, self).has_plugin(name) or super(SimState, self).has_plugin(name + '_soot')
         return super(SimState, self).has_plugin(name)
 
     def register_plugin(self, name, plugin, inhibit_init=False): # pylint: disable=arguments-differ
@@ -379,7 +379,7 @@ class SimState(PluginHub):
         """
         Indicates if the project's main binary is a Java Archive.
         """
-        return self.project and isinstance(self.project.arch, ArchSoot)
+        return self.project and self.project.is_java_project
 
     @property
     def _is_java_jni_project(self):
@@ -387,8 +387,7 @@ class SimState(PluginHub):
         Indicates if the project's main binary is a Java Archive, which
         interacts during its execution with native libraries (via JNI).
         """
-        return self.project and isinstance(self.project.arch, ArchSoot) and \
-               self.project.simos.is_javavm_with_jni_support
+        return self.project and self.project.is_java_jni_project
 
     @property
     def javavm_memory(self):

@@ -619,7 +619,7 @@ class JumpTableResolver(IndirectJumpResolver):
         else:
             raise TypeError("Unsupported address loading statement type %s." % type(load_stmt))
 
-        if load_addr_tmp not in state.scratch.temps:
+        if state.scratch.temps[load_addr_tmp] is None:
             # the tmp variable is not there... umm...
             return None
 

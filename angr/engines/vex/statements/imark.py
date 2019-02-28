@@ -1,8 +1,2 @@
-from . import SimIRStmt
-
-class SimIRStmt_IMark(SimIRStmt):
-
-    __slots__ = []
-
-    def _execute(self):
-        self.state.history.recent_instruction_count += 1
+def SimIRStmt_IMark(_engine, state, _stmt):
+    state.history.recent_instruction_count += 1

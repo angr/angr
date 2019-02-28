@@ -295,7 +295,7 @@ class SimLinux(SimUserland):
     def set_entry_register_values(self, state):
         for reg, val in state.arch.entry_register_values.items():
             if isinstance(val, int):
-                state.registers.store(reg, val, size=state.arch.bytes)
+                state.registers.store(reg, val)
             elif isinstance(val, (str,)):
                 if val == 'argc':
                     state.registers.store(reg, state.posix.argc, size=state.arch.bytes)

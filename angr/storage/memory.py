@@ -479,6 +479,8 @@ class SimMemory(SimStatePlugin):
                                      state options are respected.
         """
 
+        _inspect = inspect and self.state.supports_inspect
+
         if priv is not None: self.state.scratch.push_priv(priv)
 
         addr_e = _raw_ast(addr)
@@ -517,7 +519,7 @@ class SimMemory(SimStatePlugin):
         if not size_e.symbolic and (len(data_e) < size_e*self.state.arch.byte_width).is_true():
             raise SimMemoryError("Provided data is too short for this memory store")
 
-        if inspect is True:
+        if _inspect:
             if self.category == 'reg':
                 self.state._inspect(
                     'reg_write',
@@ -564,11 +566,12 @@ class SimMemory(SimStatePlugin):
             e.original_addr = addr_e
             raise
 
-        if inspect is True:
+        if _inspect:
             if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
-            if self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
+            elif self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
+            # tracer uses address_concretization_add_constraints
+            add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
 
-        add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
 
@@ -722,6 +725,9 @@ class SimMemory(SimStatePlugin):
 
             <A If(condition, BVV(0x41, 32), fallback)>
         """
+
+        _inspect = inspect and self.state.supports_inspect
+
         add_constraints = True if add_constraints is None else add_constraints
 
         addr_e = _raw_ast(addr)
@@ -741,7 +747,7 @@ class SimMemory(SimStatePlugin):
             size = self.state.arch.bits // self.state.arch.byte_width
             size_e = size
 
-        if inspect is True:
+        if _inspect:
             if self.category == 'reg':
                 self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e,
                                     reg_read_condition=condition_e
@@ -766,12 +772,15 @@ class SimMemory(SimStatePlugin):
             self._constrain_underconstrained_index(addr_e)
 
         try:
-            a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=inspect,
+            a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=_inspect,
                                events=not disable_actions, ret_on_segv=ret_on_segv)
         except SimSegfaultError as e:
             e.original_addr = addr_e
             raise
-        add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
+        if _inspect:
+            # tracer uses address_concretization_add_constraints to overwrite the add_constraints value
+            # TODO: Make this logic less arbitrary
+            add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and c:
             self.state.add_constraints(*c)
 
@@ -795,7 +804,7 @@ class SimMemory(SimStatePlugin):
         if endness == "Iend_LE":
             r = r.reversed
 
-        if inspect is True:
+        if _inspect:
             if self.category == 'mem':
                 self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
                 r = self.state._inspect_getattr("mem_read_expr", r)
