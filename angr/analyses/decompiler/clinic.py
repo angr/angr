@@ -5,12 +5,11 @@ import networkx
 
 import ailment
 
-from ...knowledge_base import KnowledgeBase
-from ...codenode import BlockNode
-from ..calling_convention import CallingConventionAnalysis
 from .. import Analysis, register_analysis
-from .optimization_passes import get_optimization_passes
-
+from ...codenode import BlockNode
+from ...knowledge_base import KnowledgeBase
+from ..calling_convention import CallingConventionAnalysis
+from .optimization_passes import get_unstructured_optimization_passes
 
 l = logging.getLogger(name=__name__)
 
@@ -38,7 +37,7 @@ class Clinic(Analysis):
         if optimization_passes is not None:
             self._optimization_passes = optimization_passes
         else:
-            self._optimization_passes = get_optimization_passes(self.project.arch, self.project.simos.name)
+            self._optimization_passes = get_unstructured_optimization_passes(self.project.arch, self.project.simos.name)
             l.debug("Get %d optimziation passes for the current binary.", len(self._optimization_passes))
 
         self._analyze()
