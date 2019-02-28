@@ -946,24 +946,27 @@ class SimIROp(object):
 # Op Handler
 #
 
-def translate(state, op, s_args):
-    if op in operations:
-        return translate_inner(state, operations[op], s_args)
-    elif options.EXTENDED_IROP_SUPPORT in state.options:
-        try:
-            l.info("Using our imagination for op " + op)
-            attrs = op_attrs(op)
-            if attrs is None:
-                raise SimOperationError
-            irop = SimIROp(op, **attrs)
-        except SimOperationError:
-            l.info("...failed to make op")
-        else:
-            operations[op] = irop
-            return translate_inner(state, irop, s_args)
+def vexop_to_simop(op, extended=True):
+    res = operations.get(op)
+    if res is None and extended:
+        attrs = op_attrs(op)
+        if attrs is None:
+            raise SimOperationError
+        res = SimIROp(op, **attrs)
+    if res is None:
+        raise SimOperationError
+    return res
 
-    l.error("Unsupported operation: %s", op)
-    raise UnsupportedIROpError("Unsupported operation: %s" % op)
+
+def translate(state, op, s_args):
+    try:
+        simop = vexop_to_simop(op, options.EXTENDED_IROP_SUPPORT in state.options)
+    except SimOperationError:
+        error = 'Unsupported operation: %s' % op
+        l.error(error)
+        raise UnsupportedIROpError(error)
+    return translate_inner(state, simop, s_args)
+
 
 def translate_inner(state, irop, s_args):
     try:
