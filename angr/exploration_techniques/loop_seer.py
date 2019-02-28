@@ -128,6 +128,10 @@ class LoopSeer(ExplorationTechnique):
             state.loop_data.current_loop.append((loop, exits))
 
     def step_state(self, simgr, state, **kwargs):
+
+        if state.project.is_hooked(state.addr):
+            return simgr.step_state(state, **kwargs)
+
         block = state.block()
         node = self.cfg.get_any_node(state.addr)
         traversed_len = node.size
