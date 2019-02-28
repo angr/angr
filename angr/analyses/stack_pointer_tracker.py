@@ -24,12 +24,12 @@ class Constant:
         self.val = val
 
     def __eq__(self, other):
-        if type(other) is not type(self):
-            return False
-        return self.val == other.val
+        if type(other) is Constant or isinstance(other, Constant):
+            return self.val == other.val
+        return False
 
     def __hash__(self):
-        return hash((type(self), self.val))
+        return hash((Constant, self.val))
 
     def __repr__(self):
         return repr(self.val)
@@ -82,9 +82,9 @@ class OffsetVal:
         raise CouldNotResolveException
 
     def __eq__(self, other):
-        if type(other) is not type(self):
-            return False
-        return self.reg == other.reg and self.offset == other.offset
+        if type(other) is OffsetVal or isinstance(other, OffsetVal):
+            return self.reg == other.reg and self.offset == other.offset
+        return False
 
     def __hash__(self):
         return hash((type(self), self._reg, self._offset))
@@ -92,36 +92,48 @@ class OffsetVal:
     def __repr__(self):
         return 'reg({})+{}'.format(self.reg, self.offset)
 
-class FrozenRegisterDeltaTrackerState:
+class FrozenStackPointerTrackerState:
 
-    __slots__ = 'regs', 'memory'
+    __slots__ = 'regs', 'memory', 'is_tracking_memory'
 
-    def __init__(self, regs, memory):
+    def __init__(self, regs, memory, is_tracking_memory):
         self.regs = regs
         self.memory = memory
+        self.is_tracking_memory = is_tracking_memory
 
     def unfreeze(self):
-        return RegisterDeltaTrackerState(dict(self.regs), dict(self.memory))
+        return StackPointerTrackerState(dict(self.regs), dict(self.memory), self.is_tracking_memory)
 
     def __hash__(self):
-        return hash((type(self), self.regs, self.memory))
+        if self.is_tracking_memory:
+            return hash((FrozenStackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory))
+        else:
+            return hash((FrozenStackPointerTrackerState, self.regs, self.is_tracking_memory))
 
     def merge(self, other):
         return self.unfreeze().merge(other.unfreeze()).freeze()
 
 
-class RegisterDeltaTrackerState:
+class StackPointerTrackerState:
 
-    __slots__ = 'regs', 'memory'
+    __slots__ = 'regs', 'memory', 'is_tracking_memory'
 
-    def __init__(self, regs, memory):
+    def __init__(self, regs, memory, is_tracking_memory):
         self.regs = regs
         self.memory = memory
+        self.is_tracking_memory = is_tracking_memory
+
+    def give_up_on_memory_tracking(self):
+        self.memory = {}
+        self.is_tracking_memory = False
 
     def store(self, addr, val):
-        self.memory[addr] = val
+        if self.is_tracking_memory:
+            self.memory[addr] = val
 
     def load(self, addr):
+        if not self.is_tracking_memory:
+            return TOP
         try:
             val = self.memory[addr]
             if val is not TOP:
@@ -144,22 +156,28 @@ class RegisterDeltaTrackerState:
             self.regs[reg] = val
 
     def copy(self):
-        return RegisterDeltaTrackerState(self.regs.copy(), self.memory.copy())
+        return StackPointerTrackerState(self.regs.copy(), self.memory.copy(), self.is_tracking_memory)
 
     def freeze(self):
-        return FrozenRegisterDeltaTrackerState(list(self.regs.items()), list(self.memory.items()))
+        return FrozenStackPointerTrackerState(frozenset(self.regs.items()),
+                                              frozenset(self.memory.items()),
+                                              self.is_tracking_memory)
 
     def __eq__(self, other):
-        return type(self) == type(other) and \
-                self.regs == other.regs and \
-                self.memory == other.memory
+        if type(other) is StackPointerTrackerState or isinstance(other, StackPointerTrackerState):
+            return self.regs == other.regs and self.memory == other.memory
+        return False
 
     def __hash__(self):
-        return hash(type(self), (self.regs, self.memory))
+        if self.is_tracking_memory:
+            return hash(StackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory)
+        else:
+            return hash(StackPointerTrackerState, self.regs, self.is_tracking_memory)
 
     def merge(self, other):
-        return RegisterDeltaTrackerState(regs=_dict_merge(self.regs, other.regs),
-                                         memory=_dict_merge(self.memory, other.memory))
+        return StackPointerTrackerState(regs=_dict_merge(self.regs, other.regs),
+                                        memory=_dict_merge(self.memory, other.memory),
+                                        is_tracking_memory=self.is_tracking_memory and other.is_tracking_memory)
 
 
 class MergeException(Exception):
@@ -185,17 +203,17 @@ class CouldNotResolveException(Exception):
     pass
 
 
-class RegisterDeltaTracker(Analysis, ForwardAnalysis):
+class StackPointerTracker(Analysis, ForwardAnalysis):
     """
     Track the offset of stack pointer at the end of each basic block of a function.
     """
 
-    def __init__(self, func : Function, regOffsets : set):
+    def __init__(self, func : Function, regOffsets : set, track_memory=True):
 
         super().__init__(
             order_jobs=False,
             allow_merging=True,
-            allow_widening=False,
+            allow_widening=track_memory,
             graph_visitor=FunctionGraphVisitor(func)
         )
 
@@ -204,10 +222,10 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
             func = func.copy()
             func.normalize()
 
+        self.track_mem = track_memory
         self._func = func
         self.regOffsets = regOffsets
         self.states = { }
-        self.inconsistent = False
 
         self._analyze()
 
@@ -249,6 +267,10 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
         else:
             return self.offset_before(instr_addrs[0], reg)
 
+    @property
+    def inconsistent(self):
+        return any(self.inconsistent_for(r) for r in self.regOffsets)
+
     def inconsistent_for(self, reg):
         for endpoint in self._func.endpoints:
             if self.offset_after_block(endpoint.addr, reg) is TOP:
@@ -269,14 +291,14 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
         pass
 
     def _initial_abstract_state(self, node : BlockNode):
-        return RegisterDeltaTrackerState(regs={r : OffsetVal(r, 0) for r in self.regOffsets},
-                                         memory={}).freeze()
+        return StackPointerTrackerState(regs={r : OffsetVal(r, 0) for r in self.regOffsets},
+                                        memory={},
+                                        is_tracking_memory=self.track_mem).freeze()
 
     def _set_state(self, addr, new_val, pre_or_post):
         previous_val = self._state_for(addr, pre_or_post)
         does_change = previous_val is not None and previous_val != new_val
         if does_change:
-            self.inconsistent = True
             _l.warning("Inconsistent stack pointers (original=%s, new=%s) at instruction %#x.",
                        previous_val,
                        new_val,
@@ -316,7 +338,7 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
                 return Constant(expr.con.value)
             elif type(expr) is pyvex.IRExpr.Get:
                 return state.get(expr.offset)
-            elif type(expr) is pyvex.IRExpr.Load:
+            elif self.track_mem and type(expr) is pyvex.IRExpr.Load:
                 return state.load(_resolve_expr(expr.addr))
             else:
                 raise CouldNotResolveException
@@ -330,7 +352,7 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
         def resolve_stmt(stmt):
             if type(stmt) is pyvex.IRStmt.WrTmp:
                 tmps[stmt.tmp] = resolve_expr(stmt.data)
-            elif type(stmt) is pyvex.IRStmt.Store:
+            elif self.track_mem and type(stmt) is pyvex.IRStmt.Store:
                 state.store(resolve_expr(stmt.addr), resolve_expr(stmt.data))
             elif type(stmt) is pyvex.IRStmt.Put:
                 state.put(stmt.offset, resolve_expr(stmt.data))
@@ -367,6 +389,14 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
         output_state = state.freeze()
         return output_state != input_state, output_state
 
+    def _widen_states(self, *states):
+        assert len(states) == 2
+        merged = self._merge_states(None, *states)
+        if len(merged.memory) > 5:
+            _l.info('Encountered too many memory writes in stack pointer tracking. Abandoning memory tracking.')
+            merged = merged.unfreeze().give_up_on_memory_tracking().freeze()
+        return merged
+
     def _merge_states(self, node, *states):
 
         assert len(states) == 2
@@ -381,4 +411,4 @@ class RegisterDeltaTracker(Analysis, ForwardAnalysis):
 
 
 from ..analyses import AnalysesHub
-AnalysesHub.register_default('RegisterDeltaTracker', RegisterDeltaTracker)
+AnalysesHub.register_default('StackPointerTracker', StackPointerTracker)

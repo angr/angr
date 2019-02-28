@@ -112,7 +112,7 @@ class Clinic(Analysis):
         regs = {self.project.arch.sp_offset}
         if hasattr(self.project.arch, 'bp_offset'):
             regs.add(self.project.arch.bp_offset)
-        spt = self.project.analyses.RegisterDeltaTracker(self.function, regs)
+        spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=True)
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
