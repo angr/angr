@@ -136,13 +136,13 @@ class LoopSeer(ExplorationTechnique):
         while node.size > 0 and traversed_len < block.size:
             # get node successor
             successors = node.successors
-            assert len(successors) == 1, "normalized cfgnode has multiple cfgnode successors"
+            assert len(successors) == 1, "normalized CFGNode has multiple CFGNode successors"
             old_node = node
             node = successors[0]
 
             # get state successor
             successors = simgr.step_state(state, size=old_node.size, **kwargs)
-            assert None in successors and len(successors[None]) == 1, "normalized cfgnode has multiple state successors"
+            assert None in successors and len(successors[None]) == 1, "normalized CFGNode has multiple state successors"
             state = successors[None][0]
 
             # update traversed length
