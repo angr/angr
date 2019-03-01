@@ -3,10 +3,11 @@ from .. import Analysis, AnalysesHub
 
 
 class Decompiler(Analysis):
-    def __init__(self, func, cfg=None, optimization_passes=None):
+    def __init__(self, func, cfg=None, optimization_passes=None, sp_tracker_track_memory=True):
         self.func = func
         self._cfg = cfg
         self._optimization_passes = optimization_passes
+        self._sp_tracker_track_memory = sp_tracker_track_memory
 
         self.codegen = None
 
@@ -18,7 +19,10 @@ class Decompiler(Analysis):
             return
 
         # convert function blocks to AIL blocks
-        clinic = self.project.analyses.Clinic(self.func, kb=self.kb, optimization_passes=self._optimization_passes)
+        clinic = self.project.analyses.Clinic(self.func,
+                                              kb=self.kb,
+                                              optimization_passes=self._optimization_passes,
+                                              sp_tracker_track_memory=self._sp_tracker_track_memory)
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, kb=self.kb)
