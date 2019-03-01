@@ -706,8 +706,11 @@ class JumpTableResolver(IndirectJumpResolver):
             # LoadG comes with a guard. We should apply this guard to the load expression
             guard_tmp = load_stmt.guard.tmp
             guard = state.scratch.temps[guard_tmp] != 0
-            jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
-
+            try:
+                jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
+            except:
+                l.exception("Error computing jump table address!")
+                return None
         return jump_addr
 
     def _is_jumptarget_legal(self, target):
