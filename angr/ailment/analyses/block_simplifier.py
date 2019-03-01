@@ -114,6 +114,9 @@ class BlockSimplifier(Analysis):
                 if type(stmt.dst) is Register and self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size):
                     continue
 
+                if stmt.src == stmt.dst:
+                    continue
+
             new_statements.append(stmt)
 
         new_block = block.copy()
