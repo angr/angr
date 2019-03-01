@@ -2,7 +2,7 @@
 import logging
 
 import pyvex
-from angr.engines.vex.irop import operations as vex_operations
+from angr.engines.vex.irop import vexop_to_simop
 
 from .block import Block
 from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement
@@ -22,11 +22,9 @@ class Converter:
 
 
 class VEXExprConverter(Converter):
-
     @staticmethod
     def generic_name_from_vex_op(vex_op):
-        simop = vex_operations[vex_op]
-        return simop._generic_name
+        return vexop_to_simop(vex_op)._generic_name
 
     @staticmethod
     def convert(expr, manager):
@@ -35,13 +33,15 @@ class VEXExprConverter(Converter):
         :param expr:
         :return:
         """
-        try:
-            func = EXPRESSION_MAPPINGS[type(expr)]
-        except KeyError:
-            l.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
-            return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
+        func = EXPRESSION_MAPPINGS.get(type(expr))
+        if func is not None:
+            return func(expr, manager)
 
-        return func(expr, manager)
+        if isinstance(expr, pyvex.const.IRConst):
+            return VEXExprConverter.const_n(expr, manager)
+
+        l.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
+        return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
 
     @staticmethod
     def convert_list(exprs, manager):
@@ -82,7 +82,7 @@ class VEXExprConverter(Converter):
         op_name = VEXExprConverter.generic_name_from_vex_op(expr.op)
         if op_name is None:
             # is it a convertion?
-            simop = vex_operations[expr.op]
+            simop = vexop_to_simop(expr.op)
             if simop._conversion:
                 return Convert(manager.next_atom(),
                                simop._from_size,
@@ -121,14 +121,9 @@ class VEXExprConverter(Converter):
         return Const(manager.next_atom(), None, expr.con.value, expr.result_size(manager.tyenv))
 
     @staticmethod
-    def const_32(expr, manager):
+    def const_n(expr, manager):
         # pyvex.const.xxx
-        return Const(manager.next_atom(), None, expr.value, 32)
-
-    @staticmethod
-    def const_64(expr, manager):
-        # pyvex.const.xxx
-        return Const(manager.next_atom(), None, expr.value, 64)
+        return Const(manager.next_atom(), None, expr.value, expr.size)
 
     @staticmethod
     def ITE(expr, manager):
@@ -145,8 +140,8 @@ EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.Unop: VEXExprConverter.Unop,
     pyvex.IRExpr.Binop: VEXExprConverter.Binop,
     pyvex.IRExpr.Const: VEXExprConverter.Const,
-    pyvex.const.U32: VEXExprConverter.const_32,
-    pyvex.const.U64: VEXExprConverter.const_64,
+    pyvex.const.U32: VEXExprConverter.const_n,
+    pyvex.const.U64: VEXExprConverter.const_n,
     pyvex.IRExpr.Load: VEXExprConverter.Load,
     pyvex.IRExpr.ITE: VEXExprConverter.ITE,
 }
