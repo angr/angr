@@ -133,7 +133,7 @@ class PluginHub(object):
         Discard the current active preset. Will release any active plugins that could have come from the old preset.
         """
         if self.has_plugin_preset:
-            for name, plugin in self._active_plugins.items():
+            for name, plugin in list(self._active_plugins.items()):
                 if id(plugin) in self._provided_by_preset:
                     self.release_plugin(name)
             self._active_preset.deactivate(self)
