@@ -20,7 +20,7 @@ def test_callsite_maker():
     new_cc_found = True
     while new_cc_found:
         new_cc_found = False
-        for func in cfg.kb.functions.itervalues():
+        for func in cfg.kb.functions.values():
             if func.calling_convention is None:
                 # determine the calling convention of each function
                 cc_analysis = project.analyses.CallingConvention(func)
@@ -33,12 +33,12 @@ def test_callsite_maker():
     for block in sorted(main_func.blocks, key=lambda x: x.addr):
         print(block.vex.pp())
         ail_block = ailment.IRSBConverter.convert(block.vex, manager)
-        simp = project.analyses.AILSimplifier(ail_block)
+        simp = project.analyses.AILBlockSimplifier(ail_block)
 
         csm = project.analyses.AILCallSiteMaker(simp.result_block)
         if csm.result_block:
             ail_block = csm.result_block
-            simp = project.analyses.AILSimplifier(ail_block)
+            simp = project.analyses.AILBlockSimplifier(ail_block)
 
         print(simp.result_block)
 
