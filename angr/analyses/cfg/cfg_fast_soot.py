@@ -11,6 +11,7 @@ from ...errors import AngrCFGError, SimMemoryError, SimEngineError
 from ...codenode import HookNode, SootBlockNode
 from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
 from .cfg_node import CFGNode
+from .cfg_arch_options import CFGArchOptions
 
 l = logging.getLogger(name=__name__)
 
@@ -34,7 +35,10 @@ class CFGFastSoot(CFGFast):
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
-        super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
+        self._ignored_packages = kwargs.get('ignored_packages', [])
+        super(CFGFastSoot, self).__init__(regions=SortedDict({}),
+                                          arch_options=CFGArchOptions(self.project.arch),
+                                          **kwargs)
 
     def _pre_analysis(self):
 
@@ -87,6 +91,10 @@ class CFGFastSoot(CFGFast):
 
         # add all other methods as well
         for cls in self.project.loader.main_object.classes.values():
+            if any([cls.name.startswith(package) for package in self._ignored_packages]):
+                # skip classes in ignored packages
+                l.debug('Ignoring class {}'.format(cls.name))
+                continue
             for method in cls.methods:
                 total_methods += 1
                 if method.blocks:
@@ -147,6 +155,10 @@ class CFGFastSoot(CFGFast):
 
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
+
+        if block is None:
+            # block can be None if the method is native
+            return [ ]
 
         block_id = block.idx
 
