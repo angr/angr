@@ -134,6 +134,9 @@ class LoopSeer(ExplorationTechnique):
 
         block = state.block()
         node = self.cfg.get_any_node(state.addr)
+        if node is None:
+            return simgr.step_state(state, **kwargs)
+
         traversed_len = node.size
 
         self._process_loop(state)
