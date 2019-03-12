@@ -2,43 +2,31 @@ import logging
 from collections import defaultdict
 from functools import reduce
 
+import claripy
 import angr # type annotations; pylint: disable=unused-import
 
-from .. import Analysis
-
-from .annotations import StackLocationAnnotation
+from ... import BP, BP_AFTER
+from ...sim_variable import SimRegisterVariable, SimStackVariable
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ... import BP, BP_AFTER
-from ...keyed_region import KeyedRegion
-from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
+from .annotations import StackLocationAnnotation
 
 l = logging.getLogger(name=__name__)
 
 
-class VariableRecoveryState:
+class VariableRecoveryState(VariableRecoveryStateBase):
     """
     The abstract state of variable recovery analysis.
 
     :ivar angr.knowledge.variable_manager.VariableManager variable_manager: The variable manager.
     """
 
-    def __init__(self, variable_manager, arch, func_addr, concrete_states, stack_region=None, register_region=None):
-        self.variable_manager = variable_manager  # type: angr.knowledge_plugins.variables.variable_manager.VariableManager
-        self.arch = arch
-        self.func_addr = func_addr
+    def __init__(self, block_addr, analysis, arch, func, concrete_states, stack_region=None, register_region=None):
+
+        super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region)
+
         self._concrete_states = concrete_states
-
-        # self._state_per_instruction = { }
-        if stack_region is not None:
-            self.stack_region = stack_region
-        else:
-            self.stack_region = KeyedRegion()
-        if register_region is not None:
-            self.register_region = register_region
-        else:
-            self.register_region = KeyedRegion()
-
         # register callbacks
         self.register_callbacks(self.concrete_states)
 
@@ -68,9 +56,10 @@ class VariableRecoveryState:
 
     def copy(self):
 
-        state = VariableRecoveryState(self.variable_manager,
+        state = VariableRecoveryState(self.block_addr,
+                                      self._analysis,
                                       self.arch,
-                                      self.func_addr,
+                                      self.function,
                                       self._concrete_states,
                                       stack_region=self.stack_region.copy(),
                                       register_region=self.register_region.copy(),
@@ -102,7 +91,7 @@ class VariableRecoveryState:
                                                   )
             concrete_state.inspect.add_breakpoint('mem_write', BP(enabled=True, action=self._hook_memory_write))
 
-    def merge(self, other):
+    def merge(self, other, successor=None):
         """
         Merge two abstract states.
 
@@ -111,17 +100,19 @@ class VariableRecoveryState:
         :rtype:                             VariableRecoveryState
         """
 
-        # TODO: finish it
+        replacements = {}
+        if successor in self.dominance_frontiers:
+            replacements = self._make_phi_variables(successor, self, other)
 
         merged_concrete_states =  [ self._concrete_states[0] ] # self._merge_concrete_states(other)
 
-        new_stack_region = self.stack_region.copy()
-        new_stack_region.merge(other.stack_region)
+        new_stack_region = self.stack_region.copy().replace(replacements)
+        new_stack_region.merge(other.stack_region, replacements=replacements)
 
-        new_register_region = self.register_region.copy()
-        new_register_region.merge(other.register_region)
+        new_register_region = self.register_region.copy().replace(replacements)
+        new_register_region.merge(other.register_region, replacements=replacements)
 
-        return VariableRecoveryState(self.variable_manager, self.arch, self.func_addr, merged_concrete_states,
+        return VariableRecoveryState(successor, self._analysis, self.arch, self.function, merged_concrete_states,
                                      stack_region=new_stack_region,
                                      register_region=new_register_region
                                      )
@@ -151,6 +142,12 @@ class VariableRecoveryState:
     def _hook_register_read(self, state):
 
         reg_read_offset = state.inspect.reg_read_offset
+        if isinstance(reg_read_offset, claripy.ast.BV):
+            if reg_read_offset.multivalued:
+                # Multi-valued register offsets are not supported
+                l.warning("Multi-valued register offsets are not supported.")
+                return
+            reg_read_offset = state.solver.eval(reg_read_offset)
         reg_read_length = state.inspect.reg_read_length
 
         if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bytes:
@@ -175,6 +172,12 @@ class VariableRecoveryState:
     def _hook_register_write(self, state):
 
         reg_write_offset = state.inspect.reg_write_offset
+        if isinstance(reg_write_offset, claripy.ast.BV):
+            if reg_write_offset.multivalued:
+                # Multi-valued register offsets are not supported
+                l.warning("Multi-valued register offsets are not supported.")
+                return
+            reg_write_offset = state.solver.eval(reg_write_offset)
 
         if reg_write_offset == state.arch.sp_offset:
             # it's updating stack pointer. skip
@@ -188,15 +191,20 @@ class VariableRecoveryState:
 
         state.inspect.reg_write_expr = reg_write_expr
 
-        # create the variable
-        variable = SimRegisterVariable(reg_write_offset, reg_write_length,
-                                       ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                       region=self.func_addr,
-                                       )
-        var_offset = self._normalize_register_offset(reg_write_offset)
-        self.register_region.set_variable(var_offset, variable)
-        # record this variable in variable manager
-        self.variable_manager[self.func_addr].add_variable('register', var_offset, variable)
+        existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(state.scratch.bbl_addr,
+                                                                                     state.scratch.stmt_idx,
+                                                                                     'register')
+        if not existing_vars:
+            # create the variable
+            variable = SimRegisterVariable(reg_write_offset, reg_write_length,
+                                           ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
+                                           region=self.func_addr,
+                                           )
+            var_offset = self._normalize_register_offset(reg_write_offset)
+            self.register_region.set_variable(var_offset, variable)
+            # record this variable in variable manager
+            self.variable_manager[self.func_addr].set_variable('register', var_offset, variable)
+            self.variable_manager[self.func_addr].write_to(variable, 0, self._codeloc_from_state(state))
 
         # is it writing a pointer to a stack variable into the register?
         # e.g. lea eax, [ebp-0x40]
@@ -206,7 +214,8 @@ class VariableRecoveryState:
             # unfortunately we don't know the size. We use size None for now.
 
             if stack_offset not in self.stack_region:
-                new_var = SimStackVariable(stack_offset, None, base='bp',
+                lea_size = 1
+                new_var = SimStackVariable(stack_offset, lea_size, base='bp',
                                             ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                             region=self.func_addr,
                                             )
@@ -254,18 +263,13 @@ class VariableRecoveryState:
 
             if len(existing_variables) > 1:
                 # create a phi node for all other variables
-                ident_sort = 'argument' if stack_offset > 0 else 'stack'
-                variable = SimStackVariablePhi(
-                    ident=self.variable_manager[self.func_addr].next_variable_ident(ident_sort),
-                    region=self.func_addr,
-                    variables=existing_variables,
-                )
-                self.stack_region.set_variable(stack_offset, variable)
+                l.warning("Reading memory with overlapping variables: %s. Ignoring all but the first one.",
+                          existing_variables)
 
-                self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-
-            for variable in self.stack_region.get_variables_by_offset(stack_offset):
-                self.variable_manager[self.func_addr].read_from(variable, stack_offset - base_offset, self._codeloc_from_state(state))
+            if existing_variables:
+                variable = next(iter(existing_variables))
+                self.variable_manager[self.func_addr].read_from(variable, stack_offset - base_offset,
+                                                                self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):
 
@@ -368,7 +372,7 @@ class VariableRecoveryState:
         return self._to_signed(offset)
 
 
-class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-method
+class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=abstract-method
     """
     Recover "variables" from a function using forced execution.
 
@@ -381,8 +385,8 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
     This analysis uses heuristics to identify and recovers the following types of variables:
     - Register variables.
     - Stack variables.
-    - Heap variables.
-    - Global variables.
+    - Heap variables.  (not implemented yet)
+    - Global variables.  (not implemented yet)
 
     This analysis takes a function as input, and performs a data-flow analysis on nodes. It runs concrete execution on
     every statement and hooks all register/memory accesses to discover all places that are accessing variables. It is
@@ -404,15 +408,10 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
 
         function_graph_visitor = FunctionGraphVisitor(func)
 
+        VariableRecoveryBase.__init__(self, func, max_iterations)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
-        self.function = func
-        self._node_to_state = { }
-
-        self.variable_manager = self.kb.variables
-
-        self._max_iterations = max_iterations
         self._node_iterations = defaultdict(int)
 
         self._analyze()
@@ -422,7 +421,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
     #
 
     def _pre_analysis(self):
-        pass
+        self.initialize_dominance_frontiers()
 
     def _pre_job_handling(self, job):
         pass
@@ -440,22 +439,23 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
         # give it enough stack space
         concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        return VariableRecoveryState(self.variable_manager, self.project.arch, self.function.addr, [ concrete_state ])
+        return VariableRecoveryState(node.addr, self, self.project.arch, self.function, [ concrete_state ])
 
     def _merge_states(self, node, *states):
 
         if len(states) == 1:
             return states[0]
 
-        return reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
+        return reduce(lambda s_0, s_1: s_0.merge(s_1, successor=node.addr), states[1:], states[0])
 
     def _run_on_node(self, node, state):
         """
+        Take an input abstract state, execute the node, and derive an output state.
 
-
-        :param angr.Block node:
-        :param VariableRecoveryState state:
-        :return:
+        :param angr.Block node:             The node to work on.
+        :param VariableRecoveryState state: The input state.
+        :return:                            A tuple of (changed, new output state).
+        :rtype:                             tuple
         """
 
         l.debug('Analyzing block %#x, iteration %d.', node.addr, self._node_iterations[node])
@@ -468,6 +468,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
             return False, state
 
         state = state.copy()
+        self._instates[node.addr] = state
 
         if self._node_iterations[node] >= self._max_iterations:
             l.debug('Skip node %s as we have iterated %d times on it.', node, self._node_iterations[node])
@@ -485,7 +486,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
 
         state.concrete_states = [ state for state in output_states if not state.ip.symbolic ]
 
-        self._node_to_state[node.addr] = state
+        self._outstates[node.addr] = state
 
         self._node_iterations[node] += 1
 
@@ -498,7 +499,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-met
         # TODO: only re-assign variable names to those that are newly changed
         self.variable_manager.initialize_variable_names()
 
-        for addr, state in self._node_to_state.items():
+        for addr, state in self._outstates.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,
                                                                          state.register_region,
                                                                          state.stack_region

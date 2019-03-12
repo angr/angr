@@ -1,6 +1,7 @@
 import sys
 import logging
 
+from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
@@ -28,7 +29,10 @@ class SimEngine(object):
         """
         inline = kwargs.pop('inline', False)
         force_addr = kwargs.pop('force_addr', None)
-        addr = state.solver.eval(state._ip) if force_addr is None else force_addr
+
+        ip = state._ip
+        addr = (ip if isinstance(ip, SootAddressDescriptor) else state.solver.eval(ip)) \
+            if force_addr is None else force_addr
 
         # make a copy of the initial state for actual processing, if needed
         if not inline and o.COPY_STATES in state.options:
@@ -45,7 +49,8 @@ class SimEngine(object):
         # to avoid creating a dead link in the history, messing up the statehierarchy
         new_state.register_plugin('history', old_state.history.make_child())
         new_state.history.recent_bbl_addrs.append(addr)
-        new_state.scratch.executed_pages_set = {addr & ~0xFFF}
+        if new_state.arch.unicorn_support:
+            new_state.scratch.executed_pages_set = {addr & ~0xFFF}
 
         successors = SimSuccessors(addr, old_state)
 
@@ -62,7 +67,8 @@ class SimEngine(object):
         successors = new_state._inspect_getattr('sim_successors', successors)
 
         # downsizing
-        new_state.inspect.downsize()
+        if new_state.supports_inspect:
+            new_state.inspect.downsize()
         # if not TRACK, clear actions on OLD state
         #if o.TRACK_ACTION_HISTORY not in old_state.options:
         #    old_state.history.recent_events = []

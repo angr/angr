@@ -1,5 +1,2 @@
-from . import SimIRStmt
-
-class SimIRStmt_MBE(SimIRStmt):
-    def _execute(self):
-        pass
+def SimIRStmt_MBE(_engine, _state, _stmt):
+    pass

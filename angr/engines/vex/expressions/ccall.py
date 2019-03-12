@@ -1,4 +1,5 @@
-from .base import SimIRExpr
+from pyvex.const import get_type_size
+
 from .... import sim_options as o
 from .. import ccall
 from ....errors import SimCCallError, UnsupportedCCallError
@@ -6,33 +7,31 @@ from ....errors import SimCCallError, UnsupportedCCallError
 import logging
 l = logging.getLogger(name=__name__)
 
-class SimIRExpr_CCall(SimIRExpr):
-    def _execute(self):
-        exprs = self._translate_exprs(self._expr.args)
+def SimIRExpr_CCall(engine, state, expr):
+    if o.DO_CCALLS not in state.options:
+        return state.solver.Unconstrained("ccall_ret", get_type_size(expr.ret_type))
 
-        if o.DO_CCALLS not in self.state.options:
-            self.expr = self.state.solver.Unconstrained("ccall_ret", self.size_bits(self._expr.ret_type))
-            return
+    call_args = [engine.handle_expression(state, e) for e in expr.args]
 
-        if hasattr(ccall, self._expr.callee.name):
-            s_args = [ e.expr for e in exprs ]
-
-            try:
-                func = getattr(ccall, self._expr.callee.name)
-                self.expr, retval_constraints = func(self.state, *s_args)
-                self._constraints.extend(retval_constraints)
-            except SimCCallError:
-                if o.BYPASS_ERRORED_IRCCALL not in self.state.options:
-                    raise
-                self.state.history.add_event('resilience', resilience_type='ccall', callee=self._expr.callee.name, message='ccall raised SimCCallError')
-                self.expr = self.state.solver.Unconstrained("errored_%s" % self._expr.callee.name, self.size_bits(self._expr.ret_type))
-        else:
-            l.error("Unsupported CCall %s", self._expr.callee.name)
-            if o.BYPASS_UNSUPPORTED_IRCCALL in self.state.options:
-                if o.UNSUPPORTED_BYPASS_ZERO_DEFAULT in self.state.options:
-                    self.expr = self.state.solver.BVV(0, self.size_bits(self._expr.ret_type))
-                else:
-                    self.expr = self.state.solver.Unconstrained("unsupported_%s" % self._expr.callee.name, self.size_bits(self._expr.ret_type))
-                self.state.history.add_event('resilience', resilience_type='ccall', callee=self._expr.callee.name, message='unsupported ccall')
+    if hasattr(ccall, expr.callee.name):
+        try:
+            func = getattr(ccall, expr.callee.name)
+            result, constraints = func(state, *call_args)
+            state.solver.add(*constraints)
+        except SimCCallError:
+            if o.BYPASS_ERRORED_IRCCALL not in state.options:
+                raise
+            state.history.add_event('resilience', resilience_type='ccall', callee=expr.callee.name, message='ccall raised SimCCallError')
+            result = state.solver.Unconstrained("errored_%s" % expr.callee.name, get_type_size(expr.ret_type))
+    else:
+        l.error("Unsupported CCall %s", expr.callee.name)
+        if o.BYPASS_UNSUPPORTED_IRCCALL in state.options:
+            if o.UNSUPPORTED_BYPASS_ZERO_DEFAULT in state.options:
+                result = state.solver.BVV(0, get_type_size(expr.ret_type))
             else:
-                raise UnsupportedCCallError("Unsupported CCall %s" % self._expr.callee.name)
+                result = state.solver.Unconstrained("unsupported_%s" % expr.callee.name, get_type_size(expr.ret_type))
+            state.history.add_event('resilience', resilience_type='ccall', callee=expr.callee.name, message='unsupported ccall')
+        else:
+            raise UnsupportedCCallError("Unsupported CCall %s" % expr.callee.name)
+
+    return result

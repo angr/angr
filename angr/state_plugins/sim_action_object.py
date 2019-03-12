@@ -4,6 +4,8 @@ l = logging.getLogger(name=__name__)
 import claripy
 import functools
 
+from .. import sim_options as o
+
 #pylint:disable=unidiomatic-typecheck
 
 _noneset = frozenset()
@@ -60,12 +62,20 @@ class SimActionObject(object):
     """
     A SimActionObject tracks an AST and its dependencies.
     """
-    def __init__(self, ast, reg_deps=None, tmp_deps=None):
+    def __init__(self, ast, reg_deps=None, tmp_deps=None, deps=None, state=None):
         if type(ast) is SimActionObject:
             raise SimActionError("SimActionObject inception!!!")
         self.ast = ast
-        self.reg_deps = _noneset if reg_deps is None else reg_deps
-        self.tmp_deps = _noneset if tmp_deps is None else tmp_deps
+        if deps is not None:
+            if len(deps) == 0 or (state is not None and o.ACTION_DEPS not in state.options):
+                self.reg_deps = _noneset
+                self.tmp_deps = _noneset
+            else:
+                self.reg_deps = frozenset.union(*[r.reg_deps for r in deps if type(r) in (sim_action.SimActionData, sim_action.SimActionOperation)])
+                self.tmp_deps = frozenset.union(*[r.tmp_deps for r in deps if type(r) in (sim_action.SimActionData, sim_action.SimActionOperation)])
+        else:
+            self.reg_deps = _noneset if reg_deps is None else reg_deps
+            self.tmp_deps = _noneset if tmp_deps is None else tmp_deps
 
     def __repr__(self):
         return '<SAO {}>'.format(self.ast)
@@ -120,3 +130,4 @@ def make_methods():
 make_methods()
 
 from ..errors import SimActionError
+from . import sim_action

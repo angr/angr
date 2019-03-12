@@ -7,7 +7,7 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
     def _check(self, state, *args, **kwargs):
         jumpkind = state.history.jumpkind
 
-        if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):
+        if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or (jumpkind is not None and jumpkind.startswith('Ijk_Sig')):
             return True
         if jumpkind == 'Ijk_Exit':
             return True

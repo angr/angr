@@ -1,10 +1,7 @@
-from .base import SimIRExpr
-
 import logging
 l = logging.getLogger(name=__name__)
 
-class SimIRExpr_VECRET(SimIRExpr):
-    def _execute(self):
-        l.warning("VECRET IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
-        self.type = "Ity_I32"
-        self.expr = self.state.solver.BVV("OMG!")
+
+def SimIRExpr_VECRET(_engine, state, _expr):
+    l.warning("VECRET IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
+    return state.solver.BVV("unsupported_VECRET", 32)

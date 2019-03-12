@@ -1,3 +1,6 @@
+
+import logging
+
 import networkx
 
 from claripy.utils.orderedset import OrderedSet
@@ -286,13 +289,41 @@ class SingleNodeGraphVisitor(GraphVisitor):
         else:
             return [ self.node ]
 
+class LoopVisitor(GraphVisitor):
+    def __init__(self, loop):
+
+        super(LoopVisitor, self).__init__()
+
+        self.loop = loop
+
+        self.reset()
+
+    def startpoints(self):
+
+        return [ self.loop.entry ]
+
+    def successors(self, node):
+        return self.loop.graph.successors(node)
+
+    def predecessors(self, node):
+        return self.loop.graph.predecessors(node)
+
+    def sort_nodes(self, nodes=None):
+
+        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.loop.graph)
+
+        if nodes is not None:
+            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
+
+        return sorted_nodes
+
 
 #
 # Job info
 #
 
 
-class JobInfo(object):
+class JobInfo:
     """
     Stores information of each job.
     """
@@ -352,7 +383,7 @@ class JobInfo(object):
         self.jobs.append((job, job_type))
 
 
-class ForwardAnalysis(object):
+class ForwardAnalysis:
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.

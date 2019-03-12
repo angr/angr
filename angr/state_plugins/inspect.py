@@ -64,6 +64,7 @@ inspect_attributes = {
 
     # expr
     'expr',
+    'expr_result',
 
     # statement
     'statement',
@@ -336,6 +337,10 @@ class SimInspector(SimStatePlugin):
 
     def widen(self, others):
         return self._combine(others)
+
+    def set_state(self, state):
+        super().set_state(state)
+        state.supports_inspect = True
 
 
 from angr.sim_state import SimState

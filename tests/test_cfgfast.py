@@ -418,6 +418,24 @@ def test_segment_list_6():
     nose.tools.assert_equal(seg_list._list[1].sort, 'code')
 
 #
+# CFG instance copy
+#
+
+def test_cfg_copy():
+    path = os.path.join(test_location, "cgc", "CADET_00002")
+    proj = angr.Project(path)
+
+    cfg = proj.analyses.CFGFast()
+    cfg_copy = cfg.copy()
+    for attr in cfg_copy.__dict__:
+        if attr in ['_graph', '_seg_list']:
+            continue
+        nose.tools.assert_equal(getattr(cfg, attr), getattr(cfg_copy, attr))
+
+    nose.tools.assert_not_equal(id(cfg._graph), id(cfg_copy._graph))
+    nose.tools.assert_not_equal(id(cfg._seg_list), id(cfg_copy._seg_list))
+
+#
 # Indirect jump resolvers
 #
 
@@ -512,8 +530,8 @@ def test_tail_call_optimization_detection_armel():
     nose.tools.assert_not_in(0x8008419, all_func_addrs, "0x8008419 is inside __mulsf3().")
 
     # Functions that are jumped to from tail-calls
-    tail_call_funcs = [ 0x8002bc1, 0x80046c1, 0x8000281, 0x8000c0f, 0x8000be3, 0x8001bdb, 0x8002839, 0x80037ad,
-                        0x8002c09, 0x8004165, 0x8004be1, 0x8002eb1 ]
+    tail_call_funcs = [ 0x8002bc1, 0x80046c1, 0x8000281, 0x8001bdb, 0x8002839, 0x80037ad, 0x8002c09, 0x8004165,
+                        0x8004be1, 0x8002eb1 ]
     for member in tail_call_funcs:
         nose.tools.assert_in(member, all_func_addrs)
 
@@ -562,6 +580,17 @@ def test_collect_data_references():
     nose.tools.assert_equal(sneaky_str.sort, "string")
     nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
 
+def test_unresolvale_targtes():
+
+    path = os.path.join(test_location, 'cgc', 'CADET_00002')
+    proj = angr.Project(path)
+
+    proj.analyses.CFGFast(normalize=True)
+    func = proj.kb.functions[0x080489E0]
+
+    true_endpoint_addrs = {0x8048bbc, 0x8048af5, 0x8048b5c, 0x8048a41, 0x8048aa8}
+    endpoint_addrs = {node.addr for node in func.endpoints}
+    nose.tools.assert_equal(len(endpoint_addrs.symmetric_difference(true_endpoint_addrs)), 0)
 
 def run_all():
 

@@ -64,7 +64,7 @@ DO_RET_EMULATION = "DO_RET_EMULATION"
 # If this option is present, the guards to emulated ret exits are True instead of False
 TRUE_RET_EMULATION_GUARD = "TRUE_RET_EMULATION_GUARD"
 
-# This option causes the analysis to immediately concretize any symbol that it comes across
+# This option causes the analysis to immediately concretize any symbolic value that it comes across
 CONCRETIZE = "CONCRETIZE"
 
 # This option prevents angr from doing hundreds of constraint solves to resolve symbolic jump targets
@@ -75,6 +75,9 @@ NO_SYMBOLIC_SYSCALL_RESOLUTION = "NO_SYMBOLIC_SYSCALL_RESOLUTION"
 
 # The absense of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = "SYMBOLIC"
+
+# This variable causes claripy to use a string solver (CVC4)
+STRINGS_ANALYSIS = "STRINGS_ANALYSIS"
 
 # Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default concrete values (like 0)
 SYMBOLIC_INITIAL_VALUES = "SYMBOLIC_INITIAL_VALUES"
@@ -169,9 +172,6 @@ LAZY_SOLVES = "LAZY_SOLVES"
 # This makes angr downsize solvers wherever reasonable.
 DOWNSIZE_Z3 = "DOWNSIZE_Z3"
 
-# initialize all registers to 0 when creating the state
-INITIALIZE_ZERO_REGISTERS = "INITIALIZE_ZERO_REGISTERS"
-
 # Turn-on superfastpath mode
 SUPER_FASTPATH = "SUPER_FASTPATH"
 
@@ -240,6 +240,9 @@ SPECIAL_MEMORY_FILL = "SPECIAL_MEMORY_FILL"
 # using this option the value inside the register ip is kept symbolic
 KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 
+# Do not try to concretize a symbolic IP. With this option, all states with symbolic IPs will be seen as unconstrained.
+NO_IP_CONCRETIZATION = "NO_IP_CONCRETIZATION"
+
 # Do not union values from different locations when reading from the memory for a reduced loss in precision
 # It is only applied to SimAbstractMemory
 KEEP_MEMORY_READS_DISCRETE = "KEEP_MEMORY_READS_DISCRETE"
@@ -262,8 +265,15 @@ TRACK_SOLVER_VARIABLES = "TRACK_SOLVER_VARIABLES"
 # Efficient state merging requires potential state ancestors being kept in memory
 EFFICIENT_STATE_MERGING = "EFFICIENT_STATE_MERGING"
 
-# Return 0 instead of a symbolic byte for any unconstrained bytes in memory region
+# Return 0 any unspecified bytes in memory/registers
 ZERO_FILL_UNCONSTRAINED_MEMORY = 'ZERO_FILL_UNCONSTRAINED_MEMORY'
+ZERO_FILL_UNCONSTRAINED_REGISTERS = 'ZERO_FILL_UNCONSTRAINED_REGISTERS'
+INITIALIZE_ZERO_REGISTERS = ZERO_FILL_UNCONSTRAINED_REGISTERS
+
+# Return a new symbolic variable for any unspecified bytes in memory/registers. If neither these nor the above options
+# are specified, a warning will be issued and an unconstrained symbolic variable will be generated
+SYMBOL_FILL_UNCONSTRAINED_MEMORY = 'SYMBOL_FILL_UNCONSTRAINED_MEMORY'
+SYMBOL_FILL_UNCONSTRAINED_REGISTERS = 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS'
 
 # Attempt to support wacky ops not found in libvex
 EXTENDED_IROP_SUPPORT = 'EXTENDED_IROP_SUPPORT'
@@ -312,9 +322,10 @@ MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 _g = globals().copy()
 for k, v in _g.items():
     if all([ char in string.ascii_uppercase + "_" + string.digits for char in k ]) and type(v) is str:
-        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY", "COW_STATES"):
+        if k in ("UNKNOWN_FILES_HAVE_EOF", "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY", "COW_STATES", "INITIALIZE_ZERO_REGISTERS"):
             # UNKNOWN_FILES_HAVE_EOF == FILES_HAVE_EOF
             # CGC_ZERO_FILL_UNCONSTRAINED_MEMORY == ZERO_FILL_UNCONSTRAINED_MEMORY
+            # INITIALIZE_ZERO_REGISTERS == ZERO_FILL_UNCONSTRAINED_REGISTERS
             continue
         SimStateOptions.register_bool_option(v)
 
@@ -327,7 +338,7 @@ approximation = { APPROXIMATE_SATISFIABILITY, APPROXIMATE_MEMORY_SIZES, APPROXIM
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, SYMBOLIC_INITIAL_VALUES, COMPOSITE_SOLVER }
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_REGISTER_WRITES }
 common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT, EXTENDED_IROP_SUPPORT, ALL_FILES_EXIST, FILES_HAVE_EOF } | simplification
-unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, INITIALIZE_ZERO_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL, UNICORN_TRACK_BBL_ADDRS, UNICORN_TRACK_STACK_POINTERS }
+unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, ZERO_FILL_UNCONSTRAINED_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL, UNICORN_TRACK_BBL_ADDRS, UNICORN_TRACK_STACK_POINTERS }
 concrete = { SYNC_CLE_BACKEND_CONCRETE }
 
 modes = {

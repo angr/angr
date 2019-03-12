@@ -4,6 +4,7 @@ from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 from .errors import AngrAssemblyError
+from archinfo import ArchSoot
 
 
 l = logging.getLogger(name=__name__)
@@ -30,6 +31,10 @@ class AngrObjectFactory(object):
             hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get('length', 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
+        elif self.project.simos.is_syscall_addr(addr):
+            syscall = self.project.simos.syscall_from_addr(addr)
+            size = syscall.kwargs.get('length', 0)
+            return SyscallNode(addr, size, syscall)
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
@@ -271,6 +276,9 @@ class AngrObjectFactory(object):
               strict_block_end=None, collect_data_refs=False,
               ):
 
+        if isinstance(self.project.arch, ArchSoot):
+            return SootBlock(addr, arch=self.project.arch, project=self.project)
+
         if insn_bytes is not None and insn_text is not None:
             raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
 
@@ -305,5 +313,5 @@ class AngrObjectFactory(object):
 
 from .errors import AngrError
 from .sim_manager import SimulationManager
-from .codenode import HookNode
-from .block import Block
+from .codenode import HookNode, SyscallNode
+from .block import Block, SootBlock

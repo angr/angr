@@ -8,7 +8,6 @@ from ..vex.irop import operations as vex_operations
 from ...analyses.code_location import CodeLocation
 
 
-
 class SimEngineLight(SimEngine):
     def __init__(self, engine_type='vex'):
         super(SimEngineLight, self).__init__()
@@ -436,6 +435,22 @@ class SimEngineLightAIL(SimEngineLight):
     # Binary operation handlers
     #
 
+    def _ail_handle_CmpLT(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 <= expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'CmpLT', [expr_0, expr_1], **expr.tags)
+
     def _ail_handle_Add(self, expr):
 
         arg0, arg1 = expr.operands
@@ -468,3 +483,63 @@ class SimEngineLightAIL(SimEngineLight):
             return expr_0 - expr_1
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], **expr.tags)
+
+    def _ail_handle_And(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 & expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'And', [expr_0, expr_1], **expr.tags)
+
+    def _ail_handle_Shr(self, expr):
+
+        arg0, arg1 = expr.operands
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 >> expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Shr', [expr_0, expr_1], **expr.tags)
+
+    def _ail_handle_Shl(self, expr):
+
+        arg0, arg1 = expr.operands
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 << expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Shl', [expr_0, expr_1], **expr.tags)
+
+    #
+    # Unary operation handlers
+    #
+
+    def _ail_handle_Convert(self, expr):
+        data = self._expr(expr.operand)
+        if data is not None:
+            if type(data) is int:
+                return data
+        return None

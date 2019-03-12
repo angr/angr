@@ -33,7 +33,7 @@ class SimStateScratch(SimStatePlugin):
         self.avoidable = True
 
         # information on VEX temps of this IRSB
-        self.temps = { }
+        self.temps = []
         self.tyenv = None
 
         # dirtied addresses, for dealing with self-modifying code
@@ -41,7 +41,7 @@ class SimStateScratch(SimStatePlugin):
         self.num_insns = 0
 
         if scratch is not None:
-            self.temps.update(scratch.temps)
+            self.temps = list(scratch.temps)
             self.tyenv = scratch.tyenv
             self.jumpkind = scratch.jumpkind
             self.guard = scratch.guard
@@ -78,6 +78,10 @@ class SimStateScratch(SimStatePlugin):
         if len(self._priv_stack) == 0:
             raise SimValueError("Priv stack is empty")
 
+    def set_tyenv(self, tyenv):
+        self.tyenv = tyenv
+        self.temps = [None]*len(tyenv.types)
+
     def tmp_expr(self, tmp):
         """
         Returns the Claripy expression of a VEX temp value.
@@ -87,15 +91,17 @@ class SimStateScratch(SimStatePlugin):
         :returns: a Claripy expression of the tmp
         """
         self.state._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.temps.get(tmp, None)
-        if v is None:
-            raise SimValueError('VEX temp variable %d does not exist. This is usually the result of an incorrect '
-                                'slicing.' % tmp
-                                )
+        try:
+            v = self.temps[tmp]
+            if v is None:
+                raise SimValueError('VEX temp variable %d does not exist. This is usually the result of an incorrect '
+                                    'slicing.' % tmp)
+        except IndexError:
+            raise SimValueError("Accessing a temp that is illegal in this tyenv")
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 
-    def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None, action_holder=None):
+    def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None, deps=None):
         """
         Stores a Claripy expression in a VEX temp value.
         If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.
@@ -118,12 +124,9 @@ class SimStateScratch(SimStatePlugin):
 
         # get the size, and record the write
         if o.TRACK_TMP_ACTIONS in self.state.options:
-            data_ao = SimActionObject(content, reg_deps=reg_deps, tmp_deps=tmp_deps)
+            data_ao = SimActionObject(content, reg_deps=reg_deps, tmp_deps=tmp_deps, deps=deps, state=self.state)
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=content.length)
-            if action_holder is None:
-                self.state.history.add_event(r)
-            else:
-                action_holder.append(r)
+            self.state.history.add_action(r)
 
         self.state._inspect('tmp_write', BP_AFTER)
 

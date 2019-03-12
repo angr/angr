@@ -13,12 +13,22 @@ path = os.path.dirname(os.path.abspath(__file__))
 skip_dirs = ['__pycache__', 'definitions']
 
 for pkg_name, package in autoimport.auto_import_packages('angr.procedures', path, skip_dirs):
-    SIM_PROCEDURES[pkg_name] = {}
     for _, mod in autoimport.filter_module(package, type_req=type(os)):
         for name, proc in autoimport.filter_module(mod, type_req=type, subclass_req=SimProcedure):
-            SIM_PROCEDURES[pkg_name][name] = proc
+            if hasattr(proc, "__provides__"):
+                for custom_pkg_name, custom_func_name in proc.__provides__:
+                    if custom_pkg_name not in SIM_PROCEDURES:
+                        SIM_PROCEDURES[custom_pkg_name] = { }
+                    SIM_PROCEDURES[custom_pkg_name][custom_func_name] = proc
+            else:
+                if pkg_name not in SIM_PROCEDURES:
+                    SIM_PROCEDURES[pkg_name] = { }
+                SIM_PROCEDURES[pkg_name][name] = proc
+                if name == 'UnresolvableJumpTarget':
+                    SIM_PROCEDURES[pkg_name]['UnresolvableTarget'] = proc
 
-class _SimProcedures(object):
+
+class _SimProcedures:
     def __getitem__(self, k):
         l.critical("the SimProcedures dictionary is DEPRECATED. Please use the angr.SIM_PROCEDURES global dict instead.")
         return SIM_PROCEDURES[k]
@@ -26,4 +36,5 @@ class _SimProcedures(object):
     def __setitem__(self, k, v):
         l.critical("the SimProcedures dictionary is DEPRECATED. Please use the angr.SIM_PROCEDURES global dict instead.")
         SIM_PROCEDURES[k] = v
+
 SimProcedures = _SimProcedures()

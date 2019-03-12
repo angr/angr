@@ -1,11 +1,15 @@
 import logging
+import weakref
 from sortedcontainers import SortedDict
 
 
 l = logging.getLogger(name=__name__)
 
 
-class StoredObject(object):
+class StoredObject:
+
+    __slots__ = ('__weakref__', 'start', 'obj', 'size')
+
     def __init__(self, start, obj, size):
         self.start = start
         self.obj = obj
@@ -17,13 +21,23 @@ class StoredObject(object):
         return self.obj == other.obj and self.start == other.start and self.size == other.size
 
     def __hash__(self):
-        return hash((self.start, self.size))
+        return hash((self.start, self.size, self.obj))
+
+    def __repr__(self):
+        return "<SO %s@%#x, %d bytes>" % (repr(self.obj), self.start, self.size)
+
+    @property
+    def obj_id(self):
+        return id(self.obj)
 
 
-class RegionObject(object):
+class RegionObject:
     """
     Represents one or more objects occupying one or more bytes in KeyedRegion.
     """
+
+    __slots__ = ('start', 'size', 'stored_objects', '_internal_objects')
+
     def __init__(self, start, size, objects=None):
         self.start = start
         self.size = size
@@ -35,7 +49,8 @@ class RegionObject(object):
                 self._internal_objects.add(obj.obj)
 
     def __eq__(self, other):
-        return self.start == other.start and self.size == other.size and self.stored_objects == other.stored_objects
+        return type(other) is RegionObject and self.start == other.start and self.size == other.size and \
+               self.stored_objects == other.stored_objects
 
     def __ne__(self, other):
         return not self == other
@@ -63,6 +78,11 @@ class RegionObject(object):
         return a, b
 
     def add_object(self, obj):
+        if obj in self.stored_objects:
+            # another StoredObject with the same hash exists, but they may not have the same ID
+            # remove the existing StoredObject and replace it with the new one
+            self.stored_objects.remove(obj)
+
         self.stored_objects.add(obj)
         self._internal_objects.add(obj.obj)
 
@@ -77,15 +97,27 @@ class RegionObject(object):
         return ro
 
 
-class KeyedRegion(object):
+class KeyedRegion:
     """
     KeyedRegion keeps a mapping between stack offsets and all objects covering that offset. It assumes no variable in
     this region overlap with another variable in this region.
 
     Registers and function frames can all be viewed as a keyed region.
     """
-    def __init__(self, tree=None):
+
+    __slots__ = ('_storage', '_object_mapping', '_phi_node_contains' )
+
+    def __init__(self, tree=None, phi_node_contains=None):
         self._storage = SortedDict() if tree is None else tree
+        self._object_mapping = weakref.WeakValueDictionary()
+        self._phi_node_contains = phi_node_contains
+
+    def __getstate__(self):
+        return self._storage, dict(self._object_mapping), self._phi_node_contains
+
+    def __setstate__(self, s):
+        self._storage, om, self._phi_node_contains = s
+        self._object_mapping = weakref.WeakValueDictionary(om)
 
     def _get_container(self, offset):
         try:
@@ -100,11 +132,14 @@ class KeyedRegion(object):
 
     def __contains__(self, offset):
         """
-        Test if there is at least one varaible covering the given offset.
+        Test if there is at least one variable covering the given offset.
 
         :param offset:
         :return:
         """
+
+        if type(offset) is not int:
+            raise TypeError("KeyedRegion only accepts concrete offsets.")
 
         return self._get_container(offset)[1] is not None
 
@@ -126,14 +161,15 @@ class KeyedRegion(object):
 
     def copy(self):
         if not self._storage:
-            return KeyedRegion()
+            return KeyedRegion(phi_node_contains=self._phi_node_contains)
 
-        kr = KeyedRegion()
+        kr = KeyedRegion(phi_node_contains=self._phi_node_contains)
         for key, ro in self._storage.items():
             kr._storage[key] = ro.copy()
+        kr._object_mapping = self._object_mapping.copy()
         return kr
 
-    def merge(self, other, make_phi_func=None):
+    def merge(self, other, replacements=None):
         """
         Merge another KeyedRegion into this KeyedRegion.
 
@@ -143,8 +179,28 @@ class KeyedRegion(object):
 
         # TODO: is the current solution not optimal enough?
         for _, item in other._storage.items():  # type: RegionObject
-            for loc_and_var in item.stored_objects:
-                self.__store(loc_and_var, overwrite=False, make_phi_func=make_phi_func)
+            for so in item.stored_objects:  # type: StoredObject
+                if replacements and so.obj in replacements:
+                    so = StoredObject(so.start, replacements[so.obj], so.size)
+                self._object_mapping[so.obj_id] = so
+                self.__store(so, overwrite=False)
+
+        return self
+
+    def replace(self, replacements):
+        """
+        Replace variables with other variables.
+
+        :param dict replacements:   A dict of variable replacements.
+        :return:                    self
+        """
+
+        for old_var, new_var in replacements.items():
+            old_var_id = id(old_var)
+            if old_var_id in self._object_mapping:
+                # FIXME: we need to check if old_var still exists in the storage
+                old_so = self._object_mapping[old_var_id]  # type: StoredObject
+                self._store(old_so.start, new_var, old_so.size, overwrite=True)
 
         return self
 
@@ -278,14 +334,16 @@ class KeyedRegion(object):
         """
 
         stored_object = StoredObject(start, obj, size)
+        self._object_mapping[stored_object.obj_id] = stored_object
         self.__store(stored_object, overwrite=overwrite)
 
-    def __store(self, stored_object, overwrite=False, make_phi_func=None):
+    def __store(self, stored_object, overwrite=False):
         """
         Store a variable into the storage.
 
         :param StoredObject stored_object: The descriptor describing start address and the variable.
-        :param bool overwrite: Whether existing objects should be overwritten or not.
+        :param bool overwrite:  Whether existing objects should be overwritten or not. True to make a strong update,
+                                False to make a weak update.
         :return: None
         """
 
@@ -299,8 +357,8 @@ class KeyedRegion(object):
         # is there a region item that begins before the start and overlaps with this variable?
         floor_key, floor_item = self._get_container(start)
         if floor_item is not None and floor_key not in overlapping_items:
-                # insert it into the beginning
-                overlapping_items.insert(0, floor_key)
+            # insert it into the beginning
+            overlapping_items.insert(0, floor_key)
 
         # scan through the entire list of region items, split existing regions and insert new regions as needed
         to_update = {start: RegionObject(start, object_size, {stored_object})}
@@ -314,7 +372,7 @@ class KeyedRegion(object):
                 if overwrite:
                     b.set_object(stored_object)
                 else:
-                    self._add_object_or_make_phi(b, stored_object, make_phi_func=make_phi_func)
+                    self._add_object_with_check(b, stored_object)
                 to_update[a.start] = a
                 to_update[b.start] = b
                 last_end = b.end
@@ -330,7 +388,7 @@ class KeyedRegion(object):
                 if overwrite:
                     a.set_object(stored_object)
                 else:
-                    self._add_object_or_make_phi(a, stored_object, make_phi_func=make_phi_func)
+                    self._add_object_with_check(a, stored_object)
                 to_update[a.start] = a
                 to_update[b.start] = b
                 last_end = b.end
@@ -338,7 +396,7 @@ class KeyedRegion(object):
                 if overwrite:
                     item.set_object(stored_object)
                 else:
-                    self._add_object_or_make_phi(item, stored_object, make_phi_func=make_phi_func)
+                    self._add_object_with_check(item, stored_object)
                 to_update[item.start] = item
 
         self._storage.update(to_update)
@@ -374,13 +432,20 @@ class KeyedRegion(object):
 
         return False
 
-    def _add_object_or_make_phi(self, item, stored_object, make_phi_func=None):  #pylint:disable=no-self-use
-        if not make_phi_func or len({stored_object.obj} | item.internal_objects) == 1:
-            item.add_object(stored_object)
-        else:
-            # make a phi node
-            item.set_object(StoredObject(stored_object.start,
-                                         make_phi_func(stored_object.obj, *item.internal_objects),
-                                         stored_object.size,
-                                         )
-                            )
+    def _add_object_with_check(self, item, stored_object):
+        if len({stored_object.obj} | item.internal_objects) > 1:
+            if self._phi_node_contains is not None:
+                # check if `item` is a phi node that contains stored_object.obj
+                for so in item.internal_objects:
+                    if self._phi_node_contains(so, stored_object.obj):
+                        # yes! so we want to skip this object
+                        return
+                # check if `stored_object.obj` is a phi node that contains item.internal_objects
+                if all(self._phi_node_contains(stored_object.obj, o) for o in item.internal_objects):
+                    # yes!
+                    item.set_object(stored_object)
+                    return
+
+            l.warning("Overlapping objects %s.", str({stored_object.obj} | item.internal_objects))
+            # import ipdb; ipdb.set_trace()
+        item.add_object(stored_object)

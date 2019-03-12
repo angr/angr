@@ -1,24 +1,26 @@
-from . import SimIRStmt
 from .... import sim_options as o
 from ....state_plugins.sim_action_object import SimActionObject
 from ....state_plugins.sim_action import SimActionData
 
-class SimIRStmt_StoreG(SimIRStmt):
-    def _execute(self):
-        addr = self._translate_expr(self.stmt.addr)
-        data = self._translate_expr(self.stmt.data)
-        expr = data.expr.raw_to_bv()
-        guard = self._translate_expr(self.stmt.guard)
 
-        if o.TRACK_MEMORY_ACTIONS in self.state.options:
-            data_ao = SimActionObject(expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
-            addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
-            guard_ao = SimActionObject(guard.expr, reg_deps=guard.reg_deps(), tmp_deps=guard.tmp_deps())
-            size_ao = SimActionObject(data.size_bits())
+def SimIRStmt_StoreG(engine, state, stmt):
+    with state.history.subscribe_actions() as addr_deps:
+        addr = engine.handle_expression(state, stmt.addr)
+    with state.history.subscribe_actions() as data_deps:
+        data = engine.handle_expression(state, stmt.data)
+    expr = data.raw_to_bv()
+    with state.history.subscribe_actions() as guard_deps:
+        guard = engine.handle_expression(state, stmt.guard)
 
-            a = SimActionData(self.state, self.state.memory.id, SimActionData.WRITE, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
-            self.actions.append(a)
-        else:
-            a = None
+    if o.TRACK_MEMORY_ACTIONS in state.options:
+        data_ao = SimActionObject(expr, deps=data_deps, state=state)
+        addr_ao = SimActionObject(addr, deps=addr_deps, state=state)
+        guard_ao = SimActionObject(guard, deps=guard_deps, state=state)
+        size_ao = SimActionObject(len(expr))
 
-        self.state.memory.store(addr.expr, expr, condition=guard.expr == 1, endness=self.stmt.end, action=a)
+        a = SimActionData(state, state.memory.id, SimActionData.WRITE, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
+        state.history.add_action(a)
+    else:
+        a = None
+
+    state.memory.store(addr, expr, condition=guard == 1, endness=stmt.end, action=a)

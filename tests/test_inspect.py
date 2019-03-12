@@ -79,7 +79,7 @@ def test_inspect():
 
     s.inspect.b('tmp_read', when=BP_AFTER, action=act_tmp_read, tmp_read_num=0)
     s.inspect.b('tmp_write', when=BP_AFTER, action=act_tmp_write, tmp_write_num=0)
-    s.inspect.b('expr', when=BP_AFTER, action=act_expr, expr=1016, expr_unique=False)
+    s.inspect.b('expr', when=BP_AFTER, action=act_expr, expr_result=1016)
     s.inspect.b('statement', when=BP_AFTER, action=act_statement)
     s.inspect.b('instruction', when=BP_AFTER, action=act_instruction, instruction=1001)
     s.inspect.b('instruction', when=BP_AFTER, action=act_instruction, instruction=1000)
@@ -296,8 +296,8 @@ def test_inspect_engine_process():
     pg.run()
 
 if __name__ == '__main__':
+    test_inspect()
     test_inspect_concretization()
     test_inspect_exit()
     test_inspect_syscall()
-    test_inspect()
     test_inspect_engine_process()

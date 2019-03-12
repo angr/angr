@@ -1,15 +1,16 @@
 import traceback
 import logging
 
+from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
 
-from ...codenode import BlockNode, HookNode
+from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
 
 _l = logging.getLogger(__name__)
 
 
-class CFGNodeCreationFailure(object):
+class CFGNodeCreationFailure:
     """
     This class contains additional information for whenever creating a CFGNode failed. It includes a full traceback
     and the exception messages.
@@ -31,14 +32,14 @@ class CFGNodeCreationFailure(object):
         return hash((self.short_reason, self.long_reason, self.traceback))
 
 
-class CFGNode(object):
+class CFGNode:
     """
     This class stands for each single node in CFG.
     """
 
     __slots__ = ( 'addr', 'simprocedure_name', 'syscall_name', 'size', 'no_ret', 'is_syscall', 'function_address',
                   'block_id', 'thumb', 'byte_string', '_name', 'instruction_addrs', 'irsb', 'has_return', '_cfg',
-                  '_hash',
+                  '_hash', 'soot_block'
                   )
 
     def __init__(self,
@@ -46,11 +47,11 @@ class CFGNode(object):
                  size,
                  cfg,
                  simprocedure_name=None,
-                 is_syscall=False,
                  no_ret=False,
                  function_address=None,
                  block_id=None,
                  irsb=None,
+                 soot_block=None,
                  instruction_addrs=None,
                  thumb=False,
                  byte_string=None):
@@ -63,22 +64,26 @@ class CFGNode(object):
         self.simprocedure_name = simprocedure_name
         self.size = size
         self.no_ret = no_ret
-        self.is_syscall = is_syscall
         self._cfg = cfg
         self.function_address = function_address
         self.block_id = block_id
         self.thumb = thumb
         self.byte_string = byte_string
 
-        self._name = simprocedure_name
+        if isinstance(addr, SootAddressDescriptor):
+            self._name = repr(addr)
+        else:
+            self._name = simprocedure_name
         self.instruction_addrs = instruction_addrs if instruction_addrs is not None else tuple()
 
+        self.is_syscall = True if self.simprocedure_name and self._cfg.project.simos.is_syscall_addr(addr) else False
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
                 self.instruction_addrs = irsb.instruction_addresses
 
-        self.irsb = None #irsb
+        self.irsb = None
+        self.soot_block = soot_block
         self.has_return = False
         self._hash = None
 
@@ -152,7 +157,8 @@ class CFGNode(object):
         s = "<CFGNode "
         if self.name is not None:
             s += self.name + " "
-        s += hex(self.addr)
+        elif not isinstance(self.addr, SootAddressDescriptor):
+            s += hex(self.addr)
         if self.size is not None:
             s += "[%d]" % self.size
         s += ">"
@@ -174,6 +180,8 @@ class CFGNode(object):
         return self._hash
 
     def to_codenode(self):
+        if self.is_syscall:
+            return SyscallNode(self.addr, self.size, self.simprocedure_name)
         if self.is_simprocedure:
             return HookNode(self.addr, self.size, self.simprocedure_name)
         return BlockNode(self.addr, self.size, thumb=self.thumb)
@@ -214,7 +222,6 @@ class CFGENode(CFGNode):
                  final_states=None,
                  syscall_name=None,
                  looping_times=0,
-                 is_syscall=False,
                  syscall=None,
                  depth=None,
                  callstack_key=None,
@@ -223,7 +230,6 @@ class CFGENode(CFGNode):
 
         super(CFGENode, self).__init__(addr, size, cfg,
                                        simprocedure_name=simprocedure_name,
-                                       is_syscall=is_syscall,
                                        no_ret=no_ret,
                                        function_address=function_address,
                                        block_id=block_id,
@@ -316,7 +322,6 @@ class CFGENode(CFGNode):
             input_state=self.input_state,
             syscall_name=self.syscall_name,
             looping_times=self.looping_times,
-            is_syscall=self.is_syscall,
             syscall=self.syscall,
             depth=self.depth,
             final_states=self.final_states[::],

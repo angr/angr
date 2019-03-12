@@ -8,11 +8,14 @@ l = logging.getLogger(name=__name__)
 
 import angr # type annotations; pylint:disable=unused-import
 import claripy
-import ana
 import archinfo
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
+
+import logging
+l = logging.getLogger("angr.sim_state")
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -30,7 +33,7 @@ merge_counter = itertools.count()
 _complained_se = False
 
 # pylint: disable=not-callable
-class SimState(PluginHub, ana.Storable):
+class SimState(PluginHub):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
@@ -59,10 +62,21 @@ class SimState(PluginHub, ana.Storable):
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
         self.project = project
-        self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
-        if type(self.arch) is str:
-            self.arch = archinfo.arch_from_id(self.arch)
+        # Arch
+        if self._is_java_jni_project:
+            self._arch = { "soot" : project.arch,
+                           "vex"  : project.simos.native_simos.arch }
+            # This flag indicates whether the current ip is a native address or
+            # a soot address descriptor.
+            # Note: We cannot solely rely on the ip to make that decsision,
+            #       because the registers (storing the ip) are part of the
+            #       plugins that are getting toggled (=> mutual dependence).
+            self.ip_is_soot_addr = False
+        else:
+            self._arch = arch if arch is not None else project.arch.copy() if project is not None else None
+            if type(self._arch) is str:
+                self._arch = archinfo.arch_from_id(self._arch)
 
         # the options
         if options is None:
@@ -79,6 +93,7 @@ class SimState(PluginHub, ana.Storable):
             options -= remove_options
         self._options = options
         self.mode = mode
+        self.supports_inspect = False
 
         if plugin_preset is not None:
             self.use_plugin_preset(plugin_preset)
@@ -98,7 +113,12 @@ class SimState(PluginHub, ana.Storable):
             if self.plugin_preset is None:
                 self.use_plugin_preset('default')
 
-            if o.ABSTRACT_MEMORY in self.options:
+            # Determine memory backend
+            if self._is_java_project and not self._is_java_jni_project:
+                sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
+                sim_memory = sim_memory_cls(memory_id='mem')
+
+            elif o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode.
                 # Convert memory_backer into 'global' region.
                 if memory_backer is not None:
@@ -117,32 +137,59 @@ class SimState(PluginHub, ana.Storable):
                 sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem',
                                             permissions_backer=permissions_backer)
 
-            self.register_plugin('memory', sim_memory)
+            # Add memory plugin
+            if not self._is_java_jni_project:
+                self.register_plugin('memory', sim_memory)
+
+            else:
+                # In case of the JavaVM with JNI support, we add two `memory` plugins; one for modeling the
+                # native memory and another one for the JavaVM memory.
+                native_sim_memory = sim_memory
+                javavm_sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
+                javavm_sim_memory = javavm_sim_memory_cls(memory_id='mem')
+                self.register_plugin('memory_soot', javavm_sim_memory)
+                self.register_plugin('memory_vex', native_sim_memory)
 
         if not self.has_plugin('registers'):
-
             # Same as for 'memory' plugin.
             if self.plugin_preset is None:
                 self.use_plugin_preset('default')
 
-            if o.FAST_REGISTERS in self.options:
+            # Get register endness
+            if self._is_java_jni_project:
+                register_endness = self._arch['vex'].register_endness
+            else:
+                register_endness = self.arch.register_endness
+
+            # Determine register backend
+            if self._is_java_project and not self._is_java_jni_project:
+                sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
+                sim_registers = sim_registers_cls(memory_id='reg')
+
+            elif o.FAST_REGISTERS in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin('fast_memory')
-                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
+                sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
             else:
                 sim_registers_cls = self.plugin_preset.request_plugin('sym_memory')
-                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
+                sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
 
-            self.register_plugin('registers', sim_registers)
+            # Add registers plugin
+            if not self._is_java_jni_project:
+                self.register_plugin('registers', sim_registers)
+
+            else:
+                # Analog to memory, we add two registers plugins
+                native_sim_registers = sim_registers
+                javavm_sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
+                javavm_sim_registers = javavm_sim_registers_cls(memory_id='reg')
+                self.register_plugin('registers_soot', javavm_sim_registers)
+                self.register_plugin('registers_vex', native_sim_registers)
 
         # OS name
         self.os_name = os_name
 
         # This is used in static mode as we don't have any constraints there
         self._satisfiable = True
-
-        # states are big, so let's give them UUIDs for ANA right away to avoid
-        # extra pickling
-        self.make_uuid()
 
         self.uninitialized_access_handler = None
         self._special_memory_filler = special_memory_filler
@@ -151,14 +198,13 @@ class SimState(PluginHub, ana.Storable):
         self._global_condition = None
         self.ip_constraints = []
 
-    def _ana_getstate(self):
-        s = dict(ana.Storable._ana_getstate(self))
-        s = { k:v for k,v in s.items() if k not in ('inspect', 'regs', 'mem')}
+    def __getstate__(self):
+        s = { k:v for k,v in self.__dict__.items() if k not in ('inspect', 'regs', 'mem')}
         s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].items() if k not in ('inspect', 'regs', 'mem') }
         return s
 
-    def _ana_setstate(self, s):
-        ana.Storable._ana_setstate(self, s)
+    def __setstate__(self, s):
+        self.__dict__.update(s)
         for p in self.plugins.values():
             p.set_state(self)
             if p.STRONGREF_STATE:
@@ -172,7 +218,11 @@ class SimState(PluginHub, ana.Storable):
 
     def __repr__(self):
         try:
-            ip_str = "%#x" % self.addr
+            addr = self.addr
+            if type(addr) is int:
+                ip_str = "%#x" % addr
+            else:
+                ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
@@ -241,6 +291,9 @@ class SimState(PluginHub, ana.Storable):
         :return: an int
         """
 
+        ip = self.regs._ip
+        if isinstance(ip, SootAddressDescriptor):
+            return ip
         return self.solver.eval_one(self.regs._ip)
 
     @property
@@ -256,16 +309,27 @@ class SimState(PluginHub, ana.Storable):
         else:
             raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
 
+    @property
+    def arch(self):
+        if self._is_java_jni_project:
+            return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
+        else:
+            return self._arch
+
+    @arch.setter
+    def arch(self, v):
+        self._arch = v
+
     #
     # Plugin accessors
     #
 
     def _inspect(self, *args, **kwargs):
-        if self.has_plugin('inspect'):
+        if self.supports_inspect:
             self.inspect.action(*args, **kwargs)
 
     def _inspect_getattr(self, attr, default_value):
-        if self.has_plugin('inspect'):
+        if self.supports_inspect:
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
 
@@ -274,6 +338,20 @@ class SimState(PluginHub, ana.Storable):
     #
     # Plugins
     #
+
+    def get_plugin(self, name):
+        if self._is_java_jni_project:
+            # In case of the JavaVM with JNI support, a state can store the same plugin
+            # twice; one for the native and one for the java view of the state.
+            suffix = '_soot' if self.ip_is_soot_addr else '_vex'
+            name = name + suffix if self.has_plugin(name + suffix) else name
+        return super(SimState, self).get_plugin(name)
+
+    def has_plugin(self, name):
+        if self._is_java_jni_project:
+            # In case of the JavaVM with JNI support, also check for toggled plugins.
+            return super(SimState, self).has_plugin(name) or super(SimState, self).has_plugin(name + '_soot')
+        return super(SimState, self).has_plugin(name)
 
     def register_plugin(self, name, plugin, inhibit_init=False): # pylint: disable=arguments-differ
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
@@ -291,6 +369,51 @@ class SimState(PluginHub, ana.Storable):
             plugin.set_strongref_state(self)
         if not inhibit_init:
             plugin.init_state()
+
+    #
+    # Java support
+    #
+
+    @property
+    def _is_java_project(self):
+        """
+        Indicates if the project's main binary is a Java Archive.
+        """
+        return self.project and self.project.is_java_project
+
+    @property
+    def _is_java_jni_project(self):
+        """
+        Indicates if the project's main binary is a Java Archive, which
+        interacts during its execution with native libraries (via JNI).
+        """
+        return self.project and self.project.is_java_jni_project
+
+    @property
+    def javavm_memory(self):
+        """
+        In case of an JavaVM with JNI support, a state can store the memory
+        plugin twice; one for the native and one for the java view of the state.
+
+        :return: The JavaVM view of the memory plugin.
+        """
+        if self._is_java_jni_project:
+            return self.get_plugin('memory_soot')
+        else:
+            return self.get_plugin('memory')
+
+    @property
+    def javavm_registers(self):
+        """
+        In case of an JavaVM with JNI support, a state can store the registers
+        plugin twice; one for the native and one for the java view of the state.
+
+        :return: The JavaVM view of the registers plugin.
+        """
+        if self._is_java_jni_project:
+            return self.get_plugin('registers_soot')
+        else:
+            return self.get_plugin('registers')
 
     #
     # Constraint pass-throughs
@@ -453,6 +576,9 @@ class SimState(PluginHub, ana.Storable):
         c_plugins = self._copy_plugins()
         state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options.copy(),
                          mode=self.mode, os_name=self.os_name)
+
+        if self._is_java_jni_project:
+            state.ip_is_soot_addr = self.ip_is_soot_addr
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler

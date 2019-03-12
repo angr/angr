@@ -31,7 +31,8 @@ class SimOS:
         self.project = project
         self.name = name
         self.return_deadend = None
-        self.unresolvable_target = None
+        self.unresolvable_jump_target = None
+        self.unresolvable_call_target = None
 
     def configure_project(self):
         """
@@ -40,8 +41,10 @@ class SimOS:
         self.return_deadend = self.project.loader.extern_object.allocate()
         self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
-        self.unresolvable_target = self.project.loader.extern_object.allocate()
-        self.project.hook(self.unresolvable_target, P['stubs']['UnresolvableTarget']())
+        self.unresolvable_jump_target = self.project.loader.extern_object.allocate()
+        self.project.hook(self.unresolvable_jump_target, P['stubs']['UnresolvableJumpTarget']())
+        self.unresolvable_call_target = self.project.loader.extern_object.allocate()
+        self.project.hook(self.unresolvable_call_target, P['stubs']['UnresolvableCallTarget']())
 
         def irelative_resolver(resolver_addr):
             # autohooking runs before this does, might have provided this already
@@ -50,7 +53,10 @@ class SimOS:
             if self.project.is_hooked(resolver_addr):
                 return resolver_addr
 
-            resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
+
+            base_state = self.state_blank(addr=0,
+                add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+            resolver = self.project.factory.callable(resolver_addr, concrete_only=True, base_state=base_state)
             try:
                 if isinstance(self.arch, ArchS390X):
                     # On s390x ifunc resolvers expect hwcaps.
@@ -136,10 +142,6 @@ class SimOS:
         if o.ABSTRACT_MEMORY not in state.options:
             state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
 
-        if o.INITIALIZE_ZERO_REGISTERS in state.options:
-            highest_reg_offset, reg_size = max(state.arch.registers.values())
-            for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
-                state.registers.store(i, state.solver.BVV(0, state.arch.bits))
         if state.arch.sp_offset is not None:
             state.regs.sp = actual_stack_end
 

@@ -306,6 +306,8 @@ class Blade(object):
         for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
             if not type(s_) is pyvex.IRStmt.Exit:
                 continue
+            if s_.jumpkind != 'Ijk_Boring':
+                continue
 
             if type(s_.guard) is pyvex.IRExpr.RdTmp:
                 temps.add(s_.guard.tmp)

@@ -1,9 +1,6 @@
-from .base import SimIRExpr
+def SimIRExpr_ITE(engine, state, expr):
+    cond = engine.handle_expression(state, expr.cond)
+    expr0 = engine.handle_expression(state, expr.iffalse)
+    exprX = engine.handle_expression(state, expr.iftrue)
 
-class SimIRExpr_ITE(SimIRExpr):
-    def _execute(self):
-        cond = self._translate_expr(self._expr.cond)
-        expr0 = self._translate_expr(self._expr.iffalse)
-        exprX = self._translate_expr(self._expr.iftrue)
-
-        self.expr = self.state.solver.If(cond.expr == 0, expr0.expr, exprX.expr)
+    return state.solver.If(cond == 0, expr0, exprX)

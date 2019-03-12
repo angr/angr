@@ -7,7 +7,7 @@ from .undefined import Undefined
 l = logging.getLogger(name=__name__)
 
 
-class DataSet(object):
+class DataSet:
     """
     This class represents a set of data.
 
@@ -64,7 +64,7 @@ class DataSet(object):
 
         for s in self:
             if type(s) is Undefined:
-                res.add(Undefined())
+                res.add(Undefined(s.bits))
             else:
                 try:
                     tmp = op(s)
@@ -72,13 +72,14 @@ class DataSet(object):
                         tmp &= self._mask
                     res.add(tmp)
                 except TypeError as e:
-                    res.add(Undefined())
-                    l.warning(e)
+                    # l.warning(e)
+                    raise
 
         return DataSet(res, self._bits)
 
     def _bin_op(self, other, op):
-        assert type(other) is DataSet
+        if not type(other) is DataSet:
+            raise TypeError("_bin_op() only works on another DataSet instance.")
 
         res = set()
 
@@ -88,16 +89,16 @@ class DataSet(object):
         for o in other:
             for s in self:
                 if type(o) is Undefined or type(s) is Undefined:
-                    res.add(Undefined())
+                    res.add(Undefined(self.bits))
                 else:
                     try:
                         tmp = op(s, o)
                         if isinstance(tmp, int):
                             tmp &= self._mask
                         res.add(tmp)
-                    except TypeError as e:
-                        res.add(Undefined())
-                        l.warning(e)
+                    except TypeError as ex:
+                        # l.warning(ex)
+                        raise
 
         return DataSet(res, self._bits)
 

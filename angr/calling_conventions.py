@@ -11,12 +11,14 @@ from .sim_type import SimTypeString
 from .sim_type import SimTypeFunction
 from .sim_type import SimTypeFloat
 from .sim_type import SimTypeDouble
+from .sim_type import SimTypeReg
 from .sim_type import SimStruct
 from .sim_type import parse_file
 
 from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
+from .engines.soot.engine import SimEngineSoot
 
 # TODO: This file contains explicit and implicit byte size assumptions all over. A good attempt to fix them was made.
 # If your architecture hails from the astral plane, and you're reading this, start fixing here.
@@ -536,6 +538,11 @@ class SimCC:
         set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
         allocations happen at increasing addresses.
         """
+
+        if isinstance(self, SimCCSoot):
+            SimEngineSoot.setup_callsite(state, args, ret_addr)
+            return
+
         allocator = AllocHelper(alloc_base if alloc_base is not None else state.regs.sp,
                 grow_like_stack,
                 self.arch.memory_endness == 'Iend_LE')
@@ -787,8 +794,10 @@ class SimCC:
             return val
 
         elif isinstance(arg, claripy.ast.Base):
+            if check and isinstance(ty, SimTypeReg):
+                arg = arg.reversed
             # yikes
-            if state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
+            elif state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
                 arg = arg.reversed
             return arg
 
@@ -802,7 +811,14 @@ class SimCC:
         if not isinstance(other, self.__class__):
             return False
 
-        return set(self.args) == set(other.args) and \
+        def _compare_args(args0, args1):
+            if args0 is None and args1 is None:
+                return True
+            if args0 is None or args1 is None:
+                return False
+            return set(args0) == set(args1)
+
+        return _compare_args(self.args, other.args) and \
                self.ret_val == other.ret_val and \
                self.sp_delta == other.sp_delta
 
@@ -880,6 +896,7 @@ class SimCCCdecl(SimCC):
     ARG_REGS = [] # All arguments are passed in stack
     FP_ARG_REGS = []
     STACKARG_SP_DIFF = 4 # Return address is pushed on to stack by call
+    CALLER_SAVED_REGS = ['eax', 'ecx', 'edx']
     RETURN_VAL = SimRegArg('eax', 4)
     FP_RETURN_VAL = SimLyingRegArg('st0')
     RETURN_ADDR = SimStackArg(0, 4)
@@ -1005,6 +1022,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
+    CALLER_SAVED_REGS = []   # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = archinfo.ArchARM
@@ -1054,6 +1072,7 @@ class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 16
+    CALLER_SAVED_REGS = []   # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('v0', 4)
     ARCH = archinfo.ArchMIPS32
@@ -1150,6 +1169,10 @@ class SimCCPowerPC64LinuxSyscall(SimCC):
     def syscall_num(state):
         return state.regs.r0
 
+class SimCCSoot(SimCC):
+    ARCH = archinfo.ArchSoot
+    ARG_REGS = []
+
 class SimCCUnknown(SimCC):
     """
     Represent an unknown calling convention.
@@ -1230,6 +1253,7 @@ DEFAULT_CC = {
     'PPC32': SimCCPowerPC,
     'PPC64': SimCCPowerPC64,
     'AARCH64': SimCCAArch64,
+    'Soot': SimCCSoot,
     'AVR': SimCCUnknown,
     'MSP': SimCCUnknown,
     'S390X': SimCCS390X,

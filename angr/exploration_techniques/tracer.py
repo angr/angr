@@ -1,4 +1,3 @@
-import angr
 from typing import List
 import logging
 
@@ -104,7 +103,8 @@ class Tracer(ExplorationTechnique):
         if state.globals['trace_idx'] >= len(self._trace) - 1:
             # do crash windup if necessary
             if self._crash_addr is not None:
-                simgr.populate('crashed', [self._crash_windup(state)])
+                self.last_state, crash_state = self.crash_windup(state, self._crash_addr)
+                simgr.populate('crashed', [crash_state])
 
             return 'traced'
 
@@ -358,7 +358,8 @@ class Tracer(ExplorationTechnique):
         else:
             state.globals['trace_idx'] = target_idx
 
-    def _crash_windup(self, state):
+    @classmethod
+    def crash_windup(cls, state, crash_addr):
         # first check: are we just executing user-controlled code?
         if not state.ip.symbolic and state.mem[state.ip].char.resolved.symbolic:
             l.debug("executing input-related code")
@@ -366,6 +367,7 @@ class Tracer(ExplorationTechnique):
 
         state = state.copy()
         state.options.add(sim_options.COPY_STATES)
+        state.options.discard(sim_options.STRICT_PAGE_ACCESS)
 
         # before we step through and collect the actions we have to set
         # up a special case for address concretization in the case of a
@@ -373,16 +375,15 @@ class Tracer(ExplorationTechnique):
         bp1 = state.inspect.b(
             'address_concretization',
             BP_BEFORE,
-            action=self._check_add_constraints)
+            action=cls._check_add_constraints)
 
         bp2 = state.inspect.b(
             'address_concretization',
             BP_AFTER,
-            action=self._grab_concretization_results)
+            action=cls._grab_concretization_results)
 
         # step to the end of the crashing basic block,
         # to capture its actions with those breakpoints
-        # TODO should this be using simgr.successors?
         state.step()
 
         # Add the constraints from concretized addrs back
@@ -397,19 +398,20 @@ class Tracer(ExplorationTechnique):
 
         if inst_cnt == 0:
             insts = 0
-        elif self._crash_addr in inst_addrs:
-            insts = inst_addrs.index(self._crash_addr) + 1
+        elif crash_addr in inst_addrs:
+            insts = inst_addrs.index(crash_addr) + 1
         else:
             insts = inst_cnt - 1
 
         l.debug("windup step...")
         succs = state.step(num_inst=insts).flat_successors
 
+        last_state = None
         if len(succs) > 0:
             if len(succs) > 1:
                 succs = [s for s in succs if s.solver.satisfiable()]
             state = succs[0]
-            self.last_state = state
+            last_state = state
 
         # remove the preconstraints
         l.debug("removing preconstraints")
@@ -425,16 +427,18 @@ class Tracer(ExplorationTechnique):
         l.debug("final step...")
         succs = state.step()
         successors = succs.flat_successors + succs.unconstrained_successors
-        return successors[0]
+        crash_state = successors[0]
+        return last_state, crash_state
 
     # the below are utility functions for crash windup
 
-    def _grab_concretization_results(self, state):
+    @classmethod
+    def _grab_concretization_results(cls, state):
         """
         Grabs the concretized result so we can add the constraint ourselves.
         """
         # only grab ones that match the constrained addrs
-        if self._should_add_constraints(state):
+        if cls._should_add_constraints(state):
             addr = state.inspect.address_concretization_expr
             result = state.inspect.address_concretization_result
             if result is None:
@@ -442,24 +446,26 @@ class Tracer(ExplorationTechnique):
                 return
             state.preconstrainer.address_concretization.append((addr, result))
 
-    def _check_add_constraints(self, state):
+    @classmethod
+    def _check_add_constraints(cls, state):
         """
         Obnoxious way to handle this, should ONLY be called from crash monitor.
         """
         # for each constrained addrs check to see if the variables match,
         # if so keep the constraints
-        state.inspect.address_concretization_add_constraints = self._should_add_constraints(state)
+        state.inspect.address_concretization_add_constraints = cls._should_add_constraints(state)
 
-    def _should_add_constraints(self, state):
+    @classmethod
+    def _should_add_constraints(cls, state):
         """
         Check to see if the current address concretization variable is any of the registered
         constrained_addrs we want to allow concretization for
         """
         expr = state.inspect.address_concretization_expr
-        hit_indices = self._to_indices(state, expr)
+        hit_indices = cls._to_indices(state, expr)
 
         for action in state.preconstrainer._constrained_addrs:
-            var_indices = self._to_indices(state, action.addr)
+            var_indices = cls._to_indices(state, action.addr)
             if var_indices == hit_indices:
                 return True
         return False

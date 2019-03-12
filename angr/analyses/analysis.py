@@ -3,6 +3,7 @@ import contextlib
 from collections import defaultdict
 import progressbar
 import logging
+import time
 
 from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
@@ -11,7 +12,7 @@ from ..errors import AngrAnalysisError
 l = logging.getLogger(name=__name__)
 
 
-class AnalysisLogEntry(object):
+class AnalysisLogEntry:
     def __init__(self, message, exc_info=False):
         if exc_info:
             (e_type, value, traceback) = sys.exc_info()
@@ -75,7 +76,7 @@ class AnalysesHub(PluginVendor):
         super(AnalysesHub, self).__setstate__(s)
 
 
-class AnalysisFactory(object):
+class AnalysisFactory:
     def __init__(self, project, analysis_cls):
         self._project = project
         self._analysis_cls = analysis_cls
@@ -109,7 +110,7 @@ class AnalysisFactory(object):
         return oself
 
 
-class Analysis(object):
+class Analysis:
     """
     This class represents an analysis on the program.
 
@@ -167,12 +168,13 @@ class Analysis(object):
 
         self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, maxval=10000 * 100).start()
 
-    def _update_progress(self, percentage):
+    def _update_progress(self, percentage, **kwargs):
         """
         Update the progress with a percentage, including updating the progressbar as well as calling the progress
         callback.
 
-        :param float percentage: Percentage of the progressbar. from 0.0 to 100.0.
+        :param float percentage:    Percentage of the progressbar. from 0.0 to 100.0.
+        :param kwargs:              Other parameters that will be passed to the progress_callback handler.
         :return: None
         """
 
@@ -183,7 +185,7 @@ class Analysis(object):
             self._progressbar.update(percentage * 10000)
 
         if self._progress_callback is not None:
-            self._progress_callback(percentage)  # pylint:disable=not-callable
+            self._progress_callback(percentage, **kwargs)  # pylint:disable=not-callable
 
     def _finish_progress(self):
         """
@@ -199,6 +201,23 @@ class Analysis(object):
 
         if self._progress_callback is not None:
             self._progress_callback(100.0)  # pylint:disable=not-callable
+
+    @staticmethod
+    def _release_gil(ctr, freq, sleep_time=0.001):
+        """
+        Periodically calls time.sleep() and releases the GIL so other threads (like, GUI threads) have a much better
+        chance to be scheduled, and other critical components (like the GUI) can be kept responsiveness.
+
+        This is, of course, a hack before we move all computational intensive tasks to pure C++ implementations.
+
+        :param int ctr:     A number provided by the caller.
+        :param int freq:    How frequently time.sleep() should be called. time.sleep() is called when ctr % freq == 0.
+        :param sleep_time:  Number (or fraction) of seconds to sleep.
+        :return:            None
+        """
+
+        if ctr % freq == 0:
+            time.sleep(sleep_time)
 
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))

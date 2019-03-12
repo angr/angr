@@ -848,7 +848,7 @@ class SimIROp(object):
         return self._op_concat(args)
 
     def _op_Iop_V256to64_0(self, args): return args[0][63:0]
-    def _op_Iop_V256to64_1(self, args): return args[0][127:0]
+    def _op_Iop_V256to64_1(self, args): return args[0][127:64]
     def _op_Iop_V256to64_2(self, args): return args[0][191:128]
     def _op_Iop_V256to64_3(self, args): return args[0][255:192]
     def _op_Iop_V256toV128_0(self, args): return args[0][127:0]
@@ -866,6 +866,18 @@ class SimIROp(object):
         PACKUSWB Pack with Unsigned Saturation.Two 64 bits operands version.
         """
         return self._op_generic_pack_StoU_saturation(args, 16, 8)
+
+    def _op_Iop_MAddF64(self, args):
+        """
+        Ternary operation.
+            arg0 == 0
+            return arg1 * arg2 + arg3
+
+        :param args:    Arguments to this operation.
+        :return:        The operation result.
+        """
+
+        return args[1] * args[2] + args[3]
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
@@ -934,24 +946,27 @@ class SimIROp(object):
 # Op Handler
 #
 
-def translate(state, op, s_args):
-    if op in operations:
-        return translate_inner(state, operations[op], s_args)
-    elif options.EXTENDED_IROP_SUPPORT in state.options:
-        try:
-            l.info("Using our imagination for op " + op)
-            attrs = op_attrs(op)
-            if attrs is None:
-                raise SimOperationError
-            irop = SimIROp(op, **attrs)
-        except SimOperationError:
-            l.info("...failed to make op")
-        else:
-            operations[op] = irop
-            return translate_inner(state, irop, s_args)
+def vexop_to_simop(op, extended=True):
+    res = operations.get(op)
+    if res is None and extended:
+        attrs = op_attrs(op)
+        if attrs is None:
+            raise SimOperationError
+        res = SimIROp(op, **attrs)
+    if res is None:
+        raise SimOperationError
+    return res
 
-    l.error("Unsupported operation: %s", op)
-    raise UnsupportedIROpError("Unsupported operation: %s" % op)
+
+def translate(state, op, s_args):
+    try:
+        simop = vexop_to_simop(op, options.EXTENDED_IROP_SUPPORT in state.options)
+    except SimOperationError:
+        error = 'Unsupported operation: %s' % op
+        l.error(error)
+        raise UnsupportedIROpError(error)
+    return translate_inner(state, simop, s_args)
+
 
 def translate_inner(state, irop, s_args):
     try:

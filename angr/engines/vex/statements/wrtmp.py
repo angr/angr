@@ -1,14 +1,10 @@
-from . import SimIRStmt, SimStatementError
+def SimIRStmt_WrTmp(engine, state, stmt):
+    # get data and track data reads
+    with state.history.subscribe_actions() as data_deps:
+        data = engine.handle_expression(state, stmt.data)
+    state.scratch.store_tmp(stmt.tmp, data, deps=data_deps)
 
-class SimIRStmt_WrTmp(SimIRStmt):
-    def _execute(self):
-        # get data and track data reads
-        data = self._translate_expr(self.stmt.data)
-        self.state.scratch.store_tmp(self.stmt.tmp, data.expr, data.reg_deps(), data.tmp_deps(),
-                                     action_holder=self.actions
-                                     )
-
-        actual_size = data.size_bits()
-        expected_size = self.stmt.data.result_size(self.state.scratch.tyenv)
-        if actual_size != expected_size:
-            raise SimStatementError("WrTmp expected length %d but got %d" % (actual_size, expected_size))
+    #actual_size = len(data)
+    #expected_size = stmt.data.result_size(state.scratch.tyenv)
+    #if actual_size != expected_size:
+    #    raise SimStatementError("WrTmp expected length %d but got %d" % (actual_size, expected_size))

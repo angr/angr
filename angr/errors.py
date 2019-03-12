@@ -13,6 +13,9 @@ class AngrExitError(AngrError):
 class AngrPathError(AngrError):
     pass
 
+class AngrVaultError(AngrError):
+    pass
+
 class PathUnreachableError(AngrPathError):
     pass
 
@@ -110,6 +113,13 @@ class AngrDDGError(AngrAnalysisError):
     pass
 
 #
+# Loop analysis
+#
+
+class AngrLoopAnalysisError(AngrAnalysisError):
+    pass
+
+#
 # Exploration techniques
 #
 
@@ -123,6 +133,14 @@ class AngrDirectorError(AngrExplorationTechniqueError):
     pass
 
 class AngrTracerError(AngrExplorationTechniqueError):
+    pass
+
+
+#
+# VariableRecovery errors
+#
+
+class AngrVariableRecoveryError(AngrAnalysisError):
     pass
 
 #

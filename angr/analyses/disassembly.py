@@ -5,7 +5,7 @@ from collections import defaultdict
 from . import Analysis
 
 from .disassembly_utils import decode_instruction
-from ..block import CapstoneInsn
+from ..block import CapstoneInsn, SootBlockNode
 
 l = logging.getLogger(name=__name__)
 
@@ -69,7 +69,9 @@ class FunctionStart(DisassemblyPiece):
         self.name = func.name
         self.is_simprocedure = func.is_simprocedure
         self.sim_procedure = None
-        if self.is_simprocedure:
+        if func.is_syscall:
+            self.sim_procedure = func._project.simos.syscall_from_addr(self.addr)
+        elif func.is_simprocedure:
             self.sim_procedure = func._project.hooked_by(self.addr)
 
     def _render(self, formatting):
@@ -268,10 +270,6 @@ class Instruction(DisassemblyPiece):
                 else:
                     in_word = True
                     pieces.append(c)
-            elif c == '%':
-                in_word = False
-                pieces.append('%%')
-
             else:
                 in_word = False
                 pieces.append(c)
@@ -280,6 +278,169 @@ class Instruction(DisassemblyPiece):
 
     def _render(self, formatting=None):
         return ['%s %s' % (self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
+
+
+class SootExpression(DisassemblyPiece):
+    def __init__(self, expr):
+        self.expr = expr
+
+    def _render(self, formatting=None):
+        return [self.expr]
+
+
+class SootExpressionTarget(SootExpression):
+    def __init__(self, target_stmt_idx):
+        super(SootExpressionTarget, self).__init__(target_stmt_idx)
+        self.target_stmt_idx = target_stmt_idx
+
+    def _render(self, formatting=None):
+        return [ "Goto %d" % self.target_stmt_idx ]
+
+
+class SootExpressionStaticFieldRef(SootExpression):
+    def __init__(self, field):
+        field_str = ".".join(field)
+        super(SootExpressionStaticFieldRef, self).__init__(field_str)
+        self.field = field
+        self.field_str = field_str
+
+    def _render(self, formatting=None):
+        return [ self.field_str ]
+
+
+class SootExpressionInvoke(SootExpression):
+
+    Virtual = "virtual"
+    Static = "static"
+    Special = "special"
+
+    def __init__(self, invoke_type, expr):
+
+        super(SootExpressionInvoke, self).__init__(str(expr))
+
+        self.invoke_type = invoke_type
+        self.base = str(expr.base) if self.invoke_type in (self.Virtual, self.Special) else ""
+        self.method_name = expr.method_name
+        self.arg_str = expr.list_to_arg_str(expr.args)
+
+    def _render(self, formatting=None):
+
+        return [ "%s%s(%s) [%s]" % (self.base + "." if self.base else "",
+                                    self.method_name,
+                                    self.arg_str,
+                                    self.invoke_type
+                                    )
+                 ]
+
+
+class SootStatement(DisassemblyPiece):
+    def __init__(self, block_addr, raw_stmt):
+        self.addr = block_addr.copy()
+        self.addr.stmt_idx = raw_stmt.label
+        self.raw_stmt = raw_stmt
+
+        self.components = [ ]
+
+        self._parse()
+
+    @property
+    def stmt_idx(self):
+        return self.addr.stmt_idx
+
+    def _parse(self):
+
+        func = "_parse_%s" % self.raw_stmt.__class__.__name__
+
+        if hasattr(self, func):
+            getattr(self, func)()
+        else:
+            # print func
+            self.components += ["NotImplemented: %s" % func]
+
+    def _expr(self, expr):
+
+        func = "_handle_%s" % expr.__class__.__name__
+
+        if hasattr(self, func):
+            return getattr(self, func)(expr)
+        else:
+            # print func
+            return SootExpression(str(expr))
+
+    def _render(self, formatting=None):
+        return [ " ".join([ component if type(component) is str
+                            else component.render(formatting=formatting)[0]
+                            for component in self.components
+                            ]
+                          )
+                 ]
+
+    #
+    # Statement parsers
+    #
+
+    def _parse_AssignStmt(self):
+
+        self.components += [
+            SootExpression(str(self.raw_stmt.left_op)),
+            "=",
+            self._expr(self.raw_stmt.right_op),
+        ]
+
+    def _parse_InvokeStmt(self):
+
+        self.components += [
+            self._expr(self.raw_stmt.invoke_expr),
+        ]
+
+    def _parse_GotoStmt(self):
+
+        self.components += [
+            SootExpressionTarget(self.raw_stmt.target),
+        ]
+
+    def _parse_IfStmt(self):
+
+        self.components += [
+            "if (",
+            SootExpression(str(self.raw_stmt.condition)),
+            ")",
+            SootExpressionTarget(self.raw_stmt.target),
+        ]
+
+    def _parse_ReturnVoidStmt(self):
+
+        self.components += [
+            "return",
+        ]
+
+    def _parse_IdentityStmt(self):
+
+        self.components += [
+            SootExpression(str(self.raw_stmt.left_op)),
+            "<-",
+            SootExpression(str(self.raw_stmt.right_op)),
+        ]
+
+    #
+    # Expression handlers
+    #
+
+    def _handle_SootStaticFieldRef(self, expr):
+
+        return SootExpressionStaticFieldRef(expr.field[::-1])
+
+    def _handle_SootVirtualInvokeExpr(self, expr):
+
+        return SootExpressionInvoke(SootExpressionInvoke.Virtual, expr)
+
+    def _handle_SootStaticInvokeExpr(self, expr):
+
+        return SootExpressionInvoke(SootExpressionInvoke.Static, expr)
+
+    def _handle_SootSpecialInvokeExpr(self, expr):
+
+        return SootExpressionInvoke(SootExpressionInvoke.Special, expr)
 
 
 class Opcode(DisassemblyPiece):
@@ -410,7 +571,7 @@ class MemoryOperand(Operand):
         if self.children[0] != '[':
             try:
                 square_bracket_pos = self.children.index('[')
-            except ValueError:
+            except ValueError:  #pylint: disable=try-except-raise
                 raise
 
             self.prefix = self.children[ : square_bracket_pos]
@@ -437,7 +598,7 @@ class MemoryOperand(Operand):
         if self.children[0] != '(':
             try:
                 paren_pos = self.children.index('(')
-            except ValueError:
+            except ValueError:  #pylint: disable=try-except-raise
                 raise
 
             self.prefix = self.children[ : paren_pos]
@@ -622,7 +783,7 @@ class Disassembly(Analysis):
             self.raw_result.append(hook)
             self.raw_result_map['hooks'][block.addr] = hook
 
-        else:
+        elif self.project.arch.capstone_support:
             if block.thumb:
                 aligned_block_addr = (block.addr >> 1) << 1
                 cs = self.project.arch.capstone_thumb
@@ -647,6 +808,14 @@ class Disassembly(Analysis):
                 self.raw_result.append(instruction)
                 self.raw_result_map['instructions'][instruction.addr] = instruction
                 self.block_to_insn_addrs[block.addr].append(cs_insn.address)
+        elif type(block) is SootBlockNode:
+            for raw_stmt in block.stmts:
+                stmt = SootStatement(block.addr, raw_stmt)
+                self.raw_result.append(stmt)
+                self.raw_result_map['instructions'][stmt.addr] = stmt
+                self.block_to_insn_addrs[block.addr].append(stmt.addr)
+        else:
+            raise TypeError("")
 
     def render(self, formatting=None):
         if formatting is None: formatting = {}

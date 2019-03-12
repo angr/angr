@@ -1,20 +1,18 @@
 
-import itertools
 import logging
-import struct
 from collections import defaultdict
 
-import cffi
 import networkx
 
 import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
+from archinfo.arch_soot import SootAddressDescriptor
 
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
-    AngrUnsupportedSyscallError, SimError, SimConcreteMemoryError
+    AngrUnsupportedSyscallError, SimError
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
@@ -61,10 +59,11 @@ class CFGBase(Analysis):
     """
 
     tag = None
+    _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
-                 indirect_jump_target_limit=100000, detect_tail_calls=False,
+                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False, sp_tracking_track_memory=True
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -84,6 +83,9 @@ class CFGBase(Analysis):
         :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
         :param bool detect_tail_calls:              Aggressive tail-call optimization detection. This option is only
                                                     respected in make_functions().
+        :param bool sp_tracking_track_memory:       Whether or not to track memory writes when tracking the stack pointer. This
+                                                    increases the accuracy of stack pointer tracking, especially for architectures
+                                                    without a base pointer. Only used if detect_tail_calls is enabled.
 
         :return: None
         """
@@ -100,6 +102,7 @@ class CFGBase(Analysis):
         self._iropt_level = iropt_level
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
+        self._low_priority = low_priority
 
         # Initialization
         self._graph = None
@@ -121,6 +124,9 @@ class CFGBase(Analysis):
         self._normalize = normalize
         # Flag, whether the CFG has been normalized or not
         self._normalized = False
+
+        # Flag, whether to track memory writes in stack pointer tracking
+        self._sp_tracking_track_memory = sp_tracking_track_memory
 
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
@@ -152,12 +158,16 @@ class CFGBase(Analysis):
         self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
         self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
-        # initialize an UnresolvableTarget SimProcedure
+        # initialize UnresolvableJumpTarget and UnresolvableCallTarget SimProcedure
         # but we do not want to hook the same symbol multiple times
-        ut_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableTarget')
-        if not self.project.is_hooked(ut_addr):
-            self.project.hook(ut_addr, SIM_PROCEDURES['stubs']['UnresolvableTarget']())
-        self._unresolvable_target_addr = ut_addr
+        ut_jump_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableJumpTarget')
+        if not self.project.is_hooked(ut_jump_addr):
+            self.project.hook(ut_jump_addr, SIM_PROCEDURES['stubs']['UnresolvableJumpTarget']())
+        self._unresolvable_jump_target_addr = ut_jump_addr
+        ut_call_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableCallTarget')
+        if not self.project.is_hooked(ut_call_addr):
+            self.project.hook(ut_call_addr, SIM_PROCEDURES['stubs']['UnresolvableCallTarget']())
+        self._unresolvable_call_target_addr = ut_call_addr
 
         # partially and fully analyzed functions
         # this is implemented as a state machine: jobs (CFGJob instances) of each function are put into
@@ -174,8 +184,6 @@ class CFGBase(Analysis):
         # TODO: A segment tree to speed up CFG node lookups
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
-
-        self._ffi = cffi.FFI()
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -229,7 +237,10 @@ class CFGBase(Analysis):
         :return: None
         """
 
-        copy_to._normalized = self._normalized
+        for attr, value in self.__dict__.items():
+            if attr.startswith('__') and attr.endswith('__'):
+                continue
+            setattr(copy_to, attr, value)
 
     # pylint: disable=no-self-use
     def copy(self):
@@ -337,11 +348,18 @@ class CFGBase(Analysis):
         :return: A list of predecessors in the CFG
         :rtype: list
         """
+        s = set()
+        for child, parent in networkx.dfs_predecessors(self._graph, cfgnode).items():
+            s.add(child)
+            s.add(parent)
+        return list(s)
 
-        return list(networkx.dfs_predecessors(self._graph, cfgnode))
-
-    def get_all_successors(self, basic_block):
-        return list(networkx.dfs_successors(self._graph, basic_block))
+    def get_all_successors(self, cfgnode):
+        s = set()
+        for parent, children in networkx.dfs_successors(self._graph, cfgnode).items():
+            s.add(parent)
+            s = s.union(children)
+        return list(s)
 
     def get_node(self, block_id):
         """
@@ -355,7 +373,7 @@ class CFGBase(Analysis):
             return self._nodes[block_id]
         return None
 
-    def get_any_node(self, addr, is_syscall=None, anyaddr=False):
+    def get_any_node(self, addr, is_syscall=None, anyaddr=False, force_fastpath=False):
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
@@ -370,13 +388,20 @@ class CFGBase(Analysis):
                                 containing the specific address is returned, which is slow. If you need to do many such
                                 queries, you may first call `generate_index()` to create some indices that may speed up the
                                 query.
+        :param bool force_fastpath: If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
+                                    dict.
         :return: A CFGNode if there is any that satisfies given conditions, or None otherwise
         """
 
         # fastpath: directly look in the nodes list
-        if not anyaddr and self._nodes_by_addr and \
-                addr in self._nodes_by_addr and self._nodes_by_addr[addr]:
-            return self._nodes_by_addr[addr][0]
+        if not anyaddr:
+            try:
+                return self._nodes_by_addr[addr][0]
+            except (KeyError, IndexError):
+                pass
+
+        if force_fastpath:
+            return None
 
         # slower path
         #if self._node_lookup_index is not None:
@@ -397,7 +422,7 @@ class CFGBase(Analysis):
             else:
                 cond = True
             if anyaddr and n.size is not None:
-                cond = cond and (addr >= n.addr and addr < n.addr + n.size)
+                cond = cond and n.addr <= addr < n.addr + n.size
             else:
                 cond = cond and (addr == n.addr)
             if cond:
@@ -719,19 +744,20 @@ class CFGBase(Analysis):
 
         return False
 
-    def _executable_memory_regions(self, binary=None, force_segment=False):
+    def _executable_memory_regions(self, objects=None, force_segment=False):
         """
         Get all executable memory regions from the binaries
 
-        :param binary: Binary object to collect regions from. If None, regions from all project binary objects are used.
+        :param objects: A collection of binary objects to collect regions from. If None, regions from all project
+                        binary objects are used.
         :param bool force_segment: Rely on binary segments instead of sections.
         :return: A sorted list of tuples (beginning_address, end_address)
         """
 
-        if binary is None:
+        if objects is None:
             binaries = self.project.loader.all_objects
         else:
-            binaries = [ binary ]
+            binaries = objects
 
         memory_regions = [ ]
 
@@ -773,7 +799,7 @@ class CFGBase(Analysis):
                 tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
 
-            elif isinstance(b, (ExternObject, KernelObject, TLSObject)):
+            elif isinstance(b, self._cle_pseudo_objects):
                 pass
 
             else:
@@ -873,17 +899,18 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_pointer(self, addr):
+    def _fast_memory_load_pointer(self, addr, size=None):
         """
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
+        :param int size: Size of the pointer. Default to machine-word size.
         :return:         A pointer or None if the address does not exist.
         :rtype:          int
         """
 
         try:
-            return self.project.loader.memory.unpack_word(addr)
+            return self.project.loader.memory.unpack_word(addr, size=size)
         except KeyError:
             return None
 
@@ -891,12 +918,9 @@ class CFGBase(Analysis):
     # Analyze function features
     #
 
-    def _analyze_function_features(self):
+    def _determine_function_returning(self, func, all_funcs_completed=False):
         """
-        For each function in the function_manager, try to determine if it returns or not. A function does not return if
-        it calls another function that is known to be not returning, and this function does not have other exits.
-
-        We might as well analyze other features of functions in the future.
+        Determine if a function returns or not.
 
         A function does not return if
         a) it is a SimProcedure that has NO_RET being True,
@@ -905,6 +929,101 @@ class CFGBase(Analysis):
            be added to it), and it does not have a ret or any equivalent instruction.
 
         A function returns if any of its block contains a ret instruction or any equivalence.
+
+        :param Function func:   The function to work on.
+        :param bool all_funcs_completed:    Whether we treat all functions as completed functions or not.
+        :return:                True if the function returns, False if the function does not return, or None if it is
+                                not yet determinable with the information available at the moment.
+        :rtype:                 bool or None
+        """
+
+        # If there is at least one return site, then this function is definitely returning
+        if func.has_return:
+            return True
+
+        # Let's first see if it's a known SimProcedure that does not return
+        if self.project.is_hooked(func.addr):
+            procedure = self.project.hooked_by(func.addr)
+        else:
+            try:
+                procedure = self.project.simos.syscall_from_addr(func.addr, allow_unsupported=False)
+            except AngrUnsupportedSyscallError:
+                procedure = None
+
+        if procedure is not None and hasattr(procedure, 'NO_RET'):
+            return not procedure.NO_RET
+
+        # did we finish analyzing this function?
+        if not all_funcs_completed and func.addr not in self._completed_functions:
+            return None
+
+        if not func.block_addrs_set:
+            # there is no block inside this function
+            # it might happen if the function has been incorrectly identified as part of another function
+            # the error will be corrected during post-processing. In fact at this moment we cannot say anything
+            # about whether this function returns or not. We always assume it returns.
+            return True
+
+        bail_out = False
+
+        # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
+        # returns
+        for goout_site, type_ in [(site, 'jumpout') for site in func.jumpout_sites] + \
+                                 [(site, 'retout') for site in func.retout_sites]:
+
+            # determine where it jumps/returns to
+            goout_site_successors = goout_site.successors()
+            if not goout_site_successors:
+                # not sure where it jumps to. bail out
+                bail_out = True
+                continue
+
+            # for ret-out sites, determine what function it calls
+            if type_ == 'retout':
+                # see whether the function being called returns or not
+                func_successors = [succ for succ in goout_site_successors if isinstance(succ, Function)]
+                if func_successors and all(func_successor.returning in (None, False)
+                                           for func_successor in func_successors):
+                    # the returning of all possible function calls are undetermined, or they do not return
+                    # ignore this site
+                    continue
+
+            if type_ == 'retout':
+                goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
+            else:
+                goout_target = next((succ for succ in goout_site_successors), None)
+            if goout_target is None:
+                # there is no jumpout site, which is weird, but what can we do...
+                continue
+            if not self.kb.functions.contains_addr(goout_target.addr):
+                # wait it does not jump to a function?
+                bail_out = True
+                continue
+
+            target_func = self.kb.functions[goout_target.addr]
+            if target_func.returning is True:
+                return True
+            elif target_func.returning is None:
+                # the returning status of at least one of the target functions is not decided yet.
+                bail_out = True
+
+        if bail_out:
+            # We cannot determine at this point. bail out
+            return None
+
+        # well this function does not return then
+        return False
+
+    def _analyze_function_features(self, all_funcs_completed=False):
+        """
+        For each function in the function_manager, try to determine if it returns or not. A function does not return if
+        it calls another function that is known to be not returning, and this function does not have other exits.
+
+        We might as well analyze other features of functions in the future.
+
+        :param bool all_funcs_completed:    Ignore _completed_functions set and treat all functions as completed. This
+                                            can be set to True after the entire CFG is built and _post_analysis() is
+                                            called (at which point analysis on all functions must be completed).
         """
 
         changes = {
@@ -914,140 +1033,48 @@ class CFGBase(Analysis):
 
         if self._updated_nonreturning_functions is not None:
             all_func_addrs = self._updated_nonreturning_functions
-            caller_func_addrs = set()
 
-            for func_addr in self._updated_nonreturning_functions:
-                if func_addr not in self.kb.functions.callgraph:
-                    continue
-                callers = self.kb.functions.callgraph.predecessors(func_addr)
-                for f in callers:
-                    caller_func_addrs.add(f)
-
-            # Add callers
-            all_func_addrs |= caller_func_addrs
             # Convert addresses to objects
             all_functions = [ self.kb.functions.get_by_addr(f) for f in all_func_addrs
                               if self.kb.functions.contains_addr(f) ]
 
         else:
-            all_functions = self.kb.functions.values()
+            all_functions = list(self.kb.functions.values())
 
-        # pylint: disable=too-many-nested-blocks
-        for func in all_functions:  # type: angr.knowledge.Function
+        analyzed_functions = set()
+        # short-hand
+        functions = self.kb.functions  # type: angr.knowledge.FunctionManager
+
+        while all_functions:
+            func = all_functions.pop(-1)  # type: angr.knowledge.Function
+            analyzed_functions.add(func.addr)
 
             if func.returning is not None:
                 # It has been determined before. Skip it
                 continue
 
-            # If there is at least one return site, then this function is definitely returning
-            if func.has_return:
-                changes['functions_return'].append(func)
+            returning = self._determine_function_returning(func, all_funcs_completed=all_funcs_completed)
+
+            if returning:
                 func.returning = True
-                self._add_returning_function(func.addr)
-                continue
-
-            # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
-            # blocks of it.
-
-            if not func.block_addrs_set:
-                # the function is empty. skip
-                continue
-
-            # Let's first see if it's a known SimProcedure that does not return
-            if self.project.is_hooked(func.addr):
-                procedure = self.project.hooked_by(func.addr)
-            else:
-                try:
-                    procedure = self.project.simos.syscall_from_addr(func.addr, allow_unsupported=False)
-                except AngrUnsupportedSyscallError:
-                    procedure = None
-
-            if procedure is not None and hasattr(procedure, 'NO_RET'):
-                if procedure.NO_RET:
-                    func.returning = False
-                    changes['functions_do_not_return'].append(func)
-                else:
-                    func.returning = True
-                    self._add_returning_function(func.addr)
-                    changes['functions_return'].append(func)
-                continue
-
-            # did we finish analyzing this function?
-            if func.addr not in self._completed_functions:
-                continue
-
-            if not func.block_addrs_set:
-                # there is no block inside this function
-                # it might happen if the function has been incorrectly identified as part of another function
-                # the error will be corrected during post-processing. In fact at this moment we cannot say anything
-                # about whether this function returns or not. We always assume it returns.
-                func.returning = True
-                self._add_returning_function(func.addr)
                 changes['functions_return'].append(func)
-                continue
+            elif returning is False:
+                func.returning = False
+                changes['functions_do_not_return'].append(func)
 
-            bail_out = False
-
-            # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
-            # returns
-            for goout_site, type_ in [ (site, 'jumpout') for site in func.jumpout_sites ] + \
-                    [ (site, 'retout') for site in func.retout_sites ]:
-
-                if func.returning:
-                    # if there are multiple jump out sites and we have determined the "returning status" from one of
-                    # the jump out sites, we can exit the loop early
-                    break
-
-                # determine where it jumps/returns to
-                goout_site_successors = goout_site.successors()
-                if not goout_site_successors:
-                    # not sure where it jumps to. bail out
-                    bail_out = True
-                    continue
-
-                # for retout sites, determine what function it calls
-                if type_ == 'retout':
-                    # see whether the function being called returns or not
-                    func_successors = [ succ for succ in goout_site_successors if isinstance(succ, Function) ]
-                    if func_successors and all(func_successor.returning in (None, False)
-                                               for func_successor in func_successors):
-                        # the returning of all possible function calls are undermined, or they do not return
-                        # ignore this site
-                        continue
-
-                if type_ == 'retout':
-                    goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
-                else:
-                    goout_target = next((succ for succ in goout_site_successors), None)
-                if goout_target is None:
-                    # there is no jumpout site, which is weird, but what can we do...
-                    continue
-                if not self.kb.functions.contains_addr(goout_target.addr):
-                    # wait it does not jump to a function?
-                    bail_out = True
-                    continue
-
-                target_func = self.kb.functions[goout_target.addr]
-                if target_func.returning is True:
-                    func.returning = True
-                    self._add_returning_function(func.addr)
-                    changes['functions_return'].append(func)
-                    bail_out = True
-                elif target_func.returning is None:
-                    # the returning status of at least one of the target functions is not decided yet.
-                    bail_out = True
-
-            if bail_out:
-                # bail out
-                continue
-
-            # well this function does not return then
-            func.returning = False
-            changes['functions_do_not_return'].append(func)
+            if returning is not None:
+                # Add all callers of this function to all_functions list
+                if func.addr in functions.callgraph:
+                    callers = functions.callgraph.predecessors(func.addr)
+                    for caller in callers:
+                        if caller in analyzed_functions:
+                            continue
+                        if functions.contains_addr(caller):
+                            all_functions.append(functions.get_by_addr(caller))
 
         return changes
 
-    def _iteratively_analyze_function_features(self):
+    def _iteratively_analyze_function_features(self, all_funcs_completed=False):
         """
         Iteratively analyze function features until a fixed point is reached.
 
@@ -1061,7 +1088,7 @@ class CFGBase(Analysis):
         }
 
         while True:
-            new_changes = self._analyze_function_features()
+            new_changes = self._analyze_function_features(all_funcs_completed=all_funcs_completed)
 
             changes['functions_do_not_return'] |= set(new_changes['functions_do_not_return'])
             changes['functions_return'] |= set(new_changes['functions_return'])
@@ -1157,6 +1184,13 @@ class CFGBase(Analysis):
                             # umm, those nodes are overlapping, but they must have different end addresses
                             nodekey_a = node.addr + node.size, callstack_key
                             nodekey_b = next_node.addr + next_node.size, callstack_key
+                            if nodekey_a == nodekey_b:
+                                # error handling: this will only happen if we have completely overlapping nodes
+                                # caused by different jumps (one of the jumps is probably incorrect), which usually
+                                # indicates an error in CFG recovery. we print a warning and skip this node
+                                l.warning("Found completely overlapping nodes %s. It usually indicates an error in CFG "
+                                          "recovery. Skip.", node)
+                                continue
 
                             if nodekey_a in smallest_nodes and nodekey_b in smallest_nodes:
                                 # misuse end_addresses_to_nodes
@@ -1354,9 +1388,6 @@ class CFGBase(Analysis):
     # Function identification and such
     #
 
-    def _add_returning_function(self, func_addr):
-        pass
-
     def remove_function_alignments(self):
         """
         Remove all function alignments.
@@ -1426,7 +1457,7 @@ class CFGBase(Analysis):
 
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
-        called_function_addrs = set([n.addr for n in function_nodes])
+        called_function_addrs = { n.addr for n in function_nodes }
 
         removed_functions_a = self._process_irrational_functions(tmp_functions,
                                                                  called_function_addrs,
@@ -1452,6 +1483,9 @@ class CFGBase(Analysis):
         max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
+
+            if self._low_priority:
+                self._release_gil(i, 20)
 
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
@@ -1691,15 +1725,14 @@ class CFGBase(Analysis):
         :rtype:                             set
         """
 
-        addrs = sorted(functions.keys())
+        addrs = sorted(k for k in functions.keys()
+                       if not self.project.is_hooked(k) and not self.project.simos.is_syscall_addr(k))
         functions_to_remove = set()
         adjusted_cfgnodes = set()
 
         for addr_0, addr_1 in zip(addrs[:-1], addrs[1:]):
 
             if addr_1 in predetermined_function_addrs:
-                continue
-            if self.project.is_hooked(addr_0) or self.project.is_hooked(addr_1):
                 continue
 
             func_0 = functions[addr_0]
@@ -1725,15 +1758,15 @@ class CFGBase(Analysis):
                 if target_addr != addr_1:
                     continue
 
-                # Are func_0 adjacent to func_1?
-                if block.addr + block.size != addr_1:
-                    continue
-
-                l.debug("Merging function %#x into %#x.", addr_1, addr_0)
-
-                # Merge block addr_0 and block addr_1
                 cfgnode_0 = self.get_any_node(addr_0)
                 cfgnode_1 = self.get_any_node(addr_1)
+
+                # Are func_0 adjacent to func_1?
+                if cfgnode_0.addr + cfgnode_0.size != addr_1:
+                    continue
+
+                # Merge block addr_0 and block addr_1
+                l.debug("Merging function %#x into %#x.", addr_1, addr_0)
                 self._merge_cfgnodes(cfgnode_0, cfgnode_1)
                 adjusted_cfgnodes.add(cfgnode_0)
                 adjusted_cfgnodes.add(cfgnode_1)
@@ -1774,6 +1807,9 @@ class CFGBase(Analysis):
             n = self.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr
             else: node = self._to_snippet(n)
+
+            if isinstance(addr, SootAddressDescriptor):
+                addr = addr.method
 
             self.kb.functions._add_node(addr, node, syscall=is_syscall)
             f = self.kb.functions.function(addr=addr)
@@ -1847,8 +1883,11 @@ class CFGBase(Analysis):
                 candidate = True
 
             if candidate:
-                sptracker = self.project.analyses.StackPointerTracker(src_function)
-                sp_delta = sptracker.sp_offset_out(src_addr)
+                regs = {self.project.arch.sp_offset}
+                if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
+                    regs.add(self.project.arch.bp_offset)
+                sptracker = self.project.analyses.StackPointerTracker(src_function, regs, track_memory=self._sp_tracking_track_memory)
+                sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True
 
@@ -1961,7 +2000,7 @@ class CFGBase(Analysis):
             # For now, assume UnresolvedTarget returns if we're calling to it
 
             # If the function doesn't return, don't add a fakeret!
-            if not all_edges or (dst_function.returning is False and not dst_function.name == b'UnresolvableTarget'):
+            if not all_edges or (dst_function.returning is False and not dst_function.name == 'UnresolvableCallTarget'):
                 fakeret_node = None
             else:
                 fakeret_node = self._one_fakeret_node(all_edges)
@@ -1970,6 +2009,9 @@ class CFGBase(Analysis):
                 fakeret_snippet = None
             else:
                 fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
+
+            if isinstance(dst_addr, SootAddressDescriptor):
+                dst_addr = dst_addr.method
 
             self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
@@ -2024,7 +2066,12 @@ class CFGBase(Analysis):
                                                                  )
 
             # is it a jump to another function?
-            if dst_addr in known_functions or (
+            if isinstance(dst_addr, SootAddressDescriptor):
+                is_known_function_addr = dst_addr.method in known_functions and dst_addr.method.addr == dst_addr
+            else:
+                is_known_function_addr = dst_addr in known_functions
+
+            if is_known_function_addr or (
                 dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
             ):
                 # yes it is
@@ -2064,11 +2111,18 @@ class CFGBase(Analysis):
 
 
             if dst_addr not in blockaddr_to_function:
-                if dst_addr not in known_functions:
-                    blockaddr_to_function[dst_addr] = src_function
-                    target_function = src_function
+                if isinstance(dst_addr, SootAddressDescriptor):
+                    if dst_addr.method not in known_functions:
+                        blockaddr_to_function[dst_addr] = src_function
+                        target_function = src_function
+                    else:
+                        target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
                 else:
-                    target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                    if dst_addr not in known_functions:
+                        blockaddr_to_function[dst_addr] = src_function
+                        target_function = src_function
+                    else:
+                        target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
             else:
                 target_function = blockaddr_to_function[dst_addr]
 
@@ -2084,10 +2138,8 @@ class CFGBase(Analysis):
                         break
             # We may have since figured out that the called function doesn't ret.
             # It's important to assume that all unresolved targets do return
-            # FIXME: Remove the last check after we split UnresolvableTarget into UnresolvableJump and UnresolvableCall.
             if called_function is not None and \
-                    called_function.returning is False and \
-                    (not called_function.is_simprocedure or called_function.name not in ('UnresolvableTarget',)):
+                    called_function.returning is False:
                 return
 
             to_outside = not target_function is src_function
@@ -2302,7 +2354,7 @@ class CFGBase(Analysis):
         Resolve all unresolved indirect jumps found in previous scanning.
 
         Currently we support resolving the following types of indirect jumps:
-        - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
+        - Ijk_Call: indirect calls where the function address is passed in from a proceeding basic block
         - Ijk_Boring: jump tables
         - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
 
@@ -2313,7 +2365,9 @@ class CFGBase(Analysis):
         l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         all_targets = set()
-        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
+        for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type:int,IndirectJump
+            if self._low_priority:
+                self._release_gil(idx, 20, 0.0001)
             all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()

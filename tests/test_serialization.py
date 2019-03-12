@@ -1,22 +1,19 @@
+import tempfile
 import pickle
+import shutil
 import nose
 import angr
-import ana
 import os
-import tempfile
 
 internaltest_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 internaltest_files = [ 'argc_decide', 'argc_symbol', 'argv_test', 'counter', 'fauxware', 'fauxware.idb', 'manysum', 'pw', 'strlen', 'test_arrays', 'test_division', 'test_loops' ]
 internaltest_arch = [ 'i386', 'armel' ]
 
 def internaltest_vfg(p, cfg):
-    state = tempfile.TemporaryFile()
-
     vfg = p.analyses.VFG(cfg=cfg)
-    pickle.dump(vfg, state, -1)
-
-    state.seek(0)
-    vfg2 = pickle.load(state)
+    v = angr.vaults.VaultDict()
+    state = v.dumps(vfg)
+    vfg2 = v.loads(state)
     nose.tools.assert_equal(vfg.final_states, vfg2.final_states)
     nose.tools.assert_equal(set(vfg.graph.nodes()), set(vfg2.graph.nodes()))
 
@@ -50,30 +47,53 @@ def internaltest_cfgfast(p):
     cfg2 = pickle.load(state)
     nose.tools.assert_equal(set(cfg.nodes()), set(cfg2.nodes()))
 
-def internaltest_project(p):
-    state = tempfile.TemporaryFile()
-    pickle.dump(p, state, -1)
+def internaltest_project(fpath):
+    tpath = tempfile.mktemp()
+    shutil.copy(fpath, tpath)
 
-    state.seek(0)
-    loaded_p = pickle.load(state)
-    nose.tools.assert_equal(p.arch, loaded_p.arch)
-    nose.tools.assert_equal(p.filename, loaded_p.filename)
-    nose.tools.assert_equal(p.entry, loaded_p.entry)
+    p = angr.Project(tpath)
+    state = pickle.dumps(p, -1)
+    loaded_p = pickle.loads(state)
+    assert p is not loaded_p
+    assert p.arch == loaded_p.arch
+    assert p.filename == loaded_p.filename
+    assert p.entry == loaded_p.entry
 
-def setup():
-    tmp_dir = tempfile.mkdtemp(prefix='test_serialization_ana')
-    ana.set_dl(ana.DirDataLayer(tmp_dir))
-def teardown():
-    ana.set_dl(ana.SimpleDataLayer())
+    simgr = loaded_p.factory.simulation_manager()
+    simgr.run(n=10)
+    assert len(simgr.errored) == 0
 
-@nose.with_setup(setup, teardown)
+def test_analyses():
+    p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
+    cfg = p.analyses.CFG()
+    cfb = p.analyses.CFB(cfg)
+    vrf = p.analyses.VariableRecoveryFast(p.kb.functions['main'])
+
+    assert len(p.kb.functions) > 0
+    assert len(pickle.loads(pickle.dumps(p.kb)).functions) > 0
+
+    state = pickle.dumps((p,cfg,cfb,vrf))
+    del p
+    del cfg
+    del cfb
+    del vrf
+    import gc
+    gc.collect()
+
+    p,cfg,cfb,vrf = pickle.loads(state)
+    assert p.kb is not None
+    assert p.kb.functions is not None
+    assert cfg.kb is not None
+    assert len(p.kb.functions) > 0
+
 def test_serialization():
+    test_analyses()
+
     for d in internaltest_arch:
         for f in internaltest_files:
             fpath = os.path.join(internaltest_location, d,f)
             if os.path.isfile(fpath) and os.access(fpath, os.X_OK):
-                p = angr.Project(fpath)
-                internaltest_project(p)
+                internaltest_project(fpath)
 
     p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
     internaltest_cfgfast(p)

@@ -25,7 +25,7 @@ class Loop(object):
                     break
 
     def __repr__(self):
-        s = "<Loop @ %#x, %d blocks>" % (self.entry.addr, len(self.body_nodes))
+        s = "<Loop @ %s, %d blocks>" % (self.entry.addr, len(self.body_nodes))
         return s
 
 class LoopFinder(Analysis):

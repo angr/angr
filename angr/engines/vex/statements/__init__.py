@@ -1,7 +1,3 @@
-from ....errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
-from .... import sim_options as o
-
-from .base import SimIRStmt
 from .noop import SimIRStmt_NoOp
 from .imark import SimIRStmt_IMark
 from .abihint import SimIRStmt_AbiHint
@@ -17,19 +13,11 @@ from .loadg import SimIRStmt_LoadG
 from .llsc import SimIRStmt_LLSC
 from .puti import SimIRStmt_PutI
 
-import logging
-l = logging.getLogger(name=__name__)
+import pyvex
 
-def translate_stmt(stmt, state):
-    stmt_name = 'SimIRStmt_' +  type(stmt).__name__.split('IRStmt')[-1].split('.')[-1]
-
-    if stmt_name in globals():
-        stmt_class = globals()[stmt_name]
-        s = stmt_class(stmt, state)
-        s.process()
-        return s
-    else:
-        l.error("Unsupported statement type %s", (type(stmt)))
-        if o.BYPASS_UNSUPPORTED_IRSTMT not in state.options:
-            raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
-        state.history.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')
+STMT_CLASSES = [None]*pyvex.stmt.tag_count
+for name, cls in vars(pyvex.stmt).items():
+    if isinstance(cls, type) and issubclass(cls, pyvex.stmt.IRStmt) and cls is not pyvex.stmt.IRStmt:
+        STMT_CLASSES[cls.tag_int] = globals()['SimIRStmt_' + name]
+if any(x is None for x in STMT_CLASSES):
+    raise ImportError("Something is messed up loading angr: not all pyvex stmts accounted for")
