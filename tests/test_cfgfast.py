@@ -610,6 +610,7 @@ def test_collect_data_references():
     nose.tools.assert_equal(sneaky_str.sort, "string")
     nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
 
+
 def test_unresolvable_targets():
 
     path = os.path.join(test_location, 'cgc', 'CADET_00002')
