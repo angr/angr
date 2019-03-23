@@ -2160,7 +2160,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         callee_function = None
 
         if new_function_addr is not None:
-            callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
+            if is_syscall:
+                # we can create the syscall function if it does not exist yet. it has to be handled as a SimProcedure
+                # anyway
+                callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall, create=True)
+            else:
+                callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
             if callee_function is not None:
                 callee_might_return = not (callee_function.returning is False)
 
