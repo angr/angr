@@ -101,7 +101,7 @@ class Project:
         if load_options is None: load_options = {}
 
         load_options.update(kwargs)
-        if arch is not None: 
+        if arch is not None:
             load_options.update({'arch': arch})
         if isinstance(thing, cle.Loader):
             if load_options:

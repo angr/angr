@@ -556,7 +556,7 @@ def test_function_leading_blocks_merging():
                                 )
 
     nose.tools.assert_in(0x8000799, cfg.kb.functions, "Function 0x8000799 does not exist.")
-    nose.tools.assert_not_in(0x800079b, cfg.kb.functions, "Function 0x8000799 does not exist.")
+    nose.tools.assert_not_in(0x800079b, cfg.kb.functions, "Function 0x800079b does not exist.")
     nose.tools.assert_not_in(0x800079b, cfg.kb.functions[0x8000799].block_addrs_set,
                              "Block 0x800079b is found, but it should not exist.")
     nose.tools.assert_in(0x8000799, cfg.kb.functions[0x8000799].block_addrs_set,

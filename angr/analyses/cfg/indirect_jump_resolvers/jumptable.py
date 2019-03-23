@@ -68,10 +68,11 @@ class JumpTableResolver(IndirectJumpResolver):
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # TODO:
 
-        if jumpkind == "Ijk_Boring" or jumpkind == 'Ijk_Call':
-            # Currently we only support boring jumps and calls
-            return True
-        return False
+        if jumpkind not in ('Ijk_Boring', 'Ijk_Call'):
+            # Currently we only support boring and call ones
+            return False
+
+        return True
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
@@ -298,9 +299,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
                 if not jump_target:
                     #...except this constant looks like a jumpout!
-                    l.info("Constant indirect jump directed out of the binary at #%08x" % addr)
+                    l.info("Constant indirect jump directed out of the binary at #%08x", addr)
                     return False, []
-                l.info("Resolved constant indirect jump from %#08x to %#08x" % (addr, jump_target_addr))
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
                 ij = cfg.indirect_jumps[addr]
                 ij.jumptable = False
                 ij.resolved_targets = set([jump_target])
@@ -319,7 +320,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 # value of R3 is. Some intensive data-flow analysis is required in this case.
                 jump_target_addr = load_stmt.addr.con.value
                 jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
-                l.info("Resolved constant indirect jump from %#08x to %#08x" % (addr, jump_target_addr))
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
                 ij = cfg.indirect_jumps[addr]
                 ij.jumptable = False
                 ij.resolved_targets = set([jump_target])
@@ -712,7 +713,7 @@ class JumpTableResolver(IndirectJumpResolver):
             guard = state.scratch.temps[guard_tmp] != 0
             try:
                 jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
-            except:
+            except Exception: # pylint: disable=bare-except
                 l.exception("Error computing jump table address!")
                 return None
         return jump_addr

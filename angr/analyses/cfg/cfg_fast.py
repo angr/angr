@@ -12,6 +12,7 @@ import cle
 import pyvex
 from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
+from archinfo.arch_arm import is_arm_arch
 
 from ...misc.ux import deprecated
 from .memory_data import MemoryData
@@ -1482,7 +1483,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _post_process_successors(self, addr, size, successors):
 
-        if self.project.arch.name in ('ARMEL', 'ARMHF', 'ARMCortexM') and addr % 2 == 1:
+        if is_arm_arch(self.project.arch) and addr % 2 == 1:
             # we are in thumb mode. filter successors
             successors = self._arm_thumb_filter_jump_successors(addr,
                                                                 size,
@@ -1840,8 +1841,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: list
         """
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
-        if addr == 0x4484:
-            import ipdb; ipdb.set_trace()
         # Add edges going to this node in function graphs
         cfg_job.apply_function_edges(self, clear=True)
 
@@ -3614,10 +3613,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 return addr, current_function_addr, cfg_node, irsb
 
-            is_arm_arch = self.project.arch.name in ('ARMHF', 'ARMEL')
             is_x86_x64_arch = self.project.arch.name in ('X86', 'AMD64')
 
-            if is_arm_arch:
+            if is_arm_arch(self.project.arch):
                 real_addr = addr & (~1)
             else:
                 real_addr = addr
@@ -3644,7 +3642,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # we don't want to have a basic block that spans across function boundaries
             next_func = self.functions.ceiling_func(addr + 1)
             if next_func is not None:
-                distance_to_func = (next_func.addr & (~1) if is_arm_arch else next_func.addr) - real_addr
+                distance_to_func = (next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr) - real_addr
                 if distance_to_func != 0:
                     if distance is None:
                         distance = distance_to_func
@@ -3669,7 +3667,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 nodecode = True
 
             if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
-                    is_arm_arch and \
+                    is_arm_arch(self.project.arch) and \
                     self._arch_options.switch_mode_on_nodecode:
                 # maybe the current mode is wrong?
                 nodecode = False
@@ -3731,7 +3729,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             is_thumb = False
             # Occupy the block in segment list
             if irsb.size > 0:
-                if is_arm_arch and addr % 2 == 1:
+                if is_arm_arch(self.project.arch) and addr % 2 == 1:
                     # thumb mode
                     is_thumb=True
                 self._seg_list.occupy(real_addr, irsb.size, "code")
@@ -3772,7 +3770,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param func_addr: function address
         :return: None
         """
-        if self.project.arch.name in ('ARMEL', 'ARMHF', 'ARMCortexM'):
+        if is_arm_arch(self.project.arch):
             if self._arch_options.ret_jumpkind_heuristics:
                 if addr == func_addr:
                     self._arm_track_lr_on_stack(addr, irsb, self.functions[func_addr])

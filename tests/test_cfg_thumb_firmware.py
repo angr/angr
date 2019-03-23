@@ -2,7 +2,7 @@
 import os
 
 import angr
-from nose.tools import assert_equal, assert_true
+from nose.tools import assert_true
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
 
@@ -20,11 +20,12 @@ def test_thumb_firmware_cfg():
     p = angr.Project(path, auto_load_libs=False)
 
     # This is the canonical way to carve up a nasty firmware thing.
+
     cfg = p.analyses.CFGFast(resolve_indirect_jumps=True, force_complete_scan=False, normalize=True)
 
     # vfprintf should return; this function has a weird C++ thing that gets compiled as a tail-call.
     # The function itself must return, and _NOT_ contain its callee.
-    vfprintf = p.kb.functions[p.loader.find_symbol('vfprintf').rebased_addr]
+    vfprintf = cfg.kb.functions[p.loader.find_symbol('vfprintf').rebased_addr]
     assert_true(vfprintf.returning)
     assert_true(len(list(vfprintf.blocks)) == 1)
     # The function should have one "transition"
