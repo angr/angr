@@ -273,6 +273,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             regval = dict(self._state_for(addr, pre_or_post).regs)[reg]
         except KeyError:
             return TOP
+        except AttributeError:
+            return TOP
         if regval is TOP or type(regval) is Constant:
             return TOP
         else:
