@@ -1844,6 +1844,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: list
         """
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
+        
         # Add edges going to this node in function graphs
         cfg_job.apply_function_edges(self, clear=True)
 

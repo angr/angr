@@ -87,6 +87,7 @@ class JumpTableResolver(IndirectJumpResolver):
         """
         project = self.project  # short-hand
         self._max_targets = cfg._indirect_jump_target_limit
+        
         # Perform a backward slicing from the jump target
         b = Blade(cfg.graph, addr, -1,
             cfg=cfg, project=project,
