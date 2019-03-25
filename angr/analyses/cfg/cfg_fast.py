@@ -1676,7 +1676,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
             regexes.append(r)
-        # FIXME: HACK: Oh my god i'm sorry
+        # EDG says: I challenge anyone bothering to read this to come up with a better
+        # way to handle CPU modes that affect instruction decoding.
+        # Since the only one we care about is ARM/Thumb right now
+        # we have this gross hack. Sorry about that.
         thumb_regexes = list()
         if hasattr(self.project.arch, 'thumb_prologs'):
             for ins_regex in self.project.arch.thumb_prologs:
