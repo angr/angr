@@ -206,6 +206,8 @@ class SimOS:
         grow_like_stack = kwargs.pop('grow_like_stack', True)
 
         if state is None:
+            if stack_base is not None:
+                kwargs['stack_end'] = (stack_base + 0x1000) & ~0xfff
             state = self.state_blank(addr=addr, **kwargs)
         else:
             state = state.copy()

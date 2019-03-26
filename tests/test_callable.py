@@ -1,6 +1,7 @@
 import nose
 import angr
 import claripy
+import archinfo
 from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
 from angr.errors import AngrCallableMultistateError
 
@@ -145,6 +146,20 @@ def test_callable_c_fauxware():
 def test_callable_c_manyfloatsum():
     for arch in addresses_manysum:
         yield run_callable_c_manysum, arch
+
+def test_setup_callsite():
+    p = angr.load_shellcode(b'b', arch=archinfo.ArchX86())
+
+    s = p.factory.call_state(0, "hello", stack_base=0x1234, alloc_base=0x5678, grow_like_stack=False)
+    assert (s.regs.sp == 0x1234).is_true()
+    assert (s.mem[0x1234 + 4].long.resolved == 0x5678).is_true()
+    assert (s.memory.load(0x5678, 5) == b'hello').is_true()
+
+    s = p.factory.call_state(0, "hello", stack_base=0x1234)
+    assert (s.regs.sp == 0x1234).is_true()
+    assert (s.mem[0x1234 + 4].long.resolved == 0x1234 + 8).is_true()
+    assert (s.memory.load(0x1234 + 8, 5) == b'hello').is_true()
+
 
 
 if __name__ == "__main__":
