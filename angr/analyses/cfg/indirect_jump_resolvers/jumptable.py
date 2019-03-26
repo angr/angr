@@ -394,8 +394,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 for idx, a in enumerate(state.solver.eval_upto(jumptable_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
-                    target = cfg._fast_memory_load_pointer(a, size=load_size)
-                    all_targets.append(target)
+                    target = cfg._fast_memory_load_pointer(a, size=self.project.arch.byte_width)
+                    if target is not None:
+                        all_targets.append(target)
 
                 # Adjust entries inside the jump table
                 if stmts_adding_base_addr:
