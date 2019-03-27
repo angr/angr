@@ -351,7 +351,7 @@ class SimFileStream(SimFile):
         return c
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
-        self.pos = self.state.solver.ite_tree(zip(merge_conditions[1:], [o.pos for o in others]), self.pos)
+        self.pos = self.state.solver.ite_cases(zip(merge_conditions[1:], [o.pos for o in others]), self.pos)
         return super(SimFileStream, self).merge(others, merge_conditions, common_ancestor=common_ancestor)
 
 
