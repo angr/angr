@@ -153,6 +153,16 @@ class CFGNode:
                     )
         return c
 
+    def merge(self, other):
+        """
+        Merges this node with the other, returning a new node that spans the both.
+        """
+        new_node = self.copy()
+        new_node.size += other.size
+        new_node.instruction_addrs += other.instruction_addrs
+        new_node.byte_string += other.byte_string
+        return new_node
+
     def __repr__(self):
         s = "<CFGNode "
         if self.name is not None:
