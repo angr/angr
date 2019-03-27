@@ -42,15 +42,17 @@ class fgets(angr.SimProcedure):
         # case 2: the data is symbolic, the newline could be anywhere. Read the maximum number of bytes
         # (SHORT_READS should take care of the variable length) and add a constraint to assert the
         # newline nonsense.
+        # caveat: there could also be no newline and the file could EOF.
         else:
             data, real_size = simfd.read_data(size-1)
 
             for i, byte in enumerate(data.chop(8)):
                 self.state.solver.add(self.state.solver.If(
                     i+1 != real_size, byte != b'\n', # if not last byte returned, not newline
-                    self.state.solver.Or( # otherwise one of the following must be true
-                        i+2 == size, # we ran out of space, or
-                        byte == b'\n' # it is a newline
+                    self.state.solver.Or(            # otherwise one of the following must be true:
+                        i+2 == size,                 # - we ran out of space, or
+                        simfd.eof(),                 # - the file is at EOF, or
+                        byte == b'\n'                # - it is a newline
                     )))
 
             self.state.memory.store(dst, data, size=real_size)

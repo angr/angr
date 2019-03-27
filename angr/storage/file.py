@@ -910,7 +910,12 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
         super(SimFileDescriptorDuplex, self).set_state(state)
 
     def eof(self):
-        return claripy.false
+        # the thing that makes the most sense is for this to refer to the read eof status...
+        if not self._read_file.seekable:
+            return claripy.false
+        if not getattr(self._read_file, 'has_end', True):
+            return claripy.false
+        return self._read_pos == self._read_file.size
 
     def tell(self):
         return None
