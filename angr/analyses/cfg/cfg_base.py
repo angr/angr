@@ -550,8 +550,7 @@ class CFGBase(Analysis):
 
         assert cfgnode_0.addr + cfgnode_0.size == cfgnode_1.addr
         addr0, addr1 = cfgnode_0.addr, cfgnode_1.addr
-        new_node = cfgnode_0.copy()
-        new_node.size += cfgnode_1.size
+        new_node = cfgnode_0.merge(cfgnode_1)
 
         # Update the graph and the nodes dict accordingly
         if addr1 in self._nodes_by_addr:
@@ -1230,17 +1229,17 @@ class CFGBase(Analysis):
                 if self.tag == "CFGFast":
                     new_node = CFGNode(n.addr, new_size, self,
                                        function_address=n.function_address, block_id=n.block_id,
-                                       instruction_addrs=tuple([i for i in n.instruction_addrs
+                                       instruction_addrs=[i for i in n.instruction_addrs
                                                           if n.addr <= i <= n.addr + new_size
-                                                          ]),
+                                                          ],
                                        thumb=n.thumb
                                        )
                 elif self.tag == "CFGEmulated":
                     new_node = CFGENode(n.addr, new_size, self, callstack_key=callstack_key,
                                         function_address=n.function_address, block_id=n.block_id,
-                                        instruction_addrs=tuple([i for i in n.instruction_addrs
+                                        instruction_addrs=[i for i in n.instruction_addrs
                                                            if n.addr <= i <= n.addr + new_size
-                                                           ]),
+                                                           ],
                                         thumb=n.thumb
                                         )
                 else:
