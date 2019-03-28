@@ -74,7 +74,7 @@ class CFGNode:
             self._name = repr(addr)
         else:
             self._name = simprocedure_name
-        self.instruction_addrs = instruction_addrs if instruction_addrs is not None else tuple()
+        self.instruction_addrs = list(instruction_addrs) if instruction_addrs is not None else []
 
         self.is_syscall = True if self.simprocedure_name and self._cfg.project.simos.is_syscall_addr(addr) else False
         if not instruction_addrs and not self.is_simprocedure:
@@ -160,7 +160,12 @@ class CFGNode:
         new_node = self.copy()
         new_node.size += other.size
         new_node.instruction_addrs += other.instruction_addrs
-        new_node.byte_string += other.byte_string
+        # FIXME: byte_string should never be none, but it is sometimes
+        # like, for example, patcherex test_cfg.py:test_fullcfg_properties
+        if new_node.byte_string is None or other.byte_string is None:
+            new_node.byte_string = None
+        else:
+            new_node.byte_string += other.byte_string
         return new_node
 
     def __repr__(self):
