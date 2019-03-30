@@ -4,6 +4,7 @@ import sys
 
 import nose.tools
 
+import archinfo
 import angr
 
 from angr.analyses.cfg.cfg_fast import SegmentList
@@ -535,6 +536,35 @@ def test_tail_call_optimization_detection_armel():
     for member in tail_call_funcs:
         nose.tools.assert_in(member, all_func_addrs)
 
+
+#
+# Incorrect function-leading blocks merging
+#
+
+def test_function_leading_blocks_merging():
+
+    # GitHub issue #1312
+
+    path = os.path.join(test_location, 'armel', 'Nucleo_read_hyperterminal-stripped.elf')
+    proj = angr.Project(path, arch=archinfo.ArchARMCortexM(), auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True,
+                                force_complete_scan=True,
+                                normalize=True,
+                                symbols=False,
+                                detect_tail_calls=True
+                                )
+
+    nose.tools.assert_in(0x8000799, cfg.kb.functions, "Function 0x8000799 does not exist.")
+    nose.tools.assert_not_in(0x800079b, cfg.kb.functions, "Function 0x800079b does not exist.")
+    nose.tools.assert_not_in(0x800079b, cfg.kb.functions[0x8000799].block_addrs_set,
+                             "Block 0x800079b is found, but it should not exist.")
+    nose.tools.assert_in(0x8000799, cfg.kb.functions[0x8000799].block_addrs_set,
+                         "Block 0x8000799 is not found inside function 0x8000799.")
+    nose.tools.assert_equal(next(iter(b for b in cfg.kb.functions[0x8000799].blocks if b.addr == 0x8000799)).size, 6,
+                            "Block 0x800079b has an incorrect size.")
+
+
 #
 # Blanket
 #
@@ -579,6 +609,7 @@ def test_collect_data_references():
     sneaky_str = memory_data[0x4008d0]
     nose.tools.assert_equal(sneaky_str.sort, "string")
     nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
+
 
 def test_unresolvable_targets():
 
@@ -626,6 +657,7 @@ def run_all():
     test_tail_call_optimization_detection_armel()
     test_blanket_fauxware()
     test_collect_data_references()
+    test_function_leading_blocks_merging()
 
 
 def main():

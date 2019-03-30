@@ -29,6 +29,10 @@ class BoyScout(Analysis):
 
         for arch in all_arches:
             regexes = set()
+            if not arch.function_prologs:
+                continue
+            # TODO: BoyScout does not support Thumb-only / Cortex-M binaries yet.
+
             for ins_regex in set(arch.function_prologs).union(arch.function_epilogs):
                 r = re.compile(ins_regex)
                 regexes.add(r)

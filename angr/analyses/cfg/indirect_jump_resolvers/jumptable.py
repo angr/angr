@@ -68,8 +68,8 @@ class JumpTableResolver(IndirectJumpResolver):
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # TODO:
 
-        if jumpkind != "Ijk_Boring":
-            # Currently we only support boring ones
+        if jumpkind not in ('Ijk_Boring', 'Ijk_Call'):
+            # Currently we only support boring and call ones
             return False
 
         return True
@@ -85,7 +85,6 @@ class JumpTableResolver(IndirectJumpResolver):
         :return: A bool indicating whether the indirect jump is resolved successfully, and a list of resolved targets
         :rtype: tuple
         """
-
         project = self.project  # short-hand
         self._max_targets = cfg._indirect_jump_target_limit
 
@@ -253,11 +252,86 @@ class JumpTableResolver(IndirectJumpResolver):
             # the load statement is not found
             return False, None
 
-        if len(stmts_adding_base_addr) > 1:
-            # there are more than one statement that is trying to mess with the loaded address. unsupported for now.
-            return False, None
+        # If we're just reading a constant, don't bother with the rest of this mess!
+        if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
+            if type(load_stmt.data.addr) is pyvex.IRExpr.Const:
+                # It's directly loading from a constant address
+                # e.g.,
+                #  ldr r0, =main+1
+                #  blx r0
+                # It's not a jump table, but we resolve it anyway
+                jump_target_addr = load_stmt.data.addr.con.value
+                jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
+                if jump_target is None:
+                    l.info("Constant indirect jump at %#08x points outside of loaded memory to %#08x", addr, jump_target_addr)
+                    return False, None
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
+                ij = cfg.indirect_jumps[addr]
+                ij.jumptable = False
+                ij.resolved_targets = set([jump_target])
+                return True, [jump_target]
+        elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
+            if type(load_stmt.addr) is pyvex.IRExpr.Const:
+                # It's directly loading from a constant address
+                # e.g.,
+                #  4352c     SUB     R1, R11, #0x1000
+                #  43530     LDRHI   R3, =loc_45450
+                #  ...
+                #  43540     MOV     PC, R3
+                #
+                # It's not a jump table, but we resolve it anyway
+                # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
+                # value of R3 is. Some intensive data-flow analysis is required in this case.
+                jump_target_addr = load_stmt.addr.con.value
+                jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
+                ij = cfg.indirect_jumps[addr]
+                ij.jumptable = False
+                ij.resolved_targets = set([jump_target])
+                return True, [jump_target]
+        # Well, we have a real jumptable to resolve!
 
+        # If we're just reading a constant, don't bother with the rest of this mess!
+        if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
+            if type(load_stmt.data.addr) is pyvex.IRExpr.Const:
+                # It's directly loading from a constant address
+                # e.g.,
+                #  ldr r0, =main+1
+                #  blx r0
+                # It's not a jump table, but we resolve it anyway
+                jump_target_addr = load_stmt.data.addr.con.value
+                jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
+                if not jump_target:
+                    #...except this constant looks like a jumpout!
+                    l.info("Constant indirect jump directed out of the binary at #%08x", addr)
+                    return False, []
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
+                ij = cfg.indirect_jumps[addr]
+                ij.jumptable = False
+                ij.resolved_targets = set([jump_target])
+                return True, [jump_target]
+        elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
+            if type(load_stmt.addr) is pyvex.IRExpr.Const:
+                # It's directly loading from a constant address
+                # e.g.,
+                #  4352c     SUB     R1, R11, #0x1000
+                #  43530     LDRHI   R3, =loc_45450
+                #  ...
+                #  43540     MOV     PC, R3
+                #
+                # It's not a jump table, but we resolve it anyway
+                # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
+                # value of R3 is. Some intensive data-flow analysis is required in this case.
+                jump_target_addr = load_stmt.addr.con.value
+                jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
+                ij = cfg.indirect_jumps[addr]
+                ij.jumptable = False
+                ij.resolved_targets = set([jump_target])
+                return True, [jump_target]
         # skip all statements before the load statement
+        # We want to leave the final loaded value as symbolic, so we can
+        # get the full range of possibilities
         b.slice.remove_nodes_from(stmts_to_remove)
 
         # Debugging output
@@ -383,12 +457,16 @@ class JumpTableResolver(IndirectJumpResolver):
                 min_jumptable_addr = state.solver.min(jumptable_addr)
                 max_jumptable_addr = state.solver.max(jumptable_addr)
 
-                # The beginning of the jump table and the end of the jump table should be within a mapped memory region
-                if not cfg.project.loader.find_object_containing(min_jumptable_addr) or \
-                        not cfg.project.loader.find_object_containing(max_jumptable_addr):
-                    l.debug("Indirect jump at block %#x seems to be referencing a jumptable outside mapped memory"
-                            "regions. Attempt to resolve it from the next data source.", addr)
-                    continue
+                # Both the min jump target and the max jump target should be within a mapped memory region
+                # i.e., we shouldn't be jumping to the stack or somewhere unmapped
+                if (not project.loader.find_segment_containing(min_jumptable_addr) or
+                        not project.loader.find_segment_containing(max_jumptable_addr)):
+                    if (not project.loader.find_section_containing(min_jumptable_addr) or
+                            not project.loader.find_section_containing(max_jumptable_addr)):
+
+                        l.debug("Jump table %#x might have jump targets outside mapped memory regions. "
+                                "Continue to resolve it from the next data source.", addr)
+                        continue
 
                 # Load the jump table from memory
                 for idx, a in enumerate(state.solver.eval_upto(jumptable_addr, total_cases)):
@@ -598,7 +676,16 @@ class JumpTableResolver(IndirectJumpResolver):
         load_addr_tmp = None
 
         if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
-            load_addr_tmp = load_stmt.data.addr.tmp
+            if type(load_stmt.data.addr) is pyvex.IRExpr.RdTmp:
+                load_addr_tmp = load_stmt.data.addr.tmp
+            elif type(load_stmt.data.addr) is pyvex.IRExpr.Const:
+                # It's directly loading from a constant address
+                # e.g.,
+                #  ldr r0, =main+1
+                #  blx r0
+                # It's not a jump table, but we resolve it anyway
+                jump_target_addr = load_stmt.data.addr.con.value
+                return state.solver.BVV(jump_target_addr, state.arch.bits)
         elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
             if type(load_stmt.addr) is pyvex.IRExpr.RdTmp:
                 load_addr_tmp = load_stmt.addr.tmp
@@ -611,7 +698,6 @@ class JumpTableResolver(IndirectJumpResolver):
                 #  43540     MOV     PC, R3
                 #
                 # It's not a jump table, but we resolve it anyway
-                # TODO: We should develop an ARM-specific indirect jump resolver in this case
                 # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
                 # value of R3 is. Some intensive data-flow analysis is required in this case.
                 jump_target_addr = load_stmt.addr.con.value
@@ -629,8 +715,11 @@ class JumpTableResolver(IndirectJumpResolver):
             # LoadG comes with a guard. We should apply this guard to the load expression
             guard_tmp = load_stmt.guard.tmp
             guard = state.scratch.temps[guard_tmp] != 0
-            jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
-
+            try:
+                jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
+            except Exception: # pylint: disable=broad-except
+                l.exception("Error computing jump table address!")
+                return None
         return jump_addr
 
     def _is_jumptarget_legal(self, target):

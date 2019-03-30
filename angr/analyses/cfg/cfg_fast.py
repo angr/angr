@@ -12,6 +12,7 @@ import cle
 import pyvex
 from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
+from archinfo.arch_arm import is_arm_arch
 
 from ...misc.ux import deprecated
 from .memory_data import MemoryData
@@ -1482,7 +1483,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _post_process_successors(self, addr, size, successors):
 
-        if self.project.arch.name in ('ARMEL', 'ARMHF') and addr % 2 == 1:
+        if is_arm_arch(self.project.arch) and addr % 2 == 1:
             # we are in thumb mode. filter successors
             successors = self._arm_thumb_filter_jump_successors(addr,
                                                                 size,
@@ -1675,6 +1676,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
             regexes.append(r)
+        # EDG says: I challenge anyone bothering to read this to come up with a better
+        # way to handle CPU modes that affect instruction decoding.
+        # Since the only one we care about is ARM/Thumb right now
+        # we have this gross hack. Sorry about that.
+        thumb_regexes = list()
+        if hasattr(self.project.arch, 'thumb_prologs'):
+            for ins_regex in self.project.arch.thumb_prologs:
+                # Thumb prologues are found at even addrs, but their actual addr is odd!
+                # Isn't that great?
+                r = re.compile(ins_regex)
+                thumb_regexes.append(r)
 
         # Construct the binary blob first
         unassured_functions = [ ]
@@ -1688,6 +1700,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
                         if self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position)
+            # HACK part 2: Yes, i really have to do this
+            for regex in thumb_regexes:
+                # Match them!
+                for mo in regex.finditer(bytes_):
+                    position = mo.start() + start_
+                    if position % self.project.arch.instruction_alignment == 0:
+                        mapped_position = AT.from_rva(position, self._binary).to_mva()
+                        if self._addr_in_exec_memory_regions(mapped_position):
+                            unassured_functions.append(mapped_position+1)
+
         l.info("Found %d functions with prologue scanning.", len(unassured_functions))
         return unassured_functions
 
@@ -1821,9 +1843,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: a list of successors
         :rtype: list
         """
-
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
-
+        
         # Add edges going to this node in function graphs
         cfg_job.apply_function_edges(self, clear=True)
 
@@ -1927,7 +1948,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
-        elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
+        elif type(target) in (pyvex.IRConst.U8, pyvex.IRConst.U16, pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
             target_addr = target.value
         elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
             target_addr = target
@@ -2841,7 +2862,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if insns:
                             nop_length = self._get_nop_length(insns)
 
-                    if nop_length <= 0:
+                    if nop_length is None or nop_length <= 0:
                         continue
 
                     # leading nop for alignment.
@@ -3596,10 +3617,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 return addr, current_function_addr, cfg_node, irsb
 
-            is_arm_arch = self.project.arch.name in ('ARMHF', 'ARMEL')
             is_x86_x64_arch = self.project.arch.name in ('X86', 'AMD64')
 
-            if is_arm_arch:
+            if is_arm_arch(self.project.arch):
                 real_addr = addr & (~1)
             else:
                 real_addr = addr
@@ -3624,9 +3644,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # also check the distance between `addr` and the closest function.
             # we don't want to have a basic block that spans across function boundaries
-            next_func = self.functions.ceiling_func(addr)
+            next_func = self.functions.ceiling_func(addr + 1)
             if next_func is not None:
-                distance_to_func = (next_func.addr & (~1) if is_arm_arch else next_func.addr) - real_addr
+                distance_to_func = (next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr) - real_addr
                 if distance_to_func != 0:
                     if distance is None:
                         distance = distance_to_func
@@ -3651,7 +3671,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 nodecode = True
 
             if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
-                    is_arm_arch and \
+                    is_arm_arch(self.project.arch) and \
                     self._arch_options.switch_mode_on_nodecode:
                 # maybe the current mode is wrong?
                 nodecode = False
@@ -3713,7 +3733,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             is_thumb = False
             # Occupy the block in segment list
             if irsb.size > 0:
-                if is_arm_arch and addr % 2 == 1:
+                if is_arm_arch(self.project.arch) and addr % 2 == 1:
                     # thumb mode
                     is_thumb=True
                 self._seg_list.occupy(real_addr, irsb.size, "code")
@@ -3754,7 +3774,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param func_addr: function address
         :return: None
         """
-        if self.project.arch.name in ('ARMEL', 'ARMHF'):
+        if is_arm_arch(self.project.arch):
             if self._arch_options.ret_jumpkind_heuristics:
                 if addr == func_addr:
                     self._arm_track_lr_on_stack(addr, irsb, self.functions[func_addr])
@@ -3776,6 +3796,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 if not irsb.statements:
                     # Get an IRSB with statements
+
                     irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
 
                 for stmt in irsb.statements:

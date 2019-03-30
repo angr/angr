@@ -8,6 +8,7 @@ import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 from archinfo.arch_soot import SootAddressDescriptor
+from archinfo.arch_arm import is_arm_arch
 
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
@@ -1108,7 +1109,7 @@ class CFGBase(Analysis):
         :rtype:             int
         """
 
-        return ((addr >> 1) << 1) if arch.name in ('ARMEL', 'ARMHF') else addr
+        return ((addr >> 1) << 1) if is_arm_arch(arch) else addr
 
     def normalize(self):
         """
@@ -1529,7 +1530,7 @@ class CFGBase(Analysis):
         to_remove = set()
 
         # Remove all stubs after PLT entries
-        if self.project.arch.name not in {'ARMEL', 'ARMHF'}:
+        if is_arm_arch(self.project.arch):
             for fn in self.kb.functions.values():
                 addr = fn.addr - (fn.addr % 16)
                 if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
@@ -1730,7 +1731,6 @@ class CFGBase(Analysis):
         adjusted_cfgnodes = set()
 
         for addr_0, addr_1 in zip(addrs[:-1], addrs[1:]):
-
             if addr_1 in predetermined_function_addrs:
                 continue
 
@@ -1745,9 +1745,9 @@ class CFGBase(Analysis):
                     continue
 
                 target = block.vex.next
-                if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
+                if isinstance(target, pyvex.IRExpr.Const):  # pylint: disable=unidiomatic-typecheck
                     target_addr = target.con.value
-                elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
+                elif type(target) in (pyvex.IRConst.U16, pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
                     target_addr = target.value
                 elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
                     target_addr = target

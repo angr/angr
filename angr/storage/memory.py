@@ -1,7 +1,7 @@
 import logging
 import claripy
 from sortedcontainers import SortedDict
-
+from archinfo.arch_arm import is_arm_arch
 from ..state_plugins.plugin import SimStatePlugin
 
 
@@ -381,7 +381,7 @@ class SimMemory(SimStatePlugin):
                         self.store('cc_dep1', _get_flags(self.state)[0]) # TODO: can constraints be added by this?
                     self.store('cc_op', 0) # OP_COPY
                     return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
-            if self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
+            if is_arm_arch(self.state.arch):
                 if name == 'flags':
                     if not is_write:
                         self.store('cc_dep1', _get_flags(self.state)[0])

@@ -26,6 +26,10 @@ class CFGArchOptions(object):
             'ret_jumpkind_heuristics': (bool, True),
             'switch_mode_on_nodecode': (bool, False),
         },
+        'ARMCortexM': {
+            'ret_jumpkind_heuristics': (bool, True),
+            'switch_mode_on_nodecode': (bool, False),
+        },
     }
 
     arch = None
