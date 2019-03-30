@@ -456,10 +456,10 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 # Both the min jump target and the max jump target should be within a mapped memory region
                 # i.e., we shouldn't be jumping to the stack or somewhere unmapped
-                if (not project.loader.find_segment_containing(min_jump_target) or \
-                        not project.loader.find_segment_containing(max_jump_target)):
-                    if (not project.loader.find_section_containing(min_jump_target) or \
-                            not project.loader.find_section_containing(max_jump_target)):
+                if (not project.loader.find_segment_containing(min_jumptable_addr) or
+                        not project.loader.find_segment_containing(max_jumptable_addr)):
+                    if (not project.loader.find_section_containing(min_jumptable_addr) or
+                            not project.loader.find_section_containing(max_jumptable_addr)):
 
                         l.debug("Jump table %#x might have jump targets outside mapped memory regions. "
                                 "Continue to resolve it from the next data source.", addr)
