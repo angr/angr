@@ -262,6 +262,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 # It's not a jump table, but we resolve it anyway
                 jump_target_addr = load_stmt.data.addr.con.value
                 jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
+                if jump_target is None:
+                    l.info("Constant indirect jump at %#08x points outside of loaded memory to %#08x", addr, jump_target_addr)
+                    return False, None
                 l.info("Resolved constant indirect jump from %#08x to %#08x" % (addr, jump_target_addr))
                 ij = cfg.indirect_jumps[addr]
                 ij.jumptable = False
