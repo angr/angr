@@ -195,7 +195,7 @@ class SimState(PluginHub):
                 self.register_plugin('registers_soot', javavm_sim_registers, inhibit_init=True)
                 self.register_plugin('registers_vex', native_sim_registers, inhibit_init=True)
 
-        for p in plugins.values():
+        for p in list(self.plugins.values()):
             p.init_state()
 
     def __getstate__(self):
