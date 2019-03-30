@@ -87,7 +87,7 @@ class JumpTableResolver(IndirectJumpResolver):
         """
         project = self.project  # short-hand
         self._max_targets = cfg._indirect_jump_target_limit
-        
+
         # Perform a backward slicing from the jump target
         b = Blade(cfg.graph, addr, -1,
             cfg=cfg, project=project,
@@ -265,7 +265,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 if jump_target is None:
                     l.info("Constant indirect jump at %#08x points outside of loaded memory to %#08x", addr, jump_target_addr)
                     return False, None
-                l.info("Resolved constant indirect jump from %#08x to %#08x" % (addr, jump_target_addr))
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
                 ij = cfg.indirect_jumps[addr]
                 ij.jumptable = False
                 ij.resolved_targets = set([jump_target])
@@ -284,7 +284,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 # value of R3 is. Some intensive data-flow analysis is required in this case.
                 jump_target_addr = load_stmt.addr.con.value
                 jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
-                l.info("Resolved constant indirect jump from %#08x to %#08x" % (addr, jump_target_addr))
+                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
                 ij = cfg.indirect_jumps[addr]
                 ij.jumptable = False
                 ij.resolved_targets = set([jump_target])
@@ -717,7 +717,7 @@ class JumpTableResolver(IndirectJumpResolver):
             guard = state.scratch.temps[guard_tmp] != 0
             try:
                 jump_addr = state.memory._apply_condition_to_symbolic_addr(jump_addr, guard)
-            except Exception: # pylint: disable=bare-except
+            except Exception: # pylint: disable=broad-except
                 l.exception("Error computing jump table address!")
                 return None
         return jump_addr
