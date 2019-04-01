@@ -17,7 +17,7 @@ lib.add_alias('getuid', 'geteuid')
 lib.add_alias('getgid', 'getegid')
 
 
-# python parse_syscalls_from_gdb.py >> linux_kernel.py
+# python parse_syscalls_from_local_system.py >> linux_kernel.py
 
 lib.add_number_mapping_from_dict("aarch64", {
     0: "io_setup",
