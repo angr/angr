@@ -281,8 +281,6 @@ lib.add_number_mapping_from_dict("aarch64", {
     273: "syscalls",
 })
 
-# created with
-# cat /usr/include/x86_64-linux-gnu/asm/unistd_64.h | grep '__NR_' | sed 's/#define __NR_\([[:alnum:]_]*\) \([[:digit:]]*\)/    \2: "\1", /g'
 lib.add_number_mapping_from_dict("amd64", {
     0: "read",
     1: "write",
@@ -1373,10 +1371,6 @@ lib.add_number_mapping_from_dict("armhf", {
     9437563: "finit_module",
 })
 
-# created with
-# cat /usr/include/x86_64-linux-gnu/asm/unistd_32.h | grep '__NR_' | \
-# sed 's/#define __NR_\([[:alnum:]_]*\) \([[:digit:]]*\)/    \2: "\1", /g' | \
-# sed 's/90: "mmap"/90: "old_mmap"/g' > ../procedures/definitions/x86_syscalls.py
 lib.add_number_mapping_from_dict("i386", {
     0: "restart_syscall",
     1: "exit",
