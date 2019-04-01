@@ -4,6 +4,7 @@ import struct
 
 import claripy
 from cle import MetaELF
+from cle.backends.elf.symbol import ELFSymbol, ELFSymbolType
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
@@ -95,9 +96,9 @@ class SimLinux(SimUserland):
                         if reloc.symbol is None or reloc.resolvedby is None:
                             continue
                         try:
-                            if reloc.resolvedby.elftype != 'STT_GNU_IFUNC':
+                            if reloc.resolvedby.subtype != ELFSymbolType.STT_GNU_IFUNC:
                                 continue
-                        except AttributeError:
+                        except ValueError:  # base class Symbol throws this, meaning we don't have an ELFSymbol, etc
                             continue
                         gotaddr = reloc.rebased_addr
                         gotvalue = self.project.loader.memory.unpack_word(gotaddr)

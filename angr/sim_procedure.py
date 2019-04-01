@@ -1,7 +1,7 @@
 import inspect
 import copy
 import itertools
-from cle import Symbol
+from cle import SymbolType
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -193,7 +193,7 @@ class SimProcedure:
             target_name = '%s.%s' % (self.display_name, name)
             should_be_none = self.project.loader.extern_object.get_symbol(target_name)
             if should_be_none is None:
-                cont.addr = self.project.loader.extern_object.make_extern(target_name, sym_type=Symbol.TYPE_OTHER).rebased_addr
+                cont.addr = self.project.loader.extern_object.make_extern(target_name, sym_type=SymbolType.TYPE_OTHER).rebased_addr
             else:
                 l.error("Trying to make continuation %s but it already exists. This is bad.", target_name)
                 cont.addr = self.project.loader.extern_object.allocate()
