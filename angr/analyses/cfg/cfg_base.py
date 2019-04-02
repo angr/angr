@@ -1206,7 +1206,7 @@ class CFGBase(Analysis):
 
         # Break other nodes
         for n in other_nodes:
-            new_size = smallest_node.addr - n.addr
+            new_size = smallest_node.addr - self._real_address(self.project.arch, n.addr)
             if new_size == 0:
                 # This node has the same size as the smallest one. Don't touch it.
                 continue
