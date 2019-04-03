@@ -121,6 +121,12 @@ class CFGJobBase:
     def get_call_stack_suffix(self):
         return self._call_stack.stack_suffix(self._context_sensitivity_level)
 
+    def save_data_offset(self, state):
+        # Save the data offset
+        self.data_offset = state.solver.eval_one(state.inspect.mem_write_expr)
+        print(self.data_offset)
+        print("The value of program counter is: " + str(self.data_offset))
+
     @property
     def func_addr(self):
         return self._call_stack.current_function_address
