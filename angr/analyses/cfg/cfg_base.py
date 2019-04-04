@@ -1518,7 +1518,7 @@ class CFGBase(Analysis):
         to_remove = set()
 
         # Remove all stubs after PLT entries
-        if is_arm_arch(self.project.arch):
+        if not is_arm_arch(self.project.arch):
             for fn in self.kb.functions.values():
                 addr = fn.addr - (fn.addr % 16)
                 if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
