@@ -5,6 +5,7 @@ from collections import defaultdict
 from sortedcontainers import  SortedDict
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
+from archinfo.arch_arm import get_real_address_if_arm
 
 from .. import register_analysis
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
