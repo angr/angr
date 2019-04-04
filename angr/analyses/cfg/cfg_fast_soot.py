@@ -346,7 +346,7 @@ class CFGFastSoot(CFGFast):
         self._function_add_node(cfg_node, function_addr)
 
         # If we have traced it before, don't trace it anymore
-        real_addr = self._real_address(self.project.arch, addr)
+        real_addr = get_real_address_if_arm(self.project.arch, addr)
         if real_addr in self._traced_addresses:
             # the address has been traced before
             return [ ]
@@ -412,7 +412,7 @@ class CFGFastSoot(CFGFast):
             if jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
                 # it might be a jumpout
                 target_func_addr = None
-                real_target_addr = self._real_address(self.project.arch, target_addr)
+                real_target_addr = get_real_address_if_arm(self.project.arch, target_addr)
                 if real_target_addr in self._traced_addresses:
                     node = self.get_any_node(target_addr)
                     if node is not None:

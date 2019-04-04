@@ -8,7 +8,7 @@ import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 from archinfo.arch_soot import SootAddressDescriptor
-from archinfo.arch_arm import is_arm_arch
+from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
@@ -1099,18 +1099,6 @@ class CFGBase(Analysis):
 
         return changes
 
-    def _real_address(self, arch, addr):
-        """
-        Obtain the real address of an instruction. ARM architectures are supported.
-
-        :param Arch arch:   The Arch object.
-        :param int addr:    The instruction address.
-        :return:            The real address of an instruction.
-        :rtype:             int
-        """
-
-        return ((addr >> 1) << 1) if is_arm_arch(arch) else addr
-
     def normalize(self):
         """
         Normalize the CFG, making sure that there are no overlapping basic blocks.
@@ -1206,7 +1194,7 @@ class CFGBase(Analysis):
 
         # Break other nodes
         for n in other_nodes:
-            new_size = smallest_node.addr - self._real_address(self.project.arch, n.addr)
+            new_size = get_real_address_if_arm(self.project.arch, smallest_node.addr) - get_real_address_if_arm(self.project.arch, n.addr)
             if new_size == 0:
                 # This node has the same size as the smallest one. Don't touch it.
                 continue
