@@ -7,6 +7,7 @@ import itertools
 from collections import defaultdict
 from itanium_demangler import parse
 
+from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
@@ -968,7 +969,7 @@ class Function:
 
             # Break other nodes
             for n in other_nodes:
-                new_size = smallest_node.addr - n.addr
+                new_size = get_real_address_if_arm(self._project.arch, smallest_node.addr) - get_real_address_if_arm(self._project.arch, n.addr)
                 if new_size == 0:
                     # This is the node that has the same size as the smallest one
                     continue

@@ -12,7 +12,7 @@ import cle
 import pyvex
 from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
-from archinfo.arch_arm import is_arm_arch
+from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from ...misc.ux import deprecated
 from .memory_data import MemoryData
@@ -1864,7 +1864,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._updated_nonreturning_functions.add(function_addr)
 
         # If we have traced it before, don't trace it anymore
-        real_addr = self._real_address(self.project.arch, addr)
+        real_addr = get_real_address_if_arm(self.project.arch, addr)
         if real_addr in self._traced_addresses:
             # the address has been traced before
             return [ ]
@@ -2069,7 +2069,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     # it might be a jumpout
                     target_func_addr = None
-                    real_target_addr = self._real_address(self.project.arch, target_addr)
+                    real_target_addr = get_real_address_if_arm(self.project.arch, target_addr)
                     if real_target_addr in self._traced_addresses:
                         node = self.get_any_node(target_addr)
                         if node is not None:
