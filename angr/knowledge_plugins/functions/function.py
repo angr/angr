@@ -969,7 +969,7 @@ class Function:
 
             # Break other nodes
             for n in other_nodes:
-                new_size = self.get_real_address_if_arm(self._project.arch, smallest_node.addr) - self.get_real_address_if_arm(self._project.arch, n.addr)
+                new_size = get_real_address_if_arm(self._project.arch, smallest_node.addr) - get_real_address_if_arm(self._project.arch, n.addr)
                 if new_size == 0:
                     # This is the node that has the same size as the smallest one
                     continue
