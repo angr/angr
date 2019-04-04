@@ -1,9 +1,9 @@
 """Representing the artifacts of a project."""
 
-from .knowledge_plugins.plugin import default_plugins
+from ..knowledge_plugins.plugin import default_plugins
 
 
-class KnowledgeBase(object):
+class KnowledgeBase:
     """Represents a "model" of knowledge about an artifact.
 
     Contains things like a CFG, data references, etc.
