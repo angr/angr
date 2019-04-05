@@ -63,5 +63,12 @@ class BasePointerSaveSimplifier(OptimizationPass):
                     and stmt.data.reg_offset == self.project.arch.bp_offset \
                     and stmt.addr.offset < 0:
                 return first_block, idx
+            if isinstance(stmt, ailment.Stmt.Store) \
+                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset) \
+                    and isinstance(stmt.data, ailment.Expr.StackBaseOffset) \
+                    and stmt.data.offset == 0 \
+                    and stmt.addr.offset < 0:
+                return first_block, idx
+
 
 AnalysesHub.register_default('BasePointerSaveSimplifier', BasePointerSaveSimplifier)
