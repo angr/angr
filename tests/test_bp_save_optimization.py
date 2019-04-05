@@ -9,7 +9,7 @@ test_location = str(
         os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 
-def test_bp_save_fauxware(arch):
+def check_bp_save_fauxware(arch):
     p = angr.Project(os.path.join(test_location, arch, 'fauxware'), auto_load_libs=False)
     p.analyses.CFGFast()
     main = p.kb.functions['main']
@@ -25,11 +25,11 @@ def test_bp_save_fauxware(arch):
 
 
 def test_bp_save_amd64_fauxware():
-    test_bp_save_fauxware('x86_64')
+    check_bp_save_fauxware('x86_64')
 
 
 def test_bp_save_armel_fauxware():
-    test_bp_save_fauxware('armel')
+    check_bp_save_fauxware('armel')
 
 
 if __name__ == '__main__':
