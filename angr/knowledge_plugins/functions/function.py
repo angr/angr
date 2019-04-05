@@ -10,10 +10,10 @@ from itanium_demangler import parse
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
+from ...protos import function_pb2 as pb2
+from ...serializable import Serializable
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
-from ..serializable import Serializable
-from .protos import function_pb2 as pb2
 
 l = logging.getLogger(name=__name__)
 
@@ -293,8 +293,12 @@ class Function(Serializable):
         # TODO: remove link register values
         return [const.value for block in self.blocks for const in block.vex.constants]
 
-    def serialize(self):
-        obj = pb2.Function()
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.Function()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
         obj.ea = self.addr
         obj.is_entrypoint = False  # TODO: Set this up accordingly
         obj.name = self.name
@@ -304,22 +308,25 @@ class Function(Serializable):
         obj.returning = self.returning
         obj.binary_name = self.binary_name
 
-        return obj.SerializeToString()
+        # blocks
+        blocks_list = [ b.serialize_to_cmessage() for b in self.blocks ]
+        obj.blocks.extend(blocks_list)
+
+        return obj
 
     @classmethod
-    def parse(cls, s, function_manager=None):
-        pb2_obj = pb2.Function()
-        pb2_obj.ParseFromString(s)
+    def parse_from_cmessage(cls, cmsg, function_manager=None):
 
         obj = cls(function_manager,
-                  pb2_obj.ea,
-                  name=pb2_obj.name,
-                  is_plt=pb2_obj.is_plt,
-                  syscall=pb2_obj.is_syscall,
-                  is_simprocedure=pb2_obj.is_simprocedure,
-                  returning=pb2_obj.returning,
-                  binary_name=pb2_obj.binary_name,
+                  cmsg.ea,
+                  name=cmsg.name,
+                  is_plt=cmsg.is_plt,
+                  syscall=cmsg.is_syscall,
+                  is_simprocedure=cmsg.is_simprocedure,
+                  returning=cmsg.returning,
+                  binary_name=cmsg.binary_name,
                   )
+        # TODO: Rebuild the block graph
 
         return obj
 

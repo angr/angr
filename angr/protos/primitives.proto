@@ -1,0 +1,10 @@
+
+syntax = "proto3";
+
+package angr.protos;
+
+message Block {
+    int64   ea = 1; // Effective address of the block
+    int32   size = 2; // Size of the block
+    bytes   bytes = 3; // Bytes of this block
+}
