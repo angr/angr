@@ -1,4 +1,3 @@
-import logging
 import os
 import nose
 
@@ -11,8 +10,7 @@ test_location = str(
 
 
 def test_bp_save_fauxware(arch):
-    p = angr.Project(
-        test_location + '/{}/fauxware'.format(arch), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, arch, 'fauxware'), auto_load_libs=False)
     p.analyses.CFGFast()
     main = p.kb.functions['main']
     dra = p.analyses.Decompiler(main)
