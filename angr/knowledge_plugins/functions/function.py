@@ -4,13 +4,15 @@ import logging
 import networkx
 import string
 import itertools
+import pickle
 from collections import defaultdict
+
 from itanium_demangler import parse
 
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
-from ...protos import function_pb2 as pb2
+from ...protos import function_pb2, primitives_pb2
 from ...serializable import Serializable
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
@@ -295,7 +297,7 @@ class Function(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.Function()
+        return function_pb2.Function()
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -311,11 +313,42 @@ class Function(Serializable):
         # blocks
         blocks_list = [ b.serialize_to_cmessage() for b in self.blocks ]
         obj.blocks.extend(blocks_list)
+        # graph
+        edges = [ ]
+        external_functions = set()
+        for src, dst, data in self.transition_graph.edges(data=True):
+            edge = primitives_pb2.Edge()
+            edge.src_ea = src.addr
+            edge.dst_ea = dst.addr
+            if isinstance(src, Function):
+                external_functions.add(src.addr)
+            if isinstance(dst, Function):
+                external_functions.add(dst.addr)
+            for k, v in data.items():
+                edge.data[k] = pickle.dumps(v)
+            edges.append(edge)
+        obj.graph.edges.extend(edges)
+        # referenced functions
+        obj.external_functions.extend(external_functions)
 
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, function_manager=None):
+
+        def _get_block_or_func(addr, blocks, external_functions):
+            try:
+                o = blocks[addr]
+            except KeyError:
+                if addr in external_functions:
+                    if function_manager is not None:
+                        o = function_manager.function(addr=addr, create=True)
+                    else:
+                        # TODO:
+                        o = None
+                else:
+                    raise
+            return o
 
         obj = cls(function_manager,
                   cmsg.ea,
@@ -326,7 +359,60 @@ class Function(Serializable):
                   returning=cmsg.returning,
                   binary_name=cmsg.binary_name,
                   )
-        # TODO: Rebuild the block graph
+
+        # blocks
+        blocks = { }
+        for block_cmsg in cmsg.blocks:
+            b = BlockNode(block_cmsg.ea,
+                          block_cmsg.size,
+                          bytestr=block_cmsg.bytes
+                          )
+            blocks[b.addr] = b
+        external_functions = set(cmsg.external_functions)
+        # edges
+        edges = { }
+        fake_return_edges = defaultdict(list)
+        for edge_cmsg in cmsg.graph.edges:
+            try:
+                src = _get_block_or_func(edge_cmsg.src_ea, blocks, external_functions)
+            except KeyError:
+                raise KeyError("Address of the edge source %#x is not found." % edge_cmsg.src_ea)
+            try:
+                dst = _get_block_or_func(edge_cmsg.dst_ea, blocks, external_functions)
+            except KeyError:
+                raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
+            data = dict((k, pickle.loads(v)) for k, v in edge_cmsg.data.items())
+            edge_type = data.get('type', 'transition')
+            if edge_type == 'fake_return':
+                fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
+            else:
+                edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
+
+        for k, v in edges.items():
+            src_addr, dst_addr, edge_type = k
+            src, dst, data = v
+
+            outside = data.get('outside', False)
+            ins_addr = data.get('ins_addr', None)
+            stmt_idx = data.get('stmt_idx', None)
+            if edge_type == 'transition':
+                obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx)
+            elif edge_type == 'call':
+                # find the corresponding fake_ret edge
+                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[dst_addr]
+                                          if edge_[1].addr == src.addr + src.size), None)
+                if dst is None:
+                    l.warning("The destination function %#x does not exist, and it cannot be created since function "
+                              "manager is not provided. Please consider passing in a function manager to rebuild this "
+                              "graph.", dst_addr)
+                else:
+                    obj._call_to(src, dst, None if fake_ret_edge is None else fake_ret_edge[1],
+                                 stmt_idx=stmt_idx,
+                                 ins_addr=ins_addr,
+                                 return_to_outside=fake_ret_edge is None,
+                                 )
+            elif edge_type == 'fake_return':
+                pass
 
         return obj
 

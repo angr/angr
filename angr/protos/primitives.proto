@@ -8,3 +8,13 @@ message Block {
     int32   size = 2; // Size of the block
     bytes   bytes = 3; // Bytes of this block
 }
+
+message Edge {
+    int64               src_ea = 1; // Address of the source block
+    int64               dst_ea = 2; // Address of the destination block
+    map<string, bytes>  data = 3; // A dict of data on this edge. For now, values are pickled from Python objects.
+}
+
+message BlockGraph {
+    repeated Edge   edges = 1; // All edges inside this graph
+}

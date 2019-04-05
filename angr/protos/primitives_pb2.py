@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='angr.protos',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x17protos/primitives.proto\x12\x0b\x61ngr.protos\"0\n\x05\x42lock\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\r\n\x05\x62ytes\x18\x03 \x01(\x0c\x62\x06proto3')
+  serialized_pb=_b('\n\x17protos/primitives.proto\x12\x0b\x61ngr.protos\"0\n\x05\x42lock\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\r\n\x05\x62ytes\x18\x03 \x01(\x0c\"~\n\x04\x45\x64ge\x12\x0e\n\x06src_ea\x18\x01 \x01(\x03\x12\x0e\n\x06\x64st_ea\x18\x02 \x01(\x03\x12)\n\x04\x64\x61ta\x18\x03 \x03(\x0b\x32\x1b.angr.protos.Edge.DataEntry\x1a+\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c:\x02\x38\x01\".\n\nBlockGraph\x12 \n\x05\x65\x64ges\x18\x01 \x03(\x0b\x32\x11.angr.protos.Edgeb\x06proto3')
 )
 
 
@@ -70,7 +70,125 @@ _BLOCK = _descriptor.Descriptor(
   serialized_end=88,
 )
 
+
+_EDGE_DATAENTRY = _descriptor.Descriptor(
+  name='DataEntry',
+  full_name='angr.protos.Edge.DataEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='angr.protos.Edge.DataEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='angr.protos.Edge.DataEntry.value', index=1,
+      number=2, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b(""),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=_b('8\001'),
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=173,
+  serialized_end=216,
+)
+
+_EDGE = _descriptor.Descriptor(
+  name='Edge',
+  full_name='angr.protos.Edge',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='src_ea', full_name='angr.protos.Edge.src_ea', index=0,
+      number=1, type=3, cpp_type=2, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='dst_ea', full_name='angr.protos.Edge.dst_ea', index=1,
+      number=2, type=3, cpp_type=2, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='data', full_name='angr.protos.Edge.data', index=2,
+      number=3, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[_EDGE_DATAENTRY, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=90,
+  serialized_end=216,
+)
+
+
+_BLOCKGRAPH = _descriptor.Descriptor(
+  name='BlockGraph',
+  full_name='angr.protos.BlockGraph',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='edges', full_name='angr.protos.BlockGraph.edges', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=218,
+  serialized_end=264,
+)
+
+_EDGE_DATAENTRY.containing_type = _EDGE
+_EDGE.fields_by_name['data'].message_type = _EDGE_DATAENTRY
+_BLOCKGRAPH.fields_by_name['edges'].message_type = _EDGE
 DESCRIPTOR.message_types_by_name['Block'] = _BLOCK
+DESCRIPTOR.message_types_by_name['Edge'] = _EDGE
+DESCRIPTOR.message_types_by_name['BlockGraph'] = _BLOCKGRAPH
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 Block = _reflection.GeneratedProtocolMessageType('Block', (_message.Message,), dict(
@@ -80,5 +198,28 @@ Block = _reflection.GeneratedProtocolMessageType('Block', (_message.Message,), d
   ))
 _sym_db.RegisterMessage(Block)
 
+Edge = _reflection.GeneratedProtocolMessageType('Edge', (_message.Message,), dict(
 
+  DataEntry = _reflection.GeneratedProtocolMessageType('DataEntry', (_message.Message,), dict(
+    DESCRIPTOR = _EDGE_DATAENTRY,
+    __module__ = 'protos.primitives_pb2'
+    # @@protoc_insertion_point(class_scope:angr.protos.Edge.DataEntry)
+    ))
+  ,
+  DESCRIPTOR = _EDGE,
+  __module__ = 'protos.primitives_pb2'
+  # @@protoc_insertion_point(class_scope:angr.protos.Edge)
+  ))
+_sym_db.RegisterMessage(Edge)
+_sym_db.RegisterMessage(Edge.DataEntry)
+
+BlockGraph = _reflection.GeneratedProtocolMessageType('BlockGraph', (_message.Message,), dict(
+  DESCRIPTOR = _BLOCKGRAPH,
+  __module__ = 'protos.primitives_pb2'
+  # @@protoc_insertion_point(class_scope:angr.protos.BlockGraph)
+  ))
+_sym_db.RegisterMessage(BlockGraph)
+
+
+_EDGE_DATAENTRY._options = None
 # @@protoc_insertion_point(module_scope)
