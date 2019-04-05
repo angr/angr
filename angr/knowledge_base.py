@@ -38,6 +38,11 @@ class KnowledgeBase(object):
         }
         return s
 
+    def __dir__(self):
+        x = super(KnowledgeBase, self).__dir__()
+        x.extend(default_plugins.keys())
+        return x
+
     #
     # Plugin accessor
     #
