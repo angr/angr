@@ -254,6 +254,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._func = func
         self.reg_offsets = reg_offsets
         self.states = { }
+        self._blocks = { }
 
         _l.debug('Running on function %s', self._func)
         self._analyze()
@@ -286,14 +287,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self._offset_for(addr, 'pre', reg)
 
     def offset_after_block(self, block_addr, reg):
-        instr_addrs = self.project.factory.block(block_addr).instruction_addrs
+        instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
         else:
             return self.offset_after(instr_addrs[-1], reg)
 
     def offset_before_block(self, block_addr, reg):
-        instr_addrs = self.project.factory.block(block_addr).instruction_addrs
+        instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
         else:
@@ -351,6 +352,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         input_state = state
 
         block = self.project.factory.block(node.addr, size=node.size)
+        self._blocks[node.addr] = block
 
         state = state.unfreeze()
         _l.debug('START:       Running on block at %x', node.addr)
