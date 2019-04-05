@@ -19,7 +19,7 @@ class open(angr.SimProcedure): #pylint:disable=W0622
         p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')
         path = self.state.solver.eval(p_expr, cast_to=bytes)
 
-        fd = self.state.posix.open(path, flags)
+        fd = self.state.posix.open(path.strip(bytes('\x00', 'UTF-8')), flags)
         if fd is None:
             return -1
         return fd
