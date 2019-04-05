@@ -19,6 +19,10 @@ def test_kb_plugins():
     nose.tools.assert_is_instance(p.kb.resolved_indirect_jumps, set)
     nose.tools.assert_is_instance(p.kb.unresolved_indirect_jumps, set)
 
+    nose.tools.assert_is_not_none(dir(p.kb))
+    for plugin in ['data', 'functions', 'variables', 'labels', 'comments', 'callgraph', 'resolved_indirect_jumps', 'unresolved_indirect_jumps']:
+        nose.tools.assert_in(plugin, dir(p.kb))
+
 
 if __name__ == '__main__':
     test_kb_plugins()
