@@ -7,19 +7,20 @@ from .optimization_pass import OptimizationPass
 
 _l = logging.getLogger(name=__name__)
 
+
 class BasePointerSaveSimplifier(OptimizationPass):
 
     ARCHES = ['X86', 'AMD64', 'ARMEL']
     PLATFORMS = ['linux']
 
     def __init__(self, func, blocks):
-        super() .__init__(func, blocks)
+        super().__init__(func, blocks)
         self.analyze()
 
     def _check(self):
         save_stmt = self._find_retaddr_save_stmt()
 
-        return save_stmt is not None, {'save_stmt' : save_stmt}
+        return save_stmt is not None, {'save_stmt': save_stmt}
 
     def _analyze(self, cache=None):
         save_stmt = None
@@ -48,7 +49,6 @@ class BasePointerSaveSimplifier(OptimizationPass):
         for b, b_copy in bmap.items():
             self._update_block(b, b_copy)
 
-
         block_copy = block.copy()
         block_copy.statements.pop(stmt_idx)
         self._update_block(block, block_copy)
@@ -71,4 +71,5 @@ class BasePointerSaveSimplifier(OptimizationPass):
                 return first_block, idx
 
 
-AnalysesHub.register_default('BasePointerSaveSimplifier', BasePointerSaveSimplifier)
+AnalysesHub.register_default('BasePointerSaveSimplifier',
+                             BasePointerSaveSimplifier)
