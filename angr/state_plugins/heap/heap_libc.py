@@ -10,7 +10,7 @@ class SimHeapLibc(SimHeapBase):
         A somewhat faithful implementation of libc `malloc`.
 
         :param sim_size: the amount of memory (in bytes) to be allocated
-        :returns: the address of the allocation, or a NULL pointer if the allocation failed
+        :returns:        the address of the allocation, or a NULL pointer if the allocation failed
         """
         raise NotImplementedError("%s not implemented for %s" % (self.malloc.__func__.__name__,
                                                                  self.__class__.__name__))
@@ -28,9 +28,9 @@ class SimHeapLibc(SimHeapBase):
         """
         A somewhat faithful implementation of libc `calloc`.
 
-        :param sim_nmemb: the number of elements to allocated
-        :param sim_size: the size of each element (in bytes)
-        :returns: the address of the allocation, or a NULL pointer if the allocation failed
+        :param     sim_nmemb: the number of elements to allocated
+        :param     sim_size: the size of each element (in bytes)
+        :returns:  the address of the allocation, or a NULL pointer if the allocation failed
         """
         raise NotImplementedError("%s not implemented for %s" % (self.calloc.__func__.__name__,
                                                                  self.__class__.__name__))
@@ -39,10 +39,10 @@ class SimHeapLibc(SimHeapBase):
         """
         A somewhat faithful implementation of libc `realloc`.
 
-        :param ptr: the location in memory to be reallocated
+        :param ptr:  the location in memory to be reallocated
         :param size: the new size desired for the allocation
-        :returns: the address of the allocation, or a NULL pointer if the allocation was freed or if no new allocation
-        was made
+        :returns:    the address of the allocation, or a NULL pointer if the allocation was freed or if no new allocation
+                     was made
         """
         raise NotImplementedError("%s not implemented for %s" % (self.realloc.__func__.__name__,
                                                                  self.__class__.__name__))
