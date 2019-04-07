@@ -1,0 +1,19 @@
+
+syntax = "proto3";
+
+import "protos/primitives.proto";
+
+package angr.protos;
+
+message CFGNode {
+    int64           ea = 1; // Address of the node
+    int32           size = 2; // Size of the node
+    repeated int64  block_id = 3; // A unique identifier of the node
+    bool            returning = 4; // If it is a call node, does it return?
+}
+
+message CFG {
+    string              tag = 1;
+    repeated CFGNode    nodes = 2;
+    repeated Edge       edges = 3;
+}

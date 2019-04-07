@@ -38,7 +38,7 @@ class Blade:
         self._slice = networkx.DiGraph()
 
         self.project = project
-        self._cfg = cfg
+        self._cfg = cfg.model
         if self._cfg is None:
             # `cfg` is made optional only for compatibility concern. It will be made a positional parameter later.
             raise AngrBladeError('"cfg" must be specified.')

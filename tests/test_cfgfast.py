@@ -8,6 +8,7 @@ import archinfo
 import angr
 
 from angr.analyses.cfg.cfg_fast import SegmentList
+from angr.knowledge_plugins.cfg import CFGNode, CFGModel
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
@@ -418,6 +419,39 @@ def test_segment_list_6():
     nose.tools.assert_equal(seg_list._list[1].end, 30)
     nose.tools.assert_equal(seg_list._list[1].sort, 'code')
 
+
+#
+# Serialization
+#
+
+def test_serialization_cfgnode():
+    path = os.path.join(test_location, "x86_64", "fauxware")
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+    # the first node
+    node = cfg.get_any_node(proj.entry)
+    nose.tools.assert_is_not_none(node)
+
+    b = node.serialize()
+    nose.tools.assert_greater(len(b), 0)
+    new_node = CFGNode.parse(b)
+    nose.tools.assert_equal(new_node.addr, node.addr)
+    nose.tools.assert_equal(new_node.size, node.size)
+    nose.tools.assert_equal(new_node.block_id, node.block_id)
+
+
+def test_serialization_cfgfast():
+    path = os.path.join(test_location, "x86_64", "fauxware")
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+    # parse the entire graph
+    b = cfg.model.serialize()
+    nose.tools.assert_greater(len(b), 0)
+    cfg_model = CFGModel.parse(b)
+    nose.tools.assert_equal(len(cfg_model.graph), len(cfg.graph))
+
 #
 # CFG instance copy
 #
@@ -631,6 +665,9 @@ def run_all():
     for func in segmentlist_tests:
         print(func.__name__)
         func()
+
+    test_serialization_cfgnode()
+    test_serialization_cfgfast()
 
     for args in test_cfg_0():
         print(args[0].__name__)

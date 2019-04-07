@@ -7,6 +7,7 @@ import archinfo
 from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
 from ...serializable import Serializable
+from ...protos import cfg_pb2
 
 _l = logging.getLogger(__name__)
 
@@ -67,9 +68,9 @@ class CFGNode(Serializable):
         self.no_ret = no_ret
         self._cfg = cfg
         self.function_address = function_address
-        self.block_id = block_id
+        self.block_id = block_id  # type: int or tuple
         self.thumb = thumb
-        self.byte_string = byte_string
+        self.byte_string = byte_string  # type: None or bytes
 
         if isinstance(addr, SootAddressDescriptor):
             self._name = repr(addr)
@@ -138,6 +139,46 @@ class CFGNode(Serializable):
     def callstack_key(self):
         # A dummy stub for the future support of context sensitivity in CFGFast
         return None
+
+    #
+    # Serialization
+    #
+
+    @classmethod
+    def _get_cmsg(cls):
+        return cfg_pb2.CFGNode()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        obj.ea = self.addr
+        obj.size = self.size
+        if self.block_id is not None:
+            if type(self.block_id) is int:
+                obj.block_id.append(self.block_id)
+            else:  # should be a tuple
+                obj.block_id.extend(self.block_id)
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, cfg=None):
+
+        if len(cmsg.block_id) == 0:
+            block_id = None
+        elif len(cmsg.block_id) == 1:
+            block_id = cmsg.block_id[0]
+        else:
+            block_id = tuple(cmsg.block_id)
+
+        obj = cls(cmsg.ea,
+                  cmsg.size,
+                  cfg=cfg,
+                  block_id=block_id,
+                  )
+        return obj
+
+    #
+    # Methods
+    #
 
     def copy(self):
         c = CFGNode(self.addr,

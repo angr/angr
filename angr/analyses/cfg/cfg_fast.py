@@ -230,7 +230,7 @@ class FunctionTransitionEdge(FunctionEdge):
         to_outside = self.to_outside
         if not to_outside:
             # is it jumping to outside? Maybe we are seeing more functions now.
-            dst_node = cfg.get_any_node(self.dst_addr, force_fastpath=True)
+            dst_node = cfg.model.get_any_node(self.dst_addr, force_fastpath=True)
             if dst_node is not None and dst_node.function_address != self.src_func_addr:
                 to_outside = True
         return cfg._function_add_transition_edge(
@@ -614,7 +614,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_returns = None
         self._function_exits = None
 
-        self._model = CFGModel()
+        self._model = CFGModel(tag="CFGFast")
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -977,9 +977,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._register_analysis_job(sp, job)
 
         self._updated_nonreturning_functions = set()
-
-        self._nodes = {}
-        self._nodes_by_addr = defaultdict(list)
 
         if self._use_function_prologues and self.project.concrete_target is None:
             self._function_prologue_addrs = sorted(self._func_addrs_from_prologues())
@@ -1642,7 +1639,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     target_func_addr = None
                     real_target_addr = get_real_address_if_arm(self.project.arch, target_addr)
                     if real_target_addr in self._traced_addresses:
-                        node = self.get_any_node(target_addr)
+                        node = self.model.get_any_node(target_addr)
                         if node is not None:
                             target_func_addr = node.function_address
                     if target_func_addr is None:
@@ -2821,7 +2818,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 l.warning('Function %#x does not have a startpoint (yet).', func_addr)
                 continue
 
-            startpoint = self.get_any_node(func.startpoint.addr)
+            startpoint = self.model.get_any_node(func.startpoint.addr)
             if startpoint is None:
                 # weird...
                 l.warning('No CFGNode is found for function %#x in _make_return_edges().', func_addr)
@@ -2830,15 +2827,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             endpoints = self._get_return_sources(func)
 
             # get all callers
-            callers = self.get_predecessors(startpoint, jumpkind='Ijk_Call')
+            callers = self.model.get_predecessors(startpoint, jumpkind='Ijk_Call')
             # for each caller, since they all end with a call instruction, get the immediate successor
             return_targets = itertools.chain.from_iterable(
-                self.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
+                self.model.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
             )
             return_targets = set(return_targets)
 
             for ep in endpoints:
-                src = self.get_any_node(ep.addr)
+                src = self.model.get_any_node(ep.addr)
                 for rt in return_targets:
                     if not src.instruction_addrs:
                         ins_addr = None

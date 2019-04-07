@@ -80,12 +80,6 @@ class CFGBase(Analysis):
         self._overlapped_loop_headers = None
         self._thumb_addrs = set()
 
-        # Traverse all the IRSBs, and put the corresponding CFGNode objects to a dict
-        # CFGNodes dict indexed by block ID
-        self._nodes = None
-        # Lists of CFGNodes indexed by addresses of each block
-        self._nodes_by_addr = None
-
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
         self._updated_nonreturning_functions = None
@@ -154,8 +148,26 @@ class CFGBase(Analysis):
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
 
+        self._model = None  # type: angr.knowledge_plugins.cfg.CFGModel
+
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
+
+    #
+    # Properties
+    #
+
+    @property
+    def _nodes(self):
+        return self._model._nodes
+
+    @property
+    def _nodes_by_addr(self):
+        return self._model._nodes_by_addr
+
+    @property
+    def model(self):
+        return self._model
 
     @property
     def normalized(self):
@@ -174,6 +186,10 @@ class CFGBase(Analysis):
         :rtype: angr.knowledge_plugins.FunctionManager
         """
         return self.kb.functions
+
+    #
+    # Methods
+    #
 
     def _initialize_cfg(self):
         """
@@ -226,210 +242,41 @@ class CFGBase(Analysis):
 
         raise NotImplementedError("I'm too lazy to implement it right now")
 
+    @deprecated(replacement="self.model.get_predecessors()")
     def get_predecessors(self, cfgnode, excluding_fakeret=True, jumpkind=None):
-        """
-        Get predecessors of a node in the control flow graph.
+        return self._model.get_predecessors(cfgnode, excluding_fakeret=excluding_fakeret, jumpkind=jumpkind)
 
-        :param CFGNode cfgnode:             The node.
-        :param bool excluding_fakeret:      True if you want to exclude all predecessors that is connected to the node
-                                            with a fakeret edge.
-        :param str or None jumpkind:        Only return predecessors with the specified jumpkind. This argument will be
-                                            ignored if set to None.
-        :return:                            A list of predecessors
-        :rtype:                             list
-        """
+    @deprecated(replacement="self.model.get_successors()")
+    def get_successors(self, node, excluding_fakeret=True, jumpkind=None):
+        return self._model.get_successors(node, excluding_fakeret=excluding_fakeret, jumpkind=jumpkind)
 
-        if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
-            return [ ]
+    @deprecated(replacement="self.model.get_successors_and_jumpkind")
+    def get_successors_and_jumpkind(self, node, excluding_fakeret=True):
+        return self._model.get_successors_and_jumpkind(node, excluding_fakeret=excluding_fakeret)
 
-        if not excluding_fakeret and jumpkind is None:
-            # fast path
-            if cfgnode in self.graph:
-                return list(self.graph.predecessors(cfgnode))
-            return [ ]
-
-        predecessors = []
-        for pred, _, data in self.graph.in_edges([cfgnode], data=True):
-            jk = data['jumpkind']
-            if jumpkind is not None:
-                if jk == jumpkind:
-                    predecessors.append(pred)
-            elif excluding_fakeret:
-                if jk != 'Ijk_FakeRet':
-                    predecessors.append(pred)
-            else:
-                predecessors.append(pred)
-        return predecessors
-
-    def get_successors(self, basic_block, excluding_fakeret=True, jumpkind=None):
-        """
-        Get successors of a node in the control flow graph.
-
-        :param CFGNode basic_block:             The node.
-        :param bool excluding_fakeret:      True if you want to exclude all successors that is connected to the node
-                                            with a fakeret edge.
-        :param str or None jumpkind:        Only return successors with the specified jumpkind. This argument will be
-                                            ignored if set to None.
-        :return:                            A list of successors
-        :rtype:                             list
-        """
-
-        if jumpkind is not None:
-            if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
-                return [ ]
-
-        if not excluding_fakeret and jumpkind is None:
-            # fast path
-            if basic_block in self.graph:
-                return list(self.graph.successors(basic_block))
-            return [ ]
-
-        successors = []
-        for _, suc, data in self.graph.out_edges([basic_block], data=True):
-            jk = data['jumpkind']
-            if jumpkind is not None:
-                if jumpkind == jk:
-                    successors.append(suc)
-            elif excluding_fakeret:
-                if jk != 'Ijk_FakeRet':
-                    successors.append(suc)
-            else:
-                successors.append(suc)
-        return successors
-
-    def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
-        successors = []
-        for _, suc, data in self.graph.out_edges([basic_block], data=True):
-            if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
-                successors.append((suc, data['jumpkind']))
-        return successors
-
+    @deprecated(replacement="self.model.get_all_predecessors()")
     def get_all_predecessors(self, cfgnode):
-        """
-        Get all predecessors of a specific node on the control flow graph.
+        return self._model.get_all_predecessors(cfgnode)
 
-        :param CFGNode cfgnode: The CFGNode object
-        :return: A list of predecessors in the CFG
-        :rtype: list
-        """
-        s = set()
-        for child, parent in networkx.dfs_predecessors(self.graph, cfgnode).items():
-            s.add(child)
-            s.add(parent)
-        return list(s)
-
+    @deprecated(replacement="self.model.get_all_successors()")
     def get_all_successors(self, cfgnode):
-        s = set()
-        for parent, children in networkx.dfs_successors(self.graph, cfgnode).items():
-            s.add(parent)
-            s = s.union(children)
-        return list(s)
+        return self._model.get_all_successors(cfgnode)
 
+    @deprecated(replacement="self.model.get_node()")
     def get_node(self, block_id):
-        """
-        Get a single node from node key.
+        return self._model.get_node(block_id)
 
-        :param BlockID block_id: Block ID of the node.
-        :return:                 The CFGNode
-        :rtype:                  CFGNode
-        """
-        if block_id in self._nodes:
-            return self._nodes[block_id]
-        return None
-
+    @deprecated(replacement="self.model.get_any_node()")
     def get_any_node(self, addr, is_syscall=None, anyaddr=False, force_fastpath=False):
-        """
-        Get an arbitrary CFGNode (without considering their contexts) from our graph.
+        return self._model.get_any_node(addr, is_syscall=is_syscall, anyaddr=anyaddr, force_fastpath=force_fastpath)
 
-        :param int addr:        Address of the beginning of the basic block. Set anyaddr to True to support arbitrary
-                                address.
-        :param bool is_syscall: Whether you want to get the syscall node or any other node. This is due to the fact that
-                                syscall SimProcedures have the same address as the targer it returns to.
-                                None means get either, True means get a syscall node, False means get something that isn't
-                                a syscall node.
-        :param bool anyaddr:    If anyaddr is True, then addr doesn't have to be the beginning address of a basic
-                                block. By default the entire graph.nodes() will be iterated, and the first node
-                                containing the specific address is returned, which is slow. If you need to do many such
-                                queries, you may first call `generate_index()` to create some indices that may speed up the
-                                query.
-        :param bool force_fastpath: If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
-                                    dict.
-        :return: A CFGNode if there is any that satisfies given conditions, or None otherwise
-        """
-
-        # fastpath: directly look in the nodes list
-        if not anyaddr:
-            try:
-                return self._nodes_by_addr[addr][0]
-            except (KeyError, IndexError):
-                pass
-
-        if force_fastpath:
-            return None
-
-        # slower path
-        #if self._node_lookup_index is not None:
-        #    pass
-
-        # the slowest path
-        # try to show a warning first
-        # TODO: re-enable it once the segment tree is implemented
-        #if self._node_lookup_index_warned == False:
-        #    l.warning('Calling get_any_node() with anyaddr=True is slow on large programs. '
-        #              'For better performance, you may first call generate_index() to generate some indices that may '
-        #              'speed the node lookup.')
-        #    self._node_lookup_index_warned = True
-
-        for n in self.graph.nodes():
-            if self.tag == "CFGEmulated":
-                cond = n.looping_times == 0
-            else:
-                cond = True
-            if anyaddr and n.size is not None:
-                cond = cond and n.addr <= addr < n.addr + n.size
-            else:
-                cond = cond and (addr == n.addr)
-            if cond:
-                if is_syscall is None:
-                    return n
-                if n.is_syscall == is_syscall:
-                    return n
-
-        return None
-
+    @deprecated(replacement="self.model.get_all_nodes()")
     def get_all_nodes(self, addr, is_syscall=None, anyaddr=False):
-        """
-        Get all CFGNodes whose address is the specified one.
+        return self._model.get_all_nodes(addr, is_syscall=is_syscall, anyaddr=anyaddr)
 
-        :param addr:       Address of the node
-        :param is_syscall: True returns the syscall node, False returns the normal CFGNode, None returns both
-        :return:           all CFGNodes
-        """
-        results = [ ]
-
-        for cfg_node in self.graph.nodes():
-            if cfg_node.addr == addr or (anyaddr and
-                                         cfg_node.size is not None and
-                                         cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
-                                         ):
-                if is_syscall and cfg_node.is_syscall:
-                    results.append(cfg_node)
-                elif is_syscall is False and not cfg_node.is_syscall:
-                    results.append(cfg_node)
-                else:
-                    results.append(cfg_node)
-
-        return results
-
+    @deprecated(replacement="self.model.nodes()")
     def nodes(self):
-        """
-        An iterator of all nodes in the graph.
-
-        :return: The iterator.
-        :rtype: iterator
-        """
-
-        return self.graph.nodes()
+        return self._model.nodes()
 
     @deprecated(replacement='nodes')
     def nodes_iter(self):
@@ -442,38 +289,16 @@ class CFGBase(Analysis):
 
         return self.nodes()
 
-    def get_all_irsbs(self, addr):  # pylint:disable=unused-argument
-        """
-        Returns all IRSBs of a certain address, without considering contexts.
-        """
-        raise DeprecationWarning('"get_all_irsbs()" is deprecated since SimIRSB does not exist anymore.')
-
     def get_loop_back_edges(self):
         return self._loop_back_edges
 
+    @deprecated(replacement="self.model.get_branching_nodes()")
     def get_branching_nodes(self):
-        """
-        Returns all nodes that has an out degree >= 2
-        """
-        nodes = set()
-        for n in self.graph.nodes():
-            if self.graph.out_degree(n) >= 2:
-                nodes.add(n)
-        return nodes
+        return self._model.get_branching_nodes()
 
+    @deprecated(replacement="self.model.get_exit_stmt_idx")
     def get_exit_stmt_idx(self, src_block, dst_block):
-        """
-        Get the corresponding exit statement ID for control flow to reach destination block from source block. The exit
-        statement ID was put on the edge when creating the CFG.
-        Note that there must be a direct edge between the two blocks, otherwise an exception will be raised.
-
-        :return: The exit statement ID
-        """
-
-        if not self.graph.has_edge(src_block, dst_block):
-            raise AngrCFGError('Edge (%s, %s) does not exist in CFG' % (src_block, dst_block))
-
-        return self.graph[src_block][dst_block]['stmt_idx']
+        return self._model.get_exit_stmt_idx(src_block, dst_block)
 
     @property
     def graph(self):
@@ -1384,7 +1209,7 @@ class CFGBase(Analysis):
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
 
-        entry_node = self.get_any_node(self._binary.entry)
+        entry_node = self.model.get_any_node(self._binary.entry)
         if entry_node is not None:
             function_nodes.add(entry_node)
 
@@ -1434,7 +1259,7 @@ class CFGBase(Analysis):
         secondary_function_nodes = set()
         # add all function chunks ("functions" that are not called from anywhere)
         for func_addr in tmp_functions:
-            node = self.get_any_node(func_addr)
+            node = self.model.get_any_node(func_addr)
             if node is None:
                 continue
             if node.addr not in blockaddr_to_function:
@@ -1736,7 +1561,7 @@ class CFGBase(Analysis):
         else:
             is_syscall = self.project.simos.is_syscall_addr(addr)
 
-            n = self.get_any_node(addr, is_syscall=is_syscall)
+            n = self.model.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr
             else: node = self._to_snippet(n)
 
@@ -1890,7 +1715,7 @@ class CFGBase(Analysis):
         src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
 
         if src_addr not in src_function.block_addrs_set:
-            n = self.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr)
             if n is None: node = src_addr
             else: node = self._to_snippet(n)
             self.kb.functions._add_node(src_function.addr, node)
@@ -1902,7 +1727,7 @@ class CFGBase(Analysis):
         jumpkind = data['jumpkind']
 
         if jumpkind == 'Ijk_Ret':
-            n = self.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr)
             if n is None: from_node = src_addr
             else: from_node = self._to_snippet(n)
             self.kb.functions._add_return_from(src_function.addr, from_node, None)
@@ -1923,7 +1748,7 @@ class CFGBase(Analysis):
             # It must be calling a function
             dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
-            n = self.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr)
             if n is None: src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
             else:
                 src_snippet = self._to_snippet(cfg_node=n)
@@ -1958,7 +1783,7 @@ class CFGBase(Analysis):
 
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
-                n = self.get_any_node(returning_target)
+                n = self.model.get_any_node(returning_target)
                 if n is None:
                     returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
                 else:
@@ -1971,11 +1796,11 @@ class CFGBase(Analysis):
         elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
 
             # convert src_addr and dst_addr to CodeNodes
-            n = self.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr)
             if n is None: src_node = src_addr
             else: src_node = self._to_snippet(cfg_node=n)
 
-            n = self.get_any_node(dst_addr)
+            n = self.model.get_any_node(dst_addr)
             if n is None: dst_node = dst_addr
             else: dst_node = self._to_snippet(cfg_node=n)
 
@@ -2029,13 +1854,13 @@ class CFGBase(Analysis):
         elif jumpkind == 'Ijk_FakeRet':
 
             # convert src_addr and dst_addr to CodeNodes
-            n = self.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr)
             if n is None:
                 src_node = src_addr
             else:
                 src_node = self._to_snippet(n)
 
-            n = self.get_any_node(dst_addr)
+            n = self.model.get_any_node(dst_addr)
             if n is None:
                 dst_node = dst_addr
             else:
@@ -2113,7 +1938,6 @@ class CFGBase(Analysis):
         if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
             return True
         return False
-
 
     @staticmethod
     def _is_noop_insn(insn):
