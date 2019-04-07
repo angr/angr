@@ -70,8 +70,8 @@ def cfg_fast_edges_check(arch, binary_path, edges):
     cfg = proj.analyses.CFGFast()
 
     for src, dst in edges:
-        src_node = cfg.get_any_node(src)
-        dst_node = cfg.get_any_node(dst)
+        src_node = cfg.model.get_any_node(src)
+        dst_node = cfg.model.get_any_node(dst)
         nose.tools.assert_in(dst_node, src_node.successors,
                              msg="CFG edge %s-%s is not found." % (src_node, dst_node)
                              )
@@ -430,7 +430,7 @@ def test_serialization_cfgnode():
 
     cfg = proj.analyses.CFGFast()
     # the first node
-    node = cfg.get_any_node(proj.entry)
+    node = cfg.model.get_any_node(proj.entry)
     nose.tools.assert_is_not_none(node)
 
     b = node.serialize()
@@ -481,7 +481,7 @@ def test_resolve_x86_elf_pic_plt():
     cfg = proj.analyses.CFGFast()
 
     # puts
-    puts_node = cfg.get_any_node(0x4005b0)
+    puts_node = cfg.model.get_any_node(0x4005b0)
     nose.tools.assert_is_not_none(puts_node)
 
     # there should be only one successor, which jumps to SimProcedure puts
@@ -535,7 +535,7 @@ def test_block_instruction_addresses_armhf():
     for instr_addr in block.instruction_addrs:
         nose.tools.assert_true(instr_addr % 2 == 1)
 
-    main_node = cfg.get_any_node(main_func.addr)
+    main_node = cfg.model.get_any_node(main_func.addr)
     nose.tools.assert_is_not_none(main_node)
     nose.tools.assert_equal(len(main_node.instruction_addrs), 12)
     for instr_addr in main_node.instruction_addrs:

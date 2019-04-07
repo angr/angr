@@ -2667,7 +2667,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if not remove_function:
                 # add functions back
                 self._function_add_node(node, node.addr)
-                successor_node = self.get_any_node(successor_node_addr)
+                successor_node = self.model.get_any_node(successor_node_addr)
                 if successor_node and successor_node.function_address == node.addr:
                     # if there is absolutely no predecessors to successor_node, we'd like to add it as a new function
                     # so that it will not be left behind
