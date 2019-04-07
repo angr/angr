@@ -614,7 +614,7 @@ class SimTypeFunction(SimType):
     _fields = ('args', 'returnty')
     base = False
 
-    def __init__(self, args, returnty, label=None, arg_names=[]):
+    def __init__(self, args, returnty, label=None, arg_names=None):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
@@ -623,7 +623,7 @@ class SimTypeFunction(SimType):
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
         self.returnty = returnty
-        self.arg_names = arg_names
+        self.arg_names = arg_names if arg_names else []
 
     def __repr__(self):
         return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)

@@ -126,9 +126,6 @@ class Function:
         else:
             self.calling_convention = None
 
-
-
-
         # Function prototype
         self.prototype = None
 
