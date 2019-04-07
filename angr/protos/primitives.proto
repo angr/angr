@@ -10,9 +10,34 @@ message Block {
 }
 
 message Edge {
+
+    enum JumpKind {
+        UnknownJumpkind = 0; // Will be translated to None in Python
+        Boring = 1;
+        Call = 2;
+        Return = 3;
+        FakeReturn = 4; // More commonly referred to as fall-through edges
+        Syscall = 5;
+        // The following jumpkinds are mostly specific to VEX IR
+        Sys_syscall = 6;
+        Sys_int128 = 7;
+        NoDecode = 8;
+        EmWarn = 9;
+        SigFPE_IntDiv = 10;
+        SigTRAP = 11;
+        SigSEGV = 12;
+        MapFail = 13;
+        NoRedir = 14;
+        ClientReq = 15;
+    }
+
     int64               src_ea = 1; // Address of the source block
     int64               dst_ea = 2; // Address of the destination block
-    map<string, bytes>  data = 3; // A dict of data on this edge. For now, values are pickled from Python objects.
+    JumpKind            jumpkind = 3; // Jumpkind of the edge
+    bool                is_outside = 4; // Is this an edge going outside of the current function?
+    int64               ins_addr = 5; // Address of the source instruction
+    int64               stmt_idx = 6; // ID of the source statement
+    map<string, bytes>  data = 7; // A dict of data on this edge. For now, values are pickled from Python objects.
 }
 
 message BlockGraph {

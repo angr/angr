@@ -20,10 +20,88 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='angr.protos',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x17protos/primitives.proto\x12\x0b\x61ngr.protos\"0\n\x05\x42lock\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\r\n\x05\x62ytes\x18\x03 \x01(\x0c\"~\n\x04\x45\x64ge\x12\x0e\n\x06src_ea\x18\x01 \x01(\x03\x12\x0e\n\x06\x64st_ea\x18\x02 \x01(\x03\x12)\n\x04\x64\x61ta\x18\x03 \x03(\x0b\x32\x1b.angr.protos.Edge.DataEntry\x1a+\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c:\x02\x38\x01\".\n\nBlockGraph\x12 \n\x05\x65\x64ges\x18\x01 \x03(\x0b\x32\x11.angr.protos.Edgeb\x06proto3')
+  serialized_pb=_b('\n\x17protos/primitives.proto\x12\x0b\x61ngr.protos\"0\n\x05\x42lock\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\r\n\x05\x62ytes\x18\x03 \x01(\x0c\"\xd6\x03\n\x04\x45\x64ge\x12\x0e\n\x06src_ea\x18\x01 \x01(\x03\x12\x0e\n\x06\x64st_ea\x18\x02 \x01(\x03\x12,\n\x08jumpkind\x18\x03 \x01(\x0e\x32\x1a.angr.protos.Edge.JumpKind\x12\x12\n\nis_outside\x18\x04 \x01(\x08\x12\x10\n\x08ins_addr\x18\x05 \x01(\x03\x12\x10\n\x08stmt_idx\x18\x06 \x01(\x03\x12)\n\x04\x64\x61ta\x18\x07 \x03(\x0b\x32\x1b.angr.protos.Edge.DataEntry\x1a+\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c:\x02\x38\x01\"\xef\x01\n\x08JumpKind\x12\x13\n\x0fUnknownJumpkind\x10\x00\x12\n\n\x06\x42oring\x10\x01\x12\x08\n\x04\x43\x61ll\x10\x02\x12\n\n\x06Return\x10\x03\x12\x0e\n\nFakeReturn\x10\x04\x12\x0b\n\x07Syscall\x10\x05\x12\x0f\n\x0bSys_syscall\x10\x06\x12\x0e\n\nSys_int128\x10\x07\x12\x0c\n\x08NoDecode\x10\x08\x12\n\n\x06\x45mWarn\x10\t\x12\x11\n\rSigFPE_IntDiv\x10\n\x12\x0b\n\x07SigTRAP\x10\x0b\x12\x0b\n\x07SigSEGV\x10\x0c\x12\x0b\n\x07MapFail\x10\r\x12\x0b\n\x07NoRedir\x10\x0e\x12\r\n\tClientReq\x10\x0f\".\n\nBlockGraph\x12 \n\x05\x65\x64ges\x18\x01 \x03(\x0b\x32\x11.angr.protos.Edgeb\x06proto3')
 )
 
 
+
+_EDGE_JUMPKIND = _descriptor.EnumDescriptor(
+  name='JumpKind',
+  full_name='angr.protos.Edge.JumpKind',
+  filename=None,
+  file=DESCRIPTOR,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='UnknownJumpkind', index=0, number=0,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='Boring', index=1, number=1,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='Call', index=2, number=2,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='Return', index=3, number=3,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='FakeReturn', index=4, number=4,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='Syscall', index=5, number=5,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='Sys_syscall', index=6, number=6,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='Sys_int128', index=7, number=7,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='NoDecode', index=8, number=8,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='EmWarn', index=9, number=9,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='SigFPE_IntDiv', index=10, number=10,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='SigTRAP', index=11, number=11,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='SigSEGV', index=12, number=12,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='MapFail', index=13, number=13,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='NoRedir', index=14, number=14,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='ClientReq', index=15, number=15,
+      serialized_options=None,
+      type=None),
+  ],
+  containing_type=None,
+  serialized_options=None,
+  serialized_start=322,
+  serialized_end=561,
+)
+_sym_db.RegisterEnumDescriptor(_EDGE_JUMPKIND)
 
 
 _BLOCK = _descriptor.Descriptor(
@@ -104,8 +182,8 @@ _EDGE_DATAENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=173,
-  serialized_end=216,
+  serialized_start=276,
+  serialized_end=319,
 )
 
 _EDGE = _descriptor.Descriptor(
@@ -130,8 +208,36 @@ _EDGE = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='data', full_name='angr.protos.Edge.data', index=2,
-      number=3, type=11, cpp_type=10, label=3,
+      name='jumpkind', full_name='angr.protos.Edge.jumpkind', index=2,
+      number=3, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='is_outside', full_name='angr.protos.Edge.is_outside', index=3,
+      number=4, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='ins_addr', full_name='angr.protos.Edge.ins_addr', index=4,
+      number=5, type=3, cpp_type=2, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='stmt_idx', full_name='angr.protos.Edge.stmt_idx', index=5,
+      number=6, type=3, cpp_type=2, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='data', full_name='angr.protos.Edge.data', index=6,
+      number=7, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -141,6 +247,7 @@ _EDGE = _descriptor.Descriptor(
   ],
   nested_types=[_EDGE_DATAENTRY, ],
   enum_types=[
+    _EDGE_JUMPKIND,
   ],
   serialized_options=None,
   is_extendable=False,
@@ -148,8 +255,8 @@ _EDGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=90,
-  serialized_end=216,
+  serialized_start=91,
+  serialized_end=561,
 )
 
 
@@ -179,12 +286,14 @@ _BLOCKGRAPH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=218,
-  serialized_end=264,
+  serialized_start=563,
+  serialized_end=609,
 )
 
 _EDGE_DATAENTRY.containing_type = _EDGE
+_EDGE.fields_by_name['jumpkind'].enum_type = _EDGE_JUMPKIND
 _EDGE.fields_by_name['data'].message_type = _EDGE_DATAENTRY
+_EDGE_JUMPKIND.containing_type = _EDGE
 _BLOCKGRAPH.fields_by_name['edges'].message_type = _EDGE
 DESCRIPTOR.message_types_by_name['Block'] = _BLOCK
 DESCRIPTOR.message_types_by_name['Edge'] = _EDGE

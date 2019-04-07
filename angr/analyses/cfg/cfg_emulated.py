@@ -23,6 +23,7 @@ from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
 from ...knowledge_plugins.cfg import CFGENode
+from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
@@ -1277,7 +1278,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Try to resolve indirect jumps
             irsb = input_state.block().vex
 
-            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr, stmt_idx='default')
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr,
+                                                                             stmt_idx=DEFAULT_STATEMENT)
             if resolved:
                 successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
                 if ij:
@@ -1385,13 +1387,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
                     if return_target_key in self._nodes:
-                        self._graph_add_edge(job.block_id, return_target_key, jumpkind='Ijk_Ret', stmt_id='default',
-                                             ins_addr=ret_ins_addr)
+                        self._graph_add_edge(job.block_id, return_target_key, jumpkind='Ijk_Ret',
+                                             stmt_id=DEFAULT_STATEMENT, ins_addr=ret_ins_addr)
                     else:
                         self._pending_edges[return_target_key].append((job.block_id, return_target_key,
                                                                        {
                                                                            'jumpkind': 'Ijk_Ret',
-                                                                           'stmt_id': 'default',
+                                                                           'stmt_id': DEFAULT_STATEMENT,
                                                                            'ins_addr': ret_ins_addr,
                                                                         }
                                                                        )
@@ -1852,7 +1854,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._update_function_transition_graph(job.block_id, None,
                                                jumpkind=successor_jumpkind,
                                                ins_addr=successor_last_ins_addr,
-                                               stmt_idx='default',
+                                               stmt_idx=DEFAULT_STATEMENT,
                                                )
 
     # SimAction handling

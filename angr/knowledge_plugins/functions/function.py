@@ -14,6 +14,7 @@ import claripy
 
 from ...protos import function_pb2, primitives_pb2
 from ...serializable import Serializable
+from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 
@@ -316,6 +317,7 @@ class Function(Serializable):
         # graph
         edges = [ ]
         external_functions = set()
+        TRANSITION_JK = func_edge_type_to_pb('transition')  # default edge type
         for src, dst, data in self.transition_graph.edges(data=True):
             edge = primitives_pb2.Edge()
             edge.src_ea = src.addr
@@ -324,8 +326,18 @@ class Function(Serializable):
                 external_functions.add(src.addr)
             if isinstance(dst, Function):
                 external_functions.add(dst.addr)
+            edge.jumpkind = TRANSITION_JK
             for k, v in data.items():
-                edge.data[k] = pickle.dumps(v)
+                if k == "type":
+                    edge.jumpkind = func_edge_type_to_pb(v)
+                elif k == "ins_addr":
+                    edge.ins_addr = v
+                elif k == "stmt_idx":
+                    edge.stmt_idx = v
+                elif k == "outside":
+                    edge.is_outside = v
+                else:
+                    edge.data[k] = pickle.dumps(v)
             edges.append(edge)
         obj.graph.edges.extend(edges)
         # referenced functions
@@ -381,8 +393,12 @@ class Function(Serializable):
                 dst = _get_block_or_func(edge_cmsg.dst_ea, blocks, external_functions)
             except KeyError:
                 raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
+            edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
+            assert edge_type is not None
             data = dict((k, pickle.loads(v)) for k, v in edge_cmsg.data.items())
-            edge_type = data.get('type', 'transition')
+            data['outside'] = edge_cmsg.is_outside
+            data['ins_addr'] = edge_cmsg.ins_addr
+            data['stmt_idx'] = edge_cmsg.stmt_idx
             if edge_type == 'fake_return':
                 fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
             else:

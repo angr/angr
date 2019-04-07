@@ -13,6 +13,7 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 from ...knowledge_plugins.functions import FunctionManager, Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode
 from ...misc.ux import deprecated
+from ...utils.constants import DEFAULT_STATEMENT
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
     AngrUnsupportedSyscallError, SimError
@@ -351,7 +352,6 @@ class CFGBase(Analysis):
         self._nodes[new_node.block_id] = new_node
         self._nodes_by_addr[addr0].append(new_node)
 
-
     def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
         """
         Convert a CFGNode instance to a CodeNode object.
@@ -444,7 +444,7 @@ class CFGBase(Analysis):
                 can_produce_exits.add(cs_insn.address)
 
         successors_filtered = [suc for suc in successors
-                               if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == 'default']
+                               if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT]
 
         return successors_filtered
 
@@ -1609,14 +1609,14 @@ class CFGBase(Analysis):
         if len(all_edges) == 1 and dst_addr != src_addr:
             the_edge = next(iter(all_edges))
             _, dst, data = the_edge
-            if data.get('stmt_idx', None) != 'default':
+            if data.get('stmt_idx', None) != DEFAULT_STATEMENT:
                 return False
 
             dst_in_edges = g.in_edges(dst, data=True)
             if len(dst_in_edges) > 1:
                 # there are other edges going to the destination node. check all edges to make sure all source nodes
                 # only have one default exit
-                if any(data.get('stmt_idx', None) != 'default' for _, _, data in dst_in_edges):
+                if any(data.get('stmt_idx', None) != DEFAULT_STATEMENT for _, _, data in dst_in_edges):
                     # some nodes are jumping to the destination node via non-default edges. skip.
                     return False
                 if any(_has_more_than_one_exit(src_) for src_, _, _ in dst_in_edges):
@@ -2065,7 +2065,7 @@ class CFGBase(Analysis):
         # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
         self.kb.unresolved_indirect_jumps.add(jump.addr)
 
-    def _indirect_jump_encountered(self, addr, cfg_node, irsb, func_addr, stmt_idx='default'):
+    def _indirect_jump_encountered(self, addr, cfg_node, irsb, func_addr, stmt_idx=DEFAULT_STATEMENT):
         """
         Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
         indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.

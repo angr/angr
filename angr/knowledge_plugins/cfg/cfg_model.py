@@ -6,6 +6,7 @@ import networkx
 
 from ...protos import cfg_pb2, primitives_pb2
 from ...serializable import Serializable
+from ...utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from ...errors import AngrCFGError
 from .cfg_node import CFGNode
 
@@ -61,7 +62,14 @@ class CFGModel(Serializable):
             edge.src_ea = src.addr
             edge.dst_ea = dst.addr
             for k, v in data.items():
-                edge.data[k] = pickle.dumps(v)
+                if k == 'jumpkind':
+                    edge.jumpkind = cfg_jumpkind_to_pb(v)
+                elif k == 'ins_addr':
+                    edge.ins_addr = v if v is not None else -1
+                elif k == 'stmt_idx':
+                    edge.stmt_idx = v if v is not None else -1
+                else:
+                    edge.data[k] = pickle.dumps(v)
             edges.append(edge)
         cmsg.edges.extend(edges)
 
@@ -84,6 +92,9 @@ class CFGModel(Serializable):
             data = { }
             for k, v in edge_pb2.data.items():
                 data[k] = pickle.loads(v)
+            data['jumpkind'] = cfg_jumpkind_from_pb(edge_pb2.jumpkind)
+            data['ins_addr'] = edge_pb2.ins_addr if edge_pb2.ins_addr != -1 else None
+            data['stmt_idx'] = edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None
             model.graph.add_edge(src, dst, **data)
 
         return model

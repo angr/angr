@@ -20,6 +20,7 @@ from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
                        AngrUnsupportedSyscallError
                        )
+from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
 from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
@@ -1479,7 +1480,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     exit_stmt.jumpkind
                 ))
 
-        successors.append(('default',
+        successors.append((DEFAULT_STATEMENT,
                            last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
                           )
 
@@ -2849,7 +2850,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         else:
                             ins_addr = src.instruction_addrs[-1]
 
-                    self._graph_add_edge(rt, src, 'Ijk_Ret', ins_addr, 'default')
+                    self._graph_add_edge(rt, src, 'Ijk_Ret', ins_addr, DEFAULT_STATEMENT)
 
     #
     # Function utils

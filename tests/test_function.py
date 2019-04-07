@@ -23,5 +23,6 @@ def test_function_serialization():
     nose.tools.assert_equal(func_main.addr, f.addr)
     nose.tools.assert_equal(func_main.name, f.name)
 
+
 if __name__ == "__main__":
     test_function_serialization()
