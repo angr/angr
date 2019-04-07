@@ -40,7 +40,7 @@ class CFGNode(Serializable):
     """
 
     __slots__ = ( 'addr', 'simprocedure_name', 'syscall_name', 'size', 'no_ret', 'is_syscall', 'function_address',
-                  'block_id', 'thumb', 'byte_string', '_name', 'instruction_addrs', 'irsb', 'has_return', '_cfg',
+                  'block_id', 'thumb', 'byte_string', '_name', 'instruction_addrs', 'irsb', 'has_return', '_cfg_model',
                   '_hash', 'soot_block'
                   )
 
@@ -66,7 +66,7 @@ class CFGNode(Serializable):
         self.simprocedure_name = simprocedure_name
         self.size = size
         self.no_ret = no_ret
-        self._cfg = cfg
+        self._cfg_model = cfg
         self.function_address = function_address
         self.block_id = block_id  # type: int or tuple
         self.thumb = thumb
@@ -78,7 +78,7 @@ class CFGNode(Serializable):
             self._name = simprocedure_name
         self.instruction_addrs = list(instruction_addrs) if instruction_addrs is not None else []
 
-        self.is_syscall = True if self.simprocedure_name and self._cfg.project.simos.is_syscall_addr(addr) else False
+        self.is_syscall = True if self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr) else False
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
@@ -97,15 +97,15 @@ class CFGNode(Serializable):
     @property
     def name(self):
         if self._name is None:
-            sym = self._cfg.project.loader.find_symbol(self.addr)
+            sym = self._cfg_model.project.loader.find_symbol(self.addr)
             if sym is not None:
                 self._name = sym.name
-        if self._name is None and isinstance(self._cfg.project.arch, archinfo.ArchARM) and self.addr & 1:
-            sym = self._cfg.project.loader.find_symbol(self.addr - 1)
+        if self._name is None and isinstance(self._cfg_model.project.arch, archinfo.ArchARM) and self.addr & 1:
+            sym = self._cfg_model.project.loader.find_symbol(self.addr - 1)
             if sym is not None:
                 self._name = sym.name
         if self.function_address and self._name is None:
-            sym = self._cfg.project.loader.find_symbol(self.function_address)
+            sym = self._cfg_model.project.loader.find_symbol(self.function_address)
             if sym is not None:
                 self._name = sym.name
             if self._name is not None:
@@ -116,20 +116,20 @@ class CFGNode(Serializable):
 
     @property
     def successors(self):
-        return self._cfg.model.get_successors(self)
+        return self._cfg_model.model.get_successors(self)
 
     @property
     def predecessors(self):
-        return self._cfg.model.get_predecessors(self)
+        return self._cfg_model.model.get_predecessors(self)
 
     @property
     def accessed_data_references(self):
-        if self._cfg.sort != 'fast':
+        if self._cfg_model.sort != 'fast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
 
         for instr_addr in self.instruction_addrs:
-            if instr_addr in self._cfg.insn_addr_to_memory_data:
-                yield self._cfg.insn_addr_to_memory_data[instr_addr]
+            if instr_addr in self._cfg_model.insn_addr_to_memory_data:
+                yield self._cfg_model.insn_addr_to_memory_data[instr_addr]
 
     @property
     def is_simprocedure(self):
@@ -183,7 +183,7 @@ class CFGNode(Serializable):
     def copy(self):
         c = CFGNode(self.addr,
                     self.size,
-                    self._cfg,
+                    self._cfg_model,
                     simprocedure_name=self.simprocedure_name,
                     no_ret=self.no_ret,
                     function_address=self.function_address,
@@ -247,8 +247,8 @@ class CFGNode(Serializable):
     def block(self):
         if self.is_simprocedure or self.is_syscall:
             return None
-        project = self._cfg.project  # everything in angr is connected with everything...
-        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg._iropt_level)
+        project = self._cfg_model.project  # everything in angr is connected with everything...
+        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg_model._iropt_level)
         return b
 
 
@@ -306,7 +306,7 @@ class CFGENode(CFGNode):
         if creation_failure_info is not None:
             self.creation_failure_info = CFGNodeCreationFailure(creation_failure_info)
 
-        self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
+        self._callstack_key = self.callstack.stack_suffix(self._cfg_model.context_sensitivity_level) \
             if self.callstack is not None else callstack_key
 
         self.final_states = [ ] if final_states is None else final_states
@@ -365,7 +365,7 @@ class CFGENode(CFGNode):
         return CFGENode(
             self.addr,
             self.size,
-            self._cfg,
+            self._cfg_model,
             simprocedure_name=self.simprocedure_name,
             no_ret=self.no_ret,
             function_address=self.function_address,

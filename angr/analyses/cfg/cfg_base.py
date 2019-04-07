@@ -11,7 +11,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from ...knowledge_plugins.functions import FunctionManager, Function
-from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode
+from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel
 from ...misc.ux import deprecated
 from ...utils.constants import DEFAULT_STATEMENT
 from ... import SIM_PROCEDURES
@@ -34,7 +34,8 @@ class CFGBase(Analysis):
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
-                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False, sp_tracking_track_memory=True
+                 indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
+                 sp_tracking_track_memory=True, model=None,
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -57,6 +58,8 @@ class CFGBase(Analysis):
         :param bool sp_tracking_track_memory:       Whether or not to track memory writes when tracking the stack pointer. This
                                                     increases the accuracy of stack pointer tracking, especially for architectures
                                                     without a base pointer. Only used if detect_tail_calls is enabled.
+        :param None or CFGModel model:              The CFGModel instance to write to. A new CFGModel instance will be
+                                                    created and registered with the knowledge base if `model` is None.
 
         :return: None
         """
@@ -149,7 +152,11 @@ class CFGBase(Analysis):
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
 
-        self._model = None  # type: angr.knowledge_plugins.cfg.CFGModel
+        if model is not None:
+            self._model = model
+        else:
+            self._model = self.kb.cfgs.new_model(self.tag)  # type: angr.knowledge_plugins.cfg.CFGModel
+        self._model._iropt_level = self._iropt_level
 
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
@@ -168,6 +175,11 @@ class CFGBase(Analysis):
 
     @property
     def model(self):
+        """
+        Get the CFGModel instance.
+        :return:    The CFGModel instance that this analysis currently uses.
+        :rtype:     CFGModel
+        """
         return self._model
 
     @property
@@ -986,7 +998,7 @@ class CFGBase(Analysis):
             if new_node is None:
                 # Create a new one
                 if self.tag == "CFGFast":
-                    new_node = CFGNode(n.addr, new_size, self,
+                    new_node = CFGNode(n.addr, new_size, self.model,
                                        function_address=n.function_address, block_id=n.block_id,
                                        instruction_addrs=[i for i in n.instruction_addrs
                                                           if n.addr <= i <= n.addr + new_size
@@ -994,7 +1006,7 @@ class CFGBase(Analysis):
                                        thumb=n.thumb
                                        )
                 elif self.tag == "CFGEmulated":
-                    new_node = CFGENode(n.addr, new_size, self, callstack_key=callstack_key,
+                    new_node = CFGENode(n.addr, new_size, self.model, callstack_key=callstack_key,
                                         function_address=n.function_address, block_id=n.block_id,
                                         instruction_addrs=[i for i in n.instruction_addrs
                                                            if n.addr <= i <= n.addr + new_size

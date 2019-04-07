@@ -126,7 +126,7 @@ class CFGFastSoot(CFGFast):
 
                 soot_block_size = self._soot_block_size(soot_block, addr.stmt_idx)
 
-                cfg_node = CFGNode(addr, soot_block_size, self,
+                cfg_node = CFGNode(addr, soot_block_size, self.model,
                                    function_address=current_function_addr, block_id=addr,
                                    soot_block=soot_block
                                    )

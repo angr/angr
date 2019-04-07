@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='angr.protos',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"H\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\"Y\n\x03\x43\x46G\x12\x0b\n\x03tag\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edgeb\x06proto3')
+  serialized_pb=_b('\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"H\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\"[\n\x03\x43\x46G\x12\r\n\x05ident\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edgeb\x06proto3')
   ,
   dependencies=[protos_dot_primitives__pb2.DESCRIPTOR,])
 
@@ -88,7 +88,7 @@ _CFG = _descriptor.Descriptor(
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='tag', full_name='angr.protos.CFG.tag', index=0,
+      name='ident', full_name='angr.protos.CFG.ident', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -121,7 +121,7 @@ _CFG = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=132,
-  serialized_end=221,
+  serialized_end=223,
 )
 
 _CFG.fields_by_name['nodes'].message_type = _CFGNODE

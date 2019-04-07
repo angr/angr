@@ -151,6 +151,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  max_steps=None,
                  state_add_options=None,
                  state_remove_options=None,
+                 model=None,
                  ):
         """
         All parameters are optional.
@@ -205,6 +206,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                          resolve_indirect_jumps=resolve_indirect_jumps,
                          indirect_jump_resolvers=indirect_jump_resolvers,
                          indirect_jump_target_limit=indirect_jump_target_limit,
+                         model=model,
         )
 
         if start is not None:
@@ -274,8 +276,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # A dict to log edges and the jumpkind between each basic block
         self._edge_map = defaultdict(list)
 
-        self._nodes = {}
-        self._nodes_by_addr = defaultdict(list)
         self._start_keys = [ ]  # a list of block IDs of all starts
 
         # For each call, we are always getting two exits: an Ijk_Call that
@@ -717,12 +717,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self.indirect_jumps = s['indirect_jumps']
         self._graph = s['graph']
         self._loop_back_edges = s['_loop_back_edges']
-        self._nodes = s['_nodes']
-        self._nodes_by_addr = s['_nodes_by_addr']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
         self._executable_address_ranges = s['_executable_address_ranges']
         self._iropt_level = s['_iropt_level']
+        self._model = s['_model']
 
     def __getstate__(self):
         s = {
@@ -730,12 +729,12 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             "indirect_jumps": self.indirect_jumps,
             'graph': self._graph,
             '_loop_back_edges': self._loop_back_edges,
-            '_nodes': self._nodes,
             '_nodes_by_addr': self._nodes_by_addr,
             '_thumb_addrs': self._thumb_addrs,
             '_unresolvable_runs': self._unresolvable_runs,
             '_executable_address_ranges': self._executable_address_ranges,
             '_iropt_level': self._iropt_level,
+            '_model': self._model
         }
 
         return s
@@ -1925,7 +1924,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             pt = CFGENode(self._block_id_addr(node_key),
                           None,
-                          self,
+                          self.model,
                           callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
                           input_state=None,
                           simprocedure_name="PathTerminator",
@@ -3055,7 +3054,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             cfg_node = CFGENode(sim_successors.addr,
                                 None,
-                                self,
+                                self.model,
                                 callstack=call_stack,
                                 input_state=None,
                                 simprocedure_name=simproc_name,
@@ -3072,7 +3071,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         else:
             cfg_node = CFGENode(sim_successors.addr,
                                 sa['irsb_size'],
-                                self,
+                                self.model,
                                 callstack=call_stack,
                                 input_state=None,
                                 syscall=syscall,

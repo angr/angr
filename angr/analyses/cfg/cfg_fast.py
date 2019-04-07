@@ -417,6 +417,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     tag = "CFGFast"
 
     def __init__(self,
+                 ident=None,
                  binary=None,
                  objects=None,
                  regions=None,
@@ -443,6 +444,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  detect_tail_calls=False,
                  low_priority=False,
                  cfb=None,
+                 model=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -510,6 +512,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             indirect_jump_target_limit=indirect_jump_target_limit,
             detect_tail_calls=detect_tail_calls,
             low_priority=low_priority,
+            model=model,
         )
 
         # necessary warnings
@@ -614,8 +617,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._traced_addresses = None
         self._function_returns = None
         self._function_exits = None
-
-        self._model = CFGModel(tag="CFGFast")
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -1335,7 +1336,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 name = procedure.display_name
 
             if addr not in self._nodes:
-                cfg_node = CFGNode(addr, 0, self,
+                cfg_node = CFGNode(addr, 0, self.model,
                                    function_address=current_func_addr,
                                    simprocedure_name=name,
                                    no_ret=procedure.NO_RET,
@@ -2358,7 +2359,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             raise AngrCFGError('It should be impossible')
 
-        dst_node = CFGNode(unresolvable_target_addr, 0, self,
+        dst_node = CFGNode(unresolvable_target_addr, 0, self.model,
                            function_address=unresolvable_target_addr,
                            simprocedure_name=simprocedure_name,
                            block_id=unresolvable_target_addr,
@@ -2440,7 +2441,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                         # create a new CFGNode that starts there
                         next_node_size = a.size - nop_length
-                        next_node = CFGNode(next_node_addr, next_node_size, self,
+                        next_node = CFGNode(next_node_addr, next_node_size, self.model,
                                             function_address=next_node_addr,
                                             instruction_addrs=[i for i in a.instruction_addrs
                                                                       if next_node_addr <= i
@@ -2603,7 +2604,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Generate the new node
-        new_node = CFGNode(node.addr, new_size, self,
+        new_node = CFGNode(node.addr, new_size, self.model,
                            function_address=None if remove_function else node.function_address,
                            instruction_addrs=[i for i in node.instruction_addrs
                                                      if node.addr <= i < node.addr + new_size
@@ -2623,7 +2624,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             successor = self._nodes[successor_node_addr]
         else:
             successor_size = node.size - new_size
-            successor = CFGNode(successor_node_addr, successor_size, self,
+            successor = CFGNode(successor_node_addr, successor_size, self.model,
                                 function_address=successor_node_addr if remove_function else node.function_address,
                                 instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size],
                                 thumb=node.thumb,
@@ -3308,7 +3309,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._seg_list.occupy(real_addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self,
+            cfg_node = CFGNode(addr, irsb.size, self.model,
                                function_address=current_function_addr,
                                block_id=addr,
                                irsb=irsb,

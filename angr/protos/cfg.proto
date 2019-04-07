@@ -13,7 +13,7 @@ message CFGNode {
 }
 
 message CFG {
-    string              tag = 1;
-    repeated CFGNode    nodes = 2;
-    repeated Edge       edges = 3;
+    string              ident = 1; // The identifier of this CFG
+    repeated CFGNode    nodes = 2; // All nodes in this CFG
+    repeated Edge       edges = 3; // All edges in this CFG
 }

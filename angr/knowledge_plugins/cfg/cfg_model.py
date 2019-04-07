@@ -16,11 +16,16 @@ class CFGModel(Serializable):
     This class describes a Control Flow Graph for a specific range of code.
     """
 
-    __slots__ = ('tag', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', '_nodes_by_addr', '_nodes', )
+    __slots__ = ('ident', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', '_nodes_by_addr', '_nodes',
+                 '_cfg_manager', '_iropt_level', )
 
-    def __init__(self, tag):
+    def __init__(self, ident, cfg_manager=None):
 
-        self.tag = tag
+        self.ident = ident
+        self._cfg_manager = cfg_manager
+
+        # Necessary settings
+        self._iropt_level = None
 
         # The graph
         self.graph = networkx.DiGraph()
@@ -40,6 +45,16 @@ class CFGModel(Serializable):
         self._nodes = { }
 
     #
+    # Properties
+    #
+
+    @property
+    def project(self):
+        if self._cfg_manager is None:
+            return None
+        return self._cfg_manager._kb._project
+
+    #
     # Serialization
     #
 
@@ -49,7 +64,7 @@ class CFGModel(Serializable):
 
     def serialize_to_cmessage(self):
         cmsg = self._get_cmsg()
-        cmsg.tag = self.tag
+        cmsg.ident = self.ident
         # nodes
         nodes = [ ]
         for n in self.graph.nodes():
@@ -76,8 +91,8 @@ class CFGModel(Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, **kwargs):
-        model = cls(tag=cmsg.tag)
+    def parse_from_cmessage(cls, cmsg, cfg_manager=None):
+        model = cls(cmsg.ident, cfg_manager=cfg_manager)
         # nodes
         for node_pb2 in cmsg.nodes:
             node = CFGNode.parse_from_cmessage(node_pb2)
@@ -104,7 +119,7 @@ class CFGModel(Serializable):
     #
 
     def copy(self):
-        model = CFGModel(self.tag)
+        model = CFGModel(self.ident, cfg_manager=self._cfg_manager)
         model.graph = networkx.DiGraph(self.graph)
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
@@ -174,7 +189,7 @@ class CFGModel(Serializable):
         #    self._node_lookup_index_warned = True
 
         for n in self.graph.nodes():
-            if self.tag == "CFGEmulated":
+            if self.ident == "CFGEmulated":
                 cond = n.looping_times == 0
             else:
                 cond = True
