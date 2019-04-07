@@ -5,7 +5,7 @@ import pyvex
 from .slicer import SimSlicer
 
 
-class Blade(object):
+class Blade:
     """
     Blade is a light-weight program slicer that works with networkx DiGraph containing CFGNodes.
     It is meant to be used in angr for small or on-the-fly analyses.
@@ -361,5 +361,6 @@ class Blade(object):
 
                 self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
 
-from .errors import AngrBladeError, AngrBladeSimProcError, SimTranslationError
-from .analyses.cfg.cfg_node import CFGNode
+
+from .errors import AngrBladeError, SimTranslationError
+from .knowledge_plugins.cfg import CFGNode

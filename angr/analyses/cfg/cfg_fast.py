@@ -14,7 +14,7 @@ from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.cfg import CFGModel
+from ...knowledge_plugins.cfg import CFGModel, CFGNode
 from ...misc.ux import deprecated
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
@@ -24,7 +24,6 @@ from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
 from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
-from .cfg_node import CFGNode
 from .segment_list import SegmentList
 
 
@@ -405,7 +404,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
-    # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
     SPECIAL_THUNKS = {
@@ -691,6 +689,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def insn_addr_to_memory_data(self):
         return self._model.insn_addr_to_memory_data
 
+    #
+    # Private methods
+    #
+
     # Methods for determining scanning scope
 
     def _inside_regions(self, address):
@@ -915,7 +917,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # if the new address is already occupied
             if not self._seg_list.is_occupied(addr):
                 return addr
-
 
     # Overriden methods from ForwardAnalysis
 

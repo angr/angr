@@ -6,11 +6,11 @@ from sortedcontainers import  SortedDict
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
-from .. import register_analysis
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
 from ...codenode import HookNode, SootBlockNode
+from ...knowledge_plugins.cfg import CFGNode
+from .. import register_analysis
 from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
-from .cfg_node import CFGNode
 
 l = logging.getLogger(name=__name__)
 

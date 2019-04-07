@@ -9,11 +9,7 @@ import networkx
 import pyvex
 from archinfo import ArchARM
 
-from .cfg_base import CFGBase
-from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_node import CFGENode
-from .cfg_utils import CFGUtils
-from ..forward_analysis import ForwardAnalysis
+
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
 from ...engines import SimEngineProcedure
@@ -26,6 +22,11 @@ from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimV
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
+from ...knowledge_plugins.cfg import CFGENode
+from ..forward_analysis import ForwardAnalysis
+from .cfg_base import CFGBase
+from .cfg_job_base import BlockID, CFGJobBase
+from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name=__name__)
 

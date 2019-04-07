@@ -10,48 +10,17 @@ from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
+from ...knowledge_plugins.functions import FunctionManager, Function
+from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode
 from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
     AngrUnsupportedSyscallError, SimError
 from ...codenode import HookNode, BlockNode
-from ...knowledge_plugins import FunctionManager, Function
 from .. import Analysis
-from .cfg_node import CFGNode, CFGENode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger(name=__name__)
-
-
-class IndirectJump:
-
-    __slots__ = [ "addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
-                  "jumptable_addr", "jumptable_entries",
-                  ]
-
-    def __init__(self, addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=None, jumptable=False,
-                 jumptable_addr=None, jumptable_entries=None):
-        self.addr = addr
-        self.ins_addr = ins_addr
-        self.func_addr = func_addr
-        self.jumpkind = jumpkind
-        self.stmt_idx = stmt_idx
-        self.resolved_targets = set() if resolved_targets is None else set(resolved_targets)
-        self.jumptable = jumptable
-        self.jumptable_addr = jumptable_addr
-        self.jumptable_entries = jumptable_entries
-
-    def __repr__(self):
-
-        status = ""
-        if self.jumptable:
-            status = "jumptable"
-            if self.jumptable_addr is not None:
-                status += "@%#08x" % self.jumptable_addr
-            if self.jumptable_entries is not None:
-                status += " with %d entries" % len(self.jumptable_entries)
-
-        return "<IndirectJump %#08x - ins %#08x%s>" % (self.addr, self.ins_addr, " " + status if status else "")
 
 
 class CFGBase(Analysis):
@@ -257,10 +226,6 @@ class CFGBase(Analysis):
 
         raise NotImplementedError("I'm too lazy to implement it right now")
 
-    @deprecated(replacement='nodes()')
-    def get_bbl_dict(self):
-        return self._nodes
-
     def get_predecessors(self, cfgnode, excluding_fakeret=True, jumpkind=None):
         """
         Get predecessors of a node in the control flow graph.
@@ -431,24 +396,6 @@ class CFGBase(Analysis):
                     return n
 
         return None
-
-    def irsb_from_node(self, cfg_node):  # pylint:disable=unused-argument
-        """
-        Create an IRSB from a CFGNode object.
-        """
-        raise DeprecationWarning('"irsb_from_node()" is deprecated since SimIRSB does not exist anymore.')
-
-    def get_any_irsb(self, addr):  # pylint:disable=unused-argument
-        """
-        Returns an IRSB of a certain address. If there are many IRSBs with the same address in CFG, return an arbitrary
-        one.
-        You should never assume this method returns a specific IRSB.
-
-        :param int addr: Address of the IRSB to get.
-        :return:         An arbitrary IRSB located at `addr`.
-        :rtype:          IRSB
-        """
-        raise DeprecationWarning('"get_any_irsb()" is deprecated since SimIRSB does not exist anymore.')
 
     def get_all_nodes(self, addr, is_syscall=None, anyaddr=False):
         """

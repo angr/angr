@@ -6,6 +6,7 @@ import archinfo
 
 from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
+from ...serializable import Serializable
 
 _l = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class CFGNodeCreationFailure:
         return hash((self.short_reason, self.long_reason, self.traceback))
 
 
-class CFGNode:
+class CFGNode(Serializable):
     """
     This class stands for each single node in CFG.
     """
@@ -231,7 +232,6 @@ class CFGENode(CFGNode):
                  instruction_addrs=None,
                  thumb=False,
                  byte_string=None,
-
                  callstack=None,
                  input_state=None,
                  final_states=None,
