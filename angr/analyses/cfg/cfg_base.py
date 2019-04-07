@@ -106,7 +106,6 @@ class CFGBase(Analysis):
         self._low_priority = low_priority
 
         # Initialization
-        self._graph = None
         self._edge_map = None
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
@@ -187,7 +186,7 @@ class CFGBase(Analysis):
         self._node_lookup_index_warned = False
 
     def __contains__(self, cfg_node):
-        return cfg_node in self._graph
+        return cfg_node in self.graph
 
     @property
     def normalized(self):
@@ -211,7 +210,6 @@ class CFGBase(Analysis):
         """
         Re-create the DiGraph
         """
-        self._graph = networkx.DiGraph()
 
         self.kb.functions = FunctionManager(self.kb)
 
@@ -281,12 +279,12 @@ class CFGBase(Analysis):
 
         if not excluding_fakeret and jumpkind is None:
             # fast path
-            if cfgnode in self._graph:
-                return list(self._graph.predecessors(cfgnode))
+            if cfgnode in self.graph:
+                return list(self.graph.predecessors(cfgnode))
             return [ ]
 
         predecessors = []
-        for pred, _, data in self._graph.in_edges([cfgnode], data=True):
+        for pred, _, data in self.graph.in_edges([cfgnode], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jk == jumpkind:
@@ -317,12 +315,12 @@ class CFGBase(Analysis):
 
         if not excluding_fakeret and jumpkind is None:
             # fast path
-            if basic_block in self._graph:
-                return list(self._graph.successors(basic_block))
+            if basic_block in self.graph:
+                return list(self.graph.successors(basic_block))
             return [ ]
 
         successors = []
-        for _, suc, data in self._graph.out_edges([basic_block], data=True):
+        for _, suc, data in self.graph.out_edges([basic_block], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jumpkind == jk:
@@ -336,7 +334,7 @@ class CFGBase(Analysis):
 
     def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
         successors = []
-        for _, suc, data in self._graph.out_edges([basic_block], data=True):
+        for _, suc, data in self.graph.out_edges([basic_block], data=True):
             if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
                 successors.append((suc, data['jumpkind']))
         return successors
@@ -350,14 +348,14 @@ class CFGBase(Analysis):
         :rtype: list
         """
         s = set()
-        for child, parent in networkx.dfs_predecessors(self._graph, cfgnode).items():
+        for child, parent in networkx.dfs_predecessors(self.graph, cfgnode).items():
             s.add(child)
             s.add(parent)
         return list(s)
 
     def get_all_successors(self, cfgnode):
         s = set()
-        for parent, children in networkx.dfs_successors(self._graph, cfgnode).items():
+        for parent, children in networkx.dfs_successors(self.graph, cfgnode).items():
             s.add(parent)
             s = s.union(children)
         return list(s)
@@ -462,7 +460,7 @@ class CFGBase(Analysis):
         """
         results = [ ]
 
-        for cfg_node in self._graph.nodes():
+        for cfg_node in self.graph.nodes():
             if cfg_node.addr == addr or (anyaddr and
                                          cfg_node.size is not None and
                                          cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
@@ -484,7 +482,7 @@ class CFGBase(Analysis):
         :rtype: iterator
         """
 
-        return self._graph.nodes()
+        return self.graph.nodes()
 
     @deprecated(replacement='nodes')
     def nodes_iter(self):
@@ -511,8 +509,8 @@ class CFGBase(Analysis):
         Returns all nodes that has an out degree >= 2
         """
         nodes = set()
-        for n in self._graph.nodes():
-            if self._graph.out_degree(n) >= 2:
+        for n in self.graph.nodes():
+            if self.graph.out_degree(n) >= 2:
                 nodes.add(n)
         return nodes
 
@@ -532,13 +530,13 @@ class CFGBase(Analysis):
 
     @property
     def graph(self):
-        return self._graph
+        raise NotImplementedError()
 
     def remove_edge(self, block_from, block_to):
         edge = (block_from, block_to)
 
-        if edge in self._graph:
-            self._graph.remove_edge(*edge)
+        if edge in self.graph:
+            self.graph.remove_edge(*edge)
 
     def _merge_cfgnodes(self, cfgnode_0, cfgnode_1):
         """
@@ -565,17 +563,17 @@ class CFGBase(Analysis):
             del self._nodes_by_addr[addr0]
         del self._nodes[cfgnode_0.block_id]
 
-        in_edges = list(self._graph.in_edges(cfgnode_0, data=True))
-        out_edges = list(self._graph.out_edges(cfgnode_1, data=True))
+        in_edges = list(self.graph.in_edges(cfgnode_0, data=True))
+        out_edges = list(self.graph.out_edges(cfgnode_1, data=True))
 
-        self._graph.remove_node(cfgnode_0)
-        self._graph.remove_node(cfgnode_1)
+        self.graph.remove_node(cfgnode_0)
+        self.graph.remove_node(cfgnode_1)
 
-        self._graph.add_node(new_node)
+        self.graph.add_node(new_node)
         for src, _, data in in_edges:
-            self._graph.add_edge(src, new_node, **data)
+            self.graph.add_edge(src, new_node, **data)
         for _, dst, data in out_edges:
-            self._graph.add_edge(new_node, dst, **data)
+            self.graph.add_edge(new_node, dst, **data)
 
         # Put the new node into node dicts
         self._nodes[new_node.block_id] = new_node
