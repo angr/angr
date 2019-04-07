@@ -907,6 +907,19 @@ class SimCC:
         return None
 
 
+    def get_arg_info(self, state, is_fp=None, sizes=None):
+        """
+        This is just a simple wrapper that collects the information from various locations
+        is_fp and sizes are passed to self.arg_locs and self.get_args
+        :param angr.SimState state: The state to evaluate and extract the values from
+        :return:    A list of tuples, where the nth tuple is (type, name, location, value) of the nth argument
+        """
+        argument_types = self.func_ty.args
+        argument_names = self.arg_names if self.arg_names else ['unknown'] * self.num_args
+        argument_locations = self.arg_locs(is_fp=is_fp, sizes=sizes)
+        argument_values = self.get_args(state, is_fp=is_fp, sizes=sizes)
+        return list(zip(argument_types, argument_names, argument_locations, argument_values))
+
 class SimLyingRegArg(SimRegArg):
     """
     A register that LIES about the types it holds
