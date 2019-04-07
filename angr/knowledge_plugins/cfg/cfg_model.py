@@ -89,6 +89,21 @@ class CFGModel(Serializable):
         return model
 
     #
+    # Other methods
+    #
+
+    def copy(self):
+        model = CFGModel(self.tag)
+        model.graph = networkx.DiGraph(self.graph)
+        model.jump_tables = self.jump_tables.copy()
+        model.memory_data = self.memory_data.copy()
+        model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
+        model._nodes_by_addr = self._nodes_by_addr.copy()
+        model._nodes = self._nodes.copy()
+
+        return model
+
+    #
     # CFG View
     #
 
