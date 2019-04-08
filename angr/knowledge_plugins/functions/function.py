@@ -120,7 +120,11 @@ class Function:
         self.sp_delta = 0
 
         # Calling convention
-        self.calling_convention = None
+        # If it is a SimProcedure it might have a CC already defined which can be used
+        if self.is_simprocedure and self.addr in self._project._sim_procedures:
+            self.calling_convention = self._project._sim_procedures[self.addr].cc
+        else:
+            self.calling_convention = None
 
         # Function prototype
         self.prototype = None
