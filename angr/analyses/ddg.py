@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import networkx
 import pyvex
+from angr import sim_options
 from . import Analysis
 
 from .code_location import CodeLocation
@@ -339,6 +340,9 @@ class DDGViewItem(object):
         return isinstance(other, DDGViewItem) and self._variable == other._variable and \
                self._simplified == other._simplified
 
+    def __hash__(self):
+        return hash((self._ddg, self._variable, self._simplified))
+
     def _to_viewitem(self, prog_var):
         """
         Convert a ProgramVariable instance to a DDGViewItem object.
@@ -453,20 +457,28 @@ class DDG(Analysis):
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
     analysis) will directly benefit the DDG.
     """
-    def __init__(self, cfg, start=None, call_depth=None, block_addrs=None):
+    def __init__(self, cfg, start=None, call_depth=None, block_addrs=None, enforce_cfg_refs=True):
         """
-        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
-                            want to generate your CFG with `keep_state=True`.
+        :param cfg:         Control flow graph. Each node must have an associated `state` (e.g., `keep_state=True`)
+                            and the `refs` `sim_options` should be applied to each state
+                            (e.g., state_add_options=angr.sim_options.refs).
         :param start:       An address, Specifies where we start the generation of this data dependence graph.
         :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
                             call tree. None disables call_depth limit.
         :param iterable or None block_addrs: A collection of block addresses that the DDG analysis should be performed
                                              on.
+        :param enforce_cfg_refs: Enforce that the cfg must have been created with the 'refs' options. This should only
+                                 be set to false if debugging, or testing limited features of DDG.
         """
 
-        # Sanity check
+        # Sanity checks
         if not cfg._keep_state:
             raise AngrDDGError('CFG must have "keep_state" set to True.')
+
+        if enforce_cfg_refs:
+            for opt in sim_options.refs:
+                if opt not in cfg._initial_state.options:
+                    raise AngrDDGError('CFG must have the "refs" options set.')
 
         self._cfg = cfg
         self._start = self.project.entry if start is None else start
@@ -745,7 +757,7 @@ class DDG(Analysis):
                     new_call_depth -= 1
 
                 if self._call_depth is not None and call_depth > self._call_depth:
-                    l.debug('Do not trace into %s due to the call depth limit', state.ip)
+                    l.debug('Did not trace into %s due to the call depth limit', state.ip)
                     continue
 
                 new_defs = self._track(state, live_defs, node.irsb.statements if node.irsb is not None else None)

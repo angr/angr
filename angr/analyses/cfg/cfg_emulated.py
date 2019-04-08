@@ -955,7 +955,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                      )
             self._initial_state = state
         else:
-            # FIXME: self._initial_state is deprecated. This branch will be removed soon
             state = self._initial_state
             state.history.jumpkind = jumpkind
             self._reset_state_mode(state, 'fastpath')

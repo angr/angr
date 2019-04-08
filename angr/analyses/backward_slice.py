@@ -8,7 +8,6 @@ from . import Analysis
 from .code_location import CodeLocation
 from ..annocfg import AnnotatedCFG
 from ..errors import AngrBackwardSlicingError
-from ..state_plugins.sim_action import SimActionExit
 
 l = logging.getLogger(name=__name__)
 
@@ -665,7 +664,8 @@ class BackwardSlice(Analysis):
         """
         Search for the last branching exit, just like
         #   if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
-        and then taint the temp variable inside if predicate
+        :param statements: List of statements to be searched
+        :returns:          The tuple (stmt_id, tmp_id) where the last branching statement was found, or (None, None)
         """
         cmp_stmt_id = None
         cmp_tmp_id = None

@@ -20,7 +20,7 @@ def test_find_exits():
     l.info("Unit test for BackwardSlice._find_exits()")
     cfg = slicing_test.analyses.CFGEmulated(context_sensitivity_level=2, keep_state=True)
     cdg = slicing_test.analyses.CDG(cfg)
-    ddg = slicing_test.analyses.DDG(cfg)
+    ddg = slicing_test.analyses.DDG(cfg, enforce_cfg_refs=False)
 
     source = cfg.get_any_node(0x40059e)
 
@@ -59,8 +59,8 @@ def test_control_flow_slicing():
     target = cfg.get_any_node(0x400594)
     bs = slicing_test.analyses.BackwardSlice(cfg, None, None, targets=[ (target, -1) ], control_flow_slice=True)
     anno_cfg = bs.annotated_cfg()
-    nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x40057c), None)
-    nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x400594), None)
+    nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x40057c), True)
+    nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x400594), True)
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x4005a4), [ ])
 
 
