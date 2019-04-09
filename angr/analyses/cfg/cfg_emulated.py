@@ -1495,8 +1495,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         function_name = func.name if func is not None else None
         module_name = obj.provides if obj is not None else None
 
-        depth_str = "(D:%s)" % self.get_node(job.block_id).depth if self.get_node(job.block_id).depth is not None \
-            else ""
+        node = self.model.get_node(job.block_id)
+        depth_str = "(D:%s)" % node.depth if node.depth is not None else ""
 
         l.debug("%s [%#x%s | %s]", sim_successors.description, sim_successors.addr, depth_str,
                 "->".join([hex(i) for i in call_stack_suffix if i is not None])
@@ -1924,7 +1924,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             pt = CFGENode(self._block_id_addr(node_key),
                           None,
                           self.model,
-                          callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
                           input_state=None,
                           simprocedure_name="PathTerminator",
                           function_address=func_addr,
@@ -3054,7 +3053,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             cfg_node = CFGENode(sim_successors.addr,
                                 None,
                                 self.model,
-                                callstack=call_stack,
+                                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
                                 input_state=None,
                                 simprocedure_name=simproc_name,
                                 syscall_name=syscall,
@@ -3071,7 +3070,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             cfg_node = CFGENode(sim_successors.addr,
                                 sa['irsb_size'],
                                 self.model,
-                                callstack=call_stack,
+                                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
                                 input_state=None,
                                 syscall=syscall,
                                 function_address=func_addr,

@@ -257,7 +257,7 @@ class CFGENode(CFGNode):
     The CFGNode that is used in CFGEmulated.
     """
 
-    __slots__ = [ 'input_state', 'looping_times', 'callstack', 'depth', 'final_states', 'creation_failure_info',
+    __slots__ = [ 'input_state', 'looping_times', 'depth', 'final_states', 'creation_failure_info',
                   'return_target', 'syscall', '_callstack_key',
                   ]
 
@@ -273,7 +273,6 @@ class CFGENode(CFGNode):
                  instruction_addrs=None,
                  thumb=False,
                  byte_string=None,
-                 callstack=None,
                  input_state=None,
                  final_states=None,
                  syscall_name=None,
@@ -295,7 +294,6 @@ class CFGENode(CFGNode):
                                        byte_string=byte_string,
                                        )
 
-        self.callstack = callstack
         self.input_state = input_state
         self.syscall_name = syscall_name
         self.looping_times = looping_times
@@ -306,8 +304,7 @@ class CFGENode(CFGNode):
         if creation_failure_info is not None:
             self.creation_failure_info = CFGNodeCreationFailure(creation_failure_info)
 
-        self._callstack_key = self.callstack.stack_suffix(self._cfg_model.context_sensitivity_level) \
-            if self.callstack is not None else callstack_key
+        self._callstack_key = callstack_key
 
         self.final_states = [ ] if final_states is None else final_states
 
