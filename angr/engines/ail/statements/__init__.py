@@ -1,4 +1,8 @@
 from .store import SimIRStmt_Store
+from .assignment import SimIRStmt_Assignment
+from .jump import SimIRStmt_Jump
+from .condjump import SimIRStmt_ConditionalJump
+from .call import SimIRStmt_Call
 
 import ailment
 
@@ -11,10 +15,10 @@ import ailment
 
 
 STMT_CLASSES = {
-	# ailment.Stmt.Assignment:       SimIRStmt_Assignment,
+	ailment.Stmt.Assignment:       SimIRStmt_Assignment,
 	ailment.Stmt.Store:            SimIRStmt_Store,
-	# ailment.Stmt.Jump:             SimIRStmt_Jump,
-	# ailment.Stmt.ConditionalJump:  SimIRStmt_ConditionalJump,
-	# ailment.Stmt.Call:             SimIRStmt_Call,
+	ailment.Stmt.Jump:             SimIRStmt_Jump,
+	ailment.Stmt.ConditionalJump:  SimIRStmt_ConditionalJump,
+	ailment.Stmt.Call:             SimIRStmt_Call,
 	# ailment.Stmt.DirtyStatement:   SimIRStmt_DirtyStatement
 }

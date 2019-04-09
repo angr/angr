@@ -1,4 +1,4 @@
-def SimIRStmt_Store(engine, state, stmt):
+def SimIRStmt_Jump(engine, state, stmt):
     """
 
     :param engine:
