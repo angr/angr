@@ -9,6 +9,7 @@ from .syscall import SimEngineSyscall
 from .concrete import SimEngineConcrete
 from .hook import HooksMixin
 from .soot import SootMixin
+from .ail import SimEngineAIL
 
 
 # The default execution engine
