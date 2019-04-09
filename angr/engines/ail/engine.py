@@ -87,3 +87,29 @@ class SimEngineAIL(SimEngine):
             node = state.ailexecstack.pop()
             # handle the node
             cont = self.node_handlers[node.__class__](self, state, node)
+
+    def handle_expression(self, state, expr):
+        try:
+            import ipdb; ipdb.set_trace()
+            handler = self.expr_handlers[expr.tag_int]
+            if handler is None:
+                raise IndexError
+        except IndexError:
+            if o.BYPASS_UNSUPPORTED_IREXPR not in state.options:
+                raise UnsupportedIRExprError("Unsupported expression type %s" % (type(expr)))
+            else:
+                handler = SimIRExpr_Unsupported
+
+        state._inspect('expr', BP_BEFORE, expr=expr)
+        result = handler(self, state, expr)
+
+        if o.SIMPLIFY_EXPRS in state.options:
+            result = state.solver.simplify(result)
+
+        if state.solver.symbolic(result) and o.CONCRETIZE in state.options:
+            concrete_value = state.solver.BVV(state.solver.eval(result), len(result))
+            state.add_constraints(result == concrete_value)
+            result = concrete_value
+
+        state._inspect('expr', BP_AFTER, expr=expr, expr_result=result)
+        return result
