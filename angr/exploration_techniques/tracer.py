@@ -105,6 +105,8 @@ class Tracer(ExplorationTechnique):
             if self._crash_addr is not None:
                 self.last_state, crash_state = self.crash_windup(state, self._crash_addr)
                 simgr.populate('crashed', [crash_state])
+                self.predecessors.append(state)
+                self.predecessors.pop(0)
 
             return 'traced'
 
