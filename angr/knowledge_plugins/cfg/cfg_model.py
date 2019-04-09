@@ -1,4 +1,4 @@
-
+# pylint:disable=no-member
 import pickle
 import logging
 from collections import defaultdict
@@ -142,7 +142,7 @@ class CFGModel(Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, cfg_manager=None):
+    def parse_from_cmessage(cls, cmsg, cfg_manager=None):  # pylint:disable=arguments-differ
         model = cls(cmsg.ident, cfg_manager=cfg_manager)
         # nodes
         for node_pb2 in cmsg.nodes:

@@ -120,9 +120,9 @@ class Function(Serializable):
             if self.project is None:
                 raise ValueError("'syscall' must be specified if you do not specify a function manager for this new"
                                  " function." )
-            else:
-                # Determine whether this function is a syscall or not
-                self.is_syscall = self.project.simos.is_syscall_addr(addr)
+
+            # Determine whether this function is a syscall or not
+            self.is_syscall = self.project.simos.is_syscall_addr(addr)
 
         # Determine whether this function is a SimProcedure
         if is_simprocedure is not None:
@@ -131,9 +131,9 @@ class Function(Serializable):
             if self.project is None:
                 raise ValueError("'is_simprocedure' must be specified if you do not specify a function manager for this"
                                  " new function.")
-            else:
-                if self.is_syscall or self.project.is_hooked(addr):
-                    self.is_simprocedure = True
+
+            if self.is_syscall or self.project.is_hooked(addr):
+                self.is_simprocedure = True
 
         # Determine if this function is a PLT entry
         if is_plt is not None:
@@ -143,8 +143,8 @@ class Function(Serializable):
             if self.project is None:
                 raise ValueError("'is_plt' must be specified if you do not specify a function manager for this new"
                                  " function.")
-            else:
-                self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
+
+            self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
 
         # Determine the name of this function
         if name is None:
@@ -165,8 +165,8 @@ class Function(Serializable):
             if self.project is None:
                 raise ValueError("'returning' must be specified if you do not specify a functio nmnager for this new"
                                  " function.")
-            else:
-                self._returning = self._get_initial_returning()
+
+            self._returning = self._get_initial_returning()
 
         # Determine a calling convention
         # If it is a SimProcedure it might have a CC already defined which can be used
@@ -313,7 +313,7 @@ class Function(Serializable):
 
         # blocks
         blocks_list = [ b.serialize_to_cmessage() for b in self.blocks ]
-        obj.blocks.extend(blocks_list)
+        obj.blocks.extend(blocks_list)  # pylint:disable=no-member
         # graph
         edges = [ ]
         external_functions = set()
@@ -337,16 +337,16 @@ class Function(Serializable):
                 elif k == "outside":
                     edge.is_outside = v
                 else:
-                    edge.data[k] = pickle.dumps(v)
+                    edge.data[k] = pickle.dumps(v)  # pylint:disable=no-member
             edges.append(edge)
-        obj.graph.edges.extend(edges)
+        obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
-        obj.external_functions.extend(external_functions)
+        obj.external_functions.extend(external_functions)  # pylint:disable=no-member
 
         return obj
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, function_manager=None):
+    def parse_from_cmessage(cls, cmsg, function_manager=None):  # pylint:disable=arguments-differ
 
         def _get_block_or_func(addr, blocks, external_functions):
             try:
@@ -405,7 +405,7 @@ class Function(Serializable):
                 edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
 
         for k, v in edges.items():
-            src_addr, dst_addr, edge_type = k
+            _, dst_addr, edge_type = k
             src, dst, data = v
 
             outside = data.get('outside', False)
@@ -1337,7 +1337,8 @@ class Function(Serializable):
             self.calling_convention.args = None
             self.calling_convention.func_ty = proto
 
-    def _addr_to_funcloc(self, addr):
+    @staticmethod
+    def _addr_to_funcloc(addr):
 
         # FIXME
         if isinstance(addr, tuple):

@@ -1,4 +1,4 @@
-
+# pylint:disable=no-member
 from ...protos import primitives_pb2, cfg_pb2
 from ...serializable import Serializable
 

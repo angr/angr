@@ -37,5 +37,10 @@ class CFGManager(KnowledgeBasePlugin):
             i += 1
         return self[ident]
 
+    def copy(self):
+        cm = CFGManager(self._kb)
+        cm.cfgs = self.cfgs.copy()
+        return cm
+
 
 KnowledgeBasePlugin.register_default("cfgs", CFGManager)

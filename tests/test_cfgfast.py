@@ -8,7 +8,7 @@ import archinfo
 import angr
 
 from angr.analyses.cfg.cfg_fast import SegmentList
-from angr.knowledge_plugins.cfg import CFGNode, CFGModel
+from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
@@ -633,11 +633,11 @@ def test_collect_data_references():
 
     memory_data = cfg.memory_data
     # There is no code reference
-    code_ref_count = len([d for d in memory_data.values() if d.sort == 'code reference'])
+    code_ref_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference])
     nose.tools.assert_greater_equal(code_ref_count, 0, msg="There should be no code reference.")
 
     # There are at least 2 pointer arrays
-    ptr_array_count = len([d for d in memory_data.values() if d.sort == 'pointer-array'])
+    ptr_array_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray])
     nose.tools.assert_greater(ptr_array_count, 2, msg="Missing some pointer arrays.")
 
     nose.tools.assert_in(0x4008d0, memory_data)
