@@ -324,9 +324,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg.project = self.project
 
         # Intelligently (or stupidly... you tell me) fill it up
-        new_cfg._graph = networkx.DiGraph(self._graph)
-        new_cfg._nodes = self._nodes.copy()
-        new_cfg._nodes_by_addr = self._nodes_by_addr.copy() if self._nodes_by_addr is not None else None
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._executable_address_ranges = self._executable_address_ranges[::]
@@ -562,7 +559,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Update loop backedges
         self._loop_back_edges = loop_backedges
 
-        self._graph = graph_copy
+        self.model.graph = graph_copy
 
     def immediate_dominators(self, start, target_graph=None):
         """
@@ -715,7 +712,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     def __setstate__(self, s):
         self.project = s['project']
         self.indirect_jumps = s['indirect_jumps']
-        self._graph = s['graph']
         self._loop_back_edges = s['_loop_back_edges']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
@@ -727,7 +723,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         s = {
             'project': self.project,
             "indirect_jumps": self.indirect_jumps,
-            'graph': self._graph,
             '_loop_back_edges': self._loop_back_edges,
             '_nodes_by_addr': self._nodes_by_addr,
             '_thumb_addrs': self._thumb_addrs,
@@ -742,6 +737,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     #
     # Properties
     #
+
+    @property
+    def graph(self):
+        return self._model.graph
 
     @property
     def unresolvables(self):
@@ -3103,7 +3102,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             for loop in loop_finder.loops:  # type: angr.analyses.loopfinder.Loop
                 loop_callback(graph_copy, loop)
 
-            self._graph = graph_copy
+            self.model.graph = graph_copy
 
         # Update loop backedges and graph
         self._loop_back_edges = list(itertools.chain.from_iterable(loop.continue_edges for loop in loop_finder.loops))
