@@ -7,5 +7,4 @@ def handle_MultiNode(engine, state, node):
     :param node:
     :return:
     """
-
-    
+    raise NotImplementedError()
