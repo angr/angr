@@ -33,6 +33,17 @@ class ReferenceManager:
         self.refs[ref.insn_addr].append(ref)
         self.data_addr_to_ref[ref.memory_data.addr].append(ref)
 
+    def add_refs(self, refs):
+        """
+        Add multiple references at the same time.
+
+        :param iterable refs:   A collection of reference objects.
+        :return:                None
+        """
+
+        for ref in refs:
+            self.add_ref(ref)
+
 
 class CFGModel(Serializable):
     """

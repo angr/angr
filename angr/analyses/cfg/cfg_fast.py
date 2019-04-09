@@ -2093,11 +2093,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     new_addr = data_addr + memory_data.size
                     new_md = MemoryData(new_addr, None, None, max_size=memory_data.max_size - memory_data.size)
                     self._memory_data[new_addr] = new_md
+                    # Make a copy of all old references
+                    old_crs = self.model.references.data_addr_to_ref[data_addr]
+                    crs = [ ]
+                    for old_cr in old_crs:
+                        cr = old_cr.copy()
+                        cr.memory_data = new_md
+                        crs.append(cr)
+                    self.model.references.add_refs(crs)
                     keys.insert(i, new_addr)
 
                 if data_type == 'pointer-array':
                     # make sure all pointers are identified
                     pointer_size = self.project.arch.bytes
+                    old_crs = self.model.references.data_addr_to_ref[data_addr]
 
                     for j in range(0, data_size, pointer_size):
                         ptr = self._fast_memory_load_pointer(data_addr + j)
@@ -2116,7 +2125,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 continue
                             # TODO: other types
                         if ptr not in self._memory_data:
-                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', pointer_addr=data_addr + j)
+                            new_md = MemoryData(ptr, 0, 'unknown', pointer_addr=data_addr + j)
+                            self._memory_data[ptr] = new_md
+                            # Make a copy of the old reference
+                            crs = [ ]
+                            for old_cr in old_crs:
+                                cr = old_cr.copy()
+                                cr.memory_data = new_md
+                                crs.append(cr)
+                            self.model.references.add_refs(crs)
                             new_data_found = True
 
             else:
@@ -2240,7 +2257,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "string", min(len(string_data) + 1, 1024)
 
         for handler in self._data_type_guessing_handlers:
-            irsb = self.model.get_any_node(irsb_addr).block.vex
+            irsb = None if irsb_addr is None else self.model.get_any_node(irsb_addr).block.vex
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
             if sort is not None:
                 return sort, size

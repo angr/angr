@@ -75,6 +75,11 @@ class CodeReference(Serializable):
                            insn_op_idx=None if cmsg.operand_idx == -1 else cmsg.opearnd_idx)
         return cr
 
+    def copy(self):
+        cr = CodeReference(self.insn_addr, self.block_addr, self.stmt_idx, insn_op_idx=self.insn_op_idx,
+                           memory_data=self.memory_data)
+        return cr
+
 
 class MemoryData(Serializable):
     """
