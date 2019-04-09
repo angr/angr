@@ -371,7 +371,6 @@ class CFGENode(CFGNode):
             instruction_addrs=self.instruction_addrs,
             thumb=self.thumb,
             byte_string=self.byte_string,
-            callstack=self.callstack,
             input_state=self.input_state,
             syscall_name=self.syscall_name,
             looping_times=self.looping_times,

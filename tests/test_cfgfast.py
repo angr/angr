@@ -463,11 +463,12 @@ def test_cfg_copy():
     cfg = proj.analyses.CFGFast()
     cfg_copy = cfg.copy()
     for attr in cfg_copy.__dict__:
-        if attr in ['_graph', '_seg_list']:
+        if attr in ['_graph', '_seg_list', '_model']:
             continue
         nose.tools.assert_equal(getattr(cfg, attr), getattr(cfg_copy, attr))
 
-    nose.tools.assert_not_equal(id(cfg._graph), id(cfg_copy._graph))
+    nose.tools.assert_not_equal(id(cfg.model), id(cfg_copy.model))
+    nose.tools.assert_not_equal(id(cfg.model.graph), id(cfg_copy.model.graph))
     nose.tools.assert_not_equal(id(cfg._seg_list), id(cfg_copy._seg_list))
 
 #

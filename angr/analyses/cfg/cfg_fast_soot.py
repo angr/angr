@@ -47,9 +47,6 @@ class CFGFastSoot(CFGFast):
         self._changed_functions = set()
         self._updated_nonreturning_functions = set()
 
-        self._nodes = {}
-        self._nodes_by_addr = defaultdict(list)
-
         self._function_returns = defaultdict(set)
 
         entry = self.project.entry  # type:SootAddressDescriptor
@@ -118,8 +115,8 @@ class CFGFastSoot(CFGFast):
 
         try:
 
-            if addr in self._nodes:
-                cfg_node = self._nodes[addr]
+            if addr in self.model.nodes():
+                cfg_node = self.model.nodes()[addr]
                 soot_block = cfg_node.soot_block
             else:
                 soot_block = self.project.factory.block(addr).soot
@@ -548,7 +545,7 @@ class CFGFastSoot(CFGFast):
             del self.kb.functions[addr]
 
         # Update CFGNode.function_address
-        for node in self._nodes.values():
+        for node in self.model.nodes():
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
