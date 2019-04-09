@@ -46,8 +46,9 @@ def test_simple():
     state.regs.esp = state.solver.BVS('stack_pointer', 32)
     state.regs.ebp = state.solver.BVS('base_pointer', 32)
     state.regs.eax = state.solver.BVS('base_eax', 32)
+    state.ip = main_func.addr
 
-    sim_successors = engine.process(state.copy())
+    sim_successors = engine.process(state.copy(), kb=p.kb)
     exit_state = sim_successors.all_successors[0]
     #nose.tools.assert_true(claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4))
 

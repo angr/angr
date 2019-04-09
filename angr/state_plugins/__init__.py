@@ -27,3 +27,4 @@ from .jni_references import *
 from .javavm_classloader import *
 from .symbolizer import *
 from .debug_variables import *
+from .ail_exec_stack import AILExecutionStack

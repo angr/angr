@@ -1,5 +1,6 @@
 
 from ..engine import SimEngine
+from .nodes import init, NODE_HANDLERS
 
 
 class SimEngineAIL(SimEngine):
@@ -9,6 +10,10 @@ class SimEngineAIL(SimEngine):
 
     def __init__(self, project=None):
         super().__init__(project)
+
+        init()
+        print(NODE_HANDLERS)
+        self.node_handlers = NODE_HANDLERS
 
     def _check(self, state, *args, **kwargs):
         """
@@ -47,8 +52,38 @@ class SimEngineAIL(SimEngine):
 
         return node
 
+    def _process(self, state, successors, kb=None, **kwargs):
+        """
 
-    def _process(self, state, successors, **kwargs):
-        addr = state._ip
+        :param state:
+        :param successors:
+        :param kwargs:
+        :return:
+        """
 
-        raise NotImplementedError()
+        if state.ailexecstack.is_empty():
+            # The execution stack is empty. Load a new node according to the address
+            addr = state.solver.eval(state._ip)
+            # get the node
+            node = self.lift(addr=addr, kb=kb)
+            # push the node on the stack
+            state.ailexecstack.push(node)
+
+        # execute the stack
+        self._handle_stack(state, successors)
+
+    def _handle_stack(self, state, successors):
+        """
+
+        :param state:
+        :param successors:
+        :param node:
+        :return:
+        """
+
+        cont = False
+        while cont is False:
+            # get the next node based on the top element on the stack
+            node = state.ailexecstack.pop()
+            # handle the node
+            cont = self.node_handlers[node.__class__](self, state, node)
