@@ -11,12 +11,12 @@ from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from ...knowledge_plugins.functions import FunctionManager, Function
-from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel
+from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
 from ...utils.constants import DEFAULT_STATEMENT
 from ... import SIM_PROCEDURES
-from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
-    AngrUnsupportedSyscallError, SimError
+from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError, \
+    SimError
 from ...codenode import HookNode, BlockNode
 from .. import Analysis
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers

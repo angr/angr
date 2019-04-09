@@ -17,7 +17,7 @@ l = logging.getLogger(name=__name__)
 try:
     from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
     from pysoot.sootir.soot_expr import SootInterfaceInvokeExpr, SootSpecialInvokeExpr, SootStaticInvokeExpr, \
-        SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr
+        SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr  # pylint:disable=unused-import
     PYSOOT_INSTALLED = True
 except ImportError:
     PYSOOT_INSTALLED = False
@@ -35,6 +35,9 @@ class CFGFastSoot(CFGFast):
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
         super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
+
+        self._changed_functions = None
+        self._total_methods = None
 
     def _pre_analysis(self):
 
@@ -140,7 +143,7 @@ class CFGFastSoot(CFGFast):
 
         return self._soot_get_successors(addr, function_addr, block, cfg_node)
 
-    def _soot_get_successors(self, addr, function_id, block, cfg_node):
+    def _soot_get_successors(self, addr, function_id, block, cfg_node):  # pylint:disable=unused-argument
 
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
@@ -233,15 +236,12 @@ class CFGFastSoot(CFGFast):
 
         return successors
 
-    def _loc_to_funcloc(self, location):
+    @staticmethod
+    def _loc_to_funcloc(location):
 
         if isinstance(location, SootAddressDescriptor):
             return location.method
         return location
-
-    def _get_plt_stubs(self, functions):
-
-        return set()
 
     def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
 
@@ -278,7 +278,8 @@ class CFGFastSoot(CFGFast):
 
         return SootBlockNode(addr, stmts_count, stmts)
 
-    def _soot_block_size(self, soot_block, start_stmt_idx):
+    @staticmethod
+    def _soot_block_size(soot_block, start_stmt_idx):
 
         if soot_block is None:
             return 0
@@ -366,7 +367,7 @@ class CFGFastSoot(CFGFast):
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx):
+    def _create_jobs(self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx):  # pylint:disable=arguments-differ
 
         """
         Given a node and details of a successor, makes a list of CFGJobs

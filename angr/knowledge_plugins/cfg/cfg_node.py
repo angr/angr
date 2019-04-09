@@ -78,7 +78,7 @@ class CFGNode(Serializable):
             self._name = simprocedure_name
         self.instruction_addrs = list(instruction_addrs) if instruction_addrs is not None else []
 
-        self.is_syscall = True if self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr) else False
+        self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
@@ -154,13 +154,13 @@ class CFGNode(Serializable):
         obj.size = self.size
         if self.block_id is not None:
             if type(self.block_id) is int:
-                obj.block_id.append(self.block_id)
+                obj.block_id.append(self.block_id)  # pylint:disable=no-member
             else:  # should be a tuple
-                obj.block_id.extend(self.block_id)
+                obj.block_id.extend(self.block_id)  # pylint:disable=no-member
         return obj
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, cfg=None):
+    def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
 
         if len(cmsg.block_id) == 0:
             block_id = None
