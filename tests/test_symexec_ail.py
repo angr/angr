@@ -1,11 +1,14 @@
-import angr
-import angr.analyses.decompiler
-import claripy
+
+import sys
 import logging
-import nose
-import nose.tools
 import os
 
+import nose
+import nose.tools
+
+import claripy
+import angr
+import angr.analyses.decompiler
 from angr import SimState
 from angr.engines import SimEngineAIL
 
@@ -33,8 +36,10 @@ def test_simple():
     # simplify it
     s = p.analyses.RegionSimplifier(rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg)
-    print(codegen.text)
+    p.kb.clinic[main_func.addr] = s.result
+    engine = SimEngineAIL()
+    nose.tools.assert_is_not_none(engine.lift(addr=main_func.addr, kb=p.kb))
+
 
 def test_loadg_no_constraint_creation():
     #state = SimState(arch='armel', mode='symbolic')
@@ -62,8 +67,21 @@ def test_loadg_no_constraint_creation():
     # assert state.scratch.temps[0].op == 'If'
 
 
-if __name__ == '__main__':
+def main():
     g = globals().copy()
-    for func_name, func in g.items():
-        if func_name.startswith("test_") and hasattr(func, "__call__"):
-            func()
+    if len(sys.argv) > 1:
+        # run a specific test
+        func_name = "test_" + sys.argv[1]
+        if func_name in g and hasattr(g[func_name], "__call__"):
+            g[func_name]()
+        else:
+            raise KeyError("Test function %s does not exist." % func_name)
+    else:
+        # run all tests
+        for func_name, func in g.items():
+            if func_name.startswith("test_") and hasattr(func, "__call__"):
+                func()
+
+
+if __name__ == '__main__':
+    main()

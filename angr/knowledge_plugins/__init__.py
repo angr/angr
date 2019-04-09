@@ -14,5 +14,6 @@ from .key_definitions import KeyDefinitionManager
 from .propagations import PropagationManager
 from .structured_code import StructuredCodeManager
 from .types import TypesStore
+from .clinic import Clinic
 from .callsite_prototypes import CallsitePrototypes
 from .custom_strings import CustomStrings

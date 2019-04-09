@@ -140,6 +140,10 @@ class SequenceNode(BaseNode):
 
         return s
 
+    def children(self):
+        for node in self.nodes:
+            yield node
+
 
 class CodeNode(BaseNode):
     __slots__ = (
@@ -194,6 +198,9 @@ class CodeNode(BaseNode):
     def copy(self):
         return CodeNode(self.node, self.reaching_condition)
 
+    def children(self):
+        yield self.node
+
 
 class ConditionNode(BaseNode):
     __slots__ = (
@@ -229,6 +236,9 @@ class ConditionNode(BaseNode):
         else:
             return f"<ConditionNode ({self.true_node!r}|{self.false_node!r})>"
 
+    def children(self):
+        yield self.true_node
+        yield self.false_node
 
 class CascadingConditionNode(BaseNode):
     __slots__ = (
@@ -306,6 +316,9 @@ class LoopNode(BaseNode):
             f"{self.sequence_node.dbg_repr(indent=indent + INDENT_DELTA)}"
         )
 
+    def children(self):
+        yield self.sequence_node
+
 
 class BreakNode(BaseNode):
     __slots__ = (
@@ -319,6 +332,9 @@ class BreakNode(BaseNode):
 
     def dbg_repr(self, indent=0):
         return " " * indent + "BreakNode"
+
+    def children(self):
+        raise StopIteration()
 
 
 class ContinueNode(BaseNode):
@@ -334,6 +350,9 @@ class ContinueNode(BaseNode):
     def dbg_repr(self, indent=0):
         return " " * indent + "ContinueNode"
 
+    def children(self):
+        raise StopIteration()
+
 
 class ConditionalBreakNode(BreakNode):
     __slots__ = ("condition",)
@@ -347,6 +366,9 @@ class ConditionalBreakNode(BreakNode):
 
     def dbg_repr(self, indent=0):
         return " " * indent + "ConditionalBreakNode(condition={self.condition})"
+
+    def children(self):
+        raise StopIteration()
 
 
 class SwitchCaseNode(BaseNode):
@@ -362,6 +384,10 @@ class SwitchCaseNode(BaseNode):
         self.cases: ODict[Union[int, Tuple[int, ...]], SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr
+
+    def children(self):
+        yield from self.cases
+        yield self.default_node
 
 
 class IncompleteSwitchCaseNode(BaseNode):
