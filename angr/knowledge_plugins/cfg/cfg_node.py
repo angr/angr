@@ -116,11 +116,11 @@ class CFGNode(Serializable):
 
     @property
     def successors(self):
-        return self._cfg_model.model.get_successors(self)
+        return self._cfg_model.get_successors(self)
 
     @property
     def predecessors(self):
-        return self._cfg_model.model.get_predecessors(self)
+        return self._cfg_model.get_predecessors(self)
 
     @property
     def accessed_data_references(self):

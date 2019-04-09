@@ -1,5 +1,6 @@
 
 import pickle
+import logging
 from collections import defaultdict
 
 import networkx
@@ -9,6 +10,28 @@ from ...serializable import Serializable
 from ...utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from ...errors import AngrCFGError
 from .cfg_node import CFGNode
+from .memory_data import CodeReference, MemoryData
+
+
+l = logging.getLogger(name=__name__)
+
+
+class ReferenceManager:
+
+    def __init__(self):
+        self.refs = defaultdict(list)
+        self.data_addr_to_ref = defaultdict(list)
+
+    def add_ref(self, ref):
+        """
+        Add a reference to a memory data object.
+
+        :param CodeReference ref:   The reference.
+        :return:                    None
+        """
+
+        self.refs[ref.insn_addr].append(ref)
+        self.data_addr_to_ref[ref.memory_data.addr].append(ref)
 
 
 class CFGModel(Serializable):
@@ -16,8 +39,8 @@ class CFGModel(Serializable):
     This class describes a Control Flow Graph for a specific range of code.
     """
 
-    __slots__ = ('ident', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', '_nodes_by_addr', '_nodes',
-                 '_cfg_manager', '_iropt_level', )
+    __slots__ = ('ident', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', 'references',
+                 '_nodes_by_addr', '_nodes', '_cfg_manager', '_iropt_level', )
 
     def __init__(self, ident, cfg_manager=None):
 
@@ -38,6 +61,8 @@ class CFGModel(Serializable):
         self.memory_data = { }
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data = { }
+        # Data references
+        self.references = ReferenceManager()
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
         self._nodes_by_addr = defaultdict(list)
@@ -65,11 +90,13 @@ class CFGModel(Serializable):
     def serialize_to_cmessage(self):
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
+
         # nodes
         nodes = [ ]
         for n in self.graph.nodes():
             nodes.append(n.serialize_to_cmessage())
         cmsg.nodes.extend(nodes)
+
         # edges
         edges = [ ]
         for src, dst, data in self.graph.edges(data=True):
@@ -87,6 +114,19 @@ class CFGModel(Serializable):
                     edge.data[k] = pickle.dumps(v)
             edges.append(edge)
         cmsg.edges.extend(edges)
+
+        # memory data
+        memory_data = [ ]
+        for data in self.memory_data.values():
+            memory_data.append(data.serialize_to_cmessage())
+        cmsg.memory_data.extend(memory_data)
+
+        # references
+        refs = [ ]
+        for ref_lst in self.references.refs.values():
+            for ref in ref_lst:
+                refs.append(ref.serialize_to_cmessage())
+        cmsg.refs.extend(refs)
 
         return cmsg
 
@@ -111,6 +151,20 @@ class CFGModel(Serializable):
             data['ins_addr'] = edge_pb2.ins_addr if edge_pb2.ins_addr != -1 else None
             data['stmt_idx'] = edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None
             model.graph.add_edge(src, dst, **data)
+
+        # memory data
+        for data_pb2 in cmsg.memory_data:
+            md = MemoryData.parse_from_cmessage(data_pb2)
+            model.memory_data[md.addr] = md
+
+        # references
+        for ref_pb2 in cmsg.refs:
+            if ref_pb2.data_ea == -1:
+                l.warning("Unknown address of the referenced data item. Ignore the reference at %#x.", ref_pb2.ea)
+                continue
+            ref = CodeReference.parse_from_cmessage(ref_pb2)
+            ref.memory_data = model.memory_data[ref_pb2.data_ea]
+            model.references.add_ref(ref)
 
         return model
 

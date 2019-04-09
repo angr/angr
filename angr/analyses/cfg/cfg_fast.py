@@ -14,7 +14,7 @@ from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.cfg import CFGModel, CFGNode
+from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, CodeReference
 from ...misc.ux import deprecated
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
@@ -22,7 +22,6 @@ from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslat
                        )
 from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
-from .memory_data import MemoryData
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .segment_list import SegmentList
@@ -1211,8 +1210,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         else:
                             continue
 
-                        if sec.vaddr not in self.memory_data:
-                            self.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown', None, None, None, None)
+                        if sec.vaddr not in self.model.memory_data:
+                            self.model.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown')
 
         r = True
         while r:
@@ -1820,9 +1819,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _process_irsb_data_refs(self, irsb):
         for ref in irsb.data_refs:
             self._add_data_reference(
-                    irsb,
                     irsb.addr,
-                    None,
                     ref.stmt_idx,
                     ref.ins_addr,
                     ref.data_addr,
@@ -1881,9 +1878,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # Mark the region as unknown so we won't try to create a code block covering this region in the
                     # future.
                     self._seg_list.occupy(val, data_size, "unknown")
-                self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val,
-                                         data_size=data_size, data_type=data_type
-                                         )
+                self._add_data_reference(irsb_addr, stmt_idx_, insn_addr, val, data_size=data_size, data_type=data_type)
 
         # get all instruction addresses
         instr_addrs = irsb.instruction_addresses
@@ -1950,16 +1945,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                          data_type='fp'
                          )
 
-    def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
+    def _add_data_reference(self, irsb_addr, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
                             data_size=None, data_type=None):
         """
         Checks addresses are in the correct segments and creates or updates
         MemoryData in _memory_data as appropriate, labelling as segment
         boundaries or data type
 
-        :param pyvex.IRSB irsb: irsb
         :param int irsb_addr: irsb address
-        :param pyvex.IRStmt.* stmt: Statement
         :param int stmt_idx: Statement ID
         :param int insn_addr: instruction address
         :param data_addr: address of data manipulated by statement
@@ -1976,29 +1969,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for segment in self.project.loader.main_object.segments:
                 if segment.vaddr + segment.memsize == data_addr:
                     # yeah!
+                    new_data = False
                     if data_addr not in self._memory_data:
-                        data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt, stmt_idx,
-                                          insn_addr=insn_addr
-                                          )
+                        data = MemoryData(data_addr, 0, 'segment-boundary')
                         self._memory_data[data_addr] = data
-                    else:
-                        if self._extra_cross_references:
-                            self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
+                        new_data = True
+
+                    if new_data or self._extra_cross_references:
+                        cr = CodeReference(insn_addr, irsb_addr, stmt_idx, memory_data=self.model.memory_data[data_addr])
+                        self.model.references.add_ref(cr)
                     break
 
             return
 
+        new_data = False
         if data_addr not in self._memory_data:
             if data_type is not None and data_size is not None:
-                data = MemoryData(data_addr, data_size, data_type, irsb, irsb_addr, stmt, stmt_idx,
-                                  insn_addr=insn_addr, max_size=data_size
-                                  )
+                data = MemoryData(data_addr, data_size, data_type, max_size=data_size)
             else:
-                data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
+                data = MemoryData(data_addr, 0, 'unknown')
             self._memory_data[data_addr] = data
-        else:
-            if self._extra_cross_references:
-                self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
+            new_data = True
+        if new_data or self._extra_cross_references:
+            cr = CodeReference(insn_addr, irsb_addr, stmt_idx, memory_data=self.model.memory_data[data_addr])
+            self.model.references.add_ref(cr)
 
         self.insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
 
@@ -2082,10 +2076,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # let's see what sort of data it is
             if memory_data.sort in ('unknown', None) or \
                     (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bytes):
-                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr,
-                                                             memory_data.stmt_idx, data_addr, memory_data.max_size,
-                                                             content_holder=content_holder
-                                                             )
+                data_type, data_size = self._guess_data_type(data_addr, memory_data.max_size,
+                                                             content_holder=content_holder)
             else:
                 data_type, data_size = memory_data.sort, memory_data.size
 
@@ -2099,8 +2091,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if memory_data.max_size is not None and (0 < memory_data.size < memory_data.max_size):
                     # Create another memory_data object to fill the gap
                     new_addr = data_addr + memory_data.size
-                    new_md = MemoryData(new_addr, None, None, None, None, None, None,
-                                        max_size=memory_data.max_size - memory_data.size)
+                    new_md = MemoryData(new_addr, None, None, max_size=memory_data.max_size - memory_data.size)
                     self._memory_data[new_addr] = new_md
                     keys.insert(i, new_addr)
 
@@ -2125,9 +2116,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 continue
                             # TODO: other types
                         if ptr not in self._memory_data:
-                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None, None,
-                                                                pointer_addr=data_addr + j
-                                                                )
+                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', pointer_addr=data_addr + j)
                             new_data_found = True
 
             else:
@@ -2137,21 +2126,25 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return new_data_found
 
-    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size, content_holder=None):  # pylint: disable=unused-argument
+    def _guess_data_type(self, data_addr, max_size, content_holder=None):
         """
         Make a guess to the data type.
 
         Users can provide their own data type guessing code when initializing CFGFast instance, and each guessing
         handler will be called if this method fails to determine what the data is.
 
-        :param pyvex.IRSB irsb: The pyvex IRSB object.
-        :param int irsb_addr: Address of the IRSB.
-        :param int stmt_idx: ID of the statement.
         :param int data_addr: Address of the data.
         :param int max_size: The maximum size this data entry can be.
         :return: a tuple of (data type, size). (None, None) if we fail to determine the type or the size.
         :rtype: tuple
         """
+
+        try:
+            ref = next(iter(self.model.references.data_addr_to_ref[data_addr]))  # type: CodeReference
+            irsb_addr = ref.block_addr
+            stmt_idx = ref.stmt_idx
+        except StopIteration:
+            irsb_addr, stmt_idx = None, None
 
         if max_size is None:
             max_size = 0
@@ -2247,6 +2240,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "string", min(len(string_data) + 1, 1024)
 
         for handler in self._data_type_guessing_handlers:
+            irsb = self.model.get_any_node(irsb_addr).block.vex
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
             if sort is not None:
                 return sort, size
