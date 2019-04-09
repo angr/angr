@@ -18,7 +18,6 @@ l = logging.getLogger('angr.tests.test_symexec_ail')
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
 
 def test_simple():
-
     p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
     cfg = p.analyses.CFG(collect_data_references=True, normalize=True)
 
@@ -38,8 +37,19 @@ def test_simple():
 
     p.kb.clinic[main_func.addr] = s.result
     engine = SimEngineAIL()
+
+    # Test a basic lift
     nose.tools.assert_is_not_none(engine.lift(addr=main_func.addr, kb=p.kb))
 
+    # Smoke test execution
+    state = SimState(arch='X86')
+    state.regs.esp = state.solver.BVS('stack_pointer', 32)
+    state.regs.ebp = state.solver.BVS('base_pointer', 32)
+    state.regs.eax = state.solver.BVS('base_eax', 32)
+
+    sim_successors = engine.process(state.copy())
+    exit_state = sim_successors.all_successors[0]
+    #nose.tools.assert_true(claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4))
 
 def test_loadg_no_constraint_creation():
     #state = SimState(arch='armel', mode='symbolic')
