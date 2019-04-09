@@ -78,7 +78,7 @@ def _compare_register_variable(variable, variable_info):  # pylint:disable=unuse
 def run_variable_recovery_analysis(project, func, groundtruth, is_fast):
 
     # Create a temporary KnowledgeBase instance
-    tmp_kb = angr.KnowledgeBase(project, project.loader.main_object)
+    tmp_kb = angr.KnowledgeBase(project)
 
     if is_fast:
         l.debug("Running VariableRecoveryFast on function %r.", func)

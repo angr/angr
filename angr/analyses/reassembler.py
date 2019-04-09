@@ -2757,7 +2757,7 @@ class Reassembler(Analysis):
             if candidate_node is None:
                 continue
             base_graph.add_node(candidate_node)
-            tmp_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+            tmp_kb = KnowledgeBase(self.project)
             cfg = self.project.analyses.CFGEmulated(kb=tmp_kb,
                                                     starts=(candidate.irsb_addr,),
                                                     keep_state=True,

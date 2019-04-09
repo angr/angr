@@ -233,7 +233,7 @@ class Clinic(Analysis):
     def _recover_and_link_variables(self):
 
         # variable recovery
-        tmp_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+        tmp_kb = KnowledgeBase(self.project)
         vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb)  # pylint:disable=unused-variable
 
         # TODO: The current mapping implementation is kinda hackish...
