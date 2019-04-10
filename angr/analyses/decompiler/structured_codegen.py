@@ -789,7 +789,7 @@ class CConstant(CExpression):
                 if isinstance(self.type, SimTypeInt):
                     s = hex(self.reference_values[self.type])
                 elif isinstance(self.type, SimTypePointer) and isinstance(self.type.pts_to, SimTypeChar):
-                    refval = self.reference_values[self.type]  # angr.analyses.cfg.MemoryData
+                    refval = self.reference_values[self.type]  # angr.knowledge_plugin.cfg.MemoryData
                     s = '"' + repr(refval.content.decode('utf-8')).strip("'").strip('"') + '"'
                 else:
                     s = self.reference_values[self.type]

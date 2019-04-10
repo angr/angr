@@ -1,0 +1,20 @@
+
+syntax = "proto3";
+
+import "protos/primitives.proto";
+
+package angr.protos;
+
+message Function {
+    int64           ea = 1; // Effective address
+    bool            is_entrypoint = 3; // Is this function the entry point of the binary
+    repeated Block  blocks = 2; // Blocks in this function
+    string          name = 4; // Function name
+    bool            is_plt = 7; // If this function is a PLT entry
+    bool            is_syscall = 8; // Is this function a syscall function
+    bool            is_simprocedure = 9;  // Is this function a SimProcedure
+    bool            returning = 10; // If this function returns
+    string          binary_name = 11; // Name of the binary where this function belongs to
+    BlockGraph      graph = 12; // Graph of this function
+    repeated int64  external_functions = 13; // Address of referenced functions
+}

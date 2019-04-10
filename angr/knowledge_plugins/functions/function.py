@@ -4,18 +4,24 @@ import logging
 import networkx
 import string
 import itertools
+import pickle
 from collections import defaultdict
+
 from itanium_demangler import parse
 
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
+
+from ...protos import function_pb2, primitives_pb2
+from ...serializable import Serializable
+from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 
 l = logging.getLogger(name=__name__)
 
 
-class Function:
+class Function(Serializable):
     """
     A representation of a function and various information about it.
     """
@@ -30,13 +36,22 @@ class Function:
                  '_local_block_addrs', 'info', 'tags',
                  )
 
-    def __init__(self, function_manager, addr, name=None, syscall=None):
+    def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
+                 is_plt=None, returning=None):
         """
-        Function constructor
+        Function constructor. If the optional parameters are not provided, they will be automatically determined upon
+        the creation of a Function object.
 
         :param addr:            The address of the function.
-        :param name:            (Optional) The name of the function.
-        :param syscall:         (Optional) Whether this function is a syscall or not.
+
+        The following parameters are optional.
+
+        :param str name:        The name of the function.
+        :param bool syscall:    Whether this function is a syscall or not.
+        :param bool is_simprocedure:    Whether this function is a SimProcedure or not.
+        :param str binary_name: Name of the binary where this function is.
+        :param bool is_plt:     If this function is a PLT entry.
+        :param bool returning:  If this function returns.
         """
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
@@ -56,106 +71,109 @@ class Function:
 
         self._call_sites = {}
         self.addr = addr
+        # startpoint can be None if the corresponding CFGNode is a syscall node
+        self.startpoint = None
         self._function_manager = function_manager
-        self.is_syscall = syscall
-
-        self._project = project = self._function_manager._kb._project
-
-        self.is_plt = False
+        self.is_syscall = None
+        self.is_plt = None
         self.is_simprocedure = False
-
-        if self.is_syscall is None:
-            # Determine whether this function is a syscall or not
-            self.is_syscall = self._project.simos.is_syscall_addr(addr)
-
-        # Determine whether this function is a simprocedure
-        if self.is_syscall or project.is_hooked(addr):
-            self.is_simprocedure = True
-
-        if project.loader.find_plt_stub_name(addr) is not None:
-            # Whether this function is a plt entry or not is fully relying on the PLT detection in CLE
-            self.is_plt = True
-
-        # Try to get a name from existing labels
-        if name is None and addr in function_manager._kb.labels:
-            name = function_manager._kb.labels[addr]
-
-        # try to get the name from a hook
-        if name is None:
-            if project.is_hooked(addr):
-                hooker = project.hooked_by(addr)
-                name = hooker.display_name
-            elif project.simos.is_syscall_addr(addr):
-                syscall_inst = project.simos.syscall_from_addr(addr)
-                name = syscall_inst.display_name
-
-        # generate an IDA-style sub_X name
-        if name is None:
-            name = 'sub_%x' % addr
-
-        binary_name = None
-        # if this function is a simprocedure but not a syscall, use its library name as
-        # its binary name
-        # if it is a syscall, fall back to use self.binary.binary which explicitly says cle##kernel
-        if self.is_simprocedure and not self.is_syscall:
-            hooker = project.hooked_by(addr)
-            if hooker is not None:
-                binary_name = hooker.library_name
-
-        if binary_name is None and self.binary is not None:
-            binary_name = os.path.basename(self.binary.binary)
-
-        self._name = name
-        self.binary_name = binary_name
-
-        # Register offsets of those arguments passed in registers
-        self._argument_registers = []
-        # Stack offsets of those arguments passed in stack variables
-        self._argument_stack_variables = []
 
         # These properties are set by VariableManager
         self.bp_on_stack = False
         self.retaddr_on_stack = False
-
         self.sp_delta = 0
-
         # Calling convention
-        # If it is a SimProcedure it might have a CC already defined which can be used
-        if self.is_simprocedure and self.addr in self._project._sim_procedures:
-            self.calling_convention = self._project._sim_procedures[self.addr].cc
-        else:
-            self.calling_convention = None
-
+        self.calling_convention = None
         # Function prototype
         self.prototype = None
-
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
-
-        # Determine returning status for SimProcedures and Syscalls
-        hooker = None
-        if self.is_syscall:
-            hooker = project.simos.syscall_from_addr(addr)
-        elif self.is_simprocedure:
-            hooker = project.hooked_by(addr)
-        if hooker and hasattr(hooker, 'NO_RET'):
-            self.returning = not hooker.NO_RET
 
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
 
-        # startpoint can always be None if this CFGNode is a syscall node
-        self.startpoint = None
-
         self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
-        self._local_blocks = {} # a dict of all blocks inside the function
+        self._local_blocks = {}  # a dict of all blocks inside the function
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
-        self.info = { }  # storing special information, like $gp values for MIPS32
+        self.info = {}  # storing special information, like $gp values for MIPS32
         self.tags = tuple()  # store function tags. can be set manually by performing CodeTagging analysis.
+
+        # TODO: Can we remove the following two members?
+        # Register offsets of those arguments passed in registers
+        self._argument_registers = []
+        # Stack offsets of those arguments passed in stack variables
+        self._argument_stack_variables = []
+
+        self._project = None  # will be initialized upon the first access to self.project
+
+        #
+        # Initialize unspecified properties
+        #
+
+        if syscall is not None:
+            self.is_syscall = syscall
+        else:
+            if self.project is None:
+                raise ValueError("'syscall' must be specified if you do not specify a function manager for this new"
+                                 " function." )
+
+            # Determine whether this function is a syscall or not
+            self.is_syscall = self.project.simos.is_syscall_addr(addr)
+
+        # Determine whether this function is a SimProcedure
+        if is_simprocedure is not None:
+            self.is_simprocedure = is_simprocedure
+        else:
+            if self.project is None:
+                raise ValueError("'is_simprocedure' must be specified if you do not specify a function manager for this"
+                                 " new function.")
+
+            if self.is_syscall or self.project.is_hooked(addr):
+                self.is_simprocedure = True
+
+        # Determine if this function is a PLT entry
+        if is_plt is not None:
+            self.is_plt = is_plt
+        else:
+            # Whether this function is a PLT entry or not is fully relying on the PLT detection in CLE
+            if self.project is None:
+                raise ValueError("'is_plt' must be specified if you do not specify a function manager for this new"
+                                 " function.")
+
+            self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
+
+        # Determine the name of this function
+        if name is None:
+            self._name = self._get_initial_name()
+        else:
+            self._name = name
+
+        # Determine the name the binary where this function is.
+        if binary_name is not None:
+            self.binary_name = binary_name
+        else:
+            self.binary_name = self._get_initial_binary_name()
+
+        # Determine returning status for SimProcedures and Syscalls
+        if returning is not None:
+            self._returning = returning
+        else:
+            if self.project is None:
+                raise ValueError("'returning' must be specified if you do not specify a functio nmnager for this new"
+                                 " function.")
+
+            self._returning = self._get_initial_returning()
+
+        # Determine a calling convention
+        # If it is a SimProcedure it might have a CC already defined which can be used
+        if self.is_simprocedure and self.project is not None and self.addr in self.project._sim_procedures:
+            self.calling_convention = self.project._sim_procedures[self.addr].cc
+        else:
+            self.calling_convention = None
 
     @property
     def name(self):
@@ -165,6 +183,14 @@ class Function:
     def name(self, v):
         self._name = v
         self._function_manager._kb.labels[self.addr] = v
+
+    @property
+    def project(self):
+        if self._project is None:
+            # try to set it from function manager
+            if self._function_manager is not None:
+                self._project = self._function_manager._kb._project
+        return self._project
 
     @property
     def returning(self):
@@ -269,6 +295,142 @@ class Function:
         """
         # TODO: remove link register values
         return [const.value for block in self.blocks for const in block.vex.constants]
+
+    @classmethod
+    def _get_cmsg(cls):
+        return function_pb2.Function()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        obj.ea = self.addr
+        obj.is_entrypoint = False  # TODO: Set this up accordingly
+        obj.name = self.name
+        obj.is_plt = self.is_plt
+        obj.is_syscall = self.is_syscall
+        obj.is_simprocedure = self.is_simprocedure
+        obj.returning = self.returning
+        obj.binary_name = self.binary_name
+
+        # blocks
+        blocks_list = [ b.serialize_to_cmessage() for b in self.blocks ]
+        obj.blocks.extend(blocks_list)  # pylint:disable=no-member
+        # graph
+        edges = [ ]
+        external_functions = set()
+        TRANSITION_JK = func_edge_type_to_pb('transition')  # default edge type
+        for src, dst, data in self.transition_graph.edges(data=True):
+            edge = primitives_pb2.Edge()
+            edge.src_ea = src.addr
+            edge.dst_ea = dst.addr
+            if isinstance(src, Function):
+                external_functions.add(src.addr)
+            if isinstance(dst, Function):
+                external_functions.add(dst.addr)
+            edge.jumpkind = TRANSITION_JK
+            for k, v in data.items():
+                if k == "type":
+                    edge.jumpkind = func_edge_type_to_pb(v)
+                elif k == "ins_addr":
+                    edge.ins_addr = v
+                elif k == "stmt_idx":
+                    edge.stmt_idx = v
+                elif k == "outside":
+                    edge.is_outside = v
+                else:
+                    edge.data[k] = pickle.dumps(v)  # pylint:disable=no-member
+            edges.append(edge)
+        obj.graph.edges.extend(edges)  # pylint:disable=no-member
+        # referenced functions
+        obj.external_functions.extend(external_functions)  # pylint:disable=no-member
+
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, function_manager=None):  # pylint:disable=arguments-differ
+
+        def _get_block_or_func(addr, blocks, external_functions):
+            try:
+                o = blocks[addr]
+            except KeyError:
+                if addr in external_functions:
+                    if function_manager is not None:
+                        o = function_manager.function(addr=addr, create=True)
+                    else:
+                        # TODO:
+                        o = None
+                else:
+                    raise
+            return o
+
+        obj = cls(function_manager,
+                  cmsg.ea,
+                  name=cmsg.name,
+                  is_plt=cmsg.is_plt,
+                  syscall=cmsg.is_syscall,
+                  is_simprocedure=cmsg.is_simprocedure,
+                  returning=cmsg.returning,
+                  binary_name=cmsg.binary_name,
+                  )
+
+        # blocks
+        blocks = { }
+        for block_cmsg in cmsg.blocks:
+            b = BlockNode(block_cmsg.ea,
+                          block_cmsg.size,
+                          bytestr=block_cmsg.bytes
+                          )
+            blocks[b.addr] = b
+        external_functions = set(cmsg.external_functions)
+        # edges
+        edges = { }
+        fake_return_edges = defaultdict(list)
+        for edge_cmsg in cmsg.graph.edges:
+            try:
+                src = _get_block_or_func(edge_cmsg.src_ea, blocks, external_functions)
+            except KeyError:
+                raise KeyError("Address of the edge source %#x is not found." % edge_cmsg.src_ea)
+            try:
+                dst = _get_block_or_func(edge_cmsg.dst_ea, blocks, external_functions)
+            except KeyError:
+                raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
+            edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
+            assert edge_type is not None
+            data = dict((k, pickle.loads(v)) for k, v in edge_cmsg.data.items())
+            data['outside'] = edge_cmsg.is_outside
+            data['ins_addr'] = edge_cmsg.ins_addr
+            data['stmt_idx'] = edge_cmsg.stmt_idx
+            if edge_type == 'fake_return':
+                fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
+            else:
+                edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
+
+        for k, v in edges.items():
+            _, dst_addr, edge_type = k
+            src, dst, data = v
+
+            outside = data.get('outside', False)
+            ins_addr = data.get('ins_addr', None)
+            stmt_idx = data.get('stmt_idx', None)
+            if edge_type == 'transition':
+                obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx)
+            elif edge_type == 'call':
+                # find the corresponding fake_ret edge
+                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[dst_addr]
+                                          if edge_[1].addr == src.addr + src.size), None)
+                if dst is None:
+                    l.warning("The destination function %#x does not exist, and it cannot be created since function "
+                              "manager is not provided. Please consider passing in a function manager to rebuild this "
+                              "graph.", dst_addr)
+                else:
+                    obj._call_to(src, dst, None if fake_ret_edge is None else fake_ret_edge[1],
+                                 stmt_idx=stmt_idx,
+                                 ins_addr=ins_addr,
+                                 return_to_outside=fake_ret_edge is None,
+                                 )
+            elif edge_type == 'fake_return':
+                pass
+
+        return obj
 
     def string_references(self, minimum_length=2, vex_only=False):
         """
@@ -521,6 +683,79 @@ class Function:
         self._register_nodes(True, node)
         self._retout_sites.add(node)
         self._add_endpoint(node, 'return')
+
+    def _get_initial_name(self):
+        """
+        Determine the most suitable name of the function.
+
+        :return:    The initial function name.
+        :rtype:     string
+        """
+
+        name = None
+        addr = self.addr
+
+        # Try to get a name from existing labels
+        if self._function_manager is not None:
+            if addr in self._function_manager._kb.labels:
+                name = self._function_manager._kb.labels[addr]
+
+        # try to get the name from a hook
+        if name is None and self.project is not None:
+            project = self.project
+            if project.is_hooked(addr):
+                hooker = project.hooked_by(addr)
+                name = hooker.display_name
+            elif project.simos.is_syscall_addr(addr):
+                syscall_inst = project.simos.syscall_from_addr(addr)
+                name = syscall_inst.display_name
+
+        # generate an IDA-style sub_X name
+        if name is None:
+            name = 'sub_%x' % addr
+
+        return name
+
+    def _get_initial_binary_name(self):
+        """
+        Determine the name of the binary where this function is.
+
+        :return: None
+        """
+
+        binary_name = None
+
+        # if this function is a simprocedure but not a syscall, use its library name as
+        # its binary name
+        # if it is a syscall, fall back to use self.binary.binary which explicitly says cle##kernel
+        if self.project and self.is_simprocedure and not self.is_syscall:
+            hooker = self.project.hooked_by(self.addr)
+            if hooker is not None:
+                binary_name = hooker.library_name
+
+        if binary_name is None and self.binary is not None:
+            binary_name = os.path.basename(self.binary.binary)
+
+        return binary_name
+
+    def _get_initial_returning(self):
+        """
+        Determine if this function returns or not *if it is hooked by a SimProcedure or a user hook*.
+
+        :return:    True if the hooker returns, False otherwise.
+        :rtype:     bool
+        """
+
+        hooker = None
+        if self.is_syscall:
+            hooker = self.project.simos.syscall_from_addr(self.addr)
+        elif self.is_simprocedure:
+            hooker = self.project.hooked_by(self.addr)
+        if hooker and hasattr(hooker, 'NO_RET'):
+            return not hooker.NO_RET
+
+        # Cannot determine
+        return None
 
     def _clear_transition_graph(self):
         self._block_cache = {}
@@ -1102,7 +1337,8 @@ class Function:
             self.calling_convention.args = None
             self.calling_convention.func_ty = proto
 
-    def _addr_to_funcloc(self, addr):
+    @staticmethod
+    def _addr_to_funcloc(addr):
 
         # FIXME
         if isinstance(addr, tuple):

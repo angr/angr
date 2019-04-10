@@ -6,6 +6,7 @@ l = logging.getLogger("angr.tests.slicing")
 import time
 import nose
 import angr
+from angr.utils.constants import DEFAULT_STATEMENT
 
 # Load the tests
 import os
@@ -31,7 +32,7 @@ def test_find_exits():
 
     nose.tools.assert_equal(all_exits, {
         18: [ 0x400594 ],
-        'default': None
+        DEFAULT_STATEMENT: None
     })
 
     # Test the default exit
@@ -41,7 +42,7 @@ def test_find_exits():
 
     nose.tools.assert_equal(all_exits, {
         18: [ 0x400594 ],
-        'default': [ 0x4005a4 ]
+        DEFAULT_STATEMENT: [ 0x4005a4 ]
     })
 
 

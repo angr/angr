@@ -55,8 +55,8 @@ def test_graph_0():
         g.add_edge(n1, n2)
 
     # Manually set the CFG
-    cfg._graph = g
-    cfg._nodes = { }
+    cfg.model.graph = g
+    cfg.model._nodes = { }
     cfg._edge_map = { }
     cfg._loop_back_edges = [ ]
     cfg._overlapped_loop_headers = [ ]

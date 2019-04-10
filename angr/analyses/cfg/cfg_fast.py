@@ -14,469 +14,23 @@ from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
+from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, CodeReference
 from ...misc.ux import deprecated
-from .memory_data import MemoryData
-from .cfg_arch_options import CFGArchOptions
-from .cfg_base import CFGBase
-from .cfg_node import CFGNode
-from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
                        AngrUnsupportedSyscallError
                        )
+from ...utils.constants import DEFAULT_STATEMENT
+from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
+from .cfg_arch_options import CFGArchOptions
+from .cfg_base import CFGBase
+from .segment_list import SegmentList
+
 
 VEX_IRSB_MAX_SIZE = 400
 
 
 l = logging.getLogger(name=__name__)
-
-
-class Segment:
-    """
-    Representing a memory block. This is not the "Segment" in ELF memory model
-    """
-
-    __slots__ = ['start', 'end', 'sort']
-
-    def __init__(self, start, end, sort):
-        """
-        :param int start:   Start address.
-        :param int end:     End address.
-        :param str sort:    Type of the segment, can be code, data, etc.
-        :return: None
-        """
-
-        self.start = start
-        self.end = end
-        self.sort = sort
-
-    def __repr__(self):
-        s = "[%#x-%#x, %s]" % (self.start, self.end, self.sort)
-        return s
-
-    @property
-    def size(self):
-        """
-        Calculate the size of the Segment.
-
-        :return: Size of the Segment.
-        :rtype: int
-        """
-        return self.end - self.start
-
-    def copy(self):
-        """
-        Make a copy of the Segment.
-
-        :return: A copy of the Segment instance.
-        :rtype: angr.analyses.cfg_fast.Segment
-        """
-        return Segment(self.start, self.end, self.sort)
-
-
-class SegmentList:
-    """
-    SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
-    blocks or not, and obtain the exact block(segment) that the address belongs to.
-    """
-
-    __slots__ = ['_list', '_bytes_occupied']
-
-    def __init__(self):
-        self._list = []
-        self._bytes_occupied = 0
-
-    #
-    # Overridden methods
-    #
-
-    def __len__(self):
-        return len(self._list)
-
-    #
-    # Private methods
-    #
-
-    def _search(self, addr):
-        """
-        Checks which segment that the address `addr` should belong to, and, returns the offset of that segment.
-        Note that the address may not actually belong to the block.
-
-        :param addr: The address to search
-        :return: The offset of the segment.
-        """
-
-        start = 0
-        end = len(self._list)
-
-        while start != end:
-            mid = (start + end) // 2
-
-            segment = self._list[mid]
-            if addr < segment.start:
-                end = mid
-            elif addr >= segment.end:
-                start = mid + 1
-            else:
-                # Overlapped :(
-                start = mid
-                break
-
-        return start
-
-    def _insert_and_merge(self, address, size, sort, idx):
-        """
-        Determines whether the block specified by (address, size) should be merged with adjacent blocks.
-
-        :param int address: Starting address of the block to be merged.
-        :param int size: Size of the block to be merged.
-        :param str sort: Type of the block.
-        :param int idx: ID of the address.
-        :return: None
-        """
-
-        # sanity check
-        if idx > 0 and address + size <= self._list[idx - 1].start:
-            # There is a bug, since _list[idx] must be the closest one that is less than the current segment
-            l.warning("BUG FOUND: new segment should always be greater than _list[idx].")
-            # Anyways, let's fix it.
-            self._insert_and_merge(address, size, sort, idx - 1)
-            return
-
-        # Insert the block first
-        # The new block might be overlapping with other blocks. _insert_and_merge_core will fix the overlapping.
-        if idx == len(self._list):
-            self._list.append(Segment(address, address + size, sort))
-        else:
-            self._list.insert(idx, Segment(address, address + size, sort))
-        # Apparently _bytes_occupied will be wrong if the new block overlaps with any existing block. We will fix it
-        # later
-        self._bytes_occupied += size
-
-        # Search forward to merge blocks if necessary
-        pos = idx
-        while pos < len(self._list):
-            merged, pos, bytes_change = self._insert_and_merge_core(pos, "forward")
-
-            if not merged:
-                break
-
-            self._bytes_occupied += bytes_change
-
-        # Search backward to merge blocks if necessary
-        if pos >= len(self._list):
-            pos = len(self._list) - 1
-
-        while pos > 0:
-            merged, pos, bytes_change = self._insert_and_merge_core(pos, "backward")
-
-            if not merged:
-                break
-
-            self._bytes_occupied += bytes_change
-
-    def _insert_and_merge_core(self, pos, direction):
-        """
-        The core part of method _insert_and_merge.
-
-        :param int pos:         The starting position.
-        :param str direction:   If we are traversing forwards or backwards in the list. It determines where the "sort"
-                                of the overlapping memory block comes from. If everything works as expected, "sort" of
-                                the overlapping block is always equal to the segment occupied most recently.
-        :return: A tuple of (merged (bool), new position to begin searching (int), change in total bytes (int)
-        :rtype: tuple
-        """
-
-        bytes_changed = 0
-
-        if direction == "forward":
-            if pos == len(self._list) - 1:
-                return False, pos, 0
-            previous_segment = self._list[pos]
-            previous_segment_pos = pos
-            segment = self._list[pos + 1]
-            segment_pos = pos + 1
-        else:  # if direction == "backward":
-            if pos == 0:
-                return False, pos, 0
-            segment = self._list[pos]
-            segment_pos = pos
-            previous_segment = self._list[pos - 1]
-            previous_segment_pos = pos - 1
-
-        merged = False
-        new_pos = pos
-
-        if segment.start <= previous_segment.end:
-            # we should always have new_start+new_size >= segment.start
-
-            if segment.sort == previous_segment.sort:
-                # They are of the same sort - we should merge them!
-                new_end = max(previous_segment.end, segment.start + segment.size)
-                new_start = min(previous_segment.start, segment.start)
-                new_size = new_end - new_start
-                self._list[segment_pos] = Segment(new_start, new_end, segment.sort)
-                self._list.pop(previous_segment_pos)
-                bytes_changed = -(segment.size + previous_segment.size - new_size)
-
-                merged = True
-                new_pos = previous_segment_pos
-
-            else:
-                # Different sorts. It's a bit trickier.
-                if segment.start == previous_segment.end:
-                    # They are adjacent. Just don't merge.
-                    pass
-                else:
-                    # They are overlapping. We will create one, two, or three different blocks based on how they are
-                    # overlapping
-                    new_segments = [ ]
-                    if segment.start < previous_segment.start:
-                        new_segments.append(Segment(segment.start, previous_segment.start, segment.sort))
-
-                        sort = previous_segment.sort if direction == "forward" else segment.sort
-                        new_segments.append(Segment(previous_segment.start, previous_segment.end, sort))
-
-                        if segment.end < previous_segment.end:
-                            new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
-                        elif segment.end > previous_segment.end:
-                            new_segments.append(Segment(previous_segment.end, segment.end, segment.sort))
-                    else:  # segment.start >= previous_segment.start
-                        if segment.start > previous_segment.start:
-                            new_segments.append(Segment(previous_segment.start, segment.start, previous_segment.sort))
-                        sort = previous_segment.sort if direction == "forward" else segment.sort
-                        if segment.end > previous_segment.end:
-                            new_segments.append(Segment(segment.start, previous_segment.end, sort))
-                            new_segments.append(Segment(previous_segment.end, segment.end, segment.sort))
-                        elif segment.end < previous_segment.end:
-                            new_segments.append(Segment(segment.start, segment.end, sort))
-                            new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
-                        else:
-                            new_segments.append(Segment(segment.start, segment.end, sort))
-
-                    # merge segments in new_segments array if they are of the same sort
-                    i = 0
-                    while len(new_segments) > 1 and i < len(new_segments) - 1:
-                        s0 = new_segments[i]
-                        s1 = new_segments[i + 1]
-                        if s0.sort == s1.sort:
-                            new_segments = new_segments[ : i] + [ Segment(s0.start, s1.end, s0.sort) ] + new_segments[i + 2 : ]
-                        else:
-                            i += 1
-
-                    # Put new segments into self._list
-                    old_size = sum([ seg.size for seg in self._list[previous_segment_pos : segment_pos + 1] ])
-                    new_size = sum([ seg.size for seg in new_segments ])
-                    bytes_changed = new_size - old_size
-
-                    self._list = self._list[ : previous_segment_pos] + new_segments + self._list[ segment_pos + 1 : ]
-
-                    merged = True
-
-                    if direction == "forward":
-                        new_pos = previous_segment_pos + len(new_segments)
-                    else:
-                        new_pos = previous_segment_pos
-
-        return merged, new_pos, bytes_changed
-
-    def _dbg_output(self):
-        """
-        Returns a string representation of the segments that form this SegmentList
-
-        :return: String representation of contents
-        :rtype: str
-        """
-        s = "["
-        lst = []
-        for segment in self._list:
-            lst.append(repr(segment))
-        s += ", ".join(lst)
-        s += "]"
-        return s
-
-    def _debug_check(self):
-        """
-        Iterates over list checking segments with same sort do not overlap
-
-        :raise: Exception: if segments overlap space with same sort
-        """
-        # old_start = 0
-        old_end = 0
-        old_sort = ""
-        for segment in self._list:
-            if segment.start <= old_end and segment.sort == old_sort:
-                raise AngrCFGError("Error in SegmentList: blocks are not merged")
-            # old_start = start
-            old_end = segment.end
-            old_sort = segment.sort
-
-    #
-    # Public methods
-    #
-
-    def next_free_pos(self, address):
-        """
-        Returns the next free position with respect to an address, including that address itself
-
-        :param address: The address to begin the search with (including itself)
-        :return: The next free position
-        """
-
-        idx = self._search(address)
-        if idx < len(self._list) and self._list[idx].start <= address < self._list[idx].end:
-            # Occupied
-            i = idx
-            while i + 1 < len(self._list) and self._list[i].end == self._list[i + 1].start:
-                i += 1
-            if i == len(self._list):
-                return self._list[-1].end
-
-            return self._list[i].end
-
-        return address
-
-    def next_pos_with_sort_not_in(self, address, sorts, max_distance=None):
-        """
-        Returns the address of the next occupied block whose sort is not one of the specified ones.
-
-        :param int address: The address to begin the search with (including itself).
-        :param sorts:       A collection of sort strings.
-        :param max_distance:    The maximum distance between `address` and the next position. Search will stop after
-                                we come across an occupied position that is beyond `address` + max_distance. This check
-                                will be disabled if `max_distance` is set to None.
-        :return:            The next occupied position whose sort is not one of the specified ones, or None if no such
-                            position exists.
-        :rtype:             int or None
-        """
-
-        list_length = len(self._list)
-
-        idx = self._search(address)
-        if idx < list_length:
-            # Occupied
-            block = self._list[idx]
-
-            if max_distance is not None and address + max_distance < block.start:
-                return None
-
-            if block.start <= address < block.end:
-                # the address is inside the current block
-                if block.sort not in sorts:
-                    return address
-                # tick the idx forward by 1
-                idx += 1
-
-            i = idx
-            while i < list_length:
-                if max_distance is not None and address + max_distance < self._list[i].start:
-                    return None
-                if self._list[i].sort not in sorts:
-                    return self._list[i].start
-                i += 1
-
-        return None
-
-    def is_occupied(self, address):
-        """
-        Check if an address belongs to any segment
-
-        :param address: The address to check
-        :return: True if this address belongs to a segment, False otherwise
-        """
-
-        idx = self._search(address)
-        if len(self._list) <= idx:
-            return False
-        if self._list[idx].start <= address < self._list[idx].end:
-            return True
-        if idx > 0 and address < self._list[idx - 1].end:
-            # TODO: It seems that this branch is never reached. Should it be removed?
-            return True
-        return False
-
-    def occupied_by_sort(self, address):
-        """
-        Check if an address belongs to any segment, and if yes, returns the sort of the segment
-
-        :param int address: The address to check
-        :return: Sort of the segment that occupies this address
-        :rtype: str
-        """
-
-        idx = self._search(address)
-        if len(self._list) <= idx:
-            return None
-        if self._list[idx].start <= address < self._list[idx].end:
-            return self._list[idx].sort
-        if idx > 0 and address < self._list[idx - 1].end:
-            # TODO: It seems that this branch is never reached. Should it be removed?
-            return self._list[idx - 1].sort
-        return None
-
-    def occupy(self, address, size, sort):
-        """
-        Include a block, specified by (address, size), in this segment list.
-
-        :param int address:     The starting address of the block.
-        :param int size:        Size of the block.
-        :param str sort:        Type of the block.
-        :return: None
-        """
-
-        if size is None or size <= 0:
-            # Cannot occupy a non-existent block
-            return
-
-        # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
-        if not self._list:
-            self._list.append(Segment(address, address + size, sort))
-            self._bytes_occupied += size
-            return
-        # Find adjacent element in our list
-        idx = self._search(address)
-        # print idx
-
-        self._insert_and_merge(address, size, sort, idx)
-
-        # self._debug_check()
-
-    def copy(self):
-        """
-        Make a copy of the SegmentList.
-
-        :return: A copy of the SegmentList instance.
-        :rtype: angr.analyses.cfg_fast.SegmentList
-        """
-        n = SegmentList()
-
-        n._list = [ a.copy() for a in self._list ]
-        n._bytes_occupied = self._bytes_occupied
-        return n
-
-    #
-    # Properties
-    #
-
-    @property
-    def occupied_size(self):
-        """
-        The sum of sizes of all blocks
-
-        :return: An integer
-        """
-
-        return self._bytes_occupied
-
-    @property
-    def has_blocks(self):
-        """
-        Returns if this segment list has any block or not. !is_empty
-
-        :return: True if it's not empty, False otherwise
-        """
-
-        return len(self._list) > 0
 
 
 class FunctionReturn:
@@ -676,7 +230,7 @@ class FunctionTransitionEdge(FunctionEdge):
         to_outside = self.to_outside
         if not to_outside:
             # is it jumping to outside? Maybe we are seeing more functions now.
-            dst_node = cfg.get_any_node(self.dst_addr, force_fastpath=True)
+            dst_node = cfg.model.get_any_node(self.dst_addr, force_fastpath=True)
             if dst_node is not None and dst_node.function_address != self.src_func_addr:
                 to_outside = True
         return cfg._function_add_transition_edge(
@@ -802,7 +356,7 @@ class CFGJob:
             return "<CFGJob {}>".format(self.addr)
         else:
             return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
-                                            
+
     def __eq__(self, other):
         return self.addr == other.addr and \
                 self.func_addr == other.func_addr and \
@@ -850,7 +404,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
-    # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
     SPECIAL_THUNKS = {
@@ -889,6 +442,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  detect_tail_calls=False,
                  low_priority=False,
                  cfb=None,
+                 model=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -956,6 +510,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             indirect_jump_target_limit=indirect_jump_target_limit,
             detect_tail_calls=detect_tail_calls,
             low_priority=low_priority,
+            model=model,
         )
 
         # necessary warnings
@@ -1036,11 +591,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for start_addr in self._regions:
             l.debug("... %#x - %#x", start_addr, self._regions[start_addr])
 
-        # A mapping between address and the actual data in memory
-        self._memory_data = { }
-        # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self.insn_addr_to_memory_data = { }
-
         # mapping to all known thunks
         self._known_thunks = {}
 
@@ -1052,8 +602,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
-
-        self.jump_tables = { }
 
         self._function_addresses_from_symbols = self._func_addrs_from_symbols()
 
@@ -1068,7 +616,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_returns = None
         self._function_exits = None
 
-        self._graph = None
+        # A mapping between address and the actual data in memory
+        # self._memory_data = { }
+        # A mapping between address of the instruction that's referencing the memory data and the memory data itself
+        # self.insn_addr_to_memory_data = { }
+        # self._graph = None
 
         # Start working!
         self._analyze()
@@ -1113,13 +665,33 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
 
     @property
-    def memory_data(self):
-        return self._memory_data
+    def graph(self):
+        return self._model.graph
 
     @property
     def _insn_addr_to_memory_data(self):
         l.warning('_insn_addr_to_memory_data has been made public and is deprecated. Please fix your code accordingly.')
-        return self.insn_addr_to_memory_data
+        return self._model.insn_addr_to_memory_data
+
+    @property
+    def _memory_data(self):
+        return self._model.memory_data
+
+    @property
+    def memory_data(self):
+        return self._model.memory_data
+
+    @property
+    def jump_tables(self):
+        return self._model.jump_tables
+
+    @property
+    def insn_addr_to_memory_data(self):
+        return self._model.insn_addr_to_memory_data
+
+    #
+    # Private methods
+    #
 
     # Methods for determining scanning scope
 
@@ -1346,7 +918,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if not self._seg_list.is_occupied(addr):
                 return addr
 
-
     # Overriden methods from ForwardAnalysis
 
     def _job_key(self, job):
@@ -1406,9 +977,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._register_analysis_job(sp, job)
 
         self._updated_nonreturning_functions = set()
-
-        self._nodes = {}
-        self._nodes_by_addr = defaultdict(list)
 
         if self._use_function_prologues and self.project.concrete_target is None:
             self._function_prologue_addrs = sorted(self._func_addrs_from_prologues())
@@ -1641,8 +1209,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         else:
                             continue
 
-                        if sec.vaddr not in self.memory_data:
-                            self.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown', None, None, None, None)
+                        if sec.vaddr not in self.model.memory_data:
+                            self.model.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, MemoryDataSort.Unknown)
 
         r = True
         while r:
@@ -1766,7 +1334,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 name = procedure.display_name
 
             if addr not in self._nodes:
-                cfg_node = CFGNode(addr, 0, self,
+                cfg_node = CFGNode(addr, 0, self.model,
                                    function_address=current_func_addr,
                                    simprocedure_name=name,
                                    no_ret=procedure.NO_RET,
@@ -1844,7 +1412,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: list
         """
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
-        
+
         # Add edges going to this node in function graphs
         cfg_job.apply_function_edges(self, clear=True)
 
@@ -1911,7 +1479,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     exit_stmt.jumpkind
                 ))
 
-        successors.append(('default',
+        successors.append((DEFAULT_STATEMENT,
                            last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
                           )
 
@@ -2071,7 +1639,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     target_func_addr = None
                     real_target_addr = get_real_address_if_arm(self.project.arch, target_addr)
                     if real_target_addr in self._traced_addresses:
-                        node = self.get_any_node(target_addr)
+                        node = self.model.get_any_node(target_addr)
                         if node is not None:
                             target_func_addr = node.function_address
                     if target_func_addr is None:
@@ -2250,9 +1818,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _process_irsb_data_refs(self, irsb):
         for ref in irsb.data_refs:
             self._add_data_reference(
-                    irsb,
                     irsb.addr,
-                    None,
                     ref.stmt_idx,
                     ref.ins_addr,
                     ref.data_addr,
@@ -2284,7 +1850,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
 
         # helper methods
-        def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
+        def _process(stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
             """
             Helper method used for calling _add_data_reference after checking
             for manipulation of constants
@@ -2311,9 +1877,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # Mark the region as unknown so we won't try to create a code block covering this region in the
                     # future.
                     self._seg_list.occupy(val, data_size, "unknown")
-                self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val,
-                                         data_size=data_size, data_type=data_type
-                                         )
+                self._add_data_reference(irsb_addr, stmt_idx_, insn_addr, val, data_size=data_size, data_type=data_type)
 
         # get all instruction addresses
         instr_addrs = irsb.instruction_addresses
@@ -2336,9 +1900,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
                     size = stmt.data.result_size(irsb.tyenv) // 8 # convert to bytes
-                    _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
-                             data_size=size, data_type='integer'
-                             )
+                    _process(stmt_idx, stmt.data.addr, instr_addr, next_instr_addr, data_size=size, data_type='integer')
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
 
@@ -2347,49 +1909,44 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             all(type(arg) is pyvex.expr.Const for arg in stmt.data.args):
                         # perform the addition
                         loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
-                        _process(irsb, stmt, stmt_idx, loc, instr_addr, next_instr_addr)
+                        _process(stmt_idx, loc, instr_addr, next_instr_addr)
 
                     else:
                         # binary operation
                         for arg in stmt.data.args:
-                            _process(irsb, stmt, stmt_idx, arg, instr_addr, next_instr_addr)
+                            _process(stmt_idx, arg, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
-                    _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
+                    _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.ITE:
                     for child_expr in stmt.data.child_expressions:
-                        _process(irsb, stmt, stmt_idx, child_expr, instr_addr, next_instr_addr)
+                        _process(stmt_idx, child_expr, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
-                    _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
+                    _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
                 # store addr
-                _process(irsb, stmt, stmt_idx, stmt.addr, instr_addr, next_instr_addr)
+                _process(stmt_idx, stmt.addr, instr_addr, next_instr_addr)
                 # store data
-                _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
+                _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Dirty:
 
-                _process(irsb, stmt, stmt_idx, stmt.mAddr, instr_addr, next_instr_addr,
-                         data_size=stmt.mSize,
-                         data_type='fp'
-                         )
+                _process(stmt_idx, stmt.mAddr, instr_addr, next_instr_addr, data_size=stmt.mSize, data_type='fp')
 
-    def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
+    def _add_data_reference(self, irsb_addr, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
                             data_size=None, data_type=None):
         """
         Checks addresses are in the correct segments and creates or updates
         MemoryData in _memory_data as appropriate, labelling as segment
         boundaries or data type
 
-        :param pyvex.IRSB irsb: irsb
         :param int irsb_addr: irsb address
-        :param pyvex.IRStmt.* stmt: Statement
         :param int stmt_idx: Statement ID
         :param int insn_addr: instruction address
         :param data_addr: address of data manipulated by statement
@@ -2406,29 +1963,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for segment in self.project.loader.main_object.segments:
                 if segment.vaddr + segment.memsize == data_addr:
                     # yeah!
+                    new_data = False
                     if data_addr not in self._memory_data:
-                        data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt, stmt_idx,
-                                          insn_addr=insn_addr
-                                          )
+                        data = MemoryData(data_addr, 0, MemoryDataSort.SegmentBoundary)
                         self._memory_data[data_addr] = data
-                    else:
-                        if self._extra_cross_references:
-                            self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
+                        new_data = True
+
+                    if new_data or self._extra_cross_references:
+                        cr = CodeReference(insn_addr, irsb_addr, stmt_idx, memory_data=self.model.memory_data[data_addr])
+                        self.model.references.add_ref(cr)
                     break
 
             return
 
+        new_data = False
         if data_addr not in self._memory_data:
             if data_type is not None and data_size is not None:
-                data = MemoryData(data_addr, data_size, data_type, irsb, irsb_addr, stmt, stmt_idx,
-                                  insn_addr=insn_addr, max_size=data_size
-                                  )
+                data = MemoryData(data_addr, data_size, data_type, max_size=data_size)
             else:
-                data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
+                data = MemoryData(data_addr, 0, MemoryDataSort.Unknown)
             self._memory_data[data_addr] = data
-        else:
-            if self._extra_cross_references:
-                self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
+            new_data = True
+        if new_data or self._extra_cross_references:
+            cr = CodeReference(insn_addr, irsb_addr, stmt_idx, memory_data=self.model.memory_data[data_addr])
+            self.model.references.add_ref(cr)
 
         self.insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
 
@@ -2504,18 +2062,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             memory_data = self._memory_data[data_addr]
 
-            if memory_data.sort in ('segment-boundary', ):
+            if memory_data.sort == MemoryDataSort.SegmentBoundary:
                 continue
 
             content_holder = [ ]
 
             # let's see what sort of data it is
-            if memory_data.sort in ('unknown', None) or \
-                    (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bytes):
-                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr,
-                                                             memory_data.stmt_idx, data_addr, memory_data.max_size,
-                                                             content_holder=content_holder
-                                                             )
+            if memory_data.sort in (MemoryDataSort.Unknown, MemoryDataSort.Unspecified) or \
+                    (memory_data.sort == MemoryDataSort.Integer and memory_data.size == self.project.arch.bytes):
+                data_type, data_size = self._guess_data_type(data_addr, memory_data.max_size,
+                                                             content_holder=content_holder)
             else:
                 data_type, data_size = memory_data.sort, memory_data.size
 
@@ -2529,14 +2085,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if memory_data.max_size is not None and (0 < memory_data.size < memory_data.max_size):
                     # Create another memory_data object to fill the gap
                     new_addr = data_addr + memory_data.size
-                    new_md = MemoryData(new_addr, None, None, None, None, None, None,
-                                        max_size=memory_data.max_size - memory_data.size)
+                    new_md = MemoryData(new_addr, None, None, max_size=memory_data.max_size - memory_data.size)
                     self._memory_data[new_addr] = new_md
+                    # Make a copy of all old references
+                    old_crs = self.model.references.data_addr_to_ref[data_addr]
+                    crs = [ ]
+                    for old_cr in old_crs:
+                        cr = old_cr.copy()
+                        cr.memory_data = new_md
+                        crs.append(cr)
+                    self.model.references.add_refs(crs)
                     keys.insert(i, new_addr)
 
-                if data_type == 'pointer-array':
+                if data_type == MemoryDataSort.PointerArray:
                     # make sure all pointers are identified
                     pointer_size = self.project.arch.bytes
+                    old_crs = self.model.references.data_addr_to_ref[data_addr]
 
                     for j in range(0, data_size, pointer_size):
                         ptr = self._fast_memory_load_pointer(data_addr + j)
@@ -2555,9 +2119,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 continue
                             # TODO: other types
                         if ptr not in self._memory_data:
-                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None, None,
-                                                                pointer_addr=data_addr + j
-                                                                )
+                            new_md = MemoryData(ptr, 0, MemoryDataSort.Unknown, pointer_addr=data_addr + j)
+                            self._memory_data[ptr] = new_md
+                            # Make a copy of the old reference
+                            crs = [ ]
+                            for old_cr in old_crs:
+                                cr = old_cr.copy()
+                                cr.memory_data = new_md
+                                crs.append(cr)
+                            self.model.references.add_refs(crs)
                             new_data_found = True
 
             else:
@@ -2567,21 +2137,25 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return new_data_found
 
-    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size, content_holder=None):  # pylint: disable=unused-argument
+    def _guess_data_type(self, data_addr, max_size, content_holder=None):
         """
         Make a guess to the data type.
 
         Users can provide their own data type guessing code when initializing CFGFast instance, and each guessing
         handler will be called if this method fails to determine what the data is.
 
-        :param pyvex.IRSB irsb: The pyvex IRSB object.
-        :param int irsb_addr: Address of the IRSB.
-        :param int stmt_idx: ID of the statement.
         :param int data_addr: Address of the data.
         :param int max_size: The maximum size this data entry can be.
         :return: a tuple of (data type, size). (None, None) if we fail to determine the type or the size.
         :rtype: tuple
         """
+
+        try:
+            ref = next(iter(self.model.references.data_addr_to_ref[data_addr]))  # type: CodeReference
+            irsb_addr = ref.block_addr
+            stmt_idx = ref.stmt_idx
+        except StopIteration:
+            irsb_addr, stmt_idx = None, None
 
         if max_size is None:
             max_size = 0
@@ -2589,7 +2163,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._seg_list.is_occupied(data_addr) and self._seg_list.occupied_by_sort(data_addr) == 'code':
             # it's a code reference
             # TODO: Further check if it's the beginning of an instruction
-            return "code reference", 0
+            return MemoryDataSort.CodeReference, 0
 
         pointer_size = self.project.arch.bytes
 
@@ -2598,7 +2172,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             plt_entry = self.project.loader.main_object.reverse_plt.get(irsb_addr, None)
             if plt_entry is not None:
                 # IRSB is owned by plt!
-                return "GOT PLT Entry", pointer_size
+                return MemoryDataSort.GOTPLTEntry, pointer_size
 
         # is it in a section with zero bytes, like .bss?
         obj = self.project.loader.find_object_containing(data_addr)
@@ -2630,7 +2204,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     break
 
         if pointers_count:
-            return "pointer-array", pointer_size * pointers_count
+            return MemoryDataSort.PointerArray, pointer_size * pointers_count
 
         try:
             data = self.project.loader.memory.load(data_addr, 1024)
@@ -2660,7 +2234,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if running_failures > 3:
                             break
 
-                return "unicode", last_success
+                return MemoryDataSort.UnicodeString, last_success
 
         if data:
             try:
@@ -2674,9 +2248,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 string_data = data if zero_pos is None else data[:zero_pos]
                 if content_holder is not None:
                     content_holder.append(string_data)
-                return "string", min(len(string_data) + 1, 1024)
+                return MemoryDataSort.String, min(len(string_data) + 1, 1024)
 
         for handler in self._data_type_guessing_handlers:
+            irsb = None if irsb_addr is None else self.model.get_any_node(irsb_addr).block.vex
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
             if sort is not None:
                 return sort, size
@@ -2789,7 +2364,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             raise AngrCFGError('It should be impossible')
 
-        dst_node = CFGNode(unresolvable_target_addr, 0, self,
+        dst_node = CFGNode(unresolvable_target_addr, 0, self.model,
                            function_address=unresolvable_target_addr,
                            simprocedure_name=simprocedure_name,
                            block_id=unresolvable_target_addr,
@@ -2871,7 +2446,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                         # create a new CFGNode that starts there
                         next_node_size = a.size - nop_length
-                        next_node = CFGNode(next_node_addr, next_node_size, self,
+                        next_node = CFGNode(next_node_addr, next_node_size, self.model,
                                             function_address=next_node_addr,
                                             instruction_addrs=[i for i in a.instruction_addrs
                                                                       if next_node_addr <= i
@@ -3034,7 +2609,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Generate the new node
-        new_node = CFGNode(node.addr, new_size, self,
+        new_node = CFGNode(node.addr, new_size, self.model,
                            function_address=None if remove_function else node.function_address,
                            instruction_addrs=[i for i in node.instruction_addrs
                                                      if node.addr <= i < node.addr + new_size
@@ -3054,7 +2629,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             successor = self._nodes[successor_node_addr]
         else:
             successor_size = node.size - new_size
-            successor = CFGNode(successor_node_addr, successor_size, self,
+            successor = CFGNode(successor_node_addr, successor_size, self.model,
                                 function_address=successor_node_addr if remove_function else node.function_address,
                                 instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size],
                                 thumb=node.thumb,
@@ -3099,7 +2674,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if not remove_function:
                 # add functions back
                 self._function_add_node(node, node.addr)
-                successor_node = self.get_any_node(successor_node_addr)
+                successor_node = self.model.get_any_node(successor_node_addr)
                 if successor_node and successor_node.function_address == node.addr:
                     # if there is absolutely no predecessors to successor_node, we'd like to add it as a new function
                     # so that it will not be left behind
@@ -3250,7 +2825,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 l.warning('Function %#x does not have a startpoint (yet).', func_addr)
                 continue
 
-            startpoint = self.get_any_node(func.startpoint.addr)
+            startpoint = self.model.get_any_node(func.startpoint.addr)
             if startpoint is None:
                 # weird...
                 l.warning('No CFGNode is found for function %#x in _make_return_edges().', func_addr)
@@ -3259,15 +2834,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             endpoints = self._get_return_sources(func)
 
             # get all callers
-            callers = self.get_predecessors(startpoint, jumpkind='Ijk_Call')
+            callers = self.model.get_predecessors(startpoint, jumpkind='Ijk_Call')
             # for each caller, since they all end with a call instruction, get the immediate successor
             return_targets = itertools.chain.from_iterable(
-                self.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
+                self.model.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
             )
             return_targets = set(return_targets)
 
             for ep in endpoints:
-                src = self.get_any_node(ep.addr)
+                src = self.model.get_any_node(ep.addr)
                 for rt in return_targets:
                     if not src.instruction_addrs:
                         ins_addr = None
@@ -3281,7 +2856,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         else:
                             ins_addr = src.instruction_addrs[-1]
 
-                    self._graph_add_edge(rt, src, 'Ijk_Ret', ins_addr, 'default')
+                    self._graph_add_edge(rt, src, 'Ijk_Ret', ins_addr, DEFAULT_STATEMENT)
 
     #
     # Function utils
@@ -3739,7 +3314,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._seg_list.occupy(real_addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self,
+            cfg_node = CFGNode(addr, irsb.size, self.model,
                                function_address=current_function_addr,
                                block_id=addr,
                                irsb=irsb,
@@ -3854,11 +3429,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             setattr(n, attr, value)
 
         n._exec_mem_regions = self._exec_mem_regions[::]
-        n._memory_data = self._memory_data.copy()
         n._seg_list = self._seg_list.copy()
         n._function_addresses_from_symbols = self._function_addresses_from_symbols.copy()
 
-        n._graph = self._graph.copy()
+        n._model = self._model.copy()
 
         return n
 

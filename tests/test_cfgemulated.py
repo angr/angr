@@ -318,10 +318,10 @@ def test_arrays():
     b = angr.Project(binary_path, load_options={'auto_load_libs': False})
     cfg = b.analyses.CFGEmulated(fail_fast=True)
 
-    node = cfg.get_any_node(0x10415)
+    node = cfg.model.get_any_node(0x10415)
     nose.tools.assert_is_not_none(node)
 
-    successors = cfg.get_successors(node)
+    successors = cfg.model.get_successors(node)
     nose.tools.assert_equal(len(successors), 2)
 
 def test_max_steps():

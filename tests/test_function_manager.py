@@ -1,15 +1,17 @@
 import nose
 import angr
+from angr.utils.constants import DEFAULT_STATEMENT
 from archinfo import ArchAMD64
 
 import logging
 l = logging.getLogger("angr.tests")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+
 
 def test_amd64():
-    fauxware_amd64 = angr.Project(test_location + "/x86_64/fauxware")
+    fauxware_amd64 = angr.Project(os.path.join(test_location, "x86_64", "fauxware"))
 
     EXPECTED_FUNCTIONS = { 0x4004e0, 0x400510, 0x400520, 0x400530, 0x400540, 0x400550, 0x400560, 0x400570,
                            0x400580, 0x4005ac, 0x400640, 0x400664, 0x4006ed, 0x4006fd, 0x40071d, 0x4007e0,
@@ -45,17 +47,17 @@ def test_amd64():
     for src_node, dst_node, data in main_g_edges_:
         main_g_edges.append((src_node.addr, dst_node.addr, data))
 
-    nose.tools.assert_true((0x40071d, 0x400510, {'type': 'call', 'stmt_idx': 'default', 'ins_addr': 0x400739}) in
+    nose.tools.assert_true((0x40071d, 0x400510, {'type': 'call', 'stmt_idx': DEFAULT_STATEMENT, 'ins_addr': 0x400739}) in
                            main_g_edges
                            )
     nose.tools.assert_true((0x40071d, 0x40073e, {'type': 'fake_return', 'confirmed': True, 'outside': False}) in
                            main_g_edges
                            )
-    nose.tools.assert_true((0x40073e, 0x400530, {'type': 'call', 'stmt_idx': 'default', 'ins_addr': 0x40074f}) in main_g_edges)
+    nose.tools.assert_true((0x40073e, 0x400530, {'type': 'call', 'stmt_idx': DEFAULT_STATEMENT, 'ins_addr': 0x40074f}) in main_g_edges)
     nose.tools.assert_true((0x40073e, 0x400754, {'type': 'fake_return', 'confirmed': True, 'outside': False}) in main_g_edges)
 
     # rejected() does not return
-    nose.tools.assert_true((0x4007c9, 0x4006fd, {'type': 'call', 'stmt_idx': 'default', 'ins_addr': 0x4007ce}) in main_g_edges)
+    nose.tools.assert_true((0x4007c9, 0x4006fd, {'type': 'call', 'stmt_idx': DEFAULT_STATEMENT, 'ins_addr': 0x4007ce}) in main_g_edges)
     nose.tools.assert_true((0x4007c9, 0x4007d3, {'type': 'fake_return', 'outside': False}) in main_g_edges)
 
     # These tests fail for reasons of fastpath, probably

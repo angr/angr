@@ -141,6 +141,7 @@ setup(
         'psutil',
         'pycparser>=2.18',
         'itanium_demangler',
+        'protobuf',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
