@@ -56,15 +56,17 @@ class CFGNode(Serializable):
                  soot_block=None,
                  instruction_addrs=None,
                  thumb=False,
-                 byte_string=None):
+                 byte_string=None,
+                 is_syscall=None,
+                 name=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
         """
 
         self.addr = addr
-        self.simprocedure_name = simprocedure_name
         self.size = size
+        self.simprocedure_name = simprocedure_name
         self.no_ret = no_ret
         self._cfg_model = cfg
         self.function_address = function_address
@@ -72,13 +74,20 @@ class CFGNode(Serializable):
         self.thumb = thumb
         self.byte_string = byte_string  # type: None or bytes
 
-        if isinstance(addr, SootAddressDescriptor):
+        self._name = None
+        if name is not None:
+            self._name = name
+        elif isinstance(addr, SootAddressDescriptor):
             self._name = repr(addr)
         else:
             self._name = simprocedure_name
         self.instruction_addrs = list(instruction_addrs) if instruction_addrs is not None else []
 
-        self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
+        if is_syscall is not None:
+            self.is_syscall = is_syscall
+        else:
+            self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
+
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
@@ -177,6 +186,43 @@ class CFGNode(Serializable):
         return obj
 
     #
+    # Pickling
+    #
+
+    def __getstate__(self):
+        s = {
+            'addr': self.addr,
+            'size': self.size,
+            'simprocedure_name': self.simprocedure_name,
+            'no_ret': self.no_ret,
+            'function_address': self.function_address,
+            'block_id': self.block_id,
+            'thumb': self.thumb,
+            'byte_string': self.byte_string,
+            '_name': self._name,
+            'instruction_addrs': self.instruction_addrs,
+            'is_syscall': self.is_syscall,
+            'has_return': self.has_return,
+        }
+        return s
+
+    def __setstate__(self, state):
+        self.__init__(state['addr'],
+                      state['size'],
+                      None,
+                      simprocedure_name=state['simprocedure_name'],
+                      no_ret=state['no_ret'],
+                      function_address=state['function_address'],
+                      block_id=state['block_id'],
+                      thumb=state['thumb'],
+                      byte_string=state['byte_string'],
+                      name=state['_name'],
+                      instruction_addrs=state['instruction_addrs'],
+                      is_syscall=state['is_syscall'],
+                      )
+        self.has_return = state['has_return']
+
+    #
     # Methods
     #
 
@@ -192,6 +238,8 @@ class CFGNode(Serializable):
                     instruction_addrs=self.instruction_addrs,
                     thumb=self.thumb,
                     byte_string=self.byte_string,
+                    is_syscall=self.is_syscall,
+                    name=self._name
                     )
         return c
 
@@ -273,11 +321,13 @@ class CFGENode(CFGNode):
                  instruction_addrs=None,
                  thumb=False,
                  byte_string=None,
+                 is_syscall=None,
+                 name=None,
+                 # CFGENode specific
                  input_state=None,
                  final_states=None,
                  syscall_name=None,
                  looping_times=0,
-                 syscall=None,
                  depth=None,
                  callstack_key=None,
                  creation_failure_info=None,
@@ -292,12 +342,13 @@ class CFGENode(CFGNode):
                                        instruction_addrs=instruction_addrs,
                                        thumb=thumb,
                                        byte_string=byte_string,
+                                       is_syscall=is_syscall,
+                                       name=name,
                                        )
 
         self.input_state = input_state
         self.syscall_name = syscall_name
         self.looping_times = looping_times
-        self.syscall = syscall
         self.depth = depth
 
         self.creation_failure_info = None
@@ -358,6 +409,40 @@ class CFGENode(CFGNode):
     def __hash__(self):
         return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info))
 
+    #
+    # Pickeling
+    #
+
+    def __getstate__(self):
+        s = super().__getstate__()
+        s['syscall_name'] = self.syscall_name
+        s['looping_times'] = self.looping_times
+        s['depth'] = self.depth
+        s['creation_failure_info'] = self.creation_failure_info
+        s['_callstack_key'] = self.callstack_key
+        s['return_target'] = self.return_target
+        return s
+
+    def __setstate__(self, state):
+        self.__init__(state['addr'],
+                      state['size'],
+                      None,
+                      simprocedure_name=state['simprocedure_name'],
+                      no_ret=state['no_ret'],
+                      function_address=state['function_address'],
+                      block_id=state['block_id'],
+                      instruction_addrs=state['instruction_addrs'],
+                      thumb=state['thumb'],
+                      byte_string=state['byte_string'],
+                      is_syscall=state['is_syscall'],
+                      name=state['_name'],
+                      syscall_name=state['syscall_name'],
+                      looping_times=state['looping_times'],
+                      depth=state['depth'],
+                      callstack_key=state['_callstack_key'],
+                      creation_failure_info=state['creation_failure_info']
+                      )
+
     def copy(self):
         return CFGENode(
             self.addr,
@@ -374,7 +459,7 @@ class CFGENode(CFGNode):
             input_state=self.input_state,
             syscall_name=self.syscall_name,
             looping_times=self.looping_times,
-            syscall=self.syscall,
+            is_syscall=self.is_syscall,
             depth=self.depth,
             final_states=self.final_states[::],
             callstack_key=self.callstack_key,

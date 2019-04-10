@@ -42,5 +42,19 @@ class CFGManager(KnowledgeBasePlugin):
         cm.cfgs = self.cfgs.copy()
         return cm
 
+    #
+    # Pickling
+    #
+
+    def __getstate__(self):
+        return {
+            '_kb': self._kb,
+            'cfgs': self.cfgs,
+        }
+
+    def __setstate__(self, state):
+        self._kb = state['_kb']
+        self.cfgs = state['cfgs']
+
 
 KnowledgeBasePlugin.register_default("cfgs", CFGManager)

@@ -3033,6 +3033,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Determine if this is a SimProcedure, and further, if this is a syscall
         syscall = None
+        is_syscall = False
         if sim_successors.sort == 'SimProcedure':
             is_simprocedure = True
             if sa['is_syscall'] is True:
@@ -3058,7 +3059,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                 simprocedure_name=simproc_name,
                                 syscall_name=syscall,
                                 no_ret=no_ret,
-                                syscall=syscall,
+                                is_syscall=is_syscall,
                                 function_address=sim_successors.addr,
                                 block_id=block_id,
                                 depth=depth,
@@ -3072,7 +3073,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                 self.model,
                                 callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
                                 input_state=None,
-                                syscall=syscall,
+                                is_syscall=is_syscall,
                                 function_address=func_addr,
                                 block_id=block_id,
                                 depth=depth,
