@@ -27,14 +27,18 @@ def test_inspect_any_arg(check_arg, pass_arg, *fail_args):
 
 
 def test_inspect_primitive_arg():
+    fail_arg = claripy.BVV("0x1")
     test_inspect_any_arg(True, True, False)
-    test_inspect_any_arg(1.0, 1.0, 2.0)
-    test_inspect_any_arg("foo", "foo", "bar")
+    test_inspect_any_arg(1.0, 1.0, 2.0, 3.0)
+    test_inspect_any_arg("foo", "foo", "bar", "baz")
 
 def test_inspect_ast_arg():
     pass_arg = claripy.BVV("0x1")
     fail_arg = claripy.BVV("0x2")
     test_inspect_any_arg(pass_arg, pass_arg, fail_arg)
+    test_inspect_any_arg(pass_arg, pass_arg, True)
+    test_inspect_any_arg(pass_arg, pass_arg, 1)
+    test_inspect_any_arg(pass_arg, pass_arg, "0x1")
 
 if __name__ == "__main__":
     test_inspect_primitive_arg()
