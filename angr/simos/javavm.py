@@ -158,7 +158,7 @@ class SimJavaVM(SimOS):
 
         return state
 
-    def state_entry(self, *args, **kwargs): # pylint: disable=arguments-differ
+    def state_entry(self, args=None, **kwargs): # pylint: disable=arguments-differ
         """
         Create an entry state.
 

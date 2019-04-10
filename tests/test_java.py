@@ -5,10 +5,10 @@ import angr
 from angr.state_plugins.javavm_memory import SimJavaVmMemory
 from angr.state_plugins.keyvalue_memory import SimKeyValueMemory
 from angr.state_plugins.symbolic_memory import SimSymbolicMemory
-from angr.engines.soot.values import SimSootValue_ArrayRef
+from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
 from archinfo.arch_amd64 import ArchAMD64
-from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
-                                SootMethodDescriptor)
+from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootMethodDescriptor,
+                                SootArgument, SootAddressTerminator)
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 test_location = str(os.path.join(file_dir, "..", "..", "binaries", "tests", "java"))
@@ -26,6 +26,7 @@ def test_fauxware():
     # find path to `accepted()` method
     accepted_method = SootMethodDescriptor.from_string('Fauxware.accepted()').address()
     simgr.explore(find=lambda s: s.addr == accepted_method)
+
     state = simgr.found[0]
 
     # eval password
@@ -33,15 +34,32 @@ def test_fauxware():
     password = state.solver.eval(cmd_line_args[0])
     assert password == "SOSNEAKY"
 
-# def apk_loading():
-#
-#     loading_opts = {'android_sdk': '/home/thorsten/android/platforms',
-#                     'entry_point': 'seclab.mixed_java.MainActivity.onCreate'}
-#     project = angr.Project("/home/thorsten/angr-dev/shared/app-debug.apk",
-#                            main_opts=loading_opts)
-#     entry = project.factory.entry_state()
-#     simgr = project.factory.simgr(entry)
-#     simgr.run()
+
+def test_apk_loading():
+    sdk_path = os.path.join(os.path.expanduser("~"), "Android/Sdk/platforms/")
+    if not os.path.exists(sdk_path):
+        print("cannot run test_apk_loading since there is no Android SDK folder")
+        return
+
+    loading_opts = {'android_sdk': sdk_path,
+                    'entry_point': 'com.example.antoniob.android1.MainActivity.onCreate',
+                    'entry_point_params': ('android.os.Bundle', )}
+    project = angr.Project(os.path.join(test_location, "android1.apk"), main_opts=loading_opts)
+
+    blank_state = project.factory.blank_state()
+    a1 = SimSootValue_ThisRef.new_object(blank_state, 'com.example.antoniob.android1.MainActivity')
+    a2 = SimSootValue_ThisRef.new_object(blank_state, 'android.os.Bundle', symbolic = True)
+    args = [SootArgument(arg, arg.type) for arg in [a1, a2]]
+    entry = project.factory.entry_state(args = args)
+
+    simgr = project.factory.simgr(entry)
+    simgr.step()
+    simgr.step()
+    assert simgr.active[0].addr.block_idx == 0
+    assert simgr.active[0].addr.stmt_idx == 3
+    simgr.run()
+    assert len(simgr.deadended) == 1
+    assert type(simgr.deadended[0].addr) is SootAddressTerminator
 
 
 #
@@ -408,15 +426,15 @@ def test_array_operations():
     state = run_method(project=project,
                        method="MixedJava.test_index_of_of_bound0")
     array_len = load_value_from_stack(state, 'i1')
-    assert 0 == state.solver.min(array_len)
-    assert 255 == state.solver.max(array_len)
+    assert state.solver.min(array_len) == 0
+    assert state.solver.max(array_len) == 255
 
     # test_index_of_of_bound1
     state = run_method(project=project,
                        method="MixedJava.test_index_of_of_bound1")
     array_len = load_value_from_stack(state, 'i1')
-    assert 101 == state.solver.min(array_len)
-    assert 255 == state.solver.max(array_len)
+    assert state.solver.min(array_len) == 101
+    assert state.solver.max(array_len) == 255
 
     # test_index_of_of_bound2
     state = run_method(project=project,
@@ -553,7 +571,7 @@ def run_method(project, method, assert_locals=None, assertions=None):
             assert val == assert_value
 
     if assertions:
-        for description, test in assertions.items():
+        for _, test in assertions.items():
             assert test(end_state)
 
     return end_state
@@ -644,11 +662,11 @@ def main():
     test_jni_object_operations()
     test_fauxware()
     test_cmd_line_args()
-    # apk_loading()
+    test_apk_loading()
     test_method_calls()
 
 if __name__ == "__main__":
-    import logging
+    # import logging
     # logging.getLogger('cle.backends.soot').setLevel('DEBUG')
     # logging.getLogger('cle.backends.apk').setLevel('DEBUG')
     # logging.getLogger('cle.backends.jar').setLevel('DEBUG')

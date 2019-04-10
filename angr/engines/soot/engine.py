@@ -277,7 +277,7 @@ class SimEngineSoot(SimEngine):
     @staticmethod
     def setup_arguments(state, args):
         # if available, store the 'this' reference
-        if args[0].is_this_ref:
+        if len(args) > 0 and args[0].is_this_ref:
             this_ref = args.pop(0)
             local = SimSootValue_Local('this', this_ref.type)
             state.javavm_memory.store(local, this_ref.value)
