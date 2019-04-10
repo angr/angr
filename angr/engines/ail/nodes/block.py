@@ -9,9 +9,7 @@ def handle_BlockNode(engine, state, node):
     :param SequenceNode node:
     :return:
     """
-    # import ipdb; ipdb.set_trace()
-
     # Step through all statements in this block
     for s in node.statements:
-    	STMT_CLASSES[s.__class__](engine, state, s)
+        engine._handle_statement(state, s)
     return False

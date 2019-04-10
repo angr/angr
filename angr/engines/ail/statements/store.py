@@ -13,11 +13,11 @@ def SimIRStmt_Store(engine, state, stmt):
 
     # first resolve the address and record stuff
     with state.history.subscribe_actions() as addr_deps:
-        addr = engine.handle_expression(state, stmt.addr)
+        addr = engine._handle_expression(state, stmt.addr)
 
     # now get the value and track everything
     with state.history.subscribe_actions() as data_deps:
-        data = engine.handle_expression(state, stmt.data)
+        data = engine._handle_expression(state, stmt.data)
     expr = data.raw_to_bv()
 
     # track the write
