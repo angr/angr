@@ -6,6 +6,7 @@ from sortedcontainers import  SortedDict
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
+from ...utils.constants import DEFAULT_STATEMENT
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
 from ...codenode import HookNode, SootBlockNode
 from ...knowledge_plugins.cfg import CFGNode
@@ -118,8 +119,8 @@ class CFGFastSoot(CFGFast):
 
         try:
 
-            if addr in self.model.nodes():
-                cfg_node = self.model.nodes()[addr]
+            cfg_node = self.model.get_node(addr)
+            if cfg_node is not None:
                 soot_block = cfg_node.soot_block
             else:
                 soot_block = self.project.factory.block(addr).soot
@@ -205,7 +206,7 @@ class CFGFastSoot(CFGFast):
 
 
         if has_default_exit:
-            successors.append(('default', addr,
+            successors.append((DEFAULT_STATEMENT, addr,
                                SootAddressDescriptor(function_id, method.block_by_label[next_stmt_id].idx, next_stmt_id),
                                'Ijk_Boring'
                                )
