@@ -157,10 +157,10 @@ bitwise_operation_map = {
     'Not': '__invert__',
 }
 rm_map = {
-    0: claripy.fp.RM_RNE,
-    1: claripy.fp.RM_RTN,
-    2: claripy.fp.RM_RTP,
-    3: claripy.fp.RM_RTZ,
+    0: claripy.fp.RM.RM_NearestTiesEven,
+    1: claripy.fp.RM.RM_TowardsNegativeInf,
+    2: claripy.fp.RM.RM_TowardsPositiveInf,
+    3: claripy.fp.RM.RM_TowardsZero,
 }
 
 generic_names = set()
@@ -178,7 +178,7 @@ def supports_vector(f):
     return f
 
 
-class SimIROp(object):
+class SimIROp:
     """
     A symbolic version of a Vex IR operation.
     """
@@ -792,10 +792,10 @@ class SimIROp(object):
     def _op_fgeneric_Round(self, args):
         if self._vector_size is not None:
             rm = {
-                'RM': claripy.fp.RM_RTN,
-                'RP': claripy.fp.RM_RTP,
-                'RN': claripy.fp.RM_RNE,
-                'RZ': claripy.fp.RM_RTZ,
+                'RM': claripy.fp.RM.RM_TowardsNegativeInf,
+                'RP': claripy.fp.RM.RM_TowardsPositiveInf,
+                'RN': claripy.fp.RM.RM_NearestTiesEven,
+                'RZ': claripy.fp.RM.RM_TowardsZero,
             }[self._rounding_mode]
 
             rounded = []
@@ -811,7 +811,7 @@ class SimIROp(object):
             # TODO: look into fixing this
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
-            return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
+            return claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
 
     def _op_generic_pack_StoU_saturation(self, args, src_size, dst_size):
         """
