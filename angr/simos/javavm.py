@@ -130,7 +130,7 @@ class SimJavaVM(SimOS):
             state = SimState(project=self.project, **kwargs)
 
         if not self.project.entry and not addr:
-            raise ValueError("Failed to init blank state. Project entry is not set/invalid"
+            raise ValueError("Failed to init blank state. Project entry is not set/invalid "
                              "and no address was provided.")
 
         # init state register
