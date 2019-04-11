@@ -15,6 +15,7 @@ class Manager(object):
         # vex specific
         ###
         self.tyenv = None
+        self.block_addr = None
 
     def next_atom(self):
         return next(self.atom_ctr)

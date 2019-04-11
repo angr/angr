@@ -232,6 +232,7 @@ class IRSBConverter(Converter):
         idx = 0
 
         manager.tyenv = irsb.tyenv
+        manager.block_addr = irsb.addr
 
         addr = None
 
