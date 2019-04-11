@@ -68,6 +68,102 @@ class PosixProcFS(SimMount):
         return self # this holds no state!
 
 
+class PosixFDs:
+    """
+    Manages file descriptors.
+    """
+    def __init__(self, preserve_closed=True, from_dict=None):
+        self.preserve_closed = preserve_closed
+        self._fds = { }  # file descriptors that are currently open
+        self._all_fds = [ ]
+
+        if from_dict:
+            for fd_no, fd in from_dict.items():
+                self[fd_no] = fd
+
+    def __len__(self):
+        return len(self._fds)
+
+    def __iter__(self):
+        return iter(self._fds)
+
+    def __setitem__(self, fd_no, fd):
+        """
+        Open a new file descriptor.
+
+        :param int fd_no: The file descriptor ID.
+        :param fd:        The file descriptor instance.
+        """
+        self.open_fd(fd_no, fd)
+
+    def __getitem__(self, fd_no):
+        """
+        Get an opened file descriptor.
+
+        :param int fd_no: The file descriptor ID.
+        :return:          The opened file descriptor instance.
+        """
+        return self.get_fd(fd_no)
+
+    def __delitem__(self, fd_no):
+        """
+        Close a file descriptor.
+
+        :param int fd_no: The file descriptor ID.
+        """
+        self.close_fd(fd_no)
+
+    def get(self, fd_no):
+        return self._fds.get(fd_no)
+
+    def open_fd(self, fd_no, fd):
+        """
+        Open a new file descriptor.
+
+        :param int fd_no: The file descriptor ID.
+        :param fd:        The file descriptor instance.
+        """
+        self._fds[fd_no] = fd
+        if self.preserve_closed:
+            self._all_fds.append(fd)
+
+    def get_fd(self, fd_no):
+        """
+        Get an opened file descriptor.
+
+        :param int fd_no: The file descriptor ID.
+        :return:          The opened file descriptor instance.
+        """
+        return self._fds[fd_no]
+
+    def close_fd(self, fd_no):
+        """
+        Close a file descriptor.
+
+        :param int fd_no: The file descriptor ID.
+        """
+        del self._fds[fd_no]
+
+    def copy(self, memo):
+        new_fds = PosixFDs(preserve_closed=self.preserve_closed)
+        new_fds._fds = dict((k, v.copy(memo)) for k, v in self._fds.items())
+        new_fds._all_fds = [ v.copy(memo) for v in self._all_fds ]
+        return new_fds
+
+    @property
+    def all_fds(self):
+        """
+        Return an iterator of all opened file descriptors.
+        """
+
+        if self.preserve_closed:
+            for fd in self._all_fds:
+                yield fd
+        else:
+            for fd in self._fds.values():
+                yield fd
+
+
 class SimSystemPosix(SimStatePlugin):
     """
     Data storage and interaction mechanisms for states with an environment conforming to posix.
@@ -168,8 +264,12 @@ class SimSystemPosix(SimStatePlugin):
         if stderr is None:
             stderr = SimPacketsStream('stderr', write_mode=True, writable=True, ident='stderr')
 
+        # Compatibility
+        if isinstance(fd, dict):
+            fd = PosixFDs(from_dict=fd)
+
         if fd is None:
-            fd = {}
+            fd = PosixFDs()
             tty = SimFileDescriptorDuplex(stdin, stdout)
 
             # the initial fd layout just looks like this:
@@ -457,7 +557,7 @@ class SimSystemPosix(SimStatePlugin):
                 stdin=self.stdin.copy(memo),
                 stdout=self.stdout.copy(memo),
                 stderr=self.stderr.copy(memo),
-                fd={k: self.fd[k].copy(memo) for k in self.fd},
+                fd=self.fd.copy(memo),
                 sockets={ident: tuple(x.copy(memo) for x in self.sockets[ident]) for ident in self.sockets},
                 socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use.
                                                 # as a result, we must update the state of each socket before making
