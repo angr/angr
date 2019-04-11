@@ -10,7 +10,7 @@ from ...storage.file import SimPackets
 l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
 
-class FormatString(object):
+class FormatString:
     """
     Describes a format string.
     """
@@ -292,7 +292,10 @@ class FormatString(object):
     def __repr__(self):
         outstr = ""
         for comp in self.components:
-            outstr += (str(comp))
+            if isinstance(comp, bytes):
+                outstr += comp.decode("ascii")
+            else:
+                outstr += (str(comp))
 
         return outstr
 
