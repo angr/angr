@@ -388,7 +388,7 @@ class SimSystemPosix(SimStatePlugin):
             l.info("Trying to close an unopened file descriptor")
             return False
 
-        self.state.history.add_event('fs_close', fd, close_idx=len(self.closed_fds))
+        self.state.history.add_event('fs_close', fd=fd, close_idx=len(self.closed_fds))
         self.closed_fds.append((fd, self.fd[fd]))
 
         del self.fd[fd]
