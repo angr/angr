@@ -67,8 +67,12 @@ class Tracer(ExplorationTechnique):
         # calc ASLR slide for main binary and find the entry point in one fell swoop
         # ...via heuristics
         for idx, addr in enumerate(self._trace):
-            if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x10000):
-                break
+            if self.project.loader.main_object.pic:
+                if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x10000):
+                    break
+            else:
+                if addr == self.project.entry:
+                    break
         else:
             raise AngrTracerError("Could not identify program entry point in trace!")
 
