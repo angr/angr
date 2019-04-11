@@ -68,7 +68,7 @@ class Tracer(ExplorationTechnique):
         # ...via heuristics
         for idx, addr in enumerate(self._trace):
             if self.project.loader.main_object.pic:
-                if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x10000):
+                if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x100000):
                     break
             else:
                 if addr == self.project.entry:
