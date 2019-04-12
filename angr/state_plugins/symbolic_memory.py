@@ -644,7 +644,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             chunk_off = i-chunk_start
             b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
             condition = b == what
-            if not self.state.solver.is_false(condition):
+            if not condition.is_false():
                 if no_singlevalue_opt and cond_prefix:
                     condition = claripy.And(*(cond_prefix + [condition]))
                 cases.append([condition, claripy.BVV(i, len(start))])
