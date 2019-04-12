@@ -44,9 +44,10 @@ class FormatString:
         #TODO: we probably could do something more fine-grained here.
 
         # throw away strings which are just the NULL terminator
-        if self.parser.state.solver.max_int(strlen) == 0:
+        max_str_size = self.parser.state.solver.max_int(strlen)
+        if max_str_size == 0:
             return None
-        return self.parser.state.memory.load(str_addr, strlen)
+        return self.parser.state.memory.load(str_addr, max_str_size)
 
     def replace(self, startpos, args):
         """
