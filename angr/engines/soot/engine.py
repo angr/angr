@@ -77,14 +77,11 @@ class SimEngineSoot(SimEngine):
                 self.project.factory.procedure_engine._process(state, successors, procedure)
                 return
 
-        # skip android system methods (-> use sim procedures)
-        if addr.method.class_name.startswith('android'):
-            self._add_return_exit(state, successors)
-            return
-
         binary = state.regs._ip_binary
         method = binary.get_soot_method(addr.method, none_if_missing=True)
-        if not method:
+
+        # TODO make the skipping of code in "android.*" classes optional
+        if addr.method.class_name.startswith('android.') or not method:
             # This means we are executing code that is not in CLE, typically library code.
             # We may want soot -> pysoot -> cle to export at least the method names of the libraries
             # (soot has a way to deal with this), as of now we just "simulate" a return.
@@ -394,8 +391,7 @@ class SimEngineSoot(SimEngine):
         if args and args[0].is_this_ref:
             # instance method call
             # => pass 'this' reference to native code
-            ref = this_ref = args.pop(0)
-            args.insert(1, this_ref)
+            ref = args.pop(0)
         else:
             # static method call
             # => pass 'class' reference to native code
@@ -403,9 +399,9 @@ class SimEngineSoot(SimEngine):
             ref = SootArgument(class_, "Class")
 
         # add to args
-        args = [jni_env, ref] + args
+        final_args = [jni_env, ref] + args
 
         # Step 3: create native invoke state
-        return state.project.simos.state_call(native_addr, *args,
+        return state.project.simos.state_call(native_addr, *final_args,
                                               base_state=state,
                                               ret_type=java_method.ret)
