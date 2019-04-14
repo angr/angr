@@ -28,7 +28,7 @@ class SimEngineSoot(SimEngine):
         super(SimEngineSoot, self).__init__(**kwargs)
         self.project = project
 
-    def lift(self, addr=None, the_binary=None, **kwargs):
+    def lift(self, addr=None, the_binary=None, **kwargs): # pylint: disable=unused-argument, no-self-use
         assert isinstance(addr, SootAddressDescriptor)
 
         method, stmt_idx = addr.method, addr.stmt_idx
@@ -88,7 +88,7 @@ class SimEngineSoot(SimEngine):
             # Note: If we have a sim procedure, we should not reach this point.
             l.warning("Try to execute non-loaded code %s. Execute unconstrained SimProcedure.", addr)
             # STEP 1: Get unconstrained SimProcedure
-            procedure = self.get_unconstrained_simprocedure(addr)
+            procedure = self.get_unconstrained_simprocedure()
             # STEP 2: Pass Method descriptor as Parameter
 
             # check if there are already params in the stack
@@ -141,7 +141,7 @@ class SimEngineSoot(SimEngine):
             s_stmt = translate_stmt(stmt, state)
         except SimEngineError as e:
             l.error("Skipping statement: %s", e)
-            return
+            return False
 
         # add invoke exit
         if s_stmt.has_invoke_target:
@@ -223,7 +223,7 @@ class SimEngineSoot(SimEngine):
 
         return proc
 
-    def get_unconstrained_simprocedure(self, addr):
+    def get_unconstrained_simprocedure(self):
         # Delayed import
         from ...procedures import SIM_PROCEDURES
 
