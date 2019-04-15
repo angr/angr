@@ -160,7 +160,7 @@ class BinaryOptimizer(Analysis):
         #if function.addr != 0x8048250:
         #    return
 
-        func_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+        func_kb = KnowledgeBase(self.project)
 
         # switch to non-optimized IR, since optimized IR will optimize away register reads/writes
         # for example,

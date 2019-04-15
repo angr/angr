@@ -443,7 +443,7 @@ class Director(ExplorationTechnique):
         if self._cfg is None:
 
             starts = list(simgr.active)
-            self._cfg_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+            self._cfg_kb = KnowledgeBase(self.project)
 
             self._cfg = self.project.analyses.CFGEmulated(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
                                                           keep_state=self._cfg_keep_states

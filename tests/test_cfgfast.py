@@ -8,6 +8,7 @@ import archinfo
 import angr
 
 from angr.analyses.cfg.cfg_fast import SegmentList
+from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
@@ -69,8 +70,8 @@ def cfg_fast_edges_check(arch, binary_path, edges):
     cfg = proj.analyses.CFGFast()
 
     for src, dst in edges:
-        src_node = cfg.get_any_node(src)
-        dst_node = cfg.get_any_node(dst)
+        src_node = cfg.model.get_any_node(src)
+        dst_node = cfg.model.get_any_node(dst)
         nose.tools.assert_in(dst_node, src_node.successors,
                              msg="CFG edge %s-%s is not found." % (src_node, dst_node)
                              )
@@ -418,6 +419,39 @@ def test_segment_list_6():
     nose.tools.assert_equal(seg_list._list[1].end, 30)
     nose.tools.assert_equal(seg_list._list[1].sort, 'code')
 
+
+#
+# Serialization
+#
+
+def test_serialization_cfgnode():
+    path = os.path.join(test_location, "x86_64", "fauxware")
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+    # the first node
+    node = cfg.model.get_any_node(proj.entry)
+    nose.tools.assert_is_not_none(node)
+
+    b = node.serialize()
+    nose.tools.assert_greater(len(b), 0)
+    new_node = CFGNode.parse(b)
+    nose.tools.assert_equal(new_node.addr, node.addr)
+    nose.tools.assert_equal(new_node.size, node.size)
+    nose.tools.assert_equal(new_node.block_id, node.block_id)
+
+
+def test_serialization_cfgfast():
+    path = os.path.join(test_location, "x86_64", "fauxware")
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+    # parse the entire graph
+    b = cfg.model.serialize()
+    nose.tools.assert_greater(len(b), 0)
+    cfg_model = CFGModel.parse(b)
+    nose.tools.assert_equal(len(cfg_model.graph), len(cfg.graph))
+
 #
 # CFG instance copy
 #
@@ -429,11 +463,12 @@ def test_cfg_copy():
     cfg = proj.analyses.CFGFast()
     cfg_copy = cfg.copy()
     for attr in cfg_copy.__dict__:
-        if attr in ['_graph', '_seg_list']:
+        if attr in ['_graph', '_seg_list', '_model']:
             continue
         nose.tools.assert_equal(getattr(cfg, attr), getattr(cfg_copy, attr))
 
-    nose.tools.assert_not_equal(id(cfg._graph), id(cfg_copy._graph))
+    nose.tools.assert_not_equal(id(cfg.model), id(cfg_copy.model))
+    nose.tools.assert_not_equal(id(cfg.model.graph), id(cfg_copy.model.graph))
     nose.tools.assert_not_equal(id(cfg._seg_list), id(cfg_copy._seg_list))
 
 #
@@ -447,7 +482,7 @@ def test_resolve_x86_elf_pic_plt():
     cfg = proj.analyses.CFGFast()
 
     # puts
-    puts_node = cfg.get_any_node(0x4005b0)
+    puts_node = cfg.model.get_any_node(0x4005b0)
     nose.tools.assert_is_not_none(puts_node)
 
     # there should be only one successor, which jumps to SimProcedure puts
@@ -501,7 +536,7 @@ def test_block_instruction_addresses_armhf():
     for instr_addr in block.instruction_addrs:
         nose.tools.assert_true(instr_addr % 2 == 1)
 
-    main_node = cfg.get_any_node(main_func.addr)
+    main_node = cfg.model.get_any_node(main_func.addr)
     nose.tools.assert_is_not_none(main_node)
     nose.tools.assert_equal(len(main_node.instruction_addrs), 12)
     for instr_addr in main_node.instruction_addrs:
@@ -598,11 +633,11 @@ def test_collect_data_references():
 
     memory_data = cfg.memory_data
     # There is no code reference
-    code_ref_count = len([d for d in memory_data.values() if d.sort == 'code reference'])
+    code_ref_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference])
     nose.tools.assert_greater_equal(code_ref_count, 0, msg="There should be no code reference.")
 
     # There are at least 2 pointer arrays
-    ptr_array_count = len([d for d in memory_data.values() if d.sort == 'pointer-array'])
+    ptr_array_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray])
     nose.tools.assert_greater(ptr_array_count, 2, msg="Missing some pointer arrays.")
 
     nose.tools.assert_in(0x4008d0, memory_data)
@@ -631,6 +666,9 @@ def run_all():
     for func in segmentlist_tests:
         print(func.__name__)
         func()
+
+    test_serialization_cfgnode()
+    test_serialization_cfgfast()
 
     for args in test_cfg_0():
         print(args[0].__name__)

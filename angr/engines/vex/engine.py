@@ -13,6 +13,7 @@ from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressE
                        UnsupportedIRStmtError)
 
 from ...misc.ux import once
+from ...utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
 from .statements import STMT_CLASSES
 from .expressions import EXPR_CLASSES, SimIRExpr_Unsupported
@@ -241,7 +242,7 @@ class SimEngineVEX(SimEngine):
 
         # if we've told the block to truncate before it ends, it will definitely have a default
         # exit barring errors
-        has_default_exit = has_default_exit and (last_stmt in (None, 'default') or num_stmts <= last_stmt)
+        has_default_exit = has_default_exit and (last_stmt in (None, DEFAULT_STATEMENT) or num_stmts <= last_stmt)
 
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:
@@ -263,7 +264,7 @@ class SimEngineVEX(SimEngine):
             if stmt_idx < skip_stmts:
                 l.debug("Skipping statement %d", stmt_idx)
                 continue
-            if last_stmt is not None and last_stmt != 'default' and stmt_idx > last_stmt:
+            if last_stmt is not None and last_stmt != DEFAULT_STATEMENT and stmt_idx > last_stmt:
                 l.debug("Truncating statement %d", stmt_idx)
                 continue
             if whitelist is not None and stmt_idx not in whitelist:
@@ -310,7 +311,7 @@ class SimEngineVEX(SimEngine):
                     target_ao = SimActionObject(next_expr, deps=next_deps, state=state)
                     state.history.add_action(SimActionExit(state, target_ao, exit_type=SimActionExit.DEFAULT))
                 successors.add_successor(state, next_expr, state.scratch.guard, irsb.jumpkind,
-                                         exit_stmt_idx='default', exit_ins_addr=state.scratch.ins_addr)
+                                         exit_stmt_idx=DEFAULT_STATEMENT, exit_ins_addr=state.scratch.ins_addr)
 
             except KeyError:
                 # For some reason, the temporary variable that the successor relies on does not exist.
@@ -347,7 +348,7 @@ class SimEngineVEX(SimEngine):
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith('Ijk_Sys'):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
-                    ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx='default',
+                    ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx=DEFAULT_STATEMENT,
                     exit_ins_addr=state.scratch.ins_addr
                 )
 

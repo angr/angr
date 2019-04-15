@@ -2,10 +2,11 @@ import networkx
 
 import pyvex
 
+from .utils.constants import DEFAULT_STATEMENT
 from .slicer import SimSlicer
 
 
-class Blade(object):
+class Blade:
     """
     Blade is a light-weight program slicer that works with networkx DiGraph containing CFGNodes.
     It is meant to be used in angr for small or on-the-fly analyses.
@@ -38,7 +39,7 @@ class Blade(object):
         self._slice = networkx.DiGraph()
 
         self.project = project
-        self._cfg = cfg
+        self._cfg = cfg.model
         if self._cfg is None:
             # `cfg` is made optional only for compatibility concern. It will be made a positional parameter later.
             raise AngrBladeError('"cfg" must be specified.')
@@ -92,7 +93,7 @@ class Blade(object):
             block = self.project.factory.block(block_addr, backup_state=self._base_state).vex
 
             included_stmts = set([ stmt for _, stmt in self.slice.nodes() if _ == block_addr ])
-            default_exit_included = any(stmt == 'default' for _, stmt in self.slice.nodes() if _ == block_addr)
+            default_exit_included = any(stmt == DEFAULT_STATEMENT for _, stmt in self.slice.nodes() if _ == block_addr)
 
             for i, stmt in enumerate(block.statements):
                 if arch is not None:
@@ -247,7 +248,7 @@ class Blade(object):
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1
 
-            prev = (self._get_addr(self._dst_run), 'default')
+            prev = (self._get_addr(self._dst_run), DEFAULT_STATEMENT)
 
         slicer = SimSlicer(self.project.arch, stmts,
                            target_tmps=temps,
@@ -295,7 +296,7 @@ class Blade(object):
 
         stmts = self._get_irsb(run).statements
 
-        if exit_stmt_idx is None or exit_stmt_idx == 'default':
+        if exit_stmt_idx is None or exit_stmt_idx == DEFAULT_STATEMENT:
             # Initialize the temps set with whatever in the `next` attribute of this irsb
             next_expr = self._get_irsb(run).next
             if type(next_expr) is pyvex.IRExpr.RdTmp:
@@ -361,5 +362,6 @@ class Blade(object):
 
                 self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
 
-from .errors import AngrBladeError, AngrBladeSimProcError, SimTranslationError
-from .analyses.cfg.cfg_node import CFGNode
+
+from .errors import AngrBladeError, SimTranslationError
+from .knowledge_plugins.cfg import CFGNode

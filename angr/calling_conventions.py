@@ -907,6 +907,19 @@ class SimCC:
         return None
 
 
+    def get_arg_info(self, state, is_fp=None, sizes=None):
+        """
+        This is just a simple wrapper that collects the information from various locations
+        is_fp and sizes are passed to self.arg_locs and self.get_args
+        :param angr.SimState state: The state to evaluate and extract the values from
+        :return:    A list of tuples, where the nth tuple is (type, name, location, value) of the nth argument
+        """
+        argument_types = self.func_ty.args
+        argument_names = self.arg_names if self.arg_names else ['unknown'] * self.num_args
+        argument_locations = self.arg_locs(is_fp=is_fp, sizes=sizes)
+        argument_values = self.get_args(state, is_fp=is_fp, sizes=sizes)
+        return list(zip(argument_types, argument_names, argument_locations, argument_values))
+
 class SimLyingRegArg(SimRegArg):
     """
     A register that LIES about the types it holds
@@ -921,16 +934,16 @@ class SimLyingRegArg(SimRegArg):
         if endness and endness != state.arch.register_endness:
             val = val.reversed
         if size == 4:
-            val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_FLOAT)
+            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)
         return val
 
     def set_value(self, state, val, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         if size == 4:
             if state.arch.register_endness == 'IEnd_LE' and endness == 'IEnd_BE':
                 # pylint: disable=no-member
-                val = claripy.fpToFP(claripy.fp.RM_RNE, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
+                val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
             else:
-                val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_DOUBLE)
+                val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_DOUBLE)
         if endness and endness != state.arch.register_endness:
             val = val.reversed
         setattr(state.regs, self.reg_name, val)

@@ -4,7 +4,7 @@ import logging
 import networkx
 
 from .errors import AngrAnnotatedCFGError, AngrExitError
-from .analyses.cfg.cfg_node import CFGNode
+from .knowledge_plugins.cfg import CFGNode
 
 l = logging.getLogger(name=__name__)
 

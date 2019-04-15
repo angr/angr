@@ -224,6 +224,9 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         return self.state.solver.eval(data, **kwargs)
 
     def read(self, pos, size, **kwargs):
+        disable_actions = kwargs.pop('disable_actions', False)
+        inspect = kwargs.pop('inspect', True)
+
         # Step 1: figure out a reasonable concrete size to use for the memory load
         # since we don't want to concretize anything
         if self.state.solver.symbolic(size):
@@ -243,7 +246,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         if not self.has_end:
             # bump the storage size as we read
             self._size = self.state.solver.If(size + pos > self._size, size + pos, self._size)
-            return self.load(pos, passed_max_size), size, size + pos
+            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
 
         # Step 2.2: check harder for the possibility of EOFs
         # This is the size if we're reading to the end of the file
@@ -256,13 +259,14 @@ class SimFile(SimFileBase, SimSymbolicMemory):
             # final size = min(passed_size, max(distance_to_eof, 0))
             real_size = self.state.solver.If(size >= distance_to_eof, distance_to_eof, size)
 
-            return self.load(pos, passed_max_size), real_size, real_size + pos
+            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), \
+                   real_size, real_size + pos
         else:
             # it's not possible to EOF
             # we don't need to constrain or min/max the output size because there are already constraints asserting
             # that the total filesize is pretty big
             # note: this assumes that constraints cannot be removed
-            return self.load(pos, passed_max_size), size, size + pos
+            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
 
     def write(self, pos, data, size=None, events=True, **kwargs):
         if events:

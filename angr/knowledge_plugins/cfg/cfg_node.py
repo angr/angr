@@ -6,6 +6,8 @@ import archinfo
 
 from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
+from ...serializable import Serializable
+from ...protos import cfg_pb2
 
 _l = logging.getLogger(__name__)
 
@@ -32,13 +34,13 @@ class CFGNodeCreationFailure:
         return hash((self.short_reason, self.long_reason, self.traceback))
 
 
-class CFGNode:
+class CFGNode(Serializable):
     """
     This class stands for each single node in CFG.
     """
 
     __slots__ = ( 'addr', 'simprocedure_name', 'syscall_name', 'size', 'no_ret', 'is_syscall', 'function_address',
-                  'block_id', 'thumb', 'byte_string', '_name', 'instruction_addrs', 'irsb', 'has_return', '_cfg',
+                  'block_id', 'thumb', 'byte_string', '_name', 'instruction_addrs', 'irsb', 'has_return', '_cfg_model',
                   '_hash', 'soot_block'
                   )
 
@@ -54,29 +56,38 @@ class CFGNode:
                  soot_block=None,
                  instruction_addrs=None,
                  thumb=False,
-                 byte_string=None):
+                 byte_string=None,
+                 is_syscall=None,
+                 name=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
         """
 
         self.addr = addr
-        self.simprocedure_name = simprocedure_name
         self.size = size
+        self.simprocedure_name = simprocedure_name
         self.no_ret = no_ret
-        self._cfg = cfg
+        self._cfg_model = cfg
         self.function_address = function_address
-        self.block_id = block_id
+        self.block_id = block_id  # type: int or tuple
         self.thumb = thumb
-        self.byte_string = byte_string
+        self.byte_string = byte_string  # type: None or bytes
 
-        if isinstance(addr, SootAddressDescriptor):
+        self._name = None
+        if name is not None:
+            self._name = name
+        elif isinstance(addr, SootAddressDescriptor):
             self._name = repr(addr)
         else:
             self._name = simprocedure_name
         self.instruction_addrs = list(instruction_addrs) if instruction_addrs is not None else []
 
-        self.is_syscall = True if self.simprocedure_name and self._cfg.project.simos.is_syscall_addr(addr) else False
+        if is_syscall is not None:
+            self.is_syscall = is_syscall
+        else:
+            self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
+
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
@@ -95,15 +106,15 @@ class CFGNode:
     @property
     def name(self):
         if self._name is None:
-            sym = self._cfg.project.loader.find_symbol(self.addr)
+            sym = self._cfg_model.project.loader.find_symbol(self.addr)
             if sym is not None:
                 self._name = sym.name
-        if self._name is None and isinstance(self._cfg.project.arch, archinfo.ArchARM) and self.addr & 1:
-            sym = self._cfg.project.loader.find_symbol(self.addr - 1)
+        if self._name is None and isinstance(self._cfg_model.project.arch, archinfo.ArchARM) and self.addr & 1:
+            sym = self._cfg_model.project.loader.find_symbol(self.addr - 1)
             if sym is not None:
                 self._name = sym.name
         if self.function_address and self._name is None:
-            sym = self._cfg.project.loader.find_symbol(self.function_address)
+            sym = self._cfg_model.project.loader.find_symbol(self.function_address)
             if sym is not None:
                 self._name = sym.name
             if self._name is not None:
@@ -114,20 +125,20 @@ class CFGNode:
 
     @property
     def successors(self):
-        return self._cfg.get_successors(self)
+        return self._cfg_model.get_successors(self)
 
     @property
     def predecessors(self):
-        return self._cfg.get_predecessors(self)
+        return self._cfg_model.get_predecessors(self)
 
     @property
     def accessed_data_references(self):
-        if self._cfg.sort != 'fast':
+        if self._cfg_model.sort != 'fast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
 
         for instr_addr in self.instruction_addrs:
-            if instr_addr in self._cfg.insn_addr_to_memory_data:
-                yield self._cfg.insn_addr_to_memory_data[instr_addr]
+            if instr_addr in self._cfg_model.insn_addr_to_memory_data:
+                yield self._cfg_model.insn_addr_to_memory_data[instr_addr]
 
     @property
     def is_simprocedure(self):
@@ -138,10 +149,87 @@ class CFGNode:
         # A dummy stub for the future support of context sensitivity in CFGFast
         return None
 
+    #
+    # Serialization
+    #
+
+    @classmethod
+    def _get_cmsg(cls):
+        return cfg_pb2.CFGNode()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        obj.ea = self.addr
+        obj.size = self.size
+        if self.block_id is not None:
+            if type(self.block_id) is int:
+                obj.block_id.append(self.block_id)  # pylint:disable=no-member
+            else:  # should be a tuple
+                obj.block_id.extend(self.block_id)  # pylint:disable=no-member
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
+
+        if len(cmsg.block_id) == 0:
+            block_id = None
+        elif len(cmsg.block_id) == 1:
+            block_id = cmsg.block_id[0]
+        else:
+            block_id = tuple(cmsg.block_id)
+
+        obj = cls(cmsg.ea,
+                  cmsg.size,
+                  cfg=cfg,
+                  block_id=block_id,
+                  )
+        return obj
+
+    #
+    # Pickling
+    #
+
+    def __getstate__(self):
+        s = {
+            'addr': self.addr,
+            'size': self.size,
+            'simprocedure_name': self.simprocedure_name,
+            'no_ret': self.no_ret,
+            'function_address': self.function_address,
+            'block_id': self.block_id,
+            'thumb': self.thumb,
+            'byte_string': self.byte_string,
+            '_name': self._name,
+            'instruction_addrs': self.instruction_addrs,
+            'is_syscall': self.is_syscall,
+            'has_return': self.has_return,
+        }
+        return s
+
+    def __setstate__(self, state):
+        self.__init__(state['addr'],
+                      state['size'],
+                      None,
+                      simprocedure_name=state['simprocedure_name'],
+                      no_ret=state['no_ret'],
+                      function_address=state['function_address'],
+                      block_id=state['block_id'],
+                      thumb=state['thumb'],
+                      byte_string=state['byte_string'],
+                      name=state['_name'],
+                      instruction_addrs=state['instruction_addrs'],
+                      is_syscall=state['is_syscall'],
+                      )
+        self.has_return = state['has_return']
+
+    #
+    # Methods
+    #
+
     def copy(self):
         c = CFGNode(self.addr,
                     self.size,
-                    self._cfg,
+                    self._cfg_model,
                     simprocedure_name=self.simprocedure_name,
                     no_ret=self.no_ret,
                     function_address=self.function_address,
@@ -150,6 +238,8 @@ class CFGNode:
                     instruction_addrs=self.instruction_addrs,
                     thumb=self.thumb,
                     byte_string=self.byte_string,
+                    is_syscall=self.is_syscall,
+                    name=self._name
                     )
         return c
 
@@ -205,8 +295,8 @@ class CFGNode:
     def block(self):
         if self.is_simprocedure or self.is_syscall:
             return None
-        project = self._cfg.project  # everything in angr is connected with everything...
-        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg._iropt_level)
+        project = self._cfg_model.project  # everything in angr is connected with everything...
+        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg_model._iropt_level)
         return b
 
 
@@ -215,7 +305,7 @@ class CFGENode(CFGNode):
     The CFGNode that is used in CFGEmulated.
     """
 
-    __slots__ = [ 'input_state', 'looping_times', 'callstack', 'depth', 'final_states', 'creation_failure_info',
+    __slots__ = [ 'input_state', 'looping_times', 'depth', 'final_states', 'creation_failure_info',
                   'return_target', 'syscall', '_callstack_key',
                   ]
 
@@ -231,13 +321,13 @@ class CFGENode(CFGNode):
                  instruction_addrs=None,
                  thumb=False,
                  byte_string=None,
-
-                 callstack=None,
+                 is_syscall=None,
+                 name=None,
+                 # CFGENode specific
                  input_state=None,
                  final_states=None,
                  syscall_name=None,
                  looping_times=0,
-                 syscall=None,
                  depth=None,
                  callstack_key=None,
                  creation_failure_info=None,
@@ -252,21 +342,20 @@ class CFGENode(CFGNode):
                                        instruction_addrs=instruction_addrs,
                                        thumb=thumb,
                                        byte_string=byte_string,
+                                       is_syscall=is_syscall,
+                                       name=name,
                                        )
 
-        self.callstack = callstack
         self.input_state = input_state
         self.syscall_name = syscall_name
         self.looping_times = looping_times
-        self.syscall = syscall
         self.depth = depth
 
         self.creation_failure_info = None
         if creation_failure_info is not None:
             self.creation_failure_info = CFGNodeCreationFailure(creation_failure_info)
 
-        self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
-            if self.callstack is not None else callstack_key
+        self._callstack_key = callstack_key
 
         self.final_states = [ ] if final_states is None else final_states
 
@@ -320,11 +409,45 @@ class CFGENode(CFGNode):
     def __hash__(self):
         return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info))
 
+    #
+    # Pickeling
+    #
+
+    def __getstate__(self):
+        s = super().__getstate__()
+        s['syscall_name'] = self.syscall_name
+        s['looping_times'] = self.looping_times
+        s['depth'] = self.depth
+        s['creation_failure_info'] = self.creation_failure_info
+        s['_callstack_key'] = self.callstack_key
+        s['return_target'] = self.return_target
+        return s
+
+    def __setstate__(self, state):
+        self.__init__(state['addr'],
+                      state['size'],
+                      None,
+                      simprocedure_name=state['simprocedure_name'],
+                      no_ret=state['no_ret'],
+                      function_address=state['function_address'],
+                      block_id=state['block_id'],
+                      instruction_addrs=state['instruction_addrs'],
+                      thumb=state['thumb'],
+                      byte_string=state['byte_string'],
+                      is_syscall=state['is_syscall'],
+                      name=state['_name'],
+                      syscall_name=state['syscall_name'],
+                      looping_times=state['looping_times'],
+                      depth=state['depth'],
+                      callstack_key=state['_callstack_key'],
+                      creation_failure_info=state['creation_failure_info']
+                      )
+
     def copy(self):
         return CFGENode(
             self.addr,
             self.size,
-            self._cfg,
+            self._cfg_model,
             simprocedure_name=self.simprocedure_name,
             no_ret=self.no_ret,
             function_address=self.function_address,
@@ -333,11 +456,10 @@ class CFGENode(CFGNode):
             instruction_addrs=self.instruction_addrs,
             thumb=self.thumb,
             byte_string=self.byte_string,
-            callstack=self.callstack,
             input_state=self.input_state,
             syscall_name=self.syscall_name,
             looping_times=self.looping_times,
-            syscall=self.syscall,
+            is_syscall=self.is_syscall,
             depth=self.depth,
             final_states=self.final_states[::],
             callstack_key=self.callstack_key,

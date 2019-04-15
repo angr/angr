@@ -25,9 +25,22 @@ class OptimizationPass(Analysis):
             self._analyze(cache=cache)
 
     def _check(self):
+        """
+        Check if this optimization applies to this function.
+
+        :returns: a tuple of (does_apply, cache) where cache is a way to pass
+                  information to _analyze so it does not have to be recalculated
+        """
         raise NotImplementedError()
 
     def _analyze(self, cache=None):
+        """
+        Run the analysis.
+
+        :param cache: information passed from _check so it does not have to be
+                      recalculated
+        :returns: None
+        """
         raise NotImplementedError()
 
     #

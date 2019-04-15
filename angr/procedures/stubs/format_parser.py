@@ -10,7 +10,7 @@ from ...storage.file import SimPackets
 l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
 
-class FormatString(object):
+class FormatString:
     """
     Describes a format string.
     """
@@ -44,9 +44,10 @@ class FormatString(object):
         #TODO: we probably could do something more fine-grained here.
 
         # throw away strings which are just the NULL terminator
-        if self.parser.state.solver.max_int(strlen) == 0:
+        max_str_size = self.parser.state.solver.max_int(strlen)
+        if max_str_size == 0:
             return None
-        return self.parser.state.memory.load(str_addr, strlen)
+        return self.parser.state.memory.load(str_addr, max_str_size)
 
     def replace(self, startpos, args):
         """
@@ -292,7 +293,10 @@ class FormatString(object):
     def __repr__(self):
         outstr = ""
         for comp in self.components:
-            outstr += (str(comp))
+            if isinstance(comp, bytes):
+                outstr += comp.decode("ascii")
+            else:
+                outstr += (str(comp))
 
         return outstr
 

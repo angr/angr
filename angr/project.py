@@ -202,7 +202,7 @@ class Project:
         self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
 
         # Step 4.3: ...etc
-        self.kb = KnowledgeBase(self, self.loader.main_object)
+        self.kb = KnowledgeBase(self)
 
         # Step 5: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
@@ -370,6 +370,12 @@ class Project:
             f in self._ignore_functions or \
             (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
 
+
+    @staticmethod
+    def _addr_to_str(addr):
+        return "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
+
+
     #
     # Public methods
     # They're all related to hooking!
@@ -410,17 +416,16 @@ class Project:
 
         if kwargs is None: kwargs = {}
 
-        l.debug('hooking %#x with %s', addr, hook)
+        l.debug('hooking %s with %s', self._addr_to_str(addr), str(hook))
 
         if self.is_hooked(addr):
-            addr_str = "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
             if replace is True:
                 pass
             elif replace is False:
-                l.warning("Address is already hooked, during hook(%s, %s). Not re-hooking.", addr_str, hook)
+                l.warning("Address is already hooked, during hook(%s, %s). Not re-hooking.", self._addr_to_str(addr), hook)
                 return
             else:
-                l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", addr_str, hook)
+                l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", self._addr_to_str(addr), hook)
 
         if isinstance(hook, type):
             raise TypeError("Please instanciate your SimProcedure before hooking with it")
@@ -449,7 +454,7 @@ class Project:
         """
 
         if not self.is_hooked(addr):
-            l.warning("Address %#x is not hooked", addr)
+            l.warning("Address %s is not hooked", self._addr_to_str(addr))
             return None
 
         return self._sim_procedures[addr]
@@ -461,7 +466,7 @@ class Project:
         :param addr:    The address of the hook.
         """
         if not self.is_hooked(addr):
-            l.warning("Address %#x not hooked", addr)
+            l.warning("Address %s not hooked", self._addr_to_str(addr))
             return
 
         del self._sim_procedures[addr]

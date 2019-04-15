@@ -17,7 +17,7 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),
 def run_reaching_definition_analysis(project, func, groundtruth):  # pylint:disable=unused-argument
 
     # Create a temporary KnowledgeBase instance
-    tmp_kb = angr.KnowledgeBase(project, project.loader.main_object)
+    tmp_kb = angr.KnowledgeBase(project)
 
     _ = project.analyses.ReachingDefinitions(func, kb=tmp_kb)
 

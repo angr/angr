@@ -8,9 +8,11 @@ from . import Analysis
 from .code_location import CodeLocation
 from ..annocfg import AnnotatedCFG
 from ..errors import AngrBackwardSlicingError
-from ..state_plugins.sim_action import SimActionExit
+from ..utils.constants import DEFAULT_STATEMENT
+
 
 l = logging.getLogger(name=__name__)
+
 
 class BackwardSlice(Analysis):
     """
@@ -455,7 +457,7 @@ class BackwardSlice(Analysis):
 
         # And of course, it has a default exit
         # Don't forget about it.
-        exit_stmt_ids['default'] = None
+        exit_stmt_ids[DEFAULT_STATEMENT] = None
 
         # Find all paths from src_block to target_block
         # FIXME: This is some crappy code written in a hurry. Replace the all_simple_paths() later.
@@ -516,7 +518,7 @@ class BackwardSlice(Analysis):
                                              self._normalize_stmt_idx(predecessor.addr, stmt_idx)
                                              )
                         # If it's the default statement, we should also pick other conditional exit statements
-                        if stmt_idx == 'default':
+                        if stmt_idx == DEFAULT_STATEMENT:
                             conditional_exits = self._conditional_exits(predecessor.addr)
                             for conditional_exit_stmt_id in conditional_exits:
                                 cl = CodeLocation(predecessor.addr,
@@ -549,9 +551,10 @@ class BackwardSlice(Analysis):
                     previous_node = None
                     for path in all_simple_paths:
                         for node in path:
-                            self._pick_statement(node.addr, self._normalize_stmt_idx(node.addr, 'default'))
+                            self._pick_statement(node.addr,
+                                                 self._normalize_stmt_idx(node.addr, DEFAULT_STATEMENT))
                             if previous_node is not None:
-                                self._pick_exit(previous_node.addr, 'default', node.addr)
+                                self._pick_exit(previous_node.addr, DEFAULT_STATEMENT, node.addr)
 
         return new_taints
 
@@ -574,7 +577,7 @@ class BackwardSlice(Analysis):
                         # Oh we found one!
                         # The default exit should be taken no matter where it leads to
                         # Add it to the new set
-                        tpl = ('default', None)
+                        tpl = (DEFAULT_STATEMENT, None)
                         if tpl not in new_exit_statements_per_run[exit_target]:
                             new_exit_statements_per_run[exit_target].append(tpl)
 
@@ -654,7 +657,7 @@ class BackwardSlice(Analysis):
         if type(stmt_idx) is int:
             return stmt_idx
 
-        if stmt_idx == 'default':
+        if stmt_idx == DEFAULT_STATEMENT:
             vex_block = self.project.factory.block(block_addr).vex
             return len(vex_block.statements)
 

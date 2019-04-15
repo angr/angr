@@ -3,12 +3,15 @@ l = logging.getLogger(name=__name__)
 
 import pyvex
 from archinfo import ArchARM
+
+from .protos import primitives_pb2 as pb2
+from .serializable import Serializable
 from .engines import SimEngineVEX
 
 DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
 
 
-class Block(object):
+class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
@@ -221,6 +224,26 @@ class Block(object):
 
         return self._instruction_addrs
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.Block()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        obj.ea = self.addr
+        obj.size = self.size
+        obj.bytes = self.bytes
+
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg):
+        obj = cls(cmsg.ea,
+                  size=cmsg.size,
+                  byte_string=cmsg.bytes,
+                  )
+        return obj
+
 
 class SootBlock:
     def __init__(self, addr, project=None, arch=None):
@@ -254,7 +277,7 @@ class SootBlock:
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
 
 
-class CapstoneBlock(object):
+class CapstoneBlock:
     """
     Deep copy of the capstone blocks, which have serious issues with having extended lifespans
     outside of capstone itself
@@ -277,7 +300,7 @@ class CapstoneBlock(object):
         return '<CapstoneBlock for %#x>' % self.addr
 
 
-class CapstoneInsn(object):
+class CapstoneInsn:
     def __init__(self, capstone_insn):
         self.insn = capstone_insn
 

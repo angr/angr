@@ -1,0 +1,114 @@
+
+syntax = "proto3";
+
+package angr.protos;
+
+// Derived from McSema's CFG.proto
+message CodeReference {
+    enum TargetType {
+        CodeTarget = 0;
+        DataTarget = 1;
+    }
+
+    enum OperandType {
+        ImmediateOperand = 0;
+        MemoryOperand = 1;
+        MemoryDisplacementOperand = 2;
+        ControlFlowOperand = 3;
+        OffsetTable = 4;
+    }
+
+    enum Location {
+        Internal = 0;
+        External = 1;
+    }
+
+    TargetType  target_type = 1;
+    OperandType operand_type = 2;
+    Location    location = 3;
+    int64       ea = 4;
+    int64       mask = 5; // For AArch64
+    string      name = 6;
+    int64       data_ea = 7; // Address of the referenced data item/block
+    int64       block_ea = 8; // Address of the basic block
+    int32       stmt_idx = 9; // Index of the statement where this reference is.
+    int32       operand_idx = 10; // The index of the operand in the instruction. -1 if unknown
+}
+
+// Derived from McSema's CFG.proto
+message Instruction {
+    int64           ea = 1;
+    bytes           bytes = 2;
+    CodeReference   xrefs = 3;
+    bool            local_noreturn = 4;
+}
+
+// Derived from McSema's CFG.proto
+message Block {
+    int64   ea = 1; // Effective address of the block
+    Instruction instructions = 2;   // Instructions in this block
+    int32   size = 4; // Size of the block
+    bytes   bytes = 5; // Bytes of this block
+}
+
+// Derived from McSema's CFG.proto
+message ExternalFunction {
+    enum CallingConvention {
+        CallerCleanup = 0;
+        CalleeCleanup = 1;
+        FastCall = 2;
+    }
+
+    string              name = 1;
+    int64               ea = 2;
+    CallingConvention   cc = 3;
+    bool                has_return = 4;
+    bool                no_return = 5;
+    int32               argument_count = 6;
+    bool                is_weak = 7;
+    string              prototype = 8;
+}
+
+// Derived from McSema's CFG.proto
+message ExternalVariable {
+    string  name = 1;
+    int64   ea = 2;
+    int32   size = 3;
+    bool    is_weak = 4;
+    bool    is_thread_local = 5;
+}
+
+message Edge {
+
+    enum JumpKind {
+        UnknownJumpkind = 0; // Will be translated to None in Python
+        Boring = 1;
+        Call = 2;
+        Return = 3;
+        FakeReturn = 4; // More commonly referred to as fall-through edges
+        Syscall = 5;
+        // The following jumpkinds are mostly specific to VEX IR
+        Sys_syscall = 6;
+        Sys_int128 = 7;
+        NoDecode = 8;
+        EmWarn = 9;
+        SigFPE_IntDiv = 10;
+        SigTRAP = 11;
+        SigSEGV = 12;
+        MapFail = 13;
+        NoRedir = 14;
+        ClientReq = 15;
+    }
+
+    int64               src_ea = 1; // Address of the source block
+    int64               dst_ea = 2; // Address of the destination block
+    JumpKind            jumpkind = 3; // Jumpkind of the edge
+    bool                is_outside = 4; // Is this an edge going outside of the current function?
+    int64               ins_addr = 5; // Address of the source instruction
+    int64               stmt_idx = 6; // ID of the source statement
+    map<string, bytes>  data = 7; // A dict of data on this edge. For now, values are pickled from Python objects.
+}
+
+message BlockGraph {
+    repeated Edge   edges = 1; // All edges inside this graph
+}

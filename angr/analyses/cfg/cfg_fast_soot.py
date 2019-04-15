@@ -6,18 +6,19 @@ from sortedcontainers import  SortedDict
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
-from .. import register_analysis
+from ...utils.constants import DEFAULT_STATEMENT
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
 from ...codenode import HookNode, SootBlockNode
+from ...knowledge_plugins.cfg import CFGNode
+from .. import register_analysis
 from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
-from .cfg_node import CFGNode
 
 l = logging.getLogger(name=__name__)
 
 try:
     from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
     from pysoot.sootir.soot_expr import SootInterfaceInvokeExpr, SootSpecialInvokeExpr, SootStaticInvokeExpr, \
-        SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr
+        SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr  # pylint:disable=unused-import
     PYSOOT_INSTALLED = True
 except ImportError:
     PYSOOT_INSTALLED = False
@@ -36,6 +37,9 @@ class CFGFastSoot(CFGFast):
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
         super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
 
+        self._changed_functions = None
+        self._total_methods = None
+
     def _pre_analysis(self):
 
         # Call _initialize_cfg() before self.functions is used.
@@ -46,9 +50,6 @@ class CFGFastSoot(CFGFast):
         self._traced_addresses = set()
         self._changed_functions = set()
         self._updated_nonreturning_functions = set()
-
-        self._nodes = {}
-        self._nodes_by_addr = defaultdict(list)
 
         self._function_returns = defaultdict(set)
 
@@ -118,15 +119,15 @@ class CFGFastSoot(CFGFast):
 
         try:
 
-            if addr in self._nodes:
-                cfg_node = self._nodes[addr]
+            cfg_node = self.model.get_node(addr)
+            if cfg_node is not None:
                 soot_block = cfg_node.soot_block
             else:
                 soot_block = self.project.factory.block(addr).soot
 
                 soot_block_size = self._soot_block_size(soot_block, addr.stmt_idx)
 
-                cfg_node = CFGNode(addr, soot_block_size, self,
+                cfg_node = CFGNode(addr, soot_block_size, self.model,
                                    function_address=current_function_addr, block_id=addr,
                                    soot_block=soot_block
                                    )
@@ -143,7 +144,7 @@ class CFGFastSoot(CFGFast):
 
         return self._soot_get_successors(addr, function_addr, block, cfg_node)
 
-    def _soot_get_successors(self, addr, function_id, block, cfg_node):
+    def _soot_get_successors(self, addr, function_id, block, cfg_node):  # pylint:disable=unused-argument
 
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
@@ -205,7 +206,7 @@ class CFGFastSoot(CFGFast):
 
 
         if has_default_exit:
-            successors.append(('default', addr,
+            successors.append((DEFAULT_STATEMENT, addr,
                                SootAddressDescriptor(function_id, method.block_by_label[next_stmt_id].idx, next_stmt_id),
                                'Ijk_Boring'
                                )
@@ -236,15 +237,12 @@ class CFGFastSoot(CFGFast):
 
         return successors
 
-    def _loc_to_funcloc(self, location):
+    @staticmethod
+    def _loc_to_funcloc(location):
 
         if isinstance(location, SootAddressDescriptor):
             return location.method
         return location
-
-    def _get_plt_stubs(self, functions):
-
-        return set()
 
     def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
 
@@ -281,7 +279,8 @@ class CFGFastSoot(CFGFast):
 
         return SootBlockNode(addr, stmts_count, stmts)
 
-    def _soot_block_size(self, soot_block, start_stmt_idx):
+    @staticmethod
+    def _soot_block_size(soot_block, start_stmt_idx):
 
         if soot_block is None:
             return 0
@@ -369,7 +368,7 @@ class CFGFastSoot(CFGFast):
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx):
+    def _create_jobs(self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx):  # pylint:disable=arguments-differ
 
         """
         Given a node and details of a successor, makes a list of CFGJobs
@@ -548,7 +547,7 @@ class CFGFastSoot(CFGFast):
             del self.kb.functions[addr]
 
         # Update CFGNode.function_address
-        for node in self._nodes.values():
+        for node in self.model.nodes():
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 

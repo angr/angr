@@ -2161,20 +2161,22 @@ class Reassembler(Analysis):
         # there is a single function referencing them
         cgcpl_memory_data = self.cfg.memory_data.get(cgc_package_list.addr, None)
         cgcea_memory_data = self.cfg.memory_data.get(cgc_extended_application.addr, None)
+        refs = self.cfg.model.references
 
         if cgcpl_memory_data is None or cgcea_memory_data is None:
             return False
 
-        if len(cgcpl_memory_data.refs) != 1:
+        if len(refs.data_addr_to_ref[cgcpl_memory_data.addr]) != 1:
             return False
-        if len(cgcea_memory_data.refs) != 1:
+        if len(refs.data_addr_to_ref[cgcea_memory_data.addr]) != 1:
             return False
 
         # check if the irsb addresses are the same
-        if next(iter(cgcpl_memory_data.refs))[0] != next(iter(cgcea_memory_data.refs))[0]:
+        if next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).block_addr != \
+                next(iter(refs.data_addr_to_ref[cgcea_memory_data.addr])).block_addr:
             return False
 
-        insn_addr = next(iter(cgcpl_memory_data.refs))[2]
+        insn_addr = next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).insn_addr
         # get the basic block
         cfg_node = self.cfg.get_any_node(insn_addr, anyaddr=True)
         if not cfg_node:
@@ -2757,7 +2759,7 @@ class Reassembler(Analysis):
             if candidate_node is None:
                 continue
             base_graph.add_node(candidate_node)
-            tmp_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+            tmp_kb = KnowledgeBase(self.project)
             cfg = self.project.analyses.CFGEmulated(kb=tmp_kb,
                                                     starts=(candidate.irsb_addr,),
                                                     keep_state=True,

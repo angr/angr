@@ -11,6 +11,7 @@ from .... import sim_options as o
 from .... import BP, BP_BEFORE
 from ....exploration_techniques.slicecutor import Slicecutor
 from ....exploration_techniques.explorer import Explorer
+from ....utils.constants import DEFAULT_STATEMENT
 from .resolver import IndirectJumpResolver
 
 
@@ -94,7 +95,7 @@ class JumpTableResolver(IndirectJumpResolver):
             ignore_sp=False, ignore_bp=False,
             max_level=3, base_state=self.base_state)
 
-        stmt_loc = (addr, 'default')
+        stmt_loc = (addr, DEFAULT_STATEMENT)
         if stmt_loc not in b.slice:
             return False, None
 
@@ -637,7 +638,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     print(s)
 
             # the default exit
-            default_exit_taken = 'default' in stmt_ids
+            default_exit_taken = DEFAULT_STATEMENT in stmt_ids
             s = "%s %x:default | PUT(%s) = %s; %s" % ("+" if default_exit_taken else " ", addr, irsb.offsIP, irsb.next,
                                                       irsb.jumpkind
                                                       )

@@ -25,7 +25,7 @@ def internaltest_cfg(p):
 
     state.seek(0)
     cfg2 = pickle.load(state)
-    nose.tools.assert_equal(set(cfg.nodes()), set(cfg2.nodes()))
+    nose.tools.assert_equal(set(cfg.model.nodes()), set(cfg2.model.nodes()))
     nose.tools.assert_equal(cfg.unresolvables, cfg2.unresolvables)
     nose.tools.assert_set_equal(set(cfg.deadends), set(cfg2.deadends))
 
@@ -45,7 +45,7 @@ def internaltest_cfgfast(p):
 
     state.seek(0)
     cfg2 = pickle.load(state)
-    nose.tools.assert_equal(set(cfg.nodes()), set(cfg2.nodes()))
+    nose.tools.assert_equal(set(cfg.model.nodes()), set(cfg2.model.nodes()))
 
 def internaltest_project(fpath):
     tpath = tempfile.mktemp()
@@ -63,6 +63,7 @@ def internaltest_project(fpath):
     simgr.run(n=10)
     assert len(simgr.errored) == 0
 
+
 def test_analyses():
     p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
     cfg = p.analyses.CFG()
@@ -70,9 +71,9 @@ def test_analyses():
     vrf = p.analyses.VariableRecoveryFast(p.kb.functions['main'])
 
     assert len(p.kb.functions) > 0
-    assert len(pickle.loads(pickle.dumps(p.kb)).functions) > 0
+    assert len(pickle.loads(pickle.dumps(p.kb, -1)).functions) > 0
 
-    state = pickle.dumps((p,cfg,cfb,vrf))
+    state = pickle.dumps((p,cfg,cfb,vrf), -1)
     del p
     del cfg
     del cfb
@@ -86,9 +87,8 @@ def test_analyses():
     assert cfg.kb is not None
     assert len(p.kb.functions) > 0
 
-def test_serialization():
-    test_analyses()
 
+def test_serialization():
     for d in internaltest_arch:
         for f in internaltest_files:
             fpath = os.path.join(internaltest_location, d,f)
@@ -102,4 +102,5 @@ def test_serialization():
     internaltest_vfg(p, cfg)
 
 if __name__ == '__main__':
+    test_analyses()
     test_serialization()

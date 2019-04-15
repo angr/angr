@@ -1,0 +1,39 @@
+
+syntax = "proto3";
+
+import "protos/primitives.proto";
+
+package angr.protos;
+
+message CFGNode {
+    int64           ea = 1; // Address of the node
+    int32           size = 2; // Size of the node
+    repeated int64  block_id = 3; // A unique identifier of the node
+    bool            returning = 4; // If it is a call node, does it return?
+}
+
+message CFG {
+    string                  ident = 1; // The identifier of this CFG
+    repeated CFGNode        nodes = 2; // All nodes in this CFG
+    repeated Edge           edges = 3; // All edges in this CFG
+    repeated MemoryData     memory_data = 4;
+    repeated CodeReference  refs = 5;
+}
+
+message MemoryData {
+    enum MemoryDataType {
+        UnknownDataType = 0;
+        Unspecified = 1;
+        Integer = 2;
+        PointerArray = 3;
+        String = 4;
+        UnicodeString = 5;
+        SegmentBoundary = 6;
+        CodeReference = 7;
+        GOTPLTEntry = 8;
+    }
+
+    int64           ea = 1; // Address of the data
+    int32           size = 2; // Size of the data
+    MemoryDataType  type = 3; // Type of the data (reference)
+}
