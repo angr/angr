@@ -130,9 +130,15 @@ def run_all():
                 if hasattr(all_functions[f], 'teardown'):
                     all_functions[f].teardown()
 
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
         run_all()
+
+'''
+setup_x86()
+test_concrete_engine_linux_x86_unicorn_simprocedures()
+'''

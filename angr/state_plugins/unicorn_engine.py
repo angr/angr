@@ -17,6 +17,7 @@ from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
 
 l = logging.getLogger(name=__name__)
+l.setLevel(logging.DEBUG)
 
 try:
     import unicorn
