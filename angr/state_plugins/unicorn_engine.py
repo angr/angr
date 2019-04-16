@@ -54,6 +54,7 @@ class STOP:  # stop_t
     STOP_SEGFAULT       = 9
     STOP_ZERO_DIV       = 10
     STOP_NODECODE       = 11
+    STOP_HLT            = 12
 
     @staticmethod
     def name_stop(num):
@@ -952,7 +953,11 @@ class Unicorn(SimStatePlugin):
             self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
 
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
-            raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
+            # unicorn just does quits without warning if it sees hlt. detect that.
+            if (self.state.memory.load(self.state.ip, 1) == 0xf4).is_true():
+                self.stop_reason = STOP.STOP_HLT
+            else:
+                raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
 
         addr = self.state.solver.eval(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))

@@ -47,6 +47,7 @@ typedef enum stop {
 	STOP_SEGFAULT,
 	STOP_ZERO_DIV,
 	STOP_NODECODE,
+	STOP_HLT,
 } stop_t;
 
 typedef struct block_entry {
