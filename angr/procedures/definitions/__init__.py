@@ -170,13 +170,13 @@ class SimLibrary(object):
         if proc.cc is None and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
             # Use inspect to extract the parameters from the run python function
-            proc.cc.arg_names = inspect.getfullargspec(proc.run).args[1:]
+            proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
         if proc.display_name in self.prototypes:
             if proc.cc is None:
                 proc.cc = self.fallback_cc[arch.name](arch)
             proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
             # Use inspect to extract the parameters from the run python function
-            proc.cc.arg_names = inspect.getfullargspec(proc.run).args[1:]
+            proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
             if not proc.ARGS_MISMATCH:
                 proc.cc.num_args = len(proc.cc.func_ty.args)
                 proc.num_args = len(proc.cc.func_ty.args)

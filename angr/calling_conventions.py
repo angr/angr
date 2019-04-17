@@ -915,7 +915,7 @@ class SimCC:
         :return:    A list of tuples, where the nth tuple is (type, name, location, value) of the nth argument
         """
         argument_types = self.func_ty.args
-        argument_names = self.arg_names if self.arg_names else ['unknown'] * self.num_args
+        argument_names = self.func_ty.arg_names if self.func_ty.arg_names else ['unknown'] * len(self.func_ty.args)
         argument_locations = self.arg_locs(is_fp=is_fp, sizes=sizes)
         argument_values = self.get_args(state, is_fp=is_fp, sizes=sizes)
         return list(zip(argument_types, argument_names, argument_locations, argument_values))
