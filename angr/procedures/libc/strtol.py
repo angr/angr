@@ -41,6 +41,8 @@ class strtol(angr.SimProcedure):
         possible_num_bytes = []
 
         for prefix in prefixes:
+            if read_length and read_length < len(prefix):
+                continue
             condition, value, num_bytes = strtol._load_num_with_prefix(prefix, s, region, state, base, signed, read_length)
             conditions.append(condition)
             cases.append((condition, value))
