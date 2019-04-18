@@ -12,7 +12,7 @@ from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
@@ -24,13 +24,13 @@ class Concrete(SimStatePlugin):
 
         self.segment_registers_initialized = segment_registers_initialized
         self.segment_registers_callback_initialized = segment_registers_callback_initialized
+        self.fs_register_bp = fs_register_bp
 
         if not whitelist:
             self.whitelist = []
         else:
             self.whitelist = whitelist
 
-        self.fs_register_bp = fs_register_bp
         self.synchronize_cle = synchronize_cle  # synchronize_cle
 
         if not already_sync_objects_addresses:
@@ -99,7 +99,7 @@ class Concrete(SimStatePlugin):
         # registers that we don't want to concretize.
         l.debug("Synchronizing general purpose registers")
 
-        to_sync_register = list(filter(lambda x: x.concrete, self.state.arch.register_list))
+        to_sync_register = list(filter(lambda x: not x.artificial, self.state.arch.register_list))
 
         for register in to_sync_register:
 
@@ -107,52 +107,18 @@ class Concrete(SimStatePlugin):
             # sometimes this can be helpful ( i.e. ymmm0 e xmm0 )
             if register.subregisters:
                 subregisters_names = map(lambda x: x[0], register.subregisters)
-                self._sync_registers(subregisters_names, target)
+                self._sync_registers(subregisters_names)
 
             # finally let's synchronize the whole register
-            self._sync_registers([register.name], target)
+            self._sync_registers([register.name])
 
         if self.synchronize_cle:
-            self._sync_cle(target)
+            self._sync_cle()
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
         if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
-            l.debug("Restoring SimProc using concrete memory")
-
-            for reloc in self.state.project.loader.main_object.relocs:
-                if reloc.symbol:  # consider only reloc with a symbol
-                    l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
-                    # l.debug("reloc.rebased_addr: %#x " % reloc.rebased_addr)
-                    func_address = target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
-                    func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
-                    l.debug("Function address hook is now: %#x ", func_address)
-                    self.state.project.rehook_symbol(func_address, reloc.symbol.name)
-
-                    if self.synchronize_cle and not self.state.project.loader.main_object.contains_addr(func_address):
-                        old_func_symbol = self.state.project.loader.find_symbol(reloc.symbol.name)
-
-                        if old_func_symbol:  # if we actually have a symbol
-                            owner_obj = old_func_symbol.owner
-
-                            # calculating the new real address
-                            new_relative_address = func_address - owner_obj.mapped_base
-
-                            new_func_symbol = cle.backends.Symbol(owner_obj, old_func_symbol.name, new_relative_address,
-                                                                  old_func_symbol.size, old_func_symbol.type)
-
-                            for new_reloc in self.state.project.loader.find_relevant_relocations(old_func_symbol.name):
-                                if new_reloc.symbol.name == new_func_symbol.name and \
-                                        new_reloc.value != new_func_symbol.rebased_addr:
-
-                                    l.debug("Updating CLE symbols metadata, moving %s from 0x%x to 0x%x",
-                                            new_reloc.symbol.name,
-                                            new_reloc.value,
-                                            new_func_symbol.rebased_addr)
-
-                                    new_reloc.resolve(new_func_symbol)
-                                    new_reloc.relocate([])
-
+            self._sync_simproc()
         else:
             l.debug("SimProc not restored, you are going to simulate also the code of external libraries!")
 
@@ -164,7 +130,7 @@ class Concrete(SimStatePlugin):
 
         # now we have to register a SimInspect in order to synchronize the segments register
         # on demand when the symbolic execution accesses it
-        if not self.segment_registers_callback_initialized:
+        if self.state.project.arch.name is 'X86' and not self.segment_registers_callback_initialized:
             segment_register_name = self.state.project.simos.get_segment_register_name()
             if segment_register_name:
                 self.fs_register_bp = self.state.inspect.b('reg_read',
@@ -177,10 +143,10 @@ class Concrete(SimStatePlugin):
             else:
                 l.error("Can't set breakpoint to synchronize segments registers, horrible things will happen.")
 
-    def _sync_registers(self, register_names, target):
+    def _sync_registers(self, register_names):
         for register_name in register_names:
             try:
-                reg_value = target.read_register(register_name)
+                reg_value = self.state.project.concrete_target.read_register(register_name)
                 setattr(self.state.regs, register_name, reg_value)
                 l.debug("Register: %s value: %x ", register_name, self.state.solver.eval(getattr(self.state.regs,
                                                                                                  register_name),
@@ -189,7 +155,7 @@ class Concrete(SimStatePlugin):
                 l.debug("Can't set register %s reason: %s, if this register is not used "
                         "this message can be ignored", register_name, exc)
 
-    def _sync_cle(self, target):
+    def _sync_cle(self):
 
         def _check_mapping_name(cle_mapping_name, concrete_mapping_name):
             if cle_mapping_name == concrete_mapping_name:
@@ -202,7 +168,7 @@ class Concrete(SimStatePlugin):
 
         l.debug("Synchronizing CLE backend with the concrete process memory mapping")
         try:
-            vmmap = target.get_mappings()
+            vmmap = self.state.project.concrete_target.get_mappings()
         except NotImplementedError:
             l.critical("Can't synchronize CLE backend using the ConcreteTarget provided.")
             self.synchronize_cle = False  # so, deactivate this feature
@@ -223,7 +189,7 @@ class Concrete(SimStatePlugin):
                     # let's make sure that we have the header at this address to confirm that it is the
                     # base address.
                     # That's not a perfect solution, but should work most of the time.
-                    result = target.read_memory(mmap.start_address, 0x10)
+                    result = self.state.project.concrete_target.read_memory(mmap.start_address, 0x10)
 
                     if self.state.project.loader.main_object.check_magic_compatibility(io.BytesIO(result)):
                         if mapped_object.mapped_base == mmap.start_address:
@@ -248,6 +214,46 @@ class Concrete(SimStatePlugin):
 
                             self.already_sync_objects_addresses.append(mmap.name)
                             break  # object has been synchronized, move to the next one!
+
+    def _sync_simproc(self):
+
+        for reloc in self.state.project.loader.main_object.relocs:
+
+            if reloc.symbol:  # consider only reloc with a symbol
+                l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
+                l.debug("reloc.rebased_addr: %#x " % reloc.rebased_addr)
+
+                func_address = reloc.rebased_addr
+
+                #elif self.state.project.arch.name is 'ARMHF':  # if ARM we want to hook directly into the plt.
+                func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+
+                self.state.project.rehook_symbol(func_address, reloc.symbol.name)
+                l.debug("Function address hook is now: %#x ", func_address)
+
+                # updating the symbol relocation
+                if self.synchronize_cle and not self.state.project.loader.main_object.contains_addr(func_address):
+                    old_func_symbol = self.state.project.loader.find_symbol(reloc.symbol.name)
+
+                    if old_func_symbol:  # if we actually have a symbol
+                        owner_obj = old_func_symbol.owner
+
+                        # calculating the new real address
+                        new_relative_address = func_address - owner_obj.mapped_base
+
+                        new_func_symbol = cle.backends.Symbol(owner_obj, old_func_symbol.name, new_relative_address,
+                                                              old_func_symbol.size, old_func_symbol.type)
+
+                        for new_reloc in self.state.project.loader.find_relevant_relocations(old_func_symbol.name):
+                            if new_reloc.symbol.name == new_func_symbol.name and \
+                                    new_reloc.value != new_func_symbol.rebased_addr:
+                                l.debug("Updating CLE symbols metadata, moving %s from 0x%x to 0x%x",
+                                        new_reloc.symbol.name,
+                                        new_reloc.value,
+                                        new_func_symbol.rebased_addr)
+
+                                new_reloc.resolve(new_func_symbol)
+                                new_reloc.relocate([])
 
 
 from ..sim_state import SimState
