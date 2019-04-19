@@ -41,7 +41,7 @@ class Clinic(Analysis):
             self._optimization_passes = optimization_passes
         else:
             self._optimization_passes = get_optimization_passes(self.project.arch, self.project.simos.name)
-            l.debug("Get %d optimziation passes for the current binary.", len(self._optimization_passes))
+            l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
 
         self._analyze()
 

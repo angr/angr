@@ -51,7 +51,8 @@ class SimEngineLightVEX(SimEngineLight):
         self.tmps = {}
         self.block = block
         self.state = state
-        self.arch = state.arch
+        if state is not None:
+            self.arch = state.arch
 
         self.tyenv = block.vex.tyenv
 
@@ -346,7 +347,8 @@ class SimEngineLightAIL(SimEngineLight):
         self.tmps = {}
         self.block = block
         self.state = state
-        self.arch = state.arch
+        if state is not None:
+            self.arch = state.arch
 
         self._process_Stmt()
 
