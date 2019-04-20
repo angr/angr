@@ -169,8 +169,9 @@ class SimLibrary(object):
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
-            # Use inspect to extract the parameters from the run python function
-            proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
+            if proc.cc.func_ty is not None:
+                # Use inspect to extract the parameters from the run python function
+                proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
         if proc.display_name in self.prototypes:
             if proc.cc is None:
                 proc.cc = self.fallback_cc[arch.name](arch)
