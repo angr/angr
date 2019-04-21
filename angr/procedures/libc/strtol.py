@@ -81,8 +81,7 @@ class strtol(angr.SimProcedure):
         """
 
         # if length wasn't provided, read the maximum bytes
-        cutoff = (read_length == None)
-        length = state.libc.max_strtol_len if cutoff else read_length
+        length = state.libc.max_strtol_len if read_length is None else read_length
 
         # expression whether or not it was valid at all
         expression, _ = strtol._char_to_val(region.load(s, 1), base)
@@ -96,6 +95,7 @@ class strtol(angr.SimProcedure):
         constraints_num_bytes = []
         conditions = []
 
+        cutoff = False
         # we need all the conditions to hold except the last one to have found a value
         for i in range(length):
             char = region.load(s + i, 1)
