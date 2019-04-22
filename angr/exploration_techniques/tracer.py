@@ -359,8 +359,8 @@ class Tracer(ExplorationTechnique):
         target_addr += self._current_slide
         try:
             target_idx = self._trace.index(target_addr, state.globals['trace_idx'] + 1)
-        except ValueError:
-            raise AngrTracerError("Trace failed to synchronize during fast forward? You might want to unhook %s." % (self.project.hooked_by(state.history.addr).display_name))
+        except ValueError as e:
+            raise AngrTracerError("Trace failed to synchronize during fast forward? You might want to unhook %s." % (self.project.hooked_by(state.history.addr).display_name)) from e
         else:
             state.globals['trace_idx'] = target_idx
 
