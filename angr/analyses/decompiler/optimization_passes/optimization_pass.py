@@ -9,10 +9,11 @@ class OptimizationPass(Analysis):
     ARCHES = [ ]  # strings of supported architectures
     PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"
 
-    def __init__(self, func, blocks=None):
+    def __init__(self, func, blocks=None, graph=None):
 
         self._func = func
         self._blocks = blocks
+        self._graph = graph
 
     @property
     def blocks(self):

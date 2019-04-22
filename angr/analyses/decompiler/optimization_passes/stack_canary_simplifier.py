@@ -21,9 +21,9 @@ class StackCanarySimplifier(OptimizationPass):
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux"]
 
-    def __init__(self, func, blocks):
+    def __init__(self, *args, **kwargs):
 
-        super().__init__(func, blocks=blocks)
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 

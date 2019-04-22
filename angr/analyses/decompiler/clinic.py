@@ -203,7 +203,7 @@ class Clinic(Analysis):
 
             analysis = getattr(self.project.analyses, pass_.__name__)
 
-            a = analysis(self.function, blocks=self._blocks.copy())
+            a = analysis(self.function, blocks=self._blocks.copy(), graph=self.graph.copy())
             if a.blocks:
                 for key, item in a.blocks.items():
                     self._blocks[key] = item
@@ -289,9 +289,9 @@ class Clinic(Analysis):
             reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             # TODO: make sure it is the correct register we are looking for
             if len(reg_vars) == 1:
-                reg_var, offset = next(iter(reg_vars))
-                expr.variable = reg_var
-                expr.offset = offset
+                reg_var, offset_into_var = next(iter(reg_vars))
+                expr.referenced_variable = reg_var
+                expr.offset = offset_into_var
 
         elif type(expr) is ailment.Expr.Load:
             # import ipdb; ipdb.set_trace()
@@ -303,16 +303,16 @@ class Clinic(Analysis):
                     l.error("More than one variable are available for atom %s. Consider fixing it using phi nodes.",
                             expr
                             )
-                var, offset = next(iter(variables))
-                expr.variable = var
-                expr.offset = offset
+                var, offset_into_var = next(iter(variables))
+                expr.referenced_variable = var
+                expr.offset_into_referenced_variable = offset_into_var
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
-                var, offset = next(iter(variables))
+                var, offset_into_var = next(iter(variables))
                 expr.referenced_variable = var
-                expr.offset = offset
+                expr.offset_into_referenced_variable = offset_into_var
             else:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[0])
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[1])
@@ -320,9 +320,9 @@ class Clinic(Analysis):
         elif type(expr) is ailment.Expr.UnaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
-                var, offset = next(iter(variables))
+                var, offset_into_var = next(iter(variables))
                 expr.referenced_variable = var
-                expr.offset = offset
+                expr.offset_into_referenced_variable = offset_into_var
             else:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands)
 
@@ -331,10 +331,13 @@ class Clinic(Analysis):
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            old_offset = expr.offset
             if len(variables) == 1:
-                var, offset = next(iter(variables))
+                var, offset_into_var = next(iter(variables))
                 expr.referenced_variable = var
-                expr.offset = offset
+                expr.offset_into_referenced_variable = offset_into_var
+            if expr.offset is None:
+                breakpoint()
 
     def _update_graph(self):
 

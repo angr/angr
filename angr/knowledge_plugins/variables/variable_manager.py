@@ -95,18 +95,18 @@ class VariableManagerInternal:
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def write_to(self, variable, offset, location, overwrite=False, atom=None):
-        self._record_variable_access('write', variable, offset, location, overwrite=overwrite, atom=atom)
+    def write_to(self, variable, offset_into_var, location, overwrite=False, atom=None):
+        self._record_variable_access('write', variable, offset_into_var, location, overwrite=overwrite, atom=atom)
 
-    def read_from(self, variable, offset, location, overwrite=False, atom=None):
-        self._record_variable_access('read', variable, offset, location, overwrite=overwrite, atom=atom)
+    def read_from(self, variable, offset_into_var, location, overwrite=False, atom=None):
+        self._record_variable_access('read', variable, offset_into_var, location, overwrite=overwrite, atom=atom)
 
-    def reference_at(self, variable, offset, location, overwrite=False, atom=None):
-        self._record_variable_access('reference', variable, offset, location, overwrite=overwrite, atom=atom)
+    def reference_at(self, variable, offset_into_var, location, overwrite=False, atom=None):
+        self._record_variable_access('reference', variable, offset_into_var, location, overwrite=overwrite, atom=atom)
 
-    def _record_variable_access(self, sort, variable, offset, location, overwrite=False, atom=None):
+    def _record_variable_access(self, sort, variable, offset_into_var, location, overwrite=False, atom=None):
         self._variables.add(variable)
-        var_and_offset = variable, offset
+        var_and_offset = variable, offset_into_var
         if overwrite:
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location)}
             self._insn_to_variable[location.ins_addr] = {var_and_offset}

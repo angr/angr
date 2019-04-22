@@ -217,6 +217,41 @@ class FunctionGraphVisitor(GraphVisitor):
 
         return sorted_nodes
 
+class ReverseFunctionGraphVisitor(GraphVisitor):
+    def __init__(self, func, graph=None):
+        """
+        :param knowledge.Function func:
+        :param networkx.DiGraph graph:
+        """
+
+        super().__init__()
+        self.function = func
+
+        if graph is None:
+            self.graph = self.function.graph.reverse()
+        else:
+            self.graph = graph.reverse()
+
+        self.reset()
+
+    def startpoints(self):
+        return self.function.endpoints
+
+    def successors(self, node):
+        return list(self.graph.successors(node))
+
+    def predecessors(self, node):
+        return list(self.graph.predecessors(node))
+
+    def sort_nodes(self, nodes=None):
+        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
+
+        if nodes is not None:
+            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
+
+        return sorted_nodes
+
+
 
 class CallGraphVisitor(GraphVisitor):
     def __init__(self, callgraph):
@@ -521,7 +556,7 @@ class ForwardAnalysis:
         raise NotImplementedError('_job_queue_empty() is not implemented.')
 
     def _initial_abstract_state(self, node):
-        raise NotImplementedError('_get_initial_abstract_state() is not implemented.')
+        raise NotImplementedError('_initial_abstract_state() is not implemented.')
 
     def _run_on_node(self, node, state):
         """

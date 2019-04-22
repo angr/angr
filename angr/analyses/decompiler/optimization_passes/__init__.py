@@ -1,11 +1,12 @@
 
-from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
-
+from .dead_assignment_elimination import DeadAssignmentRemoval
+from .stack_canary_simplifier import StackCanarySimplifier
 
 _all_optimization_passes = [
     StackCanarySimplifier,
     BasePointerSaveSimplifier,
+    DeadAssignmentRemoval,
 ]
 
 

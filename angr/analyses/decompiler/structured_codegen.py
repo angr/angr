@@ -1079,19 +1079,19 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Register(self, expr):  # pylint:disable=no-self-use
 
-        if expr.variable:
-            return self._handle(expr.variable)
+        if expr.referenced_variable:
+            return self._handle(expr.referenced_variable)
         else:
             return CRegister(expr)
 
     def _handle_Expr_Load(self, expr):
 
-        if hasattr(expr, 'variable') and expr.variable is not None:
-            if expr.offset is not None:
-                offset = self._handle(expr.offset)
+        if expr.referenced_variable is not None:
+            if expr.offset_into_referenced_variable is not None:
+                offset = self._handle(expr.offset_into_referenced_variable)
             else:
                 offset = None
-            return CVariable(expr.variable, offset=offset)
+            return CVariable(expr.referenced_variable, offset=offset)
 
         variable, offset = self._parse_load_addr(expr.addr)
 
@@ -1112,13 +1112,13 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_UnaryOp(self, expr):
 
         return CUnaryOp(expr.op, self._handle(expr.operand),
-                        referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
+                        referenced_variable=self._handle(expr.referenced_variable) if expr.has_variable else None
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
 
         return CBinaryOp(expr.op, self._handle(expr.operands[0]), self._handle(expr.operands[1]),
-                         referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
+                         referenced_variable=self._handle(expr.referenced_variable) if expr.has_variable else None
                          )
 
     def _handle_Expr_Convert(self, expr):
@@ -1143,7 +1143,7 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
-        if hasattr(expr, 'referenced_variable') and expr.referenced_variable is not None:
+        if expr.has_variable and expr.referenced_variable is not None:
             return CUnaryOp('Reference', expr, referenced_variable=self._handle(expr.referenced_variable))
 
         return expr

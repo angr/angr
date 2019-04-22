@@ -13,8 +13,8 @@ class BasePointerSaveSimplifier(OptimizationPass):
     ARCHES = ['X86', 'AMD64', 'ARMEL']
     PLATFORMS = ['linux']
 
-    def __init__(self, func, blocks):
-        super().__init__(func, blocks)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):

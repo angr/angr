@@ -69,7 +69,7 @@ class RegisterOffset:
     def __init__(self, bits, reg, offset):
         self._bits = bits
         self.reg = reg
-        self.offset = offset
+        self.offset = self._to_signed(offset)
 
     @property
     def bits(self):
