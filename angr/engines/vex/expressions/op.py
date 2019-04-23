@@ -28,7 +28,7 @@ def SimIRExpr_Op(engine, state, expr):
     except UnsupportedIROpError:
         if o.BYPASS_UNSUPPORTED_IROP in state.options:
             state.history.add_event('resilience', resilience_type='irop', op=expr.op, message='unsupported IROp')
-            res_type = get_op_retty(expr.tag)
+            res_type = get_op_retty(expr.op)
             res_size = get_type_size(res_type)
             if o.UNSUPPORTED_BYPASS_ZERO_DEFAULT in state.options:
                 result = state.solver.BVV(0, res_size)
