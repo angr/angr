@@ -374,6 +374,9 @@ public:
 		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++) {
 			if (it->clean == -1) {
 				taint_t *bitmap = page_lookup(it->address);
+				if (bitmap == NULL) {
+					continue;
+				}
 				memset(&bitmap[it->address & 0xFFFULL], TAINT_DIRTY, sizeof(taint_t) * it->size);
 				it->clean = (1 << it->size) - 1;
 				//LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
