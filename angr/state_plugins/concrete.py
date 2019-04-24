@@ -224,11 +224,12 @@ class Concrete(SimStatePlugin):
                 l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
                 # l.debug("reloc.rebased_addr: %#x " % reloc.rebased_addr)
 
-                if self.state.project.arch.name is not 'ARMHF':
-                    func_address = self.state.project.concrete_target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
-                    func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
-                else:
-                    func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+                #if self.state.project.arch.name is not 'ARMHF':
+                #    func_address = self.state.project.concrete_target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
+                #    func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
+                #else:
+
+                func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
 
                 l.debug("Function address hook is now: %#x ", func_address)
                 self.state.project.rehook_symbol(func_address, reloc.symbol.name)
