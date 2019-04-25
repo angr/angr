@@ -6,7 +6,7 @@ import os
 
 from angr_targets import AvatarGDBConcreteTarget
 
-GDB_SERVER_IP = '192.168.60.3'
+GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
 
 
