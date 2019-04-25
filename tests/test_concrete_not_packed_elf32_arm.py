@@ -24,10 +24,11 @@ binary_arm = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 gdbserver_proc = None
 avatar_gdb = None
 
-
+'''
 def setup_armhf():
-    print("On an ARM machine execute gdbserver %s:%s path/to/simple_crackme" % (GDB_SERVER_IP, GDB_SERVER_PORT))
-    input("Press enter when gdbserver has been executed")
+    #print("On an ARM machine execute gdbserver %s:%s path/to/simple_crackme" % (GDB_SERVER_IP, GDB_SERVER_PORT))
+    #input("Press enter when gdbserver has been executed")
+'''
 
 def teardown():
     global avatar_gdb
@@ -38,7 +39,7 @@ def teardown():
 
 
 def test_concrete_engine_linux_arm_no_unicorn_simprocedures():
-    print("test_concrete_engine_linux_x86_unicorn_simprocedures")
+    #print("test_concrete_engine_linux_x86_unicorn_simprocedures")
     global avatar_gdb
     # pylint: disable=no-member
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.ARM, GDB_SERVER_IP, GDB_SERVER_PORT)
@@ -64,7 +65,7 @@ def solv_concrete_engine_linux_arm(p, entry_state):
     new_concrete_state.memory.store(symbolic_buffer_address, arg0)
     simgr = p.factory.simgr(new_concrete_state)
 
-    print("Symbolically executing BINARY to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]")
+    #print("Symbolically executing BINARY to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]")
     exploration = simgr.explore(find=DROP_STAGE2_V2, avoid=[DROP_STAGE2_V1, VENV_DETECTED, FAKE_CC])
 
     if not exploration.stashes['found'] and exploration.errored and type(exploration.errored[0].error) is angr.errors.SimIRSBNoDecodeError:
@@ -74,10 +75,10 @@ def solv_concrete_engine_linux_arm(p, entry_state):
 
     binary_configuration = new_symbolic_state.solver.eval(arg0, cast_to=int)
 
-    print("Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
+    #print("Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
     execute_concretly(p, new_symbolic_state, BINARY_EXECUTION_END, [(symbolic_buffer_address, arg0)])
 
-    print("BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration))
+    #print("BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration))
 
 
 
