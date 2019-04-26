@@ -268,7 +268,8 @@ class SimSystemPosix(SimStatePlugin):
         """
         Open a symbolic file. Basically open(2).
 
-        :param name:            Path of the symbolic file, as a string.
+        :param name:            Path of the symbolic file, as a string or bytes.
+        :type name:             string or bytes
         :param flags:           File operation flags, a bitfield of constants from open(2), as an AST
         :param preferred_fd:    Assign this fd if it's not already claimed.
         :return:                The file descriptor number allocated (maps through posix.get_fd to a SimFileDescriptor)
@@ -277,14 +278,14 @@ class SimSystemPosix(SimStatePlugin):
         ``mode`` from open(2) is unsupported at present.
         """
 
-        # FIXME: HACK
-        if self.uid != 0 and name.startswith(b'/var/run'):
-            return None
-
         if len(name) == 0:
             return None
         if type(name) is str:
             name = name.encode()
+
+        # FIXME: HACK
+        if self.uid != 0 and name.startswith(b'/var/run'):
+            return None
 
         # TODO: speed this up (editor's note: ...really? this is fine)
         fd = None
