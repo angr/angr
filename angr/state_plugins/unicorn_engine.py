@@ -884,7 +884,8 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
         # activate gdt page, which was written/mapped during set_regs
-        _UC_NATIVE.activate(self._uc_state, self.gdt.addr, self.gdt.limit, None)
+        if self.gdt is not None:
+            _UC_NATIVE.activate(self._uc_state, self.gdt.addr, self.gdt.limit, None)
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
@@ -975,7 +976,7 @@ class Unicorn(SimStatePlugin):
         while bool(p_update):
             update = p_update.contents
             address, length = update.address, update.length
-            if self.gdt.addr <= address < self.gdt.addr + self.gdt.limit:
+            if self.gdt is not None and self.gdt.addr <= address < self.gdt.addr + self.gdt.limit:
                 l.warning("Emulation touched fake GDT at %#x, discarding changes" % self.gdt.addr)
             else:
                 s = bytes(self.uc.mem_read(address, int(length)))
