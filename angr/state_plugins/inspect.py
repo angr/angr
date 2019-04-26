@@ -160,7 +160,7 @@ class BP(object):
             elif current_expr is not None and needed is not None:
                 solver_type_ce = isinstance(current_expr, claripy.ast.Base) or isinstance(current_expr, angr.state_plugins.sim_action_object.SimActionObject)
                 solver_type_n = isinstance(needed, claripy.ast.Base) or isinstance(needed, angr.state_plugins.sim_action_object.SimActionObject)
-                if current_expr == needed:
+                if not solver_type_ce and not solver_type_n and current_expr == needed:
                     l.debug("...... is identical!")
                     c_ok = True
                 elif solver_type_ce and solver_type_n and state.solver.solution(current_expr, needed):
