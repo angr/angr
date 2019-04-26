@@ -488,9 +488,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
                     l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, num_bytes, refplace_int, refplace_str)
 
+        # this is an optimization to ensure most operations in the future will deal with leaf ASTs (instead of reversed
+        # ASTs)
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
+        elif self.category == 'file':
+            # file data has to be big-endian
+            pass
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
+            # endianness of memory data
             all_missing = [ a.reversed for a in all_missing ]
         b = self.state.solver.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 

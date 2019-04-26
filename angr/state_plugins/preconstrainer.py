@@ -55,6 +55,11 @@ class SimStatePreconstrainer(SimStatePlugin):
         elif value.op != 'BVV':
             raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
 
+        if variable.op not in claripy.operations.leaf_operations:
+            l.warning("The variable %s to preconstrain is not a leaf AST. This may cause replacement failures in the "
+                      "claripy replacement backend.", variable)
+            l.warning("Please use a leaf AST as the preconstraining variable instead.")
+
         constraint = variable == value
         l.debug("Preconstraint: %s", constraint)
 
