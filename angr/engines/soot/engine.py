@@ -122,9 +122,9 @@ class SimEngineSoot(SimEngine):
     def _handle_block(self, state, successors, block, starting_stmt_idx, method=None):
         for tindex, stmt in enumerate(block.statements[starting_stmt_idx:]):
             stmt_idx = starting_stmt_idx + tindex
-            state._inspect('statement', BP_BEFORE, statement=stmt_idx)
+            state._inspect('statement', BP_BEFORE, statement=stmt, stmt_idx=stmt_idx)
             terminate = self._handle_statement(state, successors, stmt_idx, stmt)
-            state._inspect('statement', BP_AFTER)
+            state._inspect('statement', BP_AFTER, statement=stmt, stmt_idx=stmt_idx)
             if terminate:
                 break
         else:

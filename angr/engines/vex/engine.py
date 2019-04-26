@@ -272,9 +272,9 @@ class SimEngineVEX(SimEngine):
 
             try:
                 state.scratch.stmt_idx = stmt_idx
-                state._inspect('statement', BP_BEFORE, statement=stmt_idx)
+                state._inspect('statement', BP_BEFORE, statement=stmt, stmt_idx=stmt_idx)
                 cont = self._handle_statement(state, successors, stmt)
-                state._inspect('statement', BP_AFTER)
+                state._inspect('statement', BP_AFTER, statement=stmt, stmt_idx=stmt_idx)
                 if not cont:
                     return
             except UnsupportedDirtyError:

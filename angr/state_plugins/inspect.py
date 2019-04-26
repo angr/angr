@@ -68,6 +68,7 @@ inspect_attributes = {
 
     # statement
     'statement',
+    'stmt_idx',
 
     # instruction
     'instruction',
