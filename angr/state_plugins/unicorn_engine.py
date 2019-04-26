@@ -309,6 +309,7 @@ class Unicorn(SimStatePlugin):
         self.steps = 0
         self._mapped = 0
         self._uncache_pages = []
+        self.gdt = None
 
         # following variables are used in python level hook
         # we cannot see native hooks from python
@@ -377,6 +378,7 @@ class Unicorn(SimStatePlugin):
         u.countdown_stop_point = self.countdown_stop_point
         u.transmit_addr = self.transmit_addr
         u._uncache_pages = list(self._uncache_pages)
+        u.gdt = self.gdt
         return u
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
@@ -871,16 +873,19 @@ class Unicorn(SimStatePlugin):
     def setup(self):
         self._setup_unicorn()
         self.set_regs()
-        # tricky: using unicorn handle form unicorn.Uc object
+        # tricky: using unicorn handle from unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
+
+        # set (cgc, for now) transmit syscall handler
         if UNICORN_HANDLE_TRANSMIT_SYSCALL in self.state.options and self.state.has_plugin('cgc'):
             if self.transmit_addr is None:
                 l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
                 self.transmit_addr = 0
             _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
-        # just fyi there's a GDT in memory
-        _UC_NATIVE.activate(self._uc_state, 0x1000, 0x1000, None)
+        # activate gdt page, which was written/mapped during set_regs
+        if self.gdt is not None:
+            _UC_NATIVE.activate(self._uc_state, self.gdt.addr, self.gdt.limit, None)
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
@@ -971,8 +976,8 @@ class Unicorn(SimStatePlugin):
         while bool(p_update):
             update = p_update.contents
             address, length = update.address, update.length
-            if 0x1000 <= address < 0x2000:
-                l.warning("Emulation touched fake GDT at 0x1000, discarding changes")
+            if self.gdt is not None and self.gdt.addr <= address < self.gdt.addr + self.gdt.limit:
+                l.warning("Emulation touched fake GDT at %#x, discarding changes" % self.gdt.addr)
             else:
                 s = bytes(self.uc.mem_read(address, int(length)))
                 l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, binascii.hexlify(s))
@@ -1092,8 +1097,7 @@ class Unicorn(SimStatePlugin):
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
             fs = self.state.solver.eval(self.state.regs.fs) << 16
             gs = self.state.solver.eval(self.state.regs.gs) << 16
-            gdt = self.state.project.simos.generate_gdt(fs, gs)
-            self.setup_gdt(gdt)
+            self.setup_gdt(fs, gs)
 
 
         for r, c in self._uc_regs.items():
@@ -1158,7 +1162,8 @@ class Unicorn(SimStatePlugin):
 
             uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
 
-    def setup_gdt(self, gdt):
+    def setup_gdt(self, fs, gs):
+        gdt = self.state.project.simos.generate_gdt(fs, gs)
         uc = self.uc
 
         uc.mem_map(gdt.addr, gdt.limit)
@@ -1174,7 +1179,7 @@ class Unicorn(SimStatePlugin):
         # if programs want to access this memory....... let them
         # uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
 
-
+        self.gdt = gdt
 
     # do NOT call either of these functions in a callback, lmao
     def read_msr(self, msr=0xC0000100):

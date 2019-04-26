@@ -5,6 +5,7 @@ import subprocess
 import pkg_resources
 import shutil
 import platform
+import glob
 
 if bytes is str:
     raise Exception("""
@@ -37,6 +38,7 @@ except ImportError:
 from distutils.util import get_platform
 from distutils.errors import LibError
 from distutils.command.build import build as _build
+from distutils.command.clean import clean as _clean
 
 if sys.platform == 'darwin':
     library_file = "angr_native.dylib"
@@ -81,13 +83,28 @@ def _build_native():
     os.mkdir('angr/lib')
     shutil.copy(os.path.join('native', library_file), 'angr/lib')
 
+def _clean_native():
+    oglob  = glob.glob('native/*.o')
+    oglob += glob.glob('native/*.obj')
+    oglob += glob.glob('native/*.so')
+    oglob += glob.glob('native/*.dll')
+    oglob += glob.glob('native/*.dylib')
+    for fname in oglob:
+        os.unlink(fname)
+
 class build(_build):
     def run(self, *args):
         self.execute(_build_native, (), msg='Building angr_native')
         _build.run(self, *args)
 
+class clean(_clean):
+    def run(self, *args):
+        self.execute(_clean_native, (), msg='Cleaning angr_native')
+        _clean.run(self, *args)
+
 cmdclass = {
     'build': build,
+    'clean': clean,
 }
 
 try:

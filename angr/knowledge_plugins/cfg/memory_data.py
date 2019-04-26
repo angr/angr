@@ -53,9 +53,9 @@ class CodeReference(Serializable):
     def serialize_to_cmessage(self):
         cmsg = self._get_cmsg()
         if self.memory_data is not None:
-            cmsg.target_type = primitives_pb2.CodeTarget if self.memory_data.sort == MemoryDataSort.CodeReference \
-                else primitives_pb2.DataTarget
-            cmsg.location = primitives_pb2.Internal
+            cmsg.target_type = primitives_pb2.CodeReference.CodeTarget \
+                if self.memory_data.sort == MemoryDataSort.CodeReference else primitives_pb2.CodeReference.DataTarget
+            cmsg.location = primitives_pb2.CodeReference.Internal
             cmsg.data_ea = self.memory_data.addr
         else:
             cmsg.data_ea = -1

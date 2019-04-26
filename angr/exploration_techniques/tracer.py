@@ -121,6 +121,9 @@ class Tracer(ExplorationTechnique):
         return simgr.step(stash=stash, **kwargs)
 
     def step_state(self, simgr, state, **kwargs):
+        if state.history.jumpkind == 'Ijk_Exit':
+            return {'traced': [state]}
+
         # maintain the predecessors list
         self.predecessors.append(state)
         self.predecessors.pop(0)
