@@ -162,23 +162,35 @@ class Tracer(ExplorationTechnique):
         # perform the step. ask qemu to stop at the termination point.
         stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
         succs_dict = simgr.step_state(state, extra_stop_points=stops, **kwargs)
-        succs = succs_dict[None]
+        sat_succs = succs_dict[None]  # satisfiable states
+        succs = sat_succs + succs_dict['unsat']  # both satisfiable and unsatisfiable states
 
-        # follow the trace
-        if len(succs) == 1:
-            try:
-                self._update_state_tracking(succs[0])
-            except TracerDesyncError as ex:
-                if self._mode == TracingMode.Permissive:
-                    succs_dict = self._force_resync(simgr, state, ex.deviating_trace_idx, ex.deviating_addr, kwargs)
-                else:
-                    raise
-        elif len(succs) == 0:
-            raise Exception("All states disappeared!")
+        if self._mode == TracingMode.Permissive:
+            # permissive mode
+            if len(sat_succs) == 1:
+                try:
+                    self._update_state_tracking(sat_succs[0])
+                except TracerDesyncError as ex:
+                    if self._mode == TracingMode.Permissive:
+                        succs_dict = self._force_resync(simgr, state, ex.deviating_trace_idx, ex.deviating_addr, kwargs)
+                    else:
+                        raise
+            elif len(sat_succs) == 0:
+                raise Exception("No satisfiable state is available!")
+            else:
+                succ = self._pick_correct_successor(sat_succs)
+                succs_dict[None] = [succ]
+                succs_dict['missed'] = [s for s in sat_succs if s is not succ]
         else:
-            succ = self._pick_correct_successor(succs)
-            succs_dict[None] = [succ]
-            succs_dict['missed'] = [s for s in succs if s is not succ]
+            # strict mode
+            if len(succs) == 1:
+                self._update_state_tracking(sat_succs[0])
+            elif len(succs) == 0:
+                raise Exception("All states disappeared!")
+            else:
+                succ = self._pick_correct_successor(succs)
+                succs_dict[None] = [succ]
+                succs_dict['missed'] = [s for s in succs if s is not succ]
 
         assert len(succs_dict[None]) == 1
         return succs_dict
