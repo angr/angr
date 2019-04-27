@@ -184,7 +184,7 @@ class Tracer(ExplorationTechnique):
         else:
             # strict mode
             if len(succs) == 1:
-                self._update_state_tracking(sat_succs[0])
+                self._update_state_tracking(succs[0])
             elif len(succs) == 0:
                 raise Exception("All states disappeared!")
             else:
