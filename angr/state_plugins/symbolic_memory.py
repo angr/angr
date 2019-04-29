@@ -632,6 +632,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         no_singlevalue_opt = options.SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS in self.state.options
         cond_prefix = [ ]
 
+        if options.MEMORY_FIND_STRICT_SIZE_LIMIT in self.state.options:
+            cond_falseness_test = lambda cond: self.state.solver.is_false(cond)
+        else:
+            cond_falseness_test = lambda cond: cond.is_false()
+
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
             if i > max_search - seek_size:
@@ -650,7 +655,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             chunk_off = i-chunk_start
             b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
             condition = b == what
-            if not condition.is_false():
+            if not cond_falseness_test(condition):
                 if no_singlevalue_opt and cond_prefix:
                     condition = claripy.And(*(cond_prefix + [condition]))
                 cases.append([condition, claripy.BVV(i, len(start))])
