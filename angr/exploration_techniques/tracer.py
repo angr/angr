@@ -328,25 +328,38 @@ class Tracer(ExplorationTechnique):
 
         if prev_addr in getattr(prev_obj, 'reverse_plt', ()):
             prev_name = prev_obj.reverse_plt[prev_addr]
-            prev_prev_addr = state.history.bbl_addrs[-2]
-            if not prev_obj.contains_addr(prev_prev_addr) or state.block(prev_prev_addr).vex.jumpkind != 'Ijk_Call':
-                l.info('...weird interaction with PLT stub (%s), aborting analysis', prev_name)
-                return False
             l.info('...syncing at PLT callsite for %s', prev_name)
-            return self._sync_callsite(state, idx, prev_prev_addr)
+            # TODO: this method is newer than sync_callsite. should it be used always?
+            return self._sync_return(state, idx, assert_obj=prev_obj)
 
         l.info('...all analyses failed.')
         return False
 
     def _sync_callsite(self, state, idx, callsite_addr):
         retsite_addr = self._translate_state_addr(state.block(callsite_addr).size + callsite_addr)
-        try:
-            retsite_idx = self._trace.index(retsite_addr, idx)
-        except ValueError:
-            l.error("Trying to fix desync at callsite but return address does not appear in trace")
+        return self._sync(state, idx, retsite_addr)
+
+    def _sync_return(self, state, idx, assert_obj=None):
+        ret_addr_bv = self.project.factory.cc().return_addr.get_value(state)
+        if state.solver.symbolic(ret_addr_bv):
+            l.info('...symbolic return address. I refuse to deal with this.')
             return False
 
-        state.globals['sync_idx'] = retsite_idx
+        ret_addr = state.solver.eval(ret_addr_bv)
+        if assert_obj is not None and not assert_obj.contains_addr(ret_addr):
+            l.info('...address is not in the correct object, aborting analysis')
+            return False
+        return self._sync(state, idx, ret_addr)
+
+    def _sync(self, state, idx, addr):
+        addr_translated = self._translate_state_addr(addr)
+        try:
+            sync_idx = self._trace.index(addr_translated, idx)
+        except ValueError:
+            l.error("Trying to synchronize at %#x (%#x) but it does not appear in the trace?")
+            return False
+
+        state.globals['sync_idx'] = sync_idx
         state.globals['trace_idx'] = idx
         state.globals['sync_timer'] = 10000  # TODO: ???
         return True
