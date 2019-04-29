@@ -464,12 +464,12 @@ class Unicorn(SimStatePlugin):
 
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
-        if state.arch.name == "MIPS32":
+        if self._is_mips32:
             self._unicount = next(_unicounter)
 
     @property
     def _reuse_unicorn(self):
-        return self.state.arch.name != "MIPS32"
+        return not self._is_mips32
 
     @property
     def uc(self):
@@ -870,7 +870,24 @@ class Unicorn(SimStatePlugin):
     def uncache_page(self, addr):
         self._uncache_pages.append(addr & ~0xfff)
 
+    @property
+    def _is_mips32(self):
+        """
+        There seems to be weird issues with unicorn-engine support on MIPS32 code (see commit 01126bf7). As a result,
+        we test if the current architecture is MIPS32 in several places, and if so, we perform some extra steps, like
+        re-creating the thread-local UC object.
+
+        :return:    True if the current architecture is MIPS32, False otherwise.
+        :rtype:     bool
+        """
+        return self.state.arch.name == "MIPS32"
+
     def setup(self):
+        if self._is_mips32 and options.COPY_STATES not in self.state.options:
+            # we always re-create the thread-local UC object for MIPS32 even if COPY_STATES is disabled in state
+            # options. this is to avoid some weird bugs in unicorn (e.g., it reports stepping 1 step while in reality it
+            # did not step at all).
+            self.delete_uc()
         self._setup_unicorn()
         self.set_regs()
         # tricky: using unicorn handle from unicorn.Uc object
