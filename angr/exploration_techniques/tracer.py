@@ -87,6 +87,7 @@ class Tracer(ExplorationTechnique):
                 raise AngrTracerError("Could not step to the first address of the trace - simgr is empty")
             elif len(simgr.active) > 1:
                 raise AngrTracerError("Could not step to the first address of the trace - state split")
+            simgr.drop(stash='unsat')
 
         # initialize the state info
         simgr.one_active.globals['trace_idx'] = idx
