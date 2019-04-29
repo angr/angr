@@ -73,8 +73,6 @@ def solv_concrete_engine_linux_arm(p, entry_state):
 
     new_symbolic_state = exploration.stashes['found'][0]
 
-    binary_configuration = new_symbolic_state.solver.eval(arg0, cast_to=int)
-
     #print("Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
     execute_concretly(p, new_symbolic_state, BINARY_EXECUTION_END, [(symbolic_buffer_address, arg0)])
 
