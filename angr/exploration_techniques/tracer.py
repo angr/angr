@@ -211,6 +211,9 @@ class Tracer(ExplorationTechnique):
             else:
                 raise Exception("Trace failed to synchronize! We expected it to hit %#x (untranslated), but it failed to do this within a timeout" % self._trace[sync])
 
+        elif state.history.jumpkind.startswith('Ijk_Exit'):
+            # termination! will be handled by filter
+            pass
         elif self._compare_addr(self._trace[idx + 1], state.addr):
             # normal case
             state.globals['trace_idx'] = idx + 1
@@ -238,9 +241,6 @@ class Tracer(ExplorationTechnique):
             # syscalls
             state.globals['sync_idx'] = idx + 1
             state.globals['sync_timer'] = 1
-        elif state.history.jumpkind.startswith('Ijk_Exit'):
-            # termination!
-            state.globals['trace_idx'] = len(self._trace) - 1
         elif self.project.is_hooked(state.history.addr):
             # simprocedures - is this safe..?
             self._fast_forward(state)
