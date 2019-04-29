@@ -4,7 +4,6 @@ import io
 import logging
 import os
 import re
-import struct
 
 
 from .plugin import SimStatePlugin
@@ -130,7 +129,7 @@ class Concrete(SimStatePlugin):
 
         # now we have to register a SimInspect in order to synchronize the segments register
         # on demand when the symbolic execution accesses it
-        if self.state.project.arch.name is not 'ARMHF' and not self.segment_registers_callback_initialized:
+        if self.state.project.arch.name != 'ARMHF' and not self.segment_registers_callback_initialized:
             segment_register_name = self.state.project.simos.get_segment_register_name()
             if segment_register_name:
                 self.fs_register_bp = self.state.inspect.b('reg_read',
