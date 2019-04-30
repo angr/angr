@@ -166,9 +166,9 @@ class __libc_start_main(angr.SimProcedure):
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [
-            (init, 'Ijk_Call'),
-            (main, 'Ijk_Call'),
-            (fini, 'Ijk_Call'),
+            {'address': init, 'jumpkind': 'Ijk_Call', 'namehint': 'init'},
+            {'address': main, 'jumpkind': 'Ijk_Call', 'namehint': 'main'},
+            {'address': fini, 'jumpkind': 'Ijk_Call', 'namehint': 'fini'},
         ]
 
         return all_exits

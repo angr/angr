@@ -38,8 +38,8 @@ class pthread_create(angr.SimProcedure):
         retaddr = state.memory.load(state.regs.sp, self.arch.bytes)
 
         all_exits = [
-            (callfunc, 'Ijk_Call'),
-            (retaddr, 'Ijk_Ret')
+            {'address': callfunc, 'jumpkind': 'Ijk_Call', 'namehint': 'thread_entry'},
+            {'address': retaddr, 'jumpkind': 'Ijk_Ret', 'namehint': None},
         ]
 
         return all_exits

@@ -65,5 +65,24 @@ class Labels(KnowledgeBasePlugin):
         o._labels = {k: v for k, v in self._labels.items()}
         o._reverse_labels = {k: v for k, v in self._reverse_labels.items()}
 
+    def get_unique_label(self, label):
+        """
+        Get a unique label name from the given label name.
+
+        :param str label:   The desired label name.
+        :return:            A unique label name.
+        """
+
+        if label not in self._labels:
+            return label
+
+        # use it as the prefix
+        i = 1
+        while True:
+            new_label = "%s_%d" % (label, i)
+            if new_label not in self._labels:
+                return new_label
+            i += 1
+
 
 KnowledgeBasePlugin.register_default('labels', Labels)

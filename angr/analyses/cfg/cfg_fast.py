@@ -1369,26 +1369,33 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if procedure.ADDS_EXITS:
             # Get two blocks ahead
-            grandparent_nodes = list(self.graph.predecessors(cfg_job.src_node))
-            if not grandparent_nodes:
+            if cfg_job.src_node is None:
                 l.warning("%s is supposed to yield new exits, but it fails to do so.", name)
-                return [ ]
-            blocks_ahead = [
-                self._lift(grandparent_nodes[0].addr).vex,
-                self._lift(cfg_job.src_node.addr).vex,
-            ]
+                return []
+            grandparent_nodes = list(self.graph.predecessors(cfg_job.src_node))
+            grandparent_node = grandparent_nodes[0] if grandparent_nodes else None
+            blocks_ahead = [ ]
+            if grandparent_node is not None:
+                blocks_ahead.append(self._lift(grandparent_node.addr).vex)
+            blocks_ahead.append(self._lift(cfg_job.src_node.addr).vex)
             procedure.project = self.project
             procedure.arch = self.project.arch
             new_exits = procedure.static_exits(blocks_ahead)
 
-            for addr_, jumpkind in new_exits:
+            for new_exit in new_exits:
+                addr_ = new_exit['address']
+                jumpkind = new_exit['jumpkind']
+                namehint = new_exit.get('namehint', None)
                 if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:
                     addr_ = addr_._model_concrete.value
                 if not isinstance(addr_, int):
                     continue
                 entries += self._create_jobs(addr_, jumpkind, current_func_addr, None, addr_, cfg_node, None,
-                                             None
+                                             None,
                                              )
+                if namehint and addr_ not in self.kb.labels:
+                    unique_label = self.kb.labels.get_unique_label(namehint)
+                    self.kb.labels[addr_] = unique_label
 
         if not procedure.NO_RET:
             # it returns
