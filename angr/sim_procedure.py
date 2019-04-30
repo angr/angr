@@ -229,7 +229,7 @@ class SimProcedure:
         exits for scenarios where states are not available (e.g. when building a fast CFG).
 
         :param list blocks: Blocks that are executed before reaching this SimProcedure.
-        :return: A list of tuples. Each tuple is (address, jumpkind).
+        :return: A list of dicts. Each dict should contain the following entries: 'address', 'jumpkind', and 'namehint'.
         :rtype: list
         """
 
