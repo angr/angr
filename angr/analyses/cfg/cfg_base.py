@@ -2094,12 +2094,16 @@ class CFGBase(Analysis):
         """
 
         jumpkind = irsb.jumpkind
-        l.debug('(%s) IRSB %#x has an indirect jump as its default exit.', jumpkind, addr)
+        l.debug('IRSB %#x has an indirect jump (%s) as its default exit.', addr, jumpkind)
 
         # try resolving it fast
         resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
         if resolved:
+            l.debug("Indirect jump at block %#x is resolved by a timeless indirect jump resolver. "
+                    "%d targets found.", addr, len(resolved_targets))
             return True, resolved_targets, None
+
+        l.debug("Indirect jump at block %#x cannot be resolved by a timeless indirect jump resolver.", addr)
 
         # Add it to our set. Will process it later if user allows.
         # Create an IndirectJump instance
