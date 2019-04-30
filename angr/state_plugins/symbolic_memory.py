@@ -633,7 +633,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         cond_prefix = [ ]
 
         if options.MEMORY_FIND_STRICT_SIZE_LIMIT in self.state.options:
-            cond_falseness_test = lambda cond: self.state.solver.is_false(cond)
+            cond_falseness_test = self.state.solver.is_false
         else:
             cond_falseness_test = lambda cond: cond.is_false()
 
