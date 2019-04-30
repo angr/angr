@@ -580,6 +580,9 @@ class Structurer(Analysis):
             '__le__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLE',
                                                           tuple(map(self._convert_claripy_bool_ast, cond_.args)),
                                                           ),
+            '__lt__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLT',
+                                                          tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                          ),
             'UGT': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpUGT',
                                                           tuple(map(self._convert_claripy_bool_ast, cond_.args)),
                                                           ),
@@ -595,6 +598,12 @@ class Structurer(Analysis):
             '__xor__': lambda cond_: ailment.Expr.BinaryOp(None, 'Xor',
                                                           tuple(map(self._convert_claripy_bool_ast, cond_.args)),
                                                           ),
+            '__and__': lambda cond_: ailment.Expr.BinaryOp(None, 'And',
+                                                           tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                           ),
+            'LShR': lambda cond_: ailment.Expr.BinaryOp(None, 'Shr',
+                                                        tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                        ),
             'BVV': lambda cond_: ailment.Expr.Const(None, None, cond_.args[0], cond_.size()),
             'BoolV': lambda cond_: ailment.Expr.Const(None, None, True, 1) if cond_.args[0] is True
                                                                         else ailment.Expr.Const(None, None, False, 1),
@@ -865,8 +874,11 @@ class Structurer(Analysis):
             'LogicalOr': lambda expr, conv: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
             'CmpEQ': lambda expr, conv: conv(expr.operands[0]) == conv(expr.operands[1]),
             'CmpLE': lambda expr, conv: conv(expr.operands[0]) <= conv(expr.operands[1]),
+            'CmpLT': lambda expr, conv: conv(expr.operands[0]) < conv(expr.operands[1]),
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
+            'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
+            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1]),
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.DirtyExpression)):
@@ -883,6 +895,11 @@ class Structurer(Analysis):
             return var
         elif isinstance(condition, ailment.Expr.Const):
             var = claripy.BVV(condition.value, condition.bits)
+            return var
+        elif isinstance(condition, ailment.Expr.Tmp):
+            l.warning("Left-over ailment.Tmp variable %s.", condition)
+            var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits)
+            self._condition_mapping[var] = condition
             return var
 
         lambda_expr = _mapping.get(condition.op, None)
