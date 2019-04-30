@@ -28,7 +28,8 @@ class SimSuccessors(object):
     :ivar unconstrained_successors:
                             Any state for which during the flattening process we find too many solutions.
 
-    A more detailed description of the successor lists may be found here: https://docs.angr.io/docs/simuvex.html
+    A more detailed description of the successor lists may be found here:
+    https://docs.angr.io/core-concepts/simulation#simsuccessors
     """
 
     def __init__(self, addr, initial_state):

@@ -22,7 +22,7 @@ If you are staying on python 2 and would like to make sure you don't get
 incompatible versions, make sure your pip is at least version 9.0, and it will
 use our metadata to implicitly avoid them.
 
-For more information, see here: https://docs.angr.io/MIGRATION.html
+For more information, see here: https://docs.angr.io/appendix/migration
 
 Good luck!
 """)

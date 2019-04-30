@@ -18,7 +18,7 @@ class SimProcedure:
     You may subclass SimProcedure and override ``run()``, replacing it with mutating ``self.state`` however you like,
     and then either returning a value or jumping away somehow.
 
-    A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/docs/simprocedures.md
+    A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/extending-angr/simprocedures
 
     :param arch:            The architecture to use for this procedure
 
