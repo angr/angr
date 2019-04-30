@@ -21,6 +21,12 @@ class Labels(KnowledgeBasePlugin):
             except AttributeError:
                 pass
 
+        # Artificial labels for the entry point
+        entry = kb._project.loader.main_object.entry
+        if entry not in self._labels:
+            lbl = "_start"
+            self._labels[entry] = self.get_unique_label(lbl)
+
     def __iter__(self):
         """
         Iterate over all labels (the strings)
