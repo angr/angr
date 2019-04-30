@@ -154,6 +154,10 @@ class UnaryOp(Op):
         else:
             return False, self
 
+    @property
+    def operands(self):
+        return [ self.operand ]
+
 
 class Convert(UnaryOp):
     def __init__(self, idx, from_bits, to_bits, is_signed, operand, **kwargs):
