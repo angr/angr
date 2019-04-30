@@ -8,6 +8,25 @@ from ..errors import AngrTracerError
 l = logging.getLogger(name=__name__)
 
 
+class TracingMode:
+    """
+    :ivar Strict:       Strict mode, where an exception is raised immediately if tracer's path deviates from the
+                        provided trace.
+    :ivar Permissive:   Permissive mode, where tracer attempts to force the path back to the provided trace when a
+                        deviation happens. This does not always work, especially when the cause of deviation is related
+                        to input that will later be used in exploit generation. But, it might work magically sometimes.
+    """
+    Strict = 'strict'
+    Permissive = 'permissive'
+
+
+class TracerDesyncError(AngrTracerError):
+    def __init__(self, msg, deviating_addr=None, deviating_trace_idx=None):
+        super().__init__(msg)
+        self.deviating_addr = deviating_addr
+        self.deviating_trace_idx = deviating_trace_idx
+
+
 class Tracer(ExplorationTechnique):
     """
     An exploration technique that follows an angr path with a concrete input.
@@ -29,6 +48,7 @@ class Tracer(ExplorationTechnique):
                                 the missed states. It will be re-added for the last 2% of the trace
                                 in order to set the predecessors list correctly. If you turn this
                                 on you may want to enable the LAZY_SOLVES option.
+    :param mode:                Tracing mode.
 
     :ivar predecessors:         A list of states in the history before the final state.
     """
@@ -38,12 +58,14 @@ class Tracer(ExplorationTechnique):
             resiliency=False,
             keep_predecessors=1,
             crash_addr=None,
-            copy_states=False):
+            copy_states=False,
+            mode=TracingMode.Strict):
         super(Tracer, self).__init__()
         self._trace = trace
         self._resiliency = resiliency
         self._crash_addr = crash_addr
         self._copy_states = copy_states
+        self._mode = mode
 
         self._aslr_slides = {}
         self._current_slide = None
@@ -54,6 +76,11 @@ class Tracer(ExplorationTechnique):
 
         # whether we should follow the trace
         self._no_follow = self._trace is None
+
+        # sanity check: copy_states must be enabled in Permissive mode since we may need to backtrack from a previous
+        # state.
+        if self._mode == TracingMode.Permissive and not self._copy_states:
+            raise ValueError('"copy_states" must be True when tracing in permissive mode.')
 
     def setup(self, simgr):
         simgr.populate('missed', [])
@@ -96,7 +123,7 @@ class Tracer(ExplorationTechnique):
 
         # disable state copying!
         if not self._copy_states:
-            # insulate our caller from this nonsense my making a single copy at the beginning
+            # insulate our caller from this nonsense by making a single copy at the beginning
             simgr.active[0] = simgr.active[0].copy()
             simgr.active[0].options.remove(sim_options.COPY_STATES)
 
@@ -136,19 +163,90 @@ class Tracer(ExplorationTechnique):
         # perform the step. ask qemu to stop at the termination point.
         stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
         succs_dict = simgr.step_state(state, extra_stop_points=stops, **kwargs)
-        succs = succs_dict[None] + succs_dict['unsat']
+        sat_succs = succs_dict[None]  # satisfiable states
+        succs = sat_succs + succs_dict['unsat']  # both satisfiable and unsatisfiable states
 
-        # follow the trace
-        if len(succs) == 1:
-            self._update_state_tracking(succs[0])
-        elif len(succs) == 0:
-            raise Exception("All states disappeared!")
+        if self._mode == TracingMode.Permissive:
+            # permissive mode
+            if len(sat_succs) == 1:
+                try:
+                    self._update_state_tracking(sat_succs[0])
+                except TracerDesyncError as ex:
+                    if self._mode == TracingMode.Permissive:
+                        succs_dict = self._force_resync(simgr, state, ex.deviating_trace_idx, ex.deviating_addr, kwargs)
+                    else:
+                        raise
+            elif len(sat_succs) == 0:
+                raise Exception("No satisfiable state is available!")
+            else:
+                succ = self._pick_correct_successor(sat_succs)
+                succs_dict[None] = [succ]
+                succs_dict['missed'] = [s for s in sat_succs if s is not succ]
         else:
-            succ = self._pick_correct_successor(succs)
-            succs_dict[None] = [succ]
-            succs_dict['missed'] = [s for s in succs if s is not succ]
+            # strict mode
+            if len(succs) == 1:
+                self._update_state_tracking(succs[0])
+            elif len(succs) == 0:
+                raise Exception("All states disappeared!")
+            else:
+                succ = self._pick_correct_successor(succs)
+                succs_dict[None] = [succ]
+                succs_dict['missed'] = [s for s in succs if s is not succ]
 
         assert len(succs_dict[None]) == 1
+        return succs_dict
+
+    def _force_resync(self, simgr, state, deviating_trace_idx, deviating_addr, kwargs):
+        """
+        When a deviation happens, force the tracer to take the branch specified in the trace by manually setting the
+        PC to the one in the trace. This method is only used in Permissive tracing mode.
+
+        :param simgr:               The simulation manager instance.
+        :param state:               The program state before the current step.
+        :param deviating_trace_idx: The index of address in the trace where a desync happens.
+        :param deviating_addr:      The address that tracer takes when the desync happens. Should be different from the
+                                    one in the trace.
+        :param kwargs:              Other keyword arguments that will be passed to step_state().
+        :return:                    A new successor dict.
+        :rtype:                     dict
+        """
+
+        # if unicorn engine is enabled, disable it. forced execution requires single-stepping in angr.
+        unicorn_option_removed = False
+        if sim_options.UNICORN in state.options:
+            state.options.remove(sim_options.UNICORN)
+            unicorn_option_removed = True
+
+        # single step until right before the deviating state
+        trace_idx = state.globals['trace_idx']
+        while trace_idx != deviating_trace_idx - 1:
+            succs_dict = simgr.step_state(state, **kwargs)
+            succs = succs_dict[None]
+            assert len(succs) == 1
+            self._update_state_tracking(succs[0])
+            state = succs[0]
+            trace_idx += 1
+
+        # step the state further and then manually set the PC
+        succs_dict = simgr.step_state(state, **kwargs)
+        succs = succs_dict[None]
+        if len(succs) != 1 or succs[0].addr != deviating_addr:
+            raise TracerDesyncError("Address mismatch during single-stepping.")
+        succ = succs[0]
+        expected_addr = self._trace[deviating_trace_idx]
+        current_obj = self.project.loader.find_object_containing(state.addr)
+        assert current_obj is not None
+        translated_addr = self._translate_trace_addr(expected_addr, current_obj)
+        l.info("Attempt to fix a deviation: Forcing execution from %#x to %#x (instead of %#x).",
+               state.addr, succ.addr, translated_addr)
+        succ._ip = translated_addr
+
+        succ.globals['trace_idx'] = trace_idx + 1
+        succs_dict = {None: [succ]}
+
+        if unicorn_option_removed:
+            succ.options.add(sim_options.UNICORN)
+
         return succs_dict
 
     def _pick_correct_successor(self, succs):
@@ -196,7 +294,9 @@ class Tracer(ExplorationTechnique):
                 if self._compare_addr(self._trace[idx], addr):
                     idx += 1
                 else:
-                    raise Exception('BUG! Please investigate the claim in the comment above me')
+                    raise TracerDesyncError('BUG! Please investigate the claim in the comment above me',
+                                            deviating_addr=addr,
+                                            deviating_trace_idx=idx)
 
             idx -= 1 # use normal code to do the last synchronization
 
@@ -248,7 +348,9 @@ class Tracer(ExplorationTechnique):
             # misfollow analysis will set a sync point somewhere if it succeeds
             pass
         else:
-            raise AngrTracerError("Oops! angr did not follow the trace.")
+            raise TracerDesyncError("Oops! angr did not follow the trace",
+                                    deviating_addr=state.addr,
+                                    deviating_trace_idx=idx+1)
 
         if state.globals['sync_idx'] is not None:
             l.debug("Trace: %d-%d/%d synchronizing %d", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
