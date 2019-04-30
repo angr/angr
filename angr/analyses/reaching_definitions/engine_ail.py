@@ -268,26 +268,29 @@ class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
         return DataSet(data, bits)
 
     def _ail_handle_Convert(self, expr):
-        r = super()._ail_handle_Convert(expr)
-        if r is None:
-            to_conv = self._expr(expr.operand)
-            if expr.from_bits == to_conv.bits and \
-                    isinstance(to_conv, DataSet):
-                if len(to_conv) == 1 and type(next(iter(to_conv.data))) is Undefined:
-                    r = DataSet(to_conv.data.copy(), expr.to_bits)
-                elif all(isinstance(d, (ailment.Expr.Const, int)) for d in to_conv.data):
-                    converted = set()
-                    for d in to_conv.data:
-                        if isinstance(d, ailment.Expr.Const):
-                            converted.add(ailment.Expr.Const(d.idx, d.variable, d.value, expr.to_bits))
-                        else:  # isinstance(d, int)
-                            converted.add(d)
-                    r = DataSet(converted, expr.to_bits)
+        to_conv = self._expr(expr.operand)
+        if type(to_conv) is int:
+            return to_conv
 
-            if r is None:
-                r = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
-                                         self._expr(expr.operand))
-                r = DataSet(r, expr.to_bits)
+        r = None
+        if expr.from_bits == to_conv.bits and \
+                isinstance(to_conv, DataSet):
+            if len(to_conv) == 1 and type(next(iter(to_conv.data))) is Undefined:
+                r = DataSet(to_conv.data.copy(), expr.to_bits)
+            elif all(isinstance(d, (ailment.Expr.Const, int)) for d in to_conv.data):
+                converted = set()
+                for d in to_conv.data:
+                    if isinstance(d, ailment.Expr.Const):
+                        converted.add(ailment.Expr.Const(d.idx, d.variable, d.value, expr.to_bits))
+                    else:  # isinstance(d, int)
+                        converted.add(d)
+                r = DataSet(converted, expr.to_bits)
+
+        if r is None:
+            r = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
+                                     to_conv)
+            r = DataSet(r, expr.to_bits)
+
         return r
 
     def _ail_handle_BinaryOp(self, expr):
