@@ -1,4 +1,3 @@
-
 import os
 import logging
 import networkx
@@ -6,9 +5,11 @@ import string
 import itertools
 import pickle
 from collections import defaultdict
+from typing import Union
 
 from itanium_demangler import parse
 
+from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
@@ -651,6 +652,20 @@ class Function(Serializable):
         """
 
         return self._project.loader.find_object_containing(self.addr, membership_check=False)
+
+    @property
+    def offset(self) -> int:
+        """
+        :return: the function's binary offset (i.e., non-rebased address)
+        """
+        return self.addr - self.binary.mapped_base
+
+    @property
+    def symbol(self) -> Union[None, Symbol]:
+        """
+        :return: the function's Symbol, if any
+        """
+        return self.binary.loader.find_symbol(self.addr)
 
     def add_jumpout_site(self, node):
         """
