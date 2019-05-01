@@ -69,6 +69,7 @@ class Tracer(ExplorationTechnique):
 
         self._aslr_slides = {}
         self._current_slide = None
+        self._aslr_zero = 0xfff
 
         # keep track of the last basic block we hit
         self.predecessors = [None] * keep_predecessors # type: List[angr.SimState]
@@ -93,9 +94,14 @@ class Tracer(ExplorationTechnique):
 
         # calc ASLR slide for main binary and find the entry point in one fell swoop
         # ...via heuristics
+        _addr = min(self.project.entry, self._trace[0])
+        if 0x40000 <= _addr < 0x400000: self._aslr_zero = 0xffff
+        elif _addr < 0x4000000: self._aslr_zero = 0xfffff
+        elif _addr < 0x40000000: self._aslr_zero = 0xffffff
+        else: self._aslr_zero = 0xfffffff
         for idx, addr in enumerate(self._trace):
             if self.project.loader.main_object.pic:
-                if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x100000):
+                if ((addr - self.project.entry) & self._aslr_zero) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x100000):
                     break
             else:
                 if addr == self.project.entry:
@@ -375,12 +381,13 @@ class Tracer(ExplorationTechnique):
 
         current_bin = self.project.loader.find_object_containing(state_addr)
         if current_bin is self.project.loader._extern_object or current_bin is self.project.loader._kernel_object:
+            self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
             return False
         elif current_bin in self._aslr_slides:
             self._current_slide = self._aslr_slides[current_bin]
             return trace_addr == state_addr + self._current_slide
         else:
-            if ((trace_addr - state_addr) & 0xfff) == 0:
+            if ((trace_addr - state_addr) & self._aslr_zero) == 0:
                 self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
                 return True
             else:
