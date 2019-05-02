@@ -438,7 +438,7 @@ class Tracer(ExplorationTechnique):
         return False
 
     def _sync_callsite(self, state, idx, callsite_addr):
-        retsite_addr = self._translate_state_addr(state.block(callsite_addr).size + callsite_addr)
+        retsite_addr = state.block(callsite_addr).size + callsite_addr
         return self._sync(state, idx, retsite_addr)
 
     def _sync_return(self, state, idx, assert_obj=None):
