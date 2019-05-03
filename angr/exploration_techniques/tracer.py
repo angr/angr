@@ -27,6 +27,82 @@ class TracerDesyncError(AngrTracerError):
         self.deviating_trace_idx = deviating_trace_idx
 
 
+class RepHook:
+    def __init__(self, mnemonic):
+        self.mnemonic = mnemonic
+
+    def _inline_call(self, state, procedure, *arguments, **kwargs):
+        e_args = [state.solver.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
+        p = procedure(project=self.project, **kwargs)
+        return p.execute(state, None, arguments=e_args)
+
+    def run(self, state):
+
+        from .. import SIM_PROCEDURES
+
+        dst = state.regs.edi if state.arch.name == "X86" else state.regs.rdi
+
+        if self.mnemonic.startswith("stos"):
+            # store a string
+            if self.mnemonic == "stosb":
+                val = state.regs.al
+                multiplier = 1
+            elif self.mnemonic == "stosw":
+                val = state.regs.ax
+                multiplier = 2
+            elif self.mnemonic == "stosd":
+                val = state.regs.eax
+                multiplier = 4
+            elif self.mnemonic == "stosq":
+                val = state.regs.rax
+                multiplier = 8
+            else:
+                raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+
+            size = state.regs.ecx * multiplier
+
+            memset = SIM_PROCEDURES['libc']["memset"]
+            memset().execute(state, arguments=[dst, val, size])
+
+            if state.arch.name == "X86":
+                state.regs.edi += size
+            else:
+                state.regs.rdi += size
+            state.regs.ecx = 0
+
+        elif self.mnemonic.startswith("movs"):
+
+            src = state.regs.esi if state.arch.name == "X86" else state.regs.rsi
+
+            # copy a string
+            if self.mnemonic == "movsb":
+                multiplier = 1
+            elif self.mnemonic == "movsw":
+                multiplier = 2
+            elif self.mnemonic == "movsd":
+                multiplier = 4
+            elif self.mnemonic == "movsq":
+                multiplier = 8
+            else:
+                raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+
+            size = state.regs.ecx * multiplier
+
+            memcpy = SIM_PROCEDURES['libc']["memcpy"]
+            memcpy().execute(state, arguments=[dst, src, size])
+
+            if state.arch.name == "X86":
+                state.regs.edi += size
+                state.regs.esi -= size
+            else:
+                state.regs.rdi += size
+                state.regs.rsi -= size
+            state.regs.ecx = 0
+
+        else:
+            import ipdb; ipdb.set_trace()
+
+
 class Tracer(ExplorationTechnique):
     """
     An exploration technique that follows an angr path with a concrete input.
@@ -159,6 +235,17 @@ class Tracer(ExplorationTechnique):
         if state.globals['trace_idx'] > len(self._trace) * 0.98:
             state.options.add(sim_options.COPY_STATES)
             state.options.add(sim_options.LAZY_SOLVES)
+
+        # optimization:
+        # look forward, is it a rep stos/movs instruction?
+        # if so, we add a temporary hook to speed up constraint solving
+        block = self.project.factory.block(state.addr)
+        if len(block.capstone.insns) == 1 and (
+                block.capstone.insns[0].mnemonic.startswith("rep m") or
+                block.capstone.insns[0].mnemonic.startswith("rep s")
+        ) and not self.project.is_hooked(state.addr):
+            insn = block.capstone.insns[0]
+            self.project.hook(state.addr, RepHook(insn.mnemonic.split(" ")[1]).run, length=insn.size)
 
         # perform the step. ask qemu to stop at the termination point.
         stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
