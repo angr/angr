@@ -1122,7 +1122,7 @@ class Unicorn(SimStatePlugin):
                 continue
             v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
-                    raise SimValueError('setting a symbolic register')
+                raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.solver.eval(v))
             uc.reg_write(c, self.state.solver.eval(v))
 

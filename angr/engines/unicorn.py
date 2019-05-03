@@ -1,5 +1,6 @@
 import logging
 
+from ..errors import SimValueError
 from ..engines import SimEngine
 from ..state_plugins.inspect import BP_AFTER
 
@@ -115,7 +116,15 @@ class SimEngineUnicorn(SimEngine):
                 extra_stop_points.add(bp.kwargs["instruction"])
 
         # initialize unicorn plugin
-        state.unicorn.setup()
+        try:
+            state.unicorn.setup()
+        except SimValueError:
+            # it's trying to set a symbolic register somehow
+            state.unicorn.destroy()
+            # fail out, force fallback to next engine
+            self.reset_countdowns(successors.initial_state, state)
+            return
+
         try:
             state.unicorn.set_stops(extra_stop_points)
             state.unicorn.set_tracking(track_bbls=o.UNICORN_TRACK_BBL_ADDRS in state.options,
@@ -128,10 +137,7 @@ class SimEngineUnicorn(SimEngine):
 
         if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
             # fail out, force fallback to next engine
-            successors.initial_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
-            successors.initial_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
-            successors.initial_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
-            successors.initial_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
+            self.reset_countdowns(successors.initial_state, state)
             return
 
         description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
@@ -161,6 +167,14 @@ class SimEngineUnicorn(SimEngine):
         state.unicorn.countdown_symbolic_memory -= 1
         state.unicorn.countdown_symbolic_memory -= 1
         state.unicorn.countdown_stop_point -= 1
+
+    @staticmethod
+    def reset_countdowns(state, next_state):
+        next_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
+        next_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
+        next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
+        next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
+
 
 from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
 from .. import sim_options as o
