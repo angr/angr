@@ -889,7 +889,12 @@ class Unicorn(SimStatePlugin):
             # did not step at all).
             self.delete_uc()
         self._setup_unicorn()
-        self.set_regs()
+        try:
+            self.set_regs()
+        except SimValueError:
+            # reset the state and re-raise
+            self.uc.reset()
+            raise
         # tricky: using unicorn handle from unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
 
@@ -1122,7 +1127,7 @@ class Unicorn(SimStatePlugin):
                 continue
             v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
-                    raise SimValueError('setting a symbolic register')
+                raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.solver.eval(v))
             uc.reg_write(c, self.state.solver.eval(v))
 
