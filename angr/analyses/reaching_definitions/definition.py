@@ -10,9 +10,11 @@ class Definition:
     An atom definition.
 
     :ivar Atom atom:            The atom being defined.
-    :ivar CodeLocation codeloc: Where this definition is created.
-    :ivar data:                 A concrete value (or many concrete values) that the atom holds when the definition is
+    :ivar CodeLocation codeloc: Where this definition is created in the original binary code.
+    :ivar DataSet data:         A concrete value (or many concrete values) that the atom holds when the definition is
                                 created.
+    :ivar bool dummy:           Tell wether the definition should be considered dummy or not.
+                                During simplification by AILment, definitions marked as dummy will not be removed.
     """
 
     __slots__ = ('atom', 'codeloc', 'data', 'dummy')

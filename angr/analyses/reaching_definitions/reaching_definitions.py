@@ -204,15 +204,6 @@ class LiveDefinitions:
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
 
     def _kill_and_add_stack_definition(self, atom, code_loc, data, dummy=False):
-        """
-
-        :param SpOffset atom:
-        :param code_loc:
-        :param data:
-        :param dummy:
-        :return:
-        """
-
         current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
         if current_defs:
             uses = set()

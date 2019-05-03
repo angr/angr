@@ -56,6 +56,11 @@ class AllocHelper:
 
 
 class SimFunctionArgument:
+    """
+    Represent a generic function argument.
+
+    :ivar int size:    The size of the argument, in number of bytes.
+    """
     def __init__(self, size):
         self.size = size
 
@@ -79,6 +84,12 @@ class SimFunctionArgument:
 
 
 class SimRegArg(SimFunctionArgument):
+    """
+    Represents a function argument that has been passed in a register.
+
+    :ivar string reg_name:    The name of the represented register.
+    :ivar int size:           The size of the register, in number of bytes.
+    """
     def __init__(self, reg_name, size, alt_offsets=None):
         SimFunctionArgument.__init__(self, size)
         self.reg_name = reg_name
@@ -126,6 +137,12 @@ class SimRegArg(SimFunctionArgument):
 
 
 class SimStackArg(SimFunctionArgument):
+    """
+    Represents a function argument that has been passed on the stack.
+
+    :var int stack_offset:    The position of the argument relative to the stack pointer after the function prelude.
+    :ivar int size:           The size of the argument, in number of bytes.
+    """
     def __init__(self, stack_offset, size):
         SimFunctionArgument.__init__(self, size)
         self.stack_offset = stack_offset

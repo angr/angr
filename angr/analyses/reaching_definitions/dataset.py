@@ -12,7 +12,10 @@ class DataSet:
     This class represents a set of data.
 
     Addition and subtraction are performed on the cartesian product of the operands. Duplicate results are removed.
-    data must always include a set.
+    Data must always include a set.
+
+    :ivar set data:    The set of data to represent.
+    :ivar int bits:    The size of an element of the set, in number of bits its representation takes.
     """
     maximum_size = 5
 
