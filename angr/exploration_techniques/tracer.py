@@ -521,6 +521,13 @@ class Tracer(ExplorationTechnique):
             # TODO: this method is newer than sync_callsite. should it be used always?
             return self._sync_return(state, idx, assert_obj=prev_obj)
 
+        if prev_obj is not None:
+            prev_section = prev_obj.find_section_containing(prev_addr)
+            if prev_section is not None:
+                if prev_section.name in (".plt",):
+                    l.info("...syncing at PLT callsite (type 2)")
+                    return self._sync_return(state, idx, assert_obj=prev_obj)
+
         l.info('...all analyses failed.')
         return False
 
