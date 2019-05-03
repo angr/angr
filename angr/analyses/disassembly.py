@@ -2,10 +2,12 @@
 import logging
 from collections import defaultdict
 
-from . import Analysis
+import pyvex
+from angr.analyses import AnalysesHub
 
+from ..block import Block, CapstoneInsn, SootBlockNode
+from . import Analysis
 from .disassembly_utils import decode_instruction
-from ..block import CapstoneInsn, SootBlockNode
 
 l = logging.getLogger(name=__name__)
 
@@ -16,8 +18,8 @@ class DisassemblyPiece(object):
     addr = None
     ident = float('nan')
 
-    def render(self, formatting=None):
-        x = self._render(formatting)
+    def render(self, formatting=None, **kwargs):
+        x = self._render(formatting, **kwargs)
         if len(x) == 1:
             return [self.highlight(x[0], formatting)]
         else:
@@ -87,7 +89,7 @@ class Label(DisassemblyPiece):
         self.addr = addr
         self.name = name
 
-    def _render(self, formatting):  # pylint:disable=unused-argument
+    def _render(self, formatting, **kwargs):  # pylint:disable=unused-argument
         return [self.name + ':']
 
 
@@ -98,7 +100,7 @@ class BlockStart(DisassemblyPiece):
         self.parentfunc = parentfunc
         self.project = project
 
-    def _render(self, formatting):
+    def _render(self, formatting, **kwargs):
         return []
 
 
@@ -442,6 +444,226 @@ class SootStatement(DisassemblyPiece):
 
         return SootExpressionInvoke(SootExpressionInvoke.Special, expr)
 
+class VexPiece(DisassemblyPiece):
+    def __init__(self, piece):
+        self._piece = piece
+
+    def _render(self, formatting=None, arch=None):
+        str_tokens = []
+        for piece in self._pieces(arch):
+            if isinstance(piece, str):
+                str_tokens.append(piece)
+            elif isinstance(piece, int):
+                str_tokens.append(str(piece))
+            else:
+                str_tokens.extend(piece._render(formatting=formatting, arch=arch))
+        return ''.join(str_tokens)
+
+    def _pieces(self, arch=None):
+        return [self._piece.__str__(arch=arch)]
+
+vex_expr_map = {}
+def vex_expr(expr):
+    if type(expr) not in vex_expr_map:
+        return False
+    return vex_expr_map[type(expr)](expr)
+
+class VexGet(VexPiece):
+    def __init__(self, pyvex_get_expr):
+        self.pyvex_get_expr = pyvex_get_expr
+
+    def _pieces(self, arch=None):
+        return ['GET(',
+               VexRegister(self.pyvex_get_expr),
+               ')',
+               ]
+
+class VexLoad(VexPiece):
+    def __init__(self, pyvex_load_expr):
+        self.pyvex_load_expr = pyvex_load_expr
+
+    def _pieces(self, arch=None):
+        return ['LOAD(',
+                vex_expr(self.pyvex_load_expr.addr),
+                ')'
+               ]
+
+
+class VexRegister(VexPiece):
+    def __init__(self, offset_or_expr, ty=None):
+        if isinstance(offset_or_expr, pyvex.IRExpr.Get):
+            self._offset = offset_or_expr.offset
+            self._ty = offset_or_expr.ty
+        else:
+            self._offset = offset_or_expr
+            if ty is None:
+                raise ValueError('Cannot process VEX type None')
+            self._ty = ty
+
+    def _pieces(self, arch=None):
+        reg_name = None
+        if arch is not None:
+            reg_name = arch.translate_register_name(self._offset, self._ty)
+
+        if reg_name is not None:
+            return [reg_name]
+        else:
+            return ['offset={}'.format(self._offset)]
+
+class VexConstant(VexPiece):
+    def __init__(self, value_or_expr, ty=None):
+        if isinstance(value_or_expr, pyvex.IRExpr.Const):
+            self._value = value_or_expr.con.value
+            self._ty_width = value_or_expr.con.size
+        else:
+            self._value = value_or_expr
+            self._ty_width = ty
+
+    def _pieces(self, arch=None):
+        if self._ty_width is not None:
+            num_hex_digits = 1 + (self._ty_width - 1) // 8
+            format_str = '0x%0{}x'.format(num_hex_digits)
+            return [format_str % self._value]
+        else:
+            return ['0x%x' % self._value]
+
+class VexIMarkConstant(VexConstant):
+    pass
+
+class VexTmp(VexPiece):
+    def __init__(self, tmp_idx_or_expr):
+        if isinstance(tmp_idx_or_expr, pyvex.IRExpr.RdTmp):
+            self._tmp_idx = tmp_idx_or_expr._tmp
+        else:
+            self._tmp_idx = tmp_idx_or_expr
+
+    def _pieces(self, arch=None):
+        return ['t{}'.format(self._tmp_idx)]
+
+vex_stmt_map = {
+}
+
+def vex_stmt(stmt, addr, stmt_idx, tyenv):
+    if type(stmt) not in vex_stmt_map:
+        return None
+    return vex_stmt_map[type(stmt)](stmt, addr, stmt_idx, tyenv)
+
+
+class VexOp(VexPiece):
+    def __init__(self, expr):
+        self._op = expr.op
+        self._args = expr.args
+
+    def _pieces(self, arch=None):
+        arg_pieces = sum(([vex_expr(a), ', '] for a in self._args), [])[:-1]
+        return [self._op[4:],
+                '(',
+                *arg_pieces,
+                ')'
+               ]
+
+class VexStatement(VexPiece):
+    def __init__(self, stmt=None, addr=None, stmt_idx=None, tyenv=None):
+        self.stmt = stmt
+        self.addr = addr
+        self.stmt_idx = stmt_idx
+        self.tyenv = tyenv
+
+class VexNoOp(VexStatement):
+    def _pieces(self, arch=None):
+        return ['NoOp']
+
+class VexJumpKind(VexPiece):
+    def __init__(self, jumpkind_str):
+        self.jumpkind_str = jumpkind_str
+
+    def _pieces(self, arch=None):
+        return [self.jumpkind_str]
+
+class VexIMark(VexStatement):
+    def _pieces(self, arch=None):
+        return ['----- IMark(',
+                VexIMarkConstant(self.stmt.addr),
+                ', ',
+                self.stmt.len,
+                ', ',
+                self.stmt.delta,
+                ') -----',
+                '\n']
+
+class VexPut(VexStatement):
+    def __init__(self, *args, **kwargs):
+        self._offset = kwargs.pop('offset', None)
+        self._data = kwargs.pop('data', None)
+        super().__init__(*args, **kwargs)
+        if self._offset is None:
+            self._offset = self.stmt.offset
+            self._data = self.stmt.data
+
+    def _pieces(self, arch=None):
+        if hasattr(self._data, 'type'):
+            regty = self._data.type
+        else:
+            regty = self._data.result_type(self.tyenv)
+        dataval = vex_expr(self._data)
+        if dataval is None:
+            if isinstance(dataval, int):
+                dataval = VexConstant(dataval)
+            elif isinstance(dataval, pyvex.IRConst.IRConst):
+                dataval = VexConstant(dataval.value, ty=dataval.type)
+        return ['PUT(',
+                VexRegister(self._offset, regty),
+                ') = ',
+                dataval,
+                '\n',
+               ]
+
+class VexWrTmp(VexStatement):
+    def _pieces(self, arch=None):
+        return [VexTmp(self.stmt.tmp),
+                ' = ',
+                vex_expr(self.stmt.data),
+                '\n',
+               ]
+
+class VexStore(VexStatement):
+    def _pieces(self, arch=None):
+        return ['ST{}('.format(self.stmt.endness[-2:].lower()),
+                VexConstant(self.addr),
+                ') = ',
+                vex_expr(self.stmt.data),
+                '\n',
+               ]
+
+class VexExit(VexStatement):
+    def _pieces(self, arch=None):
+        return ['if (',
+                vex_expr(self.stmt.guard),
+                ') {',
+                '\n',
+                '  ',
+                VexPut(offset=self.stmt.offsIP, data=self.stmt.dst, tyenv=self.tyenv),
+                '}'
+                ' ; ',
+                VexJumpKind(self.stmt.jumpkind),
+                '\n',
+               ]
+
+vex_stmt_map[pyvex.IRStmt.NoOp] = VexNoOp
+vex_stmt_map[pyvex.IRStmt.IMark] = VexIMark
+vex_stmt_map[pyvex.IRStmt.Store] = VexStore
+vex_stmt_map[pyvex.IRStmt.Exit] = VexExit
+vex_stmt_map[pyvex.IRStmt.Put] = VexPut
+vex_stmt_map[pyvex.IRStmt.WrTmp] = VexWrTmp
+
+vex_expr_map[pyvex.IRExpr.Const] = VexConstant
+vex_expr_map[pyvex.IRExpr.Load] = VexLoad
+vex_expr_map[pyvex.IRExpr.RdTmp] = VexTmp
+vex_expr_map[pyvex.IRExpr.Get] = VexGet
+vex_expr_map[pyvex.IRExpr.Unop] = VexOp
+vex_expr_map[pyvex.IRExpr.Binop] = VexOp
+vex_expr_map[pyvex.IRExpr.Triop] = VexOp
+vex_expr_map[pyvex.IRExpr.Qop] = VexOp
 
 class Opcode(DisassemblyPiece):
     def __init__(self, parentinsn):
@@ -739,7 +961,7 @@ class FuncComment(DisassemblyPiece):
 
 
 class Disassembly(Analysis):
-    def __init__(self, function=None, ranges=None):  # pylint:disable=unused-argument
+    def __init__(self, function=None, ranges=None, **kwargs):  # pylint:disable=unused-argument
 
         # TODO: support ranges
 
@@ -754,11 +976,12 @@ class Disassembly(Analysis):
         self.block_to_insn_addrs = defaultdict(list)
         self._func_cache = {}
 
+        kwargs['vex'] = True
         if function is not None:
             # sort them by address, put hooks before nonhooks
             blocks = sorted(function.graph.nodes(), key=lambda node: (node.addr, not node.is_hook))
             for block in blocks:
-                self.parse_block(block)
+                self.parse_block(block, **kwargs)
 
     def func_lookup(self, block):
         try:
@@ -770,7 +993,7 @@ class Disassembly(Analysis):
             self._func_cache[f.addr] = f
             return f
 
-    def parse_block(self, block):
+    def parse_block(self, block, **kwargs):
         func = self.func_lookup(block)
         if func and func.addr == block.addr:
             self.raw_result.append(FuncComment(block.function))
@@ -778,11 +1001,39 @@ class Disassembly(Analysis):
         bs = BlockStart(block, func, self.project)
         self.raw_result.append(bs)
 
-        if block.is_hook:
+        if 'vex' in kwargs and kwargs['vex']:
+            vex_block = self.project.factory.block(block.addr, block.size)
+            tyenv = vex_block.vex.tyenv
+            if vex_block.thumb:
+                aligned_block_addr = (vex_block.addr >> 1) << 1
+            else:
+                aligned_block_addr = vex_block.addr
+            self.block_to_insn_addrs[block.addr] = []
+            stmt_idx = None
+            stmt_addr = None
+            for stmt in vex_block.vex.statements:
+                if type(stmt) is pyvex.IRStmt.IMark:
+                    stmt_addr = stmt.addr
+                    stmt_idx = 0
+                    self.raw_result_map['instructions'][stmt_addr] = []
+                    self.block_to_insn_addrs[block.addr].append(stmt_addr)
+                    if stmt_addr in self.kb.labels:
+                        label = Label(stmt_addr, self.kb.labels[stmt_addr])
+                        self.raw_result.append(label)
+                        self.raw_result_map['labels'][label.addr] = label
+                    if stmt_addr in self.kb.comments:
+                        comment = Comment(stmt_addr, self.kb.comments[stmt_addr])
+                        self.raw_result.append(comment)
+                        self.raw_result_map['comments'][stmt_addr] = comment
+                stmt_idx += 1
+                stmt = vex_stmt(stmt, stmt_addr, stmt_idx, tyenv)
+                if stmt is not None:
+                    self.raw_result.append(stmt)
+                    self.raw_result_map['instructions'][stmt.addr].append(stmt)
+        elif block.is_hook:
             hook = Hook(block.addr, bs)
             self.raw_result.append(hook)
             self.raw_result_map['hooks'][block.addr] = hook
-
         elif self.project.arch.capstone_support:
             if block.thumb:
                 aligned_block_addr = (block.addr >> 1) << 1
@@ -817,10 +1068,9 @@ class Disassembly(Analysis):
         else:
             raise TypeError("")
 
-    def render(self, formatting=None):
+    def render(self, formatting=None, **kwargs):
         if formatting is None: formatting = {}
-        return '\n'.join(sum((x.render(formatting) for x in self.raw_result), []))
+        return ''.join(sum((x.render(formatting, **kwargs) for x in self.raw_result), []))
 
 
-from angr.analyses import AnalysesHub
 AnalysesHub.register_default('Disassembly', Disassembly)
