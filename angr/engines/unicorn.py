@@ -120,7 +120,6 @@ class SimEngineUnicorn(SimEngine):
             state.unicorn.setup()
         except SimValueError:
             # it's trying to set a symbolic register somehow
-            state.unicorn.destroy()
             # fail out, force fallback to next engine
             self.reset_countdowns(successors.initial_state, state)
             return

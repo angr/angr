@@ -889,7 +889,12 @@ class Unicorn(SimStatePlugin):
             # did not step at all).
             self.delete_uc()
         self._setup_unicorn()
-        self.set_regs()
+        try:
+            self.set_regs()
+        except SimValueError:
+            # reset the state and re-raise
+            self.uc.reset()
+            raise
         # tricky: using unicorn handle from unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
 
