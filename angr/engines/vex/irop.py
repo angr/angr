@@ -41,10 +41,8 @@ def op_attrs(p):
                  )
 
     if not m:
-        l.debug("Unmatched operation: %s", p)
         return None
     else:
-        l.debug("Matched operation: %s", p)
         attrs = m.groupdict()
 
         attrs['from_signed'] = attrs['from_signed_back'] if attrs['from_signed'] is None else attrs['from_signed']
@@ -67,14 +65,10 @@ def op_attrs(p):
                           )
             attrs.update(vm.groupdict())
 
-        for k,v in attrs.items():
-            if v is not None and v != "":
-                l.debug("... %s: %s", k, v)
-
         return attrs
 
 
-all_operations = pyvex.irop_enums_to_ints.keys()
+all_operations = list(pyvex.irop_enums_to_ints.keys())
 operations = { }
 classified = set()
 unclassified = set()
@@ -184,7 +178,6 @@ class SimIROp:
     A symbolic version of a Vex IR operation.
     """
     def __init__(self, name, **attrs):
-        l.debug("Creating SimIROp(%s)", name)
         self.name = name
         self.op_attrs = attrs
 
@@ -215,7 +208,6 @@ class SimIROp:
         self._output_type = pyvex.get_op_retty(name)
         #pylint:enable=no-member
         self._output_size_bits = pyvex.const.get_type_size(self._output_type)
-        l.debug("... VEX says the output size should be %s", self._output_size_bits)
 
         size_check = self._to_size is None or (self._to_size*2 if self._generic_name == 'DivMod' else self._to_size) == self._output_size_bits
         if not size_check:
@@ -234,7 +226,6 @@ class SimIROp:
             self._float = True
 
             if len({self._vector_type, self._from_type, self._to_type} & {'D'}) != 0:
-                l.debug('... aborting on BCD!')
                 # fp_ops.add(self.name)
                 raise UnsupportedIROpError("BCD ops aren't supported")
         else:
@@ -265,29 +256,23 @@ class SimIROp:
 
             # this concatenates the args into the high and low halves of the result
             elif self._from_side == 'HL':
-                l.debug("... using simple concat")
                 self._calculate = self._op_concat
 
             # this just returns the high half of the first arg
             elif self._from_size > self._to_size and self._from_side == 'HI':
-                l.debug("... using hi half")
                 self._calculate = self._op_hi_half
 
             # this just returns the high half of the first arg
             elif self._from_size > self._to_size and self._from_side in ('L', 'LO'):
-                l.debug("... using lo half")
                 self._calculate = self._op_lo_half
 
             elif self._from_size > self._to_size and self._from_side is None:
-                l.debug("... just extracting")
                 self._calculate = self._op_extract
 
             elif self._from_size < self._to_size and self.is_signed:
-                l.debug("... using simple sign-extend")
                 self._calculate = self._op_sign_extend
 
             elif self._from_size < self._to_size and not self.is_signed:
-                l.debug("... using simple zero-extend")
                 self._calculate = self._op_zero_extend
 
             else:
@@ -297,7 +282,6 @@ class SimIROp:
         # other conversions
         elif self._conversion and self._generic_name != 'Round' and self._generic_name != 'Reinterp':
             if self._generic_name == "DivMod":
-                l.debug("... using divmod")
                 self._calculate = self._op_divmod
             else:
                 unsupported_conversions.append(self.name)
@@ -305,13 +289,11 @@ class SimIROp:
 
         # generic bitwise
         elif self._generic_name in bitwise_operation_map:
-            l.debug("... using generic mapping op")
             assert self._from_side is None
             self._calculate = self._op_mapped
 
         # generic mapping operations
         elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map:
-            l.debug("... using generic mapping op")
             assert self._from_side is None
 
             if self._float and self._vector_zero:
@@ -328,7 +310,6 @@ class SimIROp:
         # TODO: clean up this mess
         # specifically-implemented generics
         elif self._float and hasattr(self, '_op_fgeneric_%s' % self._generic_name):
-            l.debug("... using generic method")
             calculate = getattr(self, '_op_fgeneric_%s' % self._generic_name)
             if self._vector_size is not None and \
                not hasattr(calculate, 'supports_vector'):
@@ -338,7 +319,6 @@ class SimIROp:
                 self._calculate = calculate
 
         elif not self._float and hasattr(self, '_op_generic_%s' % self._generic_name):
-            l.debug("... using generic method")
             calculate = getattr(self, '_op_generic_%s' % self._generic_name)
             if self._vector_size is not None and \
                not hasattr(calculate, 'supports_vector'):
@@ -354,7 +334,6 @@ class SimIROp:
 
         # if we're here and calculate is None, we don't support this
         if self._calculate is None:
-            l.debug("... can't support operations")
             raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
 
     def __repr__(self):
@@ -384,7 +363,6 @@ class SimIROp:
     def extend_size(self, o):
         cur_size = o.size()
         if cur_size < self._output_size_bits:
-            l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
             ext_size = self._output_size_bits - cur_size
             if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed is None):
                 return claripy.SignExt(ext_size, o)
