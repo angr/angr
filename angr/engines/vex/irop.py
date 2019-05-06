@@ -4,6 +4,7 @@ This module contains symbolic implementations of VEX operations.
 
 import re
 import sys
+import math
 import collections
 import itertools
 import operator
@@ -878,6 +879,37 @@ class SimIROp:
         """
 
         return args[1] * args[2] + args[3]
+
+    @supports_vector
+    def _op_generic_MulHi(self, args):
+        """
+        Sign-extend double each lane, multiply each lane, and store only the high half of the result
+        """
+        if self._vector_signed == 'S':
+            lanes_0 = [lane.sign_extend(self._vector_size) for lane in args[0].chop(self._vector_size)]
+            lanes_1 = [lane.sign_extend(self._vector_size) for lane in args[1].chop(self._vector_size)]
+        else:
+            lanes_0 = [lane.zero_extend(self._vector_size) for lane in args[0].chop(self._vector_size)]
+            lanes_1 = [lane.zero_extend(self._vector_size) for lane in args[1].chop(self._vector_size)]
+        mulres = [a*b for a, b in zip(lanes_0, lanes_1)]
+        highparts = [x.chop(self._vector_size)[0] for x in mulres]
+        return claripy.Concat(*highparts)
+
+    @supports_vector
+    def _op_generic_Perm(self, args):
+        ordered_0 = list(reversed(args[0].chop(self._vector_size)))
+        ordered_1 = list(reversed(args[1].chop(self._vector_size)))
+        res = []
+        nbits = int(math.log2(self._vector_size))
+        for pword in ordered_1:
+            switch = pword[nbits-1:0]
+            kill = pword[self._vector_size - 1]
+            switched = claripy.ite_cases([(switch == i, v) for i, v in enumerate(ordered_0[:-1])], ordered_0[-1])
+            killed = claripy.If(kill == 1, 0, switched)
+            res.append(killed)
+
+        return claripy.Concat(*reversed(res))
+
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
