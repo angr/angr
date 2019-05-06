@@ -451,8 +451,10 @@ class DDG(Analysis):
     Analysis), and then construct a dependence graph on top of the analysis result (for example, the VFG in angr).
 
     The DDG is based on a CFG, which should ideally be a CFGEmulated generated with the following options:
+
       - keep_state=True to keep all input states
       - state_add_options=angr.options.refs to store memory, register, and temporary value accesses
+
     You may want to consider a high value for context_sensitivity_level as well when generating the CFG.
 
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
