@@ -888,6 +888,18 @@ class SimIROp:
 
         return claripy.Concat(*reversed(res))
 
+    @supports_vector
+    def _op_generic_CatEvenLanes(self, args):
+        vec_0 = args[0].chop(self._vector_size)
+        vec_1 = args[1].chop(self._vector_size)
+        return claripy.Concat(*(vec_0[1::2] + vec_1[1::2]))
+
+    @supports_vector
+    def _op_generic_CatOddLanes(self, args):
+        vec_0 = args[0].chop(self._vector_size)
+        vec_1 = args[1].chop(self._vector_size)
+        return claripy.Concat(*(vec_0[::2] + vec_1[::2]))
+
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
