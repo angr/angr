@@ -752,6 +752,8 @@ class SimIROp:
             return claripy.fpToUBV(rm, arg, self._to_size)
 
     def _op_fgeneric_Cmp(self, args): #pylint:disable=no-self-use
+
+        # see https://github.com/angr/vex/blob/master/pub/libvex_ir.h#L580
         a, b = args[0].raw_to_fp(), args[1].raw_to_fp()
         return claripy.ite_cases((
             (claripy.fpLT(a, b), claripy.BVV(0x01, 32)),
