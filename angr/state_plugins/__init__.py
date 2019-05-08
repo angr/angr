@@ -30,3 +30,4 @@ from .heap import *
 from .concrete import *
 from .jni_references import *
 from .javavm_classloader import *
+from .trace_replay_overrides import *
