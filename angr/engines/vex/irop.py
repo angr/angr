@@ -280,7 +280,7 @@ class SimIROp:
                 assert False
 
         # other conversions
-        elif self._conversion and self._generic_name != 'Round' and self._generic_name != 'Reinterp':
+        elif self._conversion and self._generic_name not in {'Round', 'Reinterp'}:
             if self._generic_name == "DivMod":
                 self._calculate = self._op_divmod
             else:
