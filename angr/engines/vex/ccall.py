@@ -1197,8 +1197,8 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     # When a concrete target is set and memory is read directly from the process sometimes a negative offset
     # from a segment register is used
-    if state.solver.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
-        return bad("virtual_addr >= limit")
+    # if state.solver.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
+    #     return bad("virtual_addr >= limit")
 
     r = (base + virtual_addr).zero_extend(32)
     l.debug("x86g_use_seg_selector: addr=%s", str(r))
