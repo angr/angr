@@ -838,6 +838,52 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
 ###########################
 ### AMD64-specific ones ###
 ###########################
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2272
+def amd64g_check_ldmxcsr(state, mxcsr):
+    # /* Decide on a rounding mode.  mxcsr[14:13] holds it. */
+    # /* NOTE, encoded exactly as per enum IRRoundingMode. */
+    rmode = (mxcsr >> 13) & 3
+
+    # /* Detect any required emulation warnings. */
+    ew = EmNote_NONE
+
+    if ((mxcsr & 0x1F80) != 0x1F80).is_true:
+        # /* unmasked exceptions! */
+        ew = EmWarn_X86_sseExns
+
+    elif (mxcsr & (1 << 15)).is_true:
+        # /* FZ is set */
+        ew = EmWarn_X86_fz
+    elif (mxcsr & (1 << 6)).is_true:
+        # /* DAZ is set */
+        ew = EmWarn_X86_daz
+
+    return (ew << 32) | rmode, []
+
+
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2304
+def amd64g_create_mxcsr(state, sseround):
+    sseround &= 3
+    return 0x1F80 | (sseround << 13), []
+
+
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2316
+def amd64g_check_fldcw(state, fpucw):
+    rmode = (fpucw >> 10) & 3
+    ew = EmNote_NONE
+    if ((fpucw & 0x3f) != 0x3f).is_true:
+        # unmasked exceptions
+        ew = EmWarn_X86_x87exns
+    elif (((fpucw >> 8) & 3) != 3).is_true:
+        ew = EmWarn_X86_x87precision
+    return (ew << 32) | rmode, []
+
+
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2342
+def amd64g_create_fpucw(state, fpround):
+    fpround &= 3
+    return 0x037f | (fpround << 10), []
+
 
 def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
     want_flags = state.solver.is_true(state.solver.SLT(sz, 0))
