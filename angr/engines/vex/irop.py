@@ -1,7 +1,7 @@
 """
 This module contains symbolic implementations of VEX operations.
 """
-
+from functools import partial
 import re
 import sys
 import math
@@ -285,6 +285,18 @@ class SimIROp:
                 l.error("%s is an unexpected conversion operation configuration", self)
                 assert False
 
+        elif self._float and self._vector_zero:
+            # /* --- lowest-lane-only scalar FP --- */
+            f = getattr(claripy, 'fp' + self._generic_name, None)
+            if f is not None:
+                f = partial(f, claripy.fp.RM.default()) # always? really?
+
+            f = f if f is not None else getattr(self, '_fgeneric_' + self._generic_name, None)
+            if f is None:
+                raise SimOperationError("no implementation found for operation {}".format(self._generic_name))
+
+            self._calculate = partial(self._vectorize_or_dont, f)
+
         # other conversions
         elif self._conversion and self._generic_name not in {'Round', 'Reinterp'}:
             if self._generic_name == "DivMod":
@@ -299,12 +311,11 @@ class SimIROp:
             self._calculate = self._op_mapped
 
         # generic mapping operations
-        elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map:
+        elif    self._generic_name in arithmetic_operation_map or \
+                self._generic_name in shift_operation_map:
             assert self._from_side is None
 
-            if self._float and self._vector_zero:
-                self._calculate = self._op_float_op_just_low
-            elif self._float and self._vector_count is None:
+            if self._float and self._vector_count is None:
                 self._calculate = self._op_float_mapped
             elif not self._float and self._vector_count is not None:
                 self._calculate = self._op_vector_mapped
@@ -447,11 +458,6 @@ class SimIROp:
                 ] for i in reversed(range(self._vector_count))
             )
         return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
-
-    def _op_float_op_just_low(self, args):
-        chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
-        result = getattr(claripy, 'fp' + self._generic_name)(claripy.fp.RM.default(), *chopped).raw_to_bv()
-        return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
 
     def _op_concat(self, args):
         return claripy.Concat(*args)
@@ -764,6 +770,42 @@ class SimIROp:
             (claripy.fpGT(a, b), claripy.BVV(0x00, 32)),
             (claripy.fpEQ(a, b), claripy.BVV(0x40, 32)),
             ), claripy.BVV(0x45, 32))
+
+    def _vectorize_or_dont(self, f, args, rm=None, rm_passed=False):
+        if rm is not None:
+            rm = self._translate_rm(rm)
+            if rm_passed:
+                f = partial(f, rm)
+
+        #import ipdb; ipdb.set_trace()
+
+        if self._vector_size is None:
+            return f(args)
+
+        if self._vector_zero:
+            chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
+            result = f(*chopped).raw_to_bv()
+            return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
+        else:
+            result = []
+            for i in reversed(range(self._vector_count)):
+                # pylint:disable=no-member
+                left = claripy.Extract(
+                    (i + 1) * self._vector_size - 1, i * self._vector_size, args[0]
+                ).raw_to_fp()
+
+                result.append(f(left, *args[1:]))
+            return claripy.Concat(*result)
+
+    def _fgeneric_minmax(self, cmp_op, a, b):
+        a, b = a.raw_to_fp(), b.raw_to_fp()
+        return claripy.If(cmp_op(a, b), a, b)
+
+    def _fgeneric_Min(self, a, b):
+        return self._fgeneric_minmax(claripy.fpLT, a, b)
+
+    def _fgeneric_Max(self, a, b):
+        return self._fgeneric_minmax(claripy.fpGT, a, b)
 
     def _op_fgeneric_Reinterp(self, args):
         if self._to_type == 'I':
