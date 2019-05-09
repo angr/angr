@@ -350,7 +350,7 @@ class SimPagedMemory:
         return x - (x % self._page_size)
 
     def _page_align_up(self, x):
-        return (x + self._page_size - 1) % self._page_size
+        return self._page_align_down(x + self._page_size - 1)
 
     def __is_page_aligned(self, x):
         return x % self._page_size == 0
