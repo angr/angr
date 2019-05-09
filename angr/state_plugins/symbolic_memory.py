@@ -901,7 +901,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         flushed_regions = self.mem.flush_pages(whitelist)
         if self.state.has_plugin('unicorn'):
             for addr, length in flushed_regions:
-                self.unicorn.uncache_region(addr, length)
+                self.state.unicorn.uncache_region(addr, length)
 
     @staticmethod
     def _create_segment(addr, size, s_options, idx, segments):
