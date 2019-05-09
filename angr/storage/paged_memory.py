@@ -770,7 +770,7 @@ class SimPagedMemory:
         This function optimizes a large store by storing a single reference to the :class:`SimMemoryObject` instead of
         one for each byte.
 
-        :param memory_object: the memory object to store
+        :param mo: the memory object to store
         """
 
         for p in self._containing_pages_mo(mo):
@@ -1109,8 +1109,13 @@ class SimPagedMemory:
 
     def flush_pages(self, white_list):
         """
-            :param white_list: white list of page number to exclude from the flush
-            :returns : a list of memory page ranges that were flushed
+        Flush all pages not included in the `white_list` by removing their pages. Note, this will not wipe them
+        from memory if they were backed by a memory_backer, it will simply reset them to their initial state.
+        Returns the list of pages that were cleared consisting of `(addr, length)` tuples.
+
+        :param white_list: white list of regions in the form of (start, end) to exclude from the flush
+        :return: a list of memory page ranges that were flushed
+        :rtype: list
         """
         white_list_page_number = []
 

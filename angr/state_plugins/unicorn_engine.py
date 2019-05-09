@@ -1246,13 +1246,14 @@ class Unicorn(SimStatePlugin):
         ''' loading registers from unicorn '''
 
         # first, get the ignore list (in case of symbolic registers)
+        saved_registers = []
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
             highest_reg_offset, reg_size = max(self.state.arch.registers.values())
             symbolic_list = (ctypes.c_uint64*(highest_reg_offset + reg_size))()
             num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
 
             # we take the approach of saving off the symbolic regs and then writing them back
-            saved_registers = [ ]
+
             cur_group = None
             last = None
             for i in sorted(symbolic_list[:num_regs]):
@@ -1342,7 +1343,7 @@ class Unicorn(SimStatePlugin):
 
         # now, we restore the symbolic registers
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
-            for o,r in saved_registers:
+            for o, r in saved_registers:
                 self.state.registers.store(o, r)
 
     def _check_registers(self, report=True):
