@@ -58,7 +58,7 @@ def test_strtol_long_string():
 
     state.libc.max_strtol_len = 11
 
-    strtol = angr.SIM_LIBRARIES['libc.so.6'].procedures['strtol']
+    strtol = angr.SIM_LIBRARIES['libc.so.6'].get('strtol', arch=b.arch)
     strtol.state = state.copy()
     ret = strtol.run(0x500000, 0, 0)
 
