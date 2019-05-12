@@ -23,9 +23,9 @@ class AddressWrapper(object):
         """
         Constructor for the class AddressWrapper.
 
-        :param strregion:              Name of the memory regions it belongs to.
+        :param str region:             Name of the memory regions it belongs to.
         :param int region_base_addr:   Base address of the memory region
-        :param address:             An address (not a ValueSet object).
+        :param address:                An address (not a ValueSet object).
         :param bool is_on_stack:       Whether this address is on a stack region or not.
         :param int function_address:   Related function address (if any).
         """
@@ -703,7 +703,7 @@ class SimMemory(SimStatePlugin):
         """
         Loads size bytes from dst.
 
-        :param dst:             The address to load from.
+        :param addr:             The address to load from.
         :param size:            The size (in bytes) of the load.
         :param condition:       A claripy expression representing a condition for a conditional load.
         :param fallback:        A fallback value if the condition ends up being False.
