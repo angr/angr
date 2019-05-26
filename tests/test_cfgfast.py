@@ -72,6 +72,8 @@ def cfg_fast_edges_check(arch, binary_path, edges):
     for src, dst in edges:
         src_node = cfg.model.get_any_node(src)
         dst_node = cfg.model.get_any_node(dst)
+        nose.tools.assert_is_not_none(src_node, msg="CFG node 0x%x is not found." % src)
+        nose.tools.assert_is_not_none(dst_node, msg="CFG node 0x%x is not found." % dst)
         nose.tools.assert_in(dst_node, src_node.successors,
                              msg="CFG edge %s-%s is not found." % (src_node, dst_node)
                              )
@@ -312,6 +314,45 @@ def test_cfg_switches():
             (0x10734, 0x10864),
             (0x10744, 0x10864),  # default case
         },
+        's390x': {
+            # jump table 0 in func_0
+            (0x4007d4, 0x4007ea),  # case 1
+            (0x4007d4, 0x4007f4),  # case 3
+            (0x4007d4, 0x4007fe),  # case 5
+            (0x4007d4, 0x400808),  # case 7
+            (0x4007d4, 0x400812),  # case 9
+            (0x4007d4, 0x40081c),  # case 12
+            (0x4007c0, 0x4007ca),  # default case
+            # jump table 0 in func_1
+            (0x400872, 0x4008ae),  # case 2
+            (0x400872, 0x4008be),  # case 10
+            (0x400872, 0x4008ce),  # case 12
+            (0x400872, 0x4008de),  # case 14
+            (0x400872, 0x4008ee),  # case 15
+            (0x400872, 0x4008fe),  # case 16
+            (0x400872, 0x40090e),  # case 22
+            (0x400872, 0x40091e),  # case 24
+            (0x400872, 0x40092e),  # case 28
+            (0x400872, 0x400888),  # case 38
+            (0x400848, 0x400854),  # default case (1)
+            (0x400872, 0x400854),  # default case (2)
+            # jump table 1 in func_1
+            (0x40093e, 0x400984),  # case 1
+            (0x40093e, 0x400974),  # case 2
+            (0x40093e, 0x400964),  # case 3
+            (0x40093e, 0x400954),  # case 4
+            (0x40093e, 0x400994),  # case 5
+            (0x400898, 0x40089e),  # default case (1)
+            # jump table 0 in main
+            # case 1, 3, 5, 7, 9: optimized out
+            (0x400638, 0x40064e),  # case 2
+            (0x400638, 0x400692),  # case 4
+            (0x400638, 0x4006a4),  # case 6
+            (0x400638, 0x40066e),  # case 8
+            (0x400638, 0x400680),  # case 10
+            # case 45: optimized out
+            (0x40062c, 0x40065c),  # default case
+        }
     }
 
     arches = edges.keys()
