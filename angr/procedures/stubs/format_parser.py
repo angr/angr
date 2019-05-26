@@ -106,6 +106,9 @@ class FormatString:
                     else:
                         raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
 
+                    if isinstance(fmt_spec.length_spec, int):
+                        s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
+
                     string = self._add_to_string(string, self.parser.state.solver.BVV(s_val.encode()))
 
                 argpos += 1
@@ -313,11 +316,12 @@ class FormatSpecifier:
     Describes a format specifier within a format string.
     """
 
-    def __init__(self, string, length_spec, size, signed):
+    def __init__(self, string, length_spec, pad_chr, size, signed):
         self.string = string
         self.size = size
         self.signed = signed
         self.length_spec = length_spec
+        self.pad_chr = pad_chr
 
     @property
     def spec_type(self):
@@ -440,12 +444,15 @@ class FormatParser(SimProcedure):
         length_str = [ ]
         length_spec = None
         length_spec_str_len = 0
+        pad_chr = " "
 
         if nugget.startswith(b".*"):
             # ".*": precision is specified as an argument
             nugget = nugget[2:]
             length_spec = b".*"
             length_spec_str_len = 2
+        elif nugget.startswith(b"0"):
+            pad_chr = "0"
 
         for j, c in enumerate(nugget):
             if c in ascii_digits:
@@ -470,7 +477,7 @@ class FormatParser(SimProcedure):
                     typeobj = sim_type.parse_type(nugtype).with_arch(self.state.arch)
                 except:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
-                return FormatSpecifier(original_nugget, length_spec, typeobj.size // 8, typeobj.signed)
+                return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
 
         return None
 
