@@ -1180,7 +1180,7 @@ class CFGBase(Analysis):
                         if i == lst_len - 1:
                             break
                         next_node = lst[i + 1]
-                        if node.addr <= next_node.addr < node.addr + node.size:
+                        if node != next_node and node.addr <= next_node.addr < node.addr + node.size:
                             # umm, those nodes are overlapping, but they must have different end addresses
                             nodekey_a = node.addr + node.size, callstack_key
                             nodekey_b = next_node.addr + next_node.size, callstack_key
