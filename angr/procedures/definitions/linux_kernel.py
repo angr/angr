@@ -11,6 +11,7 @@ lib.add('write', P['posix']['write'])
 lib.add('close', P['posix']['close'])
 lib.add('exit', P['libc']['exit'])
 lib.add('sigaction', P['posix']['sigaction'])
+lib.add('dup', P['posix']['dup'])
 
 lib.add_alias('exit', 'exit_group')
 lib.add_alias('getuid', 'geteuid')
