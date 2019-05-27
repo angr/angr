@@ -95,6 +95,7 @@ struct abcd {
 };
 """))
 
+    s.memory.store(0x8000, bytes(16))
     s.mem[0x8000].struct.abcd = {'a': 10, 'b': 20}
     assert s.mem[0x8000].struct.abcd.a.concrete == 10
     assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes) == bytes.fromhex('0a000000000000001400000000000000')
