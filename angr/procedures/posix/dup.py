@@ -14,8 +14,8 @@ class dup(angr.SimProcedure):  #pylint:disable=W0622
             return self.state.libc.ret_errno('EBADF')
 
         # The new fd gets the lowest free number, so we search
-        newfd = len(self.state.posix.fd.keys()) # e.g. '3' for [0, 1, 2
-        for i, fd in enumerate(sorted(self.state.posix.fd.keys()):
+        newfd = len(self.state.posix.fd.keys()) # e.g. '3' for [0, 1, 2]
+        for i, fd in enumerate(sorted(self.state.posix.fd.keys())):
             if i != fd: # "Free" slot in keys
                 newfd = i
         
