@@ -238,6 +238,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
                                                           block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width
                     stmts_to_remove.append(stmt_loc)
+                    all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
             elif isinstance(stmt, pyvex.IRStmt.LoadG):
                 # Got it!
                 #
@@ -470,11 +471,18 @@ class JumpTableResolver(IndirectJumpResolver):
                         continue
 
                 # Load the jump table from memory
+                should_skip = False
                 for idx, a in enumerate(state.solver.eval_upto(jumptable_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
                     target = cfg._fast_memory_load_pointer(a, size=load_size)
+                    if target is None:
+                        l.debug("Cannot load pointer from address %#x. Skip.", a)
+                        should_skip = True
+                        break
                     all_targets.append(target)
+                if should_skip:
+                    continue
 
                 # Adjust entries inside the jump table
                 if stmts_adding_base_addr:
