@@ -157,6 +157,7 @@ class SimSystemPosix(SimStatePlugin):
         self.dev_fs = None
         self.proc_fs = None
         self.autotmp_counter = 0
+        self._closed_fds = []
 
         self.sockets = sockets if sockets is not None else {}
         self.socket_queue = socket_queue if socket_queue is not None else []
@@ -187,6 +188,12 @@ class SimSystemPosix(SimStatePlugin):
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
+
+    @property
+    def closed_fds(self):
+        for _, f in self._closed_fds:
+            f.set_state(self.state)
+        return self._closed_fds
 
     def init_state(self):
         if self.dev_fs is None:
@@ -246,6 +253,10 @@ class SimSystemPosix(SimStatePlugin):
                 sock_pair[0].set_state(state)
                 sock_pair[1].set_state(state)
 
+        if self.sockets:
+            for sock_pair in self.sockets.values():
+                sock_pair[0].set_state(state)
+                sock_pair[1].set_state(state)
 
     def _pick_fd(self):
         for fd in range(0, 8192):
@@ -257,7 +268,8 @@ class SimSystemPosix(SimStatePlugin):
         """
         Open a symbolic file. Basically open(2).
 
-        :param name:            Path of the symbolic file, as a string.
+        :param name:            Path of the symbolic file, as a string or bytes.
+        :type name:             string or bytes
         :param flags:           File operation flags, a bitfield of constants from open(2), as an AST
         :param preferred_fd:    Assign this fd if it's not already claimed.
         :return:                The file descriptor number allocated (maps through posix.get_fd to a SimFileDescriptor)
@@ -266,14 +278,14 @@ class SimSystemPosix(SimStatePlugin):
         ``mode`` from open(2) is unsupported at present.
         """
 
-        # FIXME: HACK
-        if self.uid != 0 and name.startswith(b'/var/run'):
-            return None
-
         if len(name) == 0:
             return None
         if type(name) is str:
             name = name.encode()
+
+        # FIXME: HACK
+        if self.uid != 0 and name.startswith(b'/var/run'):
+            return None
 
         # TODO: speed this up (editor's note: ...really? this is fine)
         fd = None
@@ -377,6 +389,9 @@ class SimSystemPosix(SimStatePlugin):
             l.info("Trying to close an unopened file descriptor")
             return False
 
+        self.state.history.add_event('fs_close', fd=fd, close_idx=len(self.closed_fds))
+        self.closed_fds.append((fd, self.fd[fd]))
+
         del self.fd[fd]
         return True
 
@@ -472,6 +487,7 @@ class SimSystemPosix(SimStatePlugin):
                 brk=self.brk)
         o.dev_fs = self.dev_fs.copy(memo)
         o.proc_fs = self.proc_fs.copy(memo)
+        o._closed_fds = list(self._closed_fds)
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):

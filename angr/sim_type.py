@@ -614,7 +614,7 @@ class SimTypeFunction(SimType):
     _fields = ('args', 'returnty')
     base = False
 
-    def __init__(self, args, returnty, label=None):
+    def __init__(self, args, returnty, label=None, arg_names=None):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
@@ -623,6 +623,7 @@ class SimTypeFunction(SimType):
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
         self.returnty = returnty
+        self.arg_names = arg_names if arg_names else []
 
     def __repr__(self):
         return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
@@ -856,15 +857,19 @@ class SimStructValue:
 
 
 class SimUnion(SimType):
-    """
-    why
-    """
-    def __init__(self, members, label=None):
+    _fields = ('members', 'name')
+
+    def __init__(self, members, name=None, label=None):
         """
         :param members:     The members of the struct, as a mapping name -> type
         """
         super(SimUnion, self).__init__(label)
+        self._name = name if name is not None else '<anon>'
         self.members = members
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def size(self):
@@ -990,6 +995,7 @@ def define_struct(defn):
     """
     struct = parse_type(defn)
     ALL_TYPES[struct.name] = struct
+    ALL_TYPES['struct ' + struct.name] = struct
     return struct
 
 
@@ -1109,22 +1115,54 @@ def _decl_to_type(decl, extra_types=None):
         return SimTypeFixedSizeArray(elem_type, size)
 
     elif isinstance(decl, pycparser.c_ast.Struct):
-        struct = SimStruct(OrderedDict(), decl.name)
+        if decl.decls is not None:
+            fields = OrderedDict({field.name: _decl_to_type(field.type, extra_types) for field in decl.decls})
+        else:
+            fields = OrderedDict()
+
         if decl.name is not None:
             key = 'struct ' + decl.name
             if key in extra_types:
                 struct = extra_types[key]
+            elif key in ALL_TYPES:
+                struct = ALL_TYPES[key]
             else:
-                extra_types[key] = struct
+                struct = None
 
-        if decl.decls is not None:
-            for field in decl.decls:
-                struct.fields[field.name] = _decl_to_type(field.type, extra_types)
+            if struct is None or not struct.fields:
+                struct = SimStruct(fields, decl.name)
+            elif fields and struct.fields != fields:
+                raise ValueError("Redefining body of " + key)
+
+            extra_types[key] = struct
+        else:
+            struct = SimStruct(fields)
         return struct
 
     elif isinstance(decl, pycparser.c_ast.Union):
-        members = {child[1].name: _decl_to_type(child[1].type, extra_types) for child in decl.children()}
-        return SimUnion(members)
+        if decl.decls is not None:
+            fields = {field.name: _decl_to_type(field.type, extra_types) for field in decl.decls}
+        else:
+            fields = {}
+
+        if decl.name is not None:
+            key = 'union ' + decl.name
+            if key in extra_types:
+                union = extra_types[key]
+            elif key in ALL_TYPES:
+                union = ALL_TYPES[key]
+            else:
+                union = None
+
+            if union is None or not union.members:
+                union = SimUnion(fields, decl.name)
+            elif fields and union.members != fields:
+                raise ValueError("Redefining body of " + key)
+
+            extra_types[key] = union
+        else:
+            union = SimUnion(fields)
+        return union
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
         key = ' '.join(decl.names)

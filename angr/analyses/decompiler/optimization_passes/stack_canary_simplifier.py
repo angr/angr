@@ -10,6 +10,12 @@ from .optimization_pass import OptimizationPass
 _l = logging.getLogger(name=__name__)
 
 
+def s2u(s, bits):
+    if s > 0:
+        return s
+    return (1 << bits) + s
+
+
 class StackCanarySimplifier(OptimizationPass):
 
     ARCHES = ["X86", "AMD64"]
@@ -165,7 +171,7 @@ class StackCanarySimplifier(OptimizationPass):
                     continue
                 if not isinstance(op0.addr, ailment.Expr.StackBaseOffset):
                     continue
-                if op0.addr.offset != canary_value_stack_offset:
+                if op0.addr.offset != s2u(canary_value_stack_offset, self.project.arch.bits):
                     continue
                 if not isinstance(op1, ailment.Expr.Load):
                     continue

@@ -3,12 +3,13 @@ import logging
 
 import networkx
 
+from .utils.constants import DEFAULT_STATEMENT
 from .errors import AngrAnnotatedCFGError, AngrExitError
-from .analyses.cfg.cfg_node import CFGNode
+from .knowledge_plugins.cfg import CFGNode
 
 l = logging.getLogger(name=__name__)
 
-class AnnotatedCFG(object):
+class AnnotatedCFG:
     """
     AnnotatedCFG is a control flow graph with statement whitelists and exit whitelists to describe a slice of the
     program.
@@ -154,11 +155,24 @@ class AnnotatedCFG(object):
             return []
 
     def get_last_statement_index(self, addr):
+        """
+        Get the statement index of the last statement to execute in the basic block specified by `addr`.
+
+        :param int addr:    Address of the basic block.
+        :return:            The statement index of the last statement to be executed in the block. Usually if the
+                            default exit is taken, it will be the last statement to execute. If the block is not in the
+                            slice or we should never take any exit going to this block, None is returned.
+        :rtype:             int or None
+        """
+
         if addr in self._exit_taken:
             return None
         if addr in self._addr_to_last_stmt_id:
             return self._addr_to_last_stmt_id[addr]
         elif addr in self._run_statement_whitelist:
+            # is the default exit there? it equals to a negative number (-2 by default) so `max()` won't work.
+            if DEFAULT_STATEMENT in self._run_statement_whitelist[addr]:
+                return DEFAULT_STATEMENT
             return max(self._run_statement_whitelist[addr], key=lambda v: v if type(v) is int else float('inf'))
         return None
 

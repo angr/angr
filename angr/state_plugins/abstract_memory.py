@@ -477,6 +477,12 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 val = val.union(new_val)
 
+        if val is None:
+            # address_wrappers is empty - we cannot concretize the address in static mode.
+            # ensure val is not None
+            val = self.state.solver.Unconstrained('invalid_read_%d_%d' % (next(invalid_read_ctr), size),
+                                                  size * self.state.arch.byte_width)
+
         return address_wrappers, val, [True]
 
     def _do_load(self, addr, size, key, is_stack=False, related_function_addr=None):

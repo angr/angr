@@ -121,6 +121,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         """
         if type(path) is str:
             path = path.encode()
+        path = path.split(b'\0')[0]
 
         if path[0:1] != self.pathsep:
             path = self.cwd + self.pathsep + path

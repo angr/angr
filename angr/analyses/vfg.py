@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import angr
 import archinfo
+from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
 from . import Analysis
@@ -1200,7 +1201,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         if self.project.arch.name in ('X86', 'AMD64'):
             state.stack_push(ret_bvv)
-        elif self.project.arch.name in ('ARMEL', 'ARMHF', 'AARCH64'):
+        elif is_arm_arch(self.project.arch):
             state.regs.lr = ret_bvv
         elif self.project.arch.name in ('MIPS32', 'MIPS64'):
             state.regs.ra = ret_bvv

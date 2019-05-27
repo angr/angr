@@ -22,7 +22,7 @@ def test_sscanf():
     # find the end of main
     expected_outputs = {
         b"0x worked\n", b"+0x worked\n", b"base +16 worked\n", b"base 16 worked\n",
-        b"-0x worked\n", b"base -16 worked\n", b"Nope x\n",
+        b"-0x worked\n", b"base -16 worked\n", b"base 16 length 2 worked\n", b"Nope x\n",
         b"base 8 worked\n", b"base +8 worked\n", b"base +10 worked\n", b"base 10 worked\n",
         b"base -8 worked\n", b"base -10 worked\n", b"Nope u\n",
         b"No switch\n",

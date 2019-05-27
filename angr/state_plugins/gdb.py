@@ -60,7 +60,7 @@ class GDB(SimStatePlugin):
         """
         # We set the heap at the same addresses as the gdb session to avoid pointer corruption.
         data = self._read_data(heap_dump)
-        self.state.libc.heap_location = heap_base + len(data)
+        self.state.heap.heap_location = heap_base + len(data)
         addr = heap_base
         l.info("Set heap from 0x%x to %#x", addr, addr+len(data))
         #FIXME: we should probably make we don't overwrite other stuff loaded there

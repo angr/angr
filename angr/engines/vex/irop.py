@@ -4,6 +4,7 @@ This module contains symbolic implementations of VEX operations.
 
 import re
 import sys
+import math
 import collections
 import itertools
 import operator
@@ -40,10 +41,8 @@ def op_attrs(p):
                  )
 
     if not m:
-        l.debug("Unmatched operation: %s", p)
         return None
     else:
-        l.debug("Matched operation: %s", p)
         attrs = m.groupdict()
 
         attrs['from_signed'] = attrs['from_signed_back'] if attrs['from_signed'] is None else attrs['from_signed']
@@ -66,14 +65,10 @@ def op_attrs(p):
                           )
             attrs.update(vm.groupdict())
 
-        for k,v in attrs.items():
-            if v is not None and v != "":
-                l.debug("... %s: %s", k, v)
-
         return attrs
 
 
-all_operations = pyvex.irop_enums_to_ints.keys()
+all_operations = list(pyvex.irop_enums_to_ints.keys())
 operations = { }
 classified = set()
 unclassified = set()
@@ -157,10 +152,10 @@ bitwise_operation_map = {
     'Not': '__invert__',
 }
 rm_map = {
-    0: claripy.fp.RM_RNE,
-    1: claripy.fp.RM_RTN,
-    2: claripy.fp.RM_RTP,
-    3: claripy.fp.RM_RTZ,
+    0: claripy.fp.RM.RM_NearestTiesEven,
+    1: claripy.fp.RM.RM_TowardsNegativeInf,
+    2: claripy.fp.RM.RM_TowardsPositiveInf,
+    3: claripy.fp.RM.RM_TowardsZero,
 }
 
 generic_names = set()
@@ -178,12 +173,11 @@ def supports_vector(f):
     return f
 
 
-class SimIROp(object):
+class SimIROp:
     """
     A symbolic version of a Vex IR operation.
     """
     def __init__(self, name, **attrs):
-        l.debug("Creating SimIROp(%s)", name)
         self.name = name
         self.op_attrs = attrs
 
@@ -214,7 +208,6 @@ class SimIROp(object):
         self._output_type = pyvex.get_op_retty(name)
         #pylint:enable=no-member
         self._output_size_bits = pyvex.const.get_type_size(self._output_type)
-        l.debug("... VEX says the output size should be %s", self._output_size_bits)
 
         size_check = self._to_size is None or (self._to_size*2 if self._generic_name == 'DivMod' else self._to_size) == self._output_size_bits
         if not size_check:
@@ -233,7 +226,6 @@ class SimIROp(object):
             self._float = True
 
             if len({self._vector_type, self._from_type, self._to_type} & {'D'}) != 0:
-                l.debug('... aborting on BCD!')
                 # fp_ops.add(self.name)
                 raise UnsupportedIROpError("BCD ops aren't supported")
         else:
@@ -264,29 +256,23 @@ class SimIROp(object):
 
             # this concatenates the args into the high and low halves of the result
             elif self._from_side == 'HL':
-                l.debug("... using simple concat")
                 self._calculate = self._op_concat
 
             # this just returns the high half of the first arg
             elif self._from_size > self._to_size and self._from_side == 'HI':
-                l.debug("... using hi half")
                 self._calculate = self._op_hi_half
 
             # this just returns the high half of the first arg
             elif self._from_size > self._to_size and self._from_side in ('L', 'LO'):
-                l.debug("... using lo half")
                 self._calculate = self._op_lo_half
 
             elif self._from_size > self._to_size and self._from_side is None:
-                l.debug("... just extracting")
                 self._calculate = self._op_extract
 
             elif self._from_size < self._to_size and self.is_signed:
-                l.debug("... using simple sign-extend")
                 self._calculate = self._op_sign_extend
 
             elif self._from_size < self._to_size and not self.is_signed:
-                l.debug("... using simple zero-extend")
                 self._calculate = self._op_zero_extend
 
             else:
@@ -294,9 +280,8 @@ class SimIROp(object):
                 assert False
 
         # other conversions
-        elif self._conversion and self._generic_name != 'Round' and self._generic_name != 'Reinterp':
+        elif self._conversion and self._generic_name not in {'Round', 'Reinterp'}:
             if self._generic_name == "DivMod":
-                l.debug("... using divmod")
                 self._calculate = self._op_divmod
             else:
                 unsupported_conversions.append(self.name)
@@ -304,13 +289,11 @@ class SimIROp(object):
 
         # generic bitwise
         elif self._generic_name in bitwise_operation_map:
-            l.debug("... using generic mapping op")
             assert self._from_side is None
             self._calculate = self._op_mapped
 
         # generic mapping operations
         elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map:
-            l.debug("... using generic mapping op")
             assert self._from_side is None
 
             if self._float and self._vector_zero:
@@ -327,7 +310,6 @@ class SimIROp(object):
         # TODO: clean up this mess
         # specifically-implemented generics
         elif self._float and hasattr(self, '_op_fgeneric_%s' % self._generic_name):
-            l.debug("... using generic method")
             calculate = getattr(self, '_op_fgeneric_%s' % self._generic_name)
             if self._vector_size is not None and \
                not hasattr(calculate, 'supports_vector'):
@@ -337,7 +319,6 @@ class SimIROp(object):
                 self._calculate = calculate
 
         elif not self._float and hasattr(self, '_op_generic_%s' % self._generic_name):
-            l.debug("... using generic method")
             calculate = getattr(self, '_op_generic_%s' % self._generic_name)
             if self._vector_size is not None and \
                not hasattr(calculate, 'supports_vector'):
@@ -353,7 +334,6 @@ class SimIROp(object):
 
         # if we're here and calculate is None, we don't support this
         if self._calculate is None:
-            l.debug("... can't support operations")
             raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
 
     def __repr__(self):
@@ -383,7 +363,6 @@ class SimIROp(object):
     def extend_size(self, o):
         cur_size = o.size()
         if cur_size < self._output_size_bits:
-            l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
             ext_size = self._output_size_bits - cur_size
             if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed is None):
                 return claripy.SignExt(ext_size, o)
@@ -773,6 +752,8 @@ class SimIROp(object):
             return claripy.fpToUBV(rm, arg, self._to_size)
 
     def _op_fgeneric_Cmp(self, args): #pylint:disable=no-self-use
+
+        # see https://github.com/angr/vex/blob/master/pub/libvex_ir.h#L580
         a, b = args[0].raw_to_fp(), args[1].raw_to_fp()
         return claripy.ite_cases((
             (claripy.fpLT(a, b), claripy.BVV(0x01, 32)),
@@ -792,10 +773,10 @@ class SimIROp(object):
     def _op_fgeneric_Round(self, args):
         if self._vector_size is not None:
             rm = {
-                'RM': claripy.fp.RM_RTN,
-                'RP': claripy.fp.RM_RTP,
-                'RN': claripy.fp.RM_RNE,
-                'RZ': claripy.fp.RM_RTZ,
+                'RM': claripy.fp.RM.RM_TowardsNegativeInf,
+                'RP': claripy.fp.RM.RM_TowardsPositiveInf,
+                'RN': claripy.fp.RM.RM_NearestTiesEven,
+                'RZ': claripy.fp.RM.RM_TowardsZero,
             }[self._rounding_mode]
 
             rounded = []
@@ -811,7 +792,7 @@ class SimIROp(object):
             # TODO: look into fixing this
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
-            return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
+            return claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
 
     def _op_generic_pack_StoU_saturation(self, args, src_size, dst_size):
         """
@@ -878,6 +859,49 @@ class SimIROp(object):
         """
 
         return args[1] * args[2] + args[3]
+
+    @supports_vector
+    def _op_generic_MulHi(self, args):
+        """
+        Sign-extend double each lane, multiply each lane, and store only the high half of the result
+        """
+        if self._vector_signed == 'S':
+            lanes_0 = [lane.sign_extend(self._vector_size) for lane in args[0].chop(self._vector_size)]
+            lanes_1 = [lane.sign_extend(self._vector_size) for lane in args[1].chop(self._vector_size)]
+        else:
+            lanes_0 = [lane.zero_extend(self._vector_size) for lane in args[0].chop(self._vector_size)]
+            lanes_1 = [lane.zero_extend(self._vector_size) for lane in args[1].chop(self._vector_size)]
+        mulres = [a*b for a, b in zip(lanes_0, lanes_1)]
+        highparts = [x.chop(self._vector_size)[0] for x in mulres]
+        return claripy.Concat(*highparts)
+
+    @supports_vector
+    def _op_generic_Perm(self, args):
+        ordered_0 = list(reversed(args[0].chop(self._vector_size)))
+        ordered_1 = list(reversed(args[1].chop(self._vector_size)))
+        res = []
+        nbits = int(math.log2(self._vector_size))
+        for pword in ordered_1:
+            switch = pword[nbits-1:0]
+            kill = pword[self._vector_size - 1]
+            switched = claripy.ite_cases([(switch == i, v) for i, v in enumerate(ordered_0[:-1])], ordered_0[-1])
+            killed = claripy.If(kill == 1, 0, switched)
+            res.append(killed)
+
+        return claripy.Concat(*reversed(res))
+
+    @supports_vector
+    def _op_generic_CatEvenLanes(self, args):
+        vec_0 = args[0].chop(self._vector_size)
+        vec_1 = args[1].chop(self._vector_size)
+        return claripy.Concat(*(vec_0[1::2] + vec_1[1::2]))
+
+    @supports_vector
+    def _op_generic_CatOddLanes(self, args):
+        vec_0 = args[0].chop(self._vector_size)
+        vec_1 = args[1].chop(self._vector_size)
+        return claripy.Concat(*(vec_0[::2] + vec_1[::2]))
+
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])

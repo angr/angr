@@ -40,7 +40,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         project = self.project
 
-        b = Blade(cfg._graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
+        b = Blade(cfg.graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
                   ignored_regs=('gp',)
                   )
 

@@ -450,13 +450,20 @@ class DDG(Analysis):
     For a better data dependence graph, please consider performing a better static analysis first (like Value-set
     Analysis), and then construct a dependence graph on top of the analysis result (for example, the VFG in angr).
 
+    The DDG is based on a CFG, which should ideally be a CFGEmulated generated with the following options:
+
+      - keep_state=True to keep all input states
+      - state_add_options=angr.options.refs to store memory, register, and temporary value accesses
+
+    You may want to consider a high value for context_sensitivity_level as well when generating the CFG.
+
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
     analysis) will directly benefit the DDG.
     """
     def __init__(self, cfg, start=None, call_depth=None, block_addrs=None):
         """
-        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
-                            want to generate your CFG with `keep_state=True`.
+        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it, e.g. by
+                            passing the keep_state=True and state_add_options=angr.options.refs arguments to CFGEmulated.
         :param start:       An address, Specifies where we start the generation of this data dependence graph.
         :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
                             call tree. None disables call_depth limit.

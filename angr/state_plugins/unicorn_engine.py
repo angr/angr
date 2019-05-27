@@ -54,6 +54,7 @@ class STOP:  # stop_t
     STOP_SEGFAULT       = 9
     STOP_ZERO_DIV       = 10
     STOP_NODECODE       = 11
+    STOP_HLT            = 12
 
     @staticmethod
     def name_stop(num):
@@ -308,6 +309,7 @@ class Unicorn(SimStatePlugin):
         self.steps = 0
         self._mapped = 0
         self._uncache_pages = []
+        self.gdt = None
 
         # following variables are used in python level hook
         # we cannot see native hooks from python
@@ -376,6 +378,7 @@ class Unicorn(SimStatePlugin):
         u.countdown_stop_point = self.countdown_stop_point
         u.transmit_addr = self.transmit_addr
         u._uncache_pages = list(self._uncache_pages)
+        u.gdt = self.gdt
         return u
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
@@ -461,12 +464,12 @@ class Unicorn(SimStatePlugin):
 
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
-        if state.arch.name == "MIPS32":
+        if self._is_mips32:
             self._unicount = next(_unicounter)
 
     @property
     def _reuse_unicorn(self):
-        return self.state.arch.name != "MIPS32"
+        return not self._is_mips32
 
     @property
     def uc(self):
@@ -867,19 +870,44 @@ class Unicorn(SimStatePlugin):
     def uncache_page(self, addr):
         self._uncache_pages.append(addr & ~0xfff)
 
+    @property
+    def _is_mips32(self):
+        """
+        There seems to be weird issues with unicorn-engine support on MIPS32 code (see commit 01126bf7). As a result,
+        we test if the current architecture is MIPS32 in several places, and if so, we perform some extra steps, like
+        re-creating the thread-local UC object.
+
+        :return:    True if the current architecture is MIPS32, False otherwise.
+        :rtype:     bool
+        """
+        return self.state.arch.name == "MIPS32"
+
     def setup(self):
+        if self._is_mips32 and options.COPY_STATES not in self.state.options:
+            # we always re-create the thread-local UC object for MIPS32 even if COPY_STATES is disabled in state
+            # options. this is to avoid some weird bugs in unicorn (e.g., it reports stepping 1 step while in reality it
+            # did not step at all).
+            self.delete_uc()
         self._setup_unicorn()
-        self.set_regs()
-        # tricky: using unicorn handle form unicorn.Uc object
+        try:
+            self.set_regs()
+        except SimValueError:
+            # reset the state and re-raise
+            self.uc.reset()
+            raise
+        # tricky: using unicorn handle from unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
+
+        # set (cgc, for now) transmit syscall handler
         if UNICORN_HANDLE_TRANSMIT_SYSCALL in self.state.options and self.state.has_plugin('cgc'):
             if self.transmit_addr is None:
                 l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
                 self.transmit_addr = 0
             _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
-        # just fyi there's a GDT in memory
-        _UC_NATIVE.activate(self._uc_state, 0x1000, 0x1000, None)
+        # activate gdt page, which was written/mapped during set_regs
+        if self.gdt is not None:
+            _UC_NATIVE.activate(self._uc_state, self.gdt.addr, self.gdt.limit, None)
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
@@ -952,7 +980,11 @@ class Unicorn(SimStatePlugin):
             self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
 
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
-            raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
+            # unicorn just does quits without warning if it sees hlt. detect that.
+            if (self.state.memory.load(self.state.ip, 1) == 0xf4).is_true():
+                self.stop_reason = STOP.STOP_HLT
+            else:
+                raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
 
         addr = self.state.solver.eval(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
@@ -966,8 +998,8 @@ class Unicorn(SimStatePlugin):
         while bool(p_update):
             update = p_update.contents
             address, length = update.address, update.length
-            if 0x1000 <= address < 0x2000:
-                l.warning("Emulation touched fake GDT at 0x1000, discarding changes")
+            if self.gdt is not None and self.gdt.addr <= address < self.gdt.addr + self.gdt.limit:
+                l.warning("Emulation touched fake GDT at %#x, discarding changes" % self.gdt.addr)
             else:
                 s = bytes(self.uc.mem_read(address, int(length)))
                 l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, binascii.hexlify(s))
@@ -1087,8 +1119,7 @@ class Unicorn(SimStatePlugin):
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
             fs = self.state.solver.eval(self.state.regs.fs) << 16
             gs = self.state.solver.eval(self.state.regs.gs) << 16
-            gdt = self.state.project.simos.generate_gdt(fs, gs)
-            self.setup_gdt(gdt)
+            self.setup_gdt(fs, gs)
 
 
         for r, c in self._uc_regs.items():
@@ -1096,7 +1127,7 @@ class Unicorn(SimStatePlugin):
                 continue
             v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
-                    raise SimValueError('setting a symbolic register')
+                raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.solver.eval(v))
             uc.reg_write(c, self.state.solver.eval(v))
 
@@ -1153,7 +1184,8 @@ class Unicorn(SimStatePlugin):
 
             uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
 
-    def setup_gdt(self, gdt):
+    def setup_gdt(self, fs, gs):
+        gdt = self.state.project.simos.generate_gdt(fs, gs)
         uc = self.uc
 
         uc.mem_map(gdt.addr, gdt.limit)
@@ -1169,7 +1201,7 @@ class Unicorn(SimStatePlugin):
         # if programs want to access this memory....... let them
         # uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
 
-
+        self.gdt = gdt
 
     # do NOT call either of these functions in a callback, lmao
     def read_msr(self, msr=0xC0000100):

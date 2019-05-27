@@ -488,9 +488,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
                     l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, num_bytes, refplace_int, refplace_str)
 
+        # this is an optimization to ensure most operations in the future will deal with leaf ASTs (instead of reversed
+        # ASTs)
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
+        elif self.category == 'file':
+            # file data has to be big-endian
+            pass
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
+            # endianness of memory data
             all_missing = [ a.reversed for a in all_missing ]
         b = self.state.solver.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
@@ -626,6 +632,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         no_singlevalue_opt = options.SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS in self.state.options
         cond_prefix = [ ]
 
+        if options.MEMORY_FIND_STRICT_SIZE_LIMIT in self.state.options:
+            cond_falseness_test = self.state.solver.is_false
+        else:
+            cond_falseness_test = lambda cond: cond.is_false()
+
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
             if i > max_search - seek_size:
@@ -644,7 +655,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             chunk_off = i-chunk_start
             b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
             condition = b == what
-            if not self.state.solver.is_false(condition):
+            if not cond_falseness_test(condition):
                 if no_singlevalue_opt and cond_prefix:
                     condition = claripy.And(*(cond_prefix + [condition]))
                 cases.append([condition, claripy.BVV(i, len(start))])

@@ -30,21 +30,29 @@ class PointerWrapper:
 
 
 class AllocHelper:
-    def __init__(self, ptr, grow_like_stack, reverse_result):
-        self.ptr = ptr
-        self.grow_like_stack = grow_like_stack
+    def __init__(self, ptrsize, reverse_result):
+        self.base = claripy.BVS('alloc_base', ptrsize)
+        self.ptr = self.base
         self.reverse_result = reverse_result
+        self.stores = {}
 
     def dump(self, val, state, endness='Iend_BE'):
-        if self.grow_like_stack:
-            self.ptr -= val.length // state.arch.byte_width
-            state.memory.store(self.ptr, val, endness=endness)
-            return self.ptr.reversed if self.reverse_result else self.ptr
-        else:
-            state.memory.store(self.ptr, val, endness=endness)
-            out = self.ptr
-            self.ptr += val.length // state.arch.byte_width
-            return out.reversed if self.reverse_result else out
+        self.stores[self.ptr.cache_key] = (val, endness)
+        out = self.ptr
+        self.ptr += val.length // state.arch.byte_width
+        return out.reversed if self.reverse_result else out
+
+    def translate(self, val, base):
+        return val.replace(self.base, base)
+
+    def apply(self, state, base):
+        for ptr, (val, endness) in self.stores.items():
+            state.memory.store(self.translate(ptr.ast, base), self.translate(val, base), endness=endness)
+
+    def size(self):
+        val = self.translate(self.ptr, claripy.BVV(0, len(self.ptr)))
+        assert val.op == 'BVV'
+        return abs(val.args[0])
 
 
 class SimFunctionArgument:
@@ -526,26 +534,31 @@ class SimCC:
         binary format to be placed into simulated memory. Lists (representing arrays) must be entirely elements of the
         same type and size, while tuples (representing structs) can be elements of any type and size.
         If you'd like there to be a pointer to a given value, wrap the value in a `PointerWrapper`. Any value
-        that can't fit in a register will be automatically put in a
-        PointerWrapper.
+        that can't fit in a register will be automatically put in a PointerWrapper.
 
         If stack_base is not provided, the current stack pointer will be used, and it will be updated.
-        If alloc_base is not provided, the current stack pointer will be used, and it will be updated.
-        You might not like the results if you provide stack_base but not alloc_base.
+        If alloc_base is not provided, the stack base will be used and grow_like_stack will implicitly be True.
 
         grow_like_stack controls the behavior of allocating data at alloc_base. When data from args needs to be wrapped
         in a pointer, the pointer needs to point somewhere, so that data is dumped into memory at alloc_base. If you
-        set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
+        set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequential
         allocations happen at increasing addresses.
         """
+
+        # STEP 0: clerical work
 
         if isinstance(self, SimCCSoot):
             SimEngineSoot.setup_callsite(state, args, ret_addr)
             return
 
-        allocator = AllocHelper(alloc_base if alloc_base is not None else state.regs.sp,
-                grow_like_stack,
-                self.arch.memory_endness == 'Iend_LE')
+        allocator = AllocHelper(self.arch.bits, self.arch.memory_endness == 'Iend_LE')
+
+        #
+        # STEP 1: convert all values into serialized form
+        # this entails creating the vals list of simple values to store and also populating the allocator's
+        # understanding of what aux data needs to be stored
+        # This is also where we compute arg locations (arg_locs)
+        #
 
         if self.func_ty is not None:
             vals = [self._standardize_value(arg, ty, state, allocator.dump) for arg, ty in zip(args, self.func_ty.args)]
@@ -568,15 +581,46 @@ class SimCC:
                     vals[i] = claripy.BVV(0, state.arch.bits - val.length).concat(val)
             arg_locs[i] = arg_session.next_arg(is_fp=False, size=vals[i].length // state.arch.byte_width)
 
-        if alloc_base is None:
-            state.regs.sp = allocator.ptr
+        #
+        # STEP 2: decide on memory storage locations
+        # implement the contract for stack_base/alloc_base/grow_like_stack
+        # after this, stack_base should be the final stack pointer, alloc_base should be the final aux storage location,
+        # and the stack pointer should be updated
+        #
 
         if stack_base is None:
+            if alloc_base is None:
+                alloc_size = allocator.size()
+                state.regs.sp -= alloc_size
+                alloc_base = state.regs.sp
+                grow_like_stack = False
+
             state.regs.sp -= self.stack_space(arg_locs)
 
             # handle alignment
             alignment = (state.regs.sp + self.STACKARG_SP_DIFF) % self.STACK_ALIGNMENT
             state.regs.sp -= alignment
+
+        else:
+            state.regs.sp = stack_base
+
+            if alloc_base is None:
+                alloc_base = stack_base + self.stack_space(arg_locs)
+                grow_like_stack = False
+
+        if grow_like_stack:
+            alloc_base -= allocator.size()
+        if type(alloc_base) is int:
+            alloc_base = claripy.BVV(alloc_base, state.arch.bits)
+
+        for i, val in enumerate(vals):
+            vals[i] = allocator.translate(val, alloc_base)
+
+        #
+        # STEP 3: store everything!
+        #
+
+        allocator.apply(state, alloc_base)
 
         for loc, val in zip(arg_locs, vals):
             if val.length > loc.size * 8:
@@ -863,6 +907,19 @@ class SimCC:
         return None
 
 
+    def get_arg_info(self, state, is_fp=None, sizes=None):
+        """
+        This is just a simple wrapper that collects the information from various locations
+        is_fp and sizes are passed to self.arg_locs and self.get_args
+        :param angr.SimState state: The state to evaluate and extract the values from
+        :return:    A list of tuples, where the nth tuple is (type, name, location, value) of the nth argument
+        """
+        argument_types = self.func_ty.args
+        argument_names = self.func_ty.arg_names if self.func_ty.arg_names else ['unknown'] * len(self.func_ty.args)
+        argument_locations = self.arg_locs(is_fp=is_fp, sizes=sizes)
+        argument_values = self.get_args(state, is_fp=is_fp, sizes=sizes)
+        return list(zip(argument_types, argument_names, argument_locations, argument_values))
+
 class SimLyingRegArg(SimRegArg):
     """
     A register that LIES about the types it holds
@@ -877,16 +934,16 @@ class SimLyingRegArg(SimRegArg):
         if endness and endness != state.arch.register_endness:
             val = val.reversed
         if size == 4:
-            val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_FLOAT)
+            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)
         return val
 
     def set_value(self, state, val, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         if size == 4:
             if state.arch.register_endness == 'IEnd_LE' and endness == 'IEnd_BE':
                 # pylint: disable=no-member
-                val = claripy.fpToFP(claripy.fp.RM_RNE, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
+                val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
             else:
-                val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_DOUBLE)
+                val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_DOUBLE)
         if endness and endness != state.arch.register_endness:
             val = val.reversed
         setattr(state.regs, self.reg_name, val)
@@ -1222,6 +1279,9 @@ CC = {
     'ARMHF': [
         SimCCARM,
     ],
+    'ARMCortexM': [
+        SimCCARM,
+    ],
     'MIPS32': [
         SimCCO32,
     ],
@@ -1248,6 +1308,7 @@ DEFAULT_CC = {
     'X86': SimCCCdecl,
     'ARMEL': SimCCARM,
     'ARMHF': SimCCARM,
+    'ARMCortexM': SimCCARM,
     'MIPS32': SimCCO32,
     'MIPS64': SimCCO64,
     'PPC32': SimCCPowerPC,
@@ -1278,6 +1339,10 @@ SYSCALL_CC = {
     'ARMEL': {
         'default': SimCCARMLinuxSyscall,
         'Linux': SimCCARMLinuxSyscall,
+    },
+    'ARMCortexM': {
+        # FIXME: TODO: This is wrong.  Fill in with a real CC when we support CM syscalls
+        'default': SimCCARMLinuxSyscall,
     },
     'ARMHF': {
         'default': SimCCARMLinuxSyscall,

@@ -179,7 +179,7 @@ class SimWindows(SimOS):
         state = super(SimWindows, self).state_blank(**kwargs)
 
         # yikes!!!
-        fun_stuff_addr = state.libc.mmap_base
+        fun_stuff_addr = state.heap.mmap_base
         if fun_stuff_addr & 0xffff != 0:
             fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
         state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
@@ -222,7 +222,7 @@ class SimWindows(SimOS):
             if total_alloc_size & 0xfff != 0:
                 total_alloc_size += 0x1000 - (total_alloc_size & 0xfff)
             state.memory.map_region(LDR_addr, total_alloc_size, claripy.BVV(3, 3))
-            state.libc.mmap_base = LDR_addr + total_alloc_size
+            state.heap.mmap_base = LDR_addr + total_alloc_size
 
             string_area = LDR_addr + thunk_alloc_size
             for i, obj in enumerate(self.project.loader.all_pe_objects):

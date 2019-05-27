@@ -10,7 +10,7 @@ from ...storage.file import SimPackets
 l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
 
-class FormatString(object):
+class FormatString:
     """
     Describes a format string.
     """
@@ -37,16 +37,19 @@ class FormatString(object):
             return c
         return string.concat(c)
 
-    def _get_str_at(self, str_addr):
+    def _get_str_at(self, str_addr, max_length=None):
 
-        strlen = self.parser._sim_strlen(str_addr)
+        if max_length is None:
+            strlen = self.parser._sim_strlen(str_addr)
 
-        #TODO: we probably could do something more fine-grained here.
+            #TODO: we probably could do something more fine-grained here.
 
-        # throw away strings which are just the NULL terminator
-        if self.parser.state.solver.max_int(strlen) == 0:
-            return None
-        return self.parser.state.memory.load(str_addr, strlen)
+            # throw away strings which are just the NULL terminator
+            max_length = self.parser.state.solver.max_int(strlen)
+            if max_length == 0:
+                return None
+
+        return self.parser.state.memory.load(str_addr, max_length)
 
     def replace(self, startpos, args):
         """
@@ -73,8 +76,13 @@ class FormatString(object):
                 # what type of format specifier is it?
                 fmt_spec = component
                 if fmt_spec.spec_type == b's':
+                    if fmt_spec.length_spec == b".*":
+                        str_length = args(argpos)
+                        argpos += 1
+                    else:
+                        str_length = None
                     str_ptr = args(argpos)
-                    string = self._add_to_string(string, self._get_str_at(str_ptr))
+                    string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     i_val = args(argpos)
@@ -292,11 +300,15 @@ class FormatString(object):
     def __repr__(self):
         outstr = ""
         for comp in self.components:
-            outstr += (str(comp))
+            if isinstance(comp, bytes):
+                outstr += comp.decode("ascii")
+            else:
+                outstr += (str(comp))
 
         return outstr
 
-class FormatSpecifier(object):
+
+class FormatSpecifier:
     """
     Describes a format specifier within a format string.
     """
@@ -316,6 +328,7 @@ class FormatSpecifier(object):
 
     def __len__(self):
         return len(self.string)
+
 
 class FormatParser(SimProcedure):
     """
@@ -420,24 +433,32 @@ class FormatParser(SimProcedure):
         # TODO: handle positional modifiers and other similar format string tricks.
         all_spec = self._all_spec
 
-
         # iterate through nugget throwing away anything which is an int
         # TODO store this in a size variable
 
         original_nugget = nugget
         length_str = [ ]
         length_spec = None
+        length_spec_str_len = 0
+
+        if nugget.startswith(b".*"):
+            # ".*": precision is specified as an argument
+            nugget = nugget[2:]
+            length_spec = b".*"
+            length_spec_str_len = 2
 
         for j, c in enumerate(nugget):
             if c in ascii_digits:
                 length_str.append(c)
             else:
                 nugget = nugget[j:]
-                length_spec = None if len(length_str) == 0 else int(bytes(length_str))
+                if length_spec is None:
+                    length_spec = None if len(length_str) == 0 else int(bytes(length_str))
                 break
 
         # we need the length of the format's length specifier to extract the format and nothing else
-        length_spec_str_len = 0 if length_spec is None else len(length_str)
+        if length_spec_str_len == 0 and length_str:
+            length_spec_str_len = len(length_str)
         # is it an actual format?
         for spec in all_spec:
             if nugget.startswith(spec):

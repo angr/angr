@@ -55,6 +55,11 @@ class SimStatePreconstrainer(SimStatePlugin):
         elif value.op != 'BVV':
             raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
 
+        if variable.op not in claripy.operations.leaf_operations:
+            l.warning("The variable %s to preconstrain is not a leaf AST. This may cause replacement failures in the "
+                      "claripy replacement backend.", variable)
+            l.warning("Please use a leaf AST as the preconstraining variable instead.")
+
         constraint = variable == value
         l.debug("Preconstraint: %s", constraint)
 
@@ -87,7 +92,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         for write in content:
             if type(write) is int:
                 write = bytes([write])
-            data, length, pos = simfile.read(pos, len(write), short_reads=False)
+            data, length, pos = simfile.read(pos, len(write), disable_actions=True, inspect=False, short_reads=False)
             if not claripy.is_true(length == len(write)):
                 raise AngrError("Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file")
             self.preconstrain(write, data)

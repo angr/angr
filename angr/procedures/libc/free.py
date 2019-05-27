@@ -7,6 +7,6 @@ from angr.sim_type import SimTypeTop
 class free(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, ptr): #pylint:disable=unused-argument
+    def run(self, ptr):
         self.argument_types = {0: self.ty_ptr(SimTypeTop())}
-        return self.state.solver.Unconstrained('free', self.state.arch.bits)
+        return self.state.heap._free(ptr)

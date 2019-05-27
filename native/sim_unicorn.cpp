@@ -47,6 +47,7 @@ typedef enum stop {
 	STOP_SEGFAULT,
 	STOP_ZERO_DIV,
 	STOP_NODECODE,
+	STOP_HLT,
 } stop_t;
 
 typedef struct block_entry {
@@ -458,8 +459,9 @@ public:
 				memset(bitmap, TAINT_NONE, sizeof(PageBitmap));
 			}
 		} else {
-			if (address == 0x1000) {
-				printf("[sim_unicorn] You've mapped something at 0x1000! "
+		    // TODO: un-hardcode this address, or at least do this warning from python land
+			if (address == 0x4000) {
+				printf("[sim_unicorn] You've mapped something at 0x4000! "
 					"Please don't do that, I put my GDT there!\n");
 			} else {
 				printf("[sim_unicorn] Something very bad is happening; please investigate. "

@@ -27,7 +27,7 @@ avatar_gdb = None
 
 
 def setup_x86():
-    print("gdbserver %s:%s '%s'" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x86))
+    #print("gdbserver %s:%s '%s'" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x86))
     subprocess.Popen("gdbserver %s:%s '%s'" % (GDB_SERVER_IP, GDB_SERVER_PORT, binary_x86), stdout=subprocess.PIPE,
                      stderr=subprocess.PIPE, shell=True)
 
@@ -40,7 +40,7 @@ def teardown():
 
 @nose.with_setup(setup_x86, teardown)
 def test_concrete_engine_linux_x86_no_simprocedures():
-    print("test_concrete_engine_linux_x86_no_simprocedures")
+    #print("test_concrete_engine_linux_x86_no_simprocedures")
     global avatar_gdb
     # pylint: disable=no-member
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
@@ -52,7 +52,7 @@ def test_concrete_engine_linux_x86_no_simprocedures():
 
 @nose.with_setup(setup_x86, teardown)
 def test_concrete_engine_linux_x86_unicorn_no_simprocedures():
-    print("test_concrete_engine_linux_x86_unicorn_no_simprocedures")
+    #print("test_concrete_engine_linux_x86_unicorn_no_simprocedures")
     global avatar_gdb
     # pylint: disable=no-member
     avatar_gdb = AvatarGDBConcreteTarget(avatar2.archs.x86.X86, GDB_SERVER_IP, GDB_SERVER_PORT)
@@ -70,7 +70,7 @@ def execute_concretly(project, state, address, concretize):
 
 
 def solv_concrete_engine_linux_x86(p, entry_state):
-    print("[1]Executing binary concretely until address: " + hex(UNPACKING_BINARY))
+    #print("[1]Executing binary concretely until address: " + hex(UNPACKING_BINARY))
 
     # until unpacking of stub
     new_concrete_state = entry_state
@@ -87,16 +87,16 @@ def solv_concrete_engine_linux_x86(p, entry_state):
 
     # symbolic exploration
     simgr = p.factory.simgr(new_concrete_state)
-    print("[2]Symbolically executing binary to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]")
+    #print("[2]Symbolically executing binary to find dropping of second stage [ address:  " + hex(DROP_STAGE2_V1) + " ]")
     exploration = simgr.explore(find=DROP_STAGE2_V1, avoid=[DROP_STAGE2_V2, VENV_DETECTED, FAKE_CC])
     new_symbolic_state = exploration.stashes['found'][0]
 
     binary_configuration = new_symbolic_state.solver.eval(arg0, cast_to=int)
 
-    print("[3]Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
+    #print("[3]Executing BINARY concretely with solution found until the end " + hex(BINARY_EXECUTION_END))
     execute_concretly(p, new_symbolic_state, BINARY_EXECUTION_END, [(symbolic_buffer_address, arg0)])
 
-    print("[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration))
+    #print("[4]BINARY execution ends, the configuration to reach your BB is: " + hex(binary_configuration))
 
     correct_solution = 0xa000000f9ffffff000000000000000000000000000000000000000000000000
     nose.tools.assert_true(binary_configuration == correct_solution)

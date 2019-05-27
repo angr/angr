@@ -1,7 +1,7 @@
 import logging
 import claripy
 from sortedcontainers import SortedDict
-
+from archinfo.arch_arm import is_arm_arch
 from ..state_plugins.plugin import SimStatePlugin
 
 
@@ -23,9 +23,9 @@ class AddressWrapper(object):
         """
         Constructor for the class AddressWrapper.
 
-        :param strregion:              Name of the memory regions it belongs to.
+        :param str region:             Name of the memory regions it belongs to.
         :param int region_base_addr:   Base address of the memory region
-        :param address:             An address (not a ValueSet object).
+        :param address:                An address (not a ValueSet object).
         :param bool is_on_stack:       Whether this address is on a stack region or not.
         :param int function_address:   Related function address (if any).
         """
@@ -381,7 +381,7 @@ class SimMemory(SimStatePlugin):
                         self.store('cc_dep1', _get_flags(self.state)[0]) # TODO: can constraints be added by this?
                     self.store('cc_op', 0) # OP_COPY
                     return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
-            if self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
+            if is_arm_arch(self.state.arch):
                 if name == 'flags':
                     if not is_write:
                         self.store('cc_dep1', _get_flags(self.state)[0])
@@ -703,7 +703,7 @@ class SimMemory(SimStatePlugin):
         """
         Loads size bytes from dst.
 
-        :param dst:             The address to load from.
+        :param addr:             The address to load from.
         :param size:            The size (in bytes) of the load.
         :param condition:       A claripy expression representing a condition for a conditional load.
         :param fallback:        A fallback value if the condition ends up being False.

@@ -21,6 +21,12 @@ class Labels(KnowledgeBasePlugin):
             except AttributeError:
                 pass
 
+        # Artificial labels for the entry point
+        entry = kb._project.loader.main_object.entry
+        if entry not in self._labels:
+            lbl = "_start"
+            self._labels[entry] = self.get_unique_label(lbl)
+
     def __iter__(self):
         """
         Iterate over all labels (the strings)
@@ -64,6 +70,25 @@ class Labels(KnowledgeBasePlugin):
         o = Labels(self._kb)
         o._labels = {k: v for k, v in self._labels.items()}
         o._reverse_labels = {k: v for k, v in self._reverse_labels.items()}
+
+    def get_unique_label(self, label):
+        """
+        Get a unique label name from the given label name.
+
+        :param str label:   The desired label name.
+        :return:            A unique label name.
+        """
+
+        if label not in self._labels:
+            return label
+
+        # use it as the prefix
+        i = 1
+        while True:
+            new_label = "%s_%d" % (label, i)
+            if new_label not in self._labels:
+                return new_label
+            i += 1
 
 
 KnowledgeBasePlugin.register_default('labels', Labels)

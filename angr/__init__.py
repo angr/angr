@@ -1,5 +1,7 @@
 # pylint: disable=wildcard-import
 
+__version__ = (8, 19, 4, 5)
+
 if bytes is str:
     raise Exception("""
 
@@ -11,7 +13,7 @@ If you want to continue using the most recent version of angr (you definitely
 want that, trust us) you should upgrade to python 3. It's like getting your
 vaccinations. It hurts a little bit initially but in the end it's worth it.
 
-For more information, see here: https://docs.angr.io/MIGRATION.html
+For more information, see here: https://docs.angr.io/appendix/migration
 
 Good luck!
 """)
@@ -58,6 +60,7 @@ from .engines import SimEngineVEX, SimEngine
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
 from .storage.file import SimFileBase, SimFile, SimPackets, SimFileStream, SimPacketsStream, SimFileDescriptor, SimFileDescriptorDuplex
 from .state_plugins.filesystem import SimMount, SimHostFilesystem
+from .state_plugins.heap import SimHeapBrk, SimHeapPTMalloc, PTChunk
 
 # for compatibility reasons
 from . import sim_manager as manager

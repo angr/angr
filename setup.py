@@ -5,6 +5,7 @@ import subprocess
 import pkg_resources
 import shutil
 import platform
+import glob
 
 if bytes is str:
     raise Exception("""
@@ -21,7 +22,7 @@ If you are staying on python 2 and would like to make sure you don't get
 incompatible versions, make sure your pip is at least version 9.0, and it will
 use our metadata to implicitly avoid them.
 
-For more information, see here: https://docs.angr.io/MIGRATION.html
+For more information, see here: https://docs.angr.io/appendix/migration
 
 Good luck!
 """)
@@ -37,6 +38,7 @@ except ImportError:
 from distutils.util import get_platform
 from distutils.errors import LibError
 from distutils.command.build import build as _build
+from distutils.command.clean import clean as _clean
 
 if sys.platform == 'darwin':
     library_file = "angr_native.dylib"
@@ -81,13 +83,28 @@ def _build_native():
     os.mkdir('angr/lib')
     shutil.copy(os.path.join('native', library_file), 'angr/lib')
 
+def _clean_native():
+    oglob  = glob.glob('native/*.o')
+    oglob += glob.glob('native/*.obj')
+    oglob += glob.glob('native/*.so')
+    oglob += glob.glob('native/*.dll')
+    oglob += glob.glob('native/*.dylib')
+    for fname in oglob:
+        os.unlink(fname)
+
 class build(_build):
     def run(self, *args):
         self.execute(_build_native, (), msg='Building angr_native')
         _build.run(self, *args)
 
+class clean(_clean):
+    def run(self, *args):
+        self.execute(_clean_native, (), msg='Cleaning angr_native')
+        _clean.run(self, *args)
+
 cmdclass = {
     'build': build,
+    'clean': clean,
 }
 
 try:
@@ -114,7 +131,7 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
 
 setup(
     name='angr',
-    version='8.19.2.4',
+    version='8.19.4.5',
     python_requires='>=3.5',
     description='A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries',
     url='https://github.com/angr/angr',
@@ -132,15 +149,16 @@ setup(
         'rpyc',
         'cffi>=1.7.0',
         'unicorn',
-        'archinfo==8.19.2.4',
-        'claripy==8.19.2.4',
-        'cle==8.19.2.4',
-        'pyvex==8.19.2.4',
-        'ailment==8.19.2.4',
+        'archinfo==8.19.4.5',
+        'claripy==8.19.4.5',
+        'cle==8.19.4.5',
+        'pyvex==8.19.4.5',
+        'ailment==8.19.4.5',
         'GitPython',
         'psutil',
         'pycparser>=2.18',
         'itanium_demangler',
+        'protobuf',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,

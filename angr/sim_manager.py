@@ -131,7 +131,7 @@ class SimulationManager:
             return SimulationManager._fetch_states(self, stash=item)
 
     def __dir__(self):
-        return list(self.__dict__) + dir(type(self)) + list(self._stashes)
+        return list(self.__dict__) + dir(type(self)) + list(self._stashes) + ['one_' + stash for stash in self._stashes] + ['mp_' + stash for stash in self._stashes]
 
     @property
     def errored(self):
