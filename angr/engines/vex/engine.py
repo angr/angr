@@ -655,7 +655,7 @@ class SimEngineVEX(SimEngine):
 
         # Load from the clemory if we can
         smc = self._support_selfmodifying_code
-        if state:
+        if state and not smc:
             try:
                 p = state.memory.permissions(addr)
                 if p.symbolic:
