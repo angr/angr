@@ -95,3 +95,6 @@ class Parameter(Atom):
                self.value == other.value and \
                self.type_ == other.type_ and \
                self.meta == other.meta
+
+    def __hash__(self):
+        return hash(('par', self.value, self.type_, self.meta))
