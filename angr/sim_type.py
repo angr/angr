@@ -861,7 +861,8 @@ class SimUnion(SimType):
 
     def __init__(self, members, name=None, label=None):
         """
-        :param members:     The members of the struct, as a mapping name -> type
+        :param members:     The members of the union, as a mapping name -> type
+        :param name:        The name of the union
         """
         super(SimUnion, self).__init__(label)
         self._name = name if name is not None else '<anon>'
@@ -880,7 +881,7 @@ class SimUnion(SimType):
         return max(val.alignment for val in self.members.values())
 
     def __repr__(self):
-        return 'union {\n\t%s\n}' % '\n\t'.join('%s %s;' % (name, repr(ty)) for name, ty in self.members.items())
+        return 'union %s {\n\t%s\n}' % (self.name, '\n\t'.join('%s %s;' % (name, repr(ty)) for name, ty in self.members.items()))
 
     def _with_arch(self, arch):
         out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.items()}, self.label)
