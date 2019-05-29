@@ -70,7 +70,7 @@ class CFGNode(Serializable):
         self.no_ret = no_ret
         self._cfg_model = cfg
         self.function_address = function_address
-        self.block_id = block_id  # type: int or tuple
+        self.block_id = block_id  # type: int or BlockID
         self.thumb = thumb
         self.byte_string = byte_string  # type: None or bytes
 
@@ -158,25 +158,26 @@ class CFGNode(Serializable):
         return cfg_pb2.CFGNode()
 
     def serialize_to_cmessage(self):
+        if isinstance(self, CFGENode):
+            _l.error("CFGEmulated instances are not currently serializable")
+            return None
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
         if self.block_id is not None:
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
-            else:  # should be a tuple
-                obj.block_id.extend(self.block_id)  # pylint:disable=no-member
+            else:  # should be a BlockID
+                _l.error("CFGEmulated instances are not currently serializable")
+                return None
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
-
         if len(cmsg.block_id) == 0:
             block_id = None
-        elif len(cmsg.block_id) == 1:
-            block_id = cmsg.block_id[0]
         else:
-            block_id = tuple(cmsg.block_id)
+            block_id = cmsg.block_id[0]
 
         obj = cls(cmsg.ea,
                   cmsg.size,

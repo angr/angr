@@ -11,6 +11,7 @@ from ...utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from ...errors import AngrCFGError
 from .cfg_node import CFGNode
 from .memory_data import CodeReference, MemoryData
+from ...misc.ux import once
 
 
 l = logging.getLogger(name=__name__)
@@ -99,13 +100,20 @@ class CFGModel(Serializable):
         return cfg_pb2.CFG()
 
     def serialize_to_cmessage(self):
+        if "Emulated" in self.ident:
+            l.error("Serializing a CFGEmulated instance is currently not supported.")
+            return None
+
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
 
         # nodes
         nodes = [ ]
         for n in self.graph.nodes():
-            nodes.append(n.serialize_to_cmessage())
+            n_cmsg = n.serialize_to_cmessage()
+            if n_cmsg is None:
+                continue
+            nodes.append(n_cmsg)
         cmsg.nodes.extend(nodes)
 
         # edges
@@ -143,18 +151,28 @@ class CFGModel(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg_manager=None):  # pylint:disable=arguments-differ
-        model = cls(cmsg.ident, cfg_manager=cfg_manager)
+        if cfg_manager is None:
+            # create a new model unassociated from any project
+            model = cls(cmsg.ident)
+        else:
+            model = cfg_manager.new_model(cmsg.ident)
+
         # nodes
         for node_pb2 in cmsg.nodes:
-            node = CFGNode.parse_from_cmessage(node_pb2)
+            node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
             model._nodes[node.block_id] = node
-            model._nodes_by_addr[node.addr] = node
+            model._nodes_by_addr[node.addr].append(node)
             model.graph.add_node(node)
+            if len(model._nodes_by_addr[node.block_id]) > 1:
+                if once("cfg_model_parse_from_cmessage many nodes at addr"):
+                    l.warning("Importing a CFG with more than one node for a given address is currently unsupported. " +
+                              "The resulting graph may be broken.")
 
         # edges
         for edge_pb2 in cmsg.edges:
-            src = model._nodes_by_addr[edge_pb2.src_ea]
-            dst = model._nodes_by_addr[edge_pb2.dst_ea]
+            # more than one node at a given address is unsupported, grab the first one
+            src = model._nodes_by_addr[edge_pb2.src_ea][0]
+            dst = model._nodes_by_addr[edge_pb2.dst_ea][0]
             data = { }
             for k, v in edge_pb2.data.items():
                 data[k] = pickle.loads(v)

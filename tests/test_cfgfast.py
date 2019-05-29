@@ -484,14 +484,24 @@ def test_serialization_cfgnode():
 
 def test_serialization_cfgfast():
     path = os.path.join(test_location, "x86_64", "fauxware")
-    proj = angr.Project(path, auto_load_libs=False)
+    proj1 = angr.Project(path, auto_load_libs=False)
+    proj2 = angr.Project(path, auto_load_libs=False)
 
-    cfg = proj.analyses.CFGFast()
+    cfg = proj1.analyses.CFGFast()
     # parse the entire graph
     b = cfg.model.serialize()
     nose.tools.assert_greater(len(b), 0)
-    cfg_model = CFGModel.parse(b)
-    nose.tools.assert_equal(len(cfg_model.graph), len(cfg.graph))
+
+    # simulate importing a cfg from another tool
+    cfg_model = CFGModel.parse(b, cfg_manager=proj2.kb.cfgs)
+
+    nose.tools.assert_equal(len(cfg_model.graph.nodes), len(cfg.graph.nodes))
+    nose.tools.assert_equal(len(cfg_model.graph.edges), len(cfg.graph.edges))
+
+    n1 = cfg.model.get_any_node(proj1.entry)
+    n2 = cfg_model.get_any_node(proj1.entry)
+    nose.tools.assert_equal(n1, n2)
+
 
 #
 # CFG instance copy
