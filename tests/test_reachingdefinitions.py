@@ -1,4 +1,5 @@
 import logging
+import pickle
 import os
 
 import nose
@@ -19,19 +20,25 @@ def run_reaching_definition_analysis(project, func, result_path):
     tmp_kb = angr.KnowledgeBase(project)
     rd = project.analyses.ReachingDefinitions(func, init_func=True, kb=tmp_kb, observe_all=True)
 
-    result = "%s\n" % rd.observed_results
+    result = list(map(
+        lambda x: {'key': x[0],\
+                   'register_definitions': x[1].register_definitions,\
+                   'stack_definitions': x[1].stack_definitions,\
+                   'memory_definitions': x[1].memory_definitions},
+        rd.observed_results.items()
+    ))
 
-    with open(result_path, 'r') as result_file:
-        expected_result = result_file.read()
+    with open(result_path, 'rb') as f:
+        expected_result = pickle.load(f)
 
-    nose.tools.assert_equals(result, expected_result)
+    nose.tools.assert_list_equal(result, expected_result)
 
 
 def test_reaching_definition_analysis():
     def _binary_path(binary_name):
         return os.path.join(TESTS_LOCATION, 'x86_64', binary_name)
     def _result_path(binary_name):
-        return 'tests/reachingdefinitions_results/x86_64/' + binary_name + '.txt'
+        return 'tests/reachingdefinitions_results/x86_64/' + binary_name + '.pickle'
 
     binaries_and_results = list(map(
         lambda binary: (_binary_path(binary), _result_path(binary)),
