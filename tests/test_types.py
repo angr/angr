@@ -63,3 +63,4 @@ def test_struct_deduplication():
 if __name__ == '__main__':
     test_type_annotation()
     test_cproto_conversion()
+    test_struct_deduplication()
