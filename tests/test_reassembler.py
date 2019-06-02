@@ -168,9 +168,41 @@ def test_df_gcc_O1():
         shutil.rmtree(tempdir)
 
 
+def test_dir_gcc_O0():
+
+    # Issue reported and test binary provided by Antonio F. Montoya
+
+    p = angr.Project(os.path.join(test_location, "x86_64", "dir_gcc_-O0"), auto_load_libs=False)
+    r = p.analyses.Reassembler(syntax="at&t")
+    r.symbolize()
+    r.remove_unnecessary_stuff()
+    assembly = r.assembly(comments=True, symbolized=True)
+
+    if is_linux_x64():
+        # we should be able to compile it and run it ... if we are running on x64 Linux
+        tempdir = tempfile.mkdtemp(prefix="angr_test_reassembler_")
+        asm_filename = "dir_gcc-O0.s"
+        bin_filename = "dir_gcc-O0"
+        asm_filepath = os.path.join(tempdir, asm_filename)
+        bin_filepath = os.path.join(tempdir, bin_filename)
+        with open(asm_filepath, "w") as f:
+            f.write(assembly)
+        # Call out to GCC, and it should return 0. Otherwise check_call() will raise an exception.
+        subprocess.check_call(["gcc", "-no-pie", asm_filepath, "-o", bin_filepath],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Run the generated binary file, and it should not crash (which is a pretty basic requirement, I know)
+        subprocess.check_call([bin_filepath, "--help"],
+                              stdout=subprocess.DEVNULL)
+        subprocess.check_call([bin_filepath, "-la", "/"],
+                              stdout=subprocess.DEVNULL)
+        # Pick up after ourselves
+        shutil.rmtree(tempdir)
+
+
 if __name__ == "__main__":
     test_data_reference_collection_in_add()
     test_ln_gcc_O2()
     test_chmod_gcc_O1()
     test_ex_gpp()
     test_df_gcc_O1()
+    test_dir_gcc_O0()
