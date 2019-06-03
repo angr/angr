@@ -3,7 +3,7 @@ import nose
 import claripy
 
 import angr
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion, SimTypeDouble, SimTypeLongLong
+from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion, SimTypeDouble, SimTypeLongLong, SimTypeLong, SimTypeNum
 from angr.utils.library import convert_cproto_to_py
 
 
@@ -87,9 +87,19 @@ def test_parse_type():
     nose.tools.assert_is_instance(struct_llist.fields['next'].pts_to, SimStruct)
     nose.tools.assert_equal(struct_llist.fields['next'].pts_to.name, 'llist')
 
+def test_parse_type_no_basic_types():
+    time_t = angr.types.parse_type('time_t')
+    nose.tools.assert_is_instance(time_t, SimTypeLong)
+
+    byte = angr.types.parse_type('byte')
+    nose.tools.assert_is_instance(byte, SimTypeNum)
+    nose.tools.assert_true(byte.size, 8)
+    nose.tools.assert_false(byte.signed)
+
 
 if __name__ == '__main__':
     test_type_annotation()
     test_cproto_conversion()
     test_struct_deduplication()
     test_parse_type()
+    test_parse_type_no_basic_types()
