@@ -7,6 +7,10 @@ import claripy
 
 l = logging.getLogger(name=__name__)
 
+# pycparser hack to parse type expressions
+errorlog = logging.getLogger(name=__name__ + ".yacc")
+errorlog.setLevel(logging.ERROR)
+
 try:
     import pycparser
 except ImportError:
@@ -1101,9 +1105,6 @@ def parse_type(defn, preprocess=True):
 
     parser = pycparser.CParser()
 
-    # pycparser hack to parse type expressions
-    errorlog = logging.getLogger('yacc logger')
-    errorlog.setLevel(logging.ERROR)
     parser.cparser = pycparser.ply.yacc.yacc(module=parser,
                                              start='parameter_declaration',
                                              debug=False,
@@ -1111,7 +1112,8 @@ def parse_type(defn, preprocess=True):
                                              errorlog=errorlog)
 
     node = parser.parse(text=defn, scope_stack=_make_scope())
-    if not isinstance(node, pycparser.c_ast.Typename):
+    if not isinstance(node, pycparser.c_ast.Typename) and \
+            not isinstance(node, pycparser.c_ast.Decl):
         raise ValueError("Something went horribly wrong using pycparser")
 
     decl = node.type
@@ -1122,10 +1124,10 @@ def _accepts_scope_stack():
     """
     pycparser hack to include scope_stack as parameter in CParser parse method
     """
-    def parse(self, text, scope_stack=[dict()], filename='', debuglevel=0):
+    def parse(self, text, scope_stack=None, filename='', debuglevel=0):
         self.clex.filename = filename
         self.clex.reset_lineno()
-        self._scope_stack = scope_stack
+        self._scope_stack = [dict()] if scope_stack is None else scope_stack
         self._last_yielded_token = None
         return self.cparser.parse(
             input=text,

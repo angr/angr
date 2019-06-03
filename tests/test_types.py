@@ -64,6 +64,10 @@ def test_parse_type():
     nose.tools.assert_is_instance(int_ptr, SimTypePointer)
     nose.tools.assert_is_instance(int_ptr.pts_to, SimTypeInt)
 
+    char_ptr = angr.types.parse_type('char *c')
+    nose.tools.assert_is_instance(char_ptr, SimTypePointer)
+    nose.tools.assert_is_instance(char_ptr.pts_to, SimTypeChar)
+
     struct_abcd = angr.types.parse_type('struct abcd { char c; float f; }')
     nose.tools.assert_is_instance(struct_abcd, SimStruct)
     nose.tools.assert_equal(struct_abcd.name, 'abcd')
@@ -86,6 +90,15 @@ def test_parse_type():
     nose.tools.assert_is_instance(struct_llist.fields['next'], SimTypePointer)
     nose.tools.assert_is_instance(struct_llist.fields['next'].pts_to, SimStruct)
     nose.tools.assert_equal(struct_llist.fields['next'].pts_to.name, 'llist')
+
+    func_ptr = angr.types.parse_type('double (*) (int, float)')
+    nose.tools.assert_is_instance(func_ptr, SimTypePointer)
+    nose.tools.assert_is_instance(func_ptr.pts_to, SimTypeFunction)
+    nose.tools.assert_is_instance(func_ptr.pts_to.returnty, SimTypeDouble)
+    nose.tools.assert_true(len(func_ptr.pts_to.args) == 2)
+    nose.tools.assert_is_instance(func_ptr.pts_to.args[0], SimTypeInt)
+    nose.tools.assert_is_instance(func_ptr.pts_to.args[1], SimTypeFloat)
+
 
 def test_parse_type_no_basic_types():
     time_t = angr.types.parse_type('time_t')
