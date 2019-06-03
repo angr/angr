@@ -7,6 +7,10 @@ import claripy
 
 l = logging.getLogger(name=__name__)
 
+# pycparser hack to parse type expressions
+errorlog = logging.getLogger(name=__name__ + ".yacc")
+errorlog.setLevel(logging.ERROR)
+
 try:
     import pycparser
 except ImportError:
@@ -987,6 +991,24 @@ def make_preamble():
 
     return '\n'.join(out) + '\n', types_out
 
+def _make_scope():
+    """
+    Generate CParser scope_stack argument to parse method
+    """
+    scope = dict()
+    for ty in ALL_TYPES:
+        if ty in BASIC_TYPES:
+            continue
+        if ' ' in ty:
+            continue
+
+        typ = ALL_TYPES[ty]
+        if isinstance(typ, (SimTypeFunction,SimTypeString, SimTypeWString)):
+            continue
+
+        scope[ty] = True
+    return [scope]
+
 
 def define_struct(defn):
     """
@@ -1079,18 +1101,40 @@ def parse_type(defn, preprocess=True):
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
-    defn = 'typedef ' + defn.strip('; \n\t\r') + ' QQQQ;'
+    defn = re.sub(r"/\*.*?\*/", r"", defn)
 
-    if preprocess:
-        defn = do_preprocess(defn)
+    parser = pycparser.CParser()
 
-    node = pycparser.c_parser.CParser().parse(make_preamble()[0] + defn)
-    if not isinstance(node, pycparser.c_ast.FileAST) or \
-            not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
+    parser.cparser = pycparser.ply.yacc.yacc(module=parser,
+                                             start='parameter_declaration',
+                                             debug=False,
+                                             optimize=False,
+                                             errorlog=errorlog)
+
+    node = parser.parse(text=defn, scope_stack=_make_scope())
+    if not isinstance(node, pycparser.c_ast.Typename) and \
+            not isinstance(node, pycparser.c_ast.Decl):
         raise ValueError("Something went horribly wrong using pycparser")
 
-    decl = node.ext[-1].type
+    decl = node.type
     return _decl_to_type(decl)
+
+
+def _accepts_scope_stack():
+    """
+    pycparser hack to include scope_stack as parameter in CParser parse method
+    """
+    def parse(self, text, scope_stack=None, filename='', debuglevel=0):
+        self.clex.filename = filename
+        self.clex.reset_lineno()
+        self._scope_stack = [dict()] if scope_stack is None else scope_stack
+        self._last_yielded_token = None
+        return self.cparser.parse(
+            input=text,
+            lexer=self.clex,
+            debug=debuglevel)
+    setattr(pycparser.CParser, 'parse', parse)
+
 
 def _decl_to_type(decl, extra_types=None):
     if extra_types is None: extra_types = {}
@@ -1193,6 +1237,8 @@ def _parse_const(c):
     else:
         raise ValueError(c)
 
+if pycparser is not None:
+    _accepts_scope_stack()
 
 try:
     register_types(parse_types("""
