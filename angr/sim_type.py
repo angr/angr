@@ -1098,10 +1098,6 @@ def parse_type(defn, preprocess=True):
         raise ImportError("Please install pycparser in order to parse C definitions")
 
     defn = re.sub(r"/\*.*?\*/", r"", defn)
-    # defn = 'typedef ' + defn.strip('; \n\t\r') + ' QQQQ;'
-
-    # if preprocess:
-    #     defn = do_preprocess(defn)
 
     parser = pycparser.CParser()
 
@@ -1114,10 +1110,6 @@ def parse_type(defn, preprocess=True):
                                              optimize=False,
                                              errorlog=errorlog)
 
-    # node = pycparser.c_parser.CParser().parse(make_preamble()[0] + defn)
-    # if not isinstance(node, pycparser.c_ast.FileAST) or \
-    #         not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
-    #     raise ValueError("Something went horribly wrong using pycparser")
     node = parser.parse(text=defn, scope_stack=_make_scope())
     if not isinstance(node, pycparser.c_ast.Typename):
         raise ValueError("Something went horribly wrong using pycparser")
