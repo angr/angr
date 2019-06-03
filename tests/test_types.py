@@ -3,7 +3,7 @@ import nose
 import claripy
 
 import angr
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar
+from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion, SimTypeDouble, SimTypeLongLong
 from angr.utils.library import convert_cproto_to_py
 
 
@@ -59,7 +59,37 @@ def test_struct_deduplication():
     dhdr = angr.types.define_struct('struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}')
     assert dhdr.fields['a'].fields
 
+def test_parse_type():
+    int_ptr = angr.types.parse_type('int *')
+    nose.tools.assert_is_instance(int_ptr, SimTypePointer)
+    nose.tools.assert_is_instance(int_ptr.pts_to, SimTypeInt)
+
+    struct_abcd = angr.types.parse_type('struct abcd { char c; float f; }')
+    nose.tools.assert_is_instance(struct_abcd, SimStruct)
+    nose.tools.assert_equal(struct_abcd.name, 'abcd')
+    nose.tools.assert_true(len(struct_abcd.fields) == 2)
+    nose.tools.assert_is_instance(struct_abcd.fields['c'], SimTypeChar)
+    nose.tools.assert_is_instance(struct_abcd.fields['f'], SimTypeFloat)
+
+    union_dcba = angr.types.parse_type('union dcba { double d; long long int lli; }')
+    nose.tools.assert_is_instance(union_dcba, SimUnion)
+    nose.tools.assert_equal(union_dcba.name, 'dcba')
+    nose.tools.assert_true(len(union_dcba.members) == 2)
+    nose.tools.assert_is_instance(union_dcba.members['d'], SimTypeDouble)
+    nose.tools.assert_is_instance(union_dcba.members['lli'], SimTypeLongLong)
+
+    struct_llist = angr.types.parse_type('struct llist { int data; struct llist * next; }')
+    nose.tools.assert_is_instance(struct_llist, SimStruct)
+    nose.tools.assert_equal(struct_llist.name, 'llist')
+    nose.tools.assert_true(len(struct_llist.fields) == 2)
+    nose.tools.assert_is_instance(struct_llist.fields['data'], SimTypeInt)
+    nose.tools.assert_is_instance(struct_llist.fields['next'], SimTypePointer)
+    nose.tools.assert_is_instance(struct_llist.fields['next'].pts_to, SimStruct)
+    nose.tools.assert_equal(struct_llist.fields['next'].pts_to.name, 'llist')
+
 
 if __name__ == '__main__':
     test_type_annotation()
     test_cproto_conversion()
+    test_struct_deduplication()
+    test_parse_type()
