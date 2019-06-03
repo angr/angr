@@ -1079,17 +1079,32 @@ def parse_type(defn, preprocess=True):
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
-    defn = 'typedef ' + defn.strip('; \n\t\r') + ' QQQQ;'
+    defn = re.sub("/\*.*?\*/", "", defn)
+    # defn = 'typedef ' + defn.strip('; \n\t\r') + ' QQQQ;'
 
-    if preprocess:
-        defn = do_preprocess(defn)
+    # if preprocess:
+    #     defn = do_preprocess(defn)
 
-    node = pycparser.c_parser.CParser().parse(make_preamble()[0] + defn)
-    if not isinstance(node, pycparser.c_ast.FileAST) or \
-            not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
+    parser = pycparser.CParser()
+
+    # pycparser hack to parse type expressions
+    errorlog = logging.getLogger('yacc logger')
+    errorlog.setLevel(logging.ERROR)
+    parser.cparser = pycparser.ply.yacc.yacc(module=parser,
+                                             start='parameter_declaration',
+                                             debug=False,
+                                             optimize=False,
+                                             errorlog=errorlog)
+
+    # node = pycparser.c_parser.CParser().parse(make_preamble()[0] + defn)
+    # if not isinstance(node, pycparser.c_ast.FileAST) or \
+    #         not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
+    #     raise ValueError("Something went horribly wrong using pycparser")
+    node = parser.parse(defn)
+    if not isinstance(node, pycparser.c_ast.Typename):
         raise ValueError("Something went horribly wrong using pycparser")
 
-    decl = node.ext[-1].type
+    decl = node.type
     return _decl_to_type(decl)
 
 def _decl_to_type(decl, extra_types=None):
