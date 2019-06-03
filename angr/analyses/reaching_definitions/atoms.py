@@ -102,7 +102,7 @@ class Parameter(Atom):
     """
     Represents a function parameter.
 
-    Can either be a MemoryLocation if the parameter was passed on the stack, or a Register, depending on the calling
+    Can either be a <angr.engines.light.data.SpOffset> if the parameter was passed on the stack, or a <Register>, depending on the calling
     convention.
     """
     __slots__ = ['value', 'type_', 'meta']
