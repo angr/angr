@@ -1192,7 +1192,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             function.mark_nonreturning_calls_endpoints()
 
         # optional: remove functions that must be alignments
-        self.remove_function_alignments()
+        self.mark_function_alignments()
 
         # make return edges
         self._make_return_edges()

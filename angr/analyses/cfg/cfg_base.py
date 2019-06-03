@@ -1158,9 +1158,15 @@ class CFGBase(Analysis):
     # Function identification and such
     #
 
-    def remove_function_alignments(self):
+    def mark_function_alignments(self):
         """
-        Remove all function alignments.
+        Find all potential function alignments and mark them.
+
+        Note that it is not always correct to simply remove them, because these functions may not be actual alignments
+        but part of an actual function, and is incorrectly marked as an individual function because of failures in
+        resolving indirect jumps. An example is in the test binary x86_64/dir_gcc_-O0 0x40541d (indirect jump at
+        0x4051b0). If the indirect jump cannot be correctly resolved, removing function 0x40541d will cause a missing
+        label failure in reassembler.
 
         :return: None
         """
@@ -1178,9 +1184,9 @@ class CFGBase(Analysis):
                 if block is None:
                     continue
                 if all(self._is_noop_insn(insn) for insn in block.capstone.insns):
-                    # remove this function
-                    l.debug('Function chunk %#x is used as function alignments. Removing it.', func_addr)
-                    del self.kb.functions[func_addr]
+                    # mark this function as a function alignment
+                    l.debug('Function chunk %#x is probably used as a function alignment.', func_addr)
+                    self.kb.functions[func_addr].alignment = True
 
     def make_functions(self):
         """
