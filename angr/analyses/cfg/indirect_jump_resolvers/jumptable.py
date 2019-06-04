@@ -193,8 +193,12 @@ class JumpTableProcessor(SimEngineLightVEX):
             # make sure arg0_src is const
             arg0_src, arg1_src = arg1_src, arg0_src
 
-        assert arg0_src == 'const'
         self.state.is_jumptable = True
+
+        if arg0_src != 'const':
+            # we failed during dependenciy tracking so arg0_src couldn't be determined
+            # but we will still try to resolve it as a jump table as a fall back
+            return
 
         if isinstance(arg1_src, tuple):
             arg1_src_stmt = self.project.factory.block(arg1_src[0]).vex.statements[arg1_src[1]]
@@ -490,7 +494,7 @@ class JumpTableResolver(IndirectJumpResolver):
         while True:
             preds = list(b.slice.predecessors(stmt_loc))
             if len(preds) != 1:
-                return False, None
+                break
             block_addr, stmt_idx = stmt_loc = preds[0]
             block = project.factory.block(block_addr, backup_state=self.base_state).vex
             stmt = block.statements[stmt_idx]
