@@ -83,8 +83,8 @@ def get_engine(base_engine):
             super(SimEnginePropagator, self).__init__()
             self._stack_pointer_tracker = stack_pointer_tracker
 
-        def _process(self, state, successors, block=None):
-            super(SimEnginePropagator, self)._process(state, successors, block=block)
+        def _process(self, state, successors, block=None, whitelist=None, **kwargs):
+            super(SimEnginePropagator, self)._process(state, successors, block=block, whitelist=whitelist, **kwargs)
 
         #
         # VEX statement handlers
