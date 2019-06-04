@@ -347,21 +347,27 @@ class SimEngineLightAIL(SimEngineLight):
     def __init__(self):
         super(SimEngineLightAIL, self).__init__(engine_type='ail')
 
-    def _process(self, state, successors, block=None):  # pylint:disable=arguments-differ
+    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ
 
         self.tmps = {}
         self.block = block
         self.state = state
         self.arch = state.arch
 
-        self._process_Stmt()
+        self._process_Stmt(whitelist=whitelist)
 
         self.stmt_idx = None
         self.ins_addr = None
 
-    def _process_Stmt(self):
+    def _process_Stmt(self, whitelist=None):
+
+        if whitelist is not None:
+            whitelist = set(whitelist)
 
         for stmt_idx, stmt in enumerate(self.block.statements):
+            if whitelist is not None and stmt_idx not in whitelist:
+                continue
+
             self.stmt_idx = stmt_idx
             self.ins_addr = stmt.ins_addr
 
