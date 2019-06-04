@@ -220,6 +220,14 @@ class SimEngineLightVEX(SimEngineLight):
     def _handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.con.value
 
+    def _handle_Conversion(self, expr):
+        expr = self._expr(expr.args[0])
+        if expr is None:
+            return None
+
+        # FIXME: implement real conversion
+        return expr
+
     #
     # Binary operation handlers
     #
