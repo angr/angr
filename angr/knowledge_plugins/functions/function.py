@@ -34,11 +34,11 @@ class Function(Serializable):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags',
+                 '_local_block_addrs', 'info', 'tags', 'alignment',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
-                 is_plt=None, returning=None):
+                 is_plt=None, returning=None, alignment=False):
         """
         Function constructor. If the optional parameters are not provided, they will be automatically determined upon
         the creation of a Function object.
@@ -53,6 +53,7 @@ class Function(Serializable):
         :param str binary_name: Name of the binary where this function is.
         :param bool is_plt:     If this function is a PLT entry.
         :param bool returning:  If this function returns.
+        :param bool alignment:  If this function acts as an alignment filler. Such functions usually only contain nops.
         """
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
@@ -78,6 +79,7 @@ class Function(Serializable):
         self.is_syscall = None
         self.is_plt = None
         self.is_simprocedure = False
+        self.alignment = alignment
 
         # These properties are set by VariableManager
         self.bp_on_stack = False
@@ -310,6 +312,7 @@ class Function(Serializable):
         obj.is_syscall = self.is_syscall
         obj.is_simprocedure = self.is_simprocedure
         obj.returning = self.returning
+        obj.alignment = self.alignment
         obj.binary_name = self.binary_name
 
         # blocks
@@ -370,6 +373,7 @@ class Function(Serializable):
                   syscall=cmsg.is_syscall,
                   is_simprocedure=cmsg.is_simprocedure,
                   returning=cmsg.returning,
+                  alignment=cmsg.alignment,
                   binary_name=cmsg.binary_name,
                   )
 
@@ -604,6 +608,7 @@ class Function(Serializable):
         s += '  SP difference: %d\n' % self.sp_delta
         s += '  Has return: %s\n' % self.has_return
         s += '  Returning: %s\n' % ('Unknown' if self.returning is None else self.returning)
+        s += '  Alignment: %s\n' % (self.alignment)
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
@@ -1390,6 +1395,7 @@ class Function(Serializable):
         func.calling_convention = self.calling_convention
         func.prototype = self.prototype
         func._returning = self._returning
+        func.alignment = self.alignment
         func.startpoint = self.startpoint
         func._addr_to_block_node = self._addr_to_block_node.copy()
         func._block_sizes = self._block_sizes.copy()
