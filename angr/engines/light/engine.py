@@ -195,6 +195,8 @@ class SimEngineLightVEX(SimEngineLight):
             handler = '_handle_CmpNE'
         elif expr.op.startswith('Iop_CmpLT'):
             handler = '_handle_CmpLT'
+        elif expr.op.startswith('Iop_CmpLE'):
+            handler = '_handle_CmpLE'
         elif expr.op.startswith('Iop_CmpORD'):
             handler = '_handle_CmpORD'
         elif expr.op.startswith('Const'):
