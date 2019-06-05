@@ -413,7 +413,7 @@ class SimSolver(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables, temporal_tracked_variables=self.temporal_tracked_variables, eternal_tracked_variables=self.eternal_tracked_variables)
+        return type(self)(solver=self._solver.branch(), all_variables=self.all_variables, temporal_tracked_variables=self.temporal_tracked_variables, eternal_tracked_variables=self.eternal_tracked_variables)
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613

@@ -68,7 +68,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         Return a copy of the SimMemory.
         """
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-        c = SimSymbolicMemory(
+        c = type(self)(
             mem=self.mem.branch(),
             memory_id=self.id,
             endness=self.endness,
