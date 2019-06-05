@@ -1164,7 +1164,7 @@ class CFGBase(Analysis):
 
         Note that it is not always correct to simply remove them, because these functions may not be actual alignments
         but part of an actual function, and is incorrectly marked as an individual function because of failures in
-        resolving indirect jumps. An example is in the test binary x86_64/dir_gcc_-O0 0x40541d (indirect jump at
+        resolving indirect jumps. An example is in the test binary ``x86_64/dir_gcc_-O0`` 0x40541d (indirect jump at
         0x4051b0). If the indirect jump cannot be correctly resolved, removing function 0x40541d will cause a missing
         label failure in reassembler.
 
