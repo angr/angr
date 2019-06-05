@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+from .misc.ux import deprecated
 import copy
 import re
 import logging
@@ -1010,6 +1011,7 @@ def _make_scope():
     return [scope]
 
 
+@deprecated(replacement="register_types(parse_type(struct_expr))")
 def define_struct(defn):
     """
     Register a struct definition globally
