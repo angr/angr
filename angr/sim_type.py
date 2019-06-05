@@ -1022,13 +1022,26 @@ def define_struct(defn):
     return struct
 
 
-def register_types(mapping):
+def register_types(types):
     """
-    Pass in a mapping from name to SimType and they will be registered to the global type store
+    Pass in some types and they will be registered to the global type store.
+
+    The argument may be either a mapping from name to SimType, or a plain SimType.
+    The plain SimType must be either a struct or union type with a name present.
 
     >>> register_types(parse_types("typedef int x; typedef float y;"))
+    >>> register_types(parse_type("struct abcd { int ab; float cd; }"))
     """
-    ALL_TYPES.update(mapping)
+    if type(types) is SimStruct:
+        if types.name == '<anon>':
+            raise ValueError("Cannot register anonymous struct")
+        ALL_TYPES['struct ' + types.name] = types
+    elif type(types) is SimUnion:
+        if types.name == '<anon>':
+            raise ValueError("Cannot register anonymous union")
+        ALL_TYPES['union ' + types.name] = types
+    else:
+        ALL_TYPES.update(types)
 
 
 def do_preprocess(defn):
