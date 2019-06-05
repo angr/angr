@@ -50,13 +50,10 @@ def test_cproto_conversion():
     nose.tools.assert_equal(pyproto_name, "foo")
 
 def test_struct_deduplication():
-    angr.types.define_struct('struct ahdr { int a ;}')
-    angr.types.define_struct('struct bhdr { int b ;}')
-    angr.types.define_struct('struct chdr { int c ;}')
-    angr.types.register_types(angr.types.parse_types('typedef struct ahdr ahdr;'))
-    angr.types.register_types(angr.types.parse_types('typedef struct bhdr bhdr;'))
-    angr.types.register_types(angr.types.parse_types('typedef struct chdr chdr;'))
-    dhdr = angr.types.define_struct('struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}')
+    angr.types.register_types(angr.types.parse_type('struct ahdr { int a ;}'))
+    angr.types.register_types(angr.types.parse_type('struct bhdr { int b ;}'))
+    angr.types.register_types(angr.types.parse_type('struct chdr { int c ;}'))
+    dhdr = angr.types.parse_type('struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}')
     assert dhdr.fields['a'].fields
 
 def test_parse_type():
