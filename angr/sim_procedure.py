@@ -1,13 +1,11 @@
 import inspect
 import copy
 import itertools
-from cle import SymbolType
-
 import logging
-l = logging.getLogger(name=__name__)
-
+from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
 
+l = logging.getLogger(name=__name__)
 symbolic_count = itertools.count()
 
 
@@ -158,7 +156,9 @@ class SimProcedure:
                 if state.callstack.top.procedure_data is None:
                     raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
-                saved_sp, sim_args, saved_local_vars, saved_lr = state.callstack.top.procedure_data
+                saved_sp, sim_args, saved_local_vars, saved_lr, ideal_addr = state.callstack.top.procedure_data
+                if ideal_addr != inst.addr:
+                    raise SimShadowStackError("I can't emulate this consequence of stack smashing")
                 state.regs.sp = saved_sp
                 if saved_lr is not None:
                     state.regs.lr = saved_lr
@@ -371,7 +371,8 @@ class SimProcedure:
         simcallstack_entry = (self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
                               self.arguments,
                               saved_local_vars,
-                              self.state.regs.lr if self.state.arch.lr_offset is not None else None)
+                              self.state.regs.lr if self.state.arch.lr_offset is not None else None,
+                              ret_addr)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
 
@@ -437,7 +438,7 @@ class SimProcedure:
 
 
 from . import sim_options as o
-from angr.errors import SimProcedureError, SimProcedureArgumentError
+from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowStackError
 from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import DEFAULT_CC
