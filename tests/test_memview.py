@@ -106,3 +106,4 @@ if __name__ == '__main__':
     test_string_concrete()
     test_array_concrete()
     test_pointer_concrete()
+    test_struct()

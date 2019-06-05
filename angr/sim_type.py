@@ -1174,7 +1174,7 @@ def _decl_to_type(decl, extra_types=None):
 
     elif isinstance(decl, pycparser.c_ast.Struct):
         if decl.decls is not None:
-            fields = OrderedDict({field.name: _decl_to_type(field.type, extra_types) for field in decl.decls})
+            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
         else:
             fields = OrderedDict()
 
