@@ -101,8 +101,7 @@ class CFGModel(Serializable):
 
     def serialize_to_cmessage(self):
         if "Emulated" in self.ident:
-            l.error("Serializing a CFGEmulated instance is currently not supported.")
-            return None
+            raise NotImplementedError("Serializing a CFGEmulated instance is currently not supported.")
 
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
@@ -110,10 +109,7 @@ class CFGModel(Serializable):
         # nodes
         nodes = [ ]
         for n in self.graph.nodes():
-            n_cmsg = n.serialize_to_cmessage()
-            if n_cmsg is None:
-                continue
-            nodes.append(n_cmsg)
+            nodes.append(n.serialize_to_cmessage())
         cmsg.nodes.extend(nodes)
 
         # edges

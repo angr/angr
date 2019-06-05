@@ -31,13 +31,10 @@ class Serializable:
         Serialize the class object and returns a bytes object.
 
         :return:    A bytes object.
-        :rtype:     bytes or None
+        :rtype:     bytes
         """
 
-        cmsg = self.serialize_to_cmessage()
-        if cmsg is None:
-            return None
-        return cmsg.SerializeToString()
+        return self.serialize_to_cmessage().SerializeToString()
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):

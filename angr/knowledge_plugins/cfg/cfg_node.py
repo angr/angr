@@ -159,8 +159,8 @@ class CFGNode(Serializable):
 
     def serialize_to_cmessage(self):
         if isinstance(self, CFGENode):
-            _l.error("CFGEmulated instances are not currently serializable")
-            return None
+            raise NotImplementedError("CFGEmulated instances are not currently serializable")
+
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
@@ -168,8 +168,7 @@ class CFGNode(Serializable):
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
             else:  # should be a BlockID
-                _l.error("CFGEmulated instances are not currently serializable")
-                return None
+                raise NotImplementedError("CFGEmulated instances are not currently serializable")
         return obj
 
     @classmethod
