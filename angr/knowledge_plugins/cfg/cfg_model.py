@@ -161,7 +161,7 @@ class CFGModel(Serializable):
             model.graph.add_node(node)
             if len(model._nodes_by_addr[node.block_id]) > 1:
                 if once("cfg_model_parse_from_cmessage many nodes at addr"):
-                    l.warning("Importing a CFG with more than one node for a given address is currently unsupported. " +
+                    l.warning("Importing a CFG with more than one node for a given address is currently unsupported. "
                               "The resulting graph may be broken.")
 
         # edges
