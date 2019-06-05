@@ -350,19 +350,19 @@ class SymbolManager(object):
                     symbol_name = symbol_name[ : symbol_name.index('@') ]
 
                 # check the type...
-                if symbol.type == cle.Symbol.TYPE_FUNCTION:
+                if symbol.type == cle.SymbolType.TYPE_FUNCTION:
                     # it's a function!
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = FunctionLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_OBJECT:
+                elif symbol.type == cle.SymbolType.TYPE_OBJECT:
                     # it's an object
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = ObjectLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_NONE:
+                elif symbol.type == cle.SymbolType.TYPE_NONE:
                     # notype
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = NotypeLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_SECTION:
+                elif symbol.type == cle.SymbolType.TYPE_SECTION:
                     # section label
                     # use a normal label instead
                     if not name:

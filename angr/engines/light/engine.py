@@ -27,7 +27,7 @@ class SimEngineLight(SimEngine):
     def process(self, state, *args, **kwargs):
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
-        self._process(state, None, block=kwargs.pop('block', None))
+        self._process(state, None, block=kwargs.pop('block', None), whitelist=kwargs.pop('whitelist', None))
 
     def _process(self, new_state, successors, *args, **kwargs):
         raise NotImplementedError()
@@ -43,7 +43,7 @@ class SimEngineLightVEX(SimEngineLight):
         # for VEX blocks only
         self.tyenv = None
 
-    def _process(self, state, successors, block=None):  # pylint:disable=arguments-differ
+    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ
 
         assert block is not None
 
@@ -55,14 +55,20 @@ class SimEngineLightVEX(SimEngineLight):
 
         self.tyenv = block.vex.tyenv
 
-        self._process_Stmt()
+        self._process_Stmt(whitelist=whitelist)
 
         self.stmt_idx = None
         self.ins_addr = None
 
-    def _process_Stmt(self):
+    def _process_Stmt(self, whitelist=None):
+
+        if whitelist is not None:
+            # optimize whitelist lookups
+            whitelist = set(whitelist)
 
         for stmt_idx, stmt in enumerate(self.block.vex.statements):
+            if whitelist is not None and stmt_idx not in whitelist:
+                continue
             self.stmt_idx = stmt_idx
 
             if type(stmt) is pyvex.IRStmt.IMark:
@@ -341,21 +347,27 @@ class SimEngineLightAIL(SimEngineLight):
     def __init__(self):
         super(SimEngineLightAIL, self).__init__(engine_type='ail')
 
-    def _process(self, state, successors, block=None):  # pylint:disable=arguments-differ
+    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ
 
         self.tmps = {}
         self.block = block
         self.state = state
         self.arch = state.arch
 
-        self._process_Stmt()
+        self._process_Stmt(whitelist=whitelist)
 
         self.stmt_idx = None
         self.ins_addr = None
 
-    def _process_Stmt(self):
+    def _process_Stmt(self, whitelist=None):
+
+        if whitelist is not None:
+            whitelist = set(whitelist)
 
         for stmt_idx, stmt in enumerate(self.block.statements):
+            if whitelist is not None and stmt_idx not in whitelist:
+                continue
+
             self.stmt_idx = stmt_idx
             self.ins_addr = stmt.ins_addr
 

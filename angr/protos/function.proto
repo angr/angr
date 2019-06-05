@@ -17,4 +17,5 @@ message Function {
     string          binary_name = 11; // Name of the binary where this function belongs to
     BlockGraph      graph = 12; // Graph of this function
     repeated int64  external_functions = 13; // Address of referenced functions
+    bool            alignment = 14; // Whether this function is used as an alignment filling or not
 }

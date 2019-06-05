@@ -1192,7 +1192,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             function.mark_nonreturning_calls_endpoints()
 
         # optional: remove functions that must be alignments
-        self.remove_function_alignments()
+        self.mark_function_alignments()
 
         # make return edges
         self._make_return_edges()
@@ -1807,7 +1807,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _collect_data_references(self, irsb, irsb_addr):
         """
-        Unoptimises IRSB and _add_data_reference's for individual statements or
+        Unoptimizes IRSB and _add_data_reference's for individual statements or
         for parts of statements (e.g. Store)
 
         :param pyvex.IRSB irsb: Block to scan for data references
