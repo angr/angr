@@ -1,5 +1,10 @@
 
 class Atom:
+    """
+    This class represents a data storage location manipulated by IR instructions.
+
+    It could either be a Tmp (temporary variable), a Register, a MemoryLocation, or a Parameter.
+    """
     def __init__(self):
         pass
 
@@ -8,6 +13,9 @@ class Atom:
 
 
 class Tmp(Atom):
+    """
+    Represents a variable used by the IR to store intermediate values.
+    """
     __slots__ = ['tmp_idx']
 
     def __init__(self, tmp_idx):
@@ -26,6 +34,16 @@ class Tmp(Atom):
 
 
 class Register(Atom):
+    """
+    Represents a given CPU register.
+
+    As an IR abstracts the CPU design to target different architectures, registers are represented as a separated memory
+    space.
+    Thus a register is defined by its offset from the base of this memory and its size.
+
+    :ivar int reg_offset:    The offset from the base to define its place in the memory bloc.
+    :ivar int size:          The size, in number of bytes.
+    """
     __slots__ = ['reg_offset', 'size']
 
     def __init__(self, reg_offset, size):
@@ -47,6 +65,11 @@ class Register(Atom):
 
 
 class MemoryLocation(Atom):
+    """
+    Represents a memory slice.
+
+    It is characterized by its address and its size.
+    """
     __slots__ = ['addr', 'size']
 
     def __init__(self, addr, size):
@@ -76,6 +99,12 @@ class MemoryLocation(Atom):
 
 
 class Parameter(Atom):
+    """
+    Represents a function parameter.
+
+    Can either be a <angr.engines.light.data.SpOffset> if the parameter was passed on the stack, or a <Register>, depending on the calling
+    convention.
+    """
     __slots__ = ['value', 'type_', 'meta']
 
     def __init__(self, value, type_=None, meta=None):

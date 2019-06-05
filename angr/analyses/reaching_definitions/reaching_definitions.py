@@ -28,6 +28,23 @@ l = logging.getLogger(name=__name__)
 
 
 class LiveDefinitions:
+    """
+    Represents the internal state of the ReachingDefinitionAnalysis.
+
+    It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
+
+    ...
+    :ivar archinfo.Arch arch: The architecture targeted by the program.
+    :ivar cle.loader.Loader loader: The loader used to load the analyzed program.
+    :ivar Boolean track_tmps: Only tells whether or not temporary variables should be taken into consideration when
+                              representing the state of the analysis.
+                              Should be set to true when the analysis has counted uses and definitions for temporary
+                              variables, false otherwise.
+    :ivar angr.analyses.analysis.Analysis analysis: The analysis that generated the state represented by this object.
+    :ivar Boolean init_func: Whether or not the internal state of the analysis should be initialized.
+    :ivar angr.calling_conventions.SimCC cc: The calling convention the analyzed function respects.
+    :ivar int func_addr: The address of the analyzed function.
+    """
     def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
 
         # handy short-hands
@@ -36,9 +53,9 @@ class LiveDefinitions:
         self._track_tmps = track_tmps
         self.analysis = analysis
 
-        self.register_definitions = KeyedRegion()  # register region
-        self.stack_definitions = KeyedRegion()  # stack region
-        self.memory_definitions = KeyedRegion()  # non-stack memory region
+        self.register_definitions = KeyedRegion()
+        self.stack_definitions = KeyedRegion()
+        self.memory_definitions = KeyedRegion()
         self.tmp_definitions = {}
 
         if init_func:
@@ -204,15 +221,6 @@ class LiveDefinitions:
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
 
     def _kill_and_add_stack_definition(self, atom, code_loc, data, dummy=False):
-        """
-
-        :param SpOffset atom:
-        :param code_loc:
-        :param data:
-        :param dummy:
-        :return:
-        """
-
         current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
         if current_defs:
             uses = set()
@@ -292,20 +300,21 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                 specify both `func` and `block`.
         :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
-        :param bool track_tmps:                 Whether tmps are tracked or not.
+        :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
+                                                during the analysis.
         :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
                                                 definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
                                                 OP_AFTER.
         :param angr.analyses.reaching_definitions.reaching_definitions.LiveDefinitions init_state:
                                                 An optional initialization state. The analysis creates and works on a
                                                 copy.
-        :param bool init_func:                  Whether stack and arguments are initialized or not.
+        :param Boolean init_func:               Whether stack and arguments are initialized or not.
         :param SimCC cc:                        Calling convention of the function.
         :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
                                                 <ReachingDefinitions>, <Codeloc>, <IP address>).
         :param int current_local_call_depth:    Current local function recursion depth.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
-        :param bool observa_all:                Observe every statement, both before and after.
+        :param Boolean observe_all:             Observe every statement, both before and after.
         """
 
         if func is not None:
