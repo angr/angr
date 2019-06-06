@@ -167,6 +167,9 @@ class JumpTableProcessor(SimEngineLightVEX):
     def _handle_CmpLE(self, expr):
         self._handle_Comparison(expr)
 
+    def _handle_CmpLT(self, expr):
+        self._handle_Comparison(expr)
+
     def _handle_Comparison(self, expr):
         # found the comparison
         arg0, arg1 = expr.args
