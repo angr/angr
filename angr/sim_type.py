@@ -1187,7 +1187,8 @@ def _decl_to_type(decl, extra_types=None):
             if key in extra_types:
                 struct = extra_types[key]
             elif key in ALL_TYPES:
-                struct = ALL_TYPES[key]
+                stored_struct = ALL_TYPES[key]
+                struct = SimStruct(stored_struct.fields, stored_struct.name)
             else:
                 extra_types[key] = struct
 
@@ -1204,7 +1205,8 @@ def _decl_to_type(decl, extra_types=None):
             if key in extra_types:
                 union = extra_types[key]
             elif key in ALL_TYPES:
-                union = ALL_TYPES[key]
+                stored_union = ALL_TYPES[key]
+                union = SimUnion(stored_union.members, stored_union.name)
             else:
                 extra_types[key] = union
 
