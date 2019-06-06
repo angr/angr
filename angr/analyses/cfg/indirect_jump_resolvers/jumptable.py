@@ -137,7 +137,7 @@ class JumpTableProcessor(SimEngineLightVEX):
             return SpOffset(self.arch.bits, 0)
         else:
             if expr.offset in self.state._registers:
-                self._tsrc.append(self.state._registers[expr.offset][0])
+                self._tsrc.extend(self.state._registers[expr.offset][0])
                 return self.state._registers[expr.offset][1]
             # the register does not exist
             # we initialize it here
