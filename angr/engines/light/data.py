@@ -98,6 +98,9 @@ class RegisterOffset:
                 return RegisterOffset(self._bits, self.reg,
                                       ArithmeticExpression(ArithmeticExpression.Add, (self.offset, other, )))
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
     def __sub__(self, other):
         if not self.symbolic and type(other) is int:
             return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset - other))
