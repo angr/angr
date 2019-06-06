@@ -106,6 +106,18 @@ def test_parse_type_no_basic_types():
     nose.tools.assert_true(byte.size, 8)
     nose.tools.assert_false(byte.signed)
 
+def test_self_referential_struct_or_union():
+    struct_llist = angr.types.parse_type('struct llist { int data; struct llist *next; }')
+    next_struct_llist = struct_llist.fields['next'].pts_to
+    nose.tools.assert_true(len(next_struct_llist.fields) == 2)
+    nose.tools.assert_is_instance(next_struct_llist.fields['data'], SimTypeInt)
+    nose.tools.assert_is_instance(next_struct_llist.fields['next'], SimTypePointer)
+
+    union_heap = angr.types.parse_type('union heap { int data; union heap *forward; }')
+    forward_union_heap = union_heap.members['forward'].pts_to
+    nose.tools.assert_true(len(forward_union_heap.members) == 2)
+    nose.tools.assert_is_instance(forward_union_heap.members['data'], SimTypeInt)
+    nose.tools.assert_is_instance(forward_union_heap.members['forward'], SimTypePointer)
 
 if __name__ == '__main__':
     test_type_annotation()
@@ -113,3 +125,4 @@ if __name__ == '__main__':
     test_struct_deduplication()
     test_parse_type()
     test_parse_type_no_basic_types()
+    test_self_referential_struct_or_union()
