@@ -71,7 +71,7 @@ class JumpTableProcessorState:
 
 
 class JumpTableProcessor(SimEngineLightVEX):
-    """
+    r"""
     Implements a simple and stupid data dependency tracking for stack and register variables.
 
     Also determines which statements to instrument during static execution of the slice later. For example, the
