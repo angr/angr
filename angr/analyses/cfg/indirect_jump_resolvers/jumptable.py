@@ -190,7 +190,6 @@ class JumpTableProcessor(SimEngineLightVEX):
             return
         if arg0_src not in ('const', None) and arg1_src not in ('const', None):
             # this is probably not a jump table
-            self.state.is_jumptable = False
             return
         if arg1_src == 'const':
             # make sure arg0_src is const
