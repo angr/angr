@@ -33,17 +33,16 @@ class LiveDefinitions:
 
     It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
 
-    ...
-    :ivar archinfo.Arch arch: The architecture targeted by the program.
-    :ivar cle.loader.Loader loader: The loader used to load the analyzed program.
-    :ivar Boolean track_tmps: Only tells whether or not temporary variables should be taken into consideration when
+    :param archinfo.Arch arch: The architecture targeted by the program.
+    :param cle.loader.Loader loader: The loader used to load the analyzed program.
+    :param Boolean track_tmps: Only tells whether or not temporary variables should be taken into consideration when
                               representing the state of the analysis.
                               Should be set to true when the analysis has counted uses and definitions for temporary
                               variables, false otherwise.
-    :ivar angr.analyses.analysis.Analysis analysis: The analysis that generated the state represented by this object.
-    :ivar Boolean init_func: Whether or not the internal state of the analysis should be initialized.
-    :ivar angr.calling_conventions.SimCC cc: The calling convention the analyzed function respects.
-    :ivar int func_addr: The address of the analyzed function.
+    :param angr.analyses.analysis.Analysis analysis: The analysis that generated the state represented by this object.
+    :param Boolean init_func: Whether or not the internal state of the analysis should be initialized.
+    :param angr.calling_conventions.SimCC cc: The calling convention the analyzed function respects.
+    :param int func_addr: The address of the analyzed function.
     """
     def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
 
