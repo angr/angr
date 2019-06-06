@@ -71,20 +71,20 @@ class JumpTableProcessorState:
 
 
 class JumpTableProcessor(SimEngineLightVEX):
-    r"""
+    """
     Implements a simple and stupid data dependency tracking for stack and register variables.
 
     Also determines which statements to instrument during static execution of the slice later. For example, the
     following example is not uncommon in non-optimized binaries:
 
-         mov  [rbp+var_54], 1
-     loc_4051a6:
-         cmp  [rbp+var_54], 6
-         ja   loc_405412 (default)
-     loc_4051b0:
-         mov  eax, [rbp+var_54]
-         mov  rax, qword [rax*8+0x223a01]
-         jmp  rax
+            mov  [rbp+var_54], 1
+        loc_4051a6:
+            cmp  [rbp+var_54], 6
+            ja   loc_405412 (default)
+        loc_4051b0:
+            mov  eax, [rbp+var_54]
+            mov  rax, qword [rax*8+0x223a01]
+            jmp  rax
 
     We want to instrument the first instruction and replace the constant 1 with a symbolic variable, otherwise we will
     not be able to recover all jump targets later in block 0x4051b0.
