@@ -119,6 +119,18 @@ def test_self_referential_struct_or_union():
     nose.tools.assert_is_instance(forward_union_heap.members['data'], SimTypeInt)
     nose.tools.assert_is_instance(forward_union_heap.members['forward'], SimTypePointer)
 
+def test_avoid_modify_stored_union_struct_while_parsing():
+    union_a = angr.types.parse_type('union a')
+    angr.types.register_types(union_a)
+    angr.types.parse_type('union a { int x; }')
+    nose.tools.assert_true(len(union_a.members) == 0)
+
+def test_avoid_return_stored_union_struct_while_parsing():
+    union_a = angr.types.parse_type('union a { int x; }')
+    angr.types.register_types(union_a)
+    parsed_union_a = angr.types.parse_type('union a')
+    nose.tools.assert_false(union_a is parsed_union_a)
+
 if __name__ == '__main__':
     test_type_annotation()
     test_cproto_conversion()
@@ -126,3 +138,5 @@ if __name__ == '__main__':
     test_parse_type()
     test_parse_type_no_basic_types()
     test_self_referential_struct_or_union()
+    test_avoid_modify_stored_union_struct_while_parsing()
+    test_avoid_return_stored_union_struct_while_parsing()
