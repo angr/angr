@@ -1180,7 +1180,10 @@ def _decl_to_type(decl, extra_types=None):
         return SimTypeFixedSizeArray(elem_type, size)
 
     elif isinstance(decl, pycparser.c_ast.Struct):
-        struct = SimStruct(OrderedDict(), decl.name)
+        if decl.decls is not None:
+            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
+        else:
+            fields = OrderedDict()
 
         if decl.name is not None:
             key = 'struct ' + decl.name
@@ -1189,15 +1192,25 @@ def _decl_to_type(decl, extra_types=None):
             elif key in ALL_TYPES:
                 struct = ALL_TYPES[key]
             else:
-                extra_types[key] = struct
+                struct = None
 
-        if decl.decls is not None:
-            struct.fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
+            if struct is None:
+                struct = SimStruct(fields, decl.name)
+            elif not struct.fields:
+                struct.fields = fields
+            elif fields and struct.fields != fields:
+                raise ValueError("Redefining body of " + key)
 
+            extra_types[key] = struct
+        else:
+            struct = SimStruct(fields)
         return struct
 
     elif isinstance(decl, pycparser.c_ast.Union):
-        union = SimUnion({}, decl.name)
+        if decl.decls is not None:
+            fields = {field.name: _decl_to_type(field.type, extra_types) for field in decl.decls}
+        else:
+            fields = {}
 
         if decl.name is not None:
             key = 'union ' + decl.name
@@ -1206,11 +1219,18 @@ def _decl_to_type(decl, extra_types=None):
             elif key in ALL_TYPES:
                 union = ALL_TYPES[key]
             else:
-                extra_types[key] = union
+                union = None
 
-        if decl.decls is not None:
-            union.members = {field.name: _decl_to_type(field.type, extra_types) for field in decl.decls}
+            if union is None:
+                union = SimUnion(fields, decl.name)
+            elif not union.members:
+                union.members = fields
+            elif fields and union.members != fields:
+                raise ValueError("Redefining body of " + key)
 
+            extra_types[key] = union
+        else:
+            union = SimUnion(fields)
         return union
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
