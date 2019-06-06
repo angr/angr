@@ -94,25 +94,27 @@ class JumpTableProcessor(SimEngineLightVEX):
         super().__init__()
         self.project = project
         self._bp_sp_diff = bp_sp_diff  # bp - sp
-        self._tsrc = None  # a scratch variable to store source information for values
+        self._tsrc = [ ]  # a scratch variable to store source information for values
 
     def _handle_WrTmp(self, stmt):
+        self._tsrc = [ ]
         super()._handle_WrTmp(stmt)
 
-        if self._tsrc is not None:
+        if self._tsrc:
             self.state._tmpvar_source[stmt.tmp] = self._tsrc
-        self._tsrc = None
 
     def _handle_Put(self, stmt):
+        self._tsrc = [ ]
         offset = stmt.offset
         data = self._expr(stmt.data)
         if self._tsrc is not None:
-            r = (self._tsrc, data)
+            r = [self._tsrc, data]
         else:
-            r = ((self.block.addr, self.stmt_idx), data)
+            r = [(self.block.addr, self.stmt_idx), data]
         self.state._registers[offset] = r
 
     def _handle_Store(self, stmt):
+        self._tsrc = [ ]
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
@@ -122,14 +124,10 @@ class JumpTableProcessor(SimEngineLightVEX):
         if isinstance(addr, SpOffset):
             self.state._stack[addr.offset] = ((self.block.addr, self.stmt_idx), data)
 
-    def _expr(self, expr):
-        self._tsrc = None
-        v = super()._expr(expr)
-        return v
-
     def _handle_RdTmp(self, expr):
         v = super()._handle_RdTmp(expr)
-        self._tsrc = self.state._tmpvar_source.get(expr.tmp, None)
+        if expr.tmp in self.state._tmpvar_source:
+            self._tsrc.extend(self.state._tmpvar_source[expr.tmp])
         return v
 
     def _handle_Get(self, expr):
@@ -139,25 +137,28 @@ class JumpTableProcessor(SimEngineLightVEX):
             return SpOffset(self.arch.bits, 0)
         else:
             if expr.offset in self.state._registers:
-                self._tsrc = self.state._registers[expr.offset][0]
+                self._tsrc.append(self.state._registers[expr.offset][0])
                 return self.state._registers[expr.offset][1]
             # the register does not exist
             # we initialize it here
             v = RegisterOffset(expr.result_size(self.tyenv), expr.offset, 0)
-            self.state._registers[expr.offset] = ((self.block.addr, self.stmt_idx), v)
+            src = (self.block.addr, self.stmt_idx)
+            self._tsrc.append(src)
+            self.state._registers[expr.offset] = ([src], v)
             return v
 
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
         size = expr.result_size(self.tyenv) // 8
 
-        self._tsrc = (self.block.addr, self.stmt_idx)
+        src = (self.block.addr, self.stmt_idx)
+        self._tsrc = [src]
         if addr is None:
             return None
 
         if isinstance(addr, SpOffset):
             if addr.offset in self.state._stack:
-                self._tsrc = self.state._stack[addr.offset][0]
+                self._tsrc = [ self.state._stack[addr.offset][0] ]
                 return self.state._stack[addr.offset][1]
         elif isinstance(addr, int):
             # Load data from memory if it is mapped
@@ -171,8 +172,9 @@ class JumpTableProcessor(SimEngineLightVEX):
             # We will need to initialize this register during slice execution later
 
             # Try to get where this register is first accessed
-            src = self.state._registers[addr.reg][0]
-            self.state.regs_to_initialize.append(src + (addr.reg, addr.bits))
+            source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
+            assert isinstance(source, tuple)
+            self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
 
             return None
 
@@ -180,7 +182,7 @@ class JumpTableProcessor(SimEngineLightVEX):
 
     def _handle_Const(self, expr):
         v = super()._handle_Const(expr)
-        self._tsrc = 'const'
+        self._tsrc.append('const')
         return v
 
     def _handle_CmpLE(self, expr):
@@ -195,11 +197,21 @@ class JumpTableProcessor(SimEngineLightVEX):
         arg0_src, arg1_src = None, None
 
         if isinstance(arg0, pyvex.IRExpr.RdTmp):
-            arg0_src = self.state._tmpvar_source.get(arg0.tmp, None)
+            if arg0.tmp in self.state._tmpvar_source:
+                arg0_src = self.state._tmpvar_source[arg0.tmp]
+                if not arg0_src or len(arg0_src) > 1:
+                    arg0_src = None
+                else:
+                    arg0_src = arg0_src[0]
         elif isinstance(arg0, pyvex.IRExpr.Const):
             arg0_src = 'const'
         if isinstance(arg1, pyvex.IRExpr.RdTmp):
-            arg1_src = self.state._tmpvar_source.get(arg1.tmp, None)
+            if arg1.tmp in self.state._tmpvar_source:
+                arg1_src = self.state._tmpvar_source[arg1.tmp]
+                if not arg1_src or len(arg1_src) > 1:
+                    arg1_src = None
+                else:
+                    arg1_src = arg1_src[0]
         elif isinstance(arg1, pyvex.IRExpr.Const):
             arg1_src = 'const'
 
