@@ -38,7 +38,12 @@ def test_reaching_definition_analysis():
     def _binary_path(binary_name):
         return os.path.join(TESTS_LOCATION, 'x86_64', binary_name)
     def _result_path(binary_name):
-        return 'tests/reachingdefinitions_results/x86_64/' + binary_name + '.pickle'
+        return os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            'reachingdefinitions_results',
+            'x86_64',
+            binary_name + '.pickle'
+        )
 
     binaries_and_results = list(map(
         lambda binary: (_binary_path(binary), _result_path(binary)),
