@@ -68,21 +68,21 @@ def test_parse_type():
     struct_abcd = angr.types.parse_type('struct abcd { char c; float f; }')
     nose.tools.assert_is_instance(struct_abcd, SimStruct)
     nose.tools.assert_equal(struct_abcd.name, 'abcd')
-    nose.tools.assert_true(len(struct_abcd.fields) == 2)
+    nose.tools.assert_equal(len(struct_abcd.fields), 2)
     nose.tools.assert_is_instance(struct_abcd.fields['c'], SimTypeChar)
     nose.tools.assert_is_instance(struct_abcd.fields['f'], SimTypeFloat)
 
     union_dcba = angr.types.parse_type('union dcba { double d; long long int lli; }')
     nose.tools.assert_is_instance(union_dcba, SimUnion)
     nose.tools.assert_equal(union_dcba.name, 'dcba')
-    nose.tools.assert_true(len(union_dcba.members) == 2)
+    nose.tools.assert_equal(len(union_dcba.members), 2)
     nose.tools.assert_is_instance(union_dcba.members['d'], SimTypeDouble)
     nose.tools.assert_is_instance(union_dcba.members['lli'], SimTypeLongLong)
 
     struct_llist = angr.types.parse_type('struct llist { int data; struct llist * next; }')
     nose.tools.assert_is_instance(struct_llist, SimStruct)
     nose.tools.assert_equal(struct_llist.name, 'llist')
-    nose.tools.assert_true(len(struct_llist.fields) == 2)
+    nose.tools.assert_equal(len(struct_llist.fields), 2)
     nose.tools.assert_is_instance(struct_llist.fields['data'], SimTypeInt)
     nose.tools.assert_is_instance(struct_llist.fields['next'], SimTypePointer)
     nose.tools.assert_is_instance(struct_llist.fields['next'].pts_to, SimStruct)
@@ -92,7 +92,7 @@ def test_parse_type():
     nose.tools.assert_is_instance(func_ptr, SimTypePointer)
     nose.tools.assert_is_instance(func_ptr.pts_to, SimTypeFunction)
     nose.tools.assert_is_instance(func_ptr.pts_to.returnty, SimTypeDouble)
-    nose.tools.assert_true(len(func_ptr.pts_to.args) == 2)
+    nose.tools.assert_equal(len(func_ptr.pts_to.args), 2)
     nose.tools.assert_is_instance(func_ptr.pts_to.args[0], SimTypeInt)
     nose.tools.assert_is_instance(func_ptr.pts_to.args[1], SimTypeFloat)
 
@@ -103,33 +103,52 @@ def test_parse_type_no_basic_types():
 
     byte = angr.types.parse_type('byte')
     nose.tools.assert_is_instance(byte, SimTypeNum)
-    nose.tools.assert_true(byte.size, 8)
+    nose.tools.assert_equal(byte.size, 8)
     nose.tools.assert_false(byte.signed)
 
 def test_self_referential_struct_or_union():
     struct_llist = angr.types.parse_type('struct llist { int data; struct llist *next; }')
     next_struct_llist = struct_llist.fields['next'].pts_to
-    nose.tools.assert_true(len(next_struct_llist.fields) == 2)
+    nose.tools.assert_equal(len(next_struct_llist.fields), 2)
     nose.tools.assert_is_instance(next_struct_llist.fields['data'], SimTypeInt)
     nose.tools.assert_is_instance(next_struct_llist.fields['next'], SimTypePointer)
 
     union_heap = angr.types.parse_type('union heap { int data; union heap *forward; }')
     forward_union_heap = union_heap.members['forward'].pts_to
-    nose.tools.assert_true(len(forward_union_heap.members) == 2)
+    nose.tools.assert_equal(len(forward_union_heap.members), 2)
     nose.tools.assert_is_instance(forward_union_heap.members['data'], SimTypeInt)
     nose.tools.assert_is_instance(forward_union_heap.members['forward'], SimTypePointer)
 
-def test_avoid_modify_stored_union_struct_while_parsing():
-    union_a = angr.types.parse_type('union a')
-    angr.types.register_types(union_a)
-    angr.types.parse_type('union a { int x; }')
-    nose.tools.assert_true(len(union_a.members) == 0)
+def test_union_struct_referencing_each_other():
+    angr.types.register_types(angr.types.parse_type('struct a'))
+    angr.types.register_types(angr.types.parse_type('struct b'))
+    a = angr.types.parse_type('struct a { struct b *b_ptr; }')
+    b = angr.types.parse_type('struct b { struct a *a_ptr; }')
 
-def test_avoid_return_stored_union_struct_while_parsing():
-    union_a = angr.types.parse_type('union a { int x; }')
-    angr.types.register_types(union_a)
-    parsed_union_a = angr.types.parse_type('union a')
-    nose.tools.assert_false(union_a is parsed_union_a)
+    nose.tools.assert_equal(len(a.fields), 1)
+    nose.tools.assert_is_instance(a.fields['b_ptr'], SimTypePointer)
+    nose.tools.assert_is_instance(a.fields['b_ptr'].pts_to, SimStruct)
+    nose.tools.assert_equal(a.fields['b_ptr'].pts_to.name, 'b')
+
+    nose.tools.assert_equal(len(b.fields), 1)
+    nose.tools.assert_is_instance(b.fields['a_ptr'], SimTypePointer)
+    nose.tools.assert_is_instance(b.fields['a_ptr'].pts_to, SimStruct)
+    nose.tools.assert_equal(b.fields['a_ptr'].pts_to.name, 'a')
+
+    angr.types.register_types(angr.types.parse_type('union a'))
+    angr.types.register_types(angr.types.parse_type('union b'))
+    a = angr.types.parse_type('union a { union b *b_ptr; }')
+    b = angr.types.parse_type('union b { union a *a_ptr; }')
+
+    nose.tools.assert_equal(len(a.members), 1)
+    nose.tools.assert_is_instance(a.members['b_ptr'], SimTypePointer)
+    nose.tools.assert_is_instance(a.members['b_ptr'].pts_to, SimUnion)
+    nose.tools.assert_equal(a.members['b_ptr'].pts_to.name, 'b')
+
+    nose.tools.assert_equal(len(b.members), 1)
+    nose.tools.assert_is_instance(b.members['a_ptr'], SimTypePointer)
+    nose.tools.assert_is_instance(b.members['a_ptr'].pts_to, SimUnion)
+    nose.tools.assert_equal(b.members['a_ptr'].pts_to.name, 'a')
 
 if __name__ == '__main__':
     test_type_annotation()
@@ -138,5 +157,4 @@ if __name__ == '__main__':
     test_parse_type()
     test_parse_type_no_basic_types()
     test_self_referential_struct_or_union()
-    test_avoid_modify_stored_union_struct_while_parsing()
-    test_avoid_return_stored_union_struct_while_parsing()
+    test_union_struct_referencing_each_other()
