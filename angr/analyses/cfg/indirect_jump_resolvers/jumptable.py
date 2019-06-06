@@ -142,14 +142,15 @@ class JumpTableProcessor(SimEngineLightVEX):
                 self._tsrc = self.state._registers[expr.offset][0]
                 return self.state._registers[expr.offset][1]
             # the register does not exist
-            self._tsrc = (self.block.addr, self.stmt_idx)
-            return RegisterOffset(expr.result_size(self.tyenv), expr.offset, 0)
+            # we initialize it here
+            v = RegisterOffset(expr.result_size(self.tyenv), expr.offset, 0)
+            self.state._registers[expr.offset] = ((self.block.addr, self.stmt_idx), v)
+            return v
 
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
         size = expr.result_size(self.tyenv) // 8
 
-        old_tsrc = self._tsrc
         self._tsrc = (self.block.addr, self.stmt_idx)
         if addr is None:
             return None
@@ -160,19 +161,19 @@ class JumpTableProcessor(SimEngineLightVEX):
                 return self.state._stack[addr.offset][1]
         elif isinstance(addr, int):
             # Load data from memory if it is mapped
-            v = self.project.loader.memory.unpack_word(addr, size=size)
-            return v
+            try:
+                v = self.project.loader.memory.unpack_word(addr, size=size)
+                return v
+            except KeyError:
+                return None
         elif isinstance(addr, RegisterOffset):
             # Load data from a register, but this register hasn't been initialized at this point
             # We will need to initialize this register during slice execution later
 
             # Try to get where this register is first accessed
-            src = old_tsrc if old_tsrc is not None else (self.block.addr, self.stmt_idx)
+            src = self.state._registers[addr.reg][0]
             self.state.regs_to_initialize.append(src + (addr.reg, addr.bits))
-            # we initialize it here
-            self.state._registers[addr.reg] = (src,
-                                               0x1337000  # hopefully it's not mapped...
-                                               )
+
             return None
 
         return None
