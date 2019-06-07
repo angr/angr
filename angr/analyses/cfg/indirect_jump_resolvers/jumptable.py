@@ -51,6 +51,46 @@ class JumpTargetBaseAddr:
         return self.base_addr is not None
 
 
+#
+# Jump table pre-check
+#
+
+_x86_ct = ccall.data['X86']['CondTypes']
+_amd64_ct = ccall.data['AMD64']['CondTypes']
+EXPECTED_COND_TYPES = {
+    'X86': {
+        _x86_ct['CondB'],
+        _x86_ct['CondNB'],
+        _x86_ct['CondBE'],
+        _x86_ct['CondNBE'],
+        _x86_ct['CondL'],
+        _x86_ct['CondNL'],
+        _x86_ct['CondLE'],
+        _x86_ct['CondNLE'],
+    },
+    'AMD64': {
+        _amd64_ct['CondB'],
+        _amd64_ct['CondNB'],
+        _amd64_ct['CondBE'],
+        _amd64_ct['CondNBE'],
+        _amd64_ct['CondL'],
+        _amd64_ct['CondNL'],
+        _amd64_ct['CondLE'],
+        _amd64_ct['CondNLE'],
+    },
+    'ARM': {
+        ccall.ARMCondHS,
+        ccall.ARMCondLO,
+        ccall.ARMCondHI,
+        ccall.ARMCondLS,
+        ccall.ARMCondGE,
+        ccall.ARMCondLT,
+        ccall.ARMCondGT,
+        ccall.ARMCondLE,
+    },
+}
+
+
 class JumpTableProcessorState:
     """
     The state used in JumpTableProcessor.
@@ -193,46 +233,15 @@ class JumpTableProcessor(SimEngineLightVEX):  # pylint:disable=abstract-method
         self._handle_Comparison(*expr.args)
 
     def _handle_CCall(self, expr):
+        if not isinstance(expr.args[0], pyvex.IRExpr.Const):
+            return
         cond_type_enum = expr.args[0].con.value
-        x86_ct = ccall.data['X86']['CondTypes']
-        amd64_ct = ccall.data['AMD64']['CondTypes']
-        expected_cond_types = {
-            'X86': {
-                x86_ct['CondB'],
-                x86_ct['CondNB'],
-                x86_ct['CondBE'],
-                x86_ct['CondNBE'],
-                x86_ct['CondL'],
-                x86_ct['CondNL'],
-                x86_ct['CondLE'],
-                x86_ct['CondNLE'],
-            },
-            'AMD64': {
-                amd64_ct['CondB'],
-                amd64_ct['CondNB'],
-                amd64_ct['CondBE'],
-                amd64_ct['CondNBE'],
-                amd64_ct['CondL'],
-                amd64_ct['CondNL'],
-                amd64_ct['CondLE'],
-                amd64_ct['CondNLE'],
-            },
-            'ARM': {
-                ccall.ARMCondHS,
-                ccall.ARMCondLO,
-                ccall.ARMCondHI,
-                ccall.ARMCondLS,
-                ccall.ARMCondGE,
-                ccall.ARMCondLT,
-                ccall.ARMCondGT,
-                ccall.ARMCondLE,
-            },
-        }
+
         if self.arch.name in ('X86', 'AMD64'):
-            if cond_type_enum in expected_cond_types[self.arch.name]:
+            if cond_type_enum in EXPECTED_COND_TYPES[self.arch.name]:
                 self._handle_Comparison(expr.args[2], expr.args[3])
         elif is_arm_arch(self.arch):
-            if cond_type_enum in expected_cond_types['ARM']:
+            if cond_type_enum in EXPECTED_COND_TYPES['ARM']:
                 self._handle_Comparison(expr.args[2], expr.args[3])
         else:
             raise ValueError("Unexpected ccall encountered in architecture %s." % self.arch.name)
