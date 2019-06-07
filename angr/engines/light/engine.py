@@ -195,6 +195,8 @@ class SimEngineLightVEX(SimEngineLight):
             handler = '_handle_CmpNE'
         elif expr.op.startswith('Iop_CmpLT'):
             handler = '_handle_CmpLT'
+        elif expr.op.startswith('Iop_CmpLE'):
+            handler = '_handle_CmpLE'
         elif expr.op.startswith('Iop_CmpORD'):
             handler = '_handle_CmpORD'
         elif expr.op.startswith('Const'):
@@ -217,6 +219,14 @@ class SimEngineLightVEX(SimEngineLight):
 
     def _handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.con.value
+
+    def _handle_Conversion(self, expr):
+        expr = self._expr(expr.args[0])
+        if expr is None:
+            return None
+
+        # FIXME: implement real conversion
+        return expr
 
     #
     # Binary operation handlers

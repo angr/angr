@@ -526,6 +526,8 @@ def test_cfg_copy():
 # Indirect jump resolvers
 #
 
+# For test cases for jump table resolver, please refer to test_jumptables.py
+
 def test_resolve_x86_elf_pic_plt():
     path = os.path.join(test_location, 'i386', 'fauxware_pie')
     proj = angr.Project(path, load_options={'auto_load_libs': False})
