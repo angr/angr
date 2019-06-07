@@ -419,14 +419,41 @@ class JumpTableResolver(IndirectJumpResolver):
         :return: A bool indicating whether the indirect jump is resolved successfully, and a list of resolved targets
         :rtype: tuple
         """
-        project = self.project  # short-hand
+
         self._max_targets = cfg._indirect_jump_target_limit
 
-        # Perform a backward slicing from the jump target
-        b = Blade(cfg.graph, addr, -1,
-            cfg=cfg, project=project,
-            ignore_sp=False, ignore_bp=False,
-            max_level=3, base_state=self.base_state)
+        for slice_steps in range(2, 4):
+            # Perform a backward slicing from the jump target
+            b = Blade(cfg.graph, addr, -1,
+                cfg=cfg, project=self.project,
+                ignore_sp=False, ignore_bp=False,
+                max_level=slice_steps, base_state=self.base_state)
+
+            l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
+            r, targets = self._resolve(cfg, addr, func_addr, b)
+            if r:
+                return r, targets
+
+        return False, None
+
+    #
+    # Private methods
+    #
+
+    def _resolve(self, cfg, addr, func_addr, b):
+        """
+        Internal method for resolving jump tables.
+
+        :param cfg:             A CFG instance.
+        :param int addr:        Address of the block where the indirect jump is.
+        :param int func_addr:   Address of the function.
+        :param Blade b:         The generated backward slice.
+        :return:                A bool indicating whether the indirect jump is resolved successfully, and a list of
+                                resolved targets.
+        :rtype:                 tuple
+        """
+
+        project = self.project  # short-hand
 
         stmt_loc = (addr, DEFAULT_STATEMENT)
         if stmt_loc not in b.slice:
@@ -545,10 +572,6 @@ class JumpTableResolver(IndirectJumpResolver):
 
         l.info("Could not resolve indirect jump %#x in function %#x.", addr, func_addr)
         return False, None
-
-    #
-    # Private methods
-    #
 
     def _find_load_statement(self, b, stmt_loc):
         """
