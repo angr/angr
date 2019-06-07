@@ -20,12 +20,16 @@ def run_reaching_definition_analysis(project, func, result_path):
     tmp_kb = angr.KnowledgeBase(project)
     rd = project.analyses.ReachingDefinitions(func, init_func=True, kb=tmp_kb, observe_all=True)
 
-    result = list(map(
+    unsorted_result = map(
         lambda x: {'key': x[0],\
                    'register_definitions': x[1].register_definitions,\
                    'stack_definitions': x[1].stack_definitions,\
                    'memory_definitions': x[1].memory_definitions},
         rd.observed_results.items()
+    )
+    result = list(sorted(
+        unsorted_result,
+        key=lambda x: x['key']
     ))
 
     with open(result_path, 'rb') as f:
