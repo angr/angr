@@ -5,6 +5,7 @@ from collections import defaultdict, OrderedDict
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
+from ....engines.vex import ccall
 from ....engines.light import SimEngineLightVEX, SpOffset, RegisterOffset
 from ....errors import AngrError, SimError
 from ....blade import Blade
@@ -186,14 +187,58 @@ class JumpTableProcessor(SimEngineLightVEX):
         return v
 
     def _handle_CmpLE(self, expr):
-        self._handle_Comparison(expr)
+        self._handle_Comparison(*expr.args)
 
     def _handle_CmpLT(self, expr):
-        self._handle_Comparison(expr)
+        self._handle_Comparison(*expr.args)
 
-    def _handle_Comparison(self, expr):
+    def _handle_CCall(self, expr):
+        cond_type_enum = expr.args[0].con.value
+        x86_ct = ccall.data['X86']['CondTypes']
+        amd64_ct = ccall.data['AMD64']['CondTypes']
+        expected_cond_types = {
+            'X86': {
+                x86_ct['CondB'],
+                x86_ct['CondNB'],
+                x86_ct['CondBE'],
+                x86_ct['CondNBE'],
+                x86_ct['CondL'],
+                x86_ct['CondNL'],
+                x86_ct['CondLE'],
+                x86_ct['CondNLE'],
+            },
+            'AMD64': {
+                amd64_ct['CondB'],
+                amd64_ct['CondNB'],
+                amd64_ct['CondBE'],
+                amd64_ct['CondNBE'],
+                amd64_ct['CondL'],
+                amd64_ct['CondNL'],
+                amd64_ct['CondLE'],
+                amd64_ct['CondNLE'],
+            },
+            'ARM': {
+                ccall.ARMCondHS,
+                ccall.ARMCondLO,
+                ccall.ARMCondHI,
+                ccall.ARMCondLS,
+                ccall.ARMCondGE,
+                ccall.ARMCondLT,
+                ccall.ARMCondGT,
+                ccall.ARMCondLE,
+            },
+        }
+        if self.arch.name in ('X86', 'AMD64'):
+            if cond_type_enum in expected_cond_types[self.arch.name]:
+                self._handle_Comparison(expr.args[2], expr.args[3])
+        elif is_arm_arch(self.arch):
+            if cond_type_enum in expected_cond_types['ARM']:
+                self._handle_Comparison(expr.args[2], expr.args[3])
+        else:
+            raise ValueError("Unexpected ccall encountered in architecture %s." % self.arch.name)
+
+    def _handle_Comparison(self, arg0, arg1):
         # found the comparison
-        arg0, arg1 = expr.args
         arg0_src, arg1_src = None, None
 
         if isinstance(arg0, pyvex.IRExpr.RdTmp):
