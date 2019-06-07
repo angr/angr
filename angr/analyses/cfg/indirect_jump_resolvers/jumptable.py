@@ -71,7 +71,7 @@ class JumpTableProcessorState:
         self.regs_to_initialize = [ ]  # registers that we should initialize
 
 
-class JumpTableProcessor(SimEngineLightVEX):
+class JumpTableProcessor(SimEngineLightVEX):  # pylint:disable=abstract-method
     """
     Implements a simple and stupid data dependency tracking for stack and register variables.
 
@@ -804,7 +804,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 jump_target_addr = load_stmt.data.addr.con.value
                 jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
                 if jump_target is None:
-                    l.info("Constant indirect jump points outside of loaded memory to %#08x", addr,
+                    l.info("Constant indirect jump %#x points outside of loaded memory to %#08x", addr,
                            jump_target_addr)
                     raise NotAJumpTableNotification()
 
@@ -974,7 +974,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return jump_table, min_jumptable_addr, all_targets
 
-    def _instrument_statements(self, state, stmts_to_instrument, regs_to_initialize):
+    @staticmethod
+    def _instrument_statements(state, stmts_to_instrument, regs_to_initialize):
         """
         Hook statements as specified in stmts_to_instrument and overwrite values loaded in those statements.
 
@@ -988,24 +989,26 @@ class JumpTableResolver(IndirectJumpResolver):
             l.debug("Add a %s hook to overwrite memory/register values at %#x:%d.", sort, block_addr, stmt_idx)
             if sort == 'mem_write':
                 bp = BP(when=BP_BEFORE, enabled=True, action=StoreHook.hook,
-                        condition=lambda _s: _s.scratch.bbl_addr == block_addr and _s.scratch.stmt_idx == stmt_idx
+                        condition=lambda _s, a=block_addr, idx=stmt_idx:
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                         )
                 state.inspect.add_breakpoint('mem_write', bp)
             elif sort == 'mem_read':
                 hook = LoadHook()
                 bp0 = BP(when=BP_BEFORE, enabled=True, action=hook.hook_before,
-                         condition=lambda
-                             _s: _s.scratch.bbl_addr == block_addr and _s.scratch.stmt_idx == stmt_idx
+                         condition=lambda _s, a=block_addr, idx=stmt_idx:
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                          )
                 state.inspect.add_breakpoint('mem_read', bp0)
                 bp1 = BP(when=BP_AFTER, enabled=True, action=hook.hook_after,
-                         condition=lambda
-                             _s: _s.scratch.bbl_addr == block_addr and _s.scratch.stmt_idx == stmt_idx
+                         condition=lambda _s, a=block_addr, idx=stmt_idx:
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                          )
                 state.inspect.add_breakpoint('mem_read', bp1)
             elif sort == 'reg_write':
                 bp = BP(when=BP_BEFORE, enabled=True, action=PutHook.hook,
-                        condition=lambda _s: _s.scratch.bbl_addr == block_addr and _s.scratch.stmt_idx == stmt_idx
+                        condition=lambda _s, a=block_addr, idx=stmt_idx:
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                         )
                 state.inspect.add_breakpoint('reg_write', bp)
             else:
