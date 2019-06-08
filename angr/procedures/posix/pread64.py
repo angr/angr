@@ -14,10 +14,9 @@ class pread64(angr.SimProcedure):
         lseek = angr.SIM_PROCEDURES['linux_kernel']['lseek']
 
         if self.state.solver.symbolic(offset):
-            err = "Symbolic offset is not supported in pread syscall."
-            raise err
-            # l.error(err)
-            # raise angr.errors.SimPosixError(err)
+            err = "Symbolic offset is not supported in pread"
+            l.error(err)
+            raise angr.errors.SimPosixError(err)
 
         offset = self.state.solver.eval(offset)
 
