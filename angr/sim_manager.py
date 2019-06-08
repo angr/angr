@@ -364,14 +364,16 @@ class SimulationManager:
 
             for to_stash, successor_states in successors.items():
                 bucket[to_stash or stash].extend(successor_states)
-                if to_stash == 'active' or (to_stash is None and stash == 'active'):
-                    for state in successor_states:
-                        self._hierarchy.add_state(state)
-                    self._hierarchy.simplify()
 
         self._clear_states(stash=stash)
         for to_stash, states in bucket.items():
             self._store_states(to_stash or stash, states)
+
+        if self._hierarchy:
+            # add all active states to the hierarchy for merging later
+            for state in self.stashes['active']:
+                self._hierarchy.add_state(state)
+            self._hierarchy.simplify()
 
         if step_func is not None:
             return step_func(self)
