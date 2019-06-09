@@ -98,6 +98,7 @@ class SimulationManager:
 
         if kwargs.pop('veritesting', False):
             self.use_technique(Veritesting(**kwargs.get('veritesting_options', {})))
+        kwargs.pop('veritesting_options', {})
 
         threads = kwargs.pop('threads', None)
         if threads is not None:

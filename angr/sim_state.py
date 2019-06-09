@@ -560,7 +560,7 @@ class SimState(PluginHub):
             if id(p) in memo:
                 out[n] = memo[id(p)]
             else:
-                out[n] = p.copy(memo)
+                out[n] = p.copy()
                 memo[id(p)] = out[n]
 
         return out
