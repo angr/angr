@@ -12,6 +12,7 @@ import nose
 import archinfo
 import angr
 from angr.analyses.reaching_definitions import LiveDefinitions
+from angr.analyses.reaching_definitions.constants import OP_BEFORE
 
 LOGGER = logging.getLogger('test_reachingdefinitions')
 
@@ -87,6 +88,33 @@ class LiveDefinitionsTest(TestCase):
         rtoc_definition_value = rtoc_definition.data.get_first_element()
 
         nose.tools.assert_equals(rtoc_definition_value, rtoc_value)
+
+
+    def test_get_the_sp_from_a_reaching_definition(self):
+        binary = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast()
+
+        tmp_kb = angr.KnowledgeBase(project)
+        main_func = cfg.kb.functions['main']
+        rda = project.analyses.ReachingDefinitions(main_func, init_func=True, kb=tmp_kb, observe_all=True)
+
+        def _is_right_before_main_node(definition):
+            bloc, ins_addr, op_type = definition[0]
+            return (
+                bloc == 'node' and
+                ins_addr == main_func.addr and
+                op_type == OP_BEFORE
+            )
+
+        reach_definition_at_main = next(filter(
+            _is_right_before_main_node,
+            rda.observed_results.items()
+        ))[1]
+
+        sp_value = reach_definition_at_main.get_sp()
+
+        nose.tools.assert_equal(sp_value, project.arch.initial_sp)
 
 
 if __name__ == '__main__':

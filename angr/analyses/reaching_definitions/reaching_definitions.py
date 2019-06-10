@@ -145,6 +145,20 @@ class LiveDefinitions:
 
         return rd
 
+
+    def get_sp(self):
+        """
+        Return the concrete value contained by the stack pointer.
+        """
+        sp_definitions = self.register_definitions.get_objects_by_offset(self.arch.sp_offset)
+
+        assert len(sp_definitions) == 1
+        [sp_definition] = sp_definitions
+
+        # Assuming sp_definition has only one concrete value.
+        return sp_definition.data.get_first_element()
+
+
     def merge(self, *others):
 
         state = self.copy()
