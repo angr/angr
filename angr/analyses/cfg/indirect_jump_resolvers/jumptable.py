@@ -226,6 +226,12 @@ class JumpTableProcessor(SimEngineLightVEX):  # pylint:disable=abstract-method
         self._tsrc.append('const')
         return v
 
+    def _handle_CmpNE(self, expr):
+        self._handle_Comparison(*expr.args)
+
+    def _handle_CmpEQ(self, expr):
+        self._handle_Comparison(*expr.args)
+
     def _handle_CmpLE(self, expr):
         self._handle_Comparison(*expr.args)
 
