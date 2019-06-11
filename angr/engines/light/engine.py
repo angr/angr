@@ -83,7 +83,7 @@ class SimEngineLightVEX(SimEngineLight):
             if hasattr(self, handler):
                 getattr(self, handler)()
             else:
-                self.l.warning('Function handler not implemented.')
+                self.l.warning('Function handler for %s not implemented.')
 
     #
     # Helper methods
@@ -244,7 +244,7 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 & expr_1
         except TypeError as e:
-            self.l.warning(e)
+            self.l.exception(e)
             return None
 
     def _handle_Or(self, expr):
@@ -259,7 +259,7 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 | expr_1
         except TypeError as e:
-            self.l.warning(e)
+            self.l.exception(e)
             return None
 
     def _handle_Add(self, expr):
@@ -279,7 +279,7 @@ class SimEngineLightVEX(SimEngineLight):
             else:
                 return expr_0 + expr_1
         except TypeError as e:
-            self.l.warning(e)
+            self.l.exception(e)
             return None
 
     def _handle_Sub(self, expr):
@@ -299,7 +299,7 @@ class SimEngineLightVEX(SimEngineLight):
             else:
                 return expr_0 - expr_1
         except TypeError as e:
-            self.l.warning(e)
+            self.l.exception(e)
             return None
 
     def _handle_Xor(self, expr):
@@ -314,7 +314,7 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 ^ expr_1
         except TypeError as e:
-            self.l.warning(e)
+            self.l.exception(e)
             return None
 
     def _handle_Shl(self, expr):
@@ -349,9 +349,24 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 >> expr_1
         except TypeError as e:
-            self.l.warning(e)
+            self.l.exception(e)
             return None
 
+    def _handle_Sar(self, expr):
+        # EDG NOTE: This is arithmetic shift -- we should adjust the above Shr to be logical shift
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 >> expr_1
+        except TypeError as e:
+            self.l.exception(e)
+            return None
 
 class SimEngineLightAIL(SimEngineLight):
     def __init__(self):
