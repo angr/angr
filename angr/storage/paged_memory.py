@@ -352,7 +352,7 @@ class SimPagedMemory:
     def _page_align_up(self, x):
         return self._page_align_down(x + self._page_size - 1)
 
-    def __is_page_aligned(self, x):
+    def _is_page_aligned(self, x):
         return x % self._page_size == 0
 
     def _num_pages(self, start, end):
@@ -584,7 +584,7 @@ class SimPagedMemory:
                     if not isinstance(self._memory_backer[i], (claripy.ast.Base, bytes)):
                         backer = claripy.BVV(self._memory_backer[i], self.byte_width)
 
-                    if type(backer) == bytes and self.byte_width != 8:
+                    if type(backer) is bytes and self.byte_width != 8:
                         backer = claripy.BVV(backer)
 
                     mo = SimMemoryObject(backer, new_page_addr+i, byte_width=self.byte_width)

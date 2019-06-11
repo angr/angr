@@ -1,10 +1,12 @@
 import claripy
 from ..errors import SimMemoryError
 
+
 def obj_bit_size(o):
-    if type(o) == bytes:
+    if type(o) is bytes:
         return len(o) * 8
     return o.size()
+
 
 class SimMemoryObject(object):
     """
@@ -13,11 +15,12 @@ class SimMemoryObject(object):
     SimSymbolicMemory class.
     """
     def __init__(self, obj, base, length=None, byte_width=8):
-        if type(obj) == bytes:
+        if type(obj) is bytes:
             assert byte_width == 8
 
         elif not isinstance(obj, claripy.ast.Base):
             raise SimMemoryError('memory can only store claripy Expression')
+
         self.is_bytes = type(obj) == bytes
         self._byte_width = byte_width
         self.base = base
@@ -61,7 +64,7 @@ class SimMemoryObject(object):
             return self.object.cache_key == other.object.cache_key
 
     def _length_equals(self, other):
-        if type(self.length) != other.length:
+        if type(self.length) != type(other.length):
             return False
 
         if type(self.length) is int:
