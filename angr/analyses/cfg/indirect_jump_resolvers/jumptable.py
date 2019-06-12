@@ -34,6 +34,8 @@ class AddressTransferringTypes:
     SignedExtension32to64 = 1
     UnsignedExtension32to64 = 2
     Truncation64to32 = 3
+    UnsignedExtension8to32 = 4
+    UnsignedExtension16to32 = 5
 
 
 class JumpTargetBaseAddr:
@@ -171,6 +173,14 @@ class JumpTableProcessor(SimEngineLightVEX):  # pylint:disable=abstract-method
             self._tsrc.extend(self.state._tmpvar_source[expr.tmp])
         return v
 
+    def _handle_Exit(self, expr):
+        # TODO: Do we need Exit to do anything in this context? EDG thinks not.
+        return
+
+    def _handle_function(self, *args, **kwargs):
+        # TODO: Wipe out the args to the function
+        return
+    
     def _handle_Get(self, expr):
         if expr.offset == self.arch.bp_offset:
             return SpOffset(self.arch.bits, self._bp_sp_diff)
@@ -351,6 +361,19 @@ class StoreHook:
         state.inspect.mem_write_expr = state.solver.BVS('instrumented_store',
                                                         state.solver.eval(state.inspect.mem_write_length) * 8)
 
+POSTPROCESSABLE_BINOPS = {
+    'Iop_Add': '__add__',
+    'Iop_Shl': '__lshift__',
+    'Iop_Or': '__or__'
+}
+
+POSTPROCESSABLE_UNOPS = {
+    'Iop_32Sto64':  lambda a: (a | 0xffffffff00000000) if a >= 0x80000000 else a,
+    'Iop_32Uto64':  lambda a: a,
+    'Iop_8Uto32': lambda a: a,
+    'Iop_16Uto32': lambda a: a,
+    'Iop_64to32': lambda a: a & 0xffffffff,
+}
 
 class LoadHook:
 
@@ -436,7 +459,8 @@ class JumpTableResolver(IndirectJumpResolver):
         """
 
         self._max_targets = cfg._indirect_jump_target_limit
-
+        if addr == 0xd1f:
+            import ipdb; ipdb.set_trace()
         for slice_steps in range(2, 4):
             # Perform a backward slicing from the jump target
             b = Blade(cfg.graph, addr, -1,
@@ -474,7 +498,7 @@ class JumpTableResolver(IndirectJumpResolver):
         if stmt_loc not in b.slice:
             return False, None
 
-        load_stmt_loc, load_stmt, load_size, stmts_to_remove, stmts_adding_base_addr, all_addr_holders = \
+        load_stmt_loc, load_stmt, load_size, stmts_to_remove, postprocess_ops, all_addr_holders = \
             self._find_load_statement(b, stmt_loc)
 
         if load_stmt_loc is None:
@@ -563,7 +587,7 @@ class JumpTableResolver(IndirectJumpResolver):
             # Get the jumping targets
             for r in simgr.found:
                 ret = self._try_resolve_targets(r, addr, cfg, annotatedcfg, load_stmt, load_size,
-                                                                     stmts_adding_base_addr, all_addr_holders)
+                                                                     postprocess_ops, all_addr_holders)
                 if ret is None:
                     # Try the next state
                     continue
@@ -588,6 +612,7 @@ class JumpTableResolver(IndirectJumpResolver):
         l.info("Could not resolve indirect jump %#x in function %#x.", addr, func_addr)
         return False, None
 
+
     def _find_load_statement(self, b, stmt_loc):
         """
         Find the location of the final Load statement that loads indirect jump targets from the jump table.
@@ -599,7 +624,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # initialization
         load_stmt_loc, load_stmt, load_size = None, None, None
         stmts_to_remove = [stmt_loc]
-        stmts_adding_base_addr = []  # type: list[JumpTargetBaseAddr]
+        postprocess_ops = []
         # All temporary variables that hold indirect addresses loaded out of the memory
         # Obviously, load_stmt.tmp must be here
         # if there are additional data transferring statements between the Load statement and the base-address-adding
@@ -644,14 +669,32 @@ class JumpTableResolver(IndirectJumpResolver):
                         # data transferring with conversion
                         # t11 = 32Sto64(t12)
                         stmts_to_remove.append(stmt_loc)
+                        postprocess_ops.append(stmt)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
                             all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.SignedExtension32to64
+                        continue
+                    if stmt.data.op == 'Iop_8Uto32':
+                        # data transferring with conversion
+                        # t11 = 8Uto32(t12)
+                        stmts_to_remove.append(stmt_loc)
+                        postprocess_ops.append(stmt)
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.UnsignedExtension8to32
+                        continue
+                    if stmt.data.op == 'Iop_16Uto32':
+                        # data transferring with conversion
+                        # t11 = 16Uto32(t12)
+                        stmts_to_remove.append(stmt_loc)
+                        postprocess_ops.append(stmt)
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.UnsignedExtension16to32
                         continue
                     elif stmt.data.op == 'Iop_64to32':
                         # data transferring with conversion
                         # t24 = 64to32(t21)
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            postprocess_ops.append(stmt)
                             all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Truncation64to32
                         continue
                     elif stmt.data.op == 'Iop_32Uto64':
@@ -661,7 +704,10 @@ class JumpTableResolver(IndirectJumpResolver):
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
                             all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.UnsignedExtension32to64
                         continue
-                elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith('Iop_Add'):
+                elif isinstance(stmt.data, pyvex.IRExpr.Binop):
+                    stmts_to_remove.append(stmt_loc)
+                    postprocess_ops.append(stmt)
+                #elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith('Iop_Add'):
                     # GitHub issue #1289, an S390X binary
                     # jump_label = &jump_table + *(jump_table[index])
                     #       IRSB 0x4007c0
@@ -705,38 +751,39 @@ class JumpTableResolver(IndirectJumpResolver):
                     # + Next: t17
                     #
                     # Special case: a base address is added to the loaded offset before jumping to it.
-                    if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
-                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
-                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
-                                                                         stmt.data.args[1].tmp,
-                                                                         base_addr=stmt.data.args[0].con.value)
-                                                      )
-                        stmts_to_remove.append(stmt_loc)
-                    elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
-                            isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
-                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
-                                                                         stmt.data.args[0].tmp,
-                                                                         base_addr=stmt.data.args[1].con.value)
-                                                      )
-                        stmts_to_remove.append(stmt_loc)
-                    elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
-                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
-                        # one of the tmps must be holding a concrete value at this point
-                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
-                                                                         stmt.data.args[0].tmp,
-                                                                         tmp_1=stmt.data.args[1].tmp)
-                                                      )
-                        stmts_to_remove.append(stmt_loc)
-                    else:
-                        # not supported
-                        pass
-                    continue
+                    #if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
+                    #        isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+                    #    stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                    #                                                     stmt.data.args[1].tmp,
+                    #                                                     base_addr=stmt.data.args[0].con.value)
+                    #                                  )
+                    #    stmts_to_remove.append(stmt_loc)
+                    #elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                    #        isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+                    #    stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                    #                                                     stmt.data.args[0].tmp,
+                    #                                                     base_addr=stmt.data.args[1].con.value)
+                    #                                  )
+                    #    stmts_to_remove.append(stmt_loc)
+                    #elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                    #        isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+                    #    # one of the tmps must be holding a concrete value at this point
+                    #    stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                    #                                                     stmt.data.args[0].tmp,
+                    #                                                     tmp_1=stmt.data.args[1].tmp)
+                    #                                  )
+                    #    stmts_to_remove.append(stmt_loc)
+                    #else:
+                    #    # not supported
+                    #    pass
+                    #continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
                     load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
                                                           block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width
                     stmts_to_remove.append(stmt_loc)
                     all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
+                    break
             elif isinstance(stmt, pyvex.IRStmt.LoadG):
                 # Got it!
                 #
@@ -745,10 +792,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
                                                       block.tyenv.sizeof(stmt.dst) // self.project.arch.byte_width
                 stmts_to_remove.append(stmt_loc)
+                break
 
-            break
-
-        return load_stmt_loc, load_stmt, load_size, stmts_to_remove, stmts_adding_base_addr, all_addr_holders
+        return load_stmt_loc, load_stmt, load_size, stmts_to_remove, postprocess_ops, all_addr_holders
 
     def _jumptable_precheck(self, b):
         """
@@ -845,7 +891,79 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return None
 
-    def _try_resolve_targets(self, r, addr, cfg, annotatedcfg, load_stmt, load_size, stmts_adding_base_addr,
+    def _postprocess_binop(self, target, stmt):
+        op = stmt.data.op
+        func = None
+        const = None
+        for oper in POSTPROCESSABLE_BINOPS:
+            if op.startswith(oper):
+                func = POSTPROCESSABLE_BINOPS[oper]
+                break
+        if not func:
+            l.error("Unimplemented postprocessong op %s" % op)
+            return None
+        if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
+                isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+            const = stmt.data.args[0].con.value
+        elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+            const = stmt.data.args[1].con.value
+        elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+            # one of the tmps must be holding a concrete value at this point
+            # TODO: Load one of the two tmps out of the state, make that the const
+            import ipdb; ipdb.set_trace()
+            #const = state.solver.eval(state.scratch.temps[])
+        else:
+            # not supported
+            raise NotImplementedError()
+        return getattr(target, func)(const)
+
+    def _postprocess_unop(self, target, stmt):
+        op = stmt.data.op
+        func = None
+        for oper in POSTPROCESSABLE_UNOPS:
+            if op.startswith(oper):
+                func = POSTPROCESSABLE_UNOPS[oper]
+                break
+        if not func:
+            l.error("Unimplemented postprocessong op %s" % op)
+            return None
+        return func(target)
+
+
+    def _postprocess_targets(self, targets, ops):
+        """
+        This function attempts to correct, in a general way, for when jump table addresses are mutated _after_
+        they are loaded.  This happens, at least, on Intel and s390 when adding a base address, and on ARM
+        when using the TBB and TBH instructions.
+
+        During the first phase (finding the 'load') we collected all the VEX ops that happen after, which are not simple
+        assignment. We now apply those ops (sloppily and quickly) to get our final jumptable addresses.
+
+        For example, for a TBB instruction, the final address is the value loaded out of the table * 2 || 1
+
+        If anyone wants to try replacing this with a call into SimEngineVEX or something,
+        be my guest, but Fish will kill you if it's slow
+
+        -- EDG
+
+        :param targets:
+        :param ops:
+        :return:
+        """
+        import ipdb; ipdb.set_trace()
+        final_targets = []
+        for target in targets:
+            for stmt in ops:
+                if isinstance(stmt.data, pyvex.expr.Binop):
+                    target = self._postprocess_binop(target, stmt)
+                elif isinstance(stmt.data, pyvex.expr.Unop):
+                    target = self._postprocess_unop(target, stmt)
+            final_targets.append(target)
+        return final_targets
+
+    def _try_resolve_targets(self, r, addr, cfg, annotatedcfg, load_stmt, load_size, postprocess_ops,
                              all_addr_holders):
         """
         Try loading all jump targets from a jump table.
@@ -877,8 +995,10 @@ class JumpTableResolver(IndirectJumpResolver):
             return None
 
         # sanity check and necessary pre-processing
-        if stmts_adding_base_addr:
-            assert len(stmts_adding_base_addr) == 1  # Making sure we are only dealing with one operation here
+        postprocess_ops = list(reversed(postprocess_ops)) # we put them in backwards!
+        """
+        if postprocess_ops:
+            
             jump_base_addr = stmts_adding_base_addr[0]
             if jump_base_addr.base_addr_available:
                 addr_holders = {(jump_base_addr.stmt_loc[0], jump_base_addr.tmp)}
@@ -892,13 +1012,8 @@ class JumpTableResolver(IndirectJumpResolver):
                 return None
 
             if not jump_base_addr.base_addr_available:
-                # we need to decide which tmp is the address holder and which tmp holds the base address
-                addr_holder = next(iter(set(all_addr_holders.keys()).intersection(addr_holders)))
-                if jump_base_addr.tmp_1 == addr_holder[1]:
-                    # swap the two tmps
-                    jump_base_addr.tmp, jump_base_addr.tmp_1 = jump_base_addr.tmp_1, jump_base_addr.tmp
-                # Load the concrete base address
-                jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
+                
+        """
 
         all_targets = [ ]
         total_cases = jumptable_addr._model_vsa.cardinality
@@ -947,7 +1062,9 @@ class JumpTableResolver(IndirectJumpResolver):
             return None
 
         # Adjust entries inside the jump table
-        if stmts_adding_base_addr:
+        if postprocess_ops:
+            all_targets = self._postprocess_targets(all_targets, postprocess_ops)
+            """
             stmt_adding_base_addr = stmts_adding_base_addr[0]
             base_addr = stmt_adding_base_addr.base_addr
             conversion_ops = list(reversed(list(v for v in all_addr_holders.values()
@@ -958,6 +1075,10 @@ class JumpTableResolver(IndirectJumpResolver):
                     if conversion_op is AddressTransferringTypes.SignedExtension32to64:
                         lam = lambda a: (a | 0xffffffff00000000) if a >= 0x80000000 else a
                     elif conversion_op is AddressTransferringTypes.UnsignedExtension32to64:
+                        lam = lambda a: a
+                    elif conversion_op is AddressTransferringTypes.UnsignedExtension8to32:
+                        lam = lambda a: a
+                    elif conversion_op is AddressTransferringTypes.UnsignedExtension16to64:
                         lam = lambda a: a
                     elif conversion_op is AddressTransferringTypes.Truncation64to32:
                         lam = lambda a: a & 0xffffffff
@@ -972,7 +1093,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     all_targets.append(target_)
             mask = (2 ** self.project.arch.bits) - 1
             all_targets = [(target + base_addr) & mask for target in all_targets]
-
+            """
         # Finally... all targets are ready
         illegal_target_found = False
         for target in all_targets:
