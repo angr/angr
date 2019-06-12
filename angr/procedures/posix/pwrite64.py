@@ -4,7 +4,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-class pread64(angr.SimProcedure):
+class pwrite64(angr.SimProcedure):
     def run(self, fd, buf, nbyte, offset):
 
         SEEK_SET = 0  # Seek from beginning of file.
