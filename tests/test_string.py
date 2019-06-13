@@ -728,8 +728,6 @@ def test_strchr():
     nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x12, 1), 300)), [ 0x43, 0x44 ])
     nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x13, 1), 300)), [ 0x00, 0x44 ])
 
-    return
-
     #l.info("symbolic haystack, symbolic needle")
     #s = SimState(arch="AMD64", mode="symbolic")
     #s.libc.buf_symbolic_bytes = 5
