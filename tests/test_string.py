@@ -929,6 +929,13 @@ def test_strcmp():
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.solver.eval_upto(r, 2), [0])
 
+def test_string_without_null():
+    s = SimState(arch="AMD64", mode="symbolic")
+    str_ = b"abcd"
+    str_addr = s.solver.BVV(0x10, 64)
+    s.memory.store(str_addr, str_)
+    nose.tools.assert_equal(s.solver.eval(s.mem[str_addr].string.resolved, cast_to=bytes), b"abcd")
+
 
 if __name__ == '__main__':
     test_getc()
@@ -945,3 +952,4 @@ if __name__ == '__main__':
     test_strcpy()
     test_strncpy()
     test_strstr_inconsistency()
+    test_string_without_null()
