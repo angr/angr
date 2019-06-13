@@ -5,6 +5,7 @@ l = logging.getLogger(name=__name__)
 
 
 class pwrite64(angr.SimProcedure):
+    #pylint: disable=arguments-differ
     def run(self, fd, buf, nbyte, offset):
 
         SEEK_SET = 0  # Seek from beginning of file.
@@ -42,4 +43,3 @@ class pwrite64(angr.SimProcedure):
             return -1
 
         return result
-

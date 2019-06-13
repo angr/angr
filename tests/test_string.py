@@ -932,7 +932,6 @@ def test_strcmp():
 def test_string_without_null():
     s = SimState(arch="AMD64", mode="symbolic")
     str_ = b"abcd"
-    
     str_addr = s.solver.BVV(0x10, 64)
     s.memory.store(str_addr, str_)
     nose.tools.assert_equal(s.solver.eval(s.mem[str_addr].string.resolved, cast_to=bytes), b"abcd")
