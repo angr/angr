@@ -18,7 +18,7 @@ from ..storage.memory import SimMemory
 from .history import SimStateHistory
 from .sim_action_object import SimActionObject
 from .plugin import SimStatePlugin
-from . import paged_memory, sorted_collection, unpaged_memory
+from . import paged_memory, sorted_collection
 from .pitree import pitree
 from .utils import get_obj_byte, reverse_addr_reg, get_unconstrained_bytes, convert_to_ast, \
     resolve_location_name
@@ -209,8 +209,6 @@ class FullySymbolicMemory(SimStatePlugin):
         self._initial_timestamps = [timestamp, timestamp_implicit]
 
         self._concrete_memory = paged_memory.PagedMemory(self) if concrete_memory is None else concrete_memory
-        #self._concrete_memory = unpaged_memory.PagedMemory(self) if concrete_memory is None else concrete_memory
-
         self._symbolic_memory = pitree.pitree() if symbolic_memory is None else symbolic_memory
 
         # some threshold
