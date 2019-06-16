@@ -56,24 +56,6 @@ def convert_to_ast(state, data_e, size_e=None):
 
     return data_e
 
-def resolve_location_name(memory, name):
-
-    stn_map = { 'st%d' % n: n for n in range(8) }
-    tag_map = { 'tag%d' % n: n for n in range(8) }
-
-    if memory.category == 'reg':
-        if memory.state.arch.name in ('X86', 'AMD64'):
-            if name in stn_map:
-                return (((stn_map[name] + memory.load('ftop')) & 7) << 3) + memory.state.arch.registers['fpu_regs'][0], 8
-            elif name in tag_map:
-                return ((tag_map[name] + memory.load('ftop')) & 7) + memory.state.arch.registers['fpu_tags'][0], 1
-
-        return memory.state.arch.registers[name]
-    elif name[0] == '*':
-        return memory.state.registers.load(name[1:]), None
-    else:
-        raise angr.errors.SimMemoryError("Trying to address memory with a register name.")
-
 def reverse_addr_reg(memory, addr):
 
     assert memory.category == 'reg'

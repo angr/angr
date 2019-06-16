@@ -20,8 +20,7 @@ from .sim_action_object import SimActionObject
 from .plugin import SimStatePlugin
 from . import paged_memory, sorted_collection
 from .pitree import pitree
-from .utils import get_obj_byte, reverse_addr_reg, get_unconstrained_bytes, convert_to_ast, \
-    resolve_location_name
+from .utils import get_obj_byte, get_unconstrained_bytes, convert_to_ast
 
 log = logging.getLogger('memsight')
 log.setLevel(logging.DEBUG)
@@ -298,24 +297,6 @@ class FullySymbolicMemory(SimStatePlugin):
         if op == 'store':
             data = self._convert_to_ast(data, size if isinstance(size, int) else None)
 
-        reg_name = None
-        if self._id == 'reg':
-
-            if type(addr) == int:
-                reg_name = reverse_addr_reg(self, addr)
-
-            if isinstance(addr, str):
-                reg_name = addr
-                addr, size_reg = resolve_location_name(self, addr)
-
-                # a load from a register, derive size from reg size
-                if size is None:
-                    size = size_reg
-
-                assert size_reg == size
-
-            assert reg_name is not None
-
         # if this is a store then size can be derived from data that needs to be stored
         if size is None and type(data) in (claripy.ast.bv.BV, claripy.ast.fp.FP):
             size = len(data) // 8
@@ -341,10 +322,7 @@ class FullySymbolicMemory(SimStatePlugin):
             pass
 
         assert size is not None
-        if self._id == 'reg':
-            assert type(addr) == int
-
-        return addr, size, reg_name
+        return addr, size
 
     def build_ite(self, addr, cases, v, obj):
 
@@ -366,19 +344,15 @@ class FullySymbolicMemory(SimStatePlugin):
         # self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) +"] " + "Loading " + str(size) + " bytes at " + str(addr))
 
         try:
-            assert self._id == 'mem' or self._id == 'reg'
+            assert self._id == 'mem'
 
             if condition is not None and self.state.se.is_false(condition):
                 return
 
-            addr, size, reg_name = self.memory_op(addr, size, op='load')
+            addr, size = self.memory_op(addr, size, op='load')
 
             if inspect is True:
-                if self.category == 'reg':
-                    self.state._inspect('reg_read', angr.BP_BEFORE, reg_read_offset=addr, reg_read_length=size)
-                    addr = self.state._inspect_getattr("reg_read_offset", addr)
-                    size = self.state._inspect_getattr("reg_read_length", size)
-                elif self.category == 'mem':
+                if self.category == 'mem':
                     self.state._inspect('mem_read', angr.BP_BEFORE, mem_read_address=addr, mem_read_length=size)
                     addr = self.state._inspect_getattr("mem_read_address", addr)
                     size = self.state._inspect_getattr("mem_read_length", size)
@@ -450,9 +424,6 @@ class FullySymbolicMemory(SimStatePlugin):
                     if self.category == 'mem':
                         self.state._inspect('mem_read', angr.BP_AFTER, mem_read_expr=data)
                         data = self.state._inspect_getattr("mem_read_expr", data)
-                    elif self.category == 'reg':
-                        self.state._inspect('reg_read', angr.BP_AFTER, reg_read_expr=data)
-                        data = self.state._inspect_getattr("reg_read_expr", data)
 
                 if not disable_actions:
                     if angr.options.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
@@ -547,22 +518,12 @@ class FullySymbolicMemory(SimStatePlugin):
 
         try:
 
-            assert self._id == 'mem' or self._id == 'reg'
+            assert self._id == 'mem'
 
-            addr, size, reg_name = self.memory_op(addr, size, data, op='store')
+            addr, size = self.memory_op(addr, size, data, op='store')
 
             if inspect is True:
-                if self.category == 'reg':
-                    self.state._inspect(
-                        'reg_write',
-                        angr.BP_BEFORE,
-                        reg_write_offset=addr,
-                        reg_write_length=size,
-                        reg_write_expr=data)
-                    addr = self.state._inspect_getattr('reg_write_offset', addr)
-                    size = self.state._inspect_getattr('reg_write_length', size)
-                    data = self.state._inspect_getattr('reg_write_expr', data)
-                elif self.category == 'mem':
+                if self.category == 'mem':
                     self.state._inspect(
                         'mem_write',
                         angr.BP_BEFORE,
@@ -676,7 +637,6 @@ class FullySymbolicMemory(SimStatePlugin):
                                                   MemoryItem(addr + k, obj, self.timestamp, condition))
 
                 if inspect is True:
-                    if self.category == 'reg': self.state._inspect('reg_write', angr.BP_AFTER)
                     if self.category == 'mem': self.state._inspect('mem_write', angr.BP_AFTER)
 
                 if not disable_actions:
@@ -805,8 +765,8 @@ class FullySymbolicMemory(SimStatePlugin):
 
     @property
     def category(self):
-        if self._id in ('reg', 'mem'):
-            return self._id
+        assert self._id == 'mem'
+        return self._id
 
     @SimMemory.memo
     def copy(self, _):
@@ -1234,9 +1194,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
                            step=step)
-
-        if angr.options.AST_DEPS in self.state.options and self.category == 'reg':
-            r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m
 
