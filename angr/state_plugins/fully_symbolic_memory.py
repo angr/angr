@@ -1198,6 +1198,9 @@ class FullySymbolicMemory(SimStatePlugin):
         return r,c,m
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+        # we don't support VSA
+        assert self.state.mode != 'static'
+
         if max_search is None:
             max_search = angr.state_plugins.SimSymbolicMemory.DEFAULT_MAX_SEARCH
 
@@ -1215,7 +1218,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         cases = [ ]
         match_indices = [ ]
-        offsets_matched = [ ] # Only used in static mode
 
         import itertools
         for i in itertools.count(step=step):
@@ -1233,49 +1235,19 @@ class FullySymbolicMemory(SimStatePlugin):
             cases.append([b == what, start + i])
             match_indices.append(i)
 
-            if self.state.mode == 'static':
-                si = b._model_vsa
-                what_si = what._model_vsa
-
-                if isinstance(si, claripy.vsa.StridedInterval):
-                    if not si.intersection(what_si).is_empty:
-                        offsets_matched.append(start + i)
-
-                    if si.identical(what_si):
-                        break
-
-                    if si.cardinality != 1:
-                        if remaining_symbolic is not None:
-                            remaining_symbolic -= 1
-                else:
-                    # Comparison with other types (like IfProxy or ValueSet) is not supported
-                    if remaining_symbolic is not None:
-                        remaining_symbolic -= 1
-
+            if not b.symbolic and not symbolic_what and self.state.se.eval(b) == self.state.se.eval(what):
+                break
             else:
-                # other modes (e.g. symbolic mode)
-                if not b.symbolic and not symbolic_what and self.state.se.eval(b) == self.state.se.eval(what):
-                    break
-                else:
-                    if b.symbolic and remaining_symbolic is not None:
-                        remaining_symbolic -= 1
+                if b.symbolic and remaining_symbolic is not None:
+                    remaining_symbolic -= 1
 
-        if self.state.mode == 'static':
-            r = self.state.se.ESI(self.state.arch.bits)
-            for off in offsets_matched:
-                r = r.union(off)
+        if default is None:
+            default = 0
+            constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
 
-            constraints = [ ]
-            return r, constraints, match_indices
-
-        else:
-            if default is None:
-                default = 0
-                constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
-
-            #l.debug("running ite_cases %s, %s", cases, default)
-            r = self.state.se.ite_cases(cases, default)
-            return r, constraints, match_indices
+        #l.debug("running ite_cases %s, %s", cases, default)
+        r = self.state.se.ite_cases(cases, default)
+        return r, constraints, match_indices
 
     def __contains__(self, addr):
 
