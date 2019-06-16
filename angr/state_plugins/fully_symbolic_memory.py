@@ -134,9 +134,7 @@ class FullySymbolicMemory(SimStatePlugin):
                  timestamp=0,
                  initializable=None,
                  initialized=False,
-                 timestamp_implicit=0,
-                 angr_memory=None,
-                 debug_with_angr=False):
+                 timestamp_implicit=0):
 
         SimStatePlugin.__init__(self)
 
@@ -173,10 +171,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         # required by CGC deallocate()
         self._page_size = self._concrete_memory.PAGE_SIZE
-
-        self.angr_memory = angr_memory
-        if self.angr_memory is None and debug_with_angr:
-            self.angr_memory = angr.state_plugins.SimSymbolicMemory(memory_backer=memory_backer, permissions_backer=permissions_backer, memory_id='mem')
 
     @property
     def timestamp(self):
@@ -268,18 +262,6 @@ class FullySymbolicMemory(SimStatePlugin):
         if self.verbose: self.log("setting current state...")
         self.state = state
         self._init_memory()
-
-        if self.angr_memory is not None:
-            add_strategies = self.angr_memory.write_strategies is None
-            self.angr_memory.set_state(state)
-            if add_strategies:
-                # print "Adding strategies..."
-                self.angr_memory.write_strategies.insert(0,
-                                                         angr.concretization_strategies.SimConcretizationStrategyRange(
-                                                             1024 * 100))
-                self.angr_memory.read_strategies.insert(0,
-                                                        angr.concretization_strategies.SimConcretizationStrategyRange(
-                                                            1024 * 100))
 
     def _load_init_data(self, addr, size):
 
@@ -405,12 +387,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         if self.verbose: self.log(str(self.state.ip) + " Loading " + str(size) + " bytes at " + str(addr))
 
-        angr_data = None
-        if self.angr_memory is not None and not internal:
-            angr_data = self.angr_memory.load(addr=addr, size=size, condition=condition, fallback=fallback,
-                                              add_constraints=add_constraints, action=action, endness=endness,
-                                              inspect=inspect)
-
         assert add_constraints is None
 
         # self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) +"] " + "Loading " + str(size) + " bytes at " + str(addr))
@@ -461,9 +437,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
                 # check if binary data should be loaded into address space
                 self._load_init_data(min_addr, (max_addr - min_addr) + size)
-
-                if angr_data is not None:
-                    assert size == len(angr_data) // 8
 
                 data = None
                 for k in range(size):
@@ -524,7 +497,7 @@ class FullySymbolicMemory(SimStatePlugin):
                         self.state._inspect('reg_read', angr.BP_AFTER, reg_read_expr=data)
                         data = self.state._inspect_getattr("reg_read_expr", data)
 
-                if not disable_actions and self.angr_memory is None:
+                if not disable_actions:
                     if angr.options.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
                         ref_size = size * self.state.arch.byte_width if size is not None else data.size()
                         region_type = self.category
@@ -547,18 +520,6 @@ class FullySymbolicMemory(SimStatePlugin):
                         action.added_constraints = action._make_object(self.state.se.true)
 
                 if self.verbose: self.log("\treturning data ")# + str(data))
-
-                if angr_data is not None:
-                    assert len(data) == len(angr_data)
-                    for k in range(len(data) // 8):
-                        b1 = data[(8 * (k + 1)) - 1: (8 * k)]
-                        b2 = angr_data[(8 * (k + 1)) - 1: (8 * (k))]
-                        comparison, v1, v2 = self._compare_bytes(b1, b2)
-                        if not comparison:
-                            print("Mismatch at offset " + str(k))
-                            import pdb
-                            pdb.set_trace()
-
                 return data
 
             assert False
@@ -636,11 +597,6 @@ class FullySymbolicMemory(SimStatePlugin):
             pass
 
         if priv is not None: self.state.scratch.push_priv(priv)
-
-        if self.angr_memory is not None and not internal:
-            self.angr_memory.store(addr=addr, data=data, size=size, condition=condition,
-                                   add_constraints=add_constraints, action=action, endness=endness, inspect=inspect,
-                                   priv=priv)
 
         assert add_constraints is None
         condition = self._raw_ast(condition)
@@ -821,28 +777,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
                 if priv is not None: self.state.scratch.pop_priv()
 
-                if self.angr_memory is not None:
-
-                    try:
-                        if self.verbose: print("Comparing...")
-
-                        addrs = [x for x in range(min_addr, max_addr + self.state.se.max_int(size))]
-
-                        """
-                        addrs_sol = self.state.se.eval_upto(addr, 2048)
-                        assert len(addrs_sol) < 2048
-
-                        addrs = set()
-                        for a in addrs_sol:
-                            for k in range(self.state.se.max_int(size)):
-                                addrs.add(a + k)
-                        addrs = list(addrs)
-                        """
-                        self._compare_with_angr(addrs, op='store')
-
-                    except Exception as e:
-                        pdb.set_trace()
-
                 return
 
             assert False
@@ -945,13 +879,7 @@ class FullySymbolicMemory(SimStatePlugin):
 
     @property
     def category(self):
-
-        res_angr = None
-        if self.angr_memory is not None:
-            res_angr = self.angr_memory.category
-
         if self._id in ('reg', 'mem'):
-            assert res_angr is None or res_angr == self._id
             return self._id
 
     @SimMemory.memo
@@ -972,8 +900,7 @@ class FullySymbolicMemory(SimStatePlugin):
                                 timestamp=self.timestamp,
                                 initializable=self._initializable.copy(),
                                 initialized=self._initialized,
-                                timestamp_implicit=self.implicit_timestamp,
-                                angr_memory=self.angr_memory.copy() if self.angr_memory is not None else None)
+                                timestamp_implicit=self.implicit_timestamp)
 
         s._concrete_memory = self._concrete_memory.copy(s)
 
@@ -981,12 +908,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
     @property
     def id(self):
-
-        res_angr = None
-        if self.angr_memory is not None:
-            res_angr = self.angr_memory.id
-
-        assert res_angr is None or res_angr == self._id
         return self._id
 
     @property
@@ -997,20 +918,11 @@ class FullySymbolicMemory(SimStatePlugin):
         # that exposes a _preapproved_stack attribute
         # (similarly as done by a paged memory)
 
-        if self.angr_memory is not None:
-            r = self.angr_memory.mem
-
         if self.verbose: self.log("getting reference to paged memory")
         return self
 
     @property
     def _preapproved_stack(self):
-
-        res_angr = None
-        if self.angr_memory is not None:
-            res_angr = self.angr_memory.mem._preapproved_stack
-
-        assert res_angr is None or res_angr == self._stack_range
         return self._stack_range
 
     @_preapproved_stack.setter
@@ -1018,9 +930,6 @@ class FullySymbolicMemory(SimStatePlugin):
         if self.verbose: self.log(
             "Boundaries on stack have been set by the caller: (" + str(hex(value.start)) + ", " + str(
                 hex(value.end)) + ")")
-
-        if self.angr_memory is not None:
-            self.angr_memory.mem._preapproved_stack = value
 
         if self._stack_range is not None:
             if self.verbose: self.log("\tUnnmapping old stack...")
@@ -1051,9 +960,6 @@ class FullySymbolicMemory(SimStatePlugin):
             log.setLevel(logging.INFO)
 
     def map_region(self, addr, length, permissions, internal=False):
-
-        if self.angr_memory is not None and not internal:
-            self.angr_memory.map_region(addr, length, permissions)
 
         if self.verbose: self.log("Required mapping of length " + str(length) + " at " + str(
             hex(addr if type(addr) == int else addr.args[0])) + ".")
@@ -1103,14 +1009,6 @@ class FullySymbolicMemory(SimStatePlugin):
         return
 
     def permissions(self, addr):
-
-        res_angr = None
-        if self.angr_memory is not None:
-            try:
-                res_angr = self.angr_memory.permissions(addr)
-            except Exception as e:
-                res_angr = e
-
         # return permissions of the addr's region
 
         if self.state.se.symbolic(addr):
@@ -1121,12 +1019,9 @@ class FullySymbolicMemory(SimStatePlugin):
 
         for region in self._mapped_regions:
             if addr >= region.addr and addr <= region.addr + region.length:
-                assert res_angr is None or self.state.se.eval_upto(res_angr, 10) == self.state.se.eval_upto(
-                    region.permissions, 10)
                 return region.permissions
 
         # Unmapped region: angr treats it as RW region
-        assert res_angr is None or type(res_angr) in (angr.errors.SimMemoryError,)
         raise angr.errors.SimMemoryError("page does not exist at given address")
 
     def check_sigsegv_and_refine(self, addr, min_addr, max_addr, write_access):
@@ -1210,13 +1105,6 @@ class FullySymbolicMemory(SimStatePlugin):
             ancestor_timestamp = common_ancestor.state.history.timestamps[0]
             ancestor_implicit_timestamp = common_ancestor.state.history.timestamps[1]
 
-        if self.angr_memory is not None:
-            self._compare_with_angr(op='pre_merge')
-            others[0]._compare_with_angr(op='pre_merge_other')
-
-        if self.angr_memory is not None:
-            self.angr_memory.merge([others[0].angr_memory], merge_conditions, common_ancestor)
-
         # self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) + "] " + "Merge")
 
         if self.verbose: self.log("Merging memories of " + str(len(others) + 1) + " states")
@@ -1230,11 +1118,6 @@ class FullySymbolicMemory(SimStatePlugin):
         self.implicit_timestamp = min(self.implicit_timestamp, others[0].implicit_timestamp)
 
         return count
-
-    def post_merge(self):
-        # print "POST MERGE"
-        if self.angr_memory is not None:
-            self._compare_with_angr(op='merge')
 
     def _merge_concrete_memory(self, other, merge_conditions, verbose=False):
 
@@ -1409,66 +1292,6 @@ class FullySymbolicMemory(SimStatePlugin):
             return count
 
         except Exception as e:
-            pdb.set_trace()
-
-    def _compare_with_angr(self, addrs=None, msg=None, op=None):
-
-        try:
-
-            if self.angr_memory is None or self.state is None:
-                return
-
-            # get in-use addresses in angr
-            if addrs is None:
-
-                addrs = set()
-                for i, p in list(self.angr_memory.mem._pages.items()):
-                    addrs.update([k + i * 0x1000 for k in list(p.keys())])
-
-                # Note: This check may fail. Indeed, we may have written
-                #       an address even if this was not 
-                #       addressable since we are not getting actual 
-                #       solutions for an address. Even if the address is symbolic
-                #       this could have forced loading of init data.
-                addrs2 = set()
-                for i, p in list(self._concrete_memory._pages.items()):
-                    addrs2.update([k + i * 0x1000 for k in list(p.keys())])
-
-                if len(addrs2 - addrs) > 0:
-                    # print "Our concrete memory has more addresses than angr's concrete memory..."
-                    # import pdb
-                    # pdb.set_trace()
-                    pass
-
-                addrs |= addrs2
-                addrs = sorted(list(addrs))
-
-            if self.verbose: print("\tChecking " + str(len(addrs)) + " addrs")
-
-            # for addr check value
-            for a in addrs:
-
-                # if (a / 0x1000) not in self.angr_memory.mem._pages or (a % 0x1000) not in self.angr_memory.mem._pages[a / 0x1000]._storage:
-                #    continue
-
-                if self.verbose: print("\t\tComparing addr: " + hex(a))
-
-                v1 = self.load(a, 1, internal=True)
-                v2 = self.angr_memory.load(a, 1)
-                comparison, s1, s2 = self._compare_bytes(v1, v2)
-
-                if not comparison:
-                    if self.verbose: print("\t\tMismatch at " + hex(a))
-                    if self.verbose: print("\t\tValues from us:   " + str(s1))
-                    if self.verbose: print("\t\tValues from angr: " + str(s2))
-
-                    import pdb
-                    pdb.set_trace()
-
-                assert comparison
-
-        except Exception as e:
-            import pdb
             pdb.set_trace()
 
     def _compare_bytes(self, b1, b2):
