@@ -130,7 +130,6 @@ class FullySymbolicMemory(SimStatePlugin):
                  symbolic_memory=None,
                  stack_range=None,
                  mapped_regions=[],
-                 verbose=False,
                  timestamp=0,
                  initializable=None,
                  initialized=False,
@@ -161,9 +160,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         # mapped regions
         self._mapped_regions = mapped_regions
-
-        self.verbose = verbose
-        if self.verbose: self.log("symbolic memory has been created")
 
         self._initializable = initializable if initializable is not None else sorted_collection.SortedCollection(
             key=lambda x: x[0])
@@ -232,15 +228,9 @@ class FullySymbolicMemory(SimStatePlugin):
                 page_index = int(addr / page_size)
                 page_offset = addr % page_size
 
-                if self.verbose:
-                    self.log("Pre-defined memory region: addr=" +  hex(addr) + " size=" + str(size))
-
                 while size > 0:
-
                     max_bytes_in_page = page_index * 0x1000 + 0x1000 - addr
                     mo = [page_index, obj, data_offset, page_offset, min([size, page_size, max_bytes_in_page])]
-                    if self.verbose: self.log("Adding initializable area: page_index=" + str(mo[0]) + " size=" + str(
-                        mo[4]) + " data_offset=" + str(mo[2]))
                     self._initializable.insert(mo)
                     page_index += 1
                     size -= page_size - page_offset
@@ -259,7 +249,6 @@ class FullySymbolicMemory(SimStatePlugin):
         self._initialized = True
 
     def set_state(self, state):
-        if self.verbose: self.log("setting current state...")
         self.state = state
         self._init_memory()
 
@@ -270,15 +259,10 @@ class FullySymbolicMemory(SimStatePlugin):
         page_end = int((addr + size) / page_size)
         k = bisect.bisect_left(self._initializable._keys, page_index)
 
-        if self.verbose: self.log(
-            "\tChecking initializable: page index " + str(page_index) + " k=" + str(k) + " max_k=" + str(
-                len(self._initializable)) + " end_k=" + str(page_end))
-
         to_remove = []
         while k < len(self._initializable) and self._initializable[k][0] <= page_end:
 
             data = self._initializable[k]  # [page_index, data, data_offset, page_offset, min(size, page_size]
-            if self.verbose: self.log("\tLoading initialized data at " + str(data[0])) # + " => " + str(data))
             page = self._concrete_memory._pages[data[0]] if data[0] in self._concrete_memory._pages else None
             for j in range(data[4]):
 
@@ -294,9 +278,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         for e in to_remove:
             self._initializable.remove(e)
-
-        if len(to_remove):
-            if self.verbose: self.log("\tRemaining items in initializable: " + str(len(self._initializable)))
 
     def _raw_ast(self, a):
         if type(a) is angr.state_plugins.sim_action_object.SimActionObject:
@@ -322,17 +303,14 @@ class FullySymbolicMemory(SimStatePlugin):
 
             if type(addr) == int:
                 reg_name = reverse_addr_reg(self, addr)
-                if self.verbose: self.log("\t" + str(addr) + " => " + str(reg_name))
 
             if isinstance(addr, str):
                 reg_name = addr
                 addr, size_reg = resolve_location_name(self, addr)
-                if self.verbose: self.log("\t" + str(addr) + " => " + str(reg_name))
 
                 # a load from a register, derive size from reg size
                 if size is None:
                     size = size_reg
-                    if self.verbose: self.log("\tsize => " + str(size))
 
                 assert size_reg == size
 
@@ -341,7 +319,6 @@ class FullySymbolicMemory(SimStatePlugin):
         # if this is a store then size can be derived from data that needs to be stored
         if size is None and type(data) in (claripy.ast.bv.BV, claripy.ast.fp.FP):
             size = len(data) // 8
-            if self.verbose: self.log("\tsize => " + str(size))
 
         # convert size to BVV if concrete
         if type(size) == int:
@@ -384,17 +361,11 @@ class FullySymbolicMemory(SimStatePlugin):
 
     def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None,
              inspect=True, disable_actions=False, ret_on_segv=False, internal=False, ignore_endness=False):
-
-        if self.verbose: self.log(str(self.state.ip) + " Loading " + str(size) + " bytes at " + str(addr))
-
         assert add_constraints is None
 
         # self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) +"] " + "Loading " + str(size) + " bytes at " + str(addr))
 
         try:
-
-            if self.verbose: self.log("Loading " + str(size) + " bytes.")
-
             assert self._id == 'mem' or self._id == 'reg'
 
             if condition is not None and self.state.se.is_false(condition):
@@ -440,17 +411,10 @@ class FullySymbolicMemory(SimStatePlugin):
 
                 data = None
                 for k in range(size):
-
-                    if self.verbose: self.log("\tLoading from: " + str(hex(addr + k) if type(addr) == int else (addr + k)))
-                    #if self.verbose: self.log("\tAddr = [" + str(hex(min_addr + k)) + ", " + str(hex(max_addr + k)) + "]")
-
                     P = self._concrete_memory.find(min_addr + k, max_addr + k, True)
 
                     P += [x.data for x in self._symbolic_memory.search(min_addr + k, max_addr + k + 1)]
                     P = sorted(P, key=lambda x: (x.t, (x.addr if type(x.addr) == int else 0)))
-
-                    if self.verbose: self.log("\tMatching formulas:" + str(len(P)))
-                    #if self.verbose: self.log("\tMatching formulas:" + str(P))
 
                     if min_addr == max_addr and len(P) == 1 and type(P[0].addr) == int and P[0].guard is None:
                         obj = P[0].obj
@@ -462,19 +426,13 @@ class FullySymbolicMemory(SimStatePlugin):
 
                         if (self.category == 'mem' and
                                     angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options):
-
-                            if self.verbose: self.log("\t\tDoing an implicit store...")
-
                             # implicit store...
                             self.implicit_timestamp -= 1
                             self._symbolic_memory.add(min_addr + k, max_addr + k + 1,
                                                       MemoryItem(addr + k, obj, self.implicit_timestamp, None))
-
-                        if self.verbose: self.log("\tAdding ite cases: " + str(len(P)))
                         obj = self.build_merged_ite(addr + k, P, obj)
 
                     # concat single-byte objs
-                    if self.verbose: self.log("\tappending data: ")# + str(obj))
                     data = self.state.se.Concat(data, obj) if data is not None else obj
 
                 if condition is not None:
@@ -486,7 +444,6 @@ class FullySymbolicMemory(SimStatePlugin):
                 # fix endness
                 endness = self._endness if endness is None else endness
                 if not ignore_endness and endness == "Iend_LE":
-                    # if self.verbose: self.log("\treversing data: " + str(data))
                     data = data.reversed
 
                 if inspect is True:
@@ -518,8 +475,6 @@ class FullySymbolicMemory(SimStatePlugin):
                         #    action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
                         #else:
                         action.added_constraints = action._make_object(self.state.se.true)
-
-                if self.verbose: self.log("\treturning data ")# + str(data))
                 return data
 
             assert False
@@ -557,45 +512,33 @@ class FullySymbolicMemory(SimStatePlugin):
 
                     # both constant and equal
                     if prev_v.op == 'BVV' and v.args[0] == prev_v.args[0]:
-                        # if self.verbose: self.log("\tmerging ite with same constant and consecutive address")
                         mergeable = True
 
                 # same symbolic object
                 elif v is prev_v:
-                    # if self.verbose: self.log("\tmerging ite with same sym and consecutive address")
                     mergeable = True
 
             if not mergeable:
 
                 if len(merged_p) > 0:
-                    #if self.verbose: self.log("\tbuilding ite with " + str(len(merged_p)) + " case(s)")  # " + str(addrs))
                     obj = self.build_ite(addr, merged_p, merged_p[-1].obj, obj)
                     merged_p = []
 
                 if is_good_candidate:
                     merged_p.append(p)
                 else:
-                    if self.verbose:
-                        self.log("\tbuilding ite with " + str(1) + " case(s)")  # " + str(addrs))
                     obj = self.build_ite(addr, [p], v, obj)
 
             else:
                 merged_p.append(p)
 
         if len(merged_p) > 0:
-            if self.verbose: self.log("\tbuilding ite with " + str(len(merged_p)) + " case(s)")  #: "+ str(v))
             obj = self.build_ite(addr, merged_p, merged_p[-1].obj, obj)
 
         return obj
 
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None,
               inspect=True, priv=None, disable_actions=False, ignore_endness=False, internal=False):
-
-        if not internal:
-            #if self.verbose: self.log(str(self.state.ip) + " Storing at " + str(addr) + " " + str(size) + " bytes. Content: " + str(data))
-            if self.verbose: self.log("Storing " + str(size) + " bytes.")  # Content: " + str(data))
-            pass
-
         if priv is not None: self.state.scratch.push_priv(priv)
 
         assert add_constraints is None
@@ -644,7 +587,6 @@ class FullySymbolicMemory(SimStatePlugin):
             conditional_size = None
             if self.state.se.symbolic(size):
                 conditional_size = [self.state.se.min_int(size), self.state.se.max_int(size)]
-                if self.verbose: "\tconditional-sized store: size=" + str(size) + " " + str(conditional_size)
                 self.state.se.add(self.state.se.ULE(size, conditional_size[1]))
 
             # convert data to BVV if concrete
@@ -660,11 +602,7 @@ class FullySymbolicMemory(SimStatePlugin):
                 # fix endness
                 endness = self._endness if endness is None else endness
                 if not ignore_endness and endness == "Iend_LE":
-                    if not internal:
-                        # if self.verbose: self.log("\treversing data: " + str(data))
-                        pass
                     data = data.reversed
-                    # if self.verbose: self.log("\treversed data: " + str(data))
 
                 # concrete address
                 if type(addr) == int:
@@ -699,10 +637,6 @@ class FullySymbolicMemory(SimStatePlugin):
                         assert k + 1 <= conditional_size[1]
                         condition = self.state.se.UGT(size, k) if initial_condition is None else claripy.And(
                             initial_condition, self.state.se.UGT(size, k + 1))
-                        if self.verbose: print("\tstore condition: " + str(condition))
-
-                    if not internal:
-                        if self.verbose: self.log("\tSlicing data with offset " + str(k))  # + " => " + str(obj))
 
                     inserted = False
                     constant_addr = min_addr == max_addr
@@ -712,13 +646,10 @@ class FullySymbolicMemory(SimStatePlugin):
                         assert addr == min_addr
                         P = self._concrete_memory[min_addr + k]
                         if P is None or condition is None:
-                            if self.verbose: self.log("\tAdding/Updating concrete address...")
                             self._concrete_memory[min_addr + k] = MemoryItem(min_addr + k, obj, self.timestamp,
                                                                              condition)
 
                         else:
-                            if self.verbose: self.log("\tAdding entry to existing concrete address: " + str(
-                                len(P) if type(P) in (list,) else 1))
                             item = MemoryItem(min_addr + k, obj, self.timestamp, condition)
                             if type(P) in (list,):
                                 P = [item] + P
@@ -733,21 +664,16 @@ class FullySymbolicMemory(SimStatePlugin):
                         if condition is None:
 
                             P = self._symbolic_memory.search(min_addr + k, max_addr + k + 1)
-                            if self.verbose: self.log("\tConflicting formulas: " + str(len(P)))
                             for p in P:
                                 if id(p.data.addr) == id(addr + k):  # this check is pretty useless...
-                                    if self.verbose: self.log("\tUpdating node...")
                                     self._symbolic_memory.update_item(p,
                                                                       MemoryItem(addr + k, obj, self.timestamp, None))
                                     inserted = True
                                     break
 
                     if not inserted:
-                        if self.verbose: self.log("\tAdding node...")
                         self._symbolic_memory.add(min_addr + k, max_addr + k + 1,
                                                   MemoryItem(addr + k, obj, self.timestamp, condition))
-
-                if self.verbose: self.log("returning")
 
                 if inspect is True:
                     if self.category == 'reg': self.state._inspect('reg_write', angr.BP_AFTER)
@@ -885,7 +811,6 @@ class FullySymbolicMemory(SimStatePlugin):
     @SimMemory.memo
     def copy(self, _):
 
-        if self.verbose: self.log("Copying memory")
         s = FullySymbolicMemory(memory_backer=self._memory_backer,
                                 permissions_backer=self._permissions_backer,
                                 memory_id=self._id,
@@ -896,7 +821,6 @@ class FullySymbolicMemory(SimStatePlugin):
                                 symbolic_memory=self._symbolic_memory.copy(),
                                 stack_range=self._stack_range,
                                 mapped_regions=self._mapped_regions[:],
-                                verbose=self.verbose,
                                 timestamp=self.timestamp,
                                 initializable=self._initializable.copy(),
                                 initialized=self._initialized,
@@ -912,13 +836,10 @@ class FullySymbolicMemory(SimStatePlugin):
 
     @property
     def mem(self):
-
         # In angr, this returns a reference to the (internal) paged memory
         # We do not have (yet) a paged memory. We instead return self
         # that exposes a _preapproved_stack attribute
         # (similarly as done by a paged memory)
-
-        if self.verbose: self.log("getting reference to paged memory")
         return self
 
     @property
@@ -927,42 +848,17 @@ class FullySymbolicMemory(SimStatePlugin):
 
     @_preapproved_stack.setter
     def _preapproved_stack(self, value):
-        if self.verbose: self.log(
-            "Boundaries on stack have been set by the caller: (" + str(hex(value.start)) + ", " + str(
-                hex(value.end)) + ")")
-
         if self._stack_range is not None:
-            if self.verbose: self.log("\tUnnmapping old stack...")
             for k in range(len(self._mapped_regions)):
                 region = self._mapped_regions[k]
                 if region.addr == self._stack_range.start:
                     del self._mapped_regions[k]
-                    if self.verbose: self.log("\tDone.")
                     break
 
         self._stack_range = value
         self.map_region(value.start, value.end - value.start, MappedRegion.PROT_READ | MappedRegion.PROT_WRITE)
 
-    def log(self, msg, verbose=True):
-        if verbose:
-            print(("[" + self._id + "] " + msg))
-            # l.debug("[" + self._id + "] " + msg)
-
-    def error(self, msg):
-        log.error("[" + self._id + "] " + msg)
-
-    def set_verbose(self, v):
-        self.verbose = v
-
-    def is_verbose(self, v):
-        self.verbose = v
-        if not v:
-            log.setLevel(logging.INFO)
-
     def map_region(self, addr, length, permissions, internal=False):
-
-        if self.verbose: self.log("Required mapping of length " + str(length) + " at " + str(
-            hex(addr if type(addr) == int else addr.args[0])) + ".")
 
         if hasattr(self.state, 'state_couner'):
             self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) + "] " + "Map Region")
@@ -980,8 +876,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         # keep track of this region
         self._mapped_regions.append(MappedRegion(addr, length, permissions))
-
-        if self.verbose: self.log("\t" + str(self._mapped_regions[-1]))
 
         # sort mapped regions
         self._mapped_regions = sorted(self._mapped_regions, key=lambda x: x.addr)
@@ -1107,7 +1001,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         # self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) + "] " + "Merge")
 
-        if self.verbose: self.log("Merging memories of " + str(len(others) + 1) + " states")
         assert len(merge_conditions) == 1 + len(others)
         assert len(others) == 1  # ToDo: add support for merging of multiple memories
 
@@ -1119,14 +1012,11 @@ class FullySymbolicMemory(SimStatePlugin):
 
         return count
 
-    def _merge_concrete_memory(self, other, merge_conditions, verbose=False):
+    def _merge_concrete_memory(self, other, merge_conditions):
 
         # start_time = time.time()
 
         try:
-
-            if self.verbose: self.log("Merging concrete addresses...")
-
             assert self._stack_range == other._stack_range
 
             # assert len(set(self._initializable._keys)) == 0
@@ -1245,10 +1135,7 @@ class FullySymbolicMemory(SimStatePlugin):
             LL.append(l)
         return LL
 
-    def _merge_symbolic_memory(self, other, merge_conditions, ancestor_timestamp, ancestor_timestamp_implicit, verbose=False):
-
-        if self.verbose: self.log("Merging symbolic addresses...")
-
+    def _merge_symbolic_memory(self, other, merge_conditions, ancestor_timestamp, ancestor_timestamp_implicit):
         # assert self.timestamp_implicit == 0
         # assert other.timestamp_implicit == 0
         # assert common_ancestor.timestamp_implicit == 0
