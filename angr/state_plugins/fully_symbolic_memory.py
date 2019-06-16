@@ -11,6 +11,7 @@ import cffi
 import resource
 import pdb
 import time
+import itertools
 
 from ..storage.memory import SimMemory
 
@@ -235,15 +236,6 @@ class FullySymbolicMemory(SimStatePlugin):
                     size -= page_size - page_offset
                     data_offset += page_size - page_offset
                     page_offset = 0
-
-        """
-        # force load initialized bytes at the startup
-        indexes = set(self._initializable._keys)
-        for index in indexes:
-            self._load_init_data(index * 0x1000, 1)
-
-        assert len(self._initializable._keys) == 0
-        """
 
         self._initialized = True
 
@@ -1170,7 +1162,8 @@ class FullySymbolicMemory(SimStatePlugin):
         except Exception as e:
             pdb.set_trace()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1, chunk_size=None):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+             disable_actions=False, inspect=True, chunk_size=None):
         """
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
         value, this search could cause the state to go unsat if no possible matching byte exists.
@@ -1180,7 +1173,9 @@ class FullySymbolicMemory(SimStatePlugin):
         :param max_search:          Search at most this many bytes.
         :param max_symbolic_bytes:  Search through at most this many symbolic bytes.
         :param default:             The default value, if what you're looking for wasn't found.
-        :param chunk_size:          NYI, unused
+        :param step:                The stride that the search should use while scanning memory
+        :param disable_actions:     Whether to inhibit the creation of SimActions for memory access
+        :param inspect:             Whether to trigger SimInspect breakpoints
 
         :returns:                   An expression representing the address of the matching byte.
         """
@@ -1193,11 +1188,12 @@ class FullySymbolicMemory(SimStatePlugin):
             what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
-                           step=step)
+                           step=step, disable_actions=disable_actions, inspect=inspect, chunk_size=chunk_size)
 
         return r,c,m
 
-    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+              disable_actions=False, inspect=True, chunk_size=None):
         # we don't support VSA
         assert self.state.mode != 'static'
 
@@ -1213,13 +1209,23 @@ class FullySymbolicMemory(SimStatePlugin):
         symbolic_what = self.state.se.symbolic(what)
 
         chunk_start = 0
-        chunk_size = max(0x100, seek_size + 0x80)
-        chunk = self.load(start, chunk_size, endness="Iend_BE")
+        if chunk_size is None:
+            chunk_size = max(0x100, seek_size + 0x80)
+
+        chunk = self.load(start, chunk_size, endness="Iend_BE",
+                          disable_actions=disable_actions, inspect=inspect)
 
         cases = [ ]
         match_indices = [ ]
+        byte_width = self.state.arch.byte_width
+        no_singlevalue_opt = options.SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS in self.state.options
+        cond_prefix = [ ]
 
-        import itertools
+        if options.MEMORY_FIND_STRICT_SIZE_LIMIT in self.state.options:
+            cond_falseness_test = self.state.solver.is_false
+        else:
+            cond_falseness_test = lambda cond: cond.is_false()
+
         for i in itertools.count(step=step):
             if i > max_search - seek_size:
                 break
@@ -1228,12 +1234,21 @@ class FullySymbolicMemory(SimStatePlugin):
             if i - chunk_start > chunk_size - seek_size:
                 chunk_start += chunk_size - seek_size + 1
                 chunk = self.load(start+chunk_start, chunk_size,
-                        endness="Iend_BE", ret_on_segv=True)
+                                  endness="Iend_BE", ret_on_segv=True,
+                                  disable_actions=disable_actions, inspect=inspect)
 
             chunk_off = i-chunk_start
-            b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
-            cases.append([b == what, start + i])
-            match_indices.append(i)
+            b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
+            condition = b == what
+            if not cond_falseness_test(condition):
+                if no_singlevalue_opt and cond_prefix:
+                    condition = claripy.And(*(cond_prefix + [condition]))
+                cases.append([condition, claripy.BVV(i, len(start))])
+                match_indices.append(i)
+
+            if b.symbolic and no_singlevalue_opt:
+                # in tracing mode, we need to make sure that all previous bytes are not equal to what
+                cond_prefix.append(b != what)
 
             if not b.symbolic and not symbolic_what and self.state.se.eval(b) == self.state.se.eval(what):
                 break
@@ -1246,7 +1261,7 @@ class FullySymbolicMemory(SimStatePlugin):
             constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
 
         #l.debug("running ite_cases %s, %s", cases, default)
-        r = self.state.se.ite_cases(cases, default)
+        r = self.state.se.ite_cases(cases, default - start) + start
         return r, constraints, match_indices
 
     def __contains__(self, addr):
