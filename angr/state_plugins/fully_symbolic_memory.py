@@ -17,6 +17,7 @@ from ..storage.memory import SimMemory
 # our stuff
 from .history import SimStateHistory
 from .sim_action_object import SimActionObject
+from .plugin import SimStatePlugin
 from . import paged_memory, sorted_collection, unpaged_memory
 from .pitree import pitree
 from .utils import get_obj_byte, reverse_addr_reg, get_unconstrained_bytes, convert_to_ast, \
@@ -175,7 +176,7 @@ class MappedRegion(object):
         return self.permissions.args[0] & MappedRegion.PROT_EXEC
 
 
-class FullySymbolicMemory(SimMemory):
+class FullySymbolicMemory(SimStatePlugin):
     @profile
     def __init__(self, memory_backer=None,
                  permissions_backer=None,
@@ -196,7 +197,7 @@ class FullySymbolicMemory(SimMemory):
                  debug_with_angr=False,
                  profiling=False):
 
-        angr.state_plugins.plugin.SimStatePlugin.__init__(self)
+        SimStatePlugin.__init__(self)
 
         self._memory_backer = memory_backer
         # assert not permissions_backer[0]
