@@ -26,63 +26,6 @@ from .utils import get_obj_byte, reverse_addr_reg, get_unconstrained_bytes, conv
 log = logging.getLogger('memsight')
 log.setLevel(logging.DEBUG)
 
-# profiling vars
-time_profile = {}
-total_time = 0
-last_dump_time = 0
-count_ops = 0
-
-profiling_enabled = False
-
-def update_counter(elapsed, f):
-
-    global profiling_enabled
-    global time_profile
-    global count_ops
-    global total_time
-    global last_dump_time
-
-    if not profiling_enabled: return
-
-    if f not in time_profile:
-        time_profile[f] = [1, elapsed]
-    else:
-        time_profile[f][0] += 1
-        time_profile[f][1] += elapsed
-
-    total_time += elapsed
-    count_ops += 1
-
-    if total_time > 30:
-        #print "Executing " + str(f)
-        pass
-
-    if count_ops > 0 and (count_ops % 10000 == 0 or (total_time - last_dump_time>10)):
-        print_profiling_time_stats()
-        last_dump_time = total_time
-
-def print_profiling_time_stats(depth=None, pg=None):
-    print()
-    print("Profiling stats" + ("at depth=" + str(depth) if depth is not None else "") + ":")
-    print()
-    for ff in time_profile:
-        print("\t" + str(ff) + ": ncall=" + str(time_profile[ff][0]) + " ctime=" + str(time_profile[ff][1]))
-    print()
-    print()
-
-
-def profile(func):
-    def wrap(*args, **kwargs):
-        import time
-        started_at = time.time()
-        result = func(*args, **kwargs)
-        elapsed = time.time() - started_at
-        update_counter(elapsed, func.__name__)
-        return result
-
-    return wrap
-
-
 class MemoryItem(object):
     __slots__ = ('addr', '_obj', 't', 'guard')
 
@@ -177,7 +120,6 @@ class MappedRegion(object):
 
 
 class FullySymbolicMemory(SimStatePlugin):
-    @profile
     def __init__(self, memory_backer=None,
                  permissions_backer=None,
                  memory_id=None,
@@ -194,8 +136,7 @@ class FullySymbolicMemory(SimStatePlugin):
                  initialized=False,
                  timestamp_implicit=0,
                  angr_memory=None,
-                 debug_with_angr=False,
-                 profiling=False):
+                 debug_with_angr=False):
 
         SimStatePlugin.__init__(self)
 
@@ -232,9 +173,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         # required by CGC deallocate()
         self._page_size = self._concrete_memory.PAGE_SIZE
-
-        global profiling_enabled
-        profiling_enabled = profiling
 
         self.angr_memory = angr_memory
         if self.angr_memory is None and debug_with_angr:
@@ -326,7 +264,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         self._initialized = True
 
-    @profile
     def set_state(self, state):
         if self.verbose: self.log("setting current state...")
         self.state = state
@@ -344,7 +281,6 @@ class FullySymbolicMemory(SimStatePlugin):
                                                         angr.concretization_strategies.SimConcretizationStrategyRange(
                                                             1024 * 100))
 
-    @profile
     def _load_init_data(self, addr, size):
 
         page_size = 0x1000
@@ -380,7 +316,6 @@ class FullySymbolicMemory(SimStatePlugin):
         if len(to_remove):
             if self.verbose: self.log("\tRemaining items in initializable: " + str(len(self._initializable)))
 
-    @profile
     def _raw_ast(self, a):
         if type(a) is angr.state_plugins.sim_action_object.SimActionObject:
             return a.ast
@@ -391,7 +326,6 @@ class FullySymbolicMemory(SimStatePlugin):
         else:
             return a
 
-    @profile
     def memory_op(self, addr, size, data=None, op=None):
 
         addr = self._raw_ast(addr)
@@ -453,7 +387,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         return addr, size, reg_name
 
-    @profile
     def build_ite(self, addr, cases, v, obj):
 
         assert len(cases) > 0
@@ -467,7 +400,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         return self.state.se.If(cond, v, obj)
 
-    @profile
     def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None,
              inspect=True, disable_actions=False, ret_on_segv=False, internal=False, ignore_endness=False):
 
@@ -641,7 +573,6 @@ class FullySymbolicMemory(SimStatePlugin):
             traceback.print_exc()
             sys.exit(1)
 
-    @profile
     def build_merged_ite(self, addr, P, obj):
 
         #op_start_time = time.time()
@@ -696,7 +627,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         return obj
 
-    @profile
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None,
               inspect=True, priv=None, disable_actions=False, ignore_endness=False, internal=False):
 
@@ -927,7 +857,6 @@ class FullySymbolicMemory(SimStatePlugin):
             traceback.print_exc()
             sys.exit(1)
 
-    @profile
     def same(self, a, b, range_a=None, range_b=None):
 
         # true if the two formulas can cover exactly one address
@@ -944,7 +873,6 @@ class FullySymbolicMemory(SimStatePlugin):
             traceback.print_exc()
             sys.exit(1)
 
-    @profile
     def intersect(self, a, b, range_a=None, range_b=None):
         if id(a) == id(b):
             return True
@@ -960,7 +888,6 @@ class FullySymbolicMemory(SimStatePlugin):
             traceback.print_exc()
             sys.exit(1)
 
-    @profile
     def disjoint(self, a, b, range_a=None, range_b=None):
         if id(a) == id(b):
             return False
@@ -976,11 +903,6 @@ class FullySymbolicMemory(SimStatePlugin):
             traceback.print_exc()
             sys.exit(1)
 
-    @profile
-    def dump_memory(self):
-        pass
-
-    @profile
     def _resolve_size(self, size, op=None):
 
         if not self.state.se.symbolic(size):
@@ -1032,7 +954,6 @@ class FullySymbolicMemory(SimStatePlugin):
             assert res_angr is None or res_angr == self._id
             return self._id
 
-    @profile
     @SimMemory.memo
     def copy(self, _):
 
@@ -1113,26 +1034,22 @@ class FullySymbolicMemory(SimStatePlugin):
         self._stack_range = value
         self.map_region(value.start, value.end - value.start, MappedRegion.PROT_READ | MappedRegion.PROT_WRITE)
 
-    @profile
     def log(self, msg, verbose=True):
         if verbose:
             print(("[" + self._id + "] " + msg))
             # l.debug("[" + self._id + "] " + msg)
 
-    @profile
     def error(self, msg):
         log.error("[" + self._id + "] " + msg)
 
     def set_verbose(self, v):
         self.verbose = v
 
-    @profile
     def is_verbose(self, v):
         self.verbose = v
         if not v:
             log.setLevel(logging.INFO)
 
-    @profile
     def map_region(self, addr, length, permissions, internal=False):
 
         if self.angr_memory is not None and not internal:
@@ -1163,7 +1080,6 @@ class FullySymbolicMemory(SimStatePlugin):
         # sort mapped regions
         self._mapped_regions = sorted(self._mapped_regions, key=lambda x: x.addr)
 
-    @profile
     def unmap_region(self, addr, length):
 
         if self.state.se.symbolic(addr):
@@ -1186,7 +1102,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         return
 
-    @profile
     def permissions(self, addr):
 
         res_angr = None
@@ -1214,7 +1129,6 @@ class FullySymbolicMemory(SimStatePlugin):
         assert res_angr is None or type(res_angr) in (angr.errors.SimMemoryError,)
         raise angr.errors.SimMemoryError("page does not exist at given address")
 
-    @profile
     def check_sigsegv_and_refine(self, addr, min_addr, max_addr, write_access):
 
         if angr.options.STRICT_PAGE_ACCESS not in self.state.options:
@@ -1286,7 +1200,6 @@ class FullySymbolicMemory(SimStatePlugin):
                 raise e
 
 
-    @profile
     def merge(self, others, merge_conditions, common_ancestor=None):
 
         assert common_ancestor is not None
@@ -1323,7 +1236,6 @@ class FullySymbolicMemory(SimStatePlugin):
         if self.angr_memory is not None:
             self._compare_with_angr(op='merge')
 
-    @profile
     def _merge_concrete_memory(self, other, merge_conditions, verbose=False):
 
         # start_time = time.time()
@@ -1450,7 +1362,6 @@ class FullySymbolicMemory(SimStatePlugin):
             LL.append(l)
         return LL
 
-    @profile
     def _merge_symbolic_memory(self, other, merge_conditions, ancestor_timestamp, ancestor_timestamp_implicit, verbose=False):
 
         if self.verbose: self.log("Merging symbolic addresses...")

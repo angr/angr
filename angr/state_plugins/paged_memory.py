@@ -1,19 +1,5 @@
 import bisect
 
-import sys, os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
-
-def profile(func):
-    def wrap(*args, **kwargs):
-        import time
-        started_at = time.time()
-        result = func(*args, **kwargs)
-        elapsed = time.time() - started_at
-        # memory.range_fully_symbolic_memory.update_counter(elapsed, "paged_memory." + func.__name__)
-        return result
-
-    return wrap
-
 class PagedMemory(object):
 
     PAGE_SIZE = 0x1000
@@ -32,7 +18,6 @@ class PagedMemory(object):
         offset = addr % self.PAGE_SIZE
         return index, offset
 
-    @profile
     def __getitem__(self, addr):
 
         #self._check_access(addr, self.ACCESS_READ)
@@ -49,7 +34,6 @@ class PagedMemory(object):
 
         return page[offset]
 
-    @profile
     def __setitem__(self, addr, value):
 
         #self._check_access(addr, self.ACCESS_WRITE)
@@ -72,14 +56,12 @@ class PagedMemory(object):
 
         page[offset] = value
 
-    @profile
     def __len__(self):
         count = 0
         for p in self._pages:
             count += len(self._pages[p])
         return count
 
-    @profile
     def find(self, start, end, result_is_flat_list=False):
 
         """
