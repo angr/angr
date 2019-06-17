@@ -249,7 +249,6 @@ class FullySymbolicMemory(SimStatePlugin):
         page_size = 0x1000
         page_index = int(addr / page_size)
         page_end = int((addr + size) / page_size)
-        k = self._initializable.bisect_key_left(page_index)
 
         to_remove = []
         for k in range(self._initializable.bisect_key_left(page_index), self._initializable.bisect_key_right(page_end)):
