@@ -252,15 +252,16 @@ class FullySymbolicMemory(SimStatePlugin):
 
         to_remove = []
         for k in range(self._initializable.bisect_key_left(page_index), self._initializable.bisect_key_right(page_end)):
-            data = self._initializable[k]  # [page_index, data, data_offset, page_offset, min(size, page_size]
-            page = self._concrete_memory._pages[data[0]] if data[0] in self._concrete_memory._pages else None
-            for j in range(data[4]):
-                if page is not None and data[3] + j in page:
+            # [page_index, data, data_offset, page_offset, min(size, page_size)]
+            page_index, data, data_offset, page_offset, page_size = self._initializable[k]
+            page = self._concrete_memory._pages[page_index] if page_index in self._concrete_memory._pages else None
+            for j in range(page_size):
+                if page is not None and page_offset + j in page:
                     continue
-                e = (data[0] * 0x1000) + data[3] + j
-                v = [data[1], data[2] + j]
+                e = (page_index * 0x1000) + page_offset + j
+                v = [data, data_offset + j]
                 self._concrete_memory[e] = MemoryItem(e, v, 0, None)
-            to_remove.append(data)
+            to_remove.append(self._initializable[k])
 
         for e in to_remove:
             self._initializable.remove(e)
@@ -965,21 +966,19 @@ class FullySymbolicMemory(SimStatePlugin):
 
         try:
             assert self._stack_range == other._stack_range
+            keys = lambda s: set(map(s.key, s))
 
-            def get_set_keys(_initializable):
-                return set(map(_initializable.key, _initializable))
-
-            missing_self = get_set_keys(self._initializable) - get_set_keys(other._initializable)
+            missing_self = keys(self._initializable) - keys(other._initializable)
             for index in missing_self:
                 self._load_init_data(index * 0x1000, 1)
 
-            assert len(get_set_keys(self._initializable) - get_set_keys(other._initializable)) == 0
+            assert len(keys(self._initializable) - keys(other._initializable)) == 0
 
-            missing_other = get_set_keys(other._initializable) - get_set_keys(self._initializable)
+            missing_other = keys(other._initializable) - keys(self._initializable)
             for index in missing_other:
                 other._load_init_data(index * 0x1000, 1)
 
-            assert len(get_set_keys(other._initializable) - get_set_keys(self._initializable)) == 0
+            assert len(keys(other._initializable) - keys(self._initializable)) == 0
 
             count = 0
 
