@@ -1,6 +1,4 @@
 import angr
-import sys
-
 import claripy
 
 
@@ -27,20 +25,6 @@ def get_obj_byte(obj, offset):
     right = left - 8 + 1
     return obj[left:right]
 
-def get_obj_bytes(obj, offset, size):
-
-    # full obj is needed
-    if offset == 0 and size * 8 == len(obj):
-        return obj, size, size
-
-    size = min(size, (len(obj) / 8) - offset)
-
-    # slice the object... very slow :/
-    left = len(obj) - (offset * 8) - 1
-    right = left - (size * 8) + 1
-    return obj[left:right], size, size
-
-
 def convert_to_ast(state, data_e, size_e=None):
     """
     Make an AST out of concrete @data_e
@@ -55,16 +39,3 @@ def convert_to_ast(state, data_e, size_e=None):
         data_e = data_e.to_bv()
 
     return data_e
-
-def reverse_addr_reg(memory, addr):
-
-    assert memory.category == 'reg'
-    assert type(addr) == int
-
-    for name, offset_size in memory.state.arch.registers.items():
-        offset = offset_size[0]
-        size = offset_size[1]
-        if addr in range(offset, offset + size):
-            return name
-
-    assert False
