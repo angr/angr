@@ -8,7 +8,7 @@ import nose.tools
 import angr
 from angr.analyses.cdg import TemporaryNode
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 def test_graph_0():

@@ -9,7 +9,7 @@ import logging
 l = logging.getLogger("angr_tests")
 
 import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 addresses_fauxware = {
     'armel': 0x8524,

@@ -9,7 +9,7 @@ import shutil
 import angr
 
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 # Note: Reassembler is intensively tested by Patcherex test cases on CGC binaries.
 

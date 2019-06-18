@@ -6,7 +6,7 @@ from angr import options as so
 from nose.plugins.attrib import attr
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 
 

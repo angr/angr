@@ -11,7 +11,7 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootMethodDescr
                                 SootArgument, SootAddressTerminator)
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
-test_location = str(os.path.join(file_dir, "..", "..", "binaries", "tests", "java"))
+test_location = os.path.join(file_dir, "..", "..", "binaries", "tests", "java")
 
 
 

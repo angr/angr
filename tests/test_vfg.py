@@ -10,7 +10,7 @@ import claripy
 
 l = logging.getLogger("angr_tests")
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 vfg_buffer_overflow_addresses = {
     'x86_64': 0x40055c

@@ -5,7 +5,7 @@ import angr
 import logging
 
 l = logging.getLogger('angr.tests.scanf')
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 
 class Checker(object):
     def __init__(self, check_func, length=None, base=10, dummy=False):

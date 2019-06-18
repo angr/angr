@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger('angr_tests.dataflowgraph')
 
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 
 def test_sprintf():
     p = angr.Project(os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sprintf_test"))

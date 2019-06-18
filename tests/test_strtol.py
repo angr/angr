@@ -7,7 +7,7 @@ import logging
 l = logging.getLogger('angr.tests.strtol')
 
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 
 
 def run_strtol(threads):

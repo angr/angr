@@ -4,7 +4,7 @@ import nose
 
 import angr
 
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 find = {
     'veritesting_a': {

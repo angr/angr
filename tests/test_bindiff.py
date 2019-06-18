@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr.tests.test_bindiff")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 # todo make a better test
 def test_bindiff_x86_64():

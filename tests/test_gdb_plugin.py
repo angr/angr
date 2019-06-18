@@ -5,7 +5,7 @@ import angr
 
 l = logging.getLogger("angr_tests")
 
-this_file = str(os.path.dirname(os.path.realpath(__file__)))
+this_file = os.path.dirname(os.path.realpath(__file__))
 test_location = os.path.join(this_file, '..', '..', 'binaries', 'tests')
 data_location = os.path.join(this_file, '..', '..', 'binaries', 'tests_data', 'test_gdb_plugin')
 

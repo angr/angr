@@ -10,7 +10,7 @@ from angr.utils.constants import DEFAULT_STATEMENT
 
 # Load the tests
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 def test_find_exits():

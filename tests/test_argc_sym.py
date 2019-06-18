@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr_tests")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def _verify_results(pg, sargc, length=400):
     argcs = pg.mp_found.solver.eval(sargc)

@@ -10,10 +10,10 @@ import angr
 l = logging.getLogger('test_reachingdefinitions')
 
 
-TESTS_LOCATION = str(os.path.join(
+TESTS_LOCATION = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
     '..', '..', 'binaries', 'tests'
-))
+)
 
 
 def run_reaching_definition_analysis(project, func, result_path):

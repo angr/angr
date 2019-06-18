@@ -2,7 +2,7 @@ import os
 
 import angr
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 def _ultra_oppologist(p, s):
     old_ops = dict(angr.engines.vex.irop.operations)
