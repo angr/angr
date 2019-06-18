@@ -151,6 +151,12 @@ bitwise_operation_map = {
     'And': '__and__',
     'Not': '__invert__',
 }
+
+operation_map = {}
+operation_map.update(arithmetic_operation_map)
+operation_map.update(shift_operation_map)
+operation_map.update(bitwise_operation_map)
+
 rm_map = {
     0: claripy.fp.RM.RM_NearestTiesEven,
     1: claripy.fp.RM.RM_TowardsNegativeInf,
@@ -400,12 +406,8 @@ class SimIROp:
         else:
             sized_args = args
 
-        if self._generic_name in bitwise_operation_map:
-            o = bitwise_operation_map[self._generic_name]
-        elif self._generic_name in arithmetic_operation_map:
-            o = arithmetic_operation_map[self._generic_name]
-        elif self._generic_name in shift_operation_map:
-            o = shift_operation_map[self._generic_name]
+        if self._generic_name in operation_map:  # bitwise/arithmetic/shift operations
+            o = operation_map[self._generic_name]
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
