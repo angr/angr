@@ -5,12 +5,12 @@ from .errors import SimStateOptionsError
 _NO_DEFAULT_VALUE = "_NO_DEFAULT_VALUE"  # please god don't use this value as the default value of your state option
 
 
-class StateOption(object):
+class StateOption:
     """
     Describes a state option.
     """
 
-    __slots__ = [ 'name', 'types', 'default', 'description', '_one_type' ]
+    __slots__ = ('name', 'types', 'default', 'description', '_one_type', )
 
     def __init__(self, name, types, default=_NO_DEFAULT_VALUE, description=None):
         self.name = name
@@ -71,11 +71,13 @@ class StateOption(object):
         self.description = state["description"]
 
 
-class SimStateOptions(object):
+class SimStateOptions:
     """
     A per-state manager of state options. An option can be either a key-valued entry or a Boolean switch (which can be
     seen as a key-valued entry whose value can only be either True or False).
     """
+
+    __slots__ = ('_options', )
 
     OPTIONS = { }
 
@@ -140,10 +142,10 @@ class SimStateOptions(object):
         :rtype:         bool
         """
 
-        o = self._get_option_desc(key)
+        # o = self._get_option_desc(key)
 
-        if o.one_type() is not bool:
-            raise SimStateOptionsError("The state option '%s' is not a Boolean switch." % key)
+        # if o.one_type() is not bool:
+        #     raise SimStateOptionsError("The state option '%s' is not a Boolean switch." % key)
 
         return key in self._options and self._options[key] is True
 
