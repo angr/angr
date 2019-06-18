@@ -13,7 +13,6 @@ import pdb
 import time
 import itertools
 import sortedcontainers
-import operator
 
 from ..storage.memory import SimMemory
 
@@ -163,8 +162,7 @@ class FullySymbolicMemory(SimStatePlugin):
         # mapped regions
         self._mapped_regions = mapped_regions
 
-        self._initializable = initializable if initializable is not None else sortedcontainers.SortedList(
-            key=operator.itemgetter(0))
+        self._initializable = initializable if initializable is not None else sortedcontainers.SortedDict()
         self._initialized = initialized
 
         # required by CGC deallocate()
@@ -232,8 +230,9 @@ class FullySymbolicMemory(SimStatePlugin):
 
                 while size > 0:
                     max_bytes_in_page = page_index * 0x1000 + 0x1000 - addr
-                    mo = [page_index, obj, data_offset, page_offset, min([size, page_size, max_bytes_in_page])]
-                    self._initializable.add(mo)
+                    mo = [obj, data_offset, page_offset, min([size, page_size, max_bytes_in_page])]
+                    assert page_index not in self._initializable
+                    self._initializable[page_index] = mo
                     page_index += 1
                     size -= page_size - page_offset
                     data_offset += page_size - page_offset
@@ -251,19 +250,20 @@ class FullySymbolicMemory(SimStatePlugin):
         page_end = int((addr + size) / page_size)
 
         to_remove = []
-        for k in range(self._initializable.bisect_key_left(page_index), self._initializable.bisect_key_right(page_end)):
-            data = self._initializable[k]  # [page_index, data, data_offset, page_offset, min(size, page_size]
-            page = self._concrete_memory._pages[data[0]] if data[0] in self._concrete_memory._pages else None
-            for j in range(data[4]):
-                if page is not None and data[3] + j in page:
+        initializable_items = self._initializable.items()
+        for k in range(self._initializable.bisect_left(page_index), self._initializable.bisect_right(page_end)):
+            page_index, (data, data_offset, page_offset, page_size) = initializable_items[k]  # page_index, [data, data_offset, page_offset, min(size, page_size)]
+            page = self._concrete_memory._pages[page_index] if page_index in self._concrete_memory._pages else None
+            for j in range(page_size):
+                if page is not None and page_offset + j in page:
                     continue
-                e = (data[0] * 0x1000) + data[3] + j
-                v = [data[1], data[2] + j]
+                e = (page_index * 0x1000) + page_offset + j
+                v = [data, data_offset + j]
                 self._concrete_memory[e] = MemoryItem(e, v, 0, None)
-            to_remove.append(data)
+            to_remove.append(page_index)
 
         for e in to_remove:
-            self._initializable.remove(e)
+            del self._initializable[e]
 
     def _raw_ast(self, a):
         if type(a) is angr.state_plugins.sim_action_object.SimActionObject:
@@ -966,20 +966,17 @@ class FullySymbolicMemory(SimStatePlugin):
         try:
             assert self._stack_range == other._stack_range
 
-            def get_set_keys(_initializable):
-                return set(map(_initializable.key, _initializable))
-
-            missing_self = get_set_keys(self._initializable) - get_set_keys(other._initializable)
+            missing_self = set(self._initializable.keys()) - set(other._initializable.keys())
             for index in missing_self:
                 self._load_init_data(index * 0x1000, 1)
 
-            assert len(get_set_keys(self._initializable) - get_set_keys(other._initializable)) == 0
+            assert len(set(self._initializable.keys()) - set(other._initializable.keys())) == 0
 
-            missing_other = get_set_keys(other._initializable) - get_set_keys(self._initializable)
+            missing_other = set(other._initializable.keys()) - set(self._initializable.keys())
             for index in missing_other:
                 other._load_init_data(index * 0x1000, 1)
 
-            assert len(get_set_keys(other._initializable) - get_set_keys(self._initializable)) == 0
+            assert len(set(other._initializable.keys()) - set(self._initializable.keys())) == 0
 
             count = 0
 
