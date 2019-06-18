@@ -8,7 +8,7 @@ l = logging.getLogger('angr.tests.test_multi_open_file')
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def test_multi_open_file():
-    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/test_multi_open_file")
+    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "test_multi_open_file")
     b = angr.Project(test_bin)
 
     pg = b.factory.simulation_manager()

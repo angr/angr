@@ -17,7 +17,7 @@ def test_graph_0():
     # etc.
 
     # Create a project with a random binary - it will not be used anyways
-    p = angr.Project(test_location + "/x86_64/datadep_test",
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'datadep_test'),
                      load_options={'auto_load_libs': False},
                      use_sim_procedures=True)
 

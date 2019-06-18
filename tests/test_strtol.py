@@ -14,7 +14,7 @@ def run_strtol(threads):
     if not sys.platform.startswith('linux'):
         raise nose.SkipTest()
 
-    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test")
+    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "strtol_test")
     b = angr.Project(test_bin)
 
     initial_state = b.factory.entry_state(remove_options={angr.options.LAZY_SOLVES})

@@ -72,7 +72,7 @@ def test_amd64():
     #l.info("PNG files generated.")
 
 def test_call_to():
-    project = angr.Project(test_location + "/x86_64/fauxware")
+    project = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'))
     project.arch = ArchAMD64()
 
     project.kb.functions._add_call_to(0x400000, 0x400410, 0x400420, 0x400414)

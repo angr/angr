@@ -2,7 +2,7 @@ import angr
 import nose
 import os
 
-test_location = os.path.join(os.path.dirname(__file__), '../../binaries/tests')
+test_location = os.path.join(os.path.dirname(__file__), '..', '..', 'binaries', 'tests')
 
 def run_0div(arch):
     # check that we run in unicorn up to the zero-div site, fall back, try again in angr, and error correctly.

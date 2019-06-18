@@ -60,7 +60,7 @@ class Checker(object):
         return check_passes
 
 def test_scanf():
-    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/scanf_test")
+    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_test")
     b = angr.Project(test_bin)
 
     pg = b.factory.simulation_manager()

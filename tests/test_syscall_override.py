@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr.tests")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
 
 target_addrs = {
     'i386': [ 0x080485C9 ],

@@ -240,7 +240,7 @@ def test_inspect_concretization():
 
 
 def test_inspect_engine_process():
-    p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/fauxware'))
+    p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests', 'x86_64', 'fauxware'))
     constraints = []
     def check_first_symbolic_fork(state):
         succs = state.inspect.sim_successors.successors
