@@ -25,17 +25,31 @@ def get_obj_byte(obj, offset):
     right = left - 8 + 1
     return obj[left:right]
 
-def convert_to_ast(state, data_e, size_e=None):
-    """
-    Make an AST out of concrete @data_e
-    """
-    if type(data_e) is str:
-        # Convert the string into a BVV, *regardless of endness*
-        bits = len(data_e) * 8
-        data_e = state.se.BVV(data_e, bits)
-    elif type(data_e) == int:
-        data_e = state.se.BVV(data_e, size_e*8 if size_e is not None else state.arch.bits)
-    else:
-        data_e = data_e.to_bv()
+def resolve_size_range(memory, size):
+    if not memory.state.solver.symbolic(size):
+        i = memory.state.solver.eval(size)
+        if i > memory._maximum_concrete_size:
+            raise SimMemoryLimitError("Concrete size %d outside of allowable limits" % i)
+        return i, i
 
-    return data_e
+    if options.APPROXIMATE_MEMORY_SIZES in memory.state.options:
+        max_size_approx = memory.state.solver.max_int(size, exact=True)
+        min_size_approx = memory.state.solver.min_int(size, exact=True)
+
+        if max_size_approx < memory._maximum_symbolic_size_approx:
+            return min_size_approx, max_size_approx
+
+    max_size = memory.state.solver.max_int(size)
+    min_size = memory.state.solver.min_int(size)
+
+    if min_size > memory._maximum_symbolic_size:
+        memory.state.history.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
+        if options.BEST_EFFORT_MEMORY_STORING not in memory.state.options:
+            raise SimMemoryLimitError("Symbolic size %d outside of allowable limits" % min_size)
+        else:
+            min_size = memory._maximum_symbolic_size
+
+    return min_size, min(max_size, memory._maximum_symbolic_size)
+
+from .. import sim_options as options
+from ..errors import SimMemoryLimitError

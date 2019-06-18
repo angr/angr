@@ -23,7 +23,7 @@ from .sim_action_object import SimActionObject
 from .plugin import SimStatePlugin
 from . import paged_memory
 from .pitree import pitree
-from .utils import get_obj_byte, get_unconstrained_bytes, convert_to_ast
+from .utils import get_obj_byte, get_unconstrained_bytes, resolve_size_range
 
 log = logging.getLogger('memsight')
 log.setLevel(logging.DEBUG)
@@ -121,13 +121,11 @@ class MappedRegion(object):
         return self.permissions.args[0] & MappedRegion.PROT_EXEC
 
 
-class FullySymbolicMemory(SimStatePlugin):
+class FullySymbolicMemory(SimMemory):
     def __init__(self, memory_backer=None,
                  permissions_backer=None,
-                 memory_id=None,
                  arch=None,
                  endness=None,
-                 check_permissions=None,
                  concrete_memory=None,
                  symbolic_memory=None,
                  stack_range=None,
@@ -137,12 +135,17 @@ class FullySymbolicMemory(SimStatePlugin):
                  initialized=False,
                  timestamp_implicit=0):
 
-        SimStatePlugin.__init__(self)
+        SimMemory.__init__(self,
+                           endness=endness,
+                           abstract_backer=False,
+                           stack_region_map=None,
+                           generic_region_map=None
+                           )
 
         self._memory_backer = memory_backer
         # assert not permissions_backer[0]
         self._permissions_backer = permissions_backer
-        self._id = memory_id
+        self.id = "mem"
         self._arch = arch
         self._endness = "Iend_BE" if endness is None else endness
 
@@ -150,12 +153,6 @@ class FullySymbolicMemory(SimStatePlugin):
 
         self._concrete_memory = paged_memory.PagedMemory(self) if concrete_memory is None else concrete_memory
         self._symbolic_memory = pitree.pitree() if symbolic_memory is None else symbolic_memory
-
-        # some threshold
-        self._maximum_symbolic_size = 8 * 1024
-        self._maximum_concrete_size = 0x1000000
-
-        self._abstract_backer = None
 
         # stack range
         self._stack_range = stack_range
@@ -224,31 +221,29 @@ class FullySymbolicMemory(SimStatePlugin):
 
                 obj = claripy.BVV(bytes(data))
 
-                page_size = 0x1000
-                size = len(obj) // 8
+                size = len(obj) // self.state.arch.byte_width
                 data_offset = 0
-                page_index = int(addr / page_size)
-                page_offset = addr % page_size
+                page_index = int(addr / self._page_size)
+                page_offset = addr % self._page_size
 
                 while size > 0:
                     max_bytes_in_page = page_index * 0x1000 + 0x1000 - addr
-                    mo = [page_index, obj, data_offset, page_offset, min([size, page_size, max_bytes_in_page])]
+                    mo = [page_index, obj, data_offset, page_offset, min([size, self._page_size, max_bytes_in_page])]
                     self._initializable.add(mo)
                     page_index += 1
-                    size -= page_size - page_offset
-                    data_offset += page_size - page_offset
+                    size -= self._page_size - page_offset
+                    data_offset += self._page_size - page_offset
                     page_offset = 0
 
         self._initialized = True
 
     def set_state(self, state):
-        self.state = state
+        super(FullySymbolicMemory, self).set_state(state)
         self._init_memory()
 
     def _load_init_data(self, addr, size):
-        page_size = 0x1000
-        page_index = int(addr / page_size)
-        page_end = int((addr + size) / page_size)
+        page_index = int(addr / self._page_size)
+        page_end = int((addr + size) / self._page_size)
 
         to_remove = []
         for k in range(self._initializable.bisect_key_left(page_index), self._initializable.bisect_key_right(page_end)):
@@ -259,58 +254,13 @@ class FullySymbolicMemory(SimStatePlugin):
                 if page is not None and page_offset + j in page:
                     continue
                 e = (page_index * 0x1000) + page_offset + j
+                # MemoryItem lazily slices [data, idx] for perf
                 v = [data, data_offset + j]
                 self._concrete_memory[e] = MemoryItem(e, v, 0, None)
             to_remove.append(self._initializable[k])
 
         for e in to_remove:
             self._initializable.remove(e)
-
-    def _raw_ast(self, a):
-        if type(a) is angr.state_plugins.sim_action_object.SimActionObject:
-            return a.ast
-        elif type(a) is dict:
-            return {k: self._raw_ast(a[k]) for k in a}
-        elif type(a) in (tuple, list, set, frozenset):
-            return type(a)((self._raw_ast(b) for b in a))
-        else:
-            return a
-
-    def memory_op(self, addr, size, data=None, op=None):
-
-        addr = self._raw_ast(addr)
-        size = self._raw_ast(size)
-        data = self._raw_ast(data)
-
-        if op == 'store':
-            data = self._convert_to_ast(data, size if isinstance(size, int) else None)
-
-        # if this is a store then size can be derived from data that needs to be stored
-        if size is None and type(data) in (claripy.ast.bv.BV, claripy.ast.fp.FP):
-            size = len(data) // 8
-
-        # convert size to BVV if concrete
-        if type(size) == int:
-            size = self.state.se.BVV(size, self.state.arch.bits)
-
-        if op == 'load' and size is None:
-            size = self.state.arch.bits // 8
-
-        # make size concrete
-        if size is not None:
-            _, _, size = self._resolve_size(size, op)
-
-        # if addr is constant, make it concrete
-        if type(addr) in (claripy.ast.bv.BV,) and not addr.symbolic:
-            addr = addr.args[0]
-
-        if size is None:
-            # print "Size is None. type(data): " + str(type(data))
-            # pdb.set_trace()
-            pass
-
-        assert size is not None
-        return addr, size
 
     def build_ite(self, addr, cases, v, obj):
 
@@ -325,128 +275,69 @@ class FullySymbolicMemory(SimStatePlugin):
 
         return self.state.se.If(cond, v, obj)
 
-    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None,
-             inspect=True, disable_actions=False, ret_on_segv=False, internal=False, ignore_endness=False):
-        assert add_constraints is None
+    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
+        if self.state.solver.symbolic(size):
+            log.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
-        # self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) +"] " + "Loading " + str(size) + " bytes at " + str(addr))
+        # for now, we always load the maximum size
+        _,max_size = resolve_size_range(self, size)
+        if self.state.solver.symbolic(size):
+            self.state.add_constraints(size == max_size, action=True)
 
-        try:
-            assert self._id == 'mem'
+        # convert size to an int
+        size = self.state.solver.eval(size)
 
-            if condition is not None and self.state.se.is_false(condition):
-                return
+        if max_size == 0:
+            self.state.history.add_event('memory_limit', message="0-length read")
 
-            addr, size = self.memory_op(addr, size, op='load')
+        # concrete address
+        if not self.state.se.symbolic(addr):
+            addr = self.state.se.eval(addr)
+            min_addr = addr
+            max_addr = addr
 
-            if inspect is True:
-                if self.category == 'mem':
-                    self.state._inspect('mem_read', angr.BP_BEFORE, mem_read_address=addr, mem_read_length=size)
-                    addr = self.state._inspect_getattr("mem_read_address", addr)
-                    size = self.state._inspect_getattr("mem_read_length", size)
+        # symbolic addr
+        else:
+            min_addr = self.state.se.min_int(addr)
+            max_addr = self.state.se.max_int(addr)
+            if min_addr == max_addr:
+                addr = min_addr
 
-            try:
-                assert not self.state.se.symbolic(size)
-            except Exception as e:
-                import pdb
-                pdb.set_trace()
+        # check permissions
+        self.check_sigsegv_and_refine(addr, min_addr, max_addr, False)
 
-            if type(size) == int:
+        # check if binary data should be loaded into address space
+        self._load_init_data(min_addr, (max_addr - min_addr) + size)
 
-                # concrete address
-                if type(addr) == int:
-                    min_addr = addr
-                    max_addr = addr
+        read_value = None
+        for k in range(size):
+            P = self._concrete_memory.find(min_addr + k, max_addr + k, True)
 
-                # symbolic addr
-                else:
-                    min_addr = self.state.se.min_int(addr)
-                    max_addr = self.state.se.max_int(addr)
-                    if min_addr == max_addr:
-                        addr = min_addr
+            P += [x.data for x in self._symbolic_memory.search(min_addr + k, max_addr + k + 1)]
+            P = sorted(P, key=lambda x: (x.t, (x.addr if type(x.addr) == int else 0)))
 
-                # check permissions
-                self.check_sigsegv_and_refine(addr, min_addr, max_addr, False)
+            if min_addr == max_addr and len(P) == 1 and type(P[0].addr) == int and P[0].guard is None:
+                obj = P[0].obj
+            else:
+                name = "%s_%x" % (self.id, min_addr + k)
+                obj = get_unconstrained_bytes(self.state, name, self.state.arch.byte_width, memory=self)
 
-                # check if binary data should be loaded into address space
-                self._load_init_data(min_addr, (max_addr - min_addr) + size)
+                if angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
+                    # implicit store...
+                    self.implicit_timestamp -= 1
+                    self._symbolic_memory.add(min_addr + k, max_addr + k + 1,
+                                              MemoryItem(addr + k, obj, self.implicit_timestamp, None))
+                obj = self.build_merged_ite(addr + k, P, obj)
 
-                data = None
-                for k in range(size):
-                    P = self._concrete_memory.find(min_addr + k, max_addr + k, True)
+            # concat single-byte objs
+            read_value = self.state.se.Concat(read_value, obj) if read_value is not None else obj
 
-                    P += [x.data for x in self._symbolic_memory.search(min_addr + k, max_addr + k + 1)]
-                    P = sorted(P, key=lambda x: (x.t, (x.addr if type(x.addr) == int else 0)))
+        if condition is not None:
+            read_value = self.state.se.If(condition, read_value, fallback)
 
-                    if min_addr == max_addr and len(P) == 1 and type(P[0].addr) == int and P[0].guard is None:
-                        obj = P[0].obj
-
-                    else:
-
-                        name = "%s_%x" % (self.id, min_addr + k)
-                        obj = get_unconstrained_bytes(self.state, name, 8, memory=self)
-
-                        if (self.category == 'mem' and
-                                    angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options):
-                            # implicit store...
-                            self.implicit_timestamp -= 1
-                            self._symbolic_memory.add(min_addr + k, max_addr + k + 1,
-                                                      MemoryItem(addr + k, obj, self.implicit_timestamp, None))
-                        obj = self.build_merged_ite(addr + k, P, obj)
-
-                    # concat single-byte objs
-                    data = self.state.se.Concat(data, obj) if data is not None else obj
-
-                if condition is not None:
-                    assert fallback is not None
-                    condition = self._raw_ast(condition)
-                    fallback = self._raw_ast(fallback)
-                    data = self.state.se.If(condition, data, fallback)
-
-                # fix endness
-                endness = self._endness if endness is None else endness
-                if not ignore_endness and endness == "Iend_LE":
-                    data = data.reversed
-
-                if inspect is True:
-                    if self.category == 'mem':
-                        self.state._inspect('mem_read', angr.BP_AFTER, mem_read_expr=data)
-                        data = self.state._inspect_getattr("mem_read_expr", data)
-
-                if not disable_actions:
-                    if angr.options.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
-                        ref_size = size * self.state.arch.byte_width if size is not None else data.size()
-                        region_type = self.category
-                        if region_type == 'file':
-                            # Special handling for files to keep compatibility
-                            # We may use some refactoring later
-                            region_type = self.id
-                        action = angr.state_plugins.SimActionData(self.state, region_type,
-                                                                  'write', addr=addr, data=data,
-                                                                    size=ref_size,
-                                                                    condition=condition)
-                        self.state.history.add_action(action)
-
-                    if action is not None:
-                        action.actual_addrs = addr
-                        action.actual_value = action._make_object(data)  # TODO
-                        #if len(request.constraints) > 0:
-                        #    action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
-                        #else:
-                        action.added_constraints = action._make_object(self.state.se.true)
-                return data
-
-            assert False
-
-        except Exception as e:
-
-            if type(e) in (angr.errors.SimSegfaultError,):
-                raise e
-
-            print(str(e))
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
+        addrs = [ addr ] # TODO
+        load_constraint = [ ] # TODO
+        return addrs, read_value, load_constraint
 
     def build_merged_ite(self, addr, P, obj):
 
@@ -496,275 +387,119 @@ class FullySymbolicMemory(SimStatePlugin):
 
         return obj
 
-    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None,
-              inspect=True, priv=None, disable_actions=False, ignore_endness=False, internal=False):
-        if priv is not None: self.state.scratch.push_priv(priv)
-
-        assert add_constraints is None
-        condition = self._raw_ast(condition)
-        condition = self.state._adjust_condition(condition)
-
-        try:
-
-            assert self._id == 'mem'
-
-            addr, size = self.memory_op(addr, size, data, op='store')
-
-            if inspect is True:
-                if self.category == 'mem':
-                    self.state._inspect(
-                        'mem_write',
-                        angr.BP_BEFORE,
-                        mem_write_address=addr,
-                        mem_write_length=size,
-                        mem_write_expr=data,
-                    )
-                    addr = self.state._inspect_getattr('mem_write_address', addr)
-                    size = self.state._inspect_getattr('mem_write_length', size)
-                    data = self.state._inspect_getattr('mem_write_expr', data)
-
-            if condition is not None:
-                if self.state.se.is_true(condition):
-                    condition = None
-                elif self.state.se.is_false(condition):
-                    if priv is not None: self.state.scratch.pop_priv()
-                    print(condition)
-                    print("condition is false... skipping...")
-                    return
-
-            # store with conditional size
-            conditional_size = None
-            if self.state.se.symbolic(size):
-                conditional_size = [self.state.se.min_int(size), self.state.se.max_int(size)]
-                self.state.se.add(self.state.se.ULE(size, conditional_size[1]))
-
-            # convert data to BVV if concrete
-            data = convert_to_ast(self.state, data, size if isinstance(size, int) else None)
-
-            if type(size) == int or conditional_size is not None:
-
-                assert len(data) // 8 == (size if type(size) == int else conditional_size[1])
-
-                # simplify
-                data = self.state.se.simplify(data)
-
-                # fix endness
-                endness = self._endness if endness is None else endness
-                if not ignore_endness and endness == "Iend_LE":
-                    data = data.reversed
-
-                # concrete address
-                if type(addr) == int:
-                    min_addr = addr
-                    max_addr = addr
-
-                # symbolic addr
+    def _store_one_byte(self, obj, addr, k, min_addr, max_addr, condition):
+        if min_addr == max_addr:
+            assert addr == min_addr
+            P = self._concrete_memory[addr + k]
+            if P is None or condition is None:
+                self._concrete_memory[addr + k] = MemoryItem(addr + k, obj, self.timestamp,
+                                                             condition)
+            else:
+                item = MemoryItem(addr + k, obj, self.timestamp, condition)
+                if type(P) in (list,):
+                    P = [item] + P
                 else:
-                    min_addr = self.state.se.min_int(addr)
-                    max_addr = self.state.se.max_int(addr)
-                    if min_addr == max_addr:
-                        addr = min_addr
-
-                # check permissions
-                self.check_sigsegv_and_refine(addr, min_addr, max_addr, True)
-
-                self.timestamp += 1
-
-                initial_condition = condition
-
-                compilation_flag = 0
-
-                for k in range(size if type(size) == int else conditional_size[1]):
-
-                    compilation_flag += 1
-
-                    obj = [data, k]
-                    if type(size) == int and size == 1:
-                        obj = data
-
-                    if conditional_size is not None and k + 1 >= conditional_size[0]:
-                        assert k + 1 <= conditional_size[1]
-                        condition = self.state.se.UGT(size, k) if initial_condition is None else claripy.And(
-                            initial_condition, self.state.se.UGT(size, k + 1))
-
-                    inserted = False
-                    constant_addr = min_addr == max_addr
-
-                    if constant_addr:
-
-                        assert addr == min_addr
-                        P = self._concrete_memory[min_addr + k]
-                        if P is None or condition is None:
-                            self._concrete_memory[min_addr + k] = MemoryItem(min_addr + k, obj, self.timestamp,
-                                                                             condition)
-
-                        else:
-                            item = MemoryItem(min_addr + k, obj, self.timestamp, condition)
-                            if type(P) in (list,):
-                                P = [item] + P
-                            else:
-                                P = [item, P]
-                            self._concrete_memory[min_addr + k] = P
-
-                        inserted = True
-
-                    if not inserted:
-
-                        if condition is None:
-
-                            P = self._symbolic_memory.search(min_addr + k, max_addr + k + 1)
-                            for p in P:
-                                if id(p.data.addr) == id(addr + k):  # this check is pretty useless...
-                                    self._symbolic_memory.update_item(p,
-                                                                      MemoryItem(addr + k, obj, self.timestamp, None))
-                                    inserted = True
-                                    break
-
-                    if not inserted:
-                        self._symbolic_memory.add(min_addr + k, max_addr + k + 1,
-                                                  MemoryItem(addr + k, obj, self.timestamp, condition))
-
-                if inspect is True:
-                    if self.category == 'mem': self.state._inspect('mem_write', angr.BP_AFTER)
-
-                if not disable_actions:
-                    if angr.options.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
-                        ref_size = size * self.state.arch.byte_width if size is not None else data.size()
-                        region_type = self.category
-                        if region_type == 'file':
-                            # Special handling for files to keep compatibility
-                            # We may use some refactoring later
-                            region_type = self.id
-                        action = angr.state_plugins.SimActionData(self.state, region_type, 'write', addr=addr, data=data,
-                                               size=ref_size,
-                                               condition=condition
-                                               )
-                        self.state.history.add_action(action)
-
-                    if action is not None:
-                        action.actual_addrs = addr
-                        action.actual_value = action._make_object(data)  # TODO
-                        #if len(request.constraints) > 0:
-                        #    action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
-                        #else:
-                        action.added_constraints = action._make_object(self.state.se.true)
-
-                if priv is not None: self.state.scratch.pop_priv()
-
-                return
-
-            assert False
-
-        except Exception as e:
-
-            if type(e) in (angr.errors.SimSegfaultError,):
-                raise e
-
-            import traceback
-            print(str(e))
-            traceback.print_exc()
-            sys.exit(1)
-
-    def same(self, a, b, range_a=None, range_b=None):
-
-        # true if the two formulas can cover exactly one address
-        # I don't know if there could be other scenarios where this
-        # can be true...
-
-        if False and id(a) == id(b):
-            return True
-        try:
-            cond = a != b
-            return not self.state.se.satisfiable(extra_constraints=(cond,))
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
-
-    def intersect(self, a, b, range_a=None, range_b=None):
-        if id(a) == id(b):
-            return True
-        assert range_a is not None and range_b is not None
-        if range_a is not None and range_b is not None and (range_a[1] < range_b[0] or range_b[1] < range_a[0]):
-            return False
-
-        try:
-            cond = a == b
-            return self.state.se.satisfiable(extra_constraints=(cond,))
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
-
-    def disjoint(self, a, b, range_a=None, range_b=None):
-        if id(a) == id(b):
-            return False
-        assert range_a is not None and range_b is not None
-        if range_a is not None and range_b is not None and (range_a[1] < range_b[0] or range_b[1] < range_a[0]):
-            return True
-
-        try:
-            cond = a == b
-            return not self.state.se.satisfiable(extra_constraints=(cond,))
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
-
-    def _resolve_size(self, size, op=None):
-
-        if not self.state.se.symbolic(size):
-            concrete_size = self.state.se.eval(size)
-            if concrete_size > self._maximum_concrete_size:
-                raise angr.SimMemoryLimitError("Concrete size %d outside of allowable limits" % concrete_size)
-            return concrete_size, concrete_size, concrete_size
-
-        max_size = self.state.se.max_int(size)
-        min_size = self.state.se.min_int(size)
-
-        if min_size != max_size:
-            if op == 'load':  # we do not support, similarly to angr, symbolic size yet...
-                log.warning("Concretizing symbolic length. Much sad; think about implementing.")
-                self.state.add_constraints(size == max_size, action=True)
-                size = max_size
+                    P = [item, P]
+                self._concrete_memory[addr + k] = P
         else:
-            size = min_size
+            # TODO: as in the paper, we should scan all memory objects that
+            # overlap with ours, and remove any which are equivalent
+            self._symbolic_memory.add(min_addr + k, max_addr + k + 1,
+                                      MemoryItem(addr + k, obj, self.timestamp, condition))
 
-        if min_size > self._maximum_symbolic_size or max_size > self._maximum_symbolic_size:
-            assert False  # ToDo
-
-        return min_size, max_size, size
-
-    def _convert_to_ast(self, data_e, size_e=None):
-        """
-        Make an AST out of concrete @data_e
-        """
-        if type(data_e) is str:
-            # Convert the string into a BVV, *regardless of endness*
-            bits = len(data_e) * 8
-            data_e = self.state.se.BVV(data_e, bits)
-        elif type(data_e) == int:
-            data_e = self.state.se.BVV(data_e, size_e * 8 if size_e is not None
-            else self.state.arch.bits)
+    def _store_concrete_size(self, size, condition, data, addr, min_addr, max_addr):
+        # fastpath
+        # size is not symbolic so we don't have to chop data; MemoryItem lazily slices [data, k]
+        for k in range(size):
+            self._store_one_byte([data, k], addr, k, min_addr, max_addr, condition)
+        if condition is None:
+            return [ data ]
         else:
-            data_e = data_e.to_bv()
+            return [ self.state.solver.If(condition, data, self.load(addr, size)) ]
 
-        return data_e
+    def _store_symbolic_size(self, size, condition, data, addr, min_addr, max_addr, min_size, max_size):
+        # slowpath
+        # size is symbolic and we need to data.chop() (slow)
+        initial_condition = condition
+        stored_values = [ ]
+        for k, obj, old in zip(
+            range(max_size),
+            data.chop(self.state.arch.byte_width),
+            self.load(addr, size=max_size).chop(self.state.arch.byte_width) # previous memory
+        ):
+            condition = initial_condition
+            if k + 1 >= min_size:
+                assert k + 1 <= max_size
+                condition = self.state.solver.UGT(size, k) if initial_condition is None else claripy.And(
+                    initial_condition, self.state.solver.UGT(size, k + 1))
+            self._store_one_byte(obj, addr, k, min_addr, max_addr, condition)
+            if condition is None:
+                stored_values.append(obj)
+            else:
+                stored_values.append(self.state.solver.If(condition, obj, old))
+        return stored_values
 
-    @property
-    def category(self):
-        assert self._id == 'mem'
-        return self._id
+    def _store(self, req):
+        req._adjust_condition(self.state)
+
+        size = req.size
+        if size is None:
+            size = req.data.length//self.state.arch.byte_width
+
+        # store with conditional size
+        conditional_size = None
+        if self.state.solver.symbolic(size):
+            conditional_size = [ self.state.solver.min_int(size), self.state.solver.max_int(size) ]
+            self.state.solver.add(self.state.solver.ULE(size, conditional_size[1]))
+
+        # simplify
+        data = req.data
+        if options.SIMPLIFY_MEMORY_WRITES in self.state.options:
+            data = self.state.se.simplify(data)
+
+        # fix endness
+        endness = self._endness if req.endness is None else req.endness
+        if endness == "Iend_LE":
+            data = data.reversed
+
+        # concrete address
+        if not self.state.solver.symbolic(req.addr):
+            addr = self.state.se.eval(req.addr)
+            min_addr = addr
+            max_addr = addr
+
+        # symbolic addr
+        else:
+            min_addr = self.state.se.min_int(req.addr)
+            max_addr = self.state.se.max_int(req.addr)
+            if min_addr == max_addr:
+                addr = min_addr
+            else:
+                addr = req.addr
+
+        # check permissions
+        self.check_sigsegv_and_refine(addr, min_addr, max_addr, True)
+
+        # perform the store
+        self.timestamp += 1
+        if conditional_size is None:
+            size = self.state.solver.eval(size)
+            req.stored_values = self._store_concrete_size(size, req.condition, data, addr, min_addr, max_addr)
+        else:
+            req.stored_values = self._store_symbolic_size(size, req.condition, data, addr, min_addr, max_addr,
+                                                          conditional_size[0], conditional_size[1])
+
+        req.completed = True
+        req.actual_addrs = [ addr ] # TODO
+        return req
 
     @SimMemory.memo
     def copy(self, _):
 
         s = FullySymbolicMemory(memory_backer=self._memory_backer,
                                 permissions_backer=self._permissions_backer,
-                                memory_id=self._id,
                                 arch=self._arch,
                                 endness=self._endness,
-                                check_permissions=None,
                                 concrete_memory=self._concrete_memory,  # we do it properly below...
                                 symbolic_memory=self._symbolic_memory.copy(),
                                 stack_range=self._stack_range,
@@ -777,10 +512,6 @@ class FullySymbolicMemory(SimStatePlugin):
         s._concrete_memory = self._concrete_memory.copy(s)
 
         return s
-
-    @property
-    def id(self):
-        return self._id
 
     @property
     def mem(self):
@@ -831,7 +562,7 @@ class FullySymbolicMemory(SimStatePlugin):
     def unmap_region(self, addr, length):
 
         if self.state.se.symbolic(addr):
-            raise angr.SimMemoryError("cannot unmap region with a symbolic address")
+            raise SimMemoryError("cannot unmap region with a symbolic address")
 
         if isinstance(addr, claripy.ast.bv.BV):
             addr = self.state.se.max_int(addr)
@@ -1127,65 +858,6 @@ class FullySymbolicMemory(SimStatePlugin):
         except Exception as e:
             pdb.set_trace()
 
-    def _compare_bytes(self, b1, b2):
-
-        try:
-            """
-            print "Comparing: "
-            print str(b1)
-            print str(b2)
-            """
-
-            if id(b1) == id(b2):
-                return True, b1, b2
-
-            if b1.op == 'BVV' and b2.op == 'BVV':
-                return b1.args[0] == b2.args[0], b1, b2
-
-            if self.same(b1, b2):
-                return True, b1, b2
-
-            print("Comparing using models: ")
-            print("\t" + str(b1))
-            print("\t" + str(b2))
-
-            b1 = sorted(self.state.se.eval_upto(b1, 260))
-            b2 = sorted(self.state.se.eval_upto(b2, 260))
-            return b1 == b2, b1, b2
-
-        except Exception as e:
-            pdb.set_trace()
-
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
-             disable_actions=False, inspect=True, chunk_size=None):
-        """
-        Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
-        value, this search could cause the state to go unsat if no possible matching byte exists.
-
-        :param addr:               The start address.
-        :param what:                What to search for;
-        :param max_search:          Search at most this many bytes.
-        :param max_symbolic_bytes:  Search through at most this many symbolic bytes.
-        :param default:             The default value, if what you're looking for wasn't found.
-        :param step:                The stride that the search should use while scanning memory
-        :param disable_actions:     Whether to inhibit the creation of SimActions for memory access
-        :param inspect:             Whether to trigger SimInspect breakpoints
-
-        :returns:                   An expression representing the address of the matching byte.
-        """
-        addr = self._raw_ast(addr)
-        what = self._raw_ast(what)
-        default = self._raw_ast(default)
-
-        if isinstance(what, str):
-            # Convert it to a BVV
-            what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
-
-        r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
-                           step=step, disable_actions=disable_actions, inspect=inspect, chunk_size=chunk_size)
-
-        return r,c,m
-
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
               disable_actions=False, inspect=True, chunk_size=None):
         # we don't support VSA
@@ -1297,3 +969,4 @@ from angr.sim_state import SimState
 SimState.register_default('fully_symbolic_memory', FullySymbolicMemory)
 
 from .. import sim_options as options
+from ..errors import SimMemoryError, SimMemoryLimitError

@@ -12,6 +12,7 @@ from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 from ..sim_state_options import SimStateOptions
 from ..misc.ux import once
+from .utils import resolve_size_range
 
 DEFAULT_MAX_SEARCH = 8
 
@@ -315,35 +316,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.debug("... eq constraints: %s", r == v)
         return v
 
-    #
-    # Address concretization
-    #
-
-    def _resolve_size_range(self, size):
-        if not self.state.solver.symbolic(size):
-            i = self.state.solver.eval(size)
-            if i > self._maximum_concrete_size:
-                raise SimMemoryLimitError("Concrete size %d outside of allowable limits" % i)
-            return i, i
-
-        if options.APPROXIMATE_MEMORY_SIZES in self.state.options:
-            max_size_approx = self.state.solver.max_int(size, exact=True)
-            min_size_approx = self.state.solver.min_int(size, exact=True)
-
-            if max_size_approx < self._maximum_symbolic_size_approx:
-                return min_size_approx, max_size_approx
-
-        max_size = self.state.solver.max_int(size)
-        min_size = self.state.solver.min_int(size)
-
-        if min_size > self._maximum_symbolic_size:
-            self.state.history.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
-            if options.BEST_EFFORT_MEMORY_STORING not in self.state.options:
-                raise SimMemoryLimitError("Symbolic size %d outside of allowable limits" % min_size)
-            else:
-                min_size = self._maximum_symbolic_size
-
-        return min_size, min(max_size, self._maximum_symbolic_size)
 
     #
     # Concretization strategies
@@ -554,7 +526,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
         # for now, we always load the maximum size
-        _,max_size = self._resolve_size_range(size)
+        _,max_size = resolve_size_range(self, size)
         if options.ABSTRACT_MEMORY not in self.state.options and self.state.solver.symbolic(size):
             self.state.add_constraints(size == max_size, action=True)
 
@@ -1166,7 +1138,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         src_memory = self if src_memory is None else src_memory
         dst_memory = self if dst_memory is None else dst_memory
 
-        _,max_size = self._resolve_size_range(size)
+        _,max_size = resolve_size_range(self, size)
         if max_size == 0:
             return None, [ ]
 
