@@ -368,17 +368,19 @@ class SimIROp:
 
     def extend_size(self, o):
         cur_size = o.size()
+        if cur_size == self._output_size_bits:
+            return o
         if cur_size < self._output_size_bits:
             ext_size = self._output_size_bits - cur_size
             if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed is None):
                 return claripy.SignExt(ext_size, o)
             else:
                 return claripy.ZeroExt(ext_size, o)
-        elif cur_size > self._output_size_bits:
-            __import__('ipdb').set_trace()
-            raise SimOperationError('output of %s is too big', self.name)
-        else:
-            return o
+
+        # if cur_size > self._output_size_bits:
+        # breakpoint here. it should never happen!
+        __import__('ipdb').set_trace()
+        raise SimOperationError('output of %s is too big', self.name)
 
     @property
     def is_signed(self):
