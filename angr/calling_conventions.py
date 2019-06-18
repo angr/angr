@@ -854,7 +854,7 @@ class SimCC:
                 val = val.reversed      # pylint: disable=no-member
             return val
 
-        elif isinstance(arg, claripy.ast.Base):
+        elif isinstance(arg, claripy.ast.SimpleBase):
             if check and isinstance(ty, SimTypeReg):
                 arg = arg.reversed
             # yikes

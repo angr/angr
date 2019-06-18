@@ -158,7 +158,7 @@ class SimTypeReg(SimType):
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
 
-        if isinstance(value, claripy.ast.Bits):
+        if isinstance(value, (claripy.ast.BVVFront, claripy.ast.Bits)):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):

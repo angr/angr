@@ -18,7 +18,7 @@ class SimMemoryObject(object):
         if type(obj) is bytes:
             assert byte_width == 8
 
-        elif not isinstance(obj, claripy.ast.Base):
+        elif not isinstance(obj, claripy.ast.SimpleBase):
             raise SimMemoryError('memory can only store claripy Expression')
 
         self.is_bytes = type(obj) == bytes

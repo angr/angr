@@ -633,9 +633,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         cond_prefix = [ ]
 
         if options.MEMORY_FIND_STRICT_SIZE_LIMIT in self.state.options:
+            # will invoke replacements from the replacement frontend
             cond_falseness_test = self.state.solver.is_false
         else:
-            cond_falseness_test = lambda cond: cond.is_false()
+            # will not invoke the replacement frontend
+            cond_falseness_test = lambda cond: cond.is_false
 
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)

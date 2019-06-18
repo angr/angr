@@ -516,7 +516,7 @@ class SimMemory(SimStatePlugin):
 
         if len(data_e) % self.state.arch.byte_width != 0:
             raise SimMemoryError("Attempting to store non-byte data to memory")
-        if not size_e.symbolic and (len(data_e) < size_e*self.state.arch.byte_width).is_true():
+        if not size_e.symbolic and claripy.is_true(len(data_e) < size_e*self.state.arch.byte_width):
             raise SimMemoryError("Provided data is too short for this memory store")
 
         if _inspect:

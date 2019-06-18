@@ -352,7 +352,7 @@ class SimIROp:
                 print("... %s: %s" % (k, v))
 
     def calculate(self, *args):
-        if not all(isinstance(a, claripy.ast.Base) for a in args):
+        if not all(isinstance(a, claripy.ast.SimpleBase) for a in args):
             import ipdb; ipdb.set_trace()
             raise SimOperationError("IROp needs all args as claripy expressions")
 
@@ -373,9 +373,9 @@ class SimIROp:
         if cur_size < self._output_size_bits:
             ext_size = self._output_size_bits - cur_size
             if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed is None):
-                return claripy.SignExt(ext_size, o)
+                return o.sign_extend(ext_size)
             else:
-                return claripy.ZeroExt(ext_size, o)
+                return o.zero_extend(ext_size)
 
         # if cur_size > self._output_size_bits:
         # breakpoint here. it should never happen!
@@ -400,9 +400,9 @@ class SimIROp:
                     sized_args.append(a)
                 elif s < self._from_size:
                     if self.is_signed:
-                        sized_args.append(claripy.SignExt(self._from_size - s, a))
+                        sized_args.append(a.sign_extend(self._from_size - s))
                     else:
-                        sized_args.append(claripy.ZeroExt(self._from_size - s, a))
+                        sized_args.append(a.zero_extend(self._from_size - s))
                 elif s > self._from_size:
                     raise SimOperationError("operation %s received too large an argument" % self.name)
         else:
@@ -413,7 +413,7 @@ class SimIROp:
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        return getattr(claripy.ast.BV, o)(*sized_args)
+        return getattr(sized_args[0], o)(*sized_args[1:])
 
     def _translate_rm(self, rm_num):
         if not rm_num.symbolic:
@@ -466,10 +466,10 @@ class SimIROp:
         return claripy.Extract(self._to_size - 1, 0, args[0])
 
     def _op_sign_extend(self, args):
-        return claripy.SignExt(self._to_size - args[0].size(), args[0])
+        return args[0].sign_extend(self._to_size - args[0].size())
 
     def _op_zero_extend(self, args):
-        return claripy.ZeroExt(self._to_size - args[0].size(), args[0])
+        return args[0].zero_extend(self._to_size - args[0].size())
 
     def vector_args(self, args):
         """
@@ -720,8 +720,8 @@ class SimIROp:
                 claripy.Extract(quotient_size - 1, 0, quotient)
             )
         else:
-            quotient = (args[0] // claripy.ZeroExt(self._from_size - self._to_size, args[1]))
-            remainder = (args[0] % claripy.ZeroExt(self._from_size - self._to_size, args[1]))
+            quotient = args[0] // args[1].zero_extend(self._from_size - self._to_size)
+            remainder = args[0] % args[1].zero_extend(self._from_size - self._to_size)
             quotient_size = self._to_size
             remainder_size = self._to_size
             return claripy.Concat(
