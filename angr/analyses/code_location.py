@@ -1,19 +1,21 @@
 
 class CodeLocation:
     """
-    Stands for a specific program point by specifying basic block address and statement ID (for IRSBs), or SimProcedure
+    Stands for a specific program point by specifying basic block address, block ID and statement ID (for IRSBs), or SimProcedure
     name (for SimProcedures).
     """
 
-    __slots__ = ('block_addr', 'stmt_idx', 'block_id', 'sim_procedure', 'ins_addr', 'info', )
+    __slots__ = ('block_addr', 'stmt_idx', 'block_id', 'left', 'right', 'args', 'sim_procedure', 'ins_addr', 'info', )
 
-    def __init__(self, block_addr, stmt_idx, block_id=None, sim_procedure=None, ins_addr=None, **kwargs):
+    def __init__(self, block_addr, stmt_idx, block_id=None, left=False, right=False, args=None, sim_procedure=None, ins_addr=None, **kwargs):
         ## Added block_id to test in ddg.py
+        ## Added left, right & args
         """
         Constructor.
 
         :param int block_addr:      Address of the block
         :param int stmt_idx:        Statement ID. None for SimProcedures
+        :param str block_id:        The block_id of the corresponding CFG block
         :param class sim_procedure: The corresponding SimProcedure class.
         :param int ins_addr:        The instruction address. Optional.
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
