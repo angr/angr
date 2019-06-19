@@ -273,7 +273,7 @@ class CFGModel(Serializable):
             else:
                 cond = True
             if anyaddr and n.size is not None:
-                cond = cond and n.addr <= addr < n.addr + n.size
+                cond = cond and (addr == n.addr or n.addr <= addr < n.addr + n.size)
             else:
                 cond = cond and (addr == n.addr)
             if cond:
