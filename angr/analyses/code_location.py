@@ -5,9 +5,9 @@ class CodeLocation:
     name (for SimProcedures).
     """
 
-    __slots__ = ('block_addr', 'stmt_idx', 'block_id', 'left', 'right', 'args', 'sim_procedure', 'ins_addr', 'info', )
+    __slots__ = ('block_addr', 'stmt_idx', 'block_id', 'sim_procedure', 'ins_addr', 'info', )
 
-    def __init__(self, block_addr, stmt_idx, block_id=None, left=False, right=False, args=None, sim_procedure=None, ins_addr=None, **kwargs):
+    def __init__(self, block_addr, stmt_idx, block_id=None, sim_procedure=None, ins_addr=None, **kwargs):
         ## Added block_id to test in ddg.py
         ## Added left, right & args
         """
