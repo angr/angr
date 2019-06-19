@@ -1,11 +1,14 @@
 import angr
-import avatar2
 import claripy
 import nose
 import os
 import subprocess
 
-from angr_targets import AvatarGDBConcreteTarget
+try:
+    import avatar2
+    from angr_targets import AvatarGDBConcreteTarget
+except ImportError:
+    raise nose.SkipTest()
 
 binary_x64 = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'packed_elf64'))

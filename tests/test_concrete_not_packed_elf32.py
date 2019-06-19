@@ -1,11 +1,14 @@
 import angr
-import avatar2
 import claripy
 import nose
 import os
 import subprocess
 
-from angr_targets import AvatarGDBConcreteTarget
+try:
+    import avatar2
+    from angr_targets import AvatarGDBConcreteTarget
+except ImportError:
+    raise nose.SkipTest()
 
 GDB_SERVER_IP = '127.0.0.1'
 GDB_SERVER_PORT = 9999
