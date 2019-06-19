@@ -3,7 +3,7 @@ import angr
 
 import os
 
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
 def test_mips():
@@ -11,7 +11,7 @@ def test_mips():
     INNER_LOOP = 0x40069C
     OUTER_LOOP = 0x40076C
 
-    p = angr.Project(location + '/mips/test_loops')
+    p = angr.Project(os.path.join(location, 'mips', 'test_loops'))
     output = []
 
     # hooking by a function decorator

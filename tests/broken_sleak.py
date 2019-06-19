@@ -9,9 +9,9 @@ p64 = None
 
 def setup_module():
     global p32, p64
-    test_location = str(os.path.dirname(os.path.realpath(__file__)))
-    bin64 = os.path.join(test_location, "blob/x86_64/all")
-    bin32 = os.path.join(test_location, "blob/i386/all")
+    test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+    bin64 = os.path.join(test_location, 'x86_64', 'all')
+    bin32 = os.path.join(test_location, 'i386', 'all')
 
     p32 = angr.Project(bin64)
     p64 = angr.Project(bin32)

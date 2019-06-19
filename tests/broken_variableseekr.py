@@ -10,7 +10,7 @@ from angr import AngrError
 
 # load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 projects = {}
 projects['fauxwares'] = {}
 projects['cfg_1'] = {}

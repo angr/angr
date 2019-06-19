@@ -32,7 +32,7 @@ def test_ctype_b_loc():
 
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
-    bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_b_loc')
+    bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_b_loc')
 
     ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_b_loc']().execute(state, arguments=arguments)
 
@@ -82,7 +82,7 @@ def test_ctype_tolower_loc():
 
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
-    bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_tolower_loc')
+    bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_tolower_loc')
 
     ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_tolower_loc']().execute(state, arguments=arguments)
 
@@ -132,7 +132,7 @@ def test_ctype_toupper_loc():
 
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
-    bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_toupper_loc')
+    bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_toupper_loc')
 
     ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_toupper_loc']().execute(state, arguments=arguments)
 

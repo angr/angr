@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr_tests.test_proxy")
 
 import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
 def test_tech_builder():

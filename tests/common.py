@@ -8,7 +8,7 @@ try:
 except ImportError:
     tracer = None
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
+bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
 if not os.path.isdir(bin_location):
     raise Exception("Can't find the angr/binaries repo for holding testcases. It should be cloned into the same folder as the rest of your angr modules.")
 

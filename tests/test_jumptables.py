@@ -9,7 +9,7 @@ import nose.tools
 import angr
 
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.getLogger("angr.tests.test_jumptables")
 
 

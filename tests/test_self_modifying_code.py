@@ -6,11 +6,11 @@ import os
 from nose.plugins.attrib import attr
 from angr import options as o
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 @attr(speed='slow')
 def test_self_modifying_code():
-    p = angr.Project(os.path.join(test_location, 'cgc/stuff'))
+    p = angr.Project(os.path.join(test_location, 'cgc', 'stuff'))
     pg = p.factory.simulation_manager(p.factory.entry_state(add_options={o.STRICT_PAGE_ACCESS}))
     pg.step(until=lambda lpg: len(lpg.active) != 1)
     retval = pg.one_deadended.regs.ebx

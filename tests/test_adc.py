@@ -2,10 +2,10 @@ import angr
 import nose
 import os
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_adc_i386():
-    proj = angr.Project(test_location + "/i386/test_adc", load_options={'auto_load_libs':False})
+    proj = angr.Project(os.path.join(test_location, 'i386', 'test_adc'), load_options={'auto_load_libs':False})
 
     start = 0x804840b
     end = 0x804842e

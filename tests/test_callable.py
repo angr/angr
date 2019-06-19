@@ -9,7 +9,7 @@ import logging
 l = logging.getLogger("angr_tests")
 
 import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 addresses_fauxware = {
     'armel': 0x8524,
@@ -35,7 +35,7 @@ addresses_manysum = {
 
 def run_fauxware(arch):
     addr = addresses_fauxware[arch]
-    p = angr.Project(location + '/' + arch + '/fauxware')
+    p = angr.Project(os.path.join(location, arch, 'fauxware'))
     charstar = SimTypePointer(SimTypeChar())
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(False))
     cc = p.factory.cc(func_ty=prototype)
@@ -82,7 +82,7 @@ def run_manyfloatsum(arch):
     if type_cache is None:
         type_cache = parse_defns(open(os.path.join(location, '..', 'tests_src', 'manyfloatsum.c')).read())
 
-    p = angr.Project(location + '/' + arch + '/manyfloatsum')
+    p = angr.Project(os.path.join(location, arch, 'manyfloatsum'))
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
         cc = p.factory.cc(func_ty=type_cache[function])
         args = list(range(len(cc.func_ty.args)))
@@ -99,7 +99,7 @@ def run_manyfloatsum_symbolic(arch):
     if type_cache is None:
         type_cache = parse_defns(open(os.path.join(location, '..', 'tests_src', 'manyfloatsum.c')).read())
 
-    p = angr.Project(location + '/' + arch + '/manyfloatsum')
+    p = angr.Project(os.path.join(location, arch, 'manyfloatsum'))
     function = 'sum_doubles'
     cc = p.factory.cc(func_ty=type_cache[function])
     args = [claripy.FPS('arg_%d' % i, claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]

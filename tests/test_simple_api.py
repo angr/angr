@@ -1,11 +1,11 @@
 import os
 import angr
 
-def _bin(s):
-    return os.path.join(os.path.dirname(__file__), "../../binaries/tests", s)
+def _bin(*s):
+    return os.path.join(os.path.dirname(__file__), "..", "..", "binaries", "tests", *s)
 
 def test_fauxware():
-    project = angr.Project(_bin("i386/fauxware"))
+    project = angr.Project(_bin("i386", "fauxware"))
 
     result = [ 0, 0]
 
