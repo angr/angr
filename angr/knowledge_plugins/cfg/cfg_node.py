@@ -133,7 +133,7 @@ class CFGNode(Serializable):
 
     @property
     def accessed_data_references(self):
-        if self._cfg_model.sort != 'fast':
+        if self._cfg_model.ident != 'CFGFast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
 
         for instr_addr in self.instruction_addrs:
