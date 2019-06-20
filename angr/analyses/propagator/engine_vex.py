@@ -1,42 +1,34 @@
 
 import logging
 
-from ...engines.light import SimEngineLightVEX, SpOffset
-from ...errors import SimEngineError
+from ...engines.light import SimEngineLightVEXMixin, SpOffset
 from .values import TOP, BOTTOM
+from .engine_base import SimEnginePropagatorBase
 
 
 _l = logging.getLogger(name=__name__)
 
 
-class SimEngineCPVEX(SimEngineLightVEX):
-    def __init__(self):
-        super().__init__()
+class SimEnginePropagatorVEX(
+    SimEngineLightVEXMixin,
+    SimEnginePropagatorBase
+):
+    #
+    # Private methods
+    #
 
-    def process(self, state, *args, **kwargs):
-        self.project = kwargs.pop('project', None)
-        self.base_state = kwargs.pop('base_state', None)
-        self._load_callback = kwargs.pop('load_callback', None)
-        try:
-            self._process(state, None, block=kwargs.pop('block', None))
-        except SimEngineError as ex:
-            if kwargs.pop('fail_fast', False) is True:
-                raise ex
-            else:
-                _l.error(ex, exc_info=True)
+    def _process(self, state, successors, block=None, whitelist=None, **kwargs):
+
+        super()._process(state, successors, block=block, whitelist=whitelist, **kwargs)
 
         if self.block.vex.jumpkind == 'Ijk_Call':
             if self.arch.call_pushes_ret:
                 # pop ret from the stack
                 sp_offset = self.arch.sp_offset
-                sp_value = self.state.load_register(sp_offset, self.arch.bytes)
-                self.state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
+                sp_value = state.load_register(sp_offset, self.arch.bytes)
+                state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
 
-        return self.state
-
-    #
-    # Private methods
-    #
+        return state
 
     def _allow_loading(self, addr, size):
         if self._load_callback is None:

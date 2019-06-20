@@ -8,20 +8,40 @@ from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .values import TOP, BOTTOM
-from .engine_vex import SimEngineCPVEX
+from .engine_vex import SimEnginePropagatorVEX
+from .engine_ail import SimEnginePropagatorAIL
 
 
-class ConstantPropagationState:
-    def __init__(self, arch=None, registers=None, local_variables=None, ):
+# The base state
+
+class PropagatorState:
+    def __init__(self, arch):
         self.arch = arch
-        self.registers = {} if registers is None else registers  # offset to values
-        self.local_variables = {} if local_variables is None else local_variables  # offset to values
 
-        self.gpr_size = arch.bits // arch.byte_width
+    def __repr__(self):
+        return "<PropagatorState>"
 
     def copy(self):
-        cp = ConstantPropagationState(
-            arch=self.arch,
+        raise NotImplementedError()
+
+    def merge(self):
+        raise NotImplementedError()
+
+# VEX state
+
+class PropagatorVEXState(PropagatorState):
+    def __init__(self, arch, registers=None, local_variables=None):
+        super().__init__(arch)
+        self.registers = {} if registers is None else registers  # offset to values
+        self.local_variables = {} if local_variables is None else local_variables  # offset to values
+        self.gpr_size = arch.bits // arch.byte_width
+
+    def __repr__(self):
+        return "<PropagatorVEXState>"
+
+    def copy(self):
+        cp = PropagatorVEXState(
+            self.arch,
             registers=self.registers.copy(),
             local_variables=self.local_variables.copy(),
         )
@@ -29,9 +49,8 @@ class ConstantPropagationState:
         return cp
 
     def merge(self, *others):
-
         state = self.copy()
-        for other in others:  # type: ConstantPropagationState
+        for other in others:  # type: PropagatorVEXState
             for offset, value in other.registers.items():
                 if offset not in state.registers:
                     state.registers[offset] = value
@@ -73,24 +92,89 @@ class ConstantPropagationState:
         except KeyError:
             return BOTTOM
 
+# AIL state
 
-class ConstantPropagationAnalysis(ForwardAnalysis, Analysis):
+class PropagatorAILState(PropagatorState):
+    def __init__(self, arch):
+        super().__init__(arch)
+
+        self._replacements = { }
+        self._final_replacements = [ ]
+
+    def __repr__(self):
+        return "<PropagatorAILState>"
+
+    def copy(self):
+        rd = PropagatorAILState(
+            self.arch,
+        )
+
+        rd._replacements = self._replacements.copy()
+        rd._final_replacements = self._final_replacements[ :: ]
+
+        return rd
+
+    def merge(self, *others):
+        state = self.copy()
+
+        keys_to_remove = set()
+
+        for o in others:
+            for k, v in o._replacements.items():
+                if k not in state._replacements:
+                    state._replacements[k] = v
+                else:
+                    if state._replacements[k] != o._replacements[k]:
+                        keys_to_remove.add(k)
+
+        for k in keys_to_remove:
+            del state._replacements[k]
+
+        return state
+
+    def add_replacement(self, old, new):
+        if new is not None:
+            self._replacements[old] = new
+
+    def get_replacement(self, old):
+        return self._replacements.get(old, None)
+
+    def remove_replacement(self, old):
+        self._replacements.pop(old, None)
+
+    def filter_replacements(self, atom):
+        keys_to_remove = set()
+
+        for k, v in self._replacements.items():
+            if isinstance(v, ailment.Expr.Expression) and (v == atom or v.has_atom(atom)):
+                keys_to_remove.add(k)
+
+        for k in keys_to_remove:
+            self._replacements.pop(k)
+
+    def add_final_replacement(self, codeloc, old, new):
+        self._final_replacements.append((codeloc, old, new))
+
+
+class PropagatorAnalysis(ForwardAnalysis, Analysis):
     """
-    ConstantPropagationAnalysis propagates values, either constants or variables, across a block or a function. It
-    supports both VEX and AIL. It performs certain arithmetic operations between constants, including but are not
-    limited to:
+    PropagatorAnalysis propagates values, either constants or variables, across a block or a function. It supports both
+    VEX and AIL. It performs certain arithmetic operations between constants, including but are not limited to:
+
     - addition
     - subtraction
     - multiplication
     - division
     - xor
+
     It also performs the following memory operations, too:
+
     - Loading values from a known address
     - Writing values to a stack variable
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 function_handler=None, load_callback=None, ):
+                 function_handler=None, load_callback=None, stack_pointer_tracker=None):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -109,11 +193,13 @@ class ConstantPropagationAnalysis(ForwardAnalysis, Analysis):
         self._function = func
         self._max_iterations = max_iterations
         self._load_callback = load_callback
+        self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
 
         self._node_iterations = defaultdict(int)
+        self._states = { }
 
-        self._engine_vex = SimEngineCPVEX()
-        self._engine_ail = None
+        self._engine_vex = SimEnginePropagatorVEX()
+        self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
 
         self._analyze()
 
@@ -128,11 +214,16 @@ class ConstantPropagationAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        state = ConstantPropagationState(arch=self.project.arch)
-        state.store_register(self.project.arch.sp_offset,
-                             self.project.arch.bytes,
-                             SpOffset(self.project.arch.bits, 0)
-                             )
+        if isinstance(node, ailment.Block):
+            # AIL
+            state = PropagatorAILState(arch=self.project.arch)
+        else:
+            # VEX
+            state = PropagatorVEXState(arch=self.project.arch)
+            state.store_register(self.project.arch.sp_offset,
+                                 self.project.arch.bytes,
+                                 SpOffset(self.project.arch.bits, 0)
+                                 )
         return state
 
     def _merge_states(self, node, *states):
@@ -141,7 +232,9 @@ class ConstantPropagationAnalysis(ForwardAnalysis, Analysis):
     def _run_on_node(self, node, state):
 
         if isinstance(node, ailment.Block):
-            raise NotImplementedError()
+            block = node
+            block_key = node.addr
+            engine = self._engine_ail
         else:
             block = self.project.factory.block(node.addr, node.size, opt_level=0)
             block_key = node.addr
@@ -152,6 +245,7 @@ class ConstantPropagationAnalysis(ForwardAnalysis, Analysis):
                                load_callback=self._load_callback, fail_fast=self._fail_fast)
 
         self._node_iterations[block_key] += 1
+        self._states[block_key] = state
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state
@@ -165,4 +259,4 @@ class ConstantPropagationAnalysis(ForwardAnalysis, Analysis):
         pass
 
 
-register_analysis(ConstantPropagationAnalysis, "ConstantPropagation")
+register_analysis(PropagatorAnalysis, "Propagator")
