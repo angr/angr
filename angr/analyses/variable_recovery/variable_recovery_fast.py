@@ -103,7 +103,7 @@ class SimEngineVRBase(SimEngineLight):
             if kwargs.pop('fail_fast', False) is True:
                 raise e
 
-    def _process(self, state, successors, block=None, func_addr=None):  # pylint:disable=unused-argument
+    def _process(self, state, successors, block=None, func_addr=None):  # pylint:disable=unused-argument,arguments-differ
         super()._process(state, successors, block=block)
 
     #
@@ -316,6 +316,8 @@ class SimEngineVRBase(SimEngineLight):
                                                             )
             return var
 
+        return None
+
     def _read_from_register(self, offset, size, expr=None):
         """
 
@@ -478,12 +480,12 @@ class SimEngineVRAIL(
     def _ail_handle_StackBaseOffset(self, expr):
         return SpOffset(self.arch.bits, expr.offset, is_base=False)
 
-    def _ail_handle_CmpEQ(self, expr):
+    def _ail_handle_CmpEQ(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
         return None
 
-    def _ail_handle_CmpLE(self, expr):
+    def _ail_handle_CmpLE(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
         return None

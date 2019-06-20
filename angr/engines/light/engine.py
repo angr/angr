@@ -35,7 +35,7 @@ class SimEngineLight(SimEngine):
         raise NotImplementedError()
 
     def _check(self, state, *args, **kwargs):
-        raise NotImplementedError()
+        return True
 
     #
     # Helper methods
@@ -47,7 +47,7 @@ class SimEngineLight(SimEngine):
 
 class SimEngineLightVEXMixin:
 
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ
+    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
 
         assert block is not None
 
@@ -206,7 +206,7 @@ class SimEngineLightVEXMixin:
 
         return None
 
-    def _handle_CCall(self, expr):
+    def _handle_CCall(self, expr):  # pylint:disable=useless-return
         self.l.warning('Unsupported expression type CCall with callee %s.', str(expr.cee))
         return None
 
@@ -352,7 +352,7 @@ class SimEngineLightVEXMixin:
 
 class SimEngineLightAILMixin:
 
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ
+    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
 
         self.tmps = {}
         self.block = block
