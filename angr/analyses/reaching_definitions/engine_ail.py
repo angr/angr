@@ -7,13 +7,16 @@ from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
 from .undefined import Undefined
-from ...engines.light import SimEngineLightAIL, RegisterOffset, SpOffset
+from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
 from ...errors import SimEngineError
 
 l = logging.getLogger(name=__name__)
 
 
-class SimEngineRDAIL(SimEngineLightAIL):  # pylint:disable=abstract-method
+class SimEngineRDAIL(
+    SimEngineLightAILMixin,
+    SimEngineLight,
+):  # pylint:disable=abstract-method
     def __init__(self, project, current_local_call_depth, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDAIL, self).__init__()
         self.project = project
