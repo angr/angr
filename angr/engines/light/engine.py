@@ -9,11 +9,10 @@ from ...analyses.code_location import CodeLocation
 
 
 class SimEngineLight(SimEngine):
-    def __init__(self, engine_type='vex'):
+    def __init__(self):
         super(SimEngineLight, self).__init__()
 
         self.l = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
-        self.engine_type = engine_type
 
         # local variables
         self.state = None
@@ -24,6 +23,9 @@ class SimEngineLight(SimEngine):
         self.ins_addr = None
         self.tmps = None
 
+        # for VEX blocks only
+        self.tyenv = None
+
     def process(self, state, *args, **kwargs):
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
@@ -33,17 +35,19 @@ class SimEngineLight(SimEngine):
         raise NotImplementedError()
 
     def _check(self, state, *args, **kwargs):
-        raise NotImplementedError()
+        return True
+
+    #
+    # Helper methods
+    #
+
+    def _codeloc(self):
+        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
 
-class SimEngineLightVEX(SimEngineLight):
-    def __init__(self):
-        super(SimEngineLightVEX, self).__init__()
+class SimEngineLightVEXMixin:
 
-        # for VEX blocks only
-        self.tyenv = None
-
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ
+    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
 
         assert block is not None
 
@@ -84,13 +88,6 @@ class SimEngineLightVEX(SimEngineLight):
                 getattr(self, handler)()
             else:
                 self.l.warning('Function handler not implemented.')
-
-    #
-    # Helper methods
-    #
-
-    def _codeloc(self):
-        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
     #
     # Statement handlers
@@ -209,7 +206,7 @@ class SimEngineLightVEX(SimEngineLight):
 
         return None
 
-    def _handle_CCall(self, expr):
+    def _handle_CCall(self, expr):  # pylint:disable=useless-return
         self.l.warning('Unsupported expression type CCall with callee %s.', str(expr.cee))
         return None
 
@@ -353,11 +350,9 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
 
-class SimEngineLightAIL(SimEngineLight):
-    def __init__(self):
-        super(SimEngineLightAIL, self).__init__(engine_type='ail')
+class SimEngineLightAILMixin:
 
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ
+    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
 
         self.tmps = {}
         self.block = block
@@ -565,3 +560,8 @@ class SimEngineLightAIL(SimEngineLight):
             if type(data) is int:
                 return data
         return None
+
+
+# Compatibility
+SimEngineLightVEX = SimEngineLightVEXMixin
+SimEngineLightAIL = SimEngineLightAILMixin

@@ -6,7 +6,7 @@ import pyvex
 from archinfo.arch_arm import is_arm_arch
 
 from ....engines.vex import ccall
-from ....engines.light import SimEngineLightVEX, SpOffset, RegisterOffset
+from ....engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, RegisterOffset
 from ....errors import AngrError, SimError
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
@@ -111,7 +111,10 @@ class JumpTableProcessorState:
         self.regs_to_initialize = [ ]  # registers that we should initialize
 
 
-class JumpTableProcessor(SimEngineLightVEX):  # pylint:disable=abstract-method
+class JumpTableProcessor(
+    SimEngineLightVEXMixin,
+    SimEngineLight,
+):  # pylint:disable=abstract-method
     """
     Implements a simple and stupid data dependency tracking for stack and register variables.
 
