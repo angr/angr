@@ -421,23 +421,22 @@ class FullySymbolicMemory(SimMemory):
         # slowpath
         # size is symbolic and we need to data.chop() (slow)
         initial_condition = condition
+        if initial_condition is None:
+            initial_condition = claripy.BoolV(True)
         stored_values = [ ]
-        for k, obj, old in zip(
+        original_value = self.load(addr, size=max_size)
+        for k, a, b in zip(
             range(max_size),
             data.chop(self.state.arch.byte_width),
-            self.load(addr, size=max_size).chop(self.state.arch.byte_width) # previous memory
+            original_value.chop(self.state.arch.byte_width)
         ):
-            condition = initial_condition
+            condition = claripy.BoolV(True)
             if k + 1 >= min_size:
-                assert k + 1 <= max_size
-                condition = self.state.solver.UGT(size, k) if initial_condition is None else claripy.And(
-                    initial_condition, self.state.solver.UGT(size, k + 1))
-            self._store_one_byte(obj, addr, k, min_addr, max_addr, condition)
-            if condition is None:
-                stored_values.append(obj)
-            else:
-                stored_values.append(self.state.solver.If(condition, obj, old))
-        return stored_values
+                condition = self.state.solver.UGT(size, k)
+            self._store_one_byte(a, addr, k, min_addr, max_addr, claripy.And(condition, initial_condition))
+            stored_values.append(self.state.solver.If(condition, a, b))
+        stored_value = claripy.Concat(*stored_values)
+        return [ self.state.solver.If(initial_condition, stored_value, original_value) ]
 
     def _store(self, req):
         req._adjust_condition(self.state)
