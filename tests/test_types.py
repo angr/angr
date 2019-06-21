@@ -65,12 +65,12 @@ def test_parse_type():
     nose.tools.assert_is_instance(char_ptr, SimTypePointer)
     nose.tools.assert_is_instance(char_ptr.pts_to, SimTypeChar)
 
-    struct_abcd = angr.types.parse_type('struct abcd { char c; float f; }')
-    nose.tools.assert_is_instance(struct_abcd, SimStruct)
-    nose.tools.assert_equal(struct_abcd.name, 'abcd')
-    nose.tools.assert_equal(len(struct_abcd.fields), 2)
-    nose.tools.assert_is_instance(struct_abcd.fields['c'], SimTypeChar)
-    nose.tools.assert_is_instance(struct_abcd.fields['f'], SimTypeFloat)
+    struct_parse_type = angr.types.parse_type('struct parse_type { char c; float f; }')
+    nose.tools.assert_is_instance(struct_parse_type, SimStruct)
+    nose.tools.assert_equal(struct_parse_type.name, 'parse_type')
+    nose.tools.assert_equal(len(struct_parse_type.fields), 2)
+    nose.tools.assert_is_instance(struct_parse_type.fields['c'], SimTypeChar)
+    nose.tools.assert_is_instance(struct_parse_type.fields['f'], SimTypeFloat)
 
     union_dcba = angr.types.parse_type('union dcba { double d; long long int lli; }')
     nose.tools.assert_is_instance(union_dcba, SimUnion)
