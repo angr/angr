@@ -659,11 +659,9 @@ def get_winning_path(project, method_fullname):
 
 
 def main():
-    test_jni_object_operations()
-    test_fauxware()
-    test_cmd_line_args()
-    test_apk_loading()
-    test_method_calls()
+    for k, v in list(globals().items()):
+        if k.startswith('test_') and callable(v):
+            v()
 
 if __name__ == "__main__":
     # import logging
