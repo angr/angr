@@ -97,9 +97,11 @@ class strtol(angr.SimProcedure):
         constraints_num_bytes = []
         conditions = []
 
+        # cutoff: whether the loop was broken with an uncomvertable character
         cutoff = False
         # we need all the conditions to hold except the last one to have found a value
         for i in range(length):
+            # begin reasoning about the currently indexed character
             char = region.load(s + i, 1)
             condition, value = strtol._char_to_val(char, base)
 
@@ -109,22 +111,24 @@ class strtol(angr.SimProcedure):
             # identify the constraints necessary to set num_bytes to the current value
             # the current char (i.e. the terminator if this is satisfied) should not be a char,
             # so `condition` should be false, plus all the previous conditions should be satisfied
-            case_constraints = conditions + [state.solver.Not(condition)] + [num_bytes == i]
+            case_constraints = conditions + [state.solver.Not(condition), num_bytes == i]
             constraints_num_bytes.append(state.solver.And(*case_constraints))
 
             # break the loop early if no value past this is viable
             if condition.is_false():
-                cutoff = True  # ???
+                cutoff = True
                 break
 
             # add the value and the condition
             current_val = current_val*base + value.zero_extend(num_bits-8)
             conditions.append(condition)
 
-        # the last one is unterminated, let's ignore it
+        # if we ran out of bytes, load one more byte and assert it must not be a number
         if not cutoff:
+            char = region.load(s + length, 1)
+            condition, _ = strtol._char_to_val(char, base)
             cases.append((num_bytes == length, current_val))
-            case_constraints = conditions + [num_bytes == length]
+            case_constraints = conditions + [state.solver.Not(condition), num_bytes == length]
             constraints_num_bytes.append(state.solver.And(*case_constraints))
 
         # only one of the constraints need to hold
