@@ -129,6 +129,9 @@ class DataSet:
     def __neg__(self):
         return self._un_op(operator.neg)
 
+    def __invert__(self):
+        return self._un_op(operator.invert)
+
     def __eq__(self, other):
         if type(other) == DataSet:
             return self.data == other.data and self._bits == other.bits and self._mask == other.mask

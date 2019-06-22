@@ -518,6 +518,40 @@ class SimEngineLightAILMixin:
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'And', [expr_0, expr_1], **expr.tags)
 
+    def _ail_handle_Or(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 | expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Or', [expr_0, expr_1], **expr.tags)
+
+    def _ail_handle_Xor(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 ^ expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Xor', [expr_0, expr_1], **expr.tags)
+
     def _ail_handle_Shr(self, expr):
 
         arg0, arg1 = expr.operands
@@ -550,6 +584,25 @@ class SimEngineLightAILMixin:
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'Shl', [expr_0, expr_1], **expr.tags)
 
+    def _ail_handle_Sal(self, expr):
+        return self._ail_handle_Shl(expr)
+
+    def _ail_handle_Sar(self, expr):
+
+        arg0, arg1 = expr.operands
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 >> expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Sar', [expr_0, expr_1], **expr.tags)
+
     #
     # Unary operation handlers
     #
@@ -560,6 +613,15 @@ class SimEngineLightAILMixin:
             if type(data) is int:
                 return data
         return None
+    
+    def _ail_handle_Not(self, expr):
+
+        data = self._expr(expr.operand)
+
+        try:
+            return ~data
+        except TypeError:
+            return ailment.Expr.UnaryOp(expr.idx, 'Not', data, **expr.tags)
 
 
 # Compatibility
