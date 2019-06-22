@@ -98,9 +98,6 @@ def test_decompiling_mips_allcmps():
         print("Failed to decompile function %s." % repr(f))
 
 if __name__ == "__main__":
-    test_decompiling_babypwn_i386()
-    test_decompiling_loop_x86_64()
-    test_decompiling_all_x86_64()
-    test_decompiling_all_i386()
-    test_decompiling_aes_armel()
-    test_decompiling_mips_allcmps()
+    for k, v in list(globals().items()):
+        if k.startswith('test_') and callable(v):
+            v()
