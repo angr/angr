@@ -9,7 +9,7 @@ class Block:
     def __init__(self, addr, original_size, statements=None):
         self.addr = addr
         self.original_size = original_size
-        self.statements = [ ] if statements is None else statements
+        self.statements = [] if statements is None else statements
 
     def copy(self):
         return Block(
