@@ -94,10 +94,14 @@ class strtol(angr.SimProcedure):
         num_bits = min(state.arch.bits*2, 128)
         current_val = state.solver.BVV(0, num_bits)
         num_bytes = state.solver.BVS("num_bytes", state.arch.bits)
+        # constarints_num_bytes: a series of constraints of the form:
+        # AND(<constraint on the string guaranteeing that the number of digits is n>, num_bytes == n)
+        # these will be combined via OR and added to the state together num_bytes and the string
         constraints_num_bytes = []
+        # conditions: one entry per byte loaded. contains the constraint that the byte is a parsable digit
         conditions = []
 
-        # cutoff: whether the loop was broken with an uncomvertable character
+        # cutoff: whether the loop was broken with an unconvertable character
         cutoff = False
         # we need all the conditions to hold except the last one to have found a value
         for i in range(length):
@@ -123,12 +127,16 @@ class strtol(angr.SimProcedure):
             current_val = current_val*base + value.zero_extend(num_bits-8)
             conditions.append(condition)
 
-        # if we ran out of bytes, load one more byte and assert it must not be a number
+        # if we ran out of bytes, we still need to add the case that every single byte was a digit
         if not cutoff:
-            char = region.load(s + length, 1)
-            condition, _ = strtol._char_to_val(char, base)
             cases.append((num_bytes == length, current_val))
-            case_constraints = conditions + [state.solver.Not(condition), num_bytes == length]
+            case_constraints = conditions + [num_bytes == length]
+            if read_length is None:
+                # the loop broke because we hit angr's coded max. we need to assert that the following char is not
+                # a digit in order for this case to generate correct models
+                char = region.load(s + length, 1)
+                condition, _ = strtol._char_to_val(char, base)
+                case_constraints.append(state.solver.Not(condition))
             constraints_num_bytes.append(state.solver.And(*case_constraints))
 
         # only one of the constraints need to hold
