@@ -6,6 +6,7 @@ import pyvex
 from ...engines.light import SimEngineLightVEXMixin, SpOffset
 from .values import TOP, BOTTOM
 from .engine_base import SimEnginePropagatorBase
+from .vex_vars import VEXReg, VEXTmp
 
 
 _l = logging.getLogger(name=__name__)
@@ -44,8 +45,24 @@ class SimEnginePropagatorVEX(
             # Record the replacement
             if type(expr) is pyvex.IRExpr.Get:
                 if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
-                    self.state.add_replacement(self._codeloc(), expr, v)
+                    self.state.add_replacement(self._codeloc(),
+                                               VEXReg(expr.offset, expr.result_size(self.tyenv) // 8),
+                                               v)
         return v
+
+    def _load_data(self, addr, size, endness):
+        if isinstance(addr, SpOffset):
+            # Local variable
+            v = self.state.load_local_variable(addr.offset, size)
+            return v
+        else:
+            # Try loading from the state
+            if self.base_state is not None and self._allow_loading(addr, size):
+                _l.debug("Loading %d bytes from %x.", size, addr)
+                data = self.base_state.memory.load(addr, size)
+                if not data.symbolic:
+                    return self.base_state.solver.eval(data)
+        return None
 
     #
     # Function handlers
@@ -68,6 +85,12 @@ class SimEnginePropagatorVEX(
     # VEX statement handlers
     #
 
+    def _handle_WrTmp(self, stmt):
+        super()._handle_WrTmp(stmt)
+
+        if stmt.tmp in self.tmps:
+            self.state.add_replacement(self._codeloc(block_only=True), VEXTmp(stmt.tmp), self.tmps[stmt.tmp])
+
     def _handle_Put(self, stmt):
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
@@ -86,6 +109,18 @@ class SimEnginePropagatorVEX(
             # Local variables
             self.state.store_local_variable(addr.offset, size, data)
 
+    def _handle_LoadG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard is True:
+            addr = self._expr(stmt.addr)
+            if addr is not None:
+                self.tmps[stmt.dst] = self._load_data(addr, stmt.alt.result_size(self.tyenv) // 8, stmt.endness)
+        elif guard is False:
+            data = self._expr(stmt.alt)
+            self.tmps[stmt.dst] = data
+        else:
+            self.tmps[stmt.dst] = None
+
     #
     # Expression handlers
     #
@@ -101,14 +136,4 @@ class SimEnginePropagatorVEX(
             return
         size = expr.result_size(self.tyenv) // self.arch.byte_width
 
-        if isinstance(addr, SpOffset):
-            # Local variables
-            return self.state.load_local_variable(addr.offset, size)
-        else:
-            # try loading from the state
-            if self.base_state is not None and self._allow_loading(addr, size):
-                _l.debug("Loading %d bytes from %x.", size, addr)
-                data = self.base_state.memory.load(addr, size, endness=expr.endness)
-                if not data.symbolic:
-                    return self.base_state.solver.eval(data)
-            return None
+        return self._load_data(addr, size, expr.endness)

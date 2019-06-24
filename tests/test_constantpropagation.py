@@ -27,5 +27,16 @@ def test_libc_x86():
     pprint.pprint(prop.replacements)
 
 
+def test_lwip_udpecho_bm():
+    bin_path = os.path.join(test_location, "armel", "lwip_udpecho_bm.elf")
+    p = angr.Project(bin_path, auto_load_libs=False)
+    cfg = p.analyses.CFG(collect_data_references=True)
+
+    func = cfg.functions[0x23c9]
+    state = p.factory.blank_state()
+    prop = p.analyses.Propagator(func=func, base_state=state)
+
+
 if __name__ == "__main__":
-    test_libc_x86()
+    # test_libc_x86()
+    test_lwip_udpecho_bm()

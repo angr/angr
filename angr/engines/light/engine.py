@@ -41,8 +41,11 @@ class SimEngineLight(SimEngine):
     # Helper methods
     #
 
-    def _codeloc(self):
-        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+    def _codeloc(self, block_only=False):
+        return CodeLocation(self.block.addr,
+                            None if block_only else self.stmt_idx,
+                            ins_addr=None if block_only else self.ins_addr,
+                            )
 
 
 class SimEngineLightVEXMixin:
@@ -347,6 +350,21 @@ class SimEngineLightVEXMixin:
             return expr_0 >> expr_1
         except TypeError as e:
             self.l.warning(e)
+            return None
+
+    def _handle_CmpNE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 != expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
             return None
 
 
