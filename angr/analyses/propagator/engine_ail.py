@@ -30,20 +30,20 @@ class SimEnginePropagatorAIL(
         dst = stmt.dst
 
         if type(dst) is Expr.Tmp:
-            new_src = self.state.get_replacement(src)
+            new_src = self.state.get_variable(src)
             if new_src is not None:
                 l.debug("%s = %s, replace %s with %s.", dst, src, src, new_src)
-                self.state.add_replacement(dst, new_src)
+                self.state.store_variable(dst, new_src)
             else:
                 l.debug("Replacing %s with %s.", dst, src)
-                self.state.add_replacement(dst, src)
+                self.state.store_variable(dst, src)
 
         elif type(dst) is Expr.Register:
             l.debug("New replacement: %s with %s", dst, src)
-            self.state.add_replacement(dst, src)
+            self.state.store_variable(dst, src)
 
             # remove previous replacements whose source contains this register
-            self.state.filter_replacements(dst)
+            self.state.filter_variables(dst)
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -53,7 +53,7 @@ class SimEnginePropagatorAIL(
 
         if isinstance(addr, Expr.StackBaseOffset):
             # Storing data to a stack variable
-            self.state.add_replacement(Expr.Load(None, addr, data.bits // 8, stmt.endness), data)
+            self.state.store_variable(Expr.Load(None, addr, data.bits // 8, stmt.endness), data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -67,7 +67,7 @@ class SimEnginePropagatorAIL(
             new_args = [ ]
             for arg in stmt.args:
                 new_arg = self._expr(arg)
-                replacement = self.state.get_replacement(new_arg)
+                replacement = self.state.get_variable(new_arg)
                 if replacement is not None:
                     new_args.append(replacement)
                 else:
@@ -77,7 +77,7 @@ class SimEnginePropagatorAIL(
             new_call_stmt = Stmt.Call(stmt.idx, target, calling_convention=stmt.calling_convention,
                                       prototype=stmt.prototype, args=new_args, ret_expr=stmt.ret_expr,
                                       **stmt.tags)
-            self.state.add_final_replacement(self._codeloc(),
+            self.state.add_replacement(self._codeloc(),
                                              stmt,
                                              new_call_stmt,
                                              )
@@ -93,7 +93,7 @@ class SimEnginePropagatorAIL(
             pass
         else:
             new_jump_stmt = Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target, **stmt.tags)
-            self.state.add_final_replacement(self._codeloc(),
+            self.state.add_replacement(self._codeloc(),
                                              stmt,
                                              new_jump_stmt,
                                              )
@@ -103,11 +103,11 @@ class SimEnginePropagatorAIL(
     #
 
     def _ail_handle_Tmp(self, expr):
-        new_expr = self.state.get_replacement(expr)
+        new_expr = self.state.get_variable(expr)
 
         if new_expr is not None:
-            l.debug("Add a final replacement: %s with %s", expr, new_expr)
-            self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+            l.debug("Add a replacement: %s with %s", expr, new_expr)
+            self.state.add_replacement(self._codeloc(), expr, new_expr)
             expr = new_expr
 
         return expr
@@ -119,19 +119,19 @@ class SimEnginePropagatorAIL(
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                 if sb_offset is not None:
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
-                    self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+                    self.state.add_replacement(self._codeloc(), expr, new_expr)
                     return new_expr
             elif expr.reg_offset == self.arch.bp_offset:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
                 if sb_offset is not None:
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
-                    self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+                    self.state.add_replacement(self._codeloc(), expr, new_expr)
                     return new_expr
 
-        new_expr = self.state.get_replacement(expr)
+        new_expr = self.state.get_variable(expr)
         if new_expr is not None:
-            l.debug("Add a final replacement: %s with %s", expr, new_expr)
-            self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+            l.debug("Add a replacement: %s with %s", expr, new_expr)
+            self.state.add_replacement(self._codeloc(), expr, new_expr)
             expr = new_expr
         return expr
 

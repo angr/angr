@@ -1,6 +1,8 @@
 
 import logging
 
+import pyvex
+
 from ...engines.light import SimEngineLightVEXMixin, SpOffset
 from .values import TOP, BOTTOM
 from .engine_base import SimEnginePropagatorBase
@@ -35,16 +37,30 @@ class SimEnginePropagatorVEX(
             return True
         return self._load_callback(addr, size)
 
+    def _expr(self, expr):
+        v = super()._expr(expr)
+
+        if v is not None and v is not expr:
+            # Record the replacement
+            if type(expr) is pyvex.IRExpr.Get:
+                if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
+                    self.state.add_replacement(self._codeloc(), expr, v)
+        return v
+
     #
     # Function handlers
     #
 
     def _handle_function(self, addr):
-        if addr is not None:
-            print("calling ", hex(addr))
-        # Special handler for getpc()
         if self.arch.name == "X86":
-            if addr == 0x537375:  # FIXME: I need a reference to angr Project :(
+            try:
+                b = self._project.loader.memory.load(addr, 4)
+            except KeyError:
+                return
+            if b == b"\x8b\x1c\x24\xc3":
+                # getpc:
+                #   mov ebx, [esp]
+                #   ret
                 ebx_offset = self.arch.registers['ebx'][0]
                 self.state.store_register(ebx_offset, 4, self.block.addr + self.block.size)
 
@@ -91,7 +107,8 @@ class SimEnginePropagatorVEX(
         else:
             # try loading from the state
             if self.base_state is not None and self._allow_loading(addr, size):
-                print("Loading from ", hex(addr))
+                _l.debug("Loading %d bytes from %x.", size, addr)
                 data = self.base_state.memory.load(addr, size, endness=expr.endness)
                 if not data.symbolic:
                     return self.base_state.solver.eval(data)
+            return None

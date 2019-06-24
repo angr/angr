@@ -8,8 +8,11 @@ l = logging.getLogger(name=__name__)
 
 
 class SimEnginePropagatorBase(SimEngineLight):
-    def __init__(self, stack_pointer_tracker=None):
+    def __init__(self, stack_pointer_tracker=None, project=None):
         super().__init__()
+
+        # Used in the VEX engine
+        self._project = project
 
         # Used in the AIL engine
         self._stack_pointer_tracker = stack_pointer_tracker

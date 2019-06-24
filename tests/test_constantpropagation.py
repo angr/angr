@@ -22,7 +22,9 @@ def test_libc_x86():
         state.memory.store(_rtld_global_addr + addr, base_addr + addr, size=p.arch.bytes,
                            endness=p.arch.memory_endness)
 
-    p.analyses.Propagator(func=func, base_state=state)
+    prop = p.analyses.Propagator(func=func, base_state=state)
+    import pprint
+    pprint.pprint(prop.replacements)
 
 
 if __name__ == "__main__":

@@ -15,8 +15,11 @@ from .engine_ail import SimEnginePropagatorAIL
 # The base state
 
 class PropagatorState:
-    def __init__(self, arch):
+    def __init__(self, arch, replacements=None):
         self.arch = arch
+        self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
+
+        self._replacements = defaultdict(dict) if replacements is None else replacements
 
     def __repr__(self):
         return "<PropagatorState>"
@@ -24,17 +27,35 @@ class PropagatorState:
     def copy(self):
         raise NotImplementedError()
 
-    def merge(self):
-        raise NotImplementedError()
+    def merge(self, *others):
+
+        state = self.copy()
+
+        for o in others:
+            for loc, vars in o._replacements.items():
+                if loc not in state._replacements:
+                    state._replacements[loc] = vars.copy()
+                else:
+                    for var, repl in vars.items():
+                        if var not in state._replacements[loc]:
+                            state._replacements[loc][var] = repl
+                        else:
+                            if state._replacements[loc][var] != repl:
+                                state._replacements[loc][var] = TOP
+
+        return state
+
+
+    def add_replacement(self, codeloc, old, new):
+        self._replacements[codeloc][old] = new
 
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None):
-        super().__init__(arch)
+    def __init__(self, arch, registers=None, local_variables=None, replacements=None):
+        super().__init__(arch, replacements=replacements)
         self.registers = {} if registers is None else registers  # offset to values
         self.local_variables = {} if local_variables is None else local_variables  # offset to values
-        self.gpr_size = arch.bits // arch.byte_width
 
     def __repr__(self):
         return "<PropagatorVEXState>"
@@ -44,6 +65,7 @@ class PropagatorVEXState(PropagatorState):
             self.arch,
             registers=self.registers.copy(),
             local_variables=self.local_variables.copy(),
+            replacements=self._replacements.copy(),
         )
 
         return cp
@@ -68,9 +90,11 @@ class PropagatorVEXState(PropagatorState):
         return state
 
     def store_local_variable(self, offset, size, value):
+        # TODO: Handle size
         self.local_variables[offset] = value
 
     def load_local_variable(self, offset, size):
+        # TODO: Handle size
         try:
             return self.local_variables[offset]
         except KeyError:
@@ -84,6 +108,7 @@ class PropagatorVEXState(PropagatorState):
 
     def load_register(self, offset, size):
 
+        # TODO: Fix me
         if size != self.gpr_size:
             return BOTTOM
 
@@ -95,11 +120,10 @@ class PropagatorVEXState(PropagatorState):
 # AIL state
 
 class PropagatorAILState(PropagatorState):
-    def __init__(self, arch):
-        super().__init__(arch)
+    def __init__(self, arch, replacements=None):
+        super().__init__(arch, replacements=replacements)
 
-        self._replacements = { }
-        self._final_replacements = [ ]
+        self._variables = { }  # variable to values
 
     def __repr__(self):
         return "<PropagatorAILState>"
@@ -107,53 +131,46 @@ class PropagatorAILState(PropagatorState):
     def copy(self):
         rd = PropagatorAILState(
             self.arch,
+            replacements=self._replacements.copy(),
         )
 
-        rd._replacements = self._replacements.copy()
-        rd._final_replacements = self._final_replacements[ :: ]
+        rd._variables = self._variables.copy()
 
         return rd
 
     def merge(self, *others):
-        state = self.copy()
-
-        keys_to_remove = set()
+        state = super().merge(*others)
 
         for o in others:
-            for k, v in o._replacements.items():
-                if k not in state._replacements:
-                    state._replacements[k] = v
+            for k, v in o._variables.items():
+                if k not in state._variables:
+                    state._variables[k] = v
                 else:
-                    if state._replacements[k] != o._replacements[k]:
-                        keys_to_remove.add(k)
-
-        for k in keys_to_remove:
-            del state._replacements[k]
+                    if state._variables[k] != o._variables[k]:
+                        # Go to TOP
+                        state._variables[k] = TOP
 
         return state
 
-    def add_replacement(self, old, new):
+    def store_variable(self, old, new):
         if new is not None:
-            self._replacements[old] = new
+            self._variables[old] = new
 
-    def get_replacement(self, old):
-        return self._replacements.get(old, None)
+    def get_variable(self, old):
+        return self._variables.get(old, None)
 
-    def remove_replacement(self, old):
-        self._replacements.pop(old, None)
+    def remove_variable(self, old):
+        self._variables.pop(old, None)
 
-    def filter_replacements(self, atom):
+    def filter_variables(self, atom):
         keys_to_remove = set()
 
-        for k, v in self._replacements.items():
+        for k, v in self._variables.items():
             if isinstance(v, ailment.Expr.Expression) and (v == atom or v.has_atom(atom)):
                 keys_to_remove.add(k)
 
         for k in keys_to_remove:
-            self._replacements.pop(k)
-
-    def add_final_replacement(self, codeloc, old, new):
-        self._final_replacements.append((codeloc, old, new))
+            self._variables.pop(k)
 
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):
@@ -197,8 +214,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):
 
         self._node_iterations = defaultdict(int)
         self._states = { }
+        self.replacements = None
 
-        self._engine_vex = SimEnginePropagatorVEX()
+        self._engine_vex = SimEnginePropagatorVEX(project=self.project)
         self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
 
         self._analyze()
@@ -246,6 +264,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):
 
         self._node_iterations[block_key] += 1
         self._states[block_key] = state
+        self.replacements = state._replacements
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state
