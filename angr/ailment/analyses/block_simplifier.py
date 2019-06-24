@@ -81,9 +81,6 @@ class BlockSimplifier(Analysis):
 
         new_block = block.copy()
         new_block.statements = new_statements
-        if len(new_statements) == 0 and new_block.addr == 0x400683:
-            import ipdb; ipdb.set_trace()
-
         return new_block
 
     def _eliminate_dead_assignments(self, block):
@@ -123,9 +120,6 @@ class BlockSimplifier(Analysis):
 
         new_block = block.copy()
         new_block.statements = new_statements
-        if len(new_statements) == 0 and new_block.addr == 0x400683:
-            import ipdb; ipdb.set_trace()
-
         return new_block
 
 
