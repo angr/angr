@@ -26,6 +26,9 @@ class VEXReg(VEXVariable):
     def __eq__(self, other):
         return type(other) is VEXReg and other.offset == self.offset and other.size == self.size
 
+    def __repr__(self):
+        return "<reg %d[%d]>" % (self.offset, self.size)
+
 
 class VEXTmp(VEXVariable):
 
@@ -39,3 +42,6 @@ class VEXTmp(VEXVariable):
 
     def __eq__(self, other):
         return type(other) is VEXTmp and other.tmp == self.tmp
+
+    def __repr__(self):
+        return "<tmp %d>" % self.tmp

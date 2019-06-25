@@ -98,7 +98,7 @@ class PropagatorVEXState(PropagatorState):
         try:
             return self.local_variables[offset]
         except KeyError:
-            return BOTTOM
+            return TOP
 
     def store_register(self, offset, size, value):
         if size != self.gpr_size:
@@ -110,12 +110,12 @@ class PropagatorVEXState(PropagatorState):
 
         # TODO: Fix me
         if size != self.gpr_size:
-            return BOTTOM
+            return TOP
 
         try:
             return self.registers[offset]
         except KeyError:
-            return BOTTOM
+            return TOP
 
 # AIL state
 
