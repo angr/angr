@@ -1,7 +1,7 @@
 
 import logging
 
-from ailment import Stmt, Expr, Block
+from ailment import Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
@@ -56,7 +56,7 @@ class SimEnginePropagatorAIL(
             self.state.store_variable(Expr.Load(None, addr, data.bits // 8, stmt.endness), data)
 
     def _ail_handle_Jump(self, stmt):
-        target = self._expr(stmt.target)
+        _ = self._expr(stmt.target)
 
     def _ail_handle_Call(self, stmt):
         target = self._expr(stmt.target)
@@ -164,7 +164,7 @@ class SimEnginePropagatorAIL(
     def _ail_handle_Const(self, expr):
         return expr
 
-    def _ail_handle_DirtyExpression(self, expr):
+    def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
         return expr
 
     def _ail_handle_CmpLE(self, expr):
@@ -207,7 +207,7 @@ class SimEnginePropagatorAIL(
                                                 operand_1 if operand_1 is not None else expr.operands[1]
                                                 ])
 
-    def _ail_handle_StackBaseOffset(self, expr):
+    def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
         return expr
 
     def _ail_handle_And(self, expr):

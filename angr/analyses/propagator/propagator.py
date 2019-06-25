@@ -32,11 +32,11 @@ class PropagatorState:
         state = self.copy()
 
         for o in others:
-            for loc, vars in o._replacements.items():
+            for loc, vars_ in o._replacements.items():
                 if loc not in state._replacements:
-                    state._replacements[loc] = vars.copy()
+                    state._replacements[loc] = vars_.copy()
                 else:
-                    for var, repl in vars.items():
+                    for var, repl in vars_.items():
                         if var not in state._replacements[loc]:
                             state._replacements[loc][var] = repl
                         else:
@@ -173,7 +173,7 @@ class PropagatorAILState(PropagatorState):
             self._variables.pop(k)
 
 
-class PropagatorAnalysis(ForwardAnalysis, Analysis):
+class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
     PropagatorAnalysis propagates values, either constants or variables, across a block or a function. It supports both
     VEX and AIL. It performs certain arithmetic operations between constants, including but are not limited to:
@@ -191,7 +191,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 function_handler=None, load_callback=None, stack_pointer_tracker=None):
+                 load_callback=None, stack_pointer_tracker=None):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')

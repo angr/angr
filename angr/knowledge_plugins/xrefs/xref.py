@@ -53,6 +53,7 @@ class XRef(Serializable):
         return primitives_pb2.CodeReference()
 
     def serialize_to_cmessage(self):
+        # pylint:disable=no-member
         cmsg = self._get_cmsg()
         if self.memory_data is not None:
             cmsg.target_type = primitives_pb2.CodeReference.CodeTarget \

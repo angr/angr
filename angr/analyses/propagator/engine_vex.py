@@ -20,7 +20,7 @@ class SimEnginePropagatorVEX(
     # Private methods
     #
 
-    def _process(self, state, successors, block=None, whitelist=None, **kwargs):
+    def _process(self, state, successors, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
 
         super()._process(state, successors, block=block, whitelist=whitelist, **kwargs)
 
@@ -134,7 +134,7 @@ class SimEnginePropagatorVEX(
 
         addr = self._expr(expr.addr)
         if addr in (None, TOP, BOTTOM):
-            return
+            return None
         size = expr.result_size(self.tyenv) // self.arch.byte_width
 
         return self._load_data(addr, size, expr.endness)

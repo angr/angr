@@ -7,12 +7,14 @@ from ...errors import SimEngineError
 l = logging.getLogger(name=__name__)
 
 
-class SimEnginePropagatorBase(SimEngineLight):
+class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract_method
     def __init__(self, stack_pointer_tracker=None, project=None):
         super().__init__()
 
         # Used in the VEX engine
         self._project = project
+        self.base_state = None
+        self._load_callback = None
 
         # Used in the AIL engine
         self._stack_pointer_tracker = stack_pointer_tracker
@@ -26,7 +28,6 @@ class SimEnginePropagatorBase(SimEngineLight):
         except SimEngineError as ex:
             if kwargs.pop('fail_fast', False) is True:
                 raise ex
-            else:
-                l.error(ex, exc_info=True)
+            l.error(ex, exc_info=True)
 
         return self.state

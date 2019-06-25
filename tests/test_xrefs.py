@@ -4,7 +4,6 @@ import os
 import nose.tools
 
 import angr
-from angr.analyses.code_location import CodeLocation
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')

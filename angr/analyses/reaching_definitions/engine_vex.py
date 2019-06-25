@@ -1,5 +1,4 @@
 import logging
-import struct
 
 import pyvex
 
@@ -34,8 +33,7 @@ class SimEngineRDVEX(
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
-            else:
-                l.error(e)
+            l.error(e)
         return self.state
 
     #
@@ -394,7 +392,7 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self, *args, **kwargs):
+    def _handle_function(self, *args, **kwargs):  # pylint:disable=unused-argument
         if self._current_local_call_depth > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return None
@@ -474,7 +472,7 @@ class SimEngineRDVEX(
             defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
             if len(defs_sp) == 0:
                 raise ValueError('No definition for SP found')
-            elif len(defs_sp) == 1:
+            if len(defs_sp) == 1:
                 sp_data = next(iter(defs_sp)).data.data
             else:  # len(defs_sp) > 1
                 sp_data = set()

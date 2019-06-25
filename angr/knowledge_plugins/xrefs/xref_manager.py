@@ -19,6 +19,12 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         self.xrefs_by_ins_addr = defaultdict(set)
         self.xrefs_by_dst = defaultdict(set)
 
+    def copy(self):
+        xm = XRefManager(self._kb)
+        xm.xrefs_by_ins_addr = self.xrefs_by_ins_addr.copy()
+        xm.xrefs_by_dst = self.xrefs_by_dst.copy()
+        return xm
+
     def add_xref(self, xref):
         to_remove = set()
         # Overwrite existing "offset" refs
@@ -49,6 +55,7 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
     def get_xrefs_by_dst(self, dst):
         return self.xrefs_by_dst.get(dst, set())
 
+    @classmethod
     def _get_cmsg(cls):
         return xrefs_pb2.XRefs()
 
@@ -59,16 +66,16 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         for ref_set in self.xrefs_by_ins_addr.values():
             for ref in ref_set:
                 refs.append(ref.serialize_to_cmessage())
-        cmsg.refs.extend(refs)
+        cmsg.xrefs.extend(refs)
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, cfg_model=None, **kwargs):
+    def parse_from_cmessage(cls, cmsg, cfg_model=None, **kwargs):  # pylint:disable=arguments-differ
 
         model = XRefManager(None)
 
         # references
-        for xref_pb2 in cmsg.refs:
+        for xref_pb2 in cmsg.xrefs:
             if xref_pb2.data_ea == -1:
                 l.warning("Unknown address of the referenced data item. Ignore the reference at %#x.", xref_pb2.ea)
                 continue

@@ -27,7 +27,7 @@ class XRefsState:
             xref_manager=self.xref_manager,
         )
 
-    def merge(self, *others):
+    def merge(self, *others):  # pylint:disable=no-self-use
         return others[0]
 
 
@@ -95,7 +95,7 @@ class SimEngineXRefsVEX(
                 self.state.add_xref(XRefType.Read, self._codeloc(), addr)
 
 
-class XRefsAnalysis(ForwardAnalysis, Analysis):
+class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
     XRefsAnalysis recovers in-depth x-refs (cross-references) in disassembly code.
 

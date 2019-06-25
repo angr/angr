@@ -1,6 +1,8 @@
 
 import os
 
+import nose.tools
+
 import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
@@ -23,8 +25,9 @@ def test_libc_x86():
                            endness=p.arch.memory_endness)
 
     prop = p.analyses.Propagator(func=func, base_state=state)
-    import pprint
-    pprint.pprint(prop.replacements)
+    # import pprint
+    # pprint.pprint(prop.replacements)
+    nose.tools.assert_greater(len(prop.replacements), 0)
 
 
 def test_lwip_udpecho_bm():
@@ -36,7 +39,9 @@ def test_lwip_udpecho_bm():
     state = p.factory.blank_state()
     prop = p.analyses.Propagator(func=func, base_state=state)
 
+    nose.tools.assert_greater(len(prop.replacements), 0)
+
 
 if __name__ == "__main__":
-    # test_libc_x86()
+    test_libc_x86()
     test_lwip_udpecho_bm()
