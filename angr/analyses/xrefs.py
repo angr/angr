@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import pyvex
 
+from ..knowledge_plugins.xrefs import XRef, XRefType
 from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
 from .propagator.vex_vars import VEXTmp
 from . import register_analysis
@@ -10,33 +11,22 @@ from .analysis import Analysis
 from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
 
 
-class XRefType:
-    Offset = 0
-    Read = 1
-    Write = 2
-
-
 class XRefsState:
-    def __init__(self, arch, xrefs=None):
+    def __init__(self, arch, xref_manager):
         self.arch = arch
-
-        self.xrefs = set() if xrefs is None else xrefs
+        self.xref_manager = xref_manager
 
     def add_xref(self, xref_type, from_loc, to_loc):
-        self.xrefs.add((xref_type, from_loc, to_loc))
+        self.xref_manager.add_xref(XRef(xref_type, from_loc, to_loc))
 
     def copy(self):
         return XRefsState(
             self.arch,
-            xrefs=self.xrefs.copy(),
+            xref_manager=self.xref_manager,
         )
 
     def merge(self, *others):
-
-        state = self.copy()
-        for o in others:
-            state.xrefs |= o.xrefs
-        return state
+        return others[0]
 
 
 class SimEngineXRefsVEX(
@@ -147,7 +137,7 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        return XRefsState(self.project.arch)
+        return XRefsState(self.project.arch, xref_manager=self.kb.xrefs)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
