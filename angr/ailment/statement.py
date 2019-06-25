@@ -18,6 +18,9 @@ class Statement(TaggedObject):
     def __str__(self):
         raise NotImplementedError()
 
+    def __hash__(self):
+        raise NotImplementedError()
+
     def replace(self, old_expr, new_expr):
         raise NotImplementedError()
 
@@ -37,6 +40,9 @@ class Assignment(Statement):
                self.idx == other.idx and \
                self.dst == other.dst and \
                self.src == other.src
+
+    def __hash__(self):
+        return hash((Assignment, self.idx, self.dst, self.src))
 
     def __repr__(self):
         return "Assignment (%s, %s)" % (self.dst, self.src)
@@ -108,6 +114,9 @@ class Jump(Statement):
                self.idx == other.idx and \
                self.target == other.target
 
+    def __hash__(self):
+        return hash((Jump, self.idx, self.target))
+
     def __repr__(self):
         return "Jump (%s)" % self.target
 
@@ -137,6 +146,9 @@ class ConditionalJump(Statement):
                self.condition == other.condition and \
                self.true_target == other.true_target and \
                self.false_target == other.false_target
+
+    def __hash__(self):
+        return hash((ConditionalJump, self.idx, self.condition, self.true_target, self.false_target))
 
     def __repr__(self):
         return "ConditionalJump (condition: %s, true: %s, false: %s)" % (self.condition, self.true_target,
@@ -180,6 +192,9 @@ class Call(Statement):
                self.prototype == other.prototype and \
                self.args == other.args and \
                self.ret_expr == other.ret_expr
+
+    def __hash__(self):
+        return hash((Call, self.idx, self.target))
 
     def __repr__(self):
         return "Call (target: %s, prototype: %s, args: %s)" % (self.target, self.prototype, self.args)
@@ -246,6 +261,9 @@ class DirtyStatement(Statement):
     def __init__(self, idx, dirty_stmt, **kwargs):
         super(DirtyStatement, self).__init__(idx, **kwargs)
         self.dirty_stmt = dirty_stmt
+
+    def __hash__(self):
+        return hash((DirtyStatement, self.dirty_stmt))
 
     def __repr__(self):
         return "DirtyStatement (%s)" % (type(self.dirty_stmt))

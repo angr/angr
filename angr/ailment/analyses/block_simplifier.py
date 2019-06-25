@@ -54,8 +54,8 @@ class BlockSimplifier(Analysis):
     def _simplify_block_once(self, block):
 
         # propagator
-        propagator = self.project.analyses.AILPropagator(block=block, stack_pointer_tracker=self._stack_pointer_tracker)
-        replacements = list(propagator._states.values())[0]._final_replacements
+        propagator = self.project.analyses.Propagator(block=block, stack_pointer_tracker=self._stack_pointer_tracker)
+        replacements = list(propagator._states.values())[0]._replacements
         new_block = self._replace_and_build(block, replacements)
         new_block = self._eliminate_dead_assignments(new_block)
 
@@ -66,18 +66,19 @@ class BlockSimplifier(Analysis):
 
         new_statements = block.statements[::]
 
-        for codeloc, old, new in replacements:
-            stmt = new_statements[codeloc.stmt_idx]
-            if stmt == old:
-                # replace this statement
-                r = True
-                new_stmt = new
-            else:
-                # replace the expressions involved in this statement
-                r, new_stmt = stmt.replace(old, new)
+        for codeloc, repls in replacements.items():
+            for old, new in repls.items():
+                stmt = new_statements[codeloc.stmt_idx]
+                if stmt == old:
+                    # replace this statement
+                    r = True
+                    new_stmt = new
+                else:
+                    # replace the expressions involved in this statement
+                    r, new_stmt = stmt.replace(old, new)
 
-            if r:
-                new_statements[codeloc.stmt_idx] = new_stmt
+                if r:
+                    new_statements[codeloc.stmt_idx] = new_stmt
 
         new_block = block.copy()
         new_block.statements = new_statements
