@@ -41,7 +41,7 @@ class SimEnginePropagatorVEX(
     def _expr(self, expr):
         v = super()._expr(expr)
 
-        if v is not None and v is not expr:
+        if v not in {None, BOTTOM, TOP} and v is not expr:
             # Record the replacement
             if type(expr) is pyvex.IRExpr.Get:
                 if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
