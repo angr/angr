@@ -2161,22 +2161,22 @@ class Reassembler(Analysis):
         # there is a single function referencing them
         cgcpl_memory_data = self.cfg.memory_data.get(cgc_package_list.addr, None)
         cgcea_memory_data = self.cfg.memory_data.get(cgc_extended_application.addr, None)
-        refs = self.cfg.model.references
+        refs = self.cfg.kb.xrefs
 
         if cgcpl_memory_data is None or cgcea_memory_data is None:
             return False
 
-        if len(refs.data_addr_to_ref[cgcpl_memory_data.addr]) != 1:
+        if len(refs.get_refs_by_dst(cgcpl_memory_data.addr)) != 1:
             return False
-        if len(refs.data_addr_to_ref[cgcea_memory_data.addr]) != 1:
+        if len(refs.get_refs_by_dst(cgcea_memory_data.addr)) != 1:
             return False
 
         # check if the irsb addresses are the same
-        if next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).block_addr != \
-                next(iter(refs.data_addr_to_ref[cgcea_memory_data.addr])).block_addr:
+        if next(iter(refs.get_refs_by_dst(cgcpl_memory_data.addr))).block_addr != \
+                next(iter(refs.get_refs_by_dst(cgcea_memory_data.addr))).block_addr:
             return False
 
-        insn_addr = next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).insn_addr
+        insn_addr = next(iter(refs.get_refs_by_dst(cgcpl_memory_data.addr))).insn_addr
         # get the basic block
         cfg_node = self.cfg.get_any_node(insn_addr, anyaddr=True)
         if not cfg_node:

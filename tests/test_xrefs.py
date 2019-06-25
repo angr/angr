@@ -25,7 +25,7 @@ def test_lwip_udpecho_bm():
 
     nose.tools.assert_equal(len(timenow_cp_xrefs), 1)
     nose.tools.assert_equal(next(iter(timenow_cp_xrefs)),
-                            XRef(XRefType.Read, CodeLocation(0x23c9, stmt_idx=10, ins_addr=0x23c9), 0x23d4)
+                            XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
                             )
 
     nose.tools.assert_equal(len(timenow_xrefs), 2)

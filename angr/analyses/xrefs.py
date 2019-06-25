@@ -17,7 +17,9 @@ class XRefsState:
         self.xref_manager = xref_manager
 
     def add_xref(self, xref_type, from_loc, to_loc):
-        self.xref_manager.add_xref(XRef(xref_type, from_loc, to_loc))
+        self.xref_manager.add_xref(XRef(ins_addr=from_loc.ins_addr, block_addr=from_loc.block_addr,
+                                        stmt_idx=from_loc.stmt_idx, dst=to_loc, xref_type=xref_type)
+                                   )
 
     def copy(self):
         return XRefsState(
@@ -62,6 +64,8 @@ class SimEngineXRefsVEX(
             if addr_tmp in self.replacements[blockloc]:
                 addr = self.replacements[blockloc][addr_tmp]
                 self.state.add_xref(XRefType.Read, self._codeloc(), addr)
+
+    # TODO: Implement handlers for Load and Store
 
     #
     # Expression handlers

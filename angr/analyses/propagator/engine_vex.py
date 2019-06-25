@@ -59,7 +59,7 @@ class SimEnginePropagatorVEX(
             # Try loading from the state
             if self.base_state is not None and self._allow_loading(addr, size):
                 _l.debug("Loading %d bytes from %x.", size, addr)
-                data = self.base_state.memory.load(addr, size)
+                data = self.base_state.memory.load(addr, size, endness=endness)
                 if not data.symbolic:
                     return self.base_state.solver.eval(data)
         return None
@@ -114,7 +114,8 @@ class SimEnginePropagatorVEX(
         if guard is True:
             addr = self._expr(stmt.addr)
             if addr is not None:
-                self.tmps[stmt.dst] = self._load_data(addr, stmt.alt.result_size(self.tyenv) // 8, stmt.endness)
+                self.tmps[stmt.dst] = self._load_data(addr, stmt.alt.result_size(self.tyenv) // 8,
+                                                      self.arch.memory_endness)
         elif guard is False:
             data = self._expr(stmt.alt)
             self.tmps[stmt.dst] = data
