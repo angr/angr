@@ -2166,17 +2166,17 @@ class Reassembler(Analysis):
         if cgcpl_memory_data is None or cgcea_memory_data is None:
             return False
 
-        if len(refs.get_refs_by_dst(cgcpl_memory_data.addr)) != 1:
+        if len(refs.get_xrefs_by_dst(cgcpl_memory_data.addr)) != 1:
             return False
-        if len(refs.get_refs_by_dst(cgcea_memory_data.addr)) != 1:
+        if len(refs.get_xrefs_by_dst(cgcea_memory_data.addr)) != 1:
             return False
 
         # check if the irsb addresses are the same
-        if next(iter(refs.get_refs_by_dst(cgcpl_memory_data.addr))).block_addr != \
-                next(iter(refs.get_refs_by_dst(cgcea_memory_data.addr))).block_addr:
+        if next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).block_addr != \
+                next(iter(refs.get_xrefs_by_dst(cgcea_memory_data.addr))).block_addr:
             return False
 
-        insn_addr = next(iter(refs.get_refs_by_dst(cgcpl_memory_data.addr))).insn_addr
+        insn_addr = next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).insn_addr
         # get the basic block
         cfg_node = self.cfg.get_any_node(insn_addr, anyaddr=True)
         if not cfg_node:
