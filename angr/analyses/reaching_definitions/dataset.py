@@ -74,8 +74,8 @@ class DataSet:
                     if isinstance(tmp, int):
                         tmp &= self._mask
                     res.add(tmp)
-                except TypeError as e:
-                    # l.warning(e)
+                except TypeError as ex:  # pylint:disable=try-except-raise,unused-variable
+                    # l.warning(ex)
                     raise
 
         return DataSet(res, self._bits)
@@ -99,7 +99,7 @@ class DataSet:
                         if isinstance(tmp, int):
                             tmp &= self._mask
                         res.add(tmp)
-                    except TypeError as ex:
+                    except TypeError as ex:  # pylint;disable=try-except-raise,unused-variable
                         # l.warning(ex)
                         raise
 

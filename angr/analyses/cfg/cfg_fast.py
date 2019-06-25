@@ -14,7 +14,8 @@ from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, CodeReference
+from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData
+from ...knowledge_plugins.xrefs import XRef, XRefType
 from ...misc.ux import deprecated
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
@@ -1977,8 +1978,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         new_data = True
 
                     if new_data or self._extra_cross_references:
-                        cr = CodeReference(insn_addr, irsb_addr, stmt_idx, memory_data=self.model.memory_data[data_addr])
-                        self.model.references.add_ref(cr)
+                        cr = XRef(ins_addr=insn_addr, block_addr=irsb_addr, stmt_idx=stmt_idx,
+                                  memory_data=self.model.memory_data[data_addr], xref_type=XRefType.Offset,
+                                  )
+                        self.kb.xrefs.add_xref(cr)
                     break
 
             return
@@ -1992,8 +1995,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._memory_data[data_addr] = data
             new_data = True
         if new_data or self._extra_cross_references:
-            cr = CodeReference(insn_addr, irsb_addr, stmt_idx, memory_data=self.model.memory_data[data_addr])
-            self.model.references.add_ref(cr)
+            cr = XRef(ins_addr=insn_addr, block_addr=irsb_addr, stmt_idx=stmt_idx,
+                      memory_data=self.model.memory_data[data_addr],
+                      xref_type=XRefType.Offset,
+                      )
+            self.kb.xrefs.add_xref(cr)
 
         self.insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
 
@@ -2095,19 +2101,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     new_md = MemoryData(new_addr, None, None, max_size=memory_data.max_size - memory_data.size)
                     self._memory_data[new_addr] = new_md
                     # Make a copy of all old references
-                    old_crs = self.model.references.data_addr_to_ref[data_addr]
+                    old_crs = self.kb.xrefs.get_xrefs_by_dst(data_addr)
                     crs = [ ]
                     for old_cr in old_crs:
                         cr = old_cr.copy()
                         cr.memory_data = new_md
                         crs.append(cr)
-                    self.model.references.add_refs(crs)
+                    self.kb.xrefs.add_xrefs(crs)
                     keys.insert(i, new_addr)
 
                 if data_type == MemoryDataSort.PointerArray:
                     # make sure all pointers are identified
                     pointer_size = self.project.arch.bytes
-                    old_crs = self.model.references.data_addr_to_ref[data_addr]
+                    old_crs = self.kb.xrefs.get_xrefs_by_dst(data_addr)
 
                     for j in range(0, data_size, pointer_size):
                         ptr = self._fast_memory_load_pointer(data_addr + j)
@@ -2134,7 +2140,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 cr = old_cr.copy()
                                 cr.memory_data = new_md
                                 crs.append(cr)
-                            self.model.references.add_refs(crs)
+                            self.kb.xrefs.add_xrefs(crs)
                             new_data_found = True
 
             else:
@@ -2158,7 +2164,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         try:
-            ref = next(iter(self.model.references.data_addr_to_ref[data_addr]))  # type: CodeReference
+            ref = next(iter(self.kb.xrefs.get_xrefs_by_dst(data_addr)))  # type: XRef
             irsb_addr = ref.block_addr
             stmt_idx = ref.stmt_idx
         except StopIteration:

@@ -41,8 +41,11 @@ class SimEngineLight(SimEngine):
     # Helper methods
     #
 
-    def _codeloc(self):
-        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+    def _codeloc(self, block_only=False):
+        return CodeLocation(self.block.addr,
+                            None if block_only else self.stmt_idx,
+                            ins_addr=None if block_only else self.ins_addr,
+                            )
 
 
 class SimEngineLightVEXMixin:
@@ -55,7 +58,8 @@ class SimEngineLightVEXMixin:
         self.tmps = {}
         self.block = block
         self.state = state
-        self.arch = state.arch
+        if state is not None:
+            self.arch = state.arch
 
         self.tyenv = block.vex.tyenv
 
@@ -85,7 +89,7 @@ class SimEngineLightVEXMixin:
         if self.block.vex.jumpkind == 'Ijk_Call':
             handler = '_handle_function'
             if hasattr(self, handler):
-                getattr(self, handler)()
+                getattr(self, handler)(self._expr(self.block.vex.next))
             else:
                 self.l.warning('Function handler not implemented.')
 
@@ -347,6 +351,21 @@ class SimEngineLightVEXMixin:
             return expr_0 >> expr_1
         except TypeError as e:
             self.l.warning(e)
+            return None
+
+    def _handle_CmpNE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 != expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
             return None
 
 

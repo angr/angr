@@ -10,40 +10,11 @@ from ...serializable import Serializable
 from ...utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from ...errors import AngrCFGError
 from .cfg_node import CFGNode
-from .memory_data import CodeReference, MemoryData
+from .memory_data import MemoryData
 from ...misc.ux import once
 
 
 l = logging.getLogger(name=__name__)
-
-
-class ReferenceManager:
-
-    def __init__(self):
-        self.refs = defaultdict(list)
-        self.data_addr_to_ref = defaultdict(list)
-
-    def add_ref(self, ref):
-        """
-        Add a reference to a memory data object.
-
-        :param CodeReference ref:   The reference.
-        :return:                    None
-        """
-
-        self.refs[ref.insn_addr].append(ref)
-        self.data_addr_to_ref[ref.memory_data.addr].append(ref)
-
-    def add_refs(self, refs):
-        """
-        Add multiple references at the same time.
-
-        :param iterable refs:   A collection of reference objects.
-        :return:                None
-        """
-
-        for ref in refs:
-            self.add_ref(ref)
 
 
 class CFGModel(Serializable):
@@ -73,8 +44,6 @@ class CFGModel(Serializable):
         self.memory_data = { }
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data = { }
-        # Data references
-        self.references = ReferenceManager()
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
         self._nodes_by_addr = defaultdict(list)
@@ -136,13 +105,6 @@ class CFGModel(Serializable):
             memory_data.append(data.serialize_to_cmessage())
         cmsg.memory_data.extend(memory_data)
 
-        # references
-        refs = [ ]
-        for ref_lst in self.references.refs.values():
-            for ref in ref_lst:
-                refs.append(ref.serialize_to_cmessage())
-        cmsg.refs.extend(refs)
-
         return cmsg
 
     @classmethod
@@ -181,15 +143,6 @@ class CFGModel(Serializable):
         for data_pb2 in cmsg.memory_data:
             md = MemoryData.parse_from_cmessage(data_pb2)
             model.memory_data[md.addr] = md
-
-        # references
-        for ref_pb2 in cmsg.refs:
-            if ref_pb2.data_ea == -1:
-                l.warning("Unknown address of the referenced data item. Ignore the reference at %#x.", ref_pb2.ea)
-                continue
-            ref = CodeReference.parse_from_cmessage(ref_pb2)
-            ref.memory_data = model.memory_data[ref_pb2.data_ea]
-            model.references.add_ref(ref)
 
         return model
 
