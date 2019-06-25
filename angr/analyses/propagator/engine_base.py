@@ -7,7 +7,7 @@ from ...errors import SimEngineError
 l = logging.getLogger(name=__name__)
 
 
-class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract_method
+class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
     def __init__(self, stack_pointer_tracker=None, project=None):
         super().__init__()
 

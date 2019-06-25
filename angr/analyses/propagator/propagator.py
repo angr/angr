@@ -89,11 +89,11 @@ class PropagatorVEXState(PropagatorState):
 
         return state
 
-    def store_local_variable(self, offset, size, value):
+    def store_local_variable(self, offset, size, value):  # pylint:disable=unused-argument
         # TODO: Handle size
         self.local_variables[offset] = value
 
-    def load_local_variable(self, offset, size):
+    def load_local_variable(self, offset, size):  # pylint:disable=unused-argument
         # TODO: Handle size
         try:
             return self.local_variables[offset]

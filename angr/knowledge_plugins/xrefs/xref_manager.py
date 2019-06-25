@@ -60,6 +60,7 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         return xrefs_pb2.XRefs()
 
     def serialize_to_cmessage(self):
+        # pylint:disable=no-member
         cmsg = self._get_cmsg()
         # references
         refs = []

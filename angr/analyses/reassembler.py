@@ -2176,7 +2176,7 @@ class Reassembler(Analysis):
                 next(iter(refs.get_xrefs_by_dst(cgcea_memory_data.addr))).block_addr:
             return False
 
-        insn_addr = next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).insn_addr
+        insn_addr = next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).ins_addr
         # get the basic block
         cfg_node = self.cfg.get_any_node(insn_addr, anyaddr=True)
         if not cfg_node:

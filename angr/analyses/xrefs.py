@@ -87,21 +87,21 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
     Here is an example::
 
-    .text:
-    000023C8                 LDR     R2, =time_now
-    000023CA                 LDR     R3, [R2]
-    000023CC                 ADDS    R3, #1
-    000023CE                 STR     R3, [R2]
-    000023D0                 BX      LR
+        .text:
+        000023C8                 LDR     R2, =time_now
+        000023CA                 LDR     R3, [R2]
+        000023CC                 ADDS    R3, #1
+        000023CE                 STR     R3, [R2]
+        000023D0                 BX      LR
 
-    .bss:
-    1FFF36F4 time_now        % 4
+        .bss:
+        1FFF36F4 time_now        % 4
 
     You will have the following x-refs for time_now::
 
-    23c8 - offset
-    23ca - read access
-    23ce - write access
+        23c8 - offset
+        23ca - read access
+        23ce - write access
     """
     def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None):
 
