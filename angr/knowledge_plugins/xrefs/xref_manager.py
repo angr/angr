@@ -5,7 +5,7 @@ from collections import defaultdict
 from ...serializable import Serializable
 from ...protos import xrefs_pb2
 from ..plugin import KnowledgeBasePlugin
-from .xref import XRef
+from .xref import XRef, XRefType
 
 
 l = logging.getLogger(name=__name__)
@@ -20,8 +20,24 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         self.xrefs_by_dst = defaultdict(set)
 
     def add_xref(self, xref):
-        self.xrefs_by_ins_addr[xref.ins_addr].add(xref)
-        self.xrefs_by_dst[xref.dst].add(xref)
+        to_remove = set()
+        # Overwrite existing "offset" refs
+        if xref.type != XRefType.Offset:
+            existing = self.get_xrefs_by_ins_addr(xref.ins_addr)
+            if existing:
+                for ex in existing:
+                    if ex.dst == xref.dst and ex.type == XRefType.Offset:
+                        # We want to remove this one and replace it with the new one
+                        to_remove.add(ex)
+
+        d0 = self.xrefs_by_ins_addr[xref.ins_addr]
+        d0.add(xref)
+        d1 = self.xrefs_by_dst[xref.dst]
+        d1.add(xref)
+
+        for ex in to_remove:
+            d0.discard(ex)
+            d1.discard(ex)
 
     def add_xrefs(self, xrefs):
         for xref in xrefs:

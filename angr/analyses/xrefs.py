@@ -44,9 +44,22 @@ class SimEngineXRefsVEX(
     # Statement handlers
     #
 
+    def _handle_WrTmp(self, stmt):
+        # Don't execute the tmp write since it has been done during constant propagation
+        self._expr(stmt.data)
+
     def _handle_Put(self, stmt):
         # if there is a Load, get it executed
         self._expr(stmt.data)
+
+    def _handle_Store(self, stmt):
+        blockloc = self._codeloc(block_only=True)
+        # TODO: Handle constant stores
+        if type(stmt.addr) is pyvex.IRExpr.RdTmp:
+            addr_tmp = VEXTmp(stmt.addr.tmp)
+            if addr_tmp in self.replacements[blockloc]:
+                addr = self.replacements[blockloc][addr_tmp]
+                self.state.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
@@ -65,8 +78,6 @@ class SimEngineXRefsVEX(
                 addr = self.replacements[blockloc][addr_tmp]
                 self.state.add_xref(XRefType.Read, self._codeloc(), addr)
 
-    # TODO: Implement handlers for Load and Store
-
     #
     # Expression handlers
     #
@@ -74,10 +85,19 @@ class SimEngineXRefsVEX(
     def _handle_Get(self, expr):
         return None
 
+    def _handle_Load(self, expr):
+        blockloc = self._codeloc(block_only=True)
+        # TODO: Handle constant reads
+        if type(expr.addr) is pyvex.IRExpr.RdTmp:
+            addr_tmp = VEXTmp(expr.addr.tmp)
+            if addr_tmp in self.replacements[blockloc]:
+                addr = self.replacements[blockloc][addr_tmp]
+                self.state.add_xref(XRefType.Read, self._codeloc(), addr)
+
 
 class XRefsAnalysis(ForwardAnalysis, Analysis):
     """
-    XRefsAnalysis recovers in-depths x-refs (cross-references) in disassembly code.
+    XRefsAnalysis recovers in-depth x-refs (cross-references) in disassembly code.
 
     Here is an example::
 

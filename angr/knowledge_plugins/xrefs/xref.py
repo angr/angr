@@ -25,6 +25,13 @@ class XRef(Serializable):
         self.dst = dst
         self.type = xref_type
 
+        if memory_data is not None and dst is None:
+            self.dst = memory_data.addr
+
+    @property
+    def type_string(self):
+        return XRefType.to_string(self.type)
+
     def __repr__(self):
         return "<XRef %s: %s->%s>" % (
                 XRefType.to_string(self.type),
@@ -77,7 +84,7 @@ class XRef(Serializable):
 
     def copy(self):
         cr = XRef(ins_addr=self.ins_addr, block_addr=self.block_addr, stmt_idx=self.stmt_idx,
-                  insn_op_idx=self.insn_op_idx, memory_data=self.memory_data, dst=self.dst)
+                  insn_op_idx=self.insn_op_idx, memory_data=self.memory_data, dst=self.dst, xref_type=self.type)
         return cr
 
 
