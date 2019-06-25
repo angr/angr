@@ -19,7 +19,7 @@ from .. import errors
 from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
-from ..state_plugins import SimFilesystem
+from ..state_plugins import SimFilesystem, SimHostFilesystem
 from ..storage.file import SimFile, SimFileBase
 from .simos import SimOS
 
@@ -173,7 +173,8 @@ class SimWindows(SimOS):
 
         return state
 
-    def state_blank(self, fs=None, **kwargs):
+    def state_blank(self, fs=None, concrete_fs=False, chroot=None, cwd=b'/Users/User', pathsep=b'/',
+                    **kwargs):
         if self.project.loader.main_object.supports_nx:
             add_options = kwargs.get('add_options', set())
             add_options.add(o.ENABLE_NX)
@@ -318,7 +319,11 @@ class SimWindows(SimOS):
             if not isinstance(fs[name], SimFileBase):
                 raise TypeError('Provided fs initializer with unusable type %r' % type(fs[name]))
 
-        state.register_plugin('fs', SimFilesystem(files=fs))
+        mounts = {}
+        if concrete_fs:
+            mounts[pathsep] = SimHostFilesystem(chroot if chroot is not None else os.path.sep)
+
+        state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
         return state
 
