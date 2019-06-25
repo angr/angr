@@ -11,34 +11,20 @@ from .analysis import Analysis
 from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
 
 
-class XRefsState:
-    def __init__(self, arch, xref_manager):
-        self.arch = arch
+class SimEngineXRefsVEX(
+    SimEngineLightVEXMixin,
+    SimEngineLight,
+):
+    def __init__(self, xref_manager, replacements=None):
+        super().__init__()
+
         self.xref_manager = xref_manager
+        self.replacements = replacements if replacements is not None else { }
 
     def add_xref(self, xref_type, from_loc, to_loc):
         self.xref_manager.add_xref(XRef(ins_addr=from_loc.ins_addr, block_addr=from_loc.block_addr,
                                         stmt_idx=from_loc.stmt_idx, dst=to_loc, xref_type=xref_type)
                                    )
-
-    def copy(self):
-        return XRefsState(
-            self.arch,
-            xref_manager=self.xref_manager,
-        )
-
-    def merge(self, *others):  # pylint:disable=no-self-use
-        return others[0]
-
-
-class SimEngineXRefsVEX(
-    SimEngineLightVEXMixin,
-    SimEngineLight,
-):
-    def __init__(self, replacements=None):
-        super().__init__()
-
-        self.replacements = replacements if replacements is not None else { }
 
     #
     # Statement handlers
@@ -59,7 +45,7 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr = self.replacements[blockloc][addr_tmp]
-                self.state.add_xref(XRefType.Write, self._codeloc(), addr)
+                self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
@@ -67,7 +53,7 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr = self.replacements[blockloc][addr_tmp]
-                self.state.add_xref(XRefType.Write, self._codeloc(), addr)
+                self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_LoadG(self, stmt):
         # What are we reading?
@@ -76,7 +62,7 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr = self.replacements[blockloc][addr_tmp]
-                self.state.add_xref(XRefType.Read, self._codeloc(), addr)
+                self.add_xref(XRefType.Read, self._codeloc(), addr)
 
     #
     # Expression handlers
@@ -92,7 +78,7 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(expr.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr = self.replacements[blockloc][addr_tmp]
-                self.state.add_xref(XRefType.Read, self._codeloc(), addr)
+                self.add_xref(XRefType.Read, self._codeloc(), addr)
 
 
 class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
@@ -125,12 +111,14 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
             # traversing a function
             graph_visitor = FunctionGraphVisitor(func, func_graph)
             if replacements is None:
-                replacements = self.project.analyses.Propagator(func=func, func_graph=func_graph)
+                prop = self.project.analyses.Propagator(func=func, func_graph=func_graph)
+                replacements = prop.replacements
         elif block is not None:
             # traversing a block
             graph_visitor = SingleNodeGraphVisitor(block)
             if replacements is None:
-                replacements = self.project.analyses.Propagator(block=block)
+                prop = self.project.analyses.Propagator(block=block)
+                replacements = prop.replacements
         else:
             raise ValueError('Unsupported analysis target.')
 
@@ -142,10 +130,8 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         self._replacements = replacements
 
         self._node_iterations = defaultdict(int)
-        self._states = {}
-        self.replacements = None
 
-        self._engine_vex = SimEngineXRefsVEX(replacements=replacements)
+        self._engine_vex = SimEngineXRefsVEX(self.kb.xrefs, replacements=replacements)
         self._engine_ail = None
 
         self._analyze()
@@ -161,10 +147,10 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         pass
 
     def _initial_abstract_state(self, node):
-        return XRefsState(self.project.arch, xref_manager=self.kb.xrefs)
+        return None
 
     def _merge_states(self, node, *states):
-        return states[0].merge(*states[1:])
+        return None
 
     def _run_on_node(self, node, state):
 
@@ -172,16 +158,14 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         block_key = node.addr
         engine = self._engine_vex
 
-        state = state.copy()
-        engine.process(state, block=block, fail_fast=self._fail_fast)
+        engine.process(None, block=block, fail_fast=self._fail_fast)
 
         self._node_iterations[block_key] += 1
-        self._states[block_key] = state
 
         if self._node_iterations[block_key] < self._max_iterations:
-            return True, state
+            return True, None
         else:
-            return False, state
+            return False, None
 
     def _intra_analysis(self):
         pass
