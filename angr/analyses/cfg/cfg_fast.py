@@ -446,6 +446,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  model=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
+                 collect_data_references=False, # deprecated
+                 extra_cross_references=False, # deprecated
                  **extra_arch_options
                  ):
         """
@@ -525,6 +527,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                       'which may take significantly more time than expected. You may reload the binary with '
                       '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
                       )
+
+        if collect_data_references is not None:
+            l.warning('"collect_data_references" is deprecated and will be removed soon. Please use '
+                      '"data_references" instead')
+            data_references = collect_data_references
+        if extra_cross_references is not None:
+            l.warning('"extra_cross_references" is deprecated and will be removed soon. Please use '
+                      '"cross_references" instead')
+            cross_references = extra_cross_references
 
         if start is not None or end is not None:
             l.warning('"start" and "end" are deprecated and will be removed soon. Please use "regions" to specify one '
