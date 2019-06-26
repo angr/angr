@@ -150,6 +150,20 @@ class SimEngineLightVEXMixin:
     def _handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
 
+    def _handle_Exit(self, expr):
+        self._expr(expr.guard)
+        self._expr(expr.dst)
+
+    def _handle_ITE(self, expr):
+        # EDG says: Not sure how generic this is.
+        cond = self._expr(expr.cond)
+        if cond is True:
+            return self._expr(expr.iftrue)
+        elif cond is False:
+            return self._expr(expr.iffalse)
+        else:
+            return None
+
     def _handle_Unop(self, expr):
         handler = None
 
@@ -217,6 +231,21 @@ class SimEngineLightVEXMixin:
     #
     # Unary operation handlers
     #
+
+    def _handle_U32(self, expr):
+        return expr.value
+
+    def _handle_U64(self, expr):
+        return expr.value
+
+    def _handle_U16(self, expr):
+        return expr.value
+
+    def _handle_U8(self, expr):
+        return expr.value
+
+    def _handle_U1(self, expr):
+        return expr.value
 
     def _handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.con.value
@@ -361,6 +390,21 @@ class SimEngineLightVEXMixin:
         if expr_1 is None:
             return None
 
+        try:
+            return expr_0 >> expr_1
+        except TypeError as e:
+            self.l.warning(e)
+            return None
+
+    def _handle_Sar(self, expr):
+        # EDG asks: is this right?
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
         try:
             return expr_0 >> expr_1
         except TypeError as e:
