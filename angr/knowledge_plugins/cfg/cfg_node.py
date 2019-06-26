@@ -135,10 +135,14 @@ class CFGNode(Serializable):
     def accessed_data_references(self):
         if self._cfg_model.ident != 'CFGFast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
+        kb = self._cfg_model.project.kb
+        if not kb:
+            raise ValueError("The default Knowledge Base does not exist!")
 
         for instr_addr in self.instruction_addrs:
-            if instr_addr in self._cfg_model.insn_addr_to_memory_data:
-                yield self._cfg_model.insn_addr_to_memory_data[instr_addr]
+            refs = list(kb.xrefs.get_xrefs_by_ins_addr(instr_addr))
+            for ref in refs:
+                yield ref
 
     @property
     def is_simprocedure(self):
