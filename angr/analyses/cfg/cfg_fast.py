@@ -446,8 +446,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  model=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
-                 collect_data_references=False, # deprecated
-                 extra_cross_references=False, # deprecated
+                 collect_data_references=None, # deprecated
+                 extra_cross_references=None, # deprecated
                  **extra_arch_options
                  ):
         """
