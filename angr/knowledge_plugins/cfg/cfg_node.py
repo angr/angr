@@ -131,6 +131,20 @@ class CFGNode(Serializable):
     def predecessors(self):
         return self._cfg_model.get_predecessors(self)
 
+    def get_data_references(self, kb=None):
+        if self._cfg_model.ident != 'CFGFast':
+            raise ValueError("Memory data is currently only supported in CFGFast.")
+        if not kb:
+            kb = self._cfg_model.project.kb
+        if not kb:
+            raise ValueError("The Knowledge Base does not exist!")
+
+        for instr_addr in self.instruction_addrs:
+            refs = list(kb.xrefs.get_xrefs_by_ins_addr(instr_addr))
+            for ref in refs:
+                yield ref
+
+
     @property
     def accessed_data_references(self):
         if self._cfg_model.ident != 'CFGFast':
