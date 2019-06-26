@@ -677,12 +677,12 @@ def test_blanket_fauxware():
 # Data references
 #
 
-def test_collect_data_references():
+def test_data_references():
 
     path = os.path.join(test_location, 'x86_64', 'fauxware')
     proj = angr.Project(path, auto_load_libs=False)
 
-    cfg = proj.analyses.CFGFast(collect_data_references=True)
+    cfg = proj.analyses.CFGFast(data_references=True)
 
     memory_data = cfg.memory_data
     # There is no code reference
@@ -747,7 +747,7 @@ def run_all():
     test_block_instruction_addresses_armhf()
     test_tail_call_optimization_detection_armel()
     test_blanket_fauxware()
-    test_collect_data_references()
+    test_data_references()
     test_function_leading_blocks_merging()
 
 
