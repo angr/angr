@@ -27,10 +27,11 @@ def test_concrete_fs_support():
     binary_path = path.join(test_location, 'i386', 'simple_windows.exe')
     proj = angr.Project(binary_path, auto_load_libs=False)
 
-    state = proj.factory.entry_state(concrete_fs=True, chroot=path.dirname(path.realpath(__file__)))
+    state = proj.factory.entry_state(concrete_fs=True, chroot=path.dirname(path.realpath(__file__)),
+                                     cwd=b'C:', pathsep=b'\\')
     nose.tools.assert_is_instance(state.fs, SimFilesystem)
 
-    readme = state.fs.get('/README.md')
+    readme = state.fs.get('\\README.md')
     nose.tools.assert_is_instance(readme, SimFile)
     data, actual_size, new_pos = readme.read(0, 5)
     nose.tools.assert_true(claripy.is_true(data == b'Tests'))

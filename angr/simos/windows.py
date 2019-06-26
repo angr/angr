@@ -173,8 +173,8 @@ class SimWindows(SimOS):
 
         return state
 
-    def state_blank(self, fs=None, concrete_fs=False, chroot=None, cwd=b'/Users/User', pathsep=b'/',
-                    **kwargs):
+    def state_blank(self, fs=None, concrete_fs=False, chroot=None, cwd=b'C:\\Users\\User',
+                    pathsep=b'\\', **kwargs):
         if self.project.loader.main_object.supports_nx:
             add_options = kwargs.get('add_options', set())
             add_options.add(o.ENABLE_NX)
@@ -311,7 +311,7 @@ class SimWindows(SimOS):
 
         for name in fs:
             if type(fs[name]) is str:
-                fs[name] = fs[name].encode('uft-8')
+                fs[name] = fs[name].encode('utf-8')
             if type(fs[name]) is bytes:
                 fs[name] = claripy.BVV(fs[name])
             if isinstance(fs[name], claripy.Bits):
