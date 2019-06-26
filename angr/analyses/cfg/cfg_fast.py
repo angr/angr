@@ -1213,6 +1213,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if sec.vaddr not in self.model.memory_data:
                             self.model.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, MemoryDataSort.Unknown)
 
+        # If they asked for it, give it to them.  All of it.
+        if self._extra_cross_references:
+            self._do_full_xrefs()
+
         r = True
         while r:
             r = self._tidy_data_references()
@@ -1220,6 +1224,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         CFGBase._post_analysis(self)
 
         self._finish_progress()
+
+    def _do_full_xrefs(self):
+        l.info("Building cross-references...")
+        # Time to make our CPU hurt
+        state = self.project.factory.blank_state()
+        for f_addr in self.functions:
+            try:
+                f = self.functions[f_addr]
+                if f.is_simprocedure:
+                    continue
+                l.debug("\tFunction %s" % f.name)
+                # constant prop
+                prop = self.project.analyses.Propagator(func=f, base_state=state)
+                # Collect all the refs
+                self.project.analyses.XRefs(func=f, replacements=prop.replacements)
+            except Exception as e:
+                
+                l.exception("Error collecting XRefs for function %s" % f.name)
 
     # Methods to get start points for scanning
 
