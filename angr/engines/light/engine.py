@@ -263,6 +263,20 @@ class SimEngineLightVEXMixin:
             self.l.warning(e)
             return None
 
+    def _handle_Not1(self, expr):
+        return self._handle_Not(expr)
+
+    def _handle_Not(self, expr):
+        arg0 = expr.args[0]
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        try:
+            return ~expr_0
+        except TypeError as e:
+            self.l.exception(e)
+            return None
+
     def _handle_Add(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
@@ -352,6 +366,22 @@ class SimEngineLightVEXMixin:
         except TypeError as e:
             self.l.warning(e)
             return None
+
+    def _handle_CmpEQ(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 == expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
+            return None
+
 
     def _handle_CmpNE(self, expr):
         arg0, arg1 = expr.args
