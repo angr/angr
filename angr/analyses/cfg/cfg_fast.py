@@ -1257,7 +1257,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.project.analyses.XRefs(func=f, replacements=prop.replacements)
             except Exception as e:
                 if f is not None:
-                    l.exception("Error collecting XRefs for function", f.name)
+                    l.exception("Error collecting XRefs for function %s", f.name)
                 else:
                     l.exception("Error collecting XRefs for function %#08x" % f_addr)
 
