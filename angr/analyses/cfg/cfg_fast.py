@@ -470,6 +470,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         This will populate the Knowledge Base with references to and from each recognizable address constant found in
         the code. Note that, because this performs constant propagation on the entire program, it may be much slower
         and consume more memory.
+
+        Implies `data_references=True`
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param bool start_at_entry:     Begin CFG recovery at the entry point of this project. Setting it to False
                                         prevents CFGFast from viewing the entry point as one of the starting points of
@@ -562,7 +564,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._regions = SortedDict(regions)
 
         self._pickle_intermediate_results = pickle_intermediate_results
-        self._collect_data_ref = data_references
 
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
@@ -581,6 +582,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._extra_memory_regions = extra_memory_regions
 
         self._cross_references = cross_references
+        # You need data refs to get cross refs
+        self._collect_data_ref = data_references or self._cross_references
 
         self._arch_options = arch_options if arch_options is not None else CFGArchOptions(
                 self.project.arch, **extra_arch_options)
