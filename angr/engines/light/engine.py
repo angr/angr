@@ -382,7 +382,6 @@ class SimEngineLightVEXMixin:
             self.l.warning(ex)
             return None
 
-
     def _handle_CmpNE(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
