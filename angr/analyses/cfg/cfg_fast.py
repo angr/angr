@@ -2203,6 +2203,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: tuple
         """
 
+        # quick check: if it's at the beginning of a binary, it might be the ELF header
+        elfheader_sort, elfheader_size = self._guess_data_type_elfheader(data_addr, max_size)
+        if elfheader_sort:
+            return elfheader_sort, elfheader_size
+
         try:
             ref = next(iter(self.kb.xrefs.get_xrefs_by_dst(data_addr)))  # type: XRef
             irsb_addr = ref.block_addr
@@ -2308,6 +2313,33 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
             if sort is not None:
                 return sort, size
+
+        return None, None
+
+    def _guess_data_type_elfheader(self, data_addr, max_size):
+        """
+        Is the specified data chunk an ELF header?
+
+        :param int data_addr:   Address of the data chunk
+        :param int max_size:    Size of the data chunk.
+        :return:                A tuple of ('elf-header', size) if it is, or (None, None) if it is not.
+        :rtype:                 tuple
+        """
+
+        obj = self.project.loader.find_object_containing(data_addr)
+        if obj is None:
+            # it's not mapped
+            return None, None
+
+        if data_addr == obj.min_addr and 4 < max_size < 1000:
+            # Does it start with the ELF magic bytes?
+            try:
+                data = self.project.loader.memory.load(data_addr, 4)
+            except KeyError:
+                return None, None
+            if data == b"\x7fELF":
+                # yes!
+                return "elf-header", max_size
 
         return None, None
 
