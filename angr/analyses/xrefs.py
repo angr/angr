@@ -80,6 +80,12 @@ class SimEngineXRefsVEX(
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Read, self._codeloc(), addr)
 
+    def _handle_CCall(self, expr):
+        return None
+
+    def _handle_function(self, func):
+        # pylint: disable=unused-argument,no-self-use
+        return None # TODO: Maybe add an execute-type XRef?
 
 class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """

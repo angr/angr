@@ -34,6 +34,8 @@ class SimEnginePropagatorVEX(
         return state
 
     def _allow_loading(self, addr, size):
+        if addr in (TOP, BOTTOM):
+            return False
         if self._load_callback is None:
             return True
         return self._load_callback(addr, size)
@@ -98,16 +100,20 @@ class SimEnginePropagatorVEX(
         if data is not BOTTOM:
             self.state.store_register(stmt.offset, size, data)
 
+    def _store_data(self, addr, data, size, endness):
+        # pylint: disable=unused-argument,no-self-use
+        if isinstance(addr, SpOffset):
+            # Local variables
+            self.state.store_local_variable(addr.offset, size, data)
+        # EDG says: This doesn't match Load entirely, this is probably wrong
+
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
         if addr is None:
             return
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
-
-        if isinstance(addr, SpOffset):
-            # Local variables
-            self.state.store_local_variable(addr.offset, size, data)
+        self._store_data(addr, data, size, self.arch.memory_endness)
 
     def _handle_LoadG(self, stmt):
         guard = self._expr(stmt.guard)
@@ -121,6 +127,21 @@ class SimEnginePropagatorVEX(
             self.tmps[stmt.dst] = data
         else:
             self.tmps[stmt.dst] = None
+
+    def _handle_StoreG(self, stmt):
+        guard = self._expr(stmt.guard)
+        data = self._expr(stmt.data)
+        if guard is True:
+            addr = self._expr(stmt.addr)
+            if addr is not None:
+                self._store_data(addr, data, stmt.data.result_size(self.tyenv) // 8,
+                                                      self.arch.memory_endness)
+        #elif guard is False:
+        #    data = self._expr(stmt.alt)
+        #    self.tmps[stmt.dst] = data
+        #else:
+        #    self.tmps[stmt.dst] = None
+
 
     #
     # Expression handlers
@@ -138,3 +159,6 @@ class SimEnginePropagatorVEX(
         size = expr.result_size(self.tyenv) // self.arch.byte_width
 
         return self._load_data(addr, size, expr.endness)
+
+    def _handle_CCall(self, expr):
+        return None

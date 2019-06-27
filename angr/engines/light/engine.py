@@ -1,3 +1,6 @@
+
+# pylint:disable=no-self-use
+
 import logging
 
 import ailment
@@ -150,6 +153,20 @@ class SimEngineLightVEXMixin:
     def _handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
 
+    def _handle_Exit(self, expr):
+        self._expr(expr.guard)
+        self._expr(expr.dst)
+
+    def _handle_ITE(self, expr):
+        # EDG says: Not sure how generic this is.
+        cond = self._expr(expr.cond)
+        if cond is True:
+            return self._expr(expr.iftrue)
+        elif cond is False:
+            return self._expr(expr.iffalse)
+        else:
+            return None
+
     def _handle_Unop(self, expr):
         handler = None
 
@@ -179,6 +196,10 @@ class SimEngineLightVEXMixin:
             handler = '_handle_Add'
         elif expr.op.startswith('Iop_Sub'):
             handler = '_handle_Sub'
+        elif expr.op.startswith('Iop_Mul'):
+            handler = "_handle_Mul"
+        elif expr.op.startswith('Iop_Div'):
+            handler = "_handle_Div"
         elif expr.op.startswith('Iop_Xor'):
             handler = '_handle_Xor'
         elif expr.op.startswith('Iop_Shl'):
@@ -217,6 +238,21 @@ class SimEngineLightVEXMixin:
     #
     # Unary operation handlers
     #
+
+    def _handle_U32(self, expr):
+        return expr.value
+
+    def _handle_U64(self, expr):
+        return expr.value
+
+    def _handle_U16(self, expr):
+        return expr.value
+
+    def _handle_U8(self, expr):
+        return expr.value
+
+    def _handle_U1(self, expr):
+        return expr.value
 
     def _handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.con.value
@@ -263,6 +299,20 @@ class SimEngineLightVEXMixin:
             self.l.warning(e)
             return None
 
+    def _handle_Not1(self, expr):
+        return self._handle_Not(expr)
+
+    def _handle_Not(self, expr):
+        arg0 = expr.args[0]
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        try:
+            return ~expr_0  # pylint:disable=invalid-unary-operand-type
+        except TypeError as e:
+            self.l.exception(e)
+            return None
+
     def _handle_Add(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
@@ -299,6 +349,42 @@ class SimEngineLightVEXMixin:
                 return (expr_0 - expr_1) & mask
             else:
                 return expr_0 - expr_1
+        except TypeError as e:
+            self.l.warning(e)
+            return None
+
+    def _handle_Mul(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            if isinstance(expr_0, int) and isinstance(expr_1, int):
+                # self.tyenv is not used
+                mask = (1 << expr.result_size(self.tyenv)) - 1
+                return (expr_0 * expr_1) & mask
+            else:
+                return expr_0 * expr_1
+        except TypeError as e:
+            self.l.warning(e)
+            return None
+
+    def _handle_Div(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            # TODO: Probably should take care of the sign
+            return expr_0 // expr_1
         except TypeError as e:
             self.l.warning(e)
             return None
@@ -353,6 +439,36 @@ class SimEngineLightVEXMixin:
             self.l.warning(e)
             return None
 
+    def _handle_Sar(self, expr):
+        # EDG asks: is this right?
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+        try:
+            return expr_0 >> expr_1
+        except TypeError as e:
+            self.l.warning(e)
+            return None
+
+    def _handle_CmpEQ(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 == expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
+            return None
+
     def _handle_CmpNE(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
@@ -368,6 +484,39 @@ class SimEngineLightVEXMixin:
             self.l.warning(ex)
             return None
 
+    def _handle_CmpLE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 <= expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
+            return None
+
+    def _handle_CmpLT(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 < expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
+            return None
+
+    def _handle_MBE(self, expr):  # pylint:disable=unused-argument
+        # Yeah.... no.
+        return None
 
 class SimEngineLightAILMixin:
 
@@ -632,13 +781,13 @@ class SimEngineLightAILMixin:
             if type(data) is int:
                 return data
         return None
-    
+
     def _ail_handle_Not(self, expr):
 
         data = self._expr(expr.operand)
 
         try:
-            return ~data
+            return ~data  # pylint:disable=invalid-unary-operand-type
         except TypeError:
             return ailment.Expr.UnaryOp(expr.idx, 'Not', data, **expr.tags)
 

@@ -9,7 +9,7 @@ def test_decompiling_all_x86_64():
     bin_path = os.path.join(test_location, "x86_64", "all")
     p = angr.Project(bin_path, auto_load_libs=False)
 
-    cfg = p.analyses.CFG(collect_data_references=True)
+    cfg = p.analyses.CFG(data_references=True)
     for f in cfg.functions.values():
         if f.is_simprocedure:
             print("Skipping SimProcedure %s." % repr(f))
@@ -25,7 +25,7 @@ def test_decompiling_babypwn_i386():
     bin_path = os.path.join(test_location, "i386", "decompiler", "codegate2017_babypwn")
     p = angr.Project(bin_path, auto_load_libs=False)
 
-    cfg = p.analyses.CFG(normalize=True, collect_data_references=True)
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
     for f in cfg.functions.values():
         if f.is_simprocedure:
             print("Skipping SimProcedure %s." % repr(f))
@@ -43,7 +43,7 @@ def test_decompiling_loop_x86_64():
     bin_path = os.path.join(test_location, "x86_64", "decompiler", "loop")
     p = angr.Project(bin_path, auto_load_libs=False)
 
-    cfg = p.analyses.CFG(normalize=True, collect_data_references=True)
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
     f = cfg.functions['loop']
     dec = p.analyses.Decompiler(f, cfg=cfg)
     if dec.codegen is not None:
@@ -56,7 +56,7 @@ def test_decompiling_all_i386():
     bin_path = os.path.join(test_location, "i386", "all")
     p = angr.Project(bin_path, auto_load_libs=False)
 
-    cfg = p.analyses.CFG(collect_data_references=True)
+    cfg = p.analyses.CFG(data_references=True)
 
     f = cfg.functions['main']
     dec = p.analyses.Decompiler(f, cfg=cfg)
@@ -74,7 +74,7 @@ def test_decompiling_aes_armel():
     # It is incorrectly linked. We override this here
     p = angr.Project(bin_path, arch='ARMEL', auto_load_libs=False)
 
-    cfg = p.analyses.CFG(collect_data_references=True)
+    cfg = p.analyses.CFG(data_references=True)
 
     f = cfg.functions['main']
     dec = p.analyses.Decompiler(f, cfg=cfg)

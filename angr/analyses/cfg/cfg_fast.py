@@ -427,8 +427,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  force_segment=False,
                  force_complete_scan=True,
                  indirect_jump_target_limit=100000,
-                 collect_data_references=False,
-                 extra_cross_references=False,
+                 data_references=False,
+                 cross_references=False,
                  normalize=False,
                  start_at_entry=True,
                  function_starts=None,
@@ -446,6 +446,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  model=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
+                 collect_data_references=None, # deprecated
+                 extra_cross_references=None, # deprecated
                  **extra_arch_options
                  ):
         """
@@ -463,12 +465,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
         :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified
                                             code blocks.
-        :param bool collect_data_references: If CFGFast should collect data references from individual basic blocks or
-                                             not.
-        :param bool extra_cross_references:  True if we should collect data references for all places in the program
-                                             that access each memory data entry, which requires more memory, and is
-                                             noticeably slower. Setting it to False means each memory data entry has at
-                                             most one reference (which is the initial one).
+        :param bool data_references:    Enables the collection of references to data used by individual instructions.
+                                        This does not collect 'cross-references', particularly those that involve
+                                        multiple instructions.  For that, see `cross_references`
+        :param bool cross_references:   Whether CFGFast should collect "cross-references" from the entire program or
+                                        not. This will populate the knowledge base with references to and from each
+                                        recognizable address constant found in the code. Note that, because this
+                                        performs constant propagation on the entire program, it may be much slower and
+                                        consume more memory.
+                                        This option implies `data_references=True`.
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param bool start_at_entry:     Begin CFG recovery at the entry point of this project. Setting it to False
                                         prevents CFGFast from viewing the entry point as one of the starting points of
@@ -523,6 +528,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                       '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
                       )
 
+        if collect_data_references is not None:
+            l.warning('"collect_data_references" is deprecated and will be removed soon. Please use '
+                      '"data_references" instead')
+            data_references = collect_data_references
+        if extra_cross_references is not None:
+            l.warning('"extra_cross_references" is deprecated and will be removed soon. Please use '
+                      '"cross_references" instead')
+            cross_references = extra_cross_references
+
         if start is not None or end is not None:
             l.warning('"start" and "end" are deprecated and will be removed soon. Please use "regions" to specify one '
                       'or more memory regions instead.'
@@ -561,7 +575,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._regions = SortedDict(regions)
 
         self._pickle_intermediate_results = pickle_intermediate_results
-        self._collect_data_ref = collect_data_references
 
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
@@ -579,7 +592,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._extra_memory_regions = extra_memory_regions
 
-        self._extra_cross_references = extra_cross_references
+        self._cross_references = cross_references
+        # You need data refs to get cross refs
+        self._collect_data_ref = data_references or self._cross_references
 
         self._arch_options = arch_options if arch_options is not None else CFGArchOptions(
                 self.project.arch, **extra_arch_options)
@@ -1213,6 +1228,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if sec.vaddr not in self.model.memory_data:
                             self.model.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, MemoryDataSort.Unknown)
 
+        # If they asked for it, give it to them.  All of it.
+        if self._cross_references:
+            self._do_full_xrefs()
+
         r = True
         while r:
             r = self._tidy_data_references()
@@ -1220,6 +1239,27 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         CFGBase._post_analysis(self)
 
         self._finish_progress()
+
+    def _do_full_xrefs(self):
+        l.info("Building cross-references...")
+        # Time to make our CPU hurt
+        state = self.project.factory.blank_state()
+        for f_addr in self.functions:
+            f = None
+            try:
+                f = self.functions[f_addr]
+                if f.is_simprocedure:
+                    continue
+                l.debug("\tFunction %s", f.name)
+                # constant prop
+                prop = self.project.analyses.Propagator(func=f, base_state=state)
+                # Collect all the refs
+                self.project.analyses.XRefs(func=f, replacements=prop.replacements)
+            except Exception:  # pylint: disable=broad-except
+                if f is not None:
+                    l.exception("Error collecting XRefs for function %s.", f.name, exc_info=True)
+                else:
+                    l.exception("Error collecting XRefs for function %#x.", f_addr, exc_info=True)
 
     # Methods to get start points for scanning
 
@@ -1977,7 +2017,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         self._memory_data[data_addr] = data
                         new_data = True
 
-                    if new_data or self._extra_cross_references:
+                    if new_data or self._cross_references:
                         cr = XRef(ins_addr=insn_addr, block_addr=irsb_addr, stmt_idx=stmt_idx,
                                   memory_data=self.model.memory_data[data_addr], xref_type=XRefType.Offset,
                                   )
@@ -1994,7 +2034,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 data = MemoryData(data_addr, 0, MemoryDataSort.Unknown)
             self._memory_data[data_addr] = data
             new_data = True
-        if new_data or self._extra_cross_references:
+        if new_data or self._cross_references:
             cr = XRef(ins_addr=insn_addr, block_addr=irsb_addr, stmt_idx=stmt_idx,
                       memory_data=self.model.memory_data[data_addr],
                       xref_type=XRefType.Offset,
