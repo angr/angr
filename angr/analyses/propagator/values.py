@@ -28,22 +28,22 @@ class Top:
         return self
 
     def __rdiv__(self, other):
-        return self
+        return self  # pylint: disable=unused-argument
 
     def __floordiv__(self, other):
-        return self
+        return self  # pylint: disable=unused-argument
 
     def __rfloordiv__(self, other):
-        return self
+        return self  # pylint: disable=unused-argument
 
     def __invert__(self):
-        return self
+        return self  # pylint: disable=unused-argument
 
     def __rshift__(self, other):
-        return self
+        return self  # pylint: disable=unused-argument
 
     def __lshift__(self, other):
-        return self
+        return self  # pylint: disable=unused-argument
 
     def __xor__(self, other):
         return self

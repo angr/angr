@@ -84,6 +84,7 @@ class SimEngineXRefsVEX(
         return None
 
     def _handle_function(self, func):
+        # pylint: disable=unused-argument,no-self-use
         return None # TODO: Maybe add an execute-type XRef?
 
 class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method

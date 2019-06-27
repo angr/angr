@@ -1255,11 +1255,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 prop = self.project.analyses.Propagator(func=f, base_state=state)
                 # Collect all the refs
                 self.project.analyses.XRefs(func=f, replacements=prop.replacements)
-            except Exception as e:
+            except Exception:  # pylint: disable=broad-except
                 if f is not None:
                     l.exception("Error collecting XRefs for function %s", f.name)
                 else:
-                    l.exception("Error collecting XRefs for function %#08x" % f_addr)
+                    l.exception("Error collecting XRefs for function %#08x", f_addr)
 
     # Methods to get start points for scanning
 

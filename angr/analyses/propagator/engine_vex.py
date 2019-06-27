@@ -34,7 +34,7 @@ class SimEnginePropagatorVEX(
         return state
 
     def _allow_loading(self, addr, size):
-        if addr == TOP or addr == BOTTOM:
+        if addr in (TOP, BOTTOM):
             return False
         if self._load_callback is None:
             return True
@@ -101,6 +101,7 @@ class SimEnginePropagatorVEX(
             self.state.store_register(stmt.offset, size, data)
 
     def _store_data(self, addr, data, size, endness):
+        # pylint: disable=unused-argument,no-self-use
         if isinstance(addr, SpOffset):
             # Local variables
             self.state.store_local_variable(addr.offset, size, data)
