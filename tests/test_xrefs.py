@@ -42,8 +42,8 @@ def test_lwip_udpecho_bm_the_better_way():
     nose.tools.assert_equal(next(iter(timenow_cp_xrefs)),
                             XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
                             )
-
-    nose.tools.assert_equal(len(timenow_xrefs), 2)
+    # time_init, sys_now, time_isr == 3
+    nose.tools.assert_equal(len(timenow_xrefs), 3)
 
 
 if __name__ == "__main__":
