@@ -34,6 +34,8 @@ class SimEnginePropagatorVEX(
         return state
 
     def _allow_loading(self, addr, size):
+        if addr == TOP or addr == BOTTOM:
+            return False
         if self._load_callback is None:
             return True
         return self._load_callback(addr, size)
@@ -156,3 +158,6 @@ class SimEnginePropagatorVEX(
         size = expr.result_size(self.tyenv) // self.arch.byte_width
 
         return self._load_data(addr, size, expr.endness)
+
+    def _handle_CCall(self, expr):
+        return None
