@@ -465,15 +465,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
         :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified
                                             code blocks.
-        :param bool data_references: Enables the collection of references to data used by individual instructions.
-        This does not collect 'cross-references', particularly those that involve multiple instructions.  For that,
-        see `cross_references`
-        :param bool cross_references:  Whether CFGFast should collect "cross-references" from the entire program or not.
-        This will populate the Knowledge Base with references to and from each recognizable address constant found in
-        the code. Note that, because this performs constant propagation on the entire program, it may be much slower
-        and consume more memory.
-
-        Implies `data_references=True`
+        :param bool data_references:    Enables the collection of references to data used by individual instructions.
+                                        This does not collect 'cross-references', particularly those that involve
+                                        multiple instructions.  For that, see `cross_references`
+        :param bool cross_references:   Whether CFGFast should collect "cross-references" from the entire program or
+                                        not. This will populate the knowledge base with references to and from each
+                                        recognizable address constant found in the code. Note that, because this
+                                        performs constant propagation on the entire program, it may be much slower and
+                                        consume more memory.
+                                        This option implies `data_references=True`.
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param bool start_at_entry:     Begin CFG recovery at the entry point of this project. Setting it to False
                                         prevents CFGFast from viewing the entry point as one of the starting points of
@@ -1250,16 +1250,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 f = self.functions[f_addr]
                 if f.is_simprocedure:
                     continue
-                l.debug("\tFunction %s" % f.name)
+                l.debug("\tFunction %s", f.name)
                 # constant prop
                 prop = self.project.analyses.Propagator(func=f, base_state=state)
                 # Collect all the refs
                 self.project.analyses.XRefs(func=f, replacements=prop.replacements)
             except Exception:  # pylint: disable=broad-except
                 if f is not None:
-                    l.exception("Error collecting XRefs for function %s", f.name)
+                    l.exception("Error collecting XRefs for function %s.", f.name, exc_info=True)
                 else:
-                    l.exception("Error collecting XRefs for function %#08x", f_addr)
+                    l.exception("Error collecting XRefs for function %#x.", f_addr, exc_info=True)
 
     # Methods to get start points for scanning
 

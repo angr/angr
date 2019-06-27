@@ -133,9 +133,11 @@ class CFGNode(Serializable):
 
     def get_data_references(self, kb=None):
         """
-        Get the known data references for this CFGNode via the knowledge base
-        :param kb: Which knowledge base to use; uses the global KB by default if none is provided
-        :return: Generator yielding xrefs to this CFGNode's block.
+        Get the known data references for this CFGNode via the knowledge base.
+
+        :param kb:  Which knowledge base to use; uses the global KB by default if none is provided
+        :return:    Generator yielding xrefs to this CFGNode's block.
+        :rtype:     iter
         """
         if self._cfg_model.ident != 'CFGFast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
@@ -153,7 +155,9 @@ class CFGNode(Serializable):
     def accessed_data_references(self):
         """
         Property providing a view of all the known data references for this CFGNode via the global knowledge base
-        :return:
+
+        :return:    Generator yielding xrefs to this CFGNode's block.
+        :rtype:     iter
         """
         return self.get_data_references()
 

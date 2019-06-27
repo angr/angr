@@ -1,3 +1,6 @@
+
+# pylint:disable=no-self-use
+
 import logging
 
 import ailment
@@ -305,7 +308,7 @@ class SimEngineLightVEXMixin:
         if expr_0 is None:
             return None
         try:
-            return ~expr_0
+            return ~expr_0  # pylint:disable=invalid-unary-operand-type
         except TypeError as e:
             self.l.exception(e)
             return None
@@ -385,7 +388,6 @@ class SimEngineLightVEXMixin:
         except TypeError as e:
             self.l.warning(e)
             return None
-
 
     def _handle_Xor(self, expr):
         arg0, arg1 = expr.args
@@ -512,7 +514,7 @@ class SimEngineLightVEXMixin:
             self.l.warning(ex)
             return None
 
-    def _handle_MBE(self, expr):
+    def _handle_MBE(self, expr):  # pylint:disable=unused-argument
         # Yeah.... no.
         return None
 
@@ -779,13 +781,13 @@ class SimEngineLightAILMixin:
             if type(data) is int:
                 return data
         return None
-    
+
     def _ail_handle_Not(self, expr):
 
         data = self._expr(expr.operand)
 
         try:
-            return ~data
+            return ~data  # pylint:disable=invalid-unary-operand-type
         except TypeError:
             return ailment.Expr.UnaryOp(expr.idx, 'Not', data, **expr.tags)
 
