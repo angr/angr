@@ -372,6 +372,12 @@ class SymbolManager(object):
                 else:
                     raise Exception('Unsupported symbol type %s. Bug Fish about it!' % symbol.type)
 
+            else:
+                raise Exception("the symbol %s is not owned by the main object. Try reload the project with"
+                                "\"auto_load_libs=False\". If that does not solve the issue, please report to GitHub."
+                                % symbol.name
+                                )
+
         elif (addr is not None and addr in self.cfg.functions) or is_function:
             # It's a function identified by angr's CFG recovery
 
