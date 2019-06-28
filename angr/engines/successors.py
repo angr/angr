@@ -243,20 +243,28 @@ class SimSuccessors(object):
             if o.VALIDATE_APPROXIMATIONS in state.options:
                 if state.satisfiable():
                     raise Exception('WTF')
+            l.debug("Successor {!s} was unsat; {!s} was false".format(state, state.scratch.guard))
             self.unsat_successors.append(state)
         elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.solver.satisfiable(exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options:
                 if state.solver.satisfiable():
                     raise Exception('WTF')
+            l.debug("Successor {!s} was unsat; {!s} was unsat".format(state, state.scratch.guard))
             self.unsat_successors.append(state)
         elif not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard):
+            l.debug("Successor {!s} was unsat; {!s} was false".format(state, state.scratch.guard))
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
+            l.debug("Successor {!s} was unsat; whole state was unsat".format(state))
+            for con in state.solver.constraints:
+                l.debug("    " + str(con))
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):
+            l.debug("Successor {!s} has a symbolic target: {!s}".format(state, target))
             self.unconstrained_successors.append(state)
         elif not state.solver.symbolic(target) and not state.history.jumpkind.startswith("Ijk_Sys"):
             # a successor with a concrete IP, and it's not a syscall
+            l.debug("Successor {!s} has a concrete target".format(state))
             self.successors.append(state)
             self.flat_successors.append(state)
         elif state.history.jumpkind.startswith("Ijk_Sys"):
