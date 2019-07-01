@@ -212,7 +212,7 @@ class FullySymbolicMemory(SimMemory):
         if self._permissions_backer is not None:
             for start, end in self._permissions_backer[1]:
                 perms = self._permissions_backer[1][(start, end)]
-                self.map_region(start, end - start, perms, internal=True)
+                self.map_region(start, end - start, perms)
 
         # init memory
         if self._memory_backer is not None:
@@ -269,11 +269,11 @@ class FullySymbolicMemory(SimMemory):
         if len(cases) == 1:
             cond = addr == cases[0].addr
         else:
-            cond = self.state.se.And(addr >= cases[0].addr, addr <= cases[-1].addr)
+            cond = self.state.solver.And(addr >= cases[0].addr, addr <= cases[-1].addr)
 
         cond = claripy.And(cond, cases[0].guard) if cases[0].guard is not None else cond
 
-        return self.state.se.If(cond, v, obj)
+        return self.state.solver.If(cond, v, obj)
 
     def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         if self.state.solver.symbolic(size):
@@ -291,15 +291,15 @@ class FullySymbolicMemory(SimMemory):
             self.state.history.add_event('memory_limit', message="0-length read")
 
         # concrete address
-        if not self.state.se.symbolic(addr):
-            addr = self.state.se.eval(addr)
+        if not self.state.solver.symbolic(addr):
+            addr = self.state.solver.eval(addr)
             min_addr = addr
             max_addr = addr
 
         # symbolic addr
         else:
-            min_addr = self.state.se.min_int(addr)
-            max_addr = self.state.se.max_int(addr)
+            min_addr = self.state.solver.min_int(addr)
+            max_addr = self.state.solver.max_int(addr)
             if min_addr == max_addr:
                 addr = min_addr
 
@@ -330,10 +330,10 @@ class FullySymbolicMemory(SimMemory):
                 obj = self.build_merged_ite(addr + k, P, obj)
 
             # concat single-byte objs
-            read_value = self.state.se.Concat(read_value, obj) if read_value is not None else obj
+            read_value = self.state.solver.Concat(read_value, obj) if read_value is not None else obj
 
         if condition is not None:
-            read_value = self.state.se.If(condition, read_value, fallback)
+            read_value = self.state.solver.If(condition, read_value, fallback)
 
         addrs = [ addr ] # TODO
         load_constraint = [ ] # TODO
@@ -454,7 +454,7 @@ class FullySymbolicMemory(SimMemory):
         # simplify
         data = req.data
         if options.SIMPLIFY_MEMORY_WRITES in self.state.options:
-            data = self.state.se.simplify(data)
+            data = self.state.solver.simplify(data)
 
         # fix endness
         endness = self._endness if req.endness is None else req.endness
@@ -463,14 +463,14 @@ class FullySymbolicMemory(SimMemory):
 
         # concrete address
         if not self.state.solver.symbolic(req.addr):
-            addr = self.state.se.eval(req.addr)
+            addr = self.state.solver.eval(req.addr)
             min_addr = addr
             max_addr = addr
 
         # symbolic addr
         else:
-            min_addr = self.state.se.min_int(req.addr)
-            max_addr = self.state.se.max_int(req.addr)
+            min_addr = self.state.solver.min_int(req.addr)
+            max_addr = self.state.solver.max_int(req.addr)
             if min_addr == max_addr:
                 addr = min_addr
             else:
@@ -536,17 +536,17 @@ class FullySymbolicMemory(SimMemory):
         self._stack_range = value
         self.map_region(value.start, value.end - value.start, MappedRegion.PROT_READ | MappedRegion.PROT_WRITE)
 
-    def map_region(self, addr, length, permissions, internal=False):
+    def map_region(self, addr, length, permissions):
 
         if hasattr(self.state, 'state_couner'):
             self.state.state_counter.log.append("[" + hex(self.state.regs.ip.args[0]) + "] " + "Map Region")
 
-        if self.state.se.symbolic(addr) or self.state.se.symbolic(length):
+        if self.state.solver.symbolic(addr) or self.state.solver.symbolic(length):
             assert False
 
         # make if concrete
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.max_int(addr)
+            addr = self.state.solver.max_int(addr)
 
         # make perms a bitvector to easily check them
         if isinstance(permissions, int):
@@ -560,11 +560,11 @@ class FullySymbolicMemory(SimMemory):
 
     def unmap_region(self, addr, length):
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             raise SimMemoryError("cannot unmap region with a symbolic address")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.max_int(addr)
+            addr = self.state.solver.max_int(addr)
 
         self.timestamp += 1
         for a in range(addr, addr + length):
@@ -583,11 +583,11 @@ class FullySymbolicMemory(SimMemory):
     def permissions(self, addr):
         # return permissions of the addr's region
 
-        if self.state.se.symbolic(addr):
+        if self.state.solver.symbolic(addr):
             assert False
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.eval(addr)
+            addr = self.state.solver.eval(addr)
 
         for region in self._mapped_regions:
             if addr >= region.addr and addr <= region.addr + region.length:
@@ -603,68 +603,61 @@ class FullySymbolicMemory(SimMemory):
 
         # (min_addr, max_addr) is our range addr
 
-        try:
+        access_type = "write" if write_access else "read"
 
-            access_type = "write" if write_access else "read"
+        if len(self._mapped_regions) == 0:
+            raise angr.errors.SimSegfaultError(min_addr, "Invalid " + access_type + " access: [" + str(
+                hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
 
-            if len(self._mapped_regions) == 0:
-                raise angr.errors.SimSegfaultError(min_addr, "Invalid " + access_type + " access: [" + str(
-                    hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
+        last_covered_addr = min_addr - 1
+        for region in self._mapped_regions:
 
-            last_covered_addr = min_addr - 1
-            for region in self._mapped_regions:
+            # region is after our range addr
+            if max_addr < region.addr:
+                break
 
-                # region is after our range addr
-                if max_addr < region.addr:
-                    break
+            # region is before our range addr
+            if last_covered_addr + 1 > region.addr + region.length:
+                continue
 
-                # region is before our range addr
-                if last_covered_addr + 1 > region.addr + region.length:
-                    continue
+            # there is one addr in our range that could be not covered by any region
+            if last_covered_addr + 1 < region.addr:
 
-                # there is one addr in our range that could be not covered by any region
-                if last_covered_addr + 1 < region.addr:
+                # check with the solver: is there a solution for addr?
+                if self.state.solver.satisfiable(
+                        extra_constraints=(addr >= last_covered_addr + 1, addr < region.addr,)):
+                    raise angr.errors.SimSegfaultError(last_covered_addr + 1,
+                                                        "Invalid " + access_type + " access: [" + str(
+                                                            hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
 
-                    # check with the solver: is there a solution for addr?
-                    if self.state.se.satisfiable(
-                            extra_constraints=(addr >= last_covered_addr + 1, addr < region.addr,)):
-                        raise angr.errors.SimSegfaultError(last_covered_addr + 1,
-                                                           "Invalid " + access_type + " access: [" + str(
-                                                               hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
+            # last_covered_addr + 1 is inside this region
+            # let's check for permissions
 
-                # last_covered_addr + 1 is inside this region
-                # let's check for permissions
+            upper_addr = min(region.addr + region.length, max_addr)
+            if access_type == 'write':
+                if not region.is_writable() and self.state.solver.satisfiable(
+                        extra_constraints=(addr >= last_covered_addr + 1, addr <= upper_addr,)):
+                    raise angr.errors.SimSegfaultError(last_covered_addr + 1,
+                                                        "Invalid " + access_type + " access: [" + str(
+                                                            hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
 
-                upper_addr = min(region.addr + region.length, max_addr)
-                if access_type == 'write':
-                    if not region.is_writable() and self.state.se.satisfiable(
-                            extra_constraints=(addr >= last_covered_addr + 1, addr <= upper_addr,)):
-                        raise angr.errors.SimSegfaultError(last_covered_addr + 1,
-                                                           "Invalid " + access_type + " access: [" + str(
-                                                               hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
+            elif access_type == 'read':
+                if not region.is_readable() and self.state.solver.satisfiable(
+                        extra_constraints=(addr >= last_covered_addr + 1, addr <= upper_addr,)):
+                    raise angr.errors.SimSegfaultError(last_covered_addr + 1,
+                                                        "Invalid " + access_type + " access: [" + str(
+                                                            hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
 
-                elif access_type == 'read':
-                    if not region.is_readable() and self.state.se.satisfiable(
-                            extra_constraints=(addr >= last_covered_addr + 1, addr <= upper_addr,)):
-                        raise angr.errors.SimSegfaultError(last_covered_addr + 1,
-                                                           "Invalid " + access_type + " access: [" + str(
-                                                               hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
+            if max_addr > region.addr + region.length:
+                last_covered_addr = region.addr + region.length
+            else:
+                last_covered_addr = max_addr
 
-                if max_addr > region.addr + region.length:
-                    last_covered_addr = region.addr + region.length
-                else:
-                    last_covered_addr = max_addr
-
-            # last region could not cover up to max_addr
-            if last_covered_addr < max_addr:
-                # we do not need to check with the solver since max_addr is already a valid solution for addr
-                raise angr.errors.SimSegfaultError(last_covered_addr + 1, "Invalid " + access_type + " access: [" + str(
-                    hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
-
-        except Exception as e:
-
-            if type(e) in (angr.errors.SimSegfaultError,):
-                raise e
+        # last region could not cover up to max_addr
+        if last_covered_addr < max_addr:
+            # we do not need to check with the solver since max_addr is already a valid solution for addr
+            raise angr.errors.SimSegfaultError(last_covered_addr + 1, "Invalid " + access_type + " access: [" + str(
+                hex(min_addr)) + ", " + str(hex(max_addr)) + "]")
 
 
     def merge(self, others, merge_conditions, common_ancestor=None):
@@ -692,112 +685,103 @@ class FullySymbolicMemory(SimMemory):
 
     def _merge_concrete_memory(self, other, merge_conditions):
 
-        # start_time = time.time()
+        assert self._stack_range == other._stack_range
+        keys = lambda s: set(map(s.key, s))
 
-        try:
-            assert self._stack_range == other._stack_range
-            keys = lambda s: set(map(s.key, s))
+        missing_self = keys(self._initializable) - keys(other._initializable)
+        for index in missing_self:
+            self._load_init_data(index * 0x1000, 1)
 
-            missing_self = keys(self._initializable) - keys(other._initializable)
-            for index in missing_self:
-                self._load_init_data(index * 0x1000, 1)
+        assert len(keys(self._initializable) - keys(other._initializable)) == 0
 
-            assert len(keys(self._initializable) - keys(other._initializable)) == 0
+        missing_other = keys(other._initializable) - keys(self._initializable)
+        for index in missing_other:
+            other._load_init_data(index * 0x1000, 1)
 
-            missing_other = keys(other._initializable) - keys(self._initializable)
-            for index in missing_other:
-                other._load_init_data(index * 0x1000, 1)
+        assert len(keys(other._initializable) - keys(self._initializable)) == 0
 
-            assert len(keys(other._initializable) - keys(self._initializable)) == 0
+        count = 0
 
-            count = 0
+        # basic idea:
+        # get all in-use addresses among both memories
+        # for each address:
+        #   - if it is in use in all memories and it has the same byte content then do nothing
+        #   - otherwise map the address to an ite with all the possible contents + a bottom case
 
-            # basic idea:
-            # get all in-use addresses among both memories
-            # for each address:
-            #   - if it is in use in all memories and it has the same byte content then do nothing
-            #   - otherwise map the address to an ite with all the possible contents + a bottom case
+        page_indexes = set(self._concrete_memory._pages.keys())
+        page_indexes |= set(other._concrete_memory._pages.keys())
 
-            page_indexes = set(self._concrete_memory._pages.keys())
-            page_indexes |= set(other._concrete_memory._pages.keys())
+        # assert len(page_indexes) == 0
 
-            # assert len(page_indexes) == 0
+        for page_index in page_indexes:
 
-            for page_index in page_indexes:
+            # print "merging next page..."
 
-                # print "merging next page..."
+            page_self = self._concrete_memory._pages[
+                page_index] if page_index in self._concrete_memory._pages else None
+            page_other = other._concrete_memory._pages[
+                page_index] if page_index in other._concrete_memory._pages else None
 
-                page_self = self._concrete_memory._pages[
-                    page_index] if page_index in self._concrete_memory._pages else None
-                page_other = other._concrete_memory._pages[
-                    page_index] if page_index in other._concrete_memory._pages else None
+            # shared page? if yes, do no touch it
+            if id(page_self) == id(page_other):
+                continue
 
-                # shared page? if yes, do no touch it
-                if id(page_self) == id(page_other):
-                    continue
+            offsets = set(page_self.keys()) if page_self is not None else set()
+            offsets |= set(page_other.keys()) if page_other is not None else set()
 
-                offsets = set(page_self.keys()) if page_self is not None else set()
-                offsets |= set(page_other.keys()) if page_other is not None else set()
+            for offset in offsets:
 
-                for offset in offsets:
+                v_self = page_self[offset] if page_self is not None and offset in page_self else None
+                v_other = page_other[offset] if page_other is not None and offset in page_other else None
 
-                    v_self = page_self[offset] if page_self is not None and offset in page_self else None
-                    v_other = page_other[offset] if page_other is not None and offset in page_other else None
+                if type(v_self) not in (list,) and type(v_other) not in (list,):
 
-                    if type(v_self) not in (list,) and type(v_other) not in (list,):
+                    if v_self is not None and v_other is not None:
+                        assert v_self.addr == v_other.addr
+                        pass
 
-                        if v_self is not None and v_other is not None:
-                            assert v_self.addr == v_other.addr
-                            pass
-
-                        same_value = v_self == v_other
+                    same_value = v_self == v_other
+                else:
+                    if type(v_self) != type(v_other):
+                        same_value = False
+                    elif len(v_self) != len(v_other):
+                        same_value = False
                     else:
-                        if type(v_self) != type(v_other):
-                            same_value = False
-                        elif len(v_self) != len(v_other):
-                            same_value = False
-                        else:
-                            same_value = True
-                            for k in range(len(v_self)):  # we only get equality when items are in the same order
-
-                                sub_v_self = v_self[k]
-                                sub_v_other = v_other[k]
-
-                                assert type(sub_v_self) not in (list,)
-                                assert type(sub_v_other) not in (list,)
-                                assert sub_v_self.addr == sub_v_other.addr
-
-                                if sub_v_self != sub_v_other:
-                                    same_value = False
-                                    break
-
-                    # self has an initialized value that is missing in other
-                    # we can keep as it is.
-                    if v_other is None and v_self is not None and type(v_self) is not (
-                            list,) and v_self.t == 0 and v_self.guard is None:
                         same_value = True
+                        for k in range(len(v_self)):  # we only get equality when items are in the same order
 
-                    # Symmetric case. We need to insert in self.
-                    if v_self is None and v_other is not None and type(v_other) is not (
-                            list,) and v_other.t == 0 and v_other.guard is None:
-                        self._concrete_memory[page_index * 0x1000 + offset] = v_other
-                        same_value = True
+                            sub_v_self = v_self[k]
+                            sub_v_other = v_other[k]
 
-                    if not same_value:
-                        count += 1
-                        merged_value = self._copy_symbolic_items_and_apply_guard(v_self, merge_conditions[0]) \
-                                       + self._copy_symbolic_items_and_apply_guard(v_other, merge_conditions[1])
-                        assert len(merged_value) > 0
-                        self._concrete_memory[page_index * 0x1000 + offset] = merged_value if len(merged_value) > 1 else \
-                            merged_value[0]
+                            assert type(sub_v_self) not in (list,)
+                            assert type(sub_v_other) not in (list,)
+                            assert sub_v_self.addr == sub_v_other.addr
 
-            # end_time = time.time()
-            # print("Merge concrete: " + str(end_time-start_time))
+                            if sub_v_self != sub_v_other:
+                                same_value = False
+                                break
 
-            return count
+                # self has an initialized value that is missing in other
+                # we can keep as it is.
+                if v_other is None and v_self is not None and type(v_self) is not (
+                        list,) and v_self.t == 0 and v_self.guard is None:
+                    same_value = True
 
-        except Exception as e:
-            pdb.set_trace()
+                # Symmetric case. We need to insert in self.
+                if v_self is None and v_other is not None and type(v_other) is not (
+                        list,) and v_other.t == 0 and v_other.guard is None:
+                    self._concrete_memory[page_index * 0x1000 + offset] = v_other
+                    same_value = True
+
+                if not same_value:
+                    count += 1
+                    merged_value = self._copy_symbolic_items_and_apply_guard(v_self, merge_conditions[0]) \
+                                    + self._copy_symbolic_items_and_apply_guard(v_other, merge_conditions[1])
+                    assert len(merged_value) > 0
+                    self._concrete_memory[page_index * 0x1000 + offset] = merged_value if len(merged_value) > 1 else \
+                        merged_value[0]
+
+        return count
 
     def _copy_symbolic_items_and_apply_guard(self, L, guard):
         if L is None:
@@ -816,46 +800,31 @@ class FullySymbolicMemory(SimMemory):
         # assert other.timestamp_implicit == 0
         # assert common_ancestor.timestamp_implicit == 0
 
-        try:
+        count = 0
 
-            count = 0
+        P = self._symbolic_memory.search(0, sys.maxsize)
+        for p in P:
+            # assert p.data.t >= 0
+            if (p.data.t > 0 and p.data.t >= ancestor_timestamp) or (
+                            p.data.t < 0 and p.data.t <= ancestor_timestamp_implicit):
+                guard = claripy.And(p.data.guard, merge_conditions[0]) if p.data.guard is not None else \
+                    merge_conditions[0]
+                i = MemoryItem(p.data.addr, p.data.obj, p.data.t, guard)
+                self._symbolic_memory.update_item(p, i)
+                count += 1
 
-            error = None
+        P = other._symbolic_memory.search(0, sys.maxsize)
+        for p in P:
+            # assert p.data.t >= 0
+            if (p.data.t > 0 and p.data.t >= ancestor_timestamp) or (
+                            p.data.t < 0 and p.data.t <= ancestor_timestamp_implicit):
+                guard = claripy.And(p.data.guard, merge_conditions[1]) if p.data.guard is not None else \
+                    merge_conditions[1]
+                i = MemoryItem(p.data.addr, p.data.obj, p.data.t, guard)
+                self._symbolic_memory.add(p.begin, p.end, i)
+                count += 1
 
-            try:
-                P = self._symbolic_memory.search(0, sys.maxsize)
-                for p in P:
-                    # assert p.data.t >= 0
-                    if (p.data.t > 0 and p.data.t >= ancestor_timestamp) or (
-                                    p.data.t < 0 and p.data.t <= ancestor_timestamp_implicit):
-                        guard = claripy.And(p.data.guard, merge_conditions[0]) if p.data.guard is not None else \
-                            merge_conditions[0]
-                        i = MemoryItem(p.data.addr, p.data.obj, p.data.t, guard)
-                        self._symbolic_memory.update_item(p, i)
-                        count += 1
-            except Exception as e:
-                error = 1
-                pdb.set_trace()
-
-            try:
-                P = other._symbolic_memory.search(0, sys.maxsize)
-                for p in P:
-                    # assert p.data.t >= 0
-                    if (p.data.t > 0 and p.data.t >= ancestor_timestamp) or (
-                                    p.data.t < 0 and p.data.t <= ancestor_timestamp_implicit):
-                        guard = claripy.And(p.data.guard, merge_conditions[1]) if p.data.guard is not None else \
-                            merge_conditions[1]
-                        i = MemoryItem(p.data.addr, p.data.obj, p.data.t, guard)
-                        self._symbolic_memory.add(p.begin, p.end, i)
-                        count += 1
-            except Exception as e:
-                error = 2
-                pdb.set_trace()
-
-            return count
-
-        except Exception as e:
-            pdb.set_trace()
+        return count
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
               disable_actions=False, inspect=True, chunk_size=None):
@@ -866,12 +835,12 @@ class FullySymbolicMemory(SimMemory):
             max_search = angr.state_plugins.SimSymbolicMemory.DEFAULT_MAX_SEARCH
 
         if isinstance(start, int):
-            start = self.state.se.BVV(start, self.state.arch.bits)
+            start = self.state.solver.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)//self.state.arch.byte_width
-        symbolic_what = self.state.se.symbolic(what)
+        symbolic_what = self.state.solver.symbolic(what)
 
         chunk_start = 0
         if chunk_size is None:
@@ -915,7 +884,7 @@ class FullySymbolicMemory(SimMemory):
                 # in tracing mode, we need to make sure that all previous bytes are not equal to what
                 cond_prefix.append(b != what)
 
-            if not b.symbolic and not symbolic_what and self.state.se.eval(b) == self.state.se.eval(what):
+            if not b.symbolic and not symbolic_what and self.state.solver.eval(b) == self.state.solver.eval(what):
                 break
             else:
                 if b.symbolic and remaining_symbolic is not None:
@@ -923,21 +892,21 @@ class FullySymbolicMemory(SimMemory):
 
         if default is None:
             default = 0
-            constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
+            constraints += [ self.state.solver.Or(*[ c for c,_ in cases]) ]
 
         #l.debug("running ite_cases %s, %s", cases, default)
-        r = self.state.se.ite_cases(cases, default - start) + start
+        r = self.state.solver.ite_cases(cases, default - start) + start
         return r, constraints, match_indices
 
     def __contains__(self, addr):
 
         if isinstance(addr, int):
             addr = addr
-        elif self.state.se.symbolic(addr):
+        elif self.state.solver.symbolic(addr):
             log.warning("Currently unable to do SimMemory.__contains__ on symbolic variables.")
             return False
         else:
-            addr = self.state.se.eval(addr)
+            addr = self.state.solver.eval(addr)
 
         # concrete address
         if type(addr) == int:
@@ -946,8 +915,8 @@ class FullySymbolicMemory(SimMemory):
 
         # symbolic addr
         else:
-            min_addr = self.state.se.min_int(addr)
-            max_addr = self.state.se.max_int(addr)
+            min_addr = self.state.solver.min_int(addr)
+            max_addr = self.state.solver.max_int(addr)
             if min_addr == max_addr:
                 addr = min_addr
 
