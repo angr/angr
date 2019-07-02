@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import logging
-import itertools
 
 l = logging.getLogger(name=__name__)
 
@@ -13,8 +12,6 @@ from ..storage.memory_object import SimMemoryObject
 from ..sim_state_options import SimStateOptions
 from ..misc.ux import once
 from .utils import resolve_size_range
-
-DEFAULT_MAX_SEARCH = 8
 
 class MultiwriteAnnotation(claripy.Annotation):
     @property
@@ -574,114 +571,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             load_constraint = [ self.state.solver.Or(self.state.solver.And(condition, *load_constraint), self.state.solver.Not(condition)) ]
 
         return addrs, read_value, load_constraint
-
-    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
-              disable_actions=False, inspect=True, chunk_size=None):
-        if max_search is None:
-            max_search = DEFAULT_MAX_SEARCH
-
-        if isinstance(start, int):
-            start = self.state.solver.BVV(start, self.state.arch.bits)
-
-        constraints = [ ]
-        remaining_symbolic = max_symbolic_bytes
-        seek_size = len(what)//self.state.arch.byte_width
-        symbolic_what = self.state.solver.symbolic(what)
-
-        l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
-
-        chunk_start = 0
-        if chunk_size is None:
-            chunk_size = max(0x100, seek_size + 0x80)
-
-        chunk = self.load(start, chunk_size, endness="Iend_BE",
-                          disable_actions=disable_actions, inspect=inspect)
-
-        cases = [ ]
-        match_indices = [ ]
-        offsets_matched = [ ] # Only used in static mode
-        byte_width = self.state.arch.byte_width
-        no_singlevalue_opt = options.SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS in self.state.options
-        cond_prefix = [ ]
-
-        if options.MEMORY_FIND_STRICT_SIZE_LIMIT in self.state.options:
-            cond_falseness_test = self.state.solver.is_false
-        else:
-            cond_falseness_test = lambda cond: cond.is_false()
-
-        for i in itertools.count(step=step):
-            l.debug("... checking offset %d", i)
-            if i > max_search - seek_size:
-                l.debug("... hit max size")
-                break
-            if remaining_symbolic is not None and remaining_symbolic == 0:
-                l.debug("... hit max symbolic")
-                break
-            if i - chunk_start > chunk_size - seek_size:
-                l.debug("loading new chunk")
-                chunk_start += chunk_size - seek_size + 1
-                chunk = self.load(start+chunk_start, chunk_size,
-                                  endness="Iend_BE", ret_on_segv=True,
-                                  disable_actions=disable_actions, inspect=inspect)
-
-            chunk_off = i-chunk_start
-            b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
-            condition = b == what
-            if not cond_falseness_test(condition):
-                if no_singlevalue_opt and cond_prefix:
-                    condition = claripy.And(*(cond_prefix + [condition]))
-                cases.append([condition, claripy.BVV(i, len(start))])
-                match_indices.append(i)
-
-            if b.symbolic and no_singlevalue_opt:
-                # in tracing mode, we need to make sure that all previous bytes are not equal to what
-                cond_prefix.append(b != what)
-
-            if self.state.mode == 'static':
-                si = b._model_vsa
-                what_si = what._model_vsa
-
-                if isinstance(si, claripy.vsa.StridedInterval):
-                    if not si.intersection(what_si).is_empty:
-                        offsets_matched.append(start + i)
-
-                    if si.identical(what_si):
-                        break
-
-                    if si.cardinality != 1:
-                        if remaining_symbolic is not None:
-                            remaining_symbolic -= 1
-                else:
-                    # Comparison with other types (like IfProxy or ValueSet) is not supported
-                    if remaining_symbolic is not None:
-                        remaining_symbolic -= 1
-
-            else:
-                # other modes (e.g. symbolic mode)
-                if not b.symbolic and not symbolic_what and self.state.solver.eval(b) == self.state.solver.eval(what):
-                    l.debug("... found concrete")
-                    break
-                else:
-                    if b.symbolic and remaining_symbolic is not None:
-                        remaining_symbolic -= 1
-
-        if self.state.mode == 'static':
-            r = self.state.solver.ESI(self.state.arch.bits)
-            for off in offsets_matched:
-                r = r.union(off)
-
-            constraints = [ ]
-            return r, constraints, match_indices
-
-        else:
-            if default is None:
-                l.debug("... no default specified")
-                default = 0
-                constraints += [ self.state.solver.Or(*[ c for c,_ in cases]) ]
-
-            #l.debug("running ite_cases %s, %s", cases, default)
-            r = self.state.solver.ite_cases(cases, default - start) + start
-            return r, constraints, match_indices
 
     def __contains__(self, dst):
         if isinstance(dst, int):
