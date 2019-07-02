@@ -157,6 +157,9 @@ class JumpTableProcessor(
             r = [(self.block.addr, self.stmt_idx), data]
         self.state._registers[offset] = r
 
+    def _handle_function(self, stmt):
+        return None
+
     def _handle_Store(self, stmt):
         self._tsrc = [ ]
         addr = self._expr(stmt.addr)

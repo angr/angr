@@ -465,15 +465,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
         :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified
                                             code blocks.
-        :param bool data_references: Enables the collection of references to data used by individual instructions.
-        This does not collect 'cross-references', particularly those that involve multiple instructions.  For that,
-        see `cross_references`
-        :param bool cross_references:  Whether CFGFast should collect "cross-references" from the entire program or not.
-        This will populate the Knowledge Base with references to and from each recognizable address constant found in
-        the code. Note that, because this performs constant propagation on the entire program, it may be much slower
-        and consume more memory.
-
-        Implies `data_references=True`
+        :param bool data_references:    Enables the collection of references to data used by individual instructions.
+                                        This does not collect 'cross-references', particularly those that involve
+                                        multiple instructions.  For that, see `cross_references`
+        :param bool cross_references:   Whether CFGFast should collect "cross-references" from the entire program or
+                                        not. This will populate the knowledge base with references to and from each
+                                        recognizable address constant found in the code. Note that, because this
+                                        performs constant propagation on the entire program, it may be much slower and
+                                        consume more memory.
+                                        This option implies `data_references=True`.
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param bool start_at_entry:     Begin CFG recovery at the entry point of this project. Setting it to False
                                         prevents CFGFast from viewing the entry point as one of the starting points of
@@ -1250,16 +1250,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 f = self.functions[f_addr]
                 if f.is_simprocedure:
                     continue
-                l.debug("\tFunction %s" % f.name)
+                l.debug("\tFunction %s", f.name)
                 # constant prop
                 prop = self.project.analyses.Propagator(func=f, base_state=state)
                 # Collect all the refs
                 self.project.analyses.XRefs(func=f, replacements=prop.replacements)
             except Exception:  # pylint: disable=broad-except
                 if f is not None:
-                    l.exception("Error collecting XRefs for function %s", f.name)
+                    l.exception("Error collecting XRefs for function %s.", f.name, exc_info=True)
                 else:
-                    l.exception("Error collecting XRefs for function %#08x", f_addr)
+                    l.exception("Error collecting XRefs for function %#x.", f_addr, exc_info=True)
 
     # Methods to get start points for scanning
 
@@ -2203,6 +2203,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: tuple
         """
 
+        # quick check: if it's at the beginning of a binary, it might be the ELF header
+        elfheader_sort, elfheader_size = self._guess_data_type_elfheader(data_addr, max_size)
+        if elfheader_sort:
+            return elfheader_sort, elfheader_size
+
         try:
             ref = next(iter(self.kb.xrefs.get_xrefs_by_dst(data_addr)))  # type: XRef
             irsb_addr = ref.block_addr
@@ -2308,6 +2313,33 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
             if sort is not None:
                 return sort, size
+
+        return None, None
+
+    def _guess_data_type_elfheader(self, data_addr, max_size):
+        """
+        Is the specified data chunk an ELF header?
+
+        :param int data_addr:   Address of the data chunk
+        :param int max_size:    Size of the data chunk.
+        :return:                A tuple of ('elf-header', size) if it is, or (None, None) if it is not.
+        :rtype:                 tuple
+        """
+
+        obj = self.project.loader.find_object_containing(data_addr)
+        if obj is None:
+            # it's not mapped
+            return None, None
+
+        if data_addr == obj.min_addr and 4 < max_size < 1000:
+            # Does it start with the ELF magic bytes?
+            try:
+                data = self.project.loader.memory.load(data_addr, 4)
+            except KeyError:
+                return None, None
+            if data == b"\x7fELF":
+                # yes!
+                return "elf-header", max_size
 
         return None, None
 

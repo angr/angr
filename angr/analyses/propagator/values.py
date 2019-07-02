@@ -1,4 +1,6 @@
 
+# pylint: disable=unused-argument
+
 class Top:
     def __add__(self, other):
         return self
@@ -28,22 +30,28 @@ class Top:
         return self
 
     def __rdiv__(self, other):
-        return self  # pylint: disable=unused-argument
+        return self
 
     def __floordiv__(self, other):
-        return self  # pylint: disable=unused-argument
+        return self
 
     def __rfloordiv__(self, other):
-        return self  # pylint: disable=unused-argument
+        return self
 
     def __invert__(self):
-        return self  # pylint: disable=unused-argument
+        return self
 
     def __rshift__(self, other):
-        return self  # pylint: disable=unused-argument
+        return self
 
     def __lshift__(self, other):
-        return self  # pylint: disable=unused-argument
+        return self
+
+    def __rrshift__(self, other):
+        return self
+
+    def __rlshift__(self, other):
+        return self
 
     def __xor__(self, other):
         return self

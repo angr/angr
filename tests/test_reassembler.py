@@ -199,6 +199,21 @@ def test_dir_gcc_O0():
         shutil.rmtree(tempdir)
 
 
+def test_helloworld():
+
+    # Reassembler complains about TYPE_OTHER symbols, which is because it's trying to classify bytes inside the ELF
+    # header as pointers. We identify the ELF header in CFGFast to workaround this problem.
+    # https://github.com/angr/angr/issues/1630
+
+    p = angr.Project(os.path.join(test_location, "x86_64", "hello_world"), auto_load_libs=False)
+    r = p.analyses.Reassembler(syntax="at&t")
+    r.symbolize()
+    r.remove_unnecessary_stuff()
+    _ = r.assembly(comments=True, symbolized=True)
+
+    # No exception should have been raised
+
+
 if __name__ == "__main__":
     test_data_reference_collection_in_add()
     test_ln_gcc_O2()
@@ -206,3 +221,4 @@ if __name__ == "__main__":
     test_ex_gpp()
     test_df_gcc_O1()
     test_dir_gcc_O0()
+    test_helloworld()
