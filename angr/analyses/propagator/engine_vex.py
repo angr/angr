@@ -90,7 +90,7 @@ class SimEnginePropagatorVEX(
     def _handle_WrTmp(self, stmt):
         super()._handle_WrTmp(stmt)
 
-        if stmt.tmp in self.tmps:
+        if stmt.tmp in self.tmps and self.tmps[stmt.tmp] not in {TOP, BOTTOM}:
             self.state.add_replacement(self._codeloc(block_only=True), VEXTmp(stmt.tmp), self.tmps[stmt.tmp])
 
     def _handle_Put(self, stmt):

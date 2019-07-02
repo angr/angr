@@ -7,7 +7,7 @@ from ...engines.light import SpOffset
 from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from .values import TOP
+from .values import TOP, BOTTOM
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 
@@ -47,6 +47,7 @@ class PropagatorState:
 
 
     def add_replacement(self, codeloc, old, new):
+        assert new not in {TOP, BOTTOM}
         self._replacements[codeloc][old] = new
 
 # VEX state

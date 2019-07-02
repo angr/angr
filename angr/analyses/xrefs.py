@@ -4,7 +4,7 @@ from collections import defaultdict
 import pyvex
 
 from ..knowledge_plugins.xrefs import XRef, XRefType
-from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
+from ..engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from .propagator.vex_vars import VEXTmp
 from . import register_analysis
 from .analysis import Analysis
@@ -55,14 +55,26 @@ class SimEngineXRefsVEX(
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Write, self._codeloc(), addr)
 
-    def _handle_LoadG(self, stmt):
-        # What are we reading?
+    def _do_load(self, thingy):
         blockloc = self._codeloc(block_only=True)
-        if type(stmt.addr) is pyvex.IRExpr.RdTmp:
-            addr_tmp = VEXTmp(stmt.addr.tmp)
+        if type(thingy.addr) is pyvex.IRExpr.RdTmp:
+            addr_tmp = VEXTmp(thingy.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Read, self._codeloc(), addr)
+                # Check for offset stuff
+                # EDG says: This is a hack.  It's catchy.  You like it.
+                # TODO: FIXME: Should this support SpOffset? Well, it sure doesn't now.
+                if self.state is not None and not isinstance(addr, SpOffset):
+                    data = self.state.memory.load(addr, endness=self.state.arch.memory_endness)
+                    if not data.symbolic:
+                        real_data = self.state.solver.eval(data)
+                        if self.state.project.loader.find_object_containing(real_data):
+                            # That's a pointer!! I hope.
+                            self.add_xref(XRefType.Offset, self._codeloc(), real_data)
+
+    def _handle_LoadG(self, stmt):
+        self._do_load(stmt)
 
     #
     # Expression handlers
@@ -72,13 +84,8 @@ class SimEngineXRefsVEX(
         return None
 
     def _handle_Load(self, expr):
-        blockloc = self._codeloc(block_only=True)
-        # TODO: Handle constant reads
-        if type(expr.addr) is pyvex.IRExpr.RdTmp:
-            addr_tmp = VEXTmp(expr.addr.tmp)
-            if addr_tmp in self.replacements[blockloc]:
-                addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Read, self._codeloc(), addr)
+        self._do_load(expr)
+        return None
 
     def _handle_CCall(self, expr):
         return None
@@ -109,7 +116,12 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         23ca - read access
         23ce - write access
     """
-    def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None):
+    def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None, start_state=None):
+
+        if not start_state:
+            self._start_state = self.project.factory.blank_state()
+        else:
+            self._start_state = start_state
 
         if func is not None:
             if block is not None:
@@ -139,7 +151,6 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
         self._engine_vex = SimEngineXRefsVEX(self.kb.xrefs, replacements=replacements)
         self._engine_ail = None
-
         self._analyze()
 
         #
@@ -164,7 +175,7 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         block_key = node.addr
         engine = self._engine_vex
 
-        engine.process(None, block=block, fail_fast=self._fail_fast)
+        engine.process(self._start_state, block=block, fail_fast=self._fail_fast)
 
         self._node_iterations[block_key] += 1
 
