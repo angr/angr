@@ -29,5 +29,4 @@ def test_block_simplifier():
 
 
 if __name__ == "__main__":
-    logging.getLogger('ailment.analyses.propagator').setLevel(logging.DEBUG)
     test_block_simplifier()

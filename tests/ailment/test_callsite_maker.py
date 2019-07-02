@@ -45,5 +45,4 @@ def test_callsite_maker():
 
 
 if __name__ == "__main__":
-    # logging.getLogger('ailment.analyses.propagator').setLevel(logging.DEBUG)
     test_callsite_maker()
