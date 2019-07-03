@@ -2213,7 +2213,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     @staticmethod
     def _convert_indirect_jump_targets_to_states(job, indirect_jump_targets):
         """
-        Convert each concrete indirect jump target into a SimState.
+        Convert each concrete indirect jump target into a SimState. If there are non-zero successors and the original
+        jumpkind is a call, we also generate a fake-ret successor.
 
         :param job:                     The CFGJob instance.
         :param indirect_jump_targets:   A collection of concrete jump targets resolved from a indirect jump.
@@ -2229,7 +2230,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             a.ip = t
             successors.append(a)
         # special case: if the indirect jump is in fact an indirect call, we should create a FakeRet successor
-        if first_successor.history.jumpkind == 'Ijk_Call':
+        if successors and first_successor.history.jumpkind == 'Ijk_Call':
             a = first_successor.copy()
             a.ip = job.cfg_node.addr + job.cfg_node.size
             a.history.jumpkind = 'Ijk_FakeRet'
