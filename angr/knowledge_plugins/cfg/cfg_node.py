@@ -155,13 +155,9 @@ class CFGNode(Serializable):
     def accessed_data_references(self):
         """
         Property providing a view of all the known data references for this CFGNode via the global knowledge base
-<<<<<<< HEAD
-        :return:
-=======
 
         :return:    Generator yielding xrefs to this CFGNode's block.
         :rtype:     iter
->>>>>>> master
         """
         return self.get_data_references()
 
