@@ -1085,7 +1085,7 @@ class BinDiff(Analysis):
         initial_matches += self._get_name_matches()
         initial_matches += self._get_function_matches(self.attributes_a, self.attributes_b)
         for (a, b) in initial_matches:
-            l.debug("Initally matched (%#x, %#x)", a, b)
+            l.debug("Initially matched (%#x, %#x)", a, b)
 
         # Use a queue so we process matches in the order that they are found
         to_process = deque(initial_matches)
