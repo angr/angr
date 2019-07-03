@@ -2221,11 +2221,18 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :rtype:                         list
         """
 
+        first_successor = job.sim_successors.all_successors[0]
         successors = [ ]
         for t in indirect_jump_targets:
             # Insert new successors
-            a = job.sim_successors.all_successors[0].copy()
+            a = first_successor.copy()
             a.ip = t
+            successors.append(a)
+        # special case: if the indirect jump is in fact an indirect call, we should create a FakeRet successor
+        if first_successor.history.jumpkind == 'Ijk_Call':
+            a = first_successor.copy()
+            a.ip = job.cfg_node.addr + job.cfg_node.size
+            a.history.jumpkind = 'Ijk_FakeRet'
             successors.append(a)
         return successors
 
