@@ -1131,9 +1131,11 @@ class BinDiff(Analysis):
             # for each of the possible new matches add it if it improves the matching
             for (x, y) in new_matches:
                 # skip none functions and syscalls
-                if self.cfg_a.kb.functions.function(x) is None or self.cfg_a.kb.functions.function(x).is_syscall:
+                func_a = self.cfg_a.kb.functions.function(x)
+                if func_a is None or func_a.is_simprocedure or func_a.is_syscall:
                     continue
-                if self.cfg_b.kb.functions.function(y) is None or self.cfg_b.kb.functions.function(y).is_syscall:
+                func_b = self.cfg_b.kb.functions.function(y)
+                if func_b is None or func_b.is_simprocedure or func_b.is_syscall:
                     continue
 
                 if (x, y) not in processed_matches:
