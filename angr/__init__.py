@@ -54,6 +54,7 @@ from .exploration_techniques import ExplorationTechnique
 from . import type_backend
 from . import sim_type as types
 from .state_hierarchy import StateHierarchy
+from .angrdb import AngrDB
 
 from .sim_state import SimState
 from . import engines
