@@ -2,7 +2,7 @@
 import logging
 import math
 import types
-from collections import deque
+from collections import deque, defaultdict
 
 import networkx
 from . import Analysis
@@ -1055,20 +1055,23 @@ class BinDiff(Analysis):
         return plt_matches
 
     def _get_name_matches(self):
-        names_to_addrs_a = dict()
+        names_to_addrs_a = defaultdict(list)
         for f in self.cfg_a.functions.values():
             if not f.name.startswith("sub_"):
-                names_to_addrs_a[f.name] = f.addr
+                names_to_addrs_a[f.name].append(f.addr)
 
-        names_to_addrs_b = dict()
+        names_to_addrs_b = defaultdict(list)
         for f in self.cfg_b.functions.values():
             if not f.name.startswith("sub_"):
-                names_to_addrs_b[f.name] = f.addr
+                names_to_addrs_b[f.name].append(f.addr)
 
         name_matches = []
-        for name, addr in names_to_addrs_a.items():
+        for name, addrs in names_to_addrs_a.items():
             if name in names_to_addrs_b:
-                name_matches.append((addr, names_to_addrs_b[name]))
+                for addr_a, addr_b in zip(addrs, names_to_addrs_b[name]):
+                    # if binary a and binary b have different numbers of functions with the same name, we will see them
+                    # in unmatched functions in the end.
+                    name_matches.append((addr_a, addr_b))
 
         return name_matches
 
