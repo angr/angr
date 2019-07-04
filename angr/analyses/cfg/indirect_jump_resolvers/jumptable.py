@@ -158,7 +158,7 @@ class JumpTableProcessor(
         self.state._registers[offset] = r
 
     def _handle_function(self, stmt):
-        return None # pylint: disable=unused-argument,no-self-use
+        pass
 
     def _handle_Store(self, stmt):
         self._tsrc = [ ]
