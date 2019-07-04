@@ -285,8 +285,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # imprecision of the concrete execution. So we save those simulated
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
-        # type: Dict[BlockID, List[PendingJob]]
-        self._pending_jobs = defaultdict(list)
+        self._pending_jobs = defaultdict(list) # Dict[BlockID, List[PendingJob]]
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
