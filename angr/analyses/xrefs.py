@@ -81,11 +81,10 @@ class SimEngineXRefsVEX(
     #
 
     def _handle_Get(self, expr):
-        return None
+        pass
 
     def _handle_Load(self, expr):
         self._do_load(expr)
-        return None
 
     def _handle_CCall(self, expr):
         return None
