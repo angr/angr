@@ -855,10 +855,26 @@ class SimCC:
             return val
 
         elif isinstance(arg, claripy.ast.Base):
-            if check and isinstance(ty, SimTypeReg):
-                arg = arg.reversed
+            endswap = False
+            bypass_sizecheck = False
+            if check:
+                if isinstance(ty, SimTypePointer):
+                    # we have been passed an AST as a pointer argument. is this supposed to be the pointer or the
+                    # content of the pointer?
+                    # in the future (a breaking change) we should perhaps say it ALWAYS has to be the pointer itself
+                    # but for now use the heuristic that if it's the right size for the pointer it is the pointer
+                    endswap = True
+                elif isinstance(ty, SimTypeReg):
+                    # definitely endswap.
+                    # TODO: should we maybe pad the value to the type size here?
+                    endswap = True
+                    bypass_sizecheck = True
+            else:
+                # if we know nothing about the type assume it's supposed to be an int if it looks like an int
+                endswap = True
+
             # yikes
-            elif state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
+            if endswap and state.arch.memory_endness == 'Iend_LE' and (bypass_sizecheck or arg.length == state.arch.bits):
                 arg = arg.reversed
             return arg
 
