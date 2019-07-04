@@ -10,7 +10,8 @@ import ailment.analyses
 
 def test_callsite_maker():
 
-    project = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+    project = angr.Project(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+        '..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
 
     manager = ailment.Manager(arch=project.arch)
 

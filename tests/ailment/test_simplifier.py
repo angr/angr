@@ -23,7 +23,8 @@ def test_block_simplifier():
     ablock = ailment.IRSBConverter.convert(irsb, manager)
 
     # we need a project...
-    project = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+    project = angr.Project(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+        '..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
 
     simp = project.analyses.AILBlockSimplifier(ablock)
 
