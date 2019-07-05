@@ -8,7 +8,7 @@ from collections import defaultdict
 from typing import Union
 
 from itanium_demangler import parse
-
+from ..xrefs.xref_types import XRefType
 from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
@@ -447,9 +447,10 @@ class Function(Serializable):
         :return:                A list of tuples of (address, string) where is address is the location of the string in
                                 memory.
         """
-        # TODO: Maybe rewire this to use XRefs / Propagator
         strings = []
         memory = self._project.loader.memory
+        if len(list(self._project.kb.xrefs.xrefs_by_ins_addr)) == 0:
+            raise ValueError("Build a CFG with cross_references=True first")
 
         # get known instruction addresses and call targets
         # these addresses cannot be string references, but show up frequently in the runtime values
@@ -460,8 +461,11 @@ class Function(Serializable):
             known_executable_addresses.update(set(x.addr for x in function.graph.nodes()))
 
         # loop over all local runtime values and check if the value points to a printable string
-        for addr in self.local_runtime_values if not vex_only else self.code_constants:
-            if not isinstance(addr, claripy.fp.FPV) and addr in memory:
+        if not vex_only:
+            for ref in self.xrefs_from:
+                if ref.type == XRefType.Write:
+                    continue
+                addr = ref.dst
                 # check that the address isn't an pointing to known executable code
                 # and that it isn't an indirect pointer to known executable code
                 try:
@@ -481,6 +485,27 @@ class Function(Serializable):
                             strings.append((addr, stn))
                 except KeyError:
                     pass
+        else:
+            for addr in self.code_constants:
+                if not isinstance(addr, claripy.fp.FPV) and addr in memory:
+                    try:
+                        possible_pointer = memory.unpack_word(addr)
+                        if addr not in known_executable_addresses and possible_pointer not in known_executable_addresses:
+                            # build string
+                            stn = ""
+                            offset = 0
+                            current_char = chr(memory[addr + offset])
+                            while current_char in string.printable:
+                                stn += current_char
+                                offset += 1
+                                current_char = chr(memory[addr + offset])
+
+                            # check that the string was a null terminated string with minimum length
+                            if current_char == "\x00" and len(stn) >= minimum_length:
+                                strings.append((addr, stn))
+                    except KeyError:
+                        pass
+
         return strings
 
     @property
