@@ -9,7 +9,6 @@ from typing import Union
 
 from itanium_demangler import parse
 from ..xrefs.xref_types import XRefType
-from ...analyses.xrefs import SpOffset
 from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
@@ -452,7 +451,8 @@ class Function(Serializable):
         memory = self._project.loader.memory
         if len(list(self._project.kb.xrefs.xrefs_by_ins_addr)) == 0:
             raise ValueError("Build a CFG with cross_references=True first")
-
+        if self._project.is_hooked(self.addr):
+            return strings # Yeah, no.
         # get known instruction addresses and call targets
         # these addresses cannot be string references, but show up frequently in the runtime values
         known_executable_addresses = set()
@@ -464,7 +464,7 @@ class Function(Serializable):
         # loop over all local runtime values and check if the value points to a printable string
         if not vex_only:
             for ref in self.xrefs_from:
-                if ref.type == XRefType.Write or isinstance(ref.dst, SpOffset):
+                if ref.type == XRefType.Write or not isinstance(ref.dst, int):
                     continue
                 addr = ref.dst
                 # check that the address isn't an pointing to known executable code
