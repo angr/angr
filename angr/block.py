@@ -230,7 +230,7 @@ class Block(Serializable):
             return []
         return self._project.kb.xrefs.get_xrefs_by_dst_region(self.addr, self.addr + self.size)
 
-@property
+    @property
     def instruction_addrs(self):
         if not self._instruction_addrs and self._vex is None:
             # initialize instruction addrs
