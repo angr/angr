@@ -217,6 +217,20 @@ class Block(Serializable):
         return self._instructions
 
     @property
+    def xrefs_from(self):
+        if len(self._project.kb.xrefs.xrefs_by_ins_addr.keys()) == 0:
+            l.warning("No XRefs have been collected.  Did you build your CFG with `cross_references=True`?")
+            return []
+        return self._project.kb.xrefs.get_xrefs_by_ins_addr_region(self.addr, self.addr + self.size)
+
+    @property
+    def xrefs_to(self):
+        if len(self._project.kb.xrefs.xrefs_by_ins_addr.keys()) == 0:
+            l.warning("No XRefs have been collected.  Did you build your CFG with `cross_references=True`?")
+            return []
+        return self._project.kb.xrefs.get_xrefs_by_dst_region(self.addr, self.addr + self.size)
+
+@property
     def instruction_addrs(self):
         if not self._instruction_addrs and self._vex is None:
             # initialize instruction addrs

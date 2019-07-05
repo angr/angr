@@ -296,6 +296,7 @@ class Function(Serializable):
         """
         All of the constants that are used by this functions's code.
         """
+        # TODO: EDG says: This is now technically incorrect, leverage Propagator to get the real answer
         # TODO: remove link register values
         return [const.value for block in self.blocks for const in block.vex.constants]
 
@@ -446,6 +447,7 @@ class Function(Serializable):
         :return:                A list of tuples of (address, string) where is address is the location of the string in
                                 memory.
         """
+        # TODO: Maybe rewire this to use XRefs / Propagator
         strings = []
         memory = self._project.loader.memory
 
@@ -491,94 +493,38 @@ class Function(Serializable):
 
         :return: a set of constants
         """
+        # It's time for the Propagator... it's time for the Propagator....
+        prop = self.project.analyses.Propagator(self, self.project.factory.blank_state())
+        # TODO: Add a warning so that people know to run this after building a CFG, and with at least
+        # data_references=True
         constants = set()
-
-        if not self._project.loader.main_object.contains_addr(self.addr):
-            return constants
-
-        # FIXME the old way was better for architectures like mips, but we need the initial irsb
-        # reanalyze function with a new initial state (use persistent registers)
-        # initial_state = self._function_manager._cfg.get_any_irsb(self.addr).initial_state
-        # fresh_state = self._project.factory.blank_state(mode="fastpath")
-        # for reg in initial_state.arch.persistent_regs + ['ip']:
-        #     fresh_state.registers.store(reg, initial_state.registers.load(reg))
-
-        # reanalyze function with a new initial state
-        fresh_state = self._project.factory.blank_state(mode="fastpath")
-        fresh_state.regs.ip = self.addr
-
-        graph_addrs = set(x.addr for x in self.graph.nodes() if isinstance(x, BlockNode))
-
-        # process the nodes in a breadth-first order keeping track of which nodes have already been analyzed
-        analyzed = set()
-        q = [fresh_state]
-        analyzed.add(fresh_state.solver.eval(fresh_state.ip))
-        while len(q) > 0:
-            state = q.pop()
-            # make sure its in this function
-            if state.solver.eval(state.ip) not in graph_addrs:
-                continue
-            # don't trace into simprocedures
-            if self._project.is_hooked(state.solver.eval(state.ip)):
-                continue
-            # don't trace outside of the binary
-            if not self._project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
-                continue
-            # don't trace unreachable blocks
-            if state.history.jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode',
-                                          'Ijk_MapFail', 'Ijk_NoRedir',
-                                          'Ijk_SigTRAP', 'Ijk_SigSEGV',
-                                          'Ijk_ClientReq'}:
-                continue
-
-            curr_ip = state.solver.eval(state.ip)
-
-            # get runtime values from logs of successors
-            successors = self._project.factory.successors(state)
-            for succ in successors.flat_successors + successors.unsat_successors:
-                for a in succ.history.recent_actions:
-                    for ao in a.all_objects:
-                        if not isinstance(ao.ast, claripy.ast.Base):
-                            constants.add(ao.ast)
-                        elif not ao.ast.symbolic:
-                            constants.add(succ.solver.eval(ao.ast))
-
-                # add successors to the queue to analyze
-                if not succ.solver.symbolic(succ.ip):
-                    succ_ip = succ.solver.eval(succ.ip)
-                    if succ_ip in self and succ_ip not in analyzed:
-                        analyzed.add(succ_ip)
-                        q.insert(0, succ)
-
-            # force jumps to missing successors
-            # (this is a slightly hacky way to force it to explore all the nodes in the function)
-            node = self.get_node(curr_ip)
-            if node is None:
-                # the node does not exist. maybe it's not a block node.
-                continue
-            missing = set(x.addr for x in list(self.graph.successors(node))) - analyzed
-            for succ_addr in missing:
-                l.info("Forcing jump to missing successor: %#x", succ_addr)
-                if succ_addr not in analyzed:
-                    all_successors = successors.unconstrained_successors + \
-                                     successors.flat_successors + \
-                                     successors.unsat_successors
-                    if len(all_successors) > 0:
-                        # set the ip of a copied successor to the successor address
-                        succ = all_successors[0].copy()
-                        succ.ip = succ_addr
-                        analyzed.add(succ_addr)
-                        q.insert(0, succ)
-                    else:
-                        l.warning("Could not reach successor: %#x", succ_addr)
-
+        for loc in prop.replacements:
+            for const in prop.replacements[loc].values():
+                if isinstance(const, int):
+                    constants.add(const)
         return constants
+
+    @property
+    def xrefs_from(self):
+        refs = []
+        for bl in self.blocks:
+            refs += bl.xrefs_from
+        return refs
+
+    @property
+    def xrefs_to(self):
+        refs = []
+        for bl in self.blocks:
+            refs += bl.xrefs_to
+        return refs
 
     @property
     def runtime_values(self):
         """
         All of the concrete values used by this function at runtime (i.e., including passed-in arguments and global
         values).
+        """
+        raise NotImplemented("This function is no longer supported.  Sorry!")
         """
         constants = set()
         for b in self.block_addrs:
@@ -591,6 +537,17 @@ class Function(Serializable):
                             elif not ao.ast.symbolic:
                                 constants.add(s.solver.eval(ao.ast))
         return constants
+        """
+
+    @property
+    def instruction_addrs(self):
+        """
+        Return all instruction addresses in the function
+        :return: Generator
+        """
+        for bl in self.blocks:
+            for ins_addr in bl.instruction_addrs:
+                yield ins_addr
 
     @property
     def num_arguments(self):
