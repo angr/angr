@@ -11,7 +11,7 @@ from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 from ..sim_state_options import SimStateOptions
 from ..misc.ux import once
-from .utils import resolve_size_range
+from .utils import resolve_size_range, get_unconstrained_bytes
 
 class MultiwriteAnnotation(claripy.Annotation):
     @property
@@ -208,7 +208,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 # size and merge them
                 extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
                 created = [
-                    (self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * self.state.arch.byte_width), fv) for
+                    (get_unconstrained_bytes(
+                        self.category,
+                        self.state,
+                        "merge_uc_%s_%x" % (uc.id, b),
+                        min_size * self.state.arch.byte_width
+                        ), fv) for
                     uc, fv in unconstrained_in
                 ]
                 to_merge = extracted + created
@@ -307,7 +312,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         r = self.load(addr, length)
 
-        v = self.get_unconstrained_bytes(name, r.size())
+        v = get_unconstrained_bytes(self.category, self.state, name, r.size())
         self.store(addr, v)
         self.state.add_constraints(r == v)
         l.debug("... eq constraints: %s", r == v)
@@ -408,7 +413,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             name = "%s_%x" % (self.id, addr)
         all_missing = [
-            self.get_unconstrained_bytes(
+            get_unconstrained_bytes(
+                self.category,
+                self.state,
                 name,
                 min(self.mem._page_size, num_bytes)*self.state.arch.byte_width,
                 source=i,
@@ -532,15 +539,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         size = max_size
         if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*self.state.arch.byte_width), [ ]
+            return [ ], get_unconstrained_bytes(
+                self.category, self.state, "symbolic_read_unconstrained", size*self.state.arch.byte_width
+            ), [ ]
 
         # get a concrete set of read addresses
         try:
             addrs = self.concretize_read_addr(dst)
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
-                return [ ], self.get_unconstrained_bytes(
-                    "symbolic_read_unconstrained", size*self.state.arch.byte_width
+                return [ ], get_unconstrained_bytes(
+                    self.category, self.state, "symbolic_read_unconstrained", size*self.state.arch.byte_width
                 ), [ ]
             else:
                 raise
@@ -923,35 +932,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return req
 
-    def get_unconstrained_bytes(self, name, bits, source=None, key=None, inspect=True, events=True, **kwargs):
-        """
-        Get some consecutive unconstrained bytes.
-
-        :param name: Name of the unconstrained variable
-        :param bits: Size of the unconstrained variable
-        :param source: Where those bytes are read from. Currently it is only used in under-constrained symbolic
-                    execution so that we can track the allocation depth.
-        :return: The generated variable
-        """
-
-        if self.category == 'mem' and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
-            return self.state.solver.BVV(0, bits)
-        elif self.category == 'reg' and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
-            return self.state.solver.BVV(0, bits)
-        elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
-            return self.state._special_memory_filler(name, bits, self.state)
-        else:
-            if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                if source is not None and type(source) is int:
-                    alloc_depth = self.state.uc_manager.get_alloc_depth(source)
-                    kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
-            r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events, **kwargs)
-            return r
-
     # Unconstrain a byte
     def unconstrain_byte(self, addr, inspect=True, events=True):
-        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_%#x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
-                                                          events=events, key=('manual_unconstrain', addr))
+        unconstrained_byte = get_unconstrained_bytes(self.category, self.state, "%s_unconstrain_%#x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
+                                                     events=events, key=('manual_unconstrain', addr))
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.

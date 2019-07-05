@@ -14,10 +14,10 @@ import time
 import itertools
 import sortedcontainers
 import operator
+import functools
 
-from ..storage.memory import SimMemory
-
-# our stuff
+from ..storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
+from ..misc.ux import once
 from .history import SimStateHistory
 from .sim_action_object import SimActionObject
 from .plugin import SimStatePlugin
@@ -275,6 +275,40 @@ class FullySymbolicMemory(SimMemory):
 
         return self.state.solver.If(cond, v, obj)
 
+    def _fill_missing(self, addr, min_addr, max_addr, inspect=True, events=True):
+        if once('mem_fill_warning'):
+            log.warning("The program is accessing memory or registers with an unspecified value. "
+                        "This could indicate unwanted behavior.")
+            log.warning("angr will cope with this by generating an unconstrained symbolic variable and "
+                        "continuing.  You can resolve this by:")
+            log.warning("1) setting a value to the initial state")
+            log.warning("2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
+                        "to make unknown regions hold null")
+            log.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
+                        "to suppress these messages.")
+        refplace_int = self.state.solver.eval(self.state._ip)
+        if self.state.project:
+            refplace_str = self.state.project.loader.describe_addr(refplace_int)
+        else:
+            refplace_str = "unknown"
+        log.warning("Filling memory with 1 unconstrained bytes referenced from %#x (%s)",
+                    refplace_int, refplace_str)
+
+        obj = get_unconstrained_bytes(
+                self.category,
+                self.state,
+                "%s_%x" % (self.id, min_addr),
+                self.state.arch.byte_width,
+                inspect=inspect,
+                events=events
+                )
+        self.implicit_timestamp -= 1
+        self._symbolic_memory.add(min_addr, max_addr + 1,
+                                    MemoryItem(addr, obj, self.implicit_timestamp, None))
+        if events:
+            self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=1)
+        return obj
+
     def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         if self.state.solver.symbolic(size):
             log.warning("Concretizing symbolic length. Much sad; think about implementing.")
@@ -317,19 +351,25 @@ class FullySymbolicMemory(SimMemory):
             P = sorted(P, key=lambda x: (x.t, (x.addr if type(x.addr) == int else 0)))
 
             if min_addr == max_addr and len(P) == 1 and type(P[0].addr) == int and P[0].guard is None:
+                # concrete load, with only one possible memory object, so don't
+                # emit an ITE
                 obj = P[0].obj
             else:
-                name = "%s_%x" % (self.id, min_addr + k)
-                obj = get_unconstrained_bytes(self.state, name, self.state.arch.byte_width, memory=self)
-
-                if angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
-                    # implicit store...
-                    self.implicit_timestamp -= 1
-                    self._symbolic_memory.add(min_addr + k, max_addr + k + 1,
-                                              MemoryItem(addr + k, obj, self.implicit_timestamp, None))
+                # emit an ITE for all possible memory objects
+                # XXX: Checks whether an uninit read could possibly occur. It's slower but greatly reduces log spam
+                extra_constraints = [
+                    claripy.Not(
+                        claripy.And(
+                            addr + k == x.addr,
+                            x.guard if x.guard is not None else claripy.BoolV(True)
+                        )
+                    ) for x in P
+                ]
+                if self.state.solver.satisfiable(extra_constraints=extra_constraints):
+                    obj = self._fill_missing(addr+k, min_addr+k, max_addr+k, inspect=inspect, events=events)
+                else:
+                    obj = self.state.solver.BVV(DUMMY_SYMBOLIC_READ_VALUE, self.state.arch.byte_width)
                 obj = self.build_merged_ite(addr + k, P, obj)
-
-            # concat single-byte objs
             read_value = self.state.solver.Concat(read_value, obj) if read_value is not None else obj
 
         if condition is not None:
@@ -410,12 +450,14 @@ class FullySymbolicMemory(SimMemory):
     def _store_concrete_size(self, size, condition, data, addr, min_addr, max_addr):
         # fastpath
         # size is not symbolic so we don't have to chop data; MemoryItem lazily slices [data, k]
+        if condition is not None:
+            prev = self.load(addr, size)
         for k in range(size):
             self._store_one_byte([data, k], addr, k, min_addr, max_addr, condition)
         if condition is None:
             return [ data ]
         else:
-            return [ self.state.solver.If(condition, data, self.load(addr, size)) ]
+            return [ self.state.solver.If(condition, data, prev) ]
 
     def _store_symbolic_size(self, size, condition, data, addr, min_addr, max_addr, min_size, max_size):
         # slowpath
