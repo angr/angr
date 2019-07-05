@@ -53,24 +53,24 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         return self.xrefs_by_ins_addr.get(ins_addr, set())
 
     def get_xrefs_by_ins_addr_region(self, start, end):
-        refs = []
+        refs = set()
         for x, ref in self.xrefs_by_ins_addr.items():
             if not isinstance(x, int):
                 continue
             if start <= x < end:
-                refs.append(ref)
+                refs |= ref
         return refs
 
     def get_xrefs_by_dst(self, dst):
         return self.xrefs_by_dst.get(dst, set())
 
     def get_xrefs_by_dst_region(self, start, end):
-        refs = []
+        refs = set()
         for x, ref in self.xrefs_by_dst.items():
             if not isinstance(x, int):
                 continue
             if start <= x < end:
-                refs.append(ref)
+                refs |= ref
         return refs
 
     @classmethod

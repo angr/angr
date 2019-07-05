@@ -494,7 +494,7 @@ class Function(Serializable):
         :return: a set of constants
         """
         # It's time for the Propagator... it's time for the Propagator....
-        prop = self.project.analyses.Propagator(self, self.project.factory.blank_state())
+        prop = self.project.analyses.Propagator(func=self, base_state=self.project.factory.blank_state())
         # TODO: Add a warning so that people know to run this after building a CFG, and with at least
         # data_references=True
         constants = set()
