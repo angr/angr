@@ -241,6 +241,11 @@ class FullySymbolicMemory(SimMemory):
         super(FullySymbolicMemory, self).set_state(state)
         self._init_memory()
 
+        # FIXME: conscious decision to not support this option. BVS.uc_alloc_depth does not carry across Concat().
+        # It's non-trivial to rewrite _load() to not have to Concat(), even for common case
+        if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
+            raise NotImplementedError
+
     def _load_init_data(self, addr, size):
         page_index = int(addr / self._page_size)
         page_end = int((addr + size) / self._page_size)
