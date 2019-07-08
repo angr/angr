@@ -26,10 +26,13 @@ TESTS_LOCATION = os.path.join(
 class InsnAndNodeObserveTestingUtils():
     @staticmethod
     def assert_equals_for_live_definitions(live_definition_1, live_definition_2):
-        nose.tools.assert_equals(live_definition_1.register_definitions, live_definition_2.register_definitions)
-        nose.tools.assert_equals(live_definition_1.stack_definitions, live_definition_2.stack_definitions)
-        nose.tools.assert_equals(live_definition_1.memory_definitions, live_definition_2.memory_definitions)
-        nose.tools.assert_equals(live_definition_1.tmp_definitions, live_definition_2.tmp_definitions)
+        list(map(
+            lambda attr: {\
+                nose.tools.assert_equals(getattr(live_definition_1, attr),\
+                                         getattr(live_definition_2, attr))\
+            },
+            ["register_definitions", "stack_definitions", "memory_definitions", "tmp_definitions"]
+        ))
 
     @staticmethod
     def filter(observed_results, observation_points):
@@ -50,11 +53,13 @@ class InsnAndNodeObserveTestingUtils():
         cfg = project.analyses.CFGFast()
 
         main_function = cfg.kb.functions['main']
-        rd = project.analyses.ReachingDefinitions(main_function, init_func=True, observation_points=observation_points)
+        reaching_definition = project.analyses.ReachingDefinitions(
+            main_function, init_func=True, observation_points=observation_points
+        )
 
         state = LiveDefinitions(project.arch, project.loader)
 
-        return (binary_path, project, cfg, main_function, rd, state)
+        return (project, main_function, reaching_definition, state)
 
 
 class ReachingDefinitionAnalysisTest(TestCase):
@@ -109,12 +114,16 @@ class ReachingDefinitionAnalysisTest(TestCase):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_AFTER)]
 
-        binary_path, project, cfg, main_function, rd, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
+        _, _, reaching_definition, state =\
+            InsnAndNodeObserveTestingUtils.setup(observation_points)
 
-        rd.node_observe(0x42, state, OP_AFTER)
+        reaching_definition.node_observe(0x42, state, OP_AFTER)
 
-        results = InsnAndNodeObserveTestingUtils.filter(rd.observed_results, observation_points)
-        expected_results = [ state ]
+        results = InsnAndNodeObserveTestingUtils.filter(
+            reaching_definition.observed_results,
+            observation_points
+        )
+        expected_results = [state]
 
         nose.tools.assert_equals(results, expected_results)
 
@@ -123,16 +132,20 @@ class ReachingDefinitionAnalysisTest(TestCase):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_AFTER)]
 
-        binary_path, project, cfg, main_function, rd, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
+        _, main_function, reaching_definition, state =\
+            InsnAndNodeObserveTestingUtils.setup(observation_points)
 
-        # Here, the statement content does not matter, neither if it is really in the block or else...
+        # Here, the statement content does not matter, neither if it is really in the block or else…
         statement = ailment.statement.DirtyStatement(0, None)
-        block = main_function._addr_to_block_node[main_function.addr]
+        block = main_function._addr_to_block_node[main_function.addr] # pylint: disable=W0212
 
-        rd.insn_observe(0x43, statement, block, state, OP_AFTER)
+        reaching_definition.insn_observe(0x43, statement, block, state, OP_AFTER)
 
-        results = InsnAndNodeObserveTestingUtils.filter(rd.observed_results, observation_points)
-        expected_results = [ state ]
+        results = InsnAndNodeObserveTestingUtils.filter(
+            reaching_definition.observed_results,
+            observation_points
+        )
+        expected_results = [state]
 
         nose.tools.assert_greater(len(results), 0)
         list(map(
@@ -141,20 +154,24 @@ class ReachingDefinitionAnalysisTest(TestCase):
         ))
 
 
-    def test_insn_observe_before_an_IMark_pyvex_statement(self):
+    def test_insn_observe_before_an_imark_pyvex_statement(self):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_BEFORE)]
 
-        binary_path, project, cfg, main_function, rd, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
+        project, main_function, reaching_definition, state =\
+            InsnAndNodeObserveTestingUtils.setup(observation_points)
 
-        code_block = main_function._addr_to_block_node[main_function.addr]
+        code_block = main_function._addr_to_block_node[main_function.addr] # pylint: disable=W0212
         block = angr.block.Block(addr=0x43, byte_string=code_block.bytestr, project=project)
         statement = block.vex.statements[0]
 
-        rd.insn_observe(0x43, statement, block, state, OP_BEFORE)
+        reaching_definition.insn_observe(0x43, statement, block, state, OP_BEFORE)
 
-        results = InsnAndNodeObserveTestingUtils.filter(rd.observed_results, observation_points)
-        expected_results = [ state ]
+        results = InsnAndNodeObserveTestingUtils.filter(
+            reaching_definition.observed_results,
+            observation_points
+        )
+        expected_results = [state]
 
         nose.tools.assert_greater(len(results), 0)
         list(map(
@@ -167,17 +184,22 @@ class ReachingDefinitionAnalysisTest(TestCase):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_AFTER)]
 
-        binary_path, project, cfg, main_function, rd, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
+        project, main_function, reaching_definition, state =\
+            InsnAndNodeObserveTestingUtils.setup(observation_points)
 
-        code_block = main_function._addr_to_block_node[main_function.addr]
+        code_block = main_function._addr_to_block_node[main_function.addr] # pylint: disable=W0212
         block = angr.block.Block(addr=0x43, byte_string=code_block.bytestr, project=project)
-        # When observing OP_AFTER an instruction, the statement has to be the last of a block (or preceding an IMark)
+        # When observing OP_AFTER an instruction, the statement has to be the last of a block
+        # (or preceding an IMark)
         statement = block.vex.statements[-1]
 
-        rd.insn_observe(0x43, statement, block, state, OP_AFTER)
+        reaching_definition.insn_observe(0x43, statement, block, state, OP_AFTER)
 
-        results = InsnAndNodeObserveTestingUtils.filter(rd.observed_results, observation_points)
-        expected_results = [ state ]
+        results = InsnAndNodeObserveTestingUtils.filter(
+            reaching_definition.observed_results,
+            observation_points
+        )
+        expected_results = [state]
 
         nose.tools.assert_greater(len(results), 0)
         list(map(
