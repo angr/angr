@@ -62,7 +62,7 @@ class ReachingDefinitionAnalysisTest(TestCase):
             project = angr.Project(binary, load_options={'auto_load_libs': False})
             cfg = project.analyses.CFGFast()
 
-            yield self._run_reaching_definition_analysis, project, cfg.kb.functions['main'], result_path
+            self._run_reaching_definition_analysis(project, cfg.kb.functions['main'], result_path)
 
 
 class LiveDefinitionsTest(TestCase):
