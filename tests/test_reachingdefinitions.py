@@ -1,17 +1,19 @@
+# Disable some pylint warnings: no-self-use, missing-docstring
+# pylint: disable=R0201, C0111
+
 import logging
 import os
 import pickle
 import random
 
-import nose
-import unittest
 from unittest import TestCase
+import nose
 
 import archinfo
 import angr
 from angr.analyses.reaching_definitions import LiveDefinitions
 
-l = logging.getLogger('test_reachingdefinitions')
+LOGGER = logging.getLogger('test_reachingdefinitions')
 
 TESTS_LOCATION = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
@@ -22,22 +24,24 @@ TESTS_LOCATION = os.path.join(
 class ReachingDefinitionAnalysisTest(TestCase):
     def _run_reaching_definition_analysis(self, project, func, result_path):
         tmp_kb = angr.KnowledgeBase(project)
-        rd = project.analyses.ReachingDefinitions(func, init_func=True, kb=tmp_kb, observe_all=True)
+        reaching_definition = project.analyses.ReachingDefinitions(
+            func, init_func=True, kb=tmp_kb, observe_all=True
+        )
 
         unsorted_result = map(
             lambda x: {'key': x[0],\
                        'register_definitions': x[1].register_definitions,\
                        'stack_definitions': x[1].stack_definitions,\
                        'memory_definitions': x[1].memory_definitions},
-            rd.observed_results.items()
+            reaching_definition.observed_results.items()
         )
         result = list(sorted(
             unsorted_result,
             key=lambda x: x['key']
         ))
 
-        with open(result_path, 'rb') as f:
-            expected_result = pickle.load(f)
+        with open(result_path, 'rb') as result_file:
+            expected_result = pickle.load(result_file)
 
         nose.tools.assert_list_equal(result, expected_result)
 
@@ -77,14 +81,16 @@ class LiveDefinitionsTest(TestCase):
         live_definition = LiveDefinitions(arch=arch, init_func=True, rtoc_value=rtoc_value)
 
         rtoc_offset = arch.registers['rtoc'][0]
-        rtoc_definition = next(iter(live_definition.register_definitions.get_objects_by_offset(rtoc_offset)))
+        rtoc_definition = next(iter(
+            live_definition.register_definitions.get_objects_by_offset(rtoc_offset)
+        ))
         rtoc_definition_value = rtoc_definition.data.get_first_element()
 
         nose.tools.assert_equals(rtoc_definition_value, rtoc_value)
 
 
 if __name__ == '__main__':
-    l.setLevel(logging.DEBUG)
+    LOGGER.setLevel(logging.DEBUG)
     logging.getLogger('angr.analyses.reaching_definitions').setLevel(logging.DEBUG)
 
     nose.core.runmodule()
