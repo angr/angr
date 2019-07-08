@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 
 import ailment
+import archinfo
 import pyvex
 
 from ...calling_conventions import SimRegArg, SimStackArg
@@ -34,7 +35,6 @@ class LiveDefinitions:
     It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
 
     :param archinfo.Arch arch: The architecture targeted by the program.
-    :param cle.loader.Loader loader: The loader used to load the analyzed program.
     :param Boolean track_tmps: Only tells whether or not temporary variables should be taken into consideration when
                               representing the state of the analysis.
                               Should be set to true when the analysis has counted uses and definitions for temporary
@@ -43,19 +43,25 @@ class LiveDefinitions:
     :param Boolean init_func: Whether or not the internal state of the analysis should be initialized.
     :param angr.calling_conventions.SimCC cc: The calling convention the analyzed function respects.
     :param int func_addr: The address of the analyzed function.
+    :param int rtoc_value: When the targeted architecture is ppc64, the initial function needs to know the `rtoc_value`.
     """
-    def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
+    def __init__(self, arch, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None,
+                 rtoc_value=None):
 
         # handy short-hands
         self.arch = arch
-        self.loader = loader
         self._track_tmps = track_tmps
         self.analysis = analysis
+        self.rtoc_value = rtoc_value
 
         self.register_definitions = KeyedRegion()
         self.stack_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
         self.tmp_definitions = {}
+
+        # sanity check
+        if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not self.rtoc_value:
+            raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
 
         if init_func:
             self._init_func(cc, func_addr)
@@ -109,12 +115,10 @@ class LiveDefinitions:
 
         # architecture dependent initialization
         if self.arch.name.lower().find('ppc64') > -1:
-            rtoc_value = self.loader.main_object.ppc64_initial_rtoc
-            if rtoc_value:
-                offset, size = self.arch.registers['rtoc']
-                rtoc = Register(offset, size)
-                rtoc_def = Definition(rtoc, None, DataSet(rtoc_value, self.arch.bits))
-                self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
+            offset, size = self.arch.registers['rtoc']
+            rtoc = Register(offset, size)
+            rtoc_def = Definition(rtoc, None, DataSet(self.rtoc_value, self.arch.bits))
+            self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
         elif self.arch.name.lower().find('mips64') > -1:
             offset, size = self.arch.registers['t9']
             t9 = Register(offset, size)
@@ -124,7 +128,6 @@ class LiveDefinitions:
     def copy(self):
         rd = LiveDefinitions(
             self.arch,
-            self.loader,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
             init_func=False,
@@ -446,8 +449,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         if self._init_state is not None:
             return self._init_state
         else:
-            return LiveDefinitions(self.project.arch, self.project.loader, track_tmps=self._track_tmps,
-                                   analysis=self, init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
+            return LiveDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
+                                   init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])

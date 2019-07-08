@@ -245,7 +245,7 @@ class SimEngineRDAIL(
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', addr, self.ins_addr)
                 else:
                     try:
-                        data.add(self.state.loader.memory.unpack_word(addr, size=size))
+                        data.add(self.project.loader.memory.unpack_word(addr, size=size))
                     except KeyError:
                         pass
 
@@ -361,12 +361,12 @@ class SimEngineRDAIL(
 
         is_internal = False
         ext_func_name = None
-        if self.state.loader.main_object.contains_addr(ip_addr) is True:
-            ext_func_name = self.state.loader.find_plt_stub_name(ip_addr)
+        if self.project.loader.main_object.contains_addr(ip_addr) is True:
+            ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
             if ext_func_name is None:
                 is_internal = True
         else:
-            symbol = self.state.loader.find_symbol(ip_addr)
+            symbol = self.project.loader.find_symbol(ip_addr)
             if symbol is not None:
                 ext_func_name = symbol.name
 
