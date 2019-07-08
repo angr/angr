@@ -555,7 +555,8 @@ class SimMemory(SimStatePlugin):
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
             isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized
+            addr_e.uninitialized and
+            addr_e.uc_alloc_depth is not None
         ):
             self._constrain_underconstrained_index(addr_e)
 
@@ -767,7 +768,8 @@ class SimMemory(SimStatePlugin):
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
             isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized
+            addr_e.uninitialized and
+            addr_e.uc_alloc_depth is not None
         ):
             self._constrain_underconstrained_index(addr_e)
 
