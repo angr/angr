@@ -2,7 +2,7 @@
 import logging
 import math
 import types
-from collections import deque
+from collections import deque, defaultdict
 
 import networkx
 from . import Analysis
@@ -1055,20 +1055,23 @@ class BinDiff(Analysis):
         return plt_matches
 
     def _get_name_matches(self):
-        names_to_addrs_a = dict()
+        names_to_addrs_a = defaultdict(list)
         for f in self.cfg_a.functions.values():
             if not f.name.startswith("sub_"):
-                names_to_addrs_a[f.name] = f.addr
+                names_to_addrs_a[f.name].append(f.addr)
 
-        names_to_addrs_b = dict()
+        names_to_addrs_b = defaultdict(list)
         for f in self.cfg_b.functions.values():
             if not f.name.startswith("sub_"):
-                names_to_addrs_b[f.name] = f.addr
+                names_to_addrs_b[f.name].append(f.addr)
 
         name_matches = []
-        for name, addr in names_to_addrs_a.items():
+        for name, addrs in names_to_addrs_a.items():
             if name in names_to_addrs_b:
-                name_matches.append((addr, names_to_addrs_b[name]))
+                for addr_a, addr_b in zip(addrs, names_to_addrs_b[name]):
+                    # if binary a and binary b have different numbers of functions with the same name, we will see them
+                    # in unmatched functions in the end.
+                    name_matches.append((addr_a, addr_b))
 
         return name_matches
 
@@ -1082,7 +1085,7 @@ class BinDiff(Analysis):
         initial_matches += self._get_name_matches()
         initial_matches += self._get_function_matches(self.attributes_a, self.attributes_b)
         for (a, b) in initial_matches:
-            l.debug("Initally matched (%#x, %#x)", a, b)
+            l.debug("Initially matched (%#x, %#x)", a, b)
 
         # Use a queue so we process matches in the order that they are found
         to_process = deque(initial_matches)
@@ -1128,9 +1131,11 @@ class BinDiff(Analysis):
             # for each of the possible new matches add it if it improves the matching
             for (x, y) in new_matches:
                 # skip none functions and syscalls
-                if self.cfg_a.kb.functions.function(x) is None or self.cfg_a.kb.functions.function(x).is_syscall:
+                func_a = self.cfg_a.kb.functions.function(x)
+                if func_a is None or func_a.is_simprocedure or func_a.is_syscall:
                     continue
-                if self.cfg_b.kb.functions.function(y) is None or self.cfg_b.kb.functions.function(y).is_syscall:
+                func_b = self.cfg_b.kb.functions.function(y)
+                if func_b is None or func_b.is_simprocedure or func_b.is_syscall:
                     continue
 
                 if (x, y) not in processed_matches:

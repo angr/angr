@@ -220,7 +220,7 @@ class Vault(collections.MutableMapping):
 
 class VaultDict(Vault):
     """
-    A Vault that uses a directory for storage.
+    A Vault that uses a dictionary for storage.
     """
     def __init__(self, d=None):
         super().__init__()
