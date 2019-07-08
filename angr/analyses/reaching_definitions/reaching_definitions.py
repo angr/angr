@@ -417,7 +417,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return self.observed_results[key]
 
     def get_reaching_definitions_by_node(self, node_addr, op_type):
-        key = 'node', ins_addr, op_type
+        key = 'node', node_addr, op_type
         if key not in self.observed_results:
             raise KeyError(("Reaching definitions are not available at observation point %s. "
                             "Did you specify that observation point?") % key)
@@ -427,8 +427,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     def node_observe(self, node_addr, state, op_type):
         """
         :param int node_addr:
-        :param LiveDefinitions state:
-        :param constants op_type: OP_BEFORE, OP_AFTER
+        :param angr.analyses.reaching_definitions.LiveDefinitions state:
+        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
         """
 
         key = 'node', node_addr, op_type
@@ -442,8 +442,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         :param int insn_addr:
         :param ailment.Stmt.Statement|pyvex.stmt.IRStmt stmt:
         :param angr.Block block:
-        :param LiveDefinitions state:
-        :param constants op_type: OP_BEFORE, OP_AFTER
+        :param angr.analyses.reaching_definitions.LiveDefinitions state:
+        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
         """
 
         key = 'insn', insn_addr, op_type
