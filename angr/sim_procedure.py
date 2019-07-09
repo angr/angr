@@ -148,7 +148,7 @@ class SimProcedure:
             # If the simprocedure is related to a Java function call the appropriate setup_args methos
             # TODO: should we move this?
             if self.is_java:
-                sim_args = self._setup_args(inst, state, arguments)
+                sim_args = self._setup_args(inst, state, arguments) #pylint:disable=assignment-from-no-return
                 self.use_state_arguments = False
 
             # handle if this is a continuation from a return
@@ -251,6 +251,11 @@ class SimProcedure:
     # Working with calling conventions
     #
 
+    def _setup_args(self, inst, state, args): #pylint:disable=unused-argument,no-self-use
+        raise SimProcedureError("the java-specific _setup_args() method was invoked on a non-Java SimProcedure.")
+    def _compute_ret_addr(self, expr): #pylint:disable=unused-argument,no-self-use
+        raise SimProcedureError("the java-specific _compute_ret_addr() method was invoked on a non-Java SimProcedure.")
+
     def set_args(self, args):
         arg_session = self.cc.arg_session
         for arg in args:
@@ -326,7 +331,7 @@ class SimProcedure:
         # TODO: I had to put this check here because I don't understand why self.use_state_arguments gets reset to true
         # when calling the function ret. at the calling point the attribute is set to False
         if isinstance(self.addr, SootAddressDescriptor):
-            ret_addr = self._compute_ret_addr(expr)
+            ret_addr = self._compute_ret_addr(expr) #pylint:disable=assignment-from-no-return
         elif self.use_state_arguments:
             ret_addr = self.cc.teardown_callsite(
                     self.state,
