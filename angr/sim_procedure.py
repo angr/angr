@@ -125,24 +125,20 @@ class SimProcedure:
         inst.inhibit_autoret = False
 
         # check to see if this is a syscall and if we should override its return value
-        override = None
         if inst.is_syscall:
             state.history.recent_syscall_count = 1
-            if len(state.posix.queued_syscall_returns):
-                override = state.posix.queued_syscall_returns.pop(0)
 
-        if callable(override):
-            try:
-                r = override(state, run=inst)
-            except TypeError:
-                r = override(state)
-            inst.use_state_arguments = True
+        state._inspect(
+            'simprocedure',
+            BP_BEFORE,
+            simprocedure_name=inst.display_name,
+            simprocedure_addr=self.addr,
+            simprocedure=inst,
+            simprocedure_result=NO_OVERRIDE
+        )
 
-        elif override is not None:
-            r = override
-            inst.use_state_arguments = True
-
-        else:
+        r = state._inspect_getattr('simprocedure_result', NO_OVERRIDE)
+        if r is NO_OVERRIDE:
             # get the arguments
 
             # If the simprocedure is related to a Java function call the appropriate setup_args methos
@@ -180,6 +176,13 @@ class SimProcedure:
             # run it
             l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
+
+        state._inspect(
+            'simprocedure',
+            BP_AFTER,
+            simprocedure_result=r
+        )
+        r = state._inspect_getattr('simprocedure_result', r)
 
         if inst.returns and inst.is_function and not inst.inhibit_autoret:
             inst.ret(r)
@@ -447,3 +450,4 @@ from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowS
 from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import DEFAULT_CC
+from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE

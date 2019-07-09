@@ -47,12 +47,6 @@ class SimEngineProcedure(SimEngine):
         state.history.recent_block_count = 1
 
         # prepare and run!
-        state._inspect('simprocedure',
-                       BP_BEFORE,
-                       simprocedure_name=procedure.display_name,
-                       simprocedure_addr=successors.addr,
-                       simprocedure=procedure
-                       )
         if procedure.is_syscall:
             state._inspect('syscall', BP_BEFORE, syscall_name=procedure.display_name)
 
@@ -71,12 +65,6 @@ class SimEngineProcedure(SimEngine):
 
         if procedure.is_syscall:
             state._inspect('syscall', BP_AFTER, syscall_name=procedure.display_name)
-        state._inspect('simprocedure',
-                       BP_AFTER,
-                       simprocedure_name=procedure.display_name,
-                       simprocedure_addr=successors.addr,
-                       simprocedure=inst
-                       )
 
         successors.description = 'SimProcedure ' + procedure.display_name
         if procedure.is_syscall:
