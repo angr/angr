@@ -43,9 +43,15 @@ class SynchronizationManager(KnowledgeBasePlugin):
     def commit(self):
         self._client.save_state()
 
+    def update(self):
+        self._client.update()
+
     @init_checker
     def users(self):
         return self._client.users()
+
+    def tally(self, users=None):
+        return self._client.tally(users=users)
 
     #
     # Fillers
