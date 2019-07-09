@@ -2,12 +2,11 @@
 This module contains symbolic implementations of VEX operations.
 """
 from functools import partial
-import re
-import sys
-import math
 import collections
 import itertools
 import operator
+import math
+import re
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -114,9 +113,9 @@ def make_operations():
         if p in ('Iop_INVALID', 'Iop_LAST'):
             continue
 
-        if p in explicit_attrs:
+        try:
             attrs = explicit_attrs[p]
-        else:
+        except KeyError:
             attrs = op_attrs(p)
 
         if attrs is None:
@@ -391,7 +390,7 @@ class SimIROp:
         # if cur_size > self._output_size_bits:
         # breakpoint here. it should never happen!
         __import__('ipdb').set_trace()
-        raise SimOperationError('output of %s is too big', self.name)
+        raise SimOperationError('output of %s is too big' % self.name)
 
     @property
     def is_signed(self):
@@ -797,7 +796,8 @@ class SimIROp:
                 result.append(f(left, *args[1:]))
             return claripy.Concat(*result)
 
-    def _fgeneric_minmax(self, cmp_op, a, b):
+    @staticmethod
+    def _fgeneric_minmax(cmp_op, a, b):
         a, b = a.raw_to_fp(), b.raw_to_fp()
         return claripy.If(cmp_op(a, b), a, b)
 
@@ -874,12 +874,18 @@ class SimIROp:
     def _op_Iop_64x4toV256(self, args) :
         return self._op_concat(args)
 
-    def _op_Iop_V256to64_0(self, args): return args[0][63:0]
-    def _op_Iop_V256to64_1(self, args): return args[0][127:64]
-    def _op_Iop_V256to64_2(self, args): return args[0][191:128]
-    def _op_Iop_V256to64_3(self, args): return args[0][255:192]
-    def _op_Iop_V256toV128_0(self, args): return args[0][127:0]
-    def _op_Iop_V256toV128_1(self, args): return args[0][255:128]
+    @staticmethod
+    def _op_Iop_V256to64_0(args): return args[0][63:0]
+    @staticmethod
+    def _op_Iop_V256to64_1(args): return args[0][127:64]
+    @staticmethod
+    def _op_Iop_V256to64_2(args): return args[0][191:128]
+    @staticmethod
+    def _op_Iop_V256to64_3(args): return args[0][255:192]
+    @staticmethod
+    def _op_Iop_V256toV128_0(args): return args[0][127:0]
+    @staticmethod
+    def _op_Iop_V256toV128_1(args): return args[0][255:128]
 
     def _op_Iop_QNarrowBin16Sto8Ux16(self, args):
         """
@@ -894,7 +900,8 @@ class SimIROp:
         """
         return self._op_generic_pack_StoU_saturation(args, 16, 8)
 
-    def _op_Iop_MAddF64(self, args):
+    @staticmethod
+    def _op_Iop_MAddF64(args):
         """
         Ternary operation.
             arg0 == 0
