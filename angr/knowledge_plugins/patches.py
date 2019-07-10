@@ -66,7 +66,7 @@ class PatchManager(KnowledgeBasePlugin):
                 patches.append(p)
             else:
                 break
-        return patches
+        return patches[::-1]
 
     def keys(self):
         return self._patches.keys()
