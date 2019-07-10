@@ -19,7 +19,7 @@ def SimIRStmt_Dirty(engine, state, stmt):
     func = state._inspect_getattr('dirty_handler', func)
     exprs = state._inspect_getattr('dirty_args', exprs)
 
-    if func is None and retval is None:
+    if func is None and retval is NO_OVERRIDE:
         l.error("Unsupported dirty helper %s", stmt.cee.name)
         raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
 
