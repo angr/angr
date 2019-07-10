@@ -19,6 +19,10 @@ def SimIRStmt_Dirty(engine, state, stmt):
     func = state._inspect_getattr('dirty_handler', func)
     exprs = state._inspect_getattr('dirty_args', exprs)
 
+    if func is None and retval is None:
+        l.error("Unsupported dirty helper %s", stmt.cee.name)
+        raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
+
     if retval is NO_OVERRIDE:
         retval, retval_constraints = func(state, *exprs)
         state.solver.add(*retval_constraints)
@@ -26,9 +30,5 @@ def SimIRStmt_Dirty(engine, state, stmt):
     state._inspect('dirty', when=BP_AFTER, dirty_result=retval)
     if retval is not None and stmt.tmp not in (0xffffffff, -1):
         state.scratch.store_tmp(stmt.tmp, retval, deps=deps)
-
-    if func is None and retval is None:
-        l.error("Unsupported dirty helper %s", stmt.cee.name)
-        raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
 
 from ....state_plugins.inspect import BP_BEFORE, BP_AFTER, NO_OVERRIDE
