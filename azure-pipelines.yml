@@ -1,0 +1,79 @@
+jobs:
+- job: Build
+  pool:
+    vmImage: ubuntu-16.04
+  container:
+    image: angr/ci:1
+    options: --cap-add=SYS_PTRACE
+  steps:
+  - script: /root/scripts/azure-build.sh
+
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: "build_archive"
+      targetPath: ./build.tar.gz
+
+- job: Lint
+  pool:
+    vmImage: ubuntu-16.04
+  container:
+    image: angr/ci:1
+    options: --cap-add=SYS_PTRACE
+  dependsOn: Build
+  condition: succeeded()
+  steps:
+  - task: DownloadPipelineArtifact@0
+    inputs:
+      artifactName: "build_archive"
+      targetPath: .
+
+  - script: /root/scripts/azure-lint.sh
+
+- job: Test
+  pool:
+    vmImage: ubuntu-16.04
+  container:
+    image: angr/ci:1
+    options: --cap-add=SYS_PTRACE
+  dependsOn: Build
+  condition: succeeded()
+  variables:
+    NUM_WORKERS: 10
+  strategy:
+    maxParallel: 10
+    matrix:
+      worker_0:
+        WORKER: 0
+      worker_1:
+        WORKER: 1
+      worker_2:
+        WORKER: 2
+      worker_3:
+        WORKER: 3
+      worker_4:
+        WORKER: 4
+      worker_5:
+        WORKER: 5
+      worker_6:
+        WORKER: 6
+      worker_7:
+        WORKER: 7
+      worker_8:
+        WORKER: 8
+      worker_9:
+        WORKER: 9
+  steps:
+  - task: DownloadPipelineArtifact@0
+    inputs:
+      artifactName: "build_archive"
+      targetPath: .
+
+  - script: /root/scripts/azure-test.sh
+
+  - task: PublishTestResults@2
+    condition: succeededOrFailed()
+    inputs:
+      testRunner: "JUnit"
+      testResultsFiles: "build/results/*.xml"
+      mergeTestResults: true
+

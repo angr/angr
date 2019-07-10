@@ -22,6 +22,7 @@ event_types = {
     'call',
     'return',
     'simprocedure',
+    'dirty',
     'syscall',
     'cfg_handle_job',
     'vfg_handle_successor',
@@ -85,7 +86,7 @@ inspect_attributes = {
     'exit_target',
     'exit_guard',
     'exit_jumpkind',
-    'backtrace',
+    'backtrace', #unused?
 
     # symbolic_variable
     'symbolic_name',
@@ -106,12 +107,21 @@ inspect_attributes = {
     # simprocedure
     'simprocedure_name',
     'simprocedure_addr',
+    'simprocedure_result',
     'simprocedure',
+
+    # dirty
+    'dirty_name',
+    'dirty_handler',
+    'dirty_args',
+    'dirty_result',
 
     # engine_process
     'sim_engine',
     'sim_successors',
     }
+
+NO_OVERRIDE = object()
 
 BP_BEFORE = 'before'
 BP_AFTER = 'after'

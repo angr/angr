@@ -1,5 +1,6 @@
 from cachetools import LRUCache
 
+import cle
 import pyvex
 import claripy
 from archinfo import ArchARM
@@ -665,7 +666,7 @@ class SimEngineVEX(SimEngine):
             except: # pylint: disable=bare-except
                 smc = True # I don't know why this would ever happen, we checked this right?
 
-        if not smc or not state:
+        if (not smc or not state) and isinstance(clemory, cle.Clemory):
             try:
                 start, backer = next(clemory.backers(addr))
             except StopIteration:
