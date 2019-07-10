@@ -444,6 +444,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  low_priority=False,
                  cfb=None,
                  model=None,
+                 use_patches=False,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  collect_data_references=None, # deprecated
@@ -595,6 +596,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._cross_references = cross_references
         # You need data refs to get cross refs
         self._collect_data_ref = data_references or self._cross_references
+
+        self._use_patches = use_patches
 
         self._arch_options = arch_options if arch_options is not None else CFGArchOptions(
                 self.project.arch, **extra_arch_options)
@@ -3497,9 +3500,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return result
 
-    def _lift(self, *args, **kwargs):
-        kwargs['extra_stop_points'] = self._known_thunks
-        return super(CFGFast, self)._lift(*args, **kwargs)
+    def _lift(self, addr, *args, **kwargs):
+        kwargs['extra_stop_points'] = set(self._known_thunks)
+        if self._use_patches:
+            # let's see if there is a patch at this location
+            all_patches = self.kb.patches.get_all_patches(addr, VEX_IRSB_MAX_SIZE)
+            if all_patches:
+                # Use bytes from patches instead
+                offset = addr
+                byte_string = b""
+                for p in all_patches:
+                    if offset < p.addr:
+                        byte_string += self._fast_memory_load_bytes(offset, p.addr - offset)
+                        offset = p.addr
+                    assert p.addr <= offset < p.addr + len(p)
+                    byte_string += p.new_bytes[offset - p.addr: min(VEX_IRSB_MAX_SIZE - (offset-addr), p.addr + len(p) - offset)]
+                    offset = p.addr + len(p)
+                kwargs['byte_string'] = byte_string
+        return super(CFGFast, self)._lift(addr, *args, **kwargs)
 
     #
     # Public methods
