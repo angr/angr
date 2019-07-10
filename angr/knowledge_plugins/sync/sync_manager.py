@@ -174,5 +174,17 @@ class SynchronizationManager(KnowledgeBasePlugin):
 
         return self._client.get_state(user=user).get_comments(start_addr, end_addr=end_addr)
 
+    @init_checker
+    def pull_patches(self, user=None):
+        """
+        Pull patches.
+
+        :param str user:    Name of the user to patches from.
+        :return:            An iterator
+        :rtype:             Iterable
+        """
+
+        return self._client.get_state(user=user).get_patches()
+
 
 KnowledgeBasePlugin.register_default("sync", SynchronizationManager)

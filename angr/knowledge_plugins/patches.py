@@ -30,8 +30,8 @@ class PatchManager(KnowledgeBasePlugin):
         self._patches = SortedDict()
         self._kb = kb
 
-    def add_patch(self, patch):
-        self._patches[patch.addr] = patch
+    def add_patch(self, addr, new_bytes):
+        self._patches[addr] = Patch(addr, new_bytes)
 
     def remove_patch(self, addr):
         if addr in self._patches:
@@ -67,6 +67,15 @@ class PatchManager(KnowledgeBasePlugin):
             else:
                 break
         return patches
+
+    def keys(self):
+        return self._patches.keys()
+
+    def items(self):
+        return self._patches.items()
+
+    def values(self):
+        return self._patches.values()
 
     def copy(self):
         o = PatchManager(self._kb)
