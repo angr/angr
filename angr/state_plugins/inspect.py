@@ -86,7 +86,7 @@ inspect_attributes = {
     'exit_target',
     'exit_guard',
     'exit_jumpkind',
-    'backtrace',
+    'backtrace', #unused?
 
     # symbolic_variable
     'symbolic_name',
