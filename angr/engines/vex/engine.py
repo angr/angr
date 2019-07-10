@@ -665,7 +665,7 @@ class SimEngineVEX(SimEngine):
             except: # pylint: disable=bare-except
                 smc = True # I don't know why this would ever happen, we checked this right?
 
-        if not smc or not state and clemory is not None:
+        if (not smc or not state) and clemory is not None:
             try:
                 start, backer = next(clemory.backers(addr))
             except StopIteration:
