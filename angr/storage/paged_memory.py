@@ -1100,7 +1100,7 @@ class SimPagedMemory:
             for page in range(pages):
                 # TODO: Why is this different from the check in map_region? what if we unmap _backer backed pages?
                 if base_page_num + page not in self._pages:
-                    l.warning("unmap_region received address and length combination is not mapped")
+                    l.warning("unmap_region received address (%#x) and length (%#x) combination is not mapped", addr, length)
                     return
 
         for page_id in range(base_page_num, base_page_num + pages):
