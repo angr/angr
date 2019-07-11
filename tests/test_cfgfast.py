@@ -9,7 +9,6 @@ import angr
 
 from angr.analyses.cfg.cfg_fast import SegmentList
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
-from angr.knowledge_plugins.patches import Patch
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
@@ -715,7 +714,7 @@ def test_cfg_with_patches():
 
     # Take the authenticate function and add a retn patch for its very first block
     kb = angr.KnowledgeBase(proj)
-    kb.patches.add_patch(Patch(auth_func_addr, b"\xc3"))
+    kb.patches.add_patch(auth_func_addr, b"\xc3")
 
     # with this patch, there should only be one block with one instruction in authenticate()
     _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
@@ -726,7 +725,7 @@ def test_cfg_with_patches():
 
     # let's try to patch the second instruction of that function to ret
     kb = angr.KnowledgeBase(proj)
-    kb.patches.add_patch(Patch(auth_func._get_block(auth_func_addr).instruction_addrs[1], b"\xc3"))
+    kb.patches.add_patch(auth_func._get_block(auth_func_addr).instruction_addrs[1], b"\xc3")
 
     # with this patch, there should only be one block with two instructions in authenticate()
     _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
