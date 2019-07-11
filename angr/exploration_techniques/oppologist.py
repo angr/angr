@@ -92,5 +92,5 @@ class Oppologist(ExplorationTechnique):
                 l.error("Oppologizer hit an error while trying to perform repairs", exc_info=True)
                 raise e
         except Exception: #pylint:disable=broad-except
-            l.error("Original block hit an unsupported error")
+            l.error("Original block hit an unsupported error", exc_info=True)
             raise
