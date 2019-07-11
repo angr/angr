@@ -8,7 +8,6 @@ except ImportError:
     binsync_available = False
 
 from ..plugin import KnowledgeBasePlugin
-from ..functions import Function
 
 
 def init_checker(f):
@@ -49,6 +48,9 @@ class SynchronizationManager(KnowledgeBasePlugin):
 
     def update(self):
         self._client.update()
+
+    def copy(self):
+        raise NotImplementedError
 
     @init_checker
     def users(self):

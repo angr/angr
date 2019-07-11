@@ -3500,7 +3500,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return result
 
-    def _lift(self, addr, *args, **kwargs):
+    def _lift(self, addr, *args, **kwargs): # pylint:disable=arguments-differ
         kwargs['extra_stop_points'] = set(self._known_thunks)
         if self._use_patches:
             # let's see if there is a patch at this location

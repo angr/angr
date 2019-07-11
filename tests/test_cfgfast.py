@@ -29,7 +29,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     proj = angr.Project(path, load_options={'auto_load_libs': False})
 
     cfg = proj.analyses.CFGFast()
-    nose.tools.assert_true(set([ k for k in cfg.kb.functions.keys() ]).issuperset(func_addrs))
+    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -38,7 +38,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     # Segment only
     cfg = proj.analyses.CFGFast(force_segment=True)
-    nose.tools.assert_true(set([ k for k in cfg.kb.functions.keys() ]).issuperset(func_addrs))
+    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -47,7 +47,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     # with normalization enabled
     cfg = proj.analyses.CFGFast(force_segment=True, normalize=True)
-    nose.tools.assert_true(set([k for k in cfg.kb.functions.keys()]).issuperset(func_addrs))
+    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
