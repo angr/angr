@@ -1,7 +1,11 @@
 
 from functools import wraps
 
-import binsync
+try:
+    import binsync
+    binsync_available = True
+except ImportError:
+    binsync_available = False
 
 from ..plugin import KnowledgeBasePlugin
 from ..functions import Function
@@ -187,4 +191,5 @@ class SynchronizationManager(KnowledgeBasePlugin):
         return self._client.get_state(user=user).get_patches()
 
 
-KnowledgeBasePlugin.register_default("sync", SynchronizationManager)
+if binsync_available:
+    KnowledgeBasePlugin.register_default("sync", SynchronizationManager)
