@@ -159,7 +159,7 @@ class Project:
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
-        self._should_use_sim_procedures = use_sim_procedures
+        self.use_sim_procedures = use_sim_procedures
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
@@ -365,7 +365,7 @@ class Project:
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return not self._should_use_sim_procedures or \
+        return not self.use_sim_procedures or \
             f in self._exclude_sim_procedures_list or \
             f in self._ignore_functions or \
             (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
@@ -693,28 +693,16 @@ class Project:
     # Properties
     #
 
-    @property
-    def use_sim_procedures(self):
-        return self._should_use_sim_procedures
+    def __getattr__(self, a):
+        if a.lstrip('_') == 'is_java_project':
+            v = isinstance(self.arch, ArchSoot)
+        elif a.lstrip('_') == 'is_java_jni_project':
+            v = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
+        else:
+            raise AttributeError(a)
 
-    @property
-    def is_java_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive.
-        """
-        if self._is_java_project is None:
-            self._is_java_project = isinstance(self.arch, ArchSoot)
-        return self._is_java_project
-
-    @property
-    def is_java_jni_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive, which
-        interacts during its execution with native libraries (via JNI).
-        """
-        if self._is_java_jni_project is None:
-            self._is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
-        return self._is_java_jni_project
+        setattr(self, a, v)
+        return v
 
     #
     # Compatibility

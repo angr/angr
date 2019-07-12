@@ -9,7 +9,7 @@ l = logging.getLogger(name=__name__)
 import angr # type annotations; pylint:disable=unused-import
 import claripy
 import archinfo
-from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+from archinfo.arch_soot import SootAddressDescriptor
 
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
@@ -89,7 +89,7 @@ class SimState(PluginHub):
             options |= add_options
         if remove_options is not None:
             options -= remove_options
-        self._options = options
+        self.options = options
         self.mode = mode
         self.supports_inspect = False
 
@@ -297,19 +297,6 @@ class SimState(PluginHub):
         return self.solver.eval_one(self.regs._ip)
 
     @property
-    def options(self):
-        return self._options
-
-    @options.setter
-    def options(self, v):
-        if isinstance(v, (set, list)):
-            self._options = SimStateOptions(v)
-        elif isinstance(v, SimStateOptions):
-            self._options = v
-        else:
-            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
-
-    @property
     def arch(self):
         if self._is_java_jni_project:
             return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
@@ -374,20 +361,20 @@ class SimState(PluginHub):
     # Java support
     #
 
-    @property
-    def _is_java_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive.
-        """
-        return self.project and self.project.is_java_project
+    def __getattr__(self, a):
+        if a == '_is_java_project':
+            # Indicates if the project's main binary is a Java Archive.
+            v = self.project and self.project.is_java_project
+        elif a == '_is_java_jni_project':
+            # Indicates if the project's main binary is a Java Archive, which
+            # interacts during its execution with native libraries (via JNI).
+            v = self.project and self.project.is_java_jni_project
+        else:
+            return super().__getattr__(a)
 
-    @property
-    def _is_java_jni_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive, which
-        interacts during its execution with native libraries (via JNI).
-        """
-        return self.project and self.project.is_java_jni_project
+        setattr(self, a, v)
+        return v
+
 
     @property
     def javavm_memory(self):
