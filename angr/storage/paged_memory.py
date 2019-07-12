@@ -792,7 +792,7 @@ class SimPagedMemory:
         :returns: the new memory object
         """
 
-        if old.object.size() != new_content.size():
+        if (old.object.size() if not old.is_bytes else len(old.object)*self.state.arch.byte_width) != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base, byte_width=self.byte_width)
