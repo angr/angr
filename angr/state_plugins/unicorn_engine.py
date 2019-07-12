@@ -233,6 +233,7 @@ def _load_native():
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'in_cache', ctypes.c_bool, state_t, ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
