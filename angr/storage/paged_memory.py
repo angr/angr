@@ -490,13 +490,17 @@ class SimPagedMemory:
     #
 
     def _create_page(self, page_num, permissions=None):
-        self.state._inspect('memory_page_map', BP_BEFORE, mapped_address=page_num*self._page_size)
+        if self.state:
+            self.state._inspect('memory_page_map', BP_BEFORE, mapped_address=page_num*self._page_size)
+
         pg = Page(
             page_num*self._page_size, self._page_size,
             executable=self._executable_pages, permissions=permissions
         )
-        self.state._inspect('memory_page_map', BP_BEFORE, mapped_page=pg)
-        self.state._inspect_getattr('mapped_page', pg)
+
+        if self.state:
+            self.state._inspect('memory_page_map', BP_BEFORE, mapped_page=pg)
+            self.state._inspect_getattr('mapped_page', pg)
         return pg
 
     def _initialize_page(self, n, new_page):
