@@ -385,6 +385,7 @@ class SimulationManager:
                        'unconstrained': successors.unconstrained_successors}
 
         except (SimUnsatError, claripy.UnsatError) as e:
+            raise
             if self._hierarchy:
                 self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
