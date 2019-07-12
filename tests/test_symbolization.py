@@ -12,15 +12,15 @@ def test_fauxware_symbolization():
 	sm.one_active.symbolizer.set_symbolization_for_all_pages()
 	sm.one_active.symbolizer.resymbolize()
 
-	assert sm.one_active.regs.rsp.symbolic
-	assert sm.one_active.symbolizer.pointer_symbols
+	#assert sm.one_active.regs.rsp.symbolic
+	assert sm.one_active.symbolizer.symbolized_count
 
 	# make sure pointers get symbolized at runtime
-	n = len(sm.one_active.symbolizer.pointer_symbols)
+	n = sm.one_active.symbolizer.symbolized_count
 	sm.run()
 	assert not sm.errored
 	assert not sm.active
-	assert len(sm.one_deadended.symbolizer.pointer_symbols) > n
+	assert sm.one_deadended.symbolizer.symbolized_count > n
 
 if __name__ == '__main__':
 	test_fauxware_symbolization()
