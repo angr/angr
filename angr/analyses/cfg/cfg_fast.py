@@ -1868,6 +1868,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _process_irsb_data_refs(self, irsb):
         for ref in irsb.data_refs:
+
             self._add_data_reference(
                     irsb.addr,
                     ref.stmt_idx,
@@ -1918,8 +1919,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             """
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
+                if not data_size:
+                    data_size = data_.con.size
             elif type(data_) is int:
                 val = data_
+                # TODO: If we're being sloppy, round up to the next power of 2
+                assert data_size is not None
             else:
                 return
 
@@ -2034,7 +2039,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if data_type is not None and data_size is not None:
                 data = MemoryData(data_addr, data_size, data_type, max_size=data_size)
             else:
-                data = MemoryData(data_addr, 0, MemoryDataSort.Unknown)
+                data = MemoryData(data_addr, data_size, MemoryDataSort.Unknown)
             self._memory_data[data_addr] = data
             new_data = True
         if new_data or self._cross_references:
@@ -2332,6 +2337,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         obj = self.project.loader.find_object_containing(data_addr)
         if obj is None:
             # it's not mapped
+            return None, None
+
+        if max_size is None:
             return None, None
 
         if data_addr == obj.min_addr and 4 < max_size < 1000:
