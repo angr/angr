@@ -473,8 +473,7 @@ class SimPagedMemory:
                     if ret_on_segv:
                         break
                     raise SimSegfaultError(addr, 'read-miss')
-                else:
-                    continue
+                continue
 
             if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
                 #print "... SEGV"
@@ -499,7 +498,7 @@ class SimPagedMemory:
         )
 
         if self.state:
-            self.state._inspect('memory_page_map', BP_BEFORE, mapped_page=pg)
+            self.state._inspect('memory_page_map', BP_AFTER, mapped_page=pg)
             self.state._inspect_getattr('mapped_page', pg)
         return pg
 
@@ -757,8 +756,7 @@ class SimPagedMemory:
         except KeyError:
             if self.allow_segv:
                 raise SimSegfaultError(mo.base, 'write-miss')
-            else:
-                raise
+            raise
         if self.allow_segv and not page.concrete_permissions & Page.PROT_WRITE:
             raise SimSegfaultError(mo.base, 'non-writable')
 

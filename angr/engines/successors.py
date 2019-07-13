@@ -5,7 +5,7 @@ from archinfo.arch_soot import ArchSoot
 import logging
 l = logging.getLogger(name=__name__)
 
-class SimSuccessors(object):
+class SimSuccessors:
     """
     This class serves as a categorization of all the kinds of result states that can come from a
     SimEngine run.
