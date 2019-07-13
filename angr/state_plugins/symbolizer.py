@@ -198,7 +198,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
     def resymbolize(self):
         #for i, p_id in enumerate(self.state.registers.mem._pages):
         #   if i % 100 == 0:
-        #       l.debug("%s/%s register pages symbolized", i, len(self.state.registers.mem._pages))
+        #       l.info("%s/%s register pages symbolized", i, len(self.state.registers.mem._pages))
         #   addr_start = self.state.registers.mem._page_addr(p_id)
         #   length = self.state.registers.mem._page_size
         #   self._resymbolize_region(self.state.registers, addr_start, length)
@@ -206,7 +206,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
         for i, p_id in enumerate(self.state.memory.mem._pages):
             if i % 100 == 0:
-                l.debug("%s/%s memory pages symbolized", i, len(self.state.memory.mem._pages))
+                l.info("%s/%s memory pages symbolized", i, len(self.state.memory.mem._pages))
             addr_start = self.state.memory.mem._page_addr(p_id)
             length = self.state.memory.mem._page_size
             self._resymbolize_region(self.state.memory, addr_start, length)
