@@ -19,6 +19,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         self.symbolization_target_pages = set()
         self.ignore_target_pages = set()
         self.symbolized_count = 0
+        self.page_symbols = { }
         self._min_addr = None
         self._max_addr = None
 
@@ -61,7 +62,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
         expr = self.state.solver.eval_one(self.state.inspect.reg_write_expr)
         if self._should_symbolize(expr):
-            self.state.inspect.reg_write_expr = self._preconstrain('symbolic_ptr_reg', expr)
+            self.state.inspect.reg_write_expr = self._preconstrain(expr)
 
     def init_state(self):
         super().init_state()
@@ -105,11 +106,16 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
     def set_symbolized_target(self, base):
         return self.set_symbolized_target_range(base, 1)
 
-    def _preconstrain(self, name, value):
-        symbol = claripy.BVS(name, self.state.arch.bits)
-        self.state.solver.add(symbol == claripy.BVV(value, self.state.arch.bits))
+    def _preconstrain(self, value, name_prefix="address_"):
+        page_base = value & ~(0x1000-1)
+        try:
+            symbol = self.page_symbols[page_base]
+        except KeyError:
+            symbol = claripy.BVS(name_prefix + hex(page_base), self.state.arch.bits)
+            self.page_symbols[page_base] = symbol
+            self.state.solver.add(symbol == page_base)
         self.symbolized_count += 1
-        return symbol
+        return symbol + (value - page_base)
 
     def _should_symbolize(self, addr):
         return addr//0x1000 in self.symbolization_target_pages and not addr//0x1000 in self.ignore_target_pages
@@ -118,11 +124,11 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         if base+offset in skip:
             return None
         elif self._min_addr <= be < self._max_addr and self._should_symbolize(be):
-            s = self._preconstrain('symbolic_pointer', be)
+            s = self._preconstrain(be)
             l.debug("Replacing %#x (at %#x, endness BE) with %s!", be, base+offset, s)
             return s
         elif self._min_addr <= le < self._max_addr and self._should_symbolize(le):
-            s = self._preconstrain('symbolic_pointer', le).reversed
+            s = self._preconstrain(le).reversed
             l.debug("Replacing %#x (at %#x, endness LE) with %s!", le, base+offset, s)
             return s
         else:
@@ -222,6 +228,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         sc._BE_FMT = self._BE_FMT
         sc._min_addr = self._min_addr
         sc._max_addr = self._max_addr
+        sc.page_symbols = dict(sc.page_symbols)
         return sc
 
 from angr.sim_state import SimState
