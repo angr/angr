@@ -3,6 +3,7 @@ import claripy
 import struct
 
 l = logging.getLogger(name=__name__)
+l.setLevel('DEBUG')
 
 def _mem_write_cb(s): s.symbolizer._mem_write_callback()
 def _mem_read_cb(s): s.symbolizer._mem_read_callback()
@@ -12,6 +13,12 @@ def _page_map_cb(s): s.symbolizer._page_map_callback()
 
 from .plugin import SimStatePlugin
 class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
+    """
+    The symbolizer state plugin ensures that pointers that are stored in memory are symbolic.
+    This allows for the tracking of and reasoning over these pointers (for example, to reason
+    about memory disclosure).
+    """
+
     def __init__(self):
         SimStatePlugin.__init__(self)
 
@@ -88,6 +95,9 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         self._max_addr = (max(self.symbolization_target_pages)+1)*0x1000
 
     def set_symbolization_for_all_pages(self):
+        """
+        Sets the symbolizer to symbolize pointers to all pages as they are written to memory..
+        """
         self._symbolize_all = True
         self.symbolization_target_pages.update(set(self.state.memory.mem._pages.keys()))
         # handle bigger pages
@@ -97,14 +107,17 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         self._update_ranges()
 
     def set_symbolized_target_range(self, base, length):
+        """
+        All pointers to the target range will be symbolized as they are written to memory.
+
+        Due to optimizations, the _pages_ containing this range will be set as symbolization targets,
+        not just the range itself.
+        """
         base_page = base // 0x1000
         pages = (length + base % 0x1000 + 0x999) // 0x1000
         assert pages > 0
         self.symbolization_target_pages.update(range(base_page, base_page+pages))
         self._update_ranges()
-
-    def set_symbolized_target(self, base):
-        return self.set_symbolized_target_range(base, 1)
 
     def _preconstrain(self, value, name_prefix="address_"):
         page_base = value & ~(0x1000-1)
@@ -202,6 +215,10 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
                 storage.mem.replace_memory_object(mo, replacement_content)
 
     def resymbolize(self):
+        """
+        Re-symbolizes all pointers in memory. This can be called to symbolize any pointers to target regions
+        that were written (and not mangled beyond recognition) before symbolization was set.
+        """
         #for i, p_id in enumerate(self.state.registers.mem._pages):
         #   if i % 100 == 0:
         #       l.info("%s/%s register pages symbolized", i, len(self.state.registers.mem._pages))
