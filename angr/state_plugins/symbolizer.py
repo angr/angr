@@ -19,9 +19,12 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         self.symbolization_target_pages = set()
         self.ignore_target_pages = set()
         self.symbolized_count = 0
+        self._min_addr = None
+        self._max_addr = None
 
         self._LE_FMT = None
         self._BE_FMT = None
+        self._zero = None
 
     def _page_map_callback(self):
         if self._symbolize_all:
@@ -77,6 +80,12 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         #self.state.inspect.make_breakpoint('reg_write', when=self.state.inspect.BP_BEFORE, action=_reg_write_cb)
         #self.state.inspect.make_breakpoint('reg_read', when=self.state.inspect.BP_BEFORE, action=_reg_read_cb)
 
+        self._zero = claripy.BVV(0, self.state.arch.bytes)
+
+    def _update_ranges(self):
+        self._min_addr = min(self.symbolization_target_pages)*0x1000
+        self._max_addr = (max(self.symbolization_target_pages)+1)*0x1000
+
     def set_symbolization_for_all_pages(self):
         self._symbolize_all = True
         self.symbolization_target_pages.update(set(self.state.memory.mem._pages.keys()))
@@ -84,12 +93,14 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         for pg in self.state.memory.mem._pages.values():
             if pg._page_size != 0x1000:
                 self.symbolization_target_pages.update(pg._page_size + i for i in range(0, pg._page_size, 0x1000))
+        self._update_ranges()
 
     def set_symbolized_target_range(self, base, length):
         base_page = base // 0x1000
         pages = (length + base % 0x1000 + 0x999) // 0x1000
         assert pages > 0
         self.symbolization_target_pages.update(range(base_page, base_page+pages))
+        self._update_ranges()
 
     def set_symbolized_target(self, base):
         return self.set_symbolized_target_range(base, 1)
@@ -103,41 +114,54 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
     def _should_symbolize(self, addr):
         return addr//0x1000 in self.symbolization_target_pages and not addr//0x1000 in self.ignore_target_pages
 
-    def _resymbolize_data(self, data, prefix=b"", base=0, skip=()):
-        replacement_parts = [ prefix ]
-
-        replaced = False
-        for offset in range(0, len(data), self.state.arch.bytes):
-            if base + offset in skip:
-                continue
-
-            word = data[offset:offset+self.state.arch.bytes]
-            if len(word) < self.state.arch.bytes:
-                replacement_parts.append(claripy.BVV(word))
-                break
-
-            ptr_be = struct.unpack(self._BE_FMT, word)[0]
-            if ptr_be == 0: # common case
-                replacement_parts.append(claripy.BVV(0, self.state.arch.bits))
-                continue
-            ptr_le = struct.unpack(self._LE_FMT, word)[0]
-
-            ptr_mapped = ptr_be if self._should_symbolize(ptr_be) else ptr_le if self._should_symbolize(ptr_le) else None
-            ptr_endness = 'Iend_BE' if ptr_be is ptr_mapped else 'Iend_LE'
-            if ptr_mapped:
-                replaced = True
-                symbol = self._preconstrain('symbolic_pointer', ptr_mapped)
-                l.debug("Replacing %#x (at %#x, endness %s) with %s!", ptr_mapped, base+offset, ptr_endness, symbol)
-                if ptr_endness == 'Iend_LE':
-                    symbol = symbol.reversed
-                replacement_parts.append(symbol)
-            else:
-                replacement_parts.append(claripy.BVV(word))
-
-        if replaced:
-            return claripy.Concat(*replacement_parts)
+    def _resymbolize_int(self, be, le=0, base=0, offset=0, skip=()):
+        if base+offset in skip:
+            return None
+        elif self._min_addr <= be < self._max_addr and self._should_symbolize(be):
+            s = self._preconstrain('symbolic_pointer', be)
+            l.debug("Replacing %#x (at %#x, endness BE) with %s!", be, base+offset, s)
+            return s
+        elif self._min_addr <= le < self._max_addr and self._should_symbolize(le):
+            s = self._preconstrain('symbolic_pointer', le).reversed
+            l.debug("Replacing %#x (at %#x, endness LE) with %s!", le, base+offset, s)
+            return s
         else:
             return None
+
+    def _resymbolize_data(self, data, prefix=b"", base=0, skip=()):
+        ws = self.state.arch.bytes
+        suffix = data[len(data)-(len(data)%ws):]
+        data = data[:len(data)-(len(data)%ws)]
+
+        num_words = len(data) // ws
+        unpacked_le = struct.unpack(self._LE_FMT[0] + str(num_words) + self._LE_FMT[1], data)
+        unpacked_be = struct.unpack(self._BE_FMT[0] + str(num_words) + self._BE_FMT[1], data)
+
+        values_squashed = [ prefix ]
+        last_idx = 0
+        for i,(be,le) in enumerate(zip(unpacked_be, unpacked_le)):
+            #assert len(claripy.Concat(*values_squashed)) == i*8
+
+            s = self._resymbolize_int(be, le, base, i*ws, skip)
+            if s is None:
+                return None
+
+            if last_idx != i:
+                values_squashed.append(data[last_idx*ws:i*ws])
+            last_idx = i + 1
+            values_squashed.append(s)
+
+        if len(values_squashed) == 1:
+            return None
+
+        if last_idx != num_words:
+            values_squashed.append(data[last_idx*ws:])
+        values_squashed.append(suffix)
+
+        new_data = claripy.Concat(*values_squashed)
+        #assert len(new_data)/8 == len(data) + len(prefix)
+        #assert self.state.solver.eval_one(new_data) == self.state.solver.eval_one(claripy.BVV(data))
+        return new_data
 
     def _resymbolize_region(self, storage, addr, length):
         assert type(addr) is int
@@ -196,6 +220,8 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         sc.symbolized_count = self.symbolized_count
         sc._LE_FMT = self._LE_FMT
         sc._BE_FMT = self._BE_FMT
+        sc._min_addr = self._min_addr
+        sc._max_addr = self._max_addr
         return sc
 
 from angr.sim_state import SimState
