@@ -125,58 +125,20 @@ class CFGUtils(object):
         if graph.number_of_nodes() == 1:
             return graph.nodes()
 
-        # make a copy to the graph since we are gonna modify it
-        graph_copy = networkx.DiGraph()
-
-        # find all strongly connected components in the graph
-        sccs = [ scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1 ]
-
-        # collapse all strongly connected components
-        for src, dst in graph.edges():
-            scc_index = CFGUtils._components_index_node(sccs, src)
-            if scc_index is not None:
-                src = SCCPlaceholder(scc_index)
-            scc_index = CFGUtils._components_index_node(sccs, dst)
-            if scc_index is not None:
-                dst = SCCPlaceholder(scc_index)
-
-            if isinstance(src, SCCPlaceholder) and isinstance(dst, SCCPlaceholder) and src == dst:
-                continue
-            if src == dst:
-                continue
-
-            graph_copy.add_edge(src, dst)
-
-        # add loners
-        out_degree_zero_nodes = [node for (node, degree) in graph.out_degree() if degree == 0]
-        for node in out_degree_zero_nodes:
-            if graph.in_degree(node) == 0:
-                graph_copy.add_node(node)
-
-        # topological sort on acyclic graph `graph_copy`
-        tmp_nodes = networkx.topological_sort(graph_copy)
+        graph_with_sccs_collapsed = networkx.condensation(graph)
 
         ordered_nodes = [ ]
-        for n in tmp_nodes:
-            if isinstance(n, SCCPlaceholder):
-                CFGUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id])
-            else:
-                ordered_nodes.append(n)
+        for scc_node in networkx.topological_sort(graph_with_sccs_collapsed):
+            nodes_in_scc = graph_with_sccs_collapsed.nodes[scc_node]['members']
+            CFGUtils._append_scc(graph, ordered_nodes, nodes_in_scc)
 
         if nodes is None:
-            return ordered_nodes
+            nodes = graph.nodes()
 
         nodes = set(nodes)
         ordered_nodes = [ n for n in ordered_nodes if n in nodes ]
+        assert len(nodes) == len(ordered_nodes)
         return ordered_nodes
-
-    @staticmethod
-    def _components_index_node(components, node):
-
-        for i, comp in enumerate(components):
-            if node in comp:
-                return i
-        return None
 
     @staticmethod
     def _append_scc(graph, ordered_nodes, scc):
