@@ -943,6 +943,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         """
 
         # Fill up self._starts
+
         for item in self._starts:
             callstack = None
             if isinstance(item, tuple):

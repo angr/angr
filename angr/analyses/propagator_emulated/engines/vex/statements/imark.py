@@ -1,2 +1,2 @@
-def SimIRStmt_IMark(_engine, state, _stmt):
+def SimIRStmt_IMark(_engine, state, abstract_state, code_loc, _stmt):
     state.history.recent_instruction_count += 1

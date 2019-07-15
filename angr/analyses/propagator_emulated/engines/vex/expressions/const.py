@@ -4,7 +4,7 @@ from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
 from ...... import sim_options as o
 from ......errors import UnsupportedIRExprError, SimExpressionError
 
-def SimIRExpr_Const(_, state, expr):
+def SimIRExpr_Const(_, state, abstract_state, code_loc, expr):
     return translate_irconst(state, expr.con)
 
 def translate_irconst(state, c):

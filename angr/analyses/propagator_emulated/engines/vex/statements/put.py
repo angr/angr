@@ -2,10 +2,10 @@ from ...... import sim_options as o
 from ......state_plugins.sim_action_object import SimActionObject
 from ......state_plugins.sim_action import SimActionData
 
-def SimIRStmt_Put(engine, state, stmt):
+def SimIRStmt_Put(engine, state, abstract_state, code_loc,stmt):
     # value to put
     with state.history.subscribe_actions() as data_deps:
-        data = engine.handle_expression(state, stmt.data)
+        data = engine.handle_expression(state, abstract_state, code_loc, stmt.data)
 
     # track the put
     if o.TRACK_REGISTER_ACTIONS in state.options:

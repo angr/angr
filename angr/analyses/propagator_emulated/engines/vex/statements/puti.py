@@ -3,14 +3,14 @@ from ......state_plugins.sim_action_object import SimActionObject
 from ......state_plugins.sim_action import SimActionData
 
 
-def SimIRStmt_PutI(engine, state, stmt):
+def SimIRStmt_PutI(engine, state, abstract_state, code_loc ,stmt):
     # value to put
     with state.history.subscribe_actions() as data_deps:
-        data = engine.handle_expression(state, stmt.data)
+        data = engine.handle_expression(state, abstract_state, code_loc, stmt.data)
     expr = data.raw_to_bv()
 
     # reg array data
-    ix = engine.handle_expression(state, stmt.ix)
+    ix = engine.handle_expression(state, abstract_state, code_loc, stmt.ix)
     array_size = len(expr) // state.arch.byte_width
     array_base = stmt.descr.base
     array_index = (ix + stmt.bias) % stmt.descr.nElems
