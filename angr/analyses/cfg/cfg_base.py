@@ -403,12 +403,11 @@ class CFGBase(Analysis):
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
 
-    def _arm_thumb_filter_jump_successors(self, addr, size, successors, get_ins_addr, get_exit_stmt_idx):
+    def _arm_thumb_filter_jump_successors(self, irsb, successors, get_ins_addr, get_exit_stmt_idx):
         """
         Filter successors for THUMB mode basic blocks, and remove those successors that won't be taken normally.
 
-        :param int addr: Address of the basic block / SimIRSB.
-        :param int size: Size of the basic block.
+        :param irsb:            The IRSB object.
         :param list successors: A list of successors.
         :param func get_ins_addr: A callable that returns the source instruction address for a successor.
         :param func get_exit_stmt_idx: A callable that returns the source statement ID for a successor.
@@ -419,10 +418,19 @@ class CFGBase(Analysis):
         if not successors:
             return [ ]
 
+        if len(successors) == 1 and get_exit_stmt_idx(successors[0]) == DEFAULT_STATEMENT:
+            # only have a default exit. no need to filter
+            return successors
+
+        if irsb.instruction_addresses and \
+                all(get_ins_addr(suc) == irsb.instruction_addresses[-1] for suc in successors):
+            # check if all exits are produced by the last instruction
+            return successors
+
         it_counter = 0
         conc_temps = {}
         can_produce_exits = set()
-        bb = self._lift(addr, size=size, thumb=True, opt_level=0)
+        bb = self._lift(irsb.addr, size=irsb.size, thumb=True, opt_level=0)
 
         for stmt in bb.vex.statements:
             if stmt.tag == 'Ist_IMark':
@@ -447,7 +455,7 @@ class CFGBase(Analysis):
                                 itstate >>= 8
 
         if it_counter != 0:
-            l.debug('Basic block ends before calculated IT block (%#x)', addr)
+            l.debug('Basic block ends before calculated IT block (%#x)', irsb.addr)
 
         THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
                                      'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
