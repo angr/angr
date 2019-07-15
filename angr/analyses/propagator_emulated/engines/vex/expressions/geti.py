@@ -4,8 +4,8 @@ from ...... import sim_options as o
 from ......state_plugins.sim_action import SimActionData
 
 
-def SimIRExpr_GetI(engine, state, expr):
-    ix = engine.handle_expression(state, expr.ix)
+def SimIRExpr_GetI(engine, state, abstract_state, code_loc, expr):
+    ix = engine.handle_expression(state, abstract_state, code_loc, expr.ix)
     size_in_bits = get_type_size(expr.descr.elemTy)
     size = size_in_bits // state.arch.byte_width
 
