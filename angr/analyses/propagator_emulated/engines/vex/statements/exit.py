@@ -5,9 +5,9 @@ from ......state_plugins.sim_action_object import SimActionObject
 from ......state_plugins.sim_action import SimActionExit
 
 
-def SimIRStmt_Exit(engine, state, stmt):
+def SimIRStmt_Exit(engine, state, abstract_state, code_loc ,stmt):
     with state.history.subscribe_actions() as actions:
-        guard_int = engine.handle_expression(state, stmt.guard)
+        guard_int = engine.handle_expression(state, abstract_state, code_loc, stmt.guard)
 
     # get the destination
     target = translate_irconst(state, stmt.dst)

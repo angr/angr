@@ -3,15 +3,15 @@ from ......state_plugins.sim_action_object import SimActionObject
 from ......state_plugins.sim_action import SimActionData
 
 
-def SimIRStmt_Store(engine, state, stmt):
+def SimIRStmt_Store(engine, state, abstract_state, code_loc ,stmt):
 
     # first resolve the address and record stuff
     with state.history.subscribe_actions() as addr_deps:
-        addr = engine.handle_expression(state, stmt.addr)
+        addr = engine.handle_expression(state, abstract_state, code_loc, stmt.addr)
 
     # now get the value and track everything
     with state.history.subscribe_actions() as data_deps:
-        data = engine.handle_expression(state, stmt.data)
+        data = engine.handle_expression(state, abstract_state, code_loc, stmt.data)
 
     expr = data.raw_to_bv()
 

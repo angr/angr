@@ -2,7 +2,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-def SimIRExpr_Unsupported(_engine, state, expr):
+def SimIRExpr_Unsupported(_engine, state, abstract_state, code_loc, expr):
     l.error("Unsupported IRExpr %s. Please implement.", type(expr).__name__)
     size = expr.result_size(state.scratch.tyenv)
     result = state.solver.Unconstrained(type(expr).__name__, size)
