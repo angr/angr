@@ -248,5 +248,5 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         sc.page_symbols = dict(sc.page_symbols)
         return sc
 
-from angr.sim_state import SimState
+from ..sim_state import SimState
 SimState.register_default('symbolizer', SimSymbolizer)
