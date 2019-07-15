@@ -209,7 +209,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
                 data,
                 base=aligned_base,
                 prefix=mo.bytes_at(mo.base, mo.length - remaining_len) if aligned_base != mo.base else b"",
-                skip=() if storage is self.state.memory else (self.state.arch.ip_offset)
+                skip=() if storage is self.state.memory else (self.state.arch.ip_offset,)
             )
             if replacement_content is not None:
                 storage.mem.replace_memory_object(mo, replacement_content)
