@@ -7,13 +7,13 @@ from ......errors import SimStatementError
 
 
 
-def SimIRStmt_LoadG(engine, state, stmt):
+def SimIRStmt_LoadG(engine, state, abstract_state, code_loc, stmt):
     with state.history.subscribe_actions() as addr_deps:
-        addr = engine.handle_expression(state, stmt.addr)
+        addr = engine.handle_expression(state, abstract_state, code_loc, stmt.addr)
     with state.history.subscribe_actions() as alt_deps:
-        alt = engine.handle_expression(state, stmt.alt)
+        alt = engine.handle_expression(state, abstract_state, code_loc, stmt.alt)
     with state.history.subscribe_actions() as guard_deps:
-        guard = engine.handle_expression(state, stmt.guard)
+        guard = engine.handle_expression(state, abstract_state, code_loc, stmt.guard)
 
     read_type, converted_type = stmt.cvt_types
     read_size_bits = get_type_size(read_type)

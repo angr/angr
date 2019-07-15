@@ -7,11 +7,11 @@ from ......errors import SimCCallError, UnsupportedCCallError
 import logging
 l = logging.getLogger(name=__name__)
 
-def SimIRExpr_CCall(engine, state, expr):
+def SimIRExpr_CCall(engine, state, abstract_state, code_loc, expr):
     if o.DO_CCALLS not in state.options:
         return state.solver.Unconstrained("ccall_ret", get_type_size(expr.ret_type))
 
-    call_args = [engine.handle_expression(state, e) for e in expr.args]
+    call_args = [engine.handle_expression(state, abstract_state, code_loc, e) for e in expr.args]
 
     if hasattr(ccall, expr.callee.name):
         try:
