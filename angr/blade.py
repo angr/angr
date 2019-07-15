@@ -12,7 +12,7 @@ class Blade:
     It is meant to be used in angr for small or on-the-fly analyses.
     """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
-                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None):
+                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None, stop_at_calls=False):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGEmulated or angr.analyses.CFGFast.
@@ -25,6 +25,8 @@ class Blade:
                                         dependency from/to stack pointers will be ignored if this options is True.
         :param bool ignore_bp:          Whether the base pointer should be ignored or not.
         :param int  max_level:          The maximum number of blocks that we trace back for.
+        :param int stop_at_calls:       Limit slicing within a single function. Do not proceed when encounters a call
+                                        edge.
         :return: None
         """
 
@@ -35,6 +37,7 @@ class Blade:
         self._ignore_bp = ignore_bp
         self._max_level = max_level
         self._base_state = base_state
+        self._stop_at_calls = stop_at_calls
 
         self._slice = networkx.DiGraph()
 
@@ -277,8 +280,13 @@ class Blade:
             in_edges = self._graph.in_edges(cfgnode, data=True)
 
             for pred, _, data in in_edges:
-                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
-                    continue
+                if 'jumpkind' in data:
+                    if data['jumpkind'] == 'Ijk_FakeRet':
+                        # Skip fake rets
+                        continue
+                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
+                        # Skip calls
+                        continue
                 if self.project.is_hooked(pred.addr):
                     # Skip SimProcedures
                     continue
@@ -354,8 +362,13 @@ class Blade:
             in_edges = self._graph.in_edges(self._get_cfgnode(run), data=True)
 
             for pred, _, data in in_edges:
-                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
-                    continue
+                if 'jumpkind' in data:
+                    if data['jumpkind'] == 'Ijk_FakeRet':
+                        # skip fake rets
+                        continue
+                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
+                        # skip calls as instructed
+                        continue
                 if self.project.is_hooked(pred.addr):
                     # Stop at SimProcedures
                     continue
