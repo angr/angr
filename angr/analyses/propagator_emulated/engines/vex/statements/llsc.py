@@ -6,10 +6,10 @@ l = logging.getLogger(name=__name__)
 # TODO: memory read SimActions
 # TODO: tmp write SimActions
 
-def SimIRStmt_LLSC(engine, state, stmt):
+def SimIRStmt_LLSC(engine, state, abstract_state, code_loc,stmt):
     #l.warning("LLSC is handled soundly but imprecisely.")
     with state.history.subscribe_actions() as addr_actions:
-        addr = engine.handle_expression(state, stmt.addr)
+        addr = engine.handle_expression(state, abstract_state, code_loc, stmt.addr)
 
     if stmt.storedata is None:
         # it's a load-linked
@@ -27,7 +27,7 @@ def SimIRStmt_LLSC(engine, state, stmt):
 
         # for single-threaded programs, an SC will never fail. For now, we just assume it succeeded.
         with state.history.subscribe_actions() as data_actions:
-            store_data = engine.handle_expression(state, stmt.storedata)
+            store_data = engine.handle_expression(state, abstract_state, code_loc, stmt.storedata)
 
         # the action
         if o.TRACK_MEMORY_ACTIONS in state.options:

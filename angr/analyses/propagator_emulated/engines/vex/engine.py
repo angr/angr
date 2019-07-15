@@ -26,18 +26,6 @@ l = logging.getLogger(name=__name__)
 VEX_IRSB_MAX_SIZE = 400
 VEX_IRSB_MAX_INST = 99
 
-from claripy import Annotation
-
-class AnnotationA(Annotation):
-    def __init__(self, letter, number):
-        self.letter = letter
-        self.number = number
-        Annotation.__init__(self)
-    def eliminatable(self):
-        return False
-    def relocatable(self):
-        return True
-
 class SimEngineVEX(SimEngine):
     """
     Execution engine based on VEX, Valgrind's IR.
@@ -97,7 +85,9 @@ class SimEngineVEX(SimEngine):
         self._block_cache_hits = 0
         self._block_cache_misses = 0
 
-    def process(self, state, abstract_state,
+    def process(self, state,
+            abstract_state=None,
+            block_key=None,
             irsb=None,
             skip_stmts=0,
             last_stmt=99999999,
@@ -144,7 +134,10 @@ class SimEngineVEX(SimEngine):
                 raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
                                         " string is correct.")
 
-        return super(SimEngineVEX, self).process(state, abstract_state, irsb,
+        return super(SimEngineVEX, self).process(state,
+                irsb=irsb,
+                abstract_state=abstract_state,
+                block_key=block_key,
                 skip_stmts=skip_stmts,
                 last_stmt=last_stmt,
                 whitelist=whitelist,
@@ -161,7 +154,7 @@ class SimEngineVEX(SimEngine):
     def _check(self, state, *args, **kwargs):
         return True
 
-    def _process(self, state, abstract_state,successors, irsb=None, skip_stmts=0, last_stmt=None, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, extra_stop_points=None, opt_level=None):
+    def _process(self, state,successors,abstract_state=None, block_key=None, irsb=None, skip_stmts=0, last_stmt=None, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, extra_stop_points=None, opt_level=None):
         successors.sort = 'IRSB'
         successors.description = 'IRSB'
         state.history.recent_block_count = 1
@@ -207,7 +200,7 @@ class SimEngineVEX(SimEngine):
             state.scratch.irsb = irsb
 
             try:
-                self._handle_irsb(state, abstract_state, successors, irsb, skip_stmts, last_stmt, whitelist)
+                self._handle_irsb(state, abstract_state, block_key,successors, irsb, skip_stmts, last_stmt, whitelist)
             except SimReliftException as e:
                 state = e.state
                 if insn_bytes is not None:
@@ -232,7 +225,7 @@ class SimEngineVEX(SimEngine):
 
         successors.processed = True
 
-    def _handle_irsb(self, state, abstract_state, successors, irsb, skip_stmts, last_stmt, whitelist):
+    def _handle_irsb(self, state, abstract_state, block_key, successors, irsb, skip_stmts, last_stmt, whitelist):
         # shortcut. we'll be typing this a lot
         ss = irsb.statements
         num_stmts = len(ss)
@@ -270,6 +263,7 @@ class SimEngineVEX(SimEngine):
         state.scratch.bbl_addr = irsb.addr
 
         for stmt_idx, stmt in enumerate(ss):
+            code_loc = "stmt_id:" + str(stmt_idx) + " " + str(block_key)
             if isinstance(stmt, pyvex.IRStmt.IMark):
                 insn_addrs.append(stmt.addr + stmt.delta)
 
@@ -286,7 +280,7 @@ class SimEngineVEX(SimEngine):
             try:
                 state.scratch.stmt_idx = stmt_idx
                 state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-                cont = self._handle_statement(state ,successors, stmt)
+                cont = self._handle_statement(state, successors, abstract_state, code_loc, stmt)
                 state._inspect('statement', BP_AFTER)
                 if not cont:
                     return
@@ -317,7 +311,9 @@ class SimEngineVEX(SimEngine):
 
             try:
                 with state.history.subscribe_actions() as next_deps:
-                    next_expr = self.handle_expression(state, abstract_state,irsb.next)
+                    # Not sure what the code_loc should be here, so set it to the last stmt_idx
+                    code_loc = "stmt_id:" + str(len(ss)-1) + " " + str(block_key)
+                    next_expr = self.handle_expression(state, abstract_state, code_loc, irsb.next)
 
                 if o.TRACK_JMP_ACTIONS in state.options:
                     target_ao = SimActionObject(next_expr, deps=next_deps, state=state)
@@ -371,7 +367,7 @@ class SimEngineVEX(SimEngine):
             l.debug('Add an incomplete successor state as the result of an incomplete execution due to the white-list.')
             successors.flat_successors.append(state)
 
-    def _handle_statement(self, state, successors, stmt):
+    def _handle_statement(self, state, successors, abstract_state, code_loc, stmt):
         """
         This function receives an initial state and imark and processes a list of pyvex.IRStmts
         It annotates the request with a final state, last imark, and a list of SimIRStmts
@@ -402,7 +398,7 @@ class SimEngineVEX(SimEngine):
             state.history.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')
             return None
         else:
-            exit_data = stmt_handler(self, state, stmt)
+            exit_data = stmt_handler(self, state, abstract_state, code_loc, stmt)
 
         # for the exits, put *not* taking the exit on the list of constraints so
         # that we can continue on. Otherwise, add the constraints
@@ -451,7 +447,7 @@ class SimEngineVEX(SimEngine):
 
         return True
 
-    def handle_expression(self, state, abstract_state, expr):
+    def handle_expression(self, state, abstract_state, code_loc, expr):
         try:
             handler = self.expr_handlers[expr.tag_int]
             if handler is None:
@@ -463,7 +459,7 @@ class SimEngineVEX(SimEngine):
                 handler = SimIRExpr_Unsupported
 
         state._inspect('expr', BP_BEFORE, expr=expr)
-        result = handler(self, state, expr)
+        result = handler(self, state, abstract_state, code_loc, expr)
 
         if o.SIMPLIFY_EXPRS in state.options:
             result = state.solver.simplify(result)
@@ -474,10 +470,8 @@ class SimEngineVEX(SimEngine):
             result = concrete_value
 
         state._inspect('expr', BP_AFTER, expr=expr, expr_result=result)
-        print("DDDDDDDDDDDDDDDDDDDDDDDD")
-        print(result.op)
         if result.op == 'BVV':
-            result = result.annotate(AnnotationA('2', '3'))
+            abstract_state.add_replacement(code_loc, result, "Constant")
         return result
 
     def lift(self,

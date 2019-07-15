@@ -1,7 +1,7 @@
-def SimIRStmt_WrTmp(engine, state, stmt):
+def SimIRStmt_WrTmp(engine, state, abstract_state, code_loc, stmt):
     # get data and track data reads
     with state.history.subscribe_actions() as data_deps:
-        data = engine.handle_expression(state, stmt.data)
+        data = engine.handle_expression(state, abstract_state, code_loc, stmt.data)
     state.scratch.store_tmp(stmt.tmp, data, deps=data_deps)
 
     #actual_size = len(data)

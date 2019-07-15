@@ -6,20 +6,50 @@ import ailment
 from ...engines.light import SpOffset
 from .. import register_analysis
 from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor, GraphVisitor
 from .values import TOP
 from .engines.vex.engine import SimEngineVEX
+from ..cfg.cfg_utils import CFGUtils
 from ...sim_state import SimState
+
+class EmulatedCFGVisitor(GraphVisitor):
+    def __init__(self, graph, start):
+        super(EmulatedCFGVisitor, self).__init__()
+        self._start = start
+        self.graph=graph
+        self.reset()
+    def startpoints(self):
+
+        return [self._start]
+
+    def successors(self, node):
+
+        return list(self.graph.successors(node))
+
+    def predecessors(self, node):
+
+        return list(self.graph.predecessors(node))
+
+    def sort_nodes(self, nodes=None):
+
+        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
+
+        if nodes is not None:
+            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
+
+        return sorted_nodes
+
 
 
 # The base state
 
 class PropagatorState:
-    def __init__(self, arch, replacements=None):
+    def __init__(self, arch, replacements=None, concrete_states=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
         self._replacements = defaultdict(dict) if replacements is None else replacements
+        self._concrete_states = concrete_states
 
     def __repr__(self):
         return "<PropagatorState>"
@@ -49,13 +79,32 @@ class PropagatorState:
     def add_replacement(self, codeloc, old, new):
         self._replacements[codeloc][old] = new
 
+    @property
+    def concrete_states(self):
+        return self._concrete_states
+
+    @concrete_states.setter
+    def concrete_states(self, v):
+        self._concrete_states = v
+
+    def get_concrete_state(self, addr):
+        """
+
+        :param addr:
+        :return:
+        """
+
+        for s in self.concrete_states:
+            if s.ip._model_concrete.value == addr:
+                return s
+
+        return None
+
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None, replacements=None):
-        super().__init__(arch, replacements=replacements)
-        self.registers = {} if registers is None else registers  # offset to values
-        self.local_variables = {} if local_variables is None else local_variables  # offset to values
+    def __init__(self, arch, replacements=None, concrete_states=None):
+        super().__init__(arch, replacements=replacements, concrete_states=concrete_states)
 
     def __repr__(self):
         return "<PropagatorVEXState>"
@@ -63,59 +112,11 @@ class PropagatorVEXState(PropagatorState):
     def copy(self):
         cp = PropagatorVEXState(
             self.arch,
-            registers=self.registers.copy(),
-            local_variables=self.local_variables.copy(),
             replacements=self._replacements.copy(),
+            concrete_states=self._concrete_states
         )
 
         return cp
-
-    def merge(self, *others):
-        state = self.copy()
-        for other in others:  # type: PropagatorVEXState
-            for offset, value in other.registers.items():
-                if offset not in state.registers:
-                    state.registers[offset] = value
-                else:
-                    if state.registers[offset] != value:
-                        state.registers[offset] = TOP
-
-            for offset, value in other.local_variables.items():
-                if offset not in state.local_variables:
-                    state.local_variables[offset] = value
-                else:
-                    if state.local_variables[offset] != value:
-                        state.local_variables[offset] = TOP
-
-        return state
-
-    def store_local_variable(self, offset, size, value):  # pylint:disable=unused-argument
-        # TODO: Handle size
-        self.local_variables[offset] = value
-
-    def load_local_variable(self, offset, size):  # pylint:disable=unused-argument
-        # TODO: Handle size
-        try:
-            return self.local_variables[offset]
-        except KeyError:
-            return TOP
-
-    def store_register(self, offset, size, value):
-        if size != self.gpr_size:
-            return
-
-        self.registers[offset] = value
-
-    def load_register(self, offset, size):
-
-        # TODO: Fix me
-        if size != self.gpr_size:
-            return TOP
-
-        try:
-            return self.registers[offset]
-        except KeyError:
-            return TOP
 
 # AIL state
 
@@ -191,17 +192,20 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None):
-        if func is not None:
-            if block is not None:
-                raise ValueError('You cannot specify both "func" and "block".')
-            # traversing a function
-            graph_visitor = FunctionGraphVisitor(func, func_graph)
-        elif block is not None:
-            # traversing a block
-            graph_visitor = SingleNodeGraphVisitor(block)
-        else:
-            raise ValueError('Unsupported analysis target.')
+                 load_callback=None, stack_pointer_tracker=None, start=None, graph=None):
+
+        # if func is not None:
+        #     if block is not None:
+        #         raise ValueError('You cannot specify both "func" and "block".')
+        #     # traversing a function
+        #     graph_visitor = FunctionGraphVisitor(func, func_graph)
+        # elif block is not None:
+        #     # traversing a block
+        #     graph_visitor = SingleNodeGraphVisitor(block)
+        # else:
+        #     raise ValueError('Unsupported analysis target.')
+
+        graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=graph_visitor)
@@ -214,7 +218,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
         self._node_iterations = defaultdict(int)
         self._states = { }
-        self.replacements = None
+        self.replacements = {}
 
         self._engine_vex = SimEngineVEX(project=self.project)
         self._engine_ail = None
@@ -234,16 +238,24 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            concrete_state = PropagatorAILState(arch=self.project.arch)
+            state = PropagatorAILState(arch=self.project.arch)
         else:
             # VEX
-            concrete_state = SimState(arch=self.project.arch)
-        return concrete_state
+            #state = SimState(arch=self.projct.arch)
+            state = PropagatorVEXState(arch=self.project.arch)
+            state.concrete_states = [node.input_state]
+        return state
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
 
-    def _run_on_node(self, node, concrete_state):
+
+    def _run_on_node(self, node, abstract_state):
+        concrete_state = abstract_state.get_concrete_state(node.addr)
+        if concrete_state is None:
+            # didn't find any state going to here
+            print("_run_on_node(): cannot find any state for address ", hex(node.addr))
+            return False, abstract_state
 
         if isinstance(node, ailment.Block):
             block = node
@@ -254,23 +266,20 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             block_key = node.block_id
             engine = self._engine_vex
 
-        concrete_state = concrete_state.copy()
-        abstract_state = PropagatorVEXState(arch=self.project.arch)
-        abstract_state.store_register(self.project.arch.sp_offset,
-                                      self.project.arch.bytes,
-                                      SpOffset(self.project.arch.bits, 0)
-                                      )
-        concrete_state = engine.process(concrete_state, abstract_state, block_key=block_key,block=block, project=self.project, base_state=self._base_state,
-                               load_callback=self._load_callback, fail_fast=self._fail_fast)
-
+        abstract_state = abstract_state.copy()
+        sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key)
+        abstract_state.concrete_states = sim_successors.all_successors
         self._node_iterations[block_key] += 1
-        self._states[block_key] = concrete_state
-        self.replacements = concrete_state._replacements
+        self._states[block_key] = abstract_state
+        self.replacements[block_key] = abstract_state._replacements
+        print("Replacements for node: "+hex(node.addr))
+        print(abstract_state._replacements)
+        print("\n")
 
         if self._node_iterations[block_key] < self._max_iterations:
-            return True, concrete_state
+            return True, abstract_state
         else:
-            return False, concrete_state
+            return False, abstract_state
 
     def _intra_analysis(self):
         pass
@@ -279,4 +288,4 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         pass
 
 
-register_analysis(PropagatorEmulatedAnalysis, "Propagatotar")
+register_analysis(PropagatorEmulatedAnalysis, "PropagatorEmulated")

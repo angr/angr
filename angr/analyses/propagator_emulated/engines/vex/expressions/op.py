@@ -7,8 +7,8 @@ from ......errors import UnsupportedIROpError, SimOperationError
 from ......state_plugins.sim_action import SimActionOperation, SimActionObject
 
 
-def SimIRExpr_Op(engine, state, expr):
-    exprs = [engine.handle_expression(state, e) for e in expr.args]
+def SimIRExpr_Op(engine, state, abstract_state, code_loc, expr):
+    exprs = [engine.handle_expression(state, abstract_state, code_loc, e) for e in expr.args]
 
     try:
         result = translate(state, expr.op, exprs)

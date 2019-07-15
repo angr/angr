@@ -6,14 +6,14 @@ from ......state_plugins.sim_action_object import SimActionObject
 from ......errors import SimUninitializedAccessError
 
 
-def SimIRExpr_Load(engine, state, expr):
+def SimIRExpr_Load(engine, state, abstract_state, code_loc, expr):
     # size of the load
     size_bits = get_type_size(expr.type)
     size = size_bits // state.arch.byte_width
 
     # get the address expression and track stuff
     with state.history.subscribe_actions() as addr_actions:
-        addr = engine.handle_expression(state, expr.addr)
+        addr = engine.handle_expression(state, abstract_state, code_loc, expr.addr)
 
     if o.UNINITIALIZED_ACCESS_AWARENESS in state.options:
         if getattr(addr._model_vsa, 'uninitialized', False):

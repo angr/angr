@@ -2,7 +2,7 @@ from ...... import sim_options as o
 from ......state_plugins.sim_action import SimActionData
 
 
-def SimIRExpr_RdTmp(_, state, expr):
+def SimIRExpr_RdTmp(_, state, abstract_state, code_loc, expr):
     if o.SUPER_FASTPATH in state.options and expr.tmp >= len(state.scratch.temps):
         result = state.solver.BVV(0, state.scratch.tyenv.sizeof(expr.tmp))
     else:
