@@ -318,9 +318,9 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
         :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
                                                 during the analysis.
-        :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
-                                                definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
-                                                OP_AFTER.
+        :param iterable observation_points:     A collection of tuples of ("node"|"insn", ins_addr, OP_TYPE) defining
+                                                where reaching definitions should be copied and stored. OP_TYPE can be
+                                                OP_BEFORE or OP_AFTER.
         :param angr.analyses.reaching_definitions.reaching_definitions.LiveDefinitions init_state:
                                                 An optional initialization state. The analysis creates and works on a
                                                 copy.
@@ -405,45 +405,59 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return next(iter(self.observed_results.values()))
 
     @deprecated(replacement="get_reaching_definitions_by_insn")
-    def get_reaching_definitions(self, ins_addr, ob_type):
-        return self.get_reaching_definitions_by_insn(ins_addr, ob_type)
+    def get_reaching_definitions(self, ins_addr, op_type):
+        return self.get_reaching_definitions_by_insn(ins_addr, op_type)
 
-    def get_reaching_definitions_by_insn(self, ins_addr, ob_type):
-
-        key = 'insn', ins_addr, ob_type
+    def get_reaching_definitions_by_insn(self, ins_addr, op_type):
+        key = 'insn', ins_addr, op_type
         if key not in self.observed_results:
             raise KeyError(("Reaching definitions are not available at observation point %s. "
                             "Did you specify that observation point?") % key)
 
         return self.observed_results[key]
 
-    def get_reaching_definitions_by_node(self, node_addr, ob_type):
-
-        key = 'node', node_addr, ob_type
+    def get_reaching_definitions_by_node(self, node_addr, op_type):
+        key = 'node', node_addr, op_type
         if key not in self.observed_results:
             raise KeyError(("Reaching definitions are not available at observation point %s. "
                             "Did you specify that observation point?") % key)
 
         return self.observed_results[key]
 
-    def node_observe(self, node_addr, state, ob_type):
-        key = 'node', node_addr, ob_type
+    def node_observe(self, node_addr, state, op_type):
+        """
+        :param int node_addr:
+        :param angr.analyses.reaching_definitions.LiveDefinitions state:
+        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
+        """
+
+        key = 'node', node_addr, op_type
+
         if self._observe_all or \
                 self._observation_points is not None and key in self._observation_points:
             self.observed_results[key] = state
 
-    def insn_observe(self, ins_addr, stmt, block, state, ob_type):
-        key = 'insn', ins_addr, ob_type
+    def insn_observe(self, insn_addr, stmt, block, state, op_type):
+        """
+        :param int insn_addr:
+        :param ailment.Stmt.Statement|pyvex.stmt.IRStmt stmt:
+        :param angr.Block block:
+        :param angr.analyses.reaching_definitions.LiveDefinitions state:
+        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
+        """
+
+        key = 'insn', insn_addr, op_type
+
         if self._observe_all or \
                 self._observation_points is not None and key in self._observation_points:
-            if isinstance(stmt, pyvex.IRStmt.IRStmt):
+            if isinstance(stmt, pyvex.stmt.IRStmt):
                 # it's an angr block
                 vex_block = block.vex
                 # OP_BEFORE: stmt has to be IMark
-                if ob_type == OP_BEFORE and type(stmt) is pyvex.IRStmt.IMark:
+                if op_type == OP_BEFORE and type(stmt) is pyvex.stmt.IMark:
                     self.observed_results[key] = state.copy()
                 # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
-                elif ob_type == OP_AFTER:
+                elif op_type == OP_AFTER:
                     idx = vex_block.statements.index(stmt)
                     if idx == len(vex_block.statements) - 1 or type(
                             vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
@@ -485,7 +499,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
         self.node_observe(node.addr, state, OP_BEFORE)
 
-        state = state.copy()  # type: LiveDefinitions
+        state = state.copy()
         state = engine.process(state, block=block, fail_fast=self._fail_fast)
 
         # clear the tmp store
