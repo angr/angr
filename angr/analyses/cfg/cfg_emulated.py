@@ -1459,7 +1459,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             successors = self._arm_thumb_filter_jump_successors(sim_successors.artifacts['irsb'],
                                                                 successors,
                                                                 lambda state: state.scratch.ins_addr,
-                                                                lambda state: state.scratch.exit_stmt_idx
+                                                                lambda state: state.scratch.exit_stmt_idx,
+                                                                lambda state: state.history.jumpkind,
                                                                 )
 
         # If there is a call exit, we shouldn't put the default exit (which

@@ -403,7 +403,7 @@ class CFGBase(Analysis):
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
 
-    def _arm_thumb_filter_jump_successors(self, irsb, successors, get_ins_addr, get_exit_stmt_idx):
+    def _arm_thumb_filter_jump_successors(self, irsb, successors, get_ins_addr, get_exit_stmt_idx, get_jumpkind):
         """
         Filter successors for THUMB mode basic blocks, and remove those successors that won't be taken normally.
 
@@ -411,6 +411,7 @@ class CFGBase(Analysis):
         :param list successors: A list of successors.
         :param func get_ins_addr: A callable that returns the source instruction address for a successor.
         :param func get_exit_stmt_idx: A callable that returns the source statement ID for a successor.
+        :param func get_jumpkind:      A callable that returns the jumpkind of a successor.
         :return: A new list of successors after filtering.
         :rtype: list
         """
@@ -426,8 +427,9 @@ class CFGBase(Analysis):
                 all(get_ins_addr(suc) == irsb.instruction_addresses[-1] for suc in successors):
             # check if all exits are produced by the last instruction
             # only takes the following jump kinds: Boring, FakeRet, Call, Syscall, Ret
-            successors = [ suc for suc in successors if suc[-1] in {'Ijk_Boring', 'Ijk_FakeRet', 'Ijk_Call', 'Ijk_Ret'}
-                           or suc[-1].startswith("Ijk_Sys") ]
+            allowed_jumpkinds = {'Ijk_Boring', 'Ijk_FakeRet', 'Ijk_Call', 'Ijk_Ret'}
+            successors = [ suc for suc in successors if get_jumpkind(suc) in allowed_jumpkinds
+                           or get_jumpkind(suc).startswith("Ijk_Sys") ]
             if len(successors) == 1:
                 return successors
 

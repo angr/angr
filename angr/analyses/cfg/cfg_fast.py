@@ -1075,7 +1075,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             successors = self._arm_thumb_filter_jump_successors(irsb,
                                                                 successors,
                                                                 lambda tpl: tpl[1],
-                                                                lambda tpl: tpl[0]
+                                                                lambda tpl: tpl[0],
+                                                                lambda tpl: tpl[3],
                                                                 )
 
         return successors
