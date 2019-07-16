@@ -28,7 +28,7 @@ class Decompiler(Analysis):
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, kb=self.kb)
 
         # structure it
-        rs = self.project.analyses.RecursiveStructurer(ri.region, kb=self.kb)
+        rs = self.project.analyses.RecursiveStructurer(ri.region, graph=clinic.graph, kb=self.kb)
 
         # simplify it
         s = self.project.analyses.RegionSimplifier(rs.result, kb=self.kb)
