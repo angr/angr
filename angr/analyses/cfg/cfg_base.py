@@ -425,7 +425,11 @@ class CFGBase(Analysis):
         if irsb.instruction_addresses and \
                 all(get_ins_addr(suc) == irsb.instruction_addresses[-1] for suc in successors):
             # check if all exits are produced by the last instruction
-            return successors
+            # only takes the following jump kinds: Boring, FakeRet, Call, Syscall, Ret
+            successors = [ suc for suc in successors if suc[-1] in {'Ijk_Boring', 'Ijk_FakeRet', 'Ijk_Call', 'Ijk_Ret'}
+                           or suc[-1].startswith("Ijk_Sys") ]
+            if len(successors) == 1:
+                return successors
 
         it_counter = 0
         conc_temps = {}
@@ -457,8 +461,8 @@ class CFGBase(Analysis):
         if it_counter != 0:
             l.debug('Basic block ends before calculated IT block (%#x)', irsb.addr)
 
-        THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
-                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
+        THUMB_BRANCH_INSTRUCTIONS = {'beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
+                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz'}
         for cs_insn in bb.capstone.insns:
             if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
                 can_produce_exits.add(cs_insn.address)
