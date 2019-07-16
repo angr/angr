@@ -433,10 +433,24 @@ class CFGBase(Analysis):
             if len(successors) == 1:
                 return successors
 
+        can_produce_exits = set()  # addresses of instructions that can produce exits
+        bb = self._lift(irsb.addr, size=irsb.size, thumb=True, opt_level=0)
+
+        # step A: filter exits using capstone (since it's faster than re-lifting the entire block to VEX)
+        THUMB_BRANCH_INSTRUCTIONS = {'beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
+                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz'}
+        for cs_insn in bb.capstone.insns:
+            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
+                can_produce_exits.add(cs_insn.address)
+
+        if all(get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT
+               for suc in successors):
+            # nothing will be filtered.
+            return successors
+
+        # step B: consider VEX statements
         it_counter = 0
         conc_temps = {}
-        can_produce_exits = set()
-        bb = self._lift(irsb.addr, size=irsb.size, thumb=True, opt_level=0)
 
         for stmt in bb.vex.statements:
             if stmt.tag == 'Ist_IMark':
@@ -462,12 +476,6 @@ class CFGBase(Analysis):
 
         if it_counter != 0:
             l.debug('Basic block ends before calculated IT block (%#x)', irsb.addr)
-
-        THUMB_BRANCH_INSTRUCTIONS = {'beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
-                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz'}
-        for cs_insn in bb.capstone.insns:
-            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
-                can_produce_exits.add(cs_insn.address)
 
         successors_filtered = [suc for suc in successors
                                if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT]
