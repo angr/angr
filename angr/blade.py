@@ -88,14 +88,14 @@ class Blade:
 
         s = ""
 
-        block_addrs = list(set([ a for a, _ in self.slice.nodes() ]))
+        block_addrs = { a for a, _ in self.slice.nodes() }
 
         for block_addr in block_addrs:
             block_str = "       IRSB %#x\n" % block_addr
 
             block = self.project.factory.block(block_addr, backup_state=self._base_state).vex
 
-            included_stmts = set([ stmt for _, stmt in self.slice.nodes() if _ == block_addr ])
+            included_stmts = { stmt for _, stmt in self.slice.nodes() if _ == block_addr }
             default_exit_included = any(stmt == DEFAULT_STATEMENT for _, stmt in self.slice.nodes() if _ == block_addr)
 
             for i, stmt in enumerate(block.statements):
@@ -158,7 +158,7 @@ class Blade:
                 raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
 
         else:
-            raise AngrBladeError('Unsupported SimRun argument type %s', type(v))
+            raise AngrBladeError('Unsupported SimRun argument type %s' % type(v))
 
     def _get_cfgnode(self, thing):
         """
@@ -171,7 +171,8 @@ class Blade:
 
         return self._cfg.get_any_node(self._get_addr(thing))
 
-    def _get_addr(self, v):
+    @staticmethod
+    def _get_addr(v):
         """
         Get address of the basic block or CFG node specified by v.
         :param v: Can be one of the following: a CFGNode, or an address.

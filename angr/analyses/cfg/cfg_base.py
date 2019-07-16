@@ -403,15 +403,15 @@ class CFGBase(Analysis):
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
 
-    def _arm_thumb_filter_jump_successors(self, addr, size, successors, get_ins_addr, get_exit_stmt_idx):
+    def _arm_thumb_filter_jump_successors(self, irsb, successors, get_ins_addr, get_exit_stmt_idx, get_jumpkind):
         """
         Filter successors for THUMB mode basic blocks, and remove those successors that won't be taken normally.
 
-        :param int addr: Address of the basic block / SimIRSB.
-        :param int size: Size of the basic block.
+        :param irsb:            The IRSB object.
         :param list successors: A list of successors.
         :param func get_ins_addr: A callable that returns the source instruction address for a successor.
         :param func get_exit_stmt_idx: A callable that returns the source statement ID for a successor.
+        :param func get_jumpkind:      A callable that returns the jumpkind of a successor.
         :return: A new list of successors after filtering.
         :rtype: list
         """
@@ -419,10 +419,38 @@ class CFGBase(Analysis):
         if not successors:
             return [ ]
 
+        if len(successors) == 1 and get_exit_stmt_idx(successors[0]) == DEFAULT_STATEMENT:
+            # only have a default exit. no need to filter
+            return successors
+
+        if irsb.instruction_addresses and \
+                all(get_ins_addr(suc) == irsb.instruction_addresses[-1] for suc in successors):
+            # check if all exits are produced by the last instruction
+            # only takes the following jump kinds: Boring, FakeRet, Call, Syscall, Ret
+            allowed_jumpkinds = {'Ijk_Boring', 'Ijk_FakeRet', 'Ijk_Call', 'Ijk_Ret'}
+            successors = [ suc for suc in successors if get_jumpkind(suc) in allowed_jumpkinds
+                           or get_jumpkind(suc).startswith("Ijk_Sys") ]
+            if len(successors) == 1:
+                return successors
+
+        can_produce_exits = set()  # addresses of instructions that can produce exits
+        bb = self._lift(irsb.addr, size=irsb.size, thumb=True, opt_level=0)
+
+        # step A: filter exits using capstone (since it's faster than re-lifting the entire block to VEX)
+        THUMB_BRANCH_INSTRUCTIONS = {'beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
+                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz'}
+        for cs_insn in bb.capstone.insns:
+            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
+                can_produce_exits.add(cs_insn.address)
+
+        if all(get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT
+               for suc in successors):
+            # nothing will be filtered.
+            return successors
+
+        # step B: consider VEX statements
         it_counter = 0
         conc_temps = {}
-        can_produce_exits = set()
-        bb = self._lift(addr, size=size, thumb=True, opt_level=0)
 
         for stmt in bb.vex.statements:
             if stmt.tag == 'Ist_IMark':
@@ -447,13 +475,7 @@ class CFGBase(Analysis):
                                 itstate >>= 8
 
         if it_counter != 0:
-            l.debug('Basic block ends before calculated IT block (%#x)', addr)
-
-        THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
-                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
-        for cs_insn in bb.capstone.insns:
-            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
-                can_produce_exits.add(cs_insn.address)
+            l.debug('Basic block ends before calculated IT block (%#x)', irsb.addr)
 
         successors_filtered = [suc for suc in successors
                                if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT]
