@@ -138,17 +138,17 @@ class JumpTableProcessor(
         super().__init__()
         self.project = project
         self._bp_sp_diff = bp_sp_diff  # bp - sp
-        self._tsrc = [ ]  # a scratch variable to store source information for values
+        self._tsrc = set()  # a scratch variable to store source information for values
 
     def _handle_WrTmp(self, stmt):
-        self._tsrc = [ ]
+        self._tsrc = set()
         super()._handle_WrTmp(stmt)
 
         if self._tsrc:
             self.state._tmpvar_source[stmt.tmp] = self._tsrc
 
     def _handle_Put(self, stmt):
-        self._tsrc = [ ]
+        self._tsrc = set()
         offset = stmt.offset
         data = self._expr(stmt.data)
         if self._tsrc is not None:
@@ -158,7 +158,7 @@ class JumpTableProcessor(
         self.state._registers[offset] = r
 
     def _handle_Store(self, stmt):
-        self._tsrc = [ ]
+        self._tsrc = set()
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
@@ -171,7 +171,7 @@ class JumpTableProcessor(
     def _handle_RdTmp(self, expr):
         v = super()._handle_RdTmp(expr)
         if expr.tmp in self.state._tmpvar_source:
-            self._tsrc.extend(self.state._tmpvar_source[expr.tmp])
+            self._tsrc |= set(self.state._tmpvar_source[expr.tmp])
         return v
 
     def _handle_Get(self, expr):
@@ -181,13 +181,13 @@ class JumpTableProcessor(
             return SpOffset(self.arch.bits, 0)
         else:
             if expr.offset in self.state._registers:
-                self._tsrc.extend(self.state._registers[expr.offset][0])
+                self._tsrc |= set(self.state._registers[expr.offset][0])
                 return self.state._registers[expr.offset][1]
             # the register does not exist
             # we initialize it here
             v = RegisterOffset(expr.result_size(self.tyenv), expr.offset, 0)
             src = (self.block.addr, self.stmt_idx)
-            self._tsrc.append(src)
+            self._tsrc.add(src)
             self.state._registers[expr.offset] = ([src], v)
             return v
 
@@ -196,13 +196,13 @@ class JumpTableProcessor(
         size = expr.result_size(self.tyenv) // 8
 
         src = (self.block.addr, self.stmt_idx)
-        self._tsrc = [src]
+        self._tsrc = { src }
         if addr is None:
             return None
 
         if isinstance(addr, SpOffset):
             if addr.offset in self.state._stack:
-                self._tsrc = [ self.state._stack[addr.offset][0] ]
+                self._tsrc = { self.state._stack[addr.offset][0] }
                 return self.state._stack[addr.offset][1]
         elif isinstance(addr, int):
             # Load data from memory if it is mapped
@@ -216,9 +216,17 @@ class JumpTableProcessor(
             # We will need to initialize this register during slice execution later
 
             # Try to get where this register is first accessed
-            source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
-            assert isinstance(source, tuple)
-            self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
+            try:
+                source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
+                assert isinstance(source, tuple)
+                self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
+            except StopIteration:
+                # we don't need to initialize this register
+                # it might be caused by an incorrect analysis result
+                # e.g.  PN-337140.bin 11e918  r0 comes from r4, r4 comes from r0@11e8c0, and r0@11e8c0 comes from
+                # function call sub_375c04. Since we do not analyze sub_375c04, we treat r0@11e918 as a constant 0.
+                pass
+
 
             return None
 
@@ -226,7 +234,7 @@ class JumpTableProcessor(
 
     def _handle_Const(self, expr):
         v = super()._handle_Const(expr)
-        self._tsrc.append('const')
+        self._tsrc.add('const')
         return v
 
     def _handle_CmpLE(self, expr):
@@ -259,7 +267,7 @@ class JumpTableProcessor(
                 if not arg0_src or len(arg0_src) > 1:
                     arg0_src = None
                 else:
-                    arg0_src = arg0_src[0]
+                    arg0_src = next(iter(arg0_src))
         elif isinstance(arg0, pyvex.IRExpr.Const):
             arg0_src = 'const'
         if isinstance(arg1, pyvex.IRExpr.RdTmp):
@@ -268,7 +276,7 @@ class JumpTableProcessor(
                 if not arg1_src or len(arg1_src) > 1:
                     arg1_src = None
                 else:
-                    arg1_src = arg1_src[0]
+                    arg1_src = next(iter(arg1_src))
         elif isinstance(arg1, pyvex.IRExpr.Const):
             arg1_src = 'const'
 
@@ -286,7 +294,7 @@ class JumpTableProcessor(
         self.state.is_jumptable = True
 
         if arg0_src != 'const':
-            # we failed during dependenciy tracking so arg0_src couldn't be determined
+            # we failed during dependency tracking so arg0_src couldn't be determined
             # but we will still try to resolve it as a jump table as a fall back
             return
 
@@ -436,10 +444,11 @@ class JumpTableResolver(IndirectJumpResolver):
 
         for slice_steps in range(2, 4):
             # Perform a backward slicing from the jump target
+            # Important: Do not go across function call boundaries
             b = Blade(cfg.graph, addr, -1,
                 cfg=cfg, project=self.project,
                 ignore_sp=False, ignore_bp=False,
-                max_level=slice_steps, base_state=self.base_state)
+                max_level=slice_steps, base_state=self.base_state, stop_at_calls=True)
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
             r, targets = self._resolve(cfg, addr, func_addr, b)
@@ -767,8 +776,9 @@ class JumpTableResolver(IndirectJumpResolver):
 
         for src in sources:
             state = JumpTableProcessorState(self.project.arch)
-            traced = { src }
+            traced = { src[0] }
             while src is not None:
+                state._tmpvar_source.clear()
                 block_addr, stmt_idx = src
 
                 block = self.project.factory.block(block_addr, backup_state=self.base_state)
@@ -785,10 +795,12 @@ class JumpTableResolver(IndirectJumpResolver):
                 for idx in reversed(stmt_whitelist):
                     loc = (block_addr, idx)
                     successors = list(b.slice.successors(loc))
-                    if len(successors) == 1 and successors[0] not in traced:
-                        src = successors[0]
-                        traced.add(src)
-                        break
+                    if len(successors) == 1:
+                        block_addr_ = successors[0][0]
+                        if block_addr_ not in traced:
+                            src = successors[0]
+                            traced.add(block_addr_)
+                            break
 
         raise NotAJumpTableNotification()
 
