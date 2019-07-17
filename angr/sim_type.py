@@ -967,7 +967,7 @@ ALL_TYPES.update(BASIC_TYPES)
 
 # this is a hack, pending https://github.com/eliben/pycparser/issues/187
 def make_preamble():
-    out = []
+    out = ['typedef int TOP;']
     types_out = []
     for ty in ALL_TYPES:
         if ty in BASIC_TYPES:
@@ -1164,6 +1164,8 @@ def _decl_to_type(decl, extra_types=None):
         return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types))
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
+        if decl.declname == 'TOP':
+            return SimTypeTop()
         return _decl_to_type(decl.type, extra_types)
 
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
