@@ -164,8 +164,6 @@ class Project:
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
-        self._is_java_project = None
-        self._is_java_jni_project = None
 
         if self._support_selfmodifying_code:
             if self._translation_cache is True:
@@ -213,6 +211,9 @@ class Project:
             self.simos = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        self.is_java_project = isinstance(self.arch, ArchSoot)
+        self.is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
 
         # Step 6: Register simprocedures as appropriate for library functions
         if isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support:
@@ -688,21 +689,6 @@ class Project:
 
     def __repr__(self):
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
-
-    #
-    # Properties
-    #
-
-    def __getattr__(self, a):
-        if a.lstrip('_') == 'is_java_project':
-            v = isinstance(self.arch, ArchSoot)
-        elif a.lstrip('_') == 'is_java_jni_project':
-            v = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
-        else:
-            raise AttributeError(a)
-
-        setattr(self, a, v)
-        return v
 
     #
     # Compatibility

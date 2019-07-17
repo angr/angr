@@ -61,6 +61,10 @@ class SimState(PluginHub):
         super(SimState, self).__init__()
         self.project = project
 
+        # Java & Java JNI
+        self._is_java_project = self.project and self.project.is_java_project
+        self._is_java_jni_project = self.project and self.project.is_java_jni_project
+
         # Arch
         if self._is_java_jni_project:
             self._arch = { "soot" : project.arch,
@@ -360,21 +364,6 @@ class SimState(PluginHub):
     #
     # Java support
     #
-
-    def __getattr__(self, a):
-        if a == '_is_java_project':
-            # Indicates if the project's main binary is a Java Archive.
-            v = self.project and self.project.is_java_project
-        elif a == '_is_java_jni_project':
-            # Indicates if the project's main binary is a Java Archive, which
-            # interacts during its execution with native libraries (via JNI).
-            v = self.project and self.project.is_java_jni_project
-        else:
-            return super().__getattr__(a)
-
-        setattr(self, a, v)
-        return v
-
 
     @property
     def javavm_memory(self):
