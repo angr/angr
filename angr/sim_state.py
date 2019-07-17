@@ -232,6 +232,22 @@ class SimState(PluginHub):
 
         return "<SimState @ %s>" % ip_str
 
+    def __setattr__(self, key, value):
+        if key == 'options':
+            # set options
+            # this is done to both keep compatibility and make access to .options fast.
+            self._set_options(value)
+            return
+        super().__setattr__(key, value)
+
+    def _set_options(self, v):
+        if isinstance(v, (set, list)):
+            super().__setattr__("options", SimStateOptions(v))
+        elif isinstance(v, SimStateOptions):
+            super().__setattr__("options", v)
+        else:
+            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
+
     #
     # Easier access to some properties
     #
