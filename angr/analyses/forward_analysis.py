@@ -601,7 +601,7 @@ class ForwardAnalysis:
                 # all done!
                 break
 
-            job_state = self._pop_input_state(n)
+            job_state = self._get_input_state(n)
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
 
@@ -648,6 +648,16 @@ class ForwardAnalysis:
         if node in self._state_map:
             return self._state_map.pop(node)
         return None
+
+    def _get_input_state(self, node):
+        """
+        Get the input abstract state for this node.
+
+        :param node:    The node in graph.
+        :return:        A merged state, or None if there is no input state for this node available.
+        """
+
+        return self._state_map.get(node, None)
 
     def _merge_state_from_predecessors(self, node):
         """

@@ -66,6 +66,7 @@ class Register:
     def __repr__(self):
         return str(self.offset)
 
+
 class OffsetVal:
 
     __slots__ = ( '_reg', '_offset', )
@@ -110,6 +111,7 @@ class OffsetVal:
 
     def __repr__(self):
         return 'reg({}){:+}'.format(self.reg, (self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0)
+
 
 class FrozenStackPointerTrackerState:
 
@@ -158,8 +160,10 @@ class StackPointerTrackerState:
         self.is_tracking_memory = False
 
     def store(self, addr, val):
+        # weak update
         if self.is_tracking_memory and val is not None and addr is not None:
-            self.memory[addr] = val
+            if addr not in self.memory or self.memory[addr] is not TOP:
+                self.memory[addr] = val
 
     def load(self, addr):
         if not self.is_tracking_memory:
@@ -182,7 +186,10 @@ class StackPointerTrackerState:
         raise CouldNotResolveException
 
     def put(self, reg, val):
-        if reg in self.regs:
+        # weak update, but we only update values for registers that are already in self.regs and ignore all other
+        # registers. obviously, self.regs should be initialized with registers that should be considered during
+        # tracking,
+        if reg in self.regs and self.regs[reg] is not TOP:
             self.regs[reg] = val
 
     def copy(self):
@@ -192,7 +199,6 @@ class StackPointerTrackerState:
         return FrozenStackPointerTrackerState(frozenset(self.regs.items()),
                                               frozenset(self.memory.items()),
                                               self.is_tracking_memory)
-
 
     def __eq__(self, other):
         if type(other) is StackPointerTrackerState or isinstance(other, StackPointerTrackerState):
@@ -204,9 +210,9 @@ class StackPointerTrackerState:
 
     def __hash__(self):
         if self.is_tracking_memory:
-            return hash(StackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory)
+            return hash((StackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory))
         else:
-            return hash(StackPointerTrackerState, self.regs, self.is_tracking_memory)
+            return hash((StackPointerTrackerState, self.regs, self.is_tracking_memory))
 
     def merge(self, other):
         return StackPointerTrackerState(regs=_dict_merge(self.regs, other.regs),
@@ -218,12 +224,10 @@ def _dict_merge(d1, d2):
     all_keys = set(d1.keys()) | set(d2.keys())
     merged = {}
     for k in all_keys:
-        if k not in d1 or d1[k] is TOP:
-            pass # don't add it to the dict, which is the same as top
-        elif k not in d2 or d2[k] is TOP:
-            pass # don't add it to the dict, which is the same as top
-        elif d1[k] == d2[k]:
+        if k in d1 and k in d2 and d1[k] == d2[k]:
             merged[k] = d1[k]
+        else:
+            merged[k] = TOP
     return merged
 
 
@@ -256,7 +260,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self.states = { }
         self._blocks = { }
 
-        _l.debug('Running on function %s', self._func)
+        _l.debug('Running on function %r', self._func)
         self._analyze()
 
     def _state_for(self, addr, pre_or_post):
@@ -278,7 +282,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             return TOP
         else:
             return regval.offset
-
 
     def offset_after(self, addr, reg):
         return self._offset_for(addr, 'post', reg)
