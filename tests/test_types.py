@@ -165,8 +165,12 @@ def test_arg_names():
     nose.tools.assert_equal(sig.arg_names, ['param_1', 'param_2'])
 
 
-    # If for some reason only some of the parameters are named, argument names should not be populated to avoid confusion
+    # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
     fdef = angr.types.parse_defns("int f(int param1, int);") # type: Dict[str, SimTypeFunction]
+    sig = fdef['f']
+    nose.tools.assert_equal(sig.arg_names, ['param1', None])
+
+    fdef = angr.types.parse_defns("int f();") # type: Dict[str, SimTypeFunction]
     sig = fdef['f']
     nose.tools.assert_equal(sig.arg_names, [])
 

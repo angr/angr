@@ -1161,10 +1161,7 @@ def _decl_to_type(decl, extra_types=None):
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
         argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) for x in decl.args.params]
-        arg_names = [ arg.name for arg in decl.args.params]
-        # If some params don't have a name, leave out information about the argument names entirely
-        if None in arg_names:
-            arg_names = None
+        arg_names = [ arg.name for arg in decl.args.params] if decl.args else None
         return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types), arg_names=arg_names)
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
