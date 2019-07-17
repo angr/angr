@@ -150,6 +150,27 @@ def test_union_struct_referencing_each_other():
     nose.tools.assert_is_instance(b.members['a_ptr'].pts_to, SimUnion)
     nose.tools.assert_equal(b.members['a_ptr'].pts_to.name, 'a')
 
+def test_top_type():
+    angr.types.register_types({'undefined': angr.types.SimTypeTop() })
+    fdef = angr.types.parse_defns("undefined f(undefined param_1, int param_2);") # type: Dict[str, SimTypeFunction]
+    sig = fdef['f']
+    nose.tools.assert_equal(sig.args, [angr.types.SimTypeTop(), angr.types.SimTypeInt()])
+
+
+
+def test_arg_names():
+    angr.types.register_types({'undefined': angr.types.SimTypeTop() })
+    fdef = angr.types.parse_defns("int f(int param_1, int param_2);") # type: Dict[str, SimTypeFunction]
+    sig = fdef['f']
+    nose.tools.assert_equal(sig.arg_names, ['param_1', 'param_2'])
+
+
+    # If for some reason only some of the parameters are named, argument names should not be populated to avoid confusion
+    fdef = angr.types.parse_defns("int f(int param1, int);") # type: Dict[str, SimTypeFunction]
+    sig = fdef['f']
+    nose.tools.assert_equal(sig.arg_names, [])
+
+
 if __name__ == '__main__':
     test_type_annotation()
     test_cproto_conversion()
@@ -158,3 +179,5 @@ if __name__ == '__main__':
     test_parse_type_no_basic_types()
     test_self_referential_struct_or_union()
     test_union_struct_referencing_each_other()
+    test_top_type()
+    test_arg_names()
