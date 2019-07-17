@@ -361,7 +361,7 @@ class Structurer(Analysis):
                         if suc not in loop_subgraph:
                             loop_successors.add(suc)
         
-        # Case C: The loop successor is the successor to this region in the grandparent graph
+        # Case C: find loop successors in the global graph
         if not loop_successors:
             for n in loop_nodes:
                 succs = set(self._graph.successors(n))
