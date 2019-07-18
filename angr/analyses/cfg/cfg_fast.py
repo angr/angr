@@ -2399,8 +2399,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return:                                    None
         """
 
-        from .indirect_jump_resolvers.jumptable import JumpTableResolver
-
         source_addr = jump.addr
 
         if jump.jumptable:
