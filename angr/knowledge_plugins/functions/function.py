@@ -36,7 +36,7 @@ class Function(Serializable):
                  '_callout_sites', '_endpoints', '_call_sites', '_retout_sites', 'addr', '_function_manager',
                  'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'binary_name',
                  '_argument_registers', '_argument_stack_variables',
-                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
+                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', '_prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
                  '_local_block_addrs', 'info', 'tags', 'alignment',
@@ -93,7 +93,7 @@ class Function(Serializable):
         # Calling convention
         self.calling_convention = None #type: Optional[SimCC]
         # Function prototype
-        self.prototype = None # type: Optional[SimTypeFunction]
+        self._prototype = None # type: Optional[SimTypeFunction]
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
         self.prepared_registers = set()
@@ -317,6 +317,28 @@ class Function(Serializable):
         """
         # TODO: remove link register values
         return [const.value for block in self.blocks for const in block.vex.constants]
+
+    @property
+    def prototype(self):
+        """
+        :return Optional[SimTypeFunction]:
+        """
+        if self.calling_convention:
+            return self.calling_convention.func_ty
+        else:
+            return self._prototype
+
+    @prototype.setter
+    def prototype(self, proto):
+        """
+        :param SimTypeFunction proto:
+        :return:
+        """
+        if self.calling_convention:
+            self.calling_convention.func_ty = proto.with_arch(self.project.arch)
+            raise DeprecationWarning("Changing function prototype while calling convention is set, please use .calling_convention.func_ty")
+        else:
+            self._prototype = proto
 
     @classmethod
     def _get_cmsg(cls):
@@ -1311,7 +1333,6 @@ class Function(Serializable):
 
         name, ty = func_def.popitem()
         self.name = name
-        self.prototype = ty
 
         # setup the calling convention
         # If a SimCC object is passed assume that this is sane and just use it
@@ -1320,11 +1341,11 @@ class Function(Serializable):
 
         # If it is a subclass of SimCC we can instantiate it
         elif isinstance(calling_convention, type) and issubclass(calling_convention, SimCC):
-            self.calling_convention = calling_convention(self.project.arch, func_ty=self.prototype)
+            self.calling_convention = calling_convention(self.project.arch, func_ty=ty)
 
         # If none is specified default to something
         elif calling_convention is None:
-            self.calling_convention = self.project.factory.cc(func_ty=self.prototype)
+            self.calling_convention = self.project.factory.cc(func_ty=ty)
 
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")

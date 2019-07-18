@@ -33,7 +33,8 @@ def test_function_definition_application():
 
     # Check prototype of function
     nose.tools.assert_equal(func_main.prototype.args,
-                            [angr.sim_type.SimTypeInt(), angr.sim_type.SimTypePointer(angr.sim_type.SimTypePointer(angr.sim_type.SimTypeChar()))])
+                            [angr.sim_type.SimTypeInt().with_arch(p.arch), angr.sim_type.SimTypePointer(
+                                angr.sim_type.SimTypePointer(angr.sim_type.SimTypeChar()).with_arch(p.arch)).with_arch(p.arch)])
     # Check that the default calling convention of the architecture was applied
     nose.tools.assert_true(isinstance(func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name]))
 
