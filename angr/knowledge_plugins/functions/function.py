@@ -336,7 +336,7 @@ class Function(Serializable):
         """
         if self.calling_convention:
             self.calling_convention.func_ty = proto.with_arch(self.project.arch)
-            raise DeprecationWarning("Changing function prototype while calling convention is set, please use .calling_convention.func_ty")
+            logging.warning("Changing function prototype while calling convention is set, please use .calling_convention.func_ty")
         else:
             self._prototype = proto
 
