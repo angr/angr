@@ -355,7 +355,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._set_state(addr, new_val, 'pre')
 
     def _run_on_node(self, node : BlockNode, state):
-        input_state = state
 
         block = self.project.factory.block(node.addr, size=node.size)
         self._blocks[node.addr] = block
