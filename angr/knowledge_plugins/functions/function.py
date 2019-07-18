@@ -4,7 +4,7 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
-from typing import Union
+from typing import Union, Optional, Type
 
 from itanium_demangler import parse
 
@@ -21,6 +21,10 @@ from ...calling_conventions import DEFAULT_CC
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
+
+from ...sim_type import SimTypeFunction, parse_defns
+from ...calling_conventions import SimCC, DefaultCC
+from ...project import Project
 
 
 class Function(Serializable):
@@ -87,12 +91,11 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention = None
+        self.calling_convention = None #type: Optional[SimCC]
         # Function prototype
-        self.prototype = None
+        self.prototype = None # type: Optional[SimTypeFunction]
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
-
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
@@ -114,7 +117,7 @@ class Function(Serializable):
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
-        self._project = None  # will be initialized upon the first access to self.project
+        self._project = None  # type: Optional[Project] # will be initialized upon the first access to self.project
 
         #
         # Initialize unspecified properties
@@ -208,7 +211,7 @@ class Function(Serializable):
         if self._project is None:
             # try to set it from function manager
             if self._function_manager is not None:
-                self._project = self._function_manager._kb._project
+                self._project = self._function_manager._kb._project #type: Optional[Project]
         return self._project
 
     @property
@@ -1292,6 +1295,44 @@ class Function(Serializable):
             if ast:
                 return ast.__str__()
         return self.name
+
+    def apply_definition(self, definition, calling_convention=None):
+        """
+
+        :param str definition:
+        :param Optional[Union[SimCC, Type[SimCC]]] calling_convention:
+        :return:
+        """
+        if not definition.endswith(";"):
+            definition += ";"
+        func_def = parse_defns(definition) # type: Union
+        if len(func_def.keys()) > 1:
+            raise Exception("Too many definitions: %s " % list(func_def.keys()))
+
+        name, ty = func_def.popitem()
+        self.name = name
+        self.prototype = ty
+
+        # setup the calling convention
+        # If a SimCC object is passed assume that this is sane and just use it
+        if isinstance(calling_convention, SimCC):
+            self.calling_convention = calling_convention
+
+        # If it is a subclass of SimCC we can instantiate it
+        elif isinstance(calling_convention, type) and issubclass(calling_convention, SimCC):
+            self.calling_convention = calling_convention(self.project.arch, func_ty=self.prototype)
+
+        # If none is specified default to something
+        elif calling_convention is None:
+            self.calling_convention = self.project.factory.cc(func_ty=self.prototype)
+
+        else:
+            raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")
+
+
+
+
+        return
 
     def copy(self):
         func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)

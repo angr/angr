@@ -164,6 +164,11 @@ def test_arg_names():
     sig = fdef['f']
     nose.tools.assert_equal(sig.arg_names, ['param_1', 'param_2'])
 
+    # Check that arg_names survive a with_arch call
+    nsig = sig.with_arch(angr.archinfo.ArchAMD64())
+    nose.tools.assert_equal(sig.arg_names, nsig.arg_names,
+                            "Function type generated with .with_arch() doesn't have identical arg_names")
+
     # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
     fdef = angr.types.parse_defns("int f(int param1, int);") # type: Dict[str, SimTypeFunction]
     sig = fdef['f']
