@@ -1068,15 +1068,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _widen_jobs(self, *jobs):
         pass
 
-    def _post_process_successors(self, addr, size, successors):
+    def _post_process_successors(self, irsb, successors):
 
-        if is_arm_arch(self.project.arch) and addr % 2 == 1:
+        if is_arm_arch(self.project.arch) and irsb.addr % 2 == 1:
             # we are in thumb mode. filter successors
-            successors = self._arm_thumb_filter_jump_successors(addr,
-                                                                size,
+            successors = self._arm_thumb_filter_jump_successors(irsb,
                                                                 successors,
                                                                 lambda tpl: tpl[1],
-                                                                lambda tpl: tpl[0]
+                                                                lambda tpl: tpl[0],
+                                                                lambda tpl: tpl[3],
                                                                 )
 
         return successors
@@ -1536,7 +1536,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         entries = [ ]
 
-        successors = self._post_process_successors(addr, irsb.size, successors)
+        successors = self._post_process_successors(irsb, successors)
 
         # Process each successor
         for suc in successors:
@@ -2407,13 +2407,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return:                                    None
         """
 
-        from .indirect_jump_resolvers.jumptable import JumpTableResolver
-
         source_addr = jump.addr
 
-        if isinstance(resolved_by, JumpTableResolver):
+        if jump.jumptable:
             # Fill in the jump_tables dict
             self.jump_tables[jump.addr] = jump
+            # occupy the jump table region
+            self._seg_list.occupy(jump.jumptable_addr, jump.jumptable_size, "data")
 
         jump.resolved_targets = targets
         all_targets = set(targets)

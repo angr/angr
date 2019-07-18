@@ -103,7 +103,7 @@ class CallTracingFilter(object):
                 l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, type(next_run))
                 return REJECT
 
-        cfg_key = (addr, jumpkind)
+        cfg_key = (addr, jumpkind, self.project.filename)
         if cfg_key not in self.cfg_cache:
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
@@ -528,7 +528,7 @@ class Veritesting(Analysis):
         state = self._input_state
         ip_int = state.addr
 
-        cfg_key = (ip_int, state.history.jumpkind)
+        cfg_key = (ip_int, state.history.jumpkind, self.project.filename)
         if cfg_key in self.cfg_cache:
             cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
         else:

@@ -28,9 +28,61 @@ class SimProcedure:
     :param is_syscall:      Whether this procedure is a syscall
     :param num_args:        The number of arguments this procedure should extract
     :param display_name:    The name to use when displaying this procedure
+    :param library_name:    The name of the library from which the function we're emulating comes
     :param cc:              The SimCC to use for this procedure
     :param sim_kwargs:      Additional keyword arguments to be passed to run()
     :param is_function:     Whether this procedure emulates a function
+
+    The following class variables should be set if necessary when implementing a new SimProcedure:
+
+    :cvar NO_RET:           Set this to true if control flow will never return from this function
+    :cvar ADDS_EXITS:       Set this to true if you do any control flow other than returning
+    :cvar IS_FUNCTION:      Does this procedure simulate a function? True by default
+    :cvar ARGS_MISMATCH:    Does this procedure have a different list of arguments than what is provided in the
+                            function specification? This may happen when we manually extract arguments in the run()
+                            method of a SimProcedure. False by default.
+    :cvar local_vars:       If you use ``self.call()``, set this to a list of all the local variable
+                            names in your class. They will be restored on return.
+
+    The following instance variables are available when working with simprocedures from the inside or the outside:
+
+    :ivar project:          The associated angr project
+    :ivar arch:             The associated architecture
+    :ivar addr:             The linear address at which the procedure is executing
+    :ivar cc:               The calling convention in use for engaging with the ABI
+    :ivar canonical:        The canonical version of this SimProcedure. Procedures are deepcopied for many reasons,
+                            including to be able to store state related to a specific run and to be able to hook
+                            continuations.
+    :ivar kwargs:           Any extra keyword arguments used to construct the procedure; will be passed to ``run``
+    :ivar display_name:     See the eponymous parameter
+    :ivar library_name:     See the eponymous parameter
+    :ivar abi:
+    :ivar symbolic_return:  See the eponymous parameter
+    :ivar syscall_number:   If this procedure is a syscall, the number will be populated here.
+    :ivar returns:          See eponymous parameter and NO_RET cvar
+    :ivar is_syscall:       See eponymous parameter
+    :ivar is_function:      See eponymous parameter and cvar
+    :ivar is_stub:          See eponymous parameter
+    :ivar is_continuation:  Whether this procedure is the original or a continuation resulting from ``self.call()``
+    :ivar continuations:    A mapping from name to each known continuation
+    :ivar run_func:         The name of the function implementing the procedure. "run" by default, but different in
+                            continuations.
+    :ivar num_args:         The number of arguments to the procedure. If not provided in the parameter, extracted from
+                            the definition of ``self.run``
+
+    The following instance variables are only used in a copy of the procedure that is actually executing on a state:
+
+    :ivar state:            The SimState we should be mutating to perform the procedure
+    :ivar successors:       The SimSuccessors associated with the current step
+    :ivar arguments:        The function arguments, deserialized from the state
+    :ivar use_state_arguments:
+                            Whether we're using arguments extracted from the state or manually provided
+    :ivar ret_to:           The current return address
+    :ivar ret_expr:         The computed return value
+    :ivar call_ret_expr:    The return value from having used ``self.call()``
+    :ivar inhibit_autoret:  Whether we should avoid automatically adding an exit for returning once the run function
+                            ends
+
     """
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
@@ -210,15 +262,11 @@ class SimProcedure:
     # Implement these in a subclass of SimProcedure!
     #
 
-    NO_RET = False          # set this to true if control flow will never return from this function
-    ADDS_EXITS = False      # set this to true if you do any control flow other than returning
-    IS_FUNCTION = True      # does this procedure simulate a function?
-    ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
-                            # function specification? This may happen when we manually extract arguments in the run()
-                            # method of a SimProcedure.
-
-    local_vars = ()         # if you use self.call(), set this to a list of all the local variable
-                            # names in your class. They will be restored on return.
+    NO_RET = False
+    ADDS_EXITS = False
+    IS_FUNCTION = True
+    ARGS_MISMATCH = False
+    local_vars = ()
 
     def run(self, *args, **kwargs): # pylint: disable=unused-argument
         """
