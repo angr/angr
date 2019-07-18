@@ -180,6 +180,32 @@ def test_s390x_cfgswitches():
     compare(cfg.jump_tables, all_jumptables)
 
 
+#
+# The jump table should be occupied and marked as data
+#
+
+def test_jumptable_occupied_as_data():
+
+    # GitHub issue #1671
+
+    p = angr.Project(os.path.join(test_location, "i386", "windows", "printenv.exe"), auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+
+    # it has a jump table at 0x402e4d with 10 entries
+    nose.tools.assert_in(0x402e4d, cfg.indirect_jumps)
+    nose.tools.assert_true(cfg.indirect_jumps[0x402e4d].jumptable)
+    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_addr, 0x402e54)
+    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_size, 4 * 10)
+    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_entry_size, 4)
+
+    # 40 bytes starting at 0x402e4d should be marked as "data"
+    for addr in range(0x402e54, 0x402e54 + 40, 4):
+        nose.tools.assert_equal(cfg._seg_list.occupied_by_sort(addr), "data")
+
+    # node 0x402e4d should have 10 successors
+    nose.tools.assert_equal(len(cfg.model.get_any_node(0x402e4d).successors), 10)
+
+
 if __name__ == "__main__":
     test_amd64_dir_gcc_O0()
     test_amd64_cfgswitches_gcc()
@@ -189,3 +215,4 @@ if __name__ == "__main__":
     test_kprca_00009()
     test_armel_cfgswitches_gcc()
     test_s390x_cfgswitches()
+    test_jumptable_occupied_as_data()

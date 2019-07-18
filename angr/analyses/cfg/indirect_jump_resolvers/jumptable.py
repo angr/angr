@@ -574,7 +574,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     # Try the next state
                     continue
                 # unpack
-                jump_table, jump_table_addr, all_targets = ret
+                jump_table, jumptable_addr, entry_size, jumptable_size, all_targets = ret
                 l.info("Resolved %d targets from %#x.", len(all_targets), addr)
 
                 # write to the IndirectJump object in CFG
@@ -582,7 +582,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 if len(all_targets) > 1:
                     # It can be considered a jump table only if there are more than one jump target
                     ij.jumptable = True
-                    ij.jumptable_addr = jump_table_addr
+                    ij.jumptable_addr = jumptable_addr
+                    ij.jumptable_size = jumptable_size
+                    ij.jumptable_entry_size = entry_size
                     ij.resolved_targets = set(jump_table)
                     ij.jumptable_entries = jump_table
                 else:
@@ -996,7 +998,7 @@ class JumpTableResolver(IndirectJumpResolver):
         if illegal_target_found:
             return None
 
-        return jump_table, min_jumptable_addr, all_targets
+        return jump_table, min_jumptable_addr, load_size, total_cases * load_size, all_targets
 
     @staticmethod
     def _instrument_statements(state, stmts_to_instrument, regs_to_initialize):

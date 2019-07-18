@@ -2399,13 +2399,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return:                                    None
         """
 
-        from .indirect_jump_resolvers.jumptable import JumpTableResolver
-
         source_addr = jump.addr
 
-        if isinstance(resolved_by, JumpTableResolver):
+        if jump.jumptable:
             # Fill in the jump_tables dict
             self.jump_tables[jump.addr] = jump
+            # occupy the jump table region
+            self._seg_list.occupy(jump.jumptable_addr, jump.jumptable_size, "data")
 
         jump.resolved_targets = targets
         all_targets = set(targets)
