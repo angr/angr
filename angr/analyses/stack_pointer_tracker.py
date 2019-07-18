@@ -160,10 +160,9 @@ class StackPointerTrackerState:
         self.is_tracking_memory = False
 
     def store(self, addr, val):
-        # weak update
+        # strong update
         if self.is_tracking_memory and val is not None and addr is not None:
-            if addr not in self.memory or self.memory[addr] is not TOP:
-                self.memory[addr] = val
+            self.memory[addr] = val
 
     def load(self, addr):
         if not self.is_tracking_memory:
@@ -186,10 +185,10 @@ class StackPointerTrackerState:
         raise CouldNotResolveException
 
     def put(self, reg, val):
-        # weak update, but we only update values for registers that are already in self.regs and ignore all other
+        # strong update, but we only update values for registers that are already in self.regs and ignore all other
         # registers. obviously, self.regs should be initialized with registers that should be considered during
         # tracking,
-        if reg in self.regs and self.regs[reg] is not TOP:
+        if reg in self.regs:
             self.regs[reg] = val
 
     def copy(self):
@@ -224,10 +223,14 @@ def _dict_merge(d1, d2):
     all_keys = set(d1.keys()) | set(d2.keys())
     merged = {}
     for k in all_keys:
-        if k in d1 and k in d2 and d1[k] == d2[k]:
+        if k not in d1 or d1[k] is TOP:
+            # don't add it to the dict, which is the same as top
+            pass
+        elif k not in d2 or d2[k] is TOP:
+            # don't add it to the dict, which is the same as top
+            pass
+        elif d1[k] == d2[k]:
             merged[k] = d1[k]
-        else:
-            merged[k] = TOP
     return merged
 
 
@@ -429,11 +432,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         _l.debug('Mem: %s', state.memory)
 
         output_state = state.freeze()
-        return output_state != input_state, output_state
+        return None, output_state
 
     def _widen_states(self, *states):
         assert len(states) == 2
-        merged = self._merge_states(None, *states)
+        merged, _ = self._merge_states(None, *states)
         if len(merged.memory) > 5:
             _l.info('Encountered too many memory writes in stack pointer tracking. Abandoning memory tracking.')
             merged = merged.unfreeze().give_up_on_memory_tracking().freeze()
@@ -442,7 +445,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _merge_states(self, node, *states):
 
         assert len(states) == 2
-        return states[0].merge(states[1])
+        merged_state = states[0].merge(states[1])
+        return merged_state, merged_state == states[0]
 
 
 from ..analyses import AnalysesHub
