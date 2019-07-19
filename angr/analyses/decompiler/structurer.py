@@ -338,7 +338,7 @@ class Structurer(Analysis):
 
         # find loop nodes and successors
         loop_subgraph = RegionIdentifier.slice_graph(graph, head, latching_nodes, include_frontier=True)
-        loop_node_addrs = set( node.addr for node in loop_subgraph )    
+        loop_node_addrs = set( node.addr for node in loop_subgraph )
 
         # Case A: The loop successor is inside the current region (does it happen at all?)
         loop_successors = set()
@@ -731,9 +731,9 @@ class Structurer(Analysis):
 
         if isinstance(node, SequenceNode):
             new_nodes = [ ]
-            for node in node.nodes:
-                node = self._remove_claripy_bool_asts(node)
-                new_nodes.append(node)
+            for n in node.nodes:
+                new_node = self._remove_claripy_bool_asts(n)
+                new_nodes.append(new_node)
             new_seq_node = SequenceNode(new_nodes)
             return new_seq_node
 
