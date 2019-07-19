@@ -13,6 +13,7 @@ class MemoryDataSort:
     SegmentBoundary = "segment-boundary"
     CodeReference = "code reference"
     GOTPLTEntry = "GOT PLT Entry"
+    ELFHeader = 'elf-header'
 
 _SORT_TO_IDX = {
     MemoryDataSort.Unspecified: cfg_pb2.MemoryData.Unspecified,
@@ -24,6 +25,7 @@ _SORT_TO_IDX = {
     MemoryDataSort.SegmentBoundary: cfg_pb2.MemoryData.SegmentBoundary,
     MemoryDataSort.CodeReference: cfg_pb2.MemoryData.CodeReference,
     MemoryDataSort.GOTPLTEntry: cfg_pb2.MemoryData.GOTPLTEntry,
+    MemoryDataSort.ELFHeader: cfg_pb2.MemoryData.ELFHeader,
 }
 
 _IDX_TO_SORT = dict((v, k) for k, v in _SORT_TO_IDX.items())

@@ -2342,7 +2342,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return None, None
             if data == b"\x7fELF":
                 # yes!
-                return "elf-header", max_size
+                return MemoryDataSort.ELFHeader, max_size
 
         return None, None
 

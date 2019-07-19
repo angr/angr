@@ -30,6 +30,7 @@ message MemoryData {
         SegmentBoundary = 6;
         CodeReference = 7;
         GOTPLTEntry = 8;
+        ELFHeader = 9;
     }
 
     int64           ea = 1; // Address of the data
