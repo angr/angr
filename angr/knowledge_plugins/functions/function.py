@@ -1328,13 +1328,12 @@ class Function(Serializable):
         """
         if not definition.endswith(";"):
             definition += ";"
-        func_def = parse_defns(definition) # type: Union
+        func_def = parse_defns(definition)
         if len(func_def.keys()) > 1:
             raise Exception("Too many definitions: %s " % list(func_def.keys()))
 
-        name, ty = func_def.popitem()
+        name, ty = func_def.popitem() # type: str, SimTypeFunction
         self.name = name
-
         # setup the calling convention
         # If a SimCC object is passed assume that this is sane and just use it
         if isinstance(calling_convention, SimCC):
