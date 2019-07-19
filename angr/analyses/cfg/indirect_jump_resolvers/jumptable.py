@@ -31,9 +31,11 @@ class UninitReadMeta:
 
 class AddressTransferringTypes:
     Assignment = 0
-    SignedExtension32to64 = 1
-    UnsignedExtension32to64 = 2
-    Truncation64to32 = 3
+    SignedExtension = 1
+    UnsignedExtension = 2
+    Truncation = 3
+    Or1 = 4
+    ShiftLeft = 5
 
 
 class JumpTargetBaseAddr:
@@ -620,8 +622,8 @@ class JumpTableResolver(IndirectJumpResolver):
         #  + 07 | t11 = 32Sto64(t12)
         #  + 10 | t2 = Add64(0x0000000000571df0,t11)
         #
-        # all_addr_holders will be {(0x4c64c4, 11): AddressTransferringTypes.SignedExtension32to64,
-        #           (0x4c64c4, 12); AddressTransferringTypes.Assignment,
+        # all_addr_holders will be {(0x4c64c4, 11): (AddressTransferringTypes.SignedExtension, 32, 64,),
+        #           (0x4c64c4, 12); (AddressTransferringTypes.Assignment,),
         #           }
         all_addr_holders = OrderedDict()
 
@@ -637,7 +639,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     # data transferring
                     stmts_to_remove.append(stmt_loc)
                     if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                        all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
+                        all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.Assignment,)
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.ITE):
                     # data transferring
@@ -645,7 +647,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     # > t44 = ITE(t43,t16,0x0000c844)
                     stmts_to_remove.append(stmt_loc)
                     if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                        all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
+                        all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.Assignment,)
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Unop):
                     if stmt.data.op == 'Iop_32Sto64':
@@ -653,98 +655,160 @@ class JumpTableResolver(IndirectJumpResolver):
                         # t11 = 32Sto64(t12)
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.SignedExtension32to64
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.SignedExtension,
+                                                                         32, 64)
                         continue
                     elif stmt.data.op == 'Iop_64to32':
                         # data transferring with conversion
                         # t24 = 64to32(t21)
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Truncation64to32
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.Truncation,
+                                                                         64, 32)
                         continue
                     elif stmt.data.op == 'Iop_32Uto64':
                         # data transferring with conversion
                         # t21 = 32Uto64(t22)
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.UnsignedExtension32to64
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.UnsignedExtension,
+                                                                         32, 64)
                         continue
-                elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith('Iop_Add'):
-                    # GitHub issue #1289, an S390X binary
-                    # jump_label = &jump_table + *(jump_table[index])
-                    #       IRSB 0x4007c0
-                    #   00 | ------ IMark(0x4007c0, 4, 0) ------
-                    # + 01 | t0 = GET:I32(212)
-                    # + 02 | t1 = Add32(t0,0xffffffff)
-                    #   03 | PUT(352) = 0x0000000000000003
-                    #   04 | t13 = 32Sto64(t0)
-                    #   05 | t6 = t13
-                    #   06 | PUT(360) = t6
-                    #   07 | PUT(368) = 0xffffffffffffffff
-                    #   08 | PUT(376) = 0x0000000000000000
-                    #   09 | PUT(212) = t1
-                    #   10 | PUT(ia) = 0x00000000004007c4
-                    #   11 | ------ IMark(0x4007c4, 6, 0) ------
-                    # + 12 | t14 = 32Uto64(t1)
-                    # + 13 | t8 = t14
-                    # + 14 | t16 = CmpLE64U(t8,0x000000000000000b)
-                    # + 15 | t15 = 1Uto32(t16)
-                    # + 16 | t10 = t15
-                    # + 17 | t11 = CmpNE32(t10,0x00000000)
-                    # + 18 | if (t11) { PUT(offset=336) = 0x4007d4; Ijk_Boring }
-                    #   Next: 0x4007ca
-                    #
-                    #       IRSB 0x4007d4
-                    #   00 | ------ IMark(0x4007d4, 6, 0) ------
-                    # + 01 | t8 = GET:I64(r2)
-                    # + 02 | t7 = Shr64(t8,0x3d)
-                    # + 03 | t9 = Shl64(t8,0x03)
-                    # + 04 | t6 = Or64(t9,t7)
-                    # + 05 | t11 = And64(t6,0x00000007fffffff8)
-                    #   06 | ------ IMark(0x4007da, 6, 0) ------
-                    #   07 | PUT(r1) = 0x0000000000400a50
-                    #   08 | PUT(ia) = 0x00000000004007e0
-                    #   09 | ------ IMark(0x4007e0, 6, 0) ------
-                    # + 10 | t12 = Add64(0x0000000000400a50,t11)
-                    # + 11 | t16 = LDbe:I64(t12)
-                    #   12 | PUT(r2) = t16
-                    #   13 | ------ IMark(0x4007e6, 4, 0) ------
-                    # + 14 | t17 = Add64(0x0000000000400a50,t16)
-                    # + Next: t17
-                    #
-                    # Special case: a base address is added to the loaded offset before jumping to it.
-                    if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
-                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
-                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
-                                                                         stmt.data.args[1].tmp,
-                                                                         base_addr=stmt.data.args[0].con.value)
-                                                      )
+                    elif stmt.data.op == 'Iop_16Uto32':
+                        # data transferring wth conversion
                         stmts_to_remove.append(stmt_loc)
-                    elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
-                            isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
-                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
-                                                                         stmt.data.args[0].tmp,
-                                                                         base_addr=stmt.data.args[1].con.value)
-                                                      )
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.UnsignedExtension,
+                                                                         16, 32)
+                        continue
+                    elif stmt.data.op == 'Iop_8Uto32':
+                        # data transferring wth conversion
                         stmts_to_remove.append(stmt_loc)
-                    elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
-                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
-                        # one of the tmps must be holding a concrete value at this point
-                        stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
-                                                                         stmt.data.args[0].tmp,
-                                                                         tmp_1=stmt.data.args[1].tmp)
-                                                      )
-                        stmts_to_remove.append(stmt_loc)
-                    else:
-                        # not supported
-                        pass
-                    continue
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.UnsignedExtension,
+                                                                         8, 32)
+                        continue
+                elif isinstance(stmt.data, pyvex.IRExpr.Binop):
+                    if stmt.data.op.startswith('Iop_Add'):
+                        # GitHub issue #1289, an S390X binary
+                        # jump_label = &jump_table + *(jump_table[index])
+                        #       IRSB 0x4007c0
+                        #   00 | ------ IMark(0x4007c0, 4, 0) ------
+                        # + 01 | t0 = GET:I32(212)
+                        # + 02 | t1 = Add32(t0,0xffffffff)
+                        #   03 | PUT(352) = 0x0000000000000003
+                        #   04 | t13 = 32Sto64(t0)
+                        #   05 | t6 = t13
+                        #   06 | PUT(360) = t6
+                        #   07 | PUT(368) = 0xffffffffffffffff
+                        #   08 | PUT(376) = 0x0000000000000000
+                        #   09 | PUT(212) = t1
+                        #   10 | PUT(ia) = 0x00000000004007c4
+                        #   11 | ------ IMark(0x4007c4, 6, 0) ------
+                        # + 12 | t14 = 32Uto64(t1)
+                        # + 13 | t8 = t14
+                        # + 14 | t16 = CmpLE64U(t8,0x000000000000000b)
+                        # + 15 | t15 = 1Uto32(t16)
+                        # + 16 | t10 = t15
+                        # + 17 | t11 = CmpNE32(t10,0x00000000)
+                        # + 18 | if (t11) { PUT(offset=336) = 0x4007d4; Ijk_Boring }
+                        #   Next: 0x4007ca
+                        #
+                        #       IRSB 0x4007d4
+                        #   00 | ------ IMark(0x4007d4, 6, 0) ------
+                        # + 01 | t8 = GET:I64(r2)
+                        # + 02 | t7 = Shr64(t8,0x3d)
+                        # + 03 | t9 = Shl64(t8,0x03)
+                        # + 04 | t6 = Or64(t9,t7)
+                        # + 05 | t11 = And64(t6,0x00000007fffffff8)
+                        #   06 | ------ IMark(0x4007da, 6, 0) ------
+                        #   07 | PUT(r1) = 0x0000000000400a50
+                        #   08 | PUT(ia) = 0x00000000004007e0
+                        #   09 | ------ IMark(0x4007e0, 6, 0) ------
+                        # + 10 | t12 = Add64(0x0000000000400a50,t11)
+                        # + 11 | t16 = LDbe:I64(t12)
+                        #   12 | PUT(r2) = t16
+                        #   13 | ------ IMark(0x4007e6, 4, 0) ------
+                        # + 14 | t17 = Add64(0x0000000000400a50,t16)
+                        # + Next: t17
+                        #
+                        # Special case: a base address is added to the loaded offset before jumping to it.
+                        if isinstance(stmt.data.args[0], pyvex.IRExpr.Const) and \
+                                isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+                            stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                                                                             stmt.data.args[1].tmp,
+                                                                             base_addr=stmt.data.args[0].con.value)
+                                                          )
+                            stmts_to_remove.append(stmt_loc)
+                        elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                                isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+                            stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                                                                             stmt.data.args[0].tmp,
+                                                                             base_addr=stmt.data.args[1].con.value)
+                                                          )
+                            stmts_to_remove.append(stmt_loc)
+                        elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                                isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+                            # one of the tmps must be holding a concrete value at this point
+                            stmts_adding_base_addr.append(JumpTargetBaseAddr(stmt_loc, stmt,
+                                                                             stmt.data.args[0].tmp,
+                                                                             tmp_1=stmt.data.args[1].tmp)
+                                                          )
+                            stmts_to_remove.append(stmt_loc)
+                        else:
+                            # not supported
+                            pass
+                        continue
+                    elif stmt.data.op.startswith('Iop_Or'):
+                        # this is sometimes used in VEX statements in THUMB mode code to adjust the address to an odd
+                        # number
+                        # e.g.
+                        #        IRSB 0x4b63
+                        #    00 | ------ IMark(0x4b62, 4, 1) ------
+                        #    01 | PUT(itstate) = 0x00000000
+                        #  + 02 | t11 = GET:I32(r2)
+                        #  + 03 | t10 = Shl32(t11,0x01)
+                        #  + 04 | t9 = Add32(0x00004b66,t10)
+                        #  + 05 | t8 = LDle:I16(t9)
+                        #  + 06 | t7 = 16Uto32(t8)
+                        #  + 07 | t14 = Shl32(t7,0x01)
+                        #  + 08 | t13 = Add32(0x00004b66,t14)
+                        #  + 09 | t12 = Or32(t13,0x00000001)
+                        #  + Next: t12
+                        if isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                                isinstance(stmt.data.args[1], pyvex.IRExpr.Const) and stmt.data.args[1].con.value == 1:
+                            # great. here it is
+                            stmts_to_remove.append(stmt_loc)
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.Or1, )
+                            continue
+                    elif stmt.data.op.startswith('Iop_Shl'):
+                        # this is sometimes used when dealing with TBx instructions in ARM code.
+                        # e.g.
+                        #        IRSB 0x4b63
+                        #    00 | ------ IMark(0x4b62, 4, 1) ------
+                        #    01 | PUT(itstate) = 0x00000000
+                        #  + 02 | t11 = GET:I32(r2)
+                        #  + 03 | t10 = Shl32(t11,0x01)
+                        #  + 04 | t9 = Add32(0x00004b66,t10)
+                        #  + 05 | t8 = LDle:I16(t9)
+                        #  + 06 | t7 = 16Uto32(t8)
+                        #  + 07 | t14 = Shl32(t7,0x01)
+                        #  + 08 | t13 = Add32(0x00004b66,t14)
+                        #  + 09 | t12 = Or32(t13,0x00000001)
+                        #  + Next: t12
+                        if isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and \
+                                isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+                            # found it
+                            stmts_to_remove.append(stmt_loc)
+                            all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.ShiftLeft,
+                                                                         stmt.data.args[1].con.value)
+                            continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
                     load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
                                                           block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width
                     stmts_to_remove.append(stmt_loc)
-                    all_addr_holders[(stmt_loc[0], stmt.tmp)] = AddressTransferringTypes.Assignment
+                    all_addr_holders[(stmt_loc[0], stmt.tmp)] = (AddressTransferringTypes.Assignment, )
             elif isinstance(stmt, pyvex.IRStmt.LoadG):
                 # Got it!
                 #
@@ -961,17 +1025,31 @@ class JumpTableResolver(IndirectJumpResolver):
         if stmts_adding_base_addr:
             stmt_adding_base_addr = stmts_adding_base_addr[0]
             base_addr = stmt_adding_base_addr.base_addr
-            conversion_ops = list(reversed(list(v for v in all_addr_holders.values()
-                                                if v is not AddressTransferringTypes.Assignment)))
-            if conversion_ops:
+            conversions = list(reversed(list(v for v in all_addr_holders.values()
+                                                if v[0] is not AddressTransferringTypes.Assignment)))
+            if conversions:
                 invert_conversion_ops = []
-                for conversion_op in conversion_ops:
-                    if conversion_op is AddressTransferringTypes.SignedExtension32to64:
-                        lam = lambda a: (a | 0xffffffff00000000) if a >= 0x80000000 else a
-                    elif conversion_op is AddressTransferringTypes.UnsignedExtension32to64:
+                for conv in conversions:
+                    if len(conv) == 1:
+                        conversion_op, args = conv[0], None
+                    else:
+                        conversion_op, args = conv[0], conv[1:]
+                    if conversion_op is AddressTransferringTypes.SignedExtension:
+                        if args == (32, 64):
+                            lam = lambda a: (a | 0xffffffff00000000) if a >= 0x80000000 else a
+                        else:
+                            raise NotImplementedError("Unsupported signed extension operation.")
+                    elif conversion_op is AddressTransferringTypes.UnsignedExtension:
                         lam = lambda a: a
-                    elif conversion_op is AddressTransferringTypes.Truncation64to32:
-                        lam = lambda a: a & 0xffffffff
+                    elif conversion_op is AddressTransferringTypes.Truncation:
+                        if args == (64, 32):
+                            lam = lambda a: a & 0xffffffff
+                        else:
+                            raise NotImplementedError("Unsupported truncation operation.")
+                    elif conversion_op is AddressTransferringTypes.Or1:
+                        lam = lambda a: a | 1
+                    elif conversion_op is AddressTransferringTypes.ShiftLeft:
+                        lam = lambda a, sl=args[0]: a << sl
                     else:
                         raise NotImplementedError("Unsupported conversion operation.")
                     invert_conversion_ops.append(lam)
