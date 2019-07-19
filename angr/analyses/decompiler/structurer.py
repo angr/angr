@@ -246,7 +246,7 @@ class Structurer(Analysis):
     """
     Structure a region.
     """
-    def __init__(self, region, parent_map=None, graph=None):
+    def __init__(self, region, parent_map=None):
 
         self._region = region
         self._parent_map = parent_map
@@ -338,8 +338,7 @@ class Structurer(Analysis):
 
         # find loop nodes and successors
         loop_subgraph = RegionIdentifier.slice_graph(graph, head, latching_nodes, include_frontier=True)
-        loop_node_addrs = set( node.addr for node in loop_subgraph )
-        
+        loop_node_addrs = set( node.addr for node in loop_subgraph )    
 
         # Case A: The loop successor is inside the current region (does it happen at all?)
         loop_successors = set()
@@ -838,7 +837,7 @@ class Structurer(Analysis):
                 return claripy.false
             else:
                 return claripy.true
-        
+
         if type(src_block) is GraphRegion:
             return claripy.true
 
