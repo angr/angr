@@ -4,7 +4,8 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
-from typing import Union, Optional, Type
+from typing import Union, Optional
+from typing import Type # For some reasons the linter doesn't recognize the use in apply_definition but PyCharm needs it imported to correctly recognize it # pylint: disable=unused-import
 
 from itanium_demangler import parse
 
@@ -23,7 +24,7 @@ from .function_parser import FunctionParser
 l = logging.getLogger(name=__name__)
 
 from ...sim_type import SimTypeFunction, parse_defns
-from ...calling_conventions import SimCC, DefaultCC
+from ...calling_conventions import SimCC
 from ...project import Project
 
 
@@ -1323,7 +1324,7 @@ class Function(Serializable):
 
         :param str definition:
         :param Optional[Union[SimCC, Type[SimCC]]] calling_convention:
-        :return:
+        :return None:
         """
         if not definition.endswith(";"):
             definition += ";"
@@ -1349,11 +1350,6 @@ class Function(Serializable):
 
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")
-
-
-
-
-        return
 
     def copy(self):
         func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
