@@ -332,11 +332,11 @@ class Function(Serializable):
     @prototype.setter
     def prototype(self, proto):
         """
-        :param SimTypeFunction proto:
+        :param Optional[SimTypeFunction] proto:
         :return:
         """
         if self.calling_convention:
-            self.calling_convention.func_ty = proto.with_arch(self.project.arch)
+            self.calling_convention.func_ty = proto.with_arch(self.project.arch) if proto else None
             logging.warning("Changing function prototype while calling convention is set, please use .calling_convention.func_ty")
         else:
             self._prototype = proto
