@@ -1049,7 +1049,8 @@ class JumpTableResolver(IndirectJumpResolver):
                     elif conversion_op is AddressTransferringTypes.Or1:
                         lam = lambda a: a | 1
                     elif conversion_op is AddressTransferringTypes.ShiftLeft:
-                        lam = lambda a, sl=args[0]: a << sl
+                        shift_amount = args[0]
+                        lam = lambda a, sl=shift_amount: a << sl
                     else:
                         raise NotImplementedError("Unsupported conversion operation.")
                     invert_conversion_ops.append(lam)

@@ -166,6 +166,21 @@ def test_armel_cfgswitches_gcc():
     compare(cfg.jump_tables, all_jumptables)
 
 
+def test_armel_lwip_tcpecho_bm():
+    p = angr.Project(os.path.join(test_location, "armel", "lwip_tcpecho_bm.elf"), auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+
+    all_jumptables = {
+        J(0x14fb, 0x14fe, [0x1519, 0x1519, 0x152f, 0x1541, 0x1553, 0x159d, 0x1565, 0x156d, 0x1575, 0x159d, 0x159d, 0x157d, 0x1585, 0x158d, 0x1595, 0x159d, 0x159d, 0x159d, 0x15a1, 0x1513]),
+        J(0x2d45, 0x2d48, [0x2d8d, 0x2d4f, 0x2d91, 0x2d7f, 0x2d7f]),
+        J(0x2e8d, 0x2e90, [0x2eb3, 0x2e97, 0x2eb7, 0x2ea7, 0x2ea7]),
+        J(0x2e9f, 0x2ea2, [0x2f93, 0x2fc9, 0x2fc9, 0x2ebb]),
+        J(0x4b63, 0x4b66, [0x4b91, 0x4c81, 0x4d53, 0x4d5b, 0x4ded, 0x4d53, 0x4e21, 0x4e5f]),
+    }
+
+    compare(cfg.jump_tables, all_jumptables)
+
+
 def test_s390x_cfgswitches():
     p = angr.Project(os.path.join(test_location, "s390x", "cfg_switches"), auto_load_libs=False)
     cfg = p.analyses.CFGFast()
@@ -214,5 +229,6 @@ if __name__ == "__main__":
     test_i386_cfgswitches_gcc_O2()
     test_kprca_00009()
     test_armel_cfgswitches_gcc()
+    test_armel_lwip_tcpecho_bm()
     test_s390x_cfgswitches()
     test_jumptable_occupied_as_data()
