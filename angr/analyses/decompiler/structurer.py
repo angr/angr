@@ -227,7 +227,7 @@ class RecursiveStructurer(Analysis):
                 # Get the parent region
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
-                st = self.project.analyses.Structurer(current_region, parent_region=parent_region)
+                st = self.project.analyses.Structurer(current_region, parent_map=parent_map)
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
@@ -246,13 +246,14 @@ class Structurer(Analysis):
     """
     Structure a region.
     """
-    def __init__(self, region, parent_region=None):
+    def __init__(self, region, parent_map=None):
 
         self._region = region
-        self._parent_region = parent_region
+        self._parent_map = parent_map
 
         self._reaching_conditions = None
         self._predicate_mapping = None
+        self._edge_conditions = None
         self._condition_mapping = {}
 
         self.result = None
@@ -350,12 +351,17 @@ class Structurer(Analysis):
 
         # Case B: The loop successor is the successor to this region in the parent graph
         if not loop_successors:
-            parent_graph = self._parent_region.graph
-            for node, successors in networkx.bfs_successors(parent_graph, self._region):
-                if node.addr in loop_node_addrs:
-                    for suc in successors:
-                        if suc not in loop_subgraph:
-                            loop_successors.add(suc)
+            current_region = self._region
+            parent_region = self._parent_map.get(current_region, None)
+            while parent_region and not loop_successors:
+                parent_graph = parent_region.graph
+                for node, successors in networkx.bfs_successors(parent_graph, current_region):
+                    if node.addr == current_region.addr:
+                        for suc in successors:
+                            if suc not in loop_subgraph:
+                                loop_successors.add(suc)
+                current_region = parent_region
+                parent_region = self._parent_map.get(current_region, None)
 
         return loop_subgraph, loop_successors
 
@@ -425,6 +431,7 @@ class Structurer(Analysis):
     def _to_loop_body_sequence(self, loop_head, loop_subgraph, loop_successors):
 
         graph = self._region.graph
+        loop_nodes = set(s.addr for s in graph.nodes)
         loop_region_graph = networkx.DiGraph()
 
         # TODO: Make sure the loop body has been structured
@@ -458,10 +465,12 @@ class Structurer(Analysis):
                     new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
                 elif type(last_stmt) is ailment.Stmt.ConditionalJump:
                     # add a conditional break
-                    if last_stmt.true_target.value in loop_successors:
+                    if last_stmt.true_target.value in loop_successors and \
+                                last_stmt.false_target.value in loop_nodes:
                         cond = last_stmt.condition
                         target = last_stmt.true_target.value
-                    elif last_stmt.false_target.value in loop_successors:
+                    elif last_stmt.false_target.value in loop_successors and \
+                                last_stmt.true_target.value in loop_nodes:
                         cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
                         target = last_stmt.false_target.value
                     else:
@@ -521,7 +530,7 @@ class Structurer(Analysis):
         # traverse the graph to recover the condition for each edge
         for src in self._region.graph.nodes():
             nodes = self._region.graph[src]
-            if len(nodes) > 1:
+            if len(nodes) >= 1:
                 for dst in nodes:
                     edge = src, dst
                     predicate = self._extract_predicate(src, dst)
@@ -548,6 +557,7 @@ class Structurer(Analysis):
 
         self._reaching_conditions = reaching_conditions
         self._predicate_mapping = predicate_mapping
+        self._edge_conditions = edge_conditions
 
     def _convert_claripy_bool_ast(self, cond):
         """
@@ -721,9 +731,9 @@ class Structurer(Analysis):
 
         if isinstance(node, SequenceNode):
             new_nodes = [ ]
-            for node in node.nodes:
-                node = self._remove_claripy_bool_asts(node)
-                new_nodes.append(node)
+            for n in node.nodes:
+                new_node = self._remove_claripy_bool_asts(n)
+                new_nodes.append(new_node)
             new_seq_node = SequenceNode(new_nodes)
             return new_seq_node
 
@@ -828,6 +838,9 @@ class Structurer(Analysis):
             else:
                 return claripy.true
 
+        if type(src_block) is GraphRegion:
+            return claripy.true
+
         last_stmt = self._get_last_statement(src_block)
 
         if last_stmt is None:
@@ -841,7 +854,7 @@ class Structurer(Analysis):
             else:
                 return claripy.Not(bool_var)
 
-        raise NotImplementedError()
+        return claripy.true
 
     @staticmethod
     def _extract_jump_targets(stmt):
@@ -878,7 +891,7 @@ class Structurer(Analysis):
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
-            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1]),
+            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1])
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.DirtyExpression)):
