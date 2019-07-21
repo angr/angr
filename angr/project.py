@@ -12,6 +12,9 @@ import cle
 
 from .misc.ux import deprecated
 
+from typing import Optional
+from .sim_procedure import SimProcedure
+
 l = logging.getLogger(name=__name__)
 
 def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
@@ -439,20 +442,24 @@ class Project:
         """
         Returns True if `addr` is hooked.
 
-        :param addr: An address.
+        :param int addr: An address.
         :returns:    True if addr is hooked, False otherwise.
         """
+        if not isinstance(addr, int):
+            raise TypeError("Argument is not an integer, but %s " % type(addr))
         return addr in self._sim_procedures
 
     def hooked_by(self, addr):
         """
         Returns the current hook for `addr`.
 
-        :param addr: An address.
-
-        :returns:    None if the address is not hooked.
+        :param int addr: An address.
+        :returns:  None if the address is not hooked.
+        :rtype: Optional[SimProcedure]
         """
-
+        if not isinstance(addr, int):
+            raise TypeError("Argument is not an integer, but %s " % type(addr))
+        
         if not self.is_hooked(addr):
             l.warning("Address %s is not hooked", self._addr_to_str(addr))
             return None
@@ -463,7 +470,7 @@ class Project:
         """
         Remove a hook.
 
-        :param addr:    The address of the hook.
+        :param int addr:    The address of the hook.
         """
         if not self.is_hooked(addr):
             l.warning("Address %s not hooked", self._addr_to_str(addr))
