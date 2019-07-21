@@ -1,10 +1,11 @@
 import ailment
 
+from .const import SimIRExpr_Const
 from .sbo import SimIRExpr_StackBaseOffset
 
 EXPR_CLASSES = {
 	# ailment.Expr.Atom:              SimIRExpr_Atom,
-	# ailment.Expr.Const:             SimIRExpr_Const,
+        ailment.Expr.Const:             SimIRExpr_Const,
 	# ailment.Expr.Tmp:               SimIRExpr_Tmp,
 	# ailment.Expr.Register:          SimIRExpr_Register,
 	# ailment.Expr.Op:                SimIRExpr_Op,
