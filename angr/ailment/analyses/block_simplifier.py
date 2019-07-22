@@ -35,6 +35,8 @@ class BlockSimplifier(Analysis):
         ctr = 0
         max_ctr = 30
 
+        block = self._eliminate_dead_assignments(block)
+
         while True:
             ctr += 1
             # print(str(block))

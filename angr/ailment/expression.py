@@ -110,11 +110,10 @@ class Register(Atom):
         return str(self)
 
     def __str__(self):
+        if hasattr(self, 'reg_name'):
+            return "%s<%d>" % (self.reg_name, self.bits // 8)
         if self.variable is None:
-            if hasattr(self, 'reg_name'):
-                return "%s<%d>" % (self.reg_name, self.bits // 8)
-            else:
-                return "reg_%d<%d>" % (self.reg_offset, self.bits // 8)
+            return "reg_%d<%d>" % (self.reg_offset, self.bits // 8)
         else:
             return "%s" % str(self.variable.name)
 
@@ -146,6 +145,15 @@ class UnaryOp(Op):
     def __repr__(self):
         return str(self)
 
+    def __eq__(self, other):
+        return type(other) is UnaryOp and \
+               self.op == other.op and \
+               self.operand == other.operand and \
+               self.bits == other.bits
+
+    def __hash__(self):
+        return hash((self.op, self.operand, self.bits))
+
     def replace(self, old_expr, new_expr):
         r, replaced_operand = self.operand.replace(old_expr, new_expr)
 
@@ -174,6 +182,17 @@ class Convert(UnaryOp):
 
     def __repr__(self):
         return str(self)
+
+    def __eq__(self, other):
+        return type(other) is Convert and \
+               self.operand == other.operand and \
+               self.from_bits == other.from_bits and \
+               self.to_bits == other.to_bits and \
+               self.bits == other.bits and \
+               self.is_signed == other.is_signed
+
+    def __hash__(self):
+        return hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed))
 
     def replace(self, old_expr, new_expr):
         r, replaced_operand = self.operand.replace(old_expr, new_expr)
