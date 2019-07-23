@@ -115,7 +115,7 @@ class SimEnginePropagatorAIL(
         if new_expr is not None:
             l.debug("Add a replacement: %s with %s", expr, new_expr)
             self.state.add_replacement(self._codeloc(), expr, new_expr)
-            if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert]:
+            if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert, Expr.StackBaseOffset, Expr.BasePointerOffset]:
                 expr = new_expr
 
         return expr
