@@ -685,7 +685,7 @@ class SimEngineLightAILMixin:
             return expr_0 // expr_1
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'Div', [expr_0, expr_1], **expr.tags)
-    
+
     def _ail_handle_DivMod(self, expr):
         return self._ail_handle_Div(expr)
 
@@ -705,7 +705,7 @@ class SimEngineLightAILMixin:
             return expr_0 * expr_1
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], **expr.tags)
-    
+
     def _ail_handle_Mull(self, expr):
         return self._ail_handle_Mul(expr)
 
