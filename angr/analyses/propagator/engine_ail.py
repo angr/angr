@@ -39,11 +39,18 @@ class SimEnginePropagatorAIL(
                 self.state.store_variable(dst, src)
 
         elif type(dst) is Expr.Register:
-            l.debug("New replacement: %s with %s", dst, src)
-            self.state.store_variable(dst, src)
-
-            # remove previous replacements whose source contains this register
-            self.state.filter_variables(dst)
+            if type(src) is Expr.Tmp:
+                l.debug("%s = %s, replace %s with %s.", dst, src, src, dst)
+                l.debug("New replacement: %s with %s", src, dst)
+                self.state.filter_variables(src)
+                self.state.store_variable(src, dst)
+            elif type(src) is Expr.Const:
+                l.debug("%s = %s, replace %s with %s.", dst, src, dst, src)
+                l.debug("New replacement: %s with %s", dst, src)
+                self.state.filter_variables(dst)
+                self.state.store_variable(dst, src)
+            else:
+                l.debug("%s = %s", dst, src)
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -108,7 +115,8 @@ class SimEnginePropagatorAIL(
         if new_expr is not None:
             l.debug("Add a replacement: %s with %s", expr, new_expr)
             self.state.add_replacement(self._codeloc(), expr, new_expr)
-            expr = new_expr
+            if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert]:
+                expr = new_expr
 
         return expr
 
