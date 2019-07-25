@@ -36,6 +36,7 @@ inspect_attributes = {
     'mem_read_expr',
     'mem_read_length',
     'mem_read_condition',
+    'mem_read_fallback',
 
     # mem_write
     'mem_write_address',
@@ -48,6 +49,7 @@ inspect_attributes = {
     'reg_read_expr',
     'reg_read_length',
     'reg_read_condition',
+    'reg_read_fallback',
 
     # reg_write
     'reg_write_offset',

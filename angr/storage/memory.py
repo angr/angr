@@ -751,19 +751,23 @@ class SimMemory(SimStatePlugin):
         if _inspect:
             if self.category == 'reg':
                 self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e,
-                                    reg_read_condition=condition_e
+                                    reg_read_condition=condition_e,
+                                    reg_read_fallback=fallback_e
                                     )
                 addr_e = self.state._inspect_getattr("reg_read_offset", addr_e)
                 size_e = self.state._inspect_getattr("reg_read_length", size_e)
                 condition_e = self.state._inspect_getattr("reg_read_condition", condition_e)
+                fallback_e = self.state._inspect_getattr("reg_read_fallback", fallback_e)
 
             elif self.category == 'mem':
                 self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e,
-                                    mem_read_condition=condition_e
+                                    mem_read_condition=condition_e,
+                                    mem_read_fallback=fallback_e
                                     )
                 addr_e = self.state._inspect_getattr("mem_read_address", addr_e)
                 size_e = self.state._inspect_getattr("mem_read_length", size_e)
                 condition_e = self.state._inspect_getattr("mem_read_condition", condition_e)
+                fallback_e = self.state._inspect_getattr("mem_read_fallback", fallback_e)
 
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
