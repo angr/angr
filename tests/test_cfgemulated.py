@@ -486,7 +486,7 @@ def test_abort_and_resume():
 
     should_abort = False
 
-    class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):
+    class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
         def _intra_analysis(self):
             if should_abort:
                 self.abort()
