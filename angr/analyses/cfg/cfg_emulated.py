@@ -347,7 +347,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._starts = starts
         self._max_steps = max_steps
 
-        self._sanitize_starts()
+        if self._starts:
+            self._sanitize_starts()
 
         self._analyze()
 
