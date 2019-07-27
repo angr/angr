@@ -1,5 +1,5 @@
 
-import logging
+from functools import reduce
 
 import networkx
 
@@ -18,7 +18,7 @@ from .cfg.cfg_utils import CFGUtils
 # Graph traversal
 #
 
-class GraphVisitor(object):
+class GraphVisitor:
     """
     A graph visitor takes a node in the graph and returns its successors. Typically it visits a control flow graph, and
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
@@ -543,10 +543,9 @@ class ForwardAnalysis:
         For compatibility reasons, the variable `changed` in the returning tuple can have three values:
         - True, means a change has occurred, the output state is not the same as the input state, and a fixed point is
           not reached. Usually used if the analysis performs weak updates.
-        - False, means no change has occurred, and a fixed point has reached. Usually used if the analysis performs weak
-          updates.
-        - None, means no change detection is done during this process (e.g., if the analysis requires strong updates),
-          and change detection will be done during _merge_states().
+        - False, means no change has occurred. Usually used if the analysis performs weak updates.
+        - None, means no change detection is performed during this process (e.g., if the analysis requires strong
+          updates), and change detection will be performed later during _merge_states().
 
         :param node:    A node in the graph.
         :param state:   An abstract state that acts as the initial abstract state of this analysis routine.
@@ -561,7 +560,8 @@ class ForwardAnalysis:
 
         :param node:   A node in the graph.
         :param states: Abstract states to merge.
-        :return:       A merged abstract state, and a boolean variable indicating if a fixed-point has reached.
+        :return:       A merged abstract state, and a boolean variable indicating if a local fixed-point has reached (
+                       i.e., union(state0, state1) == state0), in which case, its successors will not be revisited.
         """
 
         raise NotImplementedError('_merge_states() is not implemented.')
@@ -635,18 +635,18 @@ class ForwardAnalysis:
             successors_to_visit = self._add_input_state(n, output_state)
 
             if changed is False:
-                # reached a fixed point
+                # no change is detected
                 continue
             elif changed is True:
-                # a fixed point is not reached
+                # changes detected
                 # revisit all its successors
                 self._graph_visitor.revisit_successors(n, include_self=False)
             else:
-                # the fixed-point-ness is determined by state merging
-                # revisit all successors in the successors_to_visit list
+                # the change of states are determined during state merging (_add_input_state()) instead of during
+                # simulated execution (_run_on_node()).
+                # revisit all successors in the `successors_to_visit` list
                 for succ in successors_to_visit:
                     self._graph_visitor.revisit_node(succ)
-
 
     def _add_input_state(self, node, input_state):
         """
