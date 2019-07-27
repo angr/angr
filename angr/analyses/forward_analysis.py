@@ -1,5 +1,5 @@
 
-import logging
+from functools import reduce
 
 import networkx
 
@@ -18,7 +18,7 @@ from .cfg.cfg_utils import CFGUtils
 # Graph traversal
 #
 
-class GraphVisitor(object):
+class GraphVisitor:
     """
     A graph visitor takes a node in the graph and returns its successors. Typically it visits a control flow graph, and
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
@@ -148,7 +148,7 @@ class GraphVisitor(object):
 
         return successors
 
-    def revisit(self, node, include_self=True):
+    def revisit_successors(self, node, include_self=True):
         """
         Revisit a node in the future. As a result, the successors to this node will be revisited as well.
 
@@ -163,6 +163,19 @@ class GraphVisitor(object):
 
         for succ in successors:
             self._sorted_nodes.add(succ)
+
+        # reorder it
+        self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
+
+    def revisit_node(self, node):
+        """
+        Revisit a node in the future. Do not include its successors immediately.
+
+        :param node:    The node to revisit in the future.
+        :return:        None
+        """
+
+        self._sorted_nodes.add(node)
 
         # reorder it
         self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
@@ -527,6 +540,13 @@ class ForwardAnalysis:
         """
         The analysis routine that runs on each node in the graph.
 
+        For compatibility reasons, the variable `changed` in the returning tuple can have three values:
+        - True, means a change has occurred, the output state is not the same as the input state, and a fixed point is
+          not reached. Usually used if the analysis performs weak updates.
+        - False, means no change has occurred. Usually used if the analysis performs weak updates.
+        - None, means no change detection is performed during this process (e.g., if the analysis requires strong
+          updates), and change detection will be performed later during _merge_states().
+
         :param node:    A node in the graph.
         :param state:   An abstract state that acts as the initial abstract state of this analysis routine.
         :return:        A tuple: (changed, output abstract state)
@@ -540,7 +560,8 @@ class ForwardAnalysis:
 
         :param node:   A node in the graph.
         :param states: Abstract states to merge.
-        :return:       A merged abstract state.
+        :return:       A merged abstract state, and a boolean variable indicating if a local fixed-point has reached (
+                       i.e., union(state0, state1) == state0), in which case, its successors will not be revisited.
         """
 
         raise NotImplementedError('_merge_states() is not implemented.')
@@ -601,7 +622,7 @@ class ForwardAnalysis:
                 # all done!
                 break
 
-            job_state = self._pop_input_state(n)
+            job_state = self._get_input_state(n)
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
 
@@ -611,14 +632,21 @@ class ForwardAnalysis:
             changed, output_state = self._run_on_node(n, job_state)
 
             # output state of node n is input state for successors to node n
-            self._add_input_state(n, output_state)
+            successors_to_visit = self._add_input_state(n, output_state)
 
-            if not changed:
-                # reached a fixed point
+            if changed is False:
+                # no change is detected
                 continue
-
-            # add all successors
-            self._graph_visitor.revisit(n, include_self=False)
+            elif changed is True:
+                # changes detected
+                # revisit all its successors
+                self._graph_visitor.revisit_successors(n, include_self=False)
+            else:
+                # the change of states are determined during state merging (_add_input_state()) instead of during
+                # simulated execution (_run_on_node()).
+                # revisit all successors in the `successors_to_visit` list
+                for succ in successors_to_visit:
+                    self._graph_visitor.revisit_node(succ)
 
     def _add_input_state(self, node, input_state):
         """
@@ -630,12 +658,26 @@ class ForwardAnalysis:
         """
 
         successors = self._graph_visitor.successors(node)
+        successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
         for succ in successors:
             if succ in self._state_map:
-                self._state_map[succ] = self._merge_states(succ, *([ self._state_map[succ], input_state ]))
+                to_merge = [ self._state_map[succ], input_state ]
+                r = self._merge_states(succ, *to_merge)
+                if type(r) is tuple and len(r) == 2:
+                    merged_state, reached_fixedpoint = r
+                else:
+                    # compatibility concerns
+                    merged_state, reached_fixedpoint = r, False
+                self._state_map[succ] = merged_state
             else:
                 self._state_map[succ] = input_state
+                reached_fixedpoint = False
+
+            if not reached_fixedpoint:
+                successors_to_visit.add(succ)
+
+        return successors_to_visit
 
     def _pop_input_state(self, node):
         """
@@ -648,6 +690,16 @@ class ForwardAnalysis:
         if node in self._state_map:
             return self._state_map.pop(node)
         return None
+
+    def _get_input_state(self, node):
+        """
+        Get the input abstract state for this node.
+
+        :param node:    The node in graph.
+        :return:        A merged state, or None if there is no input state for this node available.
+        """
+
+        return self._state_map.get(node, None)
 
     def _merge_state_from_predecessors(self, node):
         """
