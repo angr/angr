@@ -344,8 +344,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
+        self._should_abort = False
+
         self._starts = starts
         self._max_steps = max_steps
+
+        if self._starts is None:
+            self._starts = [ ]
 
         if self._starts:
             self._sanitize_starts()

@@ -482,6 +482,32 @@ def test_cfg_switches():
                                  )
 
 
+def test_abort_and_resume():
+
+    should_abort = False
+
+    class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
+        def _intra_analysis(self):
+            if should_abort:
+                self.abort()
+            else:
+                super()._intra_analysis()
+
+    angr.analyses.AnalysesHub.register_default('CFGEmulatedAborted', CFGEmulatedAborted)
+
+    binary_path = os.path.join(test_location, "x86_64", "fauxware")
+    b = angr.Project(binary_path, auto_load_libs=False)
+
+    should_abort = True
+    cfg = b.analyses.CFGEmulatedAborted()
+    nose.tools.assert_greater(len(list(cfg.jobs)), 0)  # there should be left-over jobs
+
+    should_abort = False
+    cfg.resume()
+
+    nose.tools.assert_equal(len(list(cfg.jobs)), 0)  # no left-over job
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
