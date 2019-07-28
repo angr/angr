@@ -99,8 +99,9 @@ class CFBlanket(Analysis):
                 if obj.sections:
                     # Enumerate sections in an ELF file
                     for section in obj.sections:
-                        mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
-                        self._regions.append(mr)
+                        if section.occupies_memory:
+                            mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
+                            self._regions.append(mr)
                 else:
                     raise NotImplementedError()
             else:
