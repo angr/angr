@@ -1,4 +1,5 @@
 from cachetools import LRUCache
+from copy import deepcopy
 
 import cle
 import pyvex
@@ -555,7 +556,7 @@ class SimEngineVEX(SimEngine):
             # Do not cache the blocks if skip_stmts or collect_data_refs are enabled
             use_cache = False
 
-        # phase 2: thumb normalization
+        # phase 2: thumb normalization and 8086
         thumb = int(thumb)
         if isinstance(arch, ArchARM):
             if addr % 2 == 1:
@@ -565,6 +566,23 @@ class SimEngineVEX(SimEngine):
         elif thumb:
             l.error("thumb=True passed on non-arm architecture!")
             thumb = 0
+            
+        if isinstance(arch, Arch8086):
+            # we check the state, if there is nostate or things are symbolic
+            # we look if things are set in arch, otherwise raise an execption.
+            arch = deepcopy(arch)
+            if state:
+                if state.regs.cs.concrete:
+                    arch.vex_archinfo['i8086_cs_reg'] = state.regs.cs
+                if state.regs.ds.concrete:
+                    arch.vex_archinfo['i8086_ds_reg'] = state.regs.ds
+                if state.regs.es.concrete:
+                    arch.vex_archinfo['i8086_es_reg'] = state.regs.es
+                if state.regs.ss.concrete:
+                    arch.vex_archinfo['i8086_ss_reg'] = state.regs.ss
+            if arch.vex_archinfo['i8086_cs_reg'] == archinfo.UNINITALIZED_SREG:
+                raise ValueError("must provide cs register for 8086 mode")
+                
 
         # phase 3: check cache
         cache_key = None
