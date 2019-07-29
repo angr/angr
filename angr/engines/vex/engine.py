@@ -580,7 +580,7 @@ class SimEngineVEX(SimEngine):
                     arch.vex_archinfo['i8086_es_reg'] = state.regs.es
                 if state.regs.ss.concrete:
                     arch.vex_archinfo['i8086_ss_reg'] = state.regs.ss
-            if arch.vex_archinfo['i8086_cs_reg'] == archinfo.UNINITALIZED_SREG:
+            if arch.vex_archinfo['i8086_cs_reg'] == archinfo.arch_8086.UNINITALIZED_SREG:
                 raise ValueError("must provide cs register for 8086 mode")
                 
 
