@@ -12,7 +12,7 @@ from .. import SIM_PROCEDURES as P
 from . import SimLibrary
 
 
-_l = logging.getLogger('angr.prototypes.libc')
+_l = logging.getLogger(name=__name__)
 
 
 libc = SimLibrary()
@@ -20,6 +20,7 @@ libc.set_library_names('libc.so.0', 'libc.so.1', 'libc.so.2', 'libc.so.3', 'libc
 libc.add_all_from_dict(P['libc'])
 libc.add_all_from_dict(P['posix'])
 libc.add_all_from_dict(P['glibc'])
+libc.add_all_from_dict(P['uclibc']) # gotta do this since there's no distinguishing different libcs without analysis. there should be no naming conflicts in the functions.
 libc.add_alias('abort', '__assert_fail', '__stack_chk_fail')
 libc.add_alias('memcpy', 'memmove', 'bcopy')
 libc.add_alias('getc', '_IO_getc')

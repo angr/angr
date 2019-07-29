@@ -2,7 +2,7 @@ import angr
 import claripy
 import logging
 
-l = logging.getLogger('angr.procedures.win32.dynamic_loading')
+l = logging.getLogger(name=__name__)
 
 class LoadLibraryA(angr.SimProcedure):
     def run(self, lib_ptr):
@@ -57,7 +57,7 @@ class GetProcAddress(angr.SimProcedure):
             ordinal = self.state.solver.eval(name_addr)
             name = 'ordinal.%d.%s' % (ordinal, obj.provides)
         else:
-            name = self.state.mem[name_addr].string.concrete
+            name = self.state.mem[name_addr].string.concrete.decode('utf-8')
 
         full_name = '%s.%s' % (obj.provides, name)
         self.procs.add(full_name)

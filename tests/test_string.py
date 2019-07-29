@@ -708,7 +708,7 @@ def test_strchr():
 
     ss_res = strchr(s, arguments=[addr_haystack, str_needle])
     nose.tools.assert_false(s.solver.unique(ss_res))
-    nose.tools.assert_equal(len(s.solver.eval_upto(ss_res, 10)), 4)
+    nose.tools.assert_equal(len(s.solver.eval_upto(ss_res, 10)), 5)
 
     s_match = s.copy()
     s_nomatch = s.copy()
@@ -717,17 +717,16 @@ def test_strchr():
 
     nose.tools.assert_true(s_match.satisfiable())
     nose.tools.assert_true(s_nomatch.satisfiable())
-    nose.tools.assert_equal(len(s_match.solver.eval_upto(chr_needle, 300)), 3)
-    nose.tools.assert_equal(len(s_nomatch.solver.eval_upto(chr_needle, 300)), 253)
-    nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(ss_res, 300)), [ 0x10, 0x11, 0x12 ])
-    nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(chr_needle, 300)), [ 0x41, 0x42, 0x43 ])
+    nose.tools.assert_equal(len(s_match.solver.eval_upto(chr_needle, 300)), 4)
+    nose.tools.assert_equal(len(s_nomatch.solver.eval_upto(chr_needle, 300)), 252)
+    nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(ss_res, 300)), [ 0x10, 0x11, 0x12, 0x13 ])
+    nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(chr_needle, 300)), [ 0x00, 0x41, 0x42, 0x43 ])
 
     s_match.memory.store(ss_res, s_match.solver.BVV(0x44, 8))
     nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x10, 1), 300)), [ 0x41, 0x44 ])
     nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x11, 1), 300)), [ 0x42, 0x44 ])
     nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x12, 1), 300)), [ 0x43, 0x44 ])
-
-    return
+    nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x13, 1), 300)), [ 0x00, 0x44 ])
 
     #l.info("symbolic haystack, symbolic needle")
     #s = SimState(arch="AMD64", mode="symbolic")
@@ -928,6 +927,13 @@ def test_strcmp():
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.solver.eval_upto(r, 2), [0])
 
+def test_string_without_null():
+    s = SimState(arch="AMD64", mode="symbolic")
+    str_ = b"abcd"
+    str_addr = s.solver.BVV(0x10, 64)
+    s.memory.store(str_addr, str_)
+    nose.tools.assert_equal(s.solver.eval(s.mem[str_addr].string.resolved, cast_to=bytes), b"abcd")
+
 
 if __name__ == '__main__':
     test_getc()
@@ -944,3 +950,4 @@ if __name__ == '__main__':
     test_strcpy()
     test_strncpy()
     test_strstr_inconsistency()
+    test_string_without_null()

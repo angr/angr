@@ -239,26 +239,28 @@ def test_store_simplification():
 def test_loadg_no_constraint_creation():
 
     state = SimState(arch='armel', mode='symbolic')
+    engine = SimEngineVEX()
 
     from angr.engines.vex.statements.loadg import SimIRStmt_LoadG
 
-    state.scratch.temps[1] = state.solver.BVS('tmp_1', 32)
     stmt = pyvex.IRStmt.LoadG('Iend_LE', 'ILGop_16Uto32',
-                              pyvex.IRExpr.Const(pyvex.const.U32(0x1000)),
-                              pyvex.IRExpr.Const(pyvex.const.U32(0x2000)),
-                              pyvex.IRExpr.Const(pyvex.const.U32(0x1337)),
+                              0, # dst
+                              pyvex.IRExpr.Const(pyvex.const.U32(0x2000)), # addr (src)
+                              pyvex.IRExpr.Const(pyvex.const.U32(0x1337)), # alt
                               pyvex.IRExpr.RdTmp(1)  # guard
                               )
     tyenv = pyvex.IRTypeEnv(state.arch)
-    tyenv.types = [ None, 'Ity_I32' ]
-    state.scratch.tyenv = tyenv
-    loadg = SimIRStmt_LoadG(stmt, state)
-
-    loadg._execute()
+    tyenv.types = [ 'Ity_I32', 'Ity_I32' ]
+    state.scratch.set_tyenv(tyenv)
+    state.scratch.temps[1] = state.solver.BVS('tmp_1', 32)
+    SimIRStmt_LoadG(engine, state, stmt)
 
     # LOADG should not create new constraints - it is a simple conditional memory read. The conditions should only be
     # used inside the value AST to guard the memory read.
     assert not state.solver.constraints
+    assert state.scratch.temps[0] is not None
+    assert state.scratch.temps[0].variables.issuperset(state.scratch.temps[1].variables)
+    assert state.scratch.temps[0].op == 'If'
 
 
 if __name__ == '__main__':

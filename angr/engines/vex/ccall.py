@@ -1,6 +1,8 @@
 import claripy
 import logging
-l = logging.getLogger("angr.engines.vex.ccall")
+from archinfo.arch_arm import is_arm_arch
+
+l = logging.getLogger(name=__name__)
 #l.setLevel(logging.DEBUG)
 
 # pylint: disable=R0911
@@ -836,6 +838,52 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
 ###########################
 ### AMD64-specific ones ###
 ###########################
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2272
+def amd64g_check_ldmxcsr(state, mxcsr):
+    # /* Decide on a rounding mode.  mxcsr[14:13] holds it. */
+    # /* NOTE, encoded exactly as per enum IRRoundingMode. */
+    rmode = (mxcsr >> 13) & 3
+
+    # /* Detect any required emulation warnings. */
+    ew = EmNote_NONE
+
+    if ((mxcsr & 0x1F80) != 0x1F80).is_true:
+        # /* unmasked exceptions! */
+        ew = EmWarn_X86_sseExns
+
+    elif (mxcsr & (1 << 15)).is_true:
+        # /* FZ is set */
+        ew = EmWarn_X86_fz
+    elif (mxcsr & (1 << 6)).is_true:
+        # /* DAZ is set */
+        ew = EmWarn_X86_daz
+
+    return (ew << 32) | rmode, []
+
+
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2304
+def amd64g_create_mxcsr(state, sseround):
+    sseround &= 3
+    return 0x1F80 | (sseround << 13), []
+
+
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2316
+def amd64g_check_fldcw(state, fpucw):
+    rmode = (fpucw >> 10) & 3
+    ew = EmNote_NONE
+    if ((fpucw & 0x3f) != 0x3f).is_true:
+        # unmasked exceptions
+        ew = EmWarn_X86_x87exns
+    elif (((fpucw >> 8) & 3) != 3).is_true:
+        ew = EmWarn_X86_x87precision
+    return (ew << 32) | rmode, []
+
+
+# https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2342
+def amd64g_create_fpucw(state, fpround):
+    fpround &= 3
+    return 0x037f | (fpround << 10), []
+
 
 def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
     want_flags = state.solver.is_true(state.solver.SLT(sz, 0))
@@ -949,61 +997,48 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     r_AL = (flags_and_AX >> 0) & 0xFF
     r_AH = (flags_and_AX >> 8) & 0xFF
 
-    #if opcode == 0x27: # DAA
-    #    old_AL = r_AL
-    #    old_C  = r_C
-    #    r_C = state.solver.If((r_AL & 0xF) > 9 || r_A == 1, old_C, state.solver.BVV(0, 32))
-    #    r_A = state.solver.If((r_AL & 0xF) > 9 || r_A == 1,
-    #    if ((r_AL & 0xF) > 9 || r_A == 1) {
-    #        r_AL = r_AL + 6;
-    #        r_C  = old_C;
-    #        if (r_AL >= 0x100) r_C = 1;
-    #        r_A = 1;
-    #    } else {
-    #       r_A = 0;
-    #    }
-    #    if (old_AL > 0x99 || old_C == 1) {
-    #       r_AL = r_AL + 0x60;
-    #       r_C  = 1;
-    #    } else {
-    #       r_C = 0;
-    #    }
-    #    r_AL &= 0xFF;
-    #    r_O = 0
-    #    r_S = (r_AL & 0x80) ? 1 : 0;
-    #    r_Z = (r_AL == 0) ? 1 : 0;
-    #    r_P = calc_parity_8bit( r_AL );
-    #elif opcode == 0x2F: # DAS
-    #    old_AL = r_AL;
-    #    old_C  = r_C;
-    #    r_C = 0;
-    #    if ((r_AL & 0xF) > 9 || r_A == 1) {
-    #       Bool borrow = r_AL < 6;
-    #       r_AL = r_AL - 6;
-    #       r_C  = old_C;
-    #       if (borrow) r_C = 1;
-    #       r_A = 1;
-    #    } else {
-    #       r_A = 0;
-    #    }
-    #     if (old_AL > 0x99 || old_C == 1) {
-    #        r_AL = r_AL - 0x60;
-    #        r_C  = 1;
-    #     } else {
-    #        /* Intel docs are wrong: r_C = 0; */
-    #     }
-    #     /* O is undefined.  S Z and P are set according to the
-    #        result. */
-    #     r_AL &= 0xFF;
-    #     r_O = 0; /* let's say */
-    #     r_S = (r_AL & 0x80) ? 1 : 0;
-    #     r_Z = (r_AL == 0) ? 1 : 0;
-    #     r_P = calc_parity_8bit( r_AL );
-    #     break;
-    #  }
     zero = state.solver.BVV(0, 32)
     one = state.solver.BVV(1, 32)
-    if opcode == 0x37: # AAA
+
+    if opcode == 0x27: # DAA
+        old_AL = r_AL
+        old_C  = r_C
+
+        condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = state.solver.If(condition, r_AL + 6, old_AL)
+        r_C = state.solver.If(condition, state.solver.If(r_AL >= 0x100, one, old_C), zero)
+        r_A = state.solver.If(condition, one, zero)
+
+        condition = state.solver.Or(old_AL > 0x99, old_C == 1)
+        r_AL = state.solver.If(condition, r_AL + 0x60, r_AL)
+        r_C = state.solver.If(condition, one, zero)
+    
+        r_AL = r_AL&0xFF
+        r_O = zero 
+        r_S = state.solver.If((r_AL & 0x80) != 0, one, zero)
+        r_Z = state.solver.If(r_AL == 0, one, zero)
+        r_P = calc_paritybit(state, r_AL).zero_extend(31)
+
+    elif opcode == 0x2F: # DAS
+        old_AL = r_AL
+        old_C  = r_C
+
+        condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = state.solver.If(condition, r_AL - 6, old_AL)
+        r_C = state.solver.If(condition, state.solver.If(r_AL < 6, one, zero), zero)
+        r_A = state.solver.If(condition, one, zero)
+
+        condition = state.solver.Or(old_AL > 0x99, old_C == 1)
+        r_AL = state.solver.If(condition, r_AL - 0x60, r_AL)
+        r_C = state.solver.If(condition, one, zero)
+
+        r_AL &= 0xFF
+        r_O = zero
+        r_S = state.solver.If((r_AL & 0x80) != 0, one, zero)
+        r_Z = state.solver.If(r_AL == 0, one, zero)
+        r_P = calc_paritybit(state, r_AL).zero_extend(31)
+
+    elif opcode == 0x37: # AAA
         nudge = r_AL > 0xF9
         condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
         r_AL = state.solver.If(condition, (r_AL + 6) & 0xF, r_AL & 0xF)
@@ -1019,8 +1054,6 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         r_A  = state.solver.If(condition, one, zero)
         r_C = state.solver.If(condition, one, zero)
         r_O = r_S = r_Z = r_P = 0
-    else:
-        raise SimCCallError("DAA/DAS instructions are unsupported")
 
     result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
              | ( (r_S & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_S']) ) \
@@ -1105,8 +1138,15 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     if state.arch.vex_archinfo['x86_cr0'] & 1 == 0:
         return ((seg_selector << 4) + virtual_addr).zero_extend(32), ()
 
-
     seg_selector &= 0x0000FFFF
+
+    segment_selector_val = state.solver.eval(seg_selector >> 3)
+
+    if state.project.simos.name == "Win32" and segment_selector_val == 0x6 and state.project.concrete_target is not None:
+            return bad("angr doesn't support Windows Heaven's gate calls http://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
+                   "Please use the native 32 bit libs (not WoW64) or implement a simprocedure to avoid executing these instructions"
+                   )
+
 
     # RPL=11 check
     #if state.solver.is_true((seg_selector & 3) != 3):
@@ -1155,8 +1195,10 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     base = get_segdescr_base(state, descriptor)
     limit = get_segdescr_limit(state, descriptor)
 
-    if state.solver.is_true(virtual_addr >= limit):
-        return bad("virtual_addr >= limit")
+    # When a concrete target is set and memory is read directly from the process sometimes a negative offset
+    # from a segment register is used
+    # if state.solver.is_true(virtual_addr >= limit) and state.project.concrete_target is None:
+    #     return bad("virtual_addr >= limit")
 
     r = (base + virtual_addr).zero_extend(32)
     l.debug("x86g_use_seg_selector: addr=%s", str(r))
@@ -1711,7 +1753,7 @@ def _get_flags(state):
         return x86g_calculate_eflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AMD64':
         return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
-    elif state.arch.name in ('ARMEL', 'ARMHF', 'ARM'):
+    elif is_arm_arch(state.arch):
         return armg_calculate_flags_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AARCH64':
         return arm64g_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)

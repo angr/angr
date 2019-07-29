@@ -6,10 +6,10 @@ import logging
 l = logging.getLogger("angr.tests.test_simcc")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_simcc_x86_64():
-    binary_path = test_location + "/x86_64/simcc"
+    binary_path = os.path.join(test_location, 'x86_64', 'simcc')
 
     p = angr.Project(binary_path)
     p.analyses.CFGEmulated()
@@ -34,7 +34,7 @@ def test_simcc_x86_64():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda kv: kv[0].startswith('test_') and hasattr(v, '__call__')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_') and hasattr(kv[0], '__call__')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 

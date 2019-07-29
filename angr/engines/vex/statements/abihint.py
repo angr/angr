@@ -1,5 +1,2 @@
-from . import SimIRStmt
-
-class SimIRStmt_AbiHint(SimIRStmt):
-    def _execute(self):
-        pass
+def SimIRStmt_AbiHint(_engine, _state, _stmt):
+    pass

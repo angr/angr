@@ -5,7 +5,7 @@ from collections import defaultdict
 from .plugin import SimStatePlugin
 
 
-l = logging.getLogger('angr.state_plugins.loop_data')
+l = logging.getLogger(name=__name__)
 
 
 class SimStateLoopData(SimStatePlugin):

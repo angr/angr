@@ -4,10 +4,10 @@ import claripy
 
 import os
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_i386():
-    p = angr.Project(test_location + "/i386/test_strcasecmp", auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, 'i386', 'test_strcasecmp'), auto_load_libs=False)
     arg1 = claripy.BVS('arg1', 20*8)
     s = p.factory.entry_state(args=("test_strcasecmp", arg1))
     sm = p.factory.simulation_manager(s)

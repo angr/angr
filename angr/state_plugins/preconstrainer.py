@@ -6,14 +6,14 @@ from .. import sim_options as o
 from ..errors import AngrError
 
 
-l = logging.getLogger("angr.state_plugins.preconstrainer")
+l = logging.getLogger(name=__name__)
 
 
 class SimStatePreconstrainer(SimStatePlugin):
     """
     This state plugin manages the concept of preconstraining - adding constraints which you would like to remove later.
 
-    :param constrained_addrs : Addresses which have had constraints applied to them and should not be removed.
+    :param constrained_addrs : SimActions for memory operations whose addresses should be constrained during crash analysis
     """
 
     def __init__(self, constrained_addrs=None):
@@ -55,6 +55,11 @@ class SimStatePreconstrainer(SimStatePlugin):
         elif value.op != 'BVV':
             raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
 
+        if variable.op not in claripy.operations.leaf_operations:
+            l.warning("The variable %s to preconstrain is not a leaf AST. This may cause replacement failures in the "
+                      "claripy replacement backend.", variable)
+            l.warning("Please use a leaf AST as the preconstraining variable instead.")
+
         constraint = variable == value
         l.debug("Preconstraint: %s", constraint)
 
@@ -87,7 +92,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         for write in content:
             if type(write) is int:
                 write = bytes([write])
-            data, length, pos = simfile.read(pos, len(write), short_reads=False)
+            data, length, pos = simfile.read(pos, len(write), disable_actions=True, inspect=False, short_reads=False)
             if not claripy.is_true(length == len(write)):
                 raise AngrError("Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file")
             self.preconstrain(write, data)
@@ -112,6 +117,15 @@ class SimStatePreconstrainer(SimStatePlugin):
             self.preconstrain(m, v)
 
     def remove_preconstraints(self, to_composite_solver=True, simplify=True):
+        """
+        Remove the preconstraints from the state.
+
+        If you are using the zen plugin, this will also use that to filter the constraints.
+
+        :param to_composite_solver:     Whether to convert the replacement solver to a composite solver. You probably
+                                        want this if you're switching from tracing to symbolic analysis.
+        :param simplify:                Whether to simplify the resulting set of constraints.
+        """
         if not self.preconstraints:
             return
 
@@ -125,7 +139,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         if o.REPLACEMENT_SOLVER in self.state.options:
             new_constraints = self.state.solver.constraints
         else:
-            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, self.state.solver.constraints)
+            new_constraints = list(filter(lambda x: x.cache_key not in precon_cache_keys, self.state.solver.constraints))
 
 
         if self.state.has_plugin("zen_plugin"):
@@ -135,23 +149,19 @@ class SimStatePreconstrainer(SimStatePlugin):
             self.state.options.discard(o.REPLACEMENT_SOLVER)
             self.state.options.add(o.COMPOSITE_SOLVER)
 
-        self.state.release_plugin('solver')
-        self.state.add_constraints(*new_constraints)
-
-        l.debug("downsizing unpreconstrained state")
-        self.state.downsize()
+        # clear the solver's internal memory and replace it with the new solver options and constraints
+        self.state.solver.reload_solver(new_constraints)
 
         if simplify:
             l.debug("simplifying solver...")
             self.state.solver.simplify()
             l.debug("...simplification done")
 
-        self.state.solver._solver.result = None
-
     def reconstrain(self):
         """
-        Re-apply preconstraints to improve solver time, hopefully these
-        constraints still allow us to do meaningful things to state.
+        Split the solver. If any of the subsolvers time out after a short timeout (10 seconds), re-add the
+        preconstraints associated with each of its variables. Hopefully these constraints still allow us to do
+        meaningful things to the state.
         """
 
         # test all solver splits
@@ -162,7 +172,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             if not solver.satisfiable():
                 for var in solver.variables:
                     if var in self.variable_map:
-                        self.state.add_constraints(self.variable_map[var])
+                        self.state.solver.add(self.variable_map[var])
                     else:
                         l.warning("var %s not found in self.variable_map", var)
 

@@ -1,11 +1,12 @@
 
 import logging
 
+from archinfo.arch_soot import SootAddressDescriptor
 
 from ...errors import SimValueError, SimSolverModeError
 from ...state_plugins.callstack import CallStack
 
-l = logging.getLogger("angr.analyses.cfg.cfg_job_base")
+l = logging.getLogger(name=__name__)
 
 # TODO: Make callsite an object and use it in BlockID and FunctionKey
 
@@ -130,7 +131,7 @@ class CFGJobBase(object):
             self._call_stack = CallStack()
 
             # Added the function address of the current exit to callstack
-            se = self.state.se
+            se = self.state.solver
             sp_expr = self.state.regs.sp
 
             # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.
@@ -172,4 +173,7 @@ class CFGJobBase(object):
         return self._call_stack.current_stack_pointer
 
     def __repr__(self):
-        return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)
+        if isinstance(self.addr, SootAddressDescriptor):
+            return "<Entry {} {}>".format(self.addr, self.jumpkind)
+        else:
+            return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)

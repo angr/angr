@@ -3,8 +3,9 @@ import logging
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from . import Analysis, register_analysis
+from archinfo.arch_arm import is_arm_arch
 
-l = logging.getLogger('angr.analyses.calling_convention')
+l = logging.getLogger(name=__name__)
 
 
 class CallingConventionAnalysis(Analysis):
@@ -51,6 +52,13 @@ class CallingConventionAnalysis(Analysis):
 
         :return:
         """
+
+        if not self._function.is_simprocedure \
+                and not self._function.is_plt \
+                and not self._variable_manager.has_function_manager(self._function.addr):
+            l.warning("Please run variable recovery on %s before analyzing its calling conventions.",
+                      repr(self._function))
+            return None
 
         vm = self._variable_manager[self._function.addr]
 
@@ -138,7 +146,7 @@ class CallingConventionAnalysis(Analysis):
                     64 <= variable.reg < 104 or  # rsi, rdi, r8, r9, r10
                     224 <= variable.reg < 480)  # xmm0-xmm7
 
-        elif arch.name == 'ARMEL' or arch.name == 'ARMHF':
+        elif is_arm_arch(arch):
             return 8 <= variable.reg < 24  # r0-r3
 
         elif arch.name == 'MIPS32':

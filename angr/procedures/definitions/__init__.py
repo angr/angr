@@ -3,6 +3,7 @@ import os
 import archinfo
 from collections import defaultdict
 import logging
+import inspect
 
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
@@ -10,7 +11,7 @@ from ...sim_type import parse_file
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
 
-l = logging.getLogger("angr.procedures.definitions")
+l = logging.getLogger(name=__name__)
 SIM_LIBRARIES = {}
 
 class SimLibrary(object):
@@ -168,10 +169,15 @@ class SimLibrary(object):
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
+            if proc.cc.func_ty is not None:
+                # Use inspect to extract the parameters from the run python function
+                proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
         if proc.display_name in self.prototypes:
             if proc.cc is None:
                 proc.cc = self.fallback_cc[arch.name](arch)
-            proc.cc.func_ty = self.prototypes[proc.display_name]
+            proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
+            # Use inspect to extract the parameters from the run python function
+            proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
             if not proc.ARGS_MISMATCH:
                 proc.cc.num_args = len(proc.cc.func_ty.args)
                 proc.num_args = len(proc.cc.func_ty.args)

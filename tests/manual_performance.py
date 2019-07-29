@@ -16,7 +16,7 @@ from os.path import join, dirname, realpath
 
 from progressbar import ProgressBar, Percentage, Bar
 
-test_location = str(join(dirname(realpath(__file__)), '../../binaries/tests'))
+test_location = str(join(dirname(realpath(__file__)), '..', '..', 'binaries', 'tests'))
 
 
 class Timer(object):

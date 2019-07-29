@@ -1,7 +1,7 @@
 # This module contains data structures for handling memory, code, and register references.
 
 import logging
-l = logging.getLogger("angr.state_plugins.sim_action")
+l = logging.getLogger(name=__name__)
 
 _noneset = frozenset()
 
@@ -17,6 +17,7 @@ class SimAction(SimEvent):
     TMP = 'tmp'
     REG = 'reg'
     MEM = 'mem'
+    _MAX_ACTION_ID = -1
 
     def __init__(self, state, region_type):
         """
@@ -26,6 +27,8 @@ class SimAction(SimEvent):
         """
         SimEvent.__init__(self, state, 'action')
         self.type = region_type
+        SimAction._MAX_ACTION_ID += 1
+        self._action_id = SimAction._MAX_ACTION_ID
 
     def __repr__(self):
         if self.sim_procedure is not None:

@@ -9,13 +9,13 @@ import angr
 
 # load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 never_nolibs = None
 
 
 def setup_module():
     global never_nolibs
-    never_nolibs = angr.Project( test_location + "/blob/x86_64/never")
+    never_nolibs = angr.Project( os.path.join(test_location, 'x86_64', 'never') )
 
 # def test_slicing():
 # addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]

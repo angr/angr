@@ -3,7 +3,6 @@ import itertools
 import types
 from collections import defaultdict
 
-import ana
 import claripy
 import mulpyplexer
 
@@ -14,7 +13,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-class SimulationManager(ana.Storable):
+class SimulationManager:
     """
     The Simulation Manager is the future future.
 
@@ -99,6 +98,7 @@ class SimulationManager(ana.Storable):
 
         if kwargs.pop('veritesting', False):
             self.use_technique(Veritesting(**kwargs.get('veritesting_options', {})))
+        kwargs.pop('veritesting_options', {})
 
         threads = kwargs.pop('threads', None)
         if threads is not None:
@@ -132,7 +132,7 @@ class SimulationManager(ana.Storable):
             return SimulationManager._fetch_states(self, stash=item)
 
     def __dir__(self):
-        return list(self.__dict__) + dir(type(self)) + list(self._stashes)
+        return list(self.__dict__) + dir(type(self)) + list(self._stashes) + ['one_' + stash for stash in self._stashes] + ['mp_' + stash for stash in self._stashes]
 
     @property
     def errored(self):
@@ -271,9 +271,9 @@ class SimulationManager(ana.Storable):
             return False
         if not any(tech._is_overriden('complete') for tech in self._techniques):
             return False
-        return self.completion_mode((tech.complete(self) for tech in self._techniques))
+        return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overriden('complete'))
 
-    def step(self, n=None, selector_func=None, step_func=None, stash='active',
+    def step(self, stash='active', n=None, selector_func=None, step_func=None,
              successor_func=None, until=None, filter_func=None, **run_args):
         """
         Step a stash of states forward and categorize the successors appropriately.
@@ -282,7 +282,6 @@ class SimulationManager(ana.Storable):
         categorization process.
 
         :param stash:           The name of the stash to step (default: 'active')
-        :param n:               (DEPRECATED) The number of times to step (default: 1 if "until" is not provided)
         :param selector_func:   If provided, should be a function that takes a state and returns a
                                 boolean. If True, the state will be stepped. Otherwise, it will be
                                 kept as-is.
@@ -292,12 +291,13 @@ class SimulationManager(ana.Storable):
                                 stepping - it is meant to be a maintenance function called after each step.
         :param successor_func:  If provided, should be a function that takes a state and return its successors.
                                 Otherwise, project.factory.successors will be used.
-        :param until:           (DEPRECATED) If provided, should be a function that takes a SimulationManager and
-                                returns True or False. Stepping will terminate when it is True.
         :param filter_func:     If provided, should be a function that takes a state and return the name
                                 of the stash, to which the state should be moved.
+        :param until:           (DEPRECATED) If provided, should be a function that takes a SimulationManager and
+                                returns True or False. Stepping will terminate when it is True.
+        :param n:               (DEPRECATED) The number of times to step (default: 1 if "until" is not provided)
 
-        Additionally, you can pass in any of the following keyword args for project.factory.sim_run:
+        Additionally, you can pass in any of the following keyword args for project.factory.successors:
 
         :param jumpkind:        The jumpkind of the previous exit
         :param addr:            An address to execute at instead of the state's ip.
@@ -379,7 +379,7 @@ class SimulationManager(ana.Storable):
         Don't use this function manually - it is meant to interface with exploration techniques.
         """
         try:
-            successors = self.successors(state, successor_func, **run_args)
+            successors = self.successors(state, successor_func=successor_func, **run_args)
             stashes = {None: successors.flat_successors,
                        'unsat': successors.unsat_successors,
                        'unconstrained': successors.unconstrained_successors}
@@ -750,7 +750,7 @@ class SimulationManager(ana.Storable):
     # Pickling
     #
 
-    def _ana_getstate(self):
+    def __getstate__(self):
         self.prune()
         s = {k: v for k, v in self.__dict__.items()
              if not isinstance(v, types.MethodType)}
@@ -758,7 +758,7 @@ class SimulationManager(ana.Storable):
             s['_hierarchy'] = None
         return s
 
-    def _ana_setstate(self, s):
+    def __setstate__(self, s):
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()

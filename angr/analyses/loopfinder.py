@@ -3,7 +3,7 @@ import logging
 import networkx
 from . import Analysis
 
-l = logging.getLogger("angr.analyses.loopfinder")
+l = logging.getLogger(name=__name__)
 
 class Loop(object):
     def __init__(self, entry, entry_edges, break_edges, continue_edges, body_nodes, graph, subloops):
@@ -25,7 +25,7 @@ class Loop(object):
                     break
 
     def __repr__(self):
-        s = "<Loop @ %#x, %d blocks>" % (self.entry.addr, len(self.body_nodes))
+        s = "<Loop @ %s, %d blocks>" % (self.entry.addr, len(self.body_nodes))
         return s
 
 class LoopFinder(Analysis):

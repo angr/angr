@@ -1,9 +1,11 @@
 
-class CodeLocation(object):
+class CodeLocation:
     """
     Stands for a specific program point by specifying basic block address and statement ID (for IRSBs), or SimProcedure
     name (for SimProcedures).
     """
+
+    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'info', )
 
     def __init__(self, block_addr, stmt_idx, sim_procedure=None, ins_addr=None, **kwargs):
         """

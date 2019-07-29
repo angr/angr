@@ -13,6 +13,9 @@ class AngrExitError(AngrError):
 class AngrPathError(AngrError):
     pass
 
+class AngrVaultError(AngrError):
+    pass
+
 class PathUnreachableError(AngrPathError):
     pass
 
@@ -110,6 +113,13 @@ class AngrDDGError(AngrAnalysisError):
     pass
 
 #
+# Loop analysis
+#
+
+class AngrLoopAnalysisError(AngrAnalysisError):
+    pass
+
+#
 # Exploration techniques
 #
 
@@ -123,6 +133,14 @@ class AngrDirectorError(AngrExplorationTechniqueError):
     pass
 
 class AngrTracerError(AngrExplorationTechniqueError):
+    pass
+
+
+#
+# VariableRecovery errors
+#
+
+class AngrVariableRecoveryError(AngrAnalysisError):
     pass
 
 #
@@ -196,6 +214,9 @@ class SimSymbolicFilesystemError(SimFilesystemError):
     pass
 
 class SimFileError(SimMemoryError, SimFilesystemError):
+    pass
+
+class SimHeapError(SimStateError):
     pass
 
 #
@@ -289,6 +310,9 @@ class SimProcedureError(SimEngineError):
     pass
 
 class SimProcedureArgumentError(SimProcedureError):
+    pass
+
+class SimShadowStackError(SimProcedureError):
     pass
 
 class SimFastPathError(SimEngineError):
@@ -394,4 +418,20 @@ class SimZeroDivisionException(SimException, SimOperationError):
 
 
 class AngrNoPluginError(AngrError):
+    pass
+
+#
+# Concrete Targets Execution errors
+#
+
+
+class SimConcreteMemoryError(AngrError):
+    pass
+
+
+class SimConcreteRegisterError(AngrError):
+    pass
+
+
+class SimConcreteBreakpointError(AngrError):
     pass

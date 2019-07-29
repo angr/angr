@@ -1,7 +1,7 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
 
 import logging
-l = logging.getLogger("angr.state_plugins.inspect")
+l = logging.getLogger(name=__name__)
 
 event_types = {
     'mem_read',
@@ -22,6 +22,7 @@ event_types = {
     'call',
     'return',
     'simprocedure',
+    'dirty',
     'syscall',
     'cfg_handle_job',
     'vfg_handle_successor',
@@ -64,6 +65,7 @@ inspect_attributes = {
 
     # expr
     'expr',
+    'expr_result',
 
     # statement
     'statement',
@@ -84,7 +86,7 @@ inspect_attributes = {
     'exit_target',
     'exit_guard',
     'exit_jumpkind',
-    'backtrace',
+    'backtrace', #unused?
 
     # symbolic_variable
     'symbolic_name',
@@ -105,12 +107,21 @@ inspect_attributes = {
     # simprocedure
     'simprocedure_name',
     'simprocedure_addr',
+    'simprocedure_result',
     'simprocedure',
+
+    # dirty
+    'dirty_name',
+    'dirty_handler',
+    'dirty_args',
+    'dirty_result',
 
     # engine_process
     'sim_engine',
     'sim_successors',
     }
+
+NO_OVERRIDE = object()
 
 BP_BEFORE = 'before'
 BP_AFTER = 'after'
@@ -210,7 +221,7 @@ from .plugin import SimStatePlugin
 class SimInspector(SimStatePlugin):
     """
     The breakpoint interface, used to instrument execution. For usage information, look here:
-    https://docs.angr.io/docs/simuvex.html#breakpoints
+    https://docs.angr.io/core-concepts/simulation#breakpoints
     """
     BP_AFTER = BP_AFTER
     BP_BEFORE = BP_BEFORE
@@ -336,6 +347,10 @@ class SimInspector(SimStatePlugin):
 
     def widen(self, others):
         return self._combine(others)
+
+    def set_state(self, state):
+        super().set_state(state)
+        state.supports_inspect = True
 
 
 from angr.sim_state import SimState

@@ -1,8 +1,5 @@
 from .plugin import SimStatePlugin
 
-HEAP_LOCATION = 0xc0000000
-HEAP_SIZE = 64*4096
-
 class SimStateLibc(SimStatePlugin):
     """
     This state plugin keeps track of various libc stuff:
@@ -184,8 +181,6 @@ class SimStateLibc(SimStatePlugin):
         SimStatePlugin.__init__(self)
 
         # various thresholds
-        self.heap_location = HEAP_LOCATION
-        self.mmap_base = HEAP_LOCATION + HEAP_SIZE * 2
         self.buf_symbolic_bytes = 60
         self.max_symbolic_strstr = 1
         self.max_symbolic_strchr = 16
@@ -216,13 +211,11 @@ class SimStateLibc(SimStatePlugin):
         self.ctype_tolower_loc_table_ptr = None
         self.ctype_toupper_loc_table_ptr = None
 
-        self._errno_location = None
+        self.errno_location = None
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
         c = SimStateLibc()
-        c.heap_location = self.heap_location
-        c.mmap_base = self.mmap_base
         c.buf_symbolic_bytes = self.buf_symbolic_bytes
         c.max_symbolic_strstr = self.max_symbolic_strstr
         c.max_symbolic_strchr = self.max_symbolic_strchr
@@ -231,6 +224,7 @@ class SimStateLibc(SimStatePlugin):
         c.max_buffer_size = self.max_buffer_size
         c.max_strtol_len = self.max_strtol_len
         c.max_memcpy_size = self.max_memcpy_size
+        c.max_packet_size = self.max_packet_size
         c.strtok_heap = self.strtok_heap[:]
         c.simple_strtok = self.simple_strtok
         c.strtok_token_size = self.strtok_token_size
@@ -239,37 +233,36 @@ class SimStateLibc(SimStatePlugin):
         c.ctype_b_loc_table_ptr = self.ctype_b_loc_table_ptr
         c.ctype_tolower_loc_table_ptr = self.ctype_tolower_loc_table_ptr
         c.ctype_toupper_loc_table_ptr = self.ctype_toupper_loc_table_ptr
-        c._errno_location = self._errno_location
+        c.errno_location = self.errno_location
         #c.aa = self.aa
 
         return c
 
-    def _combine(self, others):
-        new_heap_location = max(o.heap_location for o in others)
-        if self.heap_location != new_heap_location:
-            self.heap_location = new_heap_location
-            return True
-        else:
-            return False
-
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
-        return self._combine(others)
+        return False
 
     def widen(self, others):
-        return self._combine(others)
+        return False
 
-    def init_state(self):
-        if o.ABSTRACT_MEMORY in self.state.options:
-            return
+    @property
+    def errno(self):
+        return self.state.mem[self.errno_location].int.resolved
 
+    @errno.setter
+    def errno(self, val):
+        self.state.mem[self.errno_location].int = val
+
+    def ret_errno(self, val):
         try:
-            self.state.memory.permissions(HEAP_LOCATION)
-        except SimMemoryError:
-            self.state.memory.map_region(HEAP_LOCATION, 4096*64, 3)
+            ival = getattr(self.state.posix, val)
+        except AttributeError as e:
+            raise ValueError("Invalid errno constant %s" % val) from e
 
+        if self.state.scratch.sim_procedure.is_syscall:
+            return -ival
+        else:
+            self.errno = ival
+            return -1
 
 from angr.sim_state import SimState
 SimState.register_default('libc', SimStateLibc)
-
-from ..errors import SimMemoryError
-from .. import sim_options as o

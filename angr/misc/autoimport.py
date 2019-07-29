@@ -2,7 +2,7 @@ import os
 import importlib
 import logging
 
-l = logging.getLogger('angr.misc.autoimport')
+l = logging.getLogger(name=__name__)
 
 def auto_import_packages(base_module, base_path, ignore_dirs=(), ignore_files=(), scan_modules=True):
     for lib_module_name in os.listdir(base_path):

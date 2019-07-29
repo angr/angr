@@ -1,6 +1,7 @@
 import operator
 import logging
 import itertools
+import contextlib
 
 import claripy
 
@@ -8,7 +9,7 @@ from .plugin import SimStatePlugin
 from .. import sim_options
 from ..state_plugins.sim_action import SimActionObject
 
-l = logging.getLogger("angr.state_plugins.history")
+l = logging.getLogger(name=__name__)
 
 
 class SimStateHistory(SimStatePlugin):
@@ -314,6 +315,13 @@ class SimStateHistory(SimStatePlugin):
 
     def extend_actions(self, new_actions):
         self.recent_events.extend(new_actions)
+
+    @contextlib.contextmanager
+    def subscribe_actions(self):
+        start_idx = len(self.recent_actions)
+        res = []
+        yield res
+        res.extend(self.recent_actions[start_idx:])
 
     #
     # Convenient accessors

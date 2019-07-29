@@ -2,7 +2,7 @@ import os
 
 import angr
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../..'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 def _ultra_oppologist(p, s):
     old_ops = dict(angr.engines.vex.irop.operations)
@@ -19,7 +19,7 @@ def _ultra_oppologist(p, s):
         angr.engines.vex.irop.operations.update(old_ops)
 
 def test_fauxware_oppologist():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'))
     s = p.factory.full_init_state(
         remove_options={ angr.options.LAZY_SOLVES, angr.options.EXTENDED_IROP_SUPPORT }
     )
@@ -30,7 +30,7 @@ def test_fauxware_oppologist():
     assert pg.deadended[0].posix.dumps(1).count(b"\n") == 3
 
 def test_cromu_70():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/CROMU_00070'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'cgc', 'CROMU_00070'))
     inp = bytes.fromhex("030e000001000001001200010000586d616ce000000600030000040dd0000000000600000606000006030e000001000001003200010000586d616ce0030000000000030e000001000001003200010000586d616ce003000000000006000006030e000001000001003200010000586d616ce0030000df020000")
     s = p.factory.full_init_state(
         add_options={ angr.options.UNICORN },

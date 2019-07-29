@@ -1,21 +1,22 @@
 import inspect
 import copy
 import itertools
-
 import logging
-l = logging.getLogger("angr.sim_procedure")
+from cle import SymbolType
+from archinfo.arch_soot import SootAddressDescriptor
 
+l = logging.getLogger(name=__name__)
 symbolic_count = itertools.count()
 
 
-class SimProcedure(object):
+class SimProcedure:
     """
     A SimProcedure is a wonderful object which describes a procedure to run on a state.
 
     You may subclass SimProcedure and override ``run()``, replacing it with mutating ``self.state`` however you like,
     and then either returning a value or jumping away somehow.
 
-    A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/docs/simprocedures.md
+    A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/extending-angr/simprocedures
 
     :param arch:            The architecture to use for this procedure
 
@@ -27,9 +28,61 @@ class SimProcedure(object):
     :param is_syscall:      Whether this procedure is a syscall
     :param num_args:        The number of arguments this procedure should extract
     :param display_name:    The name to use when displaying this procedure
+    :param library_name:    The name of the library from which the function we're emulating comes
     :param cc:              The SimCC to use for this procedure
     :param sim_kwargs:      Additional keyword arguments to be passed to run()
     :param is_function:     Whether this procedure emulates a function
+
+    The following class variables should be set if necessary when implementing a new SimProcedure:
+
+    :cvar NO_RET:           Set this to true if control flow will never return from this function
+    :cvar ADDS_EXITS:       Set this to true if you do any control flow other than returning
+    :cvar IS_FUNCTION:      Does this procedure simulate a function? True by default
+    :cvar ARGS_MISMATCH:    Does this procedure have a different list of arguments than what is provided in the
+                            function specification? This may happen when we manually extract arguments in the run()
+                            method of a SimProcedure. False by default.
+    :cvar local_vars:       If you use ``self.call()``, set this to a list of all the local variable
+                            names in your class. They will be restored on return.
+
+    The following instance variables are available when working with simprocedures from the inside or the outside:
+
+    :ivar project:          The associated angr project
+    :ivar arch:             The associated architecture
+    :ivar addr:             The linear address at which the procedure is executing
+    :ivar cc:               The calling convention in use for engaging with the ABI
+    :ivar canonical:        The canonical version of this SimProcedure. Procedures are deepcopied for many reasons,
+                            including to be able to store state related to a specific run and to be able to hook
+                            continuations.
+    :ivar kwargs:           Any extra keyword arguments used to construct the procedure; will be passed to ``run``
+    :ivar display_name:     See the eponymous parameter
+    :ivar library_name:     See the eponymous parameter
+    :ivar abi:
+    :ivar symbolic_return:  See the eponymous parameter
+    :ivar syscall_number:   If this procedure is a syscall, the number will be populated here.
+    :ivar returns:          See eponymous parameter and NO_RET cvar
+    :ivar is_syscall:       See eponymous parameter
+    :ivar is_function:      See eponymous parameter and cvar
+    :ivar is_stub:          See eponymous parameter
+    :ivar is_continuation:  Whether this procedure is the original or a continuation resulting from ``self.call()``
+    :ivar continuations:    A mapping from name to each known continuation
+    :ivar run_func:         The name of the function implementing the procedure. "run" by default, but different in
+                            continuations.
+    :ivar num_args:         The number of arguments to the procedure. If not provided in the parameter, extracted from
+                            the definition of ``self.run``
+
+    The following instance variables are only used in a copy of the procedure that is actually executing on a state:
+
+    :ivar state:            The SimState we should be mutating to perform the procedure
+    :ivar successors:       The SimSuccessors associated with the current step
+    :ivar arguments:        The function arguments, deserialized from the state
+    :ivar use_state_arguments:
+                            Whether we're using arguments extracted from the state or manually provided
+    :ivar ret_to:           The current return address
+    :ivar ret_expr:         The computed return value
+    :ivar call_ret_expr:    The return value from having used ``self.call()``
+    :ivar inhibit_autoret:  Whether we should avoid automatically adding an exit for returning once the run function
+                            ends
+
     """
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
@@ -40,7 +93,7 @@ class SimProcedure(object):
         # WE'LL FIGURE IT OUT
         self.project = project
         self.arch = project.arch if project is not None else None
-        #self.addr = None
+        self.addr = None
         self.cc = cc
         self.canonical = self
 
@@ -66,7 +119,7 @@ class SimProcedure(object):
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
-            run_spec = inspect.getargspec(self.run)
+            run_spec = inspect.getfullargspec(self.run)
             self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         else:
             self.num_args = num_args
@@ -104,8 +157,8 @@ class SimProcedure(object):
         provide arguments to the function.
         """
         # fill out all the fun stuff we don't want to frontload
-        #if self.addr is None:
-        #    self.addr = state.addr
+        if self.addr is None and not state.regs.ip.symbolic:
+            self.addr = state.addr
         if self.arch is None:
             self.arch = state.arch
         if self.project is None:
@@ -115,7 +168,7 @@ class SimProcedure(object):
                 self.cc = DEFAULT_CC[self.arch.name](self.arch)
             else:
                 raise SimProcedureError('There is no default calling convention for architecture %s.'
-                                        ' You must specify a calling convention.', self.arch.name)
+                                        ' You must specify a calling convention.' % self.arch.name)
 
         inst = copy.copy(self)
         inst.state = state
@@ -124,32 +177,36 @@ class SimProcedure(object):
         inst.inhibit_autoret = False
 
         # check to see if this is a syscall and if we should override its return value
-        override = None
         if inst.is_syscall:
             state.history.recent_syscall_count = 1
-            if len(state.posix.queued_syscall_returns):
-                override = state.posix.queued_syscall_returns.pop(0)
 
-        if callable(override):
-            try:
-                r = override(state, run=inst)
-            except TypeError:
-                r = override(state)
-            inst.use_state_arguments = True
+        state._inspect(
+            'simprocedure',
+            BP_BEFORE,
+            simprocedure_name=inst.display_name,
+            simprocedure_addr=self.addr,
+            simprocedure=inst,
+            simprocedure_result=NO_OVERRIDE
+        )
 
-        elif override is not None:
-            r = override
-            inst.use_state_arguments = True
-
-        else:
+        r = state._inspect_getattr('simprocedure_result', NO_OVERRIDE)
+        if r is NO_OVERRIDE:
             # get the arguments
 
+            # If the simprocedure is related to a Java function call the appropriate setup_args methos
+            # TODO: should we move this?
+            if self.is_java:
+                sim_args = self._setup_args(inst, state, arguments) #pylint:disable=assignment-from-no-return
+                self.use_state_arguments = False
+
             # handle if this is a continuation from a return
-            if inst.is_continuation:
+            elif inst.is_continuation:
                 if state.callstack.top.procedure_data is None:
                     raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
-                saved_sp, sim_args, saved_local_vars, saved_lr = state.callstack.top.procedure_data
+                saved_sp, sim_args, saved_local_vars, saved_lr, ideal_addr = state.callstack.top.procedure_data
+                if ideal_addr != inst.addr:
+                    raise SimShadowStackError("I can't emulate this consequence of stack smashing")
                 state.regs.sp = saved_sp
                 if saved_lr is not None:
                     state.regs.lr = saved_lr
@@ -172,6 +229,13 @@ class SimProcedure(object):
             l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
+        state._inspect(
+            'simprocedure',
+            BP_AFTER,
+            simprocedure_result=r
+        )
+        r = state._inspect_getattr('simprocedure_result', r)
+
         if inst.returns and inst.is_function and not inst.inhibit_autoret:
             inst.ret(r)
 
@@ -184,7 +248,7 @@ class SimProcedure(object):
             target_name = '%s.%s' % (self.display_name, name)
             should_be_none = self.project.loader.extern_object.get_symbol(target_name)
             if should_be_none is None:
-                cont.addr = self.project.loader.extern_object.make_extern(target_name).rebased_addr
+                cont.addr = self.project.loader.extern_object.make_extern(target_name, sym_type=SymbolType.TYPE_OTHER).rebased_addr
             else:
                 l.error("Trying to make continuation %s but it already exists. This is bad.", target_name)
                 cont.addr = self.project.loader.extern_object.allocate()
@@ -198,15 +262,11 @@ class SimProcedure(object):
     # Implement these in a subclass of SimProcedure!
     #
 
-    NO_RET = False          # set this to true if control flow will never return from this function
-    ADDS_EXITS = False      # set this to true if you do any control flow other than returning
-    IS_FUNCTION = True      # does this procedure simulate a function?
-    ARGS_MISMATCH = False   # does this procedure have a different list of arguments than what is provided in the
-                            # function specification? This may happen when we manually extract arguments in the run()
-                            # method of a SimProcedure.
-
-    local_vars = ()         # if you use self.call(), set this to a list of all the local variable
-                            # names in your class. They will be restored on return.
+    NO_RET = False
+    ADDS_EXITS = False
+    IS_FUNCTION = True
+    ARGS_MISMATCH = False
+    local_vars = ()
 
     def run(self, *args, **kwargs): # pylint: disable=unused-argument
         """
@@ -220,7 +280,7 @@ class SimProcedure(object):
         exits for scenarios where states are not available (e.g. when building a fast CFG).
 
         :param list blocks: Blocks that are executed before reaching this SimProcedure.
-        :return: A list of tuples. Each tuple is (address, jumpkind).
+        :return: A list of dicts. Each dict should contain the following entries: 'address', 'jumpkind', and 'namehint'.
         :rtype: list
         """
 
@@ -241,6 +301,11 @@ class SimProcedure(object):
     #
     # Working with calling conventions
     #
+
+    def _setup_args(self, inst, state, args): #pylint:disable=unused-argument,no-self-use
+        raise SimProcedureError("the java-specific _setup_args() method was invoked on a non-Java SimProcedure.")
+    def _compute_ret_addr(self, expr): #pylint:disable=unused-argument,no-self-use
+        raise SimProcedureError("the java-specific _compute_ret_addr() method was invoked on a non-Java SimProcedure.")
 
     def set_args(self, args):
         arg_session = self.cc.arg_session
@@ -314,7 +379,11 @@ class SimProcedure(object):
             self.ret_expr = expr
 
         ret_addr = None
-        if self.use_state_arguments:
+        # TODO: I had to put this check here because I don't understand why self.use_state_arguments gets reset to true
+        # when calling the function ret. at the calling point the attribute is set to False
+        if isinstance(self.addr, SootAddressDescriptor):
+            ret_addr = self._compute_ret_addr(expr) #pylint:disable=assignment-from-no-return
+        elif self.use_state_arguments:
             ret_addr = self.cc.teardown_callsite(
                     self.state,
                     expr,
@@ -330,8 +399,11 @@ class SimProcedure(object):
         if ret_addr is None:
             raise SimProcedureError("No source for return address in ret() call!")
 
+        self._prepare_ret_state()
+
         self._exit_action(self.state, ret_addr)
         self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
+
 
     def call(self, addr, args, continue_at, cc=None):
         """
@@ -352,12 +424,18 @@ class SimProcedure(object):
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
         saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
-        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars, self.state.regs.lr if self.state.arch.lr_offset is not None else None)
+        simcallstack_entry = (self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
+                              self.arguments,
+                              saved_local_vars,
+                              self.state.regs.lr if self.state.arch.lr_offset is not None else None,
+                              ret_addr)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
 
         # TODO: Move this to setup_callsite?
-        if call_state.libc.ppc64_abiv == 'ppc64_1':
+        if isinstance(call_state.addr, SootAddressDescriptor):
+            pass
+        elif call_state.libc.ppc64_abiv == 'ppc64_1':
             call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
             addr = call_state.mem[addr:].long.resolved
         elif call_state.arch.name in ('MIPS32', 'MIPS64'):
@@ -407,8 +485,17 @@ class SimProcedure(object):
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)
 
+    @property
+    def is_java(self):
+        return False
+
+    def _prepare_ret_state(self):
+        pass
+
+
 from . import sim_options as o
-from angr.errors import SimProcedureError, SimProcedureArgumentError
+from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowStackError
 from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import DEFAULT_CC
+from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE

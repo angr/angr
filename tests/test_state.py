@@ -5,7 +5,6 @@ import gc
 import tempfile
 import os
 
-import ana
 import claripy
 import angr
 from angr import SimState
@@ -109,7 +108,7 @@ def test_state_merge():
     # test merging posix with different open files (illegal!)
     a = SimState(arch='AMD64', mode='symbolic')
     b = a.copy()
-    a.posix.open('/tmp/idk', 1)
+    a.posix.open(b'/tmp/idk', 1)
     nose.tools.assert_raises(angr.errors.SimMergeError, lambda: a.copy().merge(b.copy()))
 
 def test_state_merge_static():
@@ -204,13 +203,6 @@ def test_state_merge_optimal():
 
 
 
-def setup():
-    tmp_dir = tempfile.mkdtemp(prefix='test_state_picklez')
-    ana.set_dl(ana.DirDataLayer(tmp_dir))
-def teardown():
-    ana.set_dl(ana.SimpleDataLayer())
-
-@nose.with_setup(setup, teardown)
 def test_state_pickle():
     s = SimState(arch="AMD64")
     s.memory.store(100, s.solver.BVV(0x4141414241414241424300, 88), endness='Iend_BE')

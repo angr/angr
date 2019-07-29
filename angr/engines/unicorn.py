@@ -1,11 +1,12 @@
 import logging
 
+from ..errors import SimValueError
 from ..engines import SimEngine
 from ..state_plugins.inspect import BP_AFTER
 
 #pylint: disable=arguments-differ
 
-l = logging.getLogger("angr.engines.unicorn")
+l = logging.getLogger(name=__name__)
 
 
 class SimEngineUnicorn(SimEngine):
@@ -58,6 +59,13 @@ class SimEngineUnicorn(SimEngine):
             return False
 
         unicorn = state.unicorn  # shorthand
+
+        # if we have a concrete target we want the program to synchronize the segment
+        # registers before, otherwise undefined behavior could happen.
+        if state.project.concrete_target:
+            if not state.concrete.segment_registers_initialized:
+                l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
+                return False
         if state.regs.ip.symbolic:
             l.debug("symbolic IP!")
             return False
@@ -94,7 +102,7 @@ class SimEngineUnicorn(SimEngine):
         successors.sort = 'Unicorn'
 
         # add all instruction breakpoints as extra_stop_points
-        if state.has_plugin('inspect'):
+        if state.supports_inspect:
             for bp in state.inspect._breakpoints['instruction']:
                 # if there is an instruction breakpoint on every instruction, it does not make sense
                 # to use unicorn.
@@ -108,7 +116,14 @@ class SimEngineUnicorn(SimEngine):
                 extra_stop_points.add(bp.kwargs["instruction"])
 
         # initialize unicorn plugin
-        state.unicorn.setup()
+        try:
+            state.unicorn.setup()
+        except SimValueError:
+            # it's trying to set a symbolic register somehow
+            # fail out, force fallback to next engine
+            self.reset_countdowns(successors.initial_state, state)
+            return
+
         try:
             state.unicorn.set_stops(extra_stop_points)
             state.unicorn.set_tracking(track_bbls=o.UNICORN_TRACK_BBL_ADDRS in state.options,
@@ -121,10 +136,7 @@ class SimEngineUnicorn(SimEngine):
 
         if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
             # fail out, force fallback to next engine
-            successors.initial_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
-            successors.initial_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
-            successors.initial_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
-            successors.initial_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
+            self.reset_countdowns(successors.initial_state, state)
             return
 
         description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
@@ -133,7 +145,7 @@ class SimEngineUnicorn(SimEngine):
         state.history.recent_description = description
 
         # this can be expensive, so check first
-        if state.has_plugin('inspect'):
+        if state.supports_inspect:
             for bp in state.inspect._breakpoints['irsb']:
                 if bp.check(state, BP_AFTER):
                     for bbl_addr in state.history.recent_bbl_addrs:
@@ -154,6 +166,14 @@ class SimEngineUnicorn(SimEngine):
         state.unicorn.countdown_symbolic_memory -= 1
         state.unicorn.countdown_symbolic_memory -= 1
         state.unicorn.countdown_stop_point -= 1
+
+    @staticmethod
+    def reset_countdowns(state, next_state):
+        next_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
+        next_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
+        next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
+        next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
+
 
 from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
 from .. import sim_options as o

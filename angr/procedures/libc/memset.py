@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeTop, SimTypeInt, SimTypeLength
 
 import logging
-l = logging.getLogger("angr.procedures.libc.memset")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # memset

@@ -1,5 +1,2 @@
-from . import SimIRStmt
-
-class SimIRStmt_NoOp(SimIRStmt):
-    def _execute(self):
-        pass
+def SimIRStmt_NoOp(_engine, _stmt, _state):
+    pass

@@ -1,13 +1,14 @@
 import angr
 import logging
-l = logging.getLogger("angr.engines.syscall")
+l = logging.getLogger(name=__name__)
 
 from .engine import SimEngine
 
 #pylint:disable=abstract-method,arguments-differ
 class SimEngineSyscall(SimEngine):
     def _check(self, state, **kwargs):
-        return state.history.jumpkind.startswith('Ijk_Sys')
+        jumpkind = state.history.jumpkind
+        return jumpkind is not None and jumpkind.startswith('Ijk_Sys')
 
     def process(self, state, **kwargs):
         l.debug("Invoking system call handler")

@@ -1,7 +1,7 @@
 import angr
 
 import logging
-l = logging.getLogger("angr.procedures.posix.mmap")
+l = logging.getLogger(name=__name__)
 
 
 PROT_READ       = 0x1  #    /* Page can be read.  */
@@ -91,13 +91,13 @@ class mmap(angr.SimProcedure):
 
     def allocate_memory(self,size):
 
-        addr = self.state.libc.mmap_base
+        addr = self.state.heap.mmap_base
         new_base = addr + size
 
         if new_base & 0xfff:
             new_base = (new_base & ~0xfff) + 0x1000
 
-        self.state.libc.mmap_base = new_base
+        self.state.heap.mmap_base = new_base
 
         return addr
 

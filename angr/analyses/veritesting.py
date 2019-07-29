@@ -12,7 +12,7 @@ from ..sim_manager import SimulationManager
 from ..utils.graph import shallow_reverse
 from . import Analysis
 
-l = logging.getLogger("angr.analyses.veritesting")
+l = logging.getLogger(name=__name__)
 
 
 class VeritestingError(Exception):
@@ -103,7 +103,7 @@ class CallTracingFilter(object):
                 l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, type(next_run))
                 return REJECT
 
-        cfg_key = (addr, jumpkind)
+        cfg_key = (addr, jumpkind, self.project.filename)
         if cfg_key not in self.cfg_cache:
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
@@ -114,7 +114,7 @@ class CallTracingFilter(object):
                                                     call_depth=1,
                                                     call_tracing_filter=tracing_filter.filter,
                                                     normalize=True,
-                                                    kb=KnowledgeBase(self.project, self.project.loader.main_object)
+                                                    kb=KnowledgeBase(self.project)
                                                     )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
@@ -190,9 +190,10 @@ class Veritesting(Analysis):
         branches = block.vex.constant_jump_targets_and_jumpkinds
 
         # if we are not at a conditional jump, just do a normal step
-        if not branches.values() == ['Ijk_Boring', 'Ijk_Boring']:
+        if list(branches.values()) != ['Ijk_Boring', 'Ijk_Boring']:
             self.result, self.final_manager = False, None
             return
+
         # otherwise do a veritesting step
 
         self._input_state = input_state.copy()
@@ -205,7 +206,7 @@ class Veritesting(Analysis):
         # set up the cfg stuff
         self._cfg, self._loop_graph = self._make_cfg()
         self._loop_backedges = self._cfg._loop_back_edges
-        self._loop_heads = set([ dst.addr for _, dst in self._loop_backedges ])
+        self._loop_heads = {dst.addr for _, dst in self._loop_backedges}
 
         l.info("Static symbolic execution starts at %#x", self._input_state.addr)
         l.debug(
@@ -527,7 +528,7 @@ class Veritesting(Analysis):
         state = self._input_state
         ip_int = state.addr
 
-        cfg_key = (ip_int, state.history.jumpkind)
+        cfg_key = (ip_int, state.history.jumpkind, self.project.filename)
         if cfg_key in self.cfg_cache:
             cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
         else:
@@ -556,7 +557,7 @@ class Veritesting(Analysis):
                 call_tracing_filter=filter,
                 initial_state=cfg_initial_state,
                 normalize=True,
-                kb=KnowledgeBase(self.project, self.project.loader.main_object)
+                kb=KnowledgeBase(self.project)
             )
             cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
             cfg.force_unroll_loops(self._loop_unrolling_limit)

@@ -4,15 +4,18 @@ import operator
 from .constants import DEBUG
 from .undefined import Undefined
 
-l = logging.getLogger('angr.analyses.reaching_definitions.dataset')
+l = logging.getLogger(name=__name__)
 
 
-class DataSet(object):
+class DataSet:
     """
     This class represents a set of data.
 
     Addition and subtraction are performed on the cartesian product of the operands. Duplicate results are removed.
-    data must always include a set.
+    Data must always include a set.
+
+    :ivar set data:    The set of data to represent.
+    :ivar int bits:    The size of an element of the set, in number of bits its representation takes.
     """
     maximum_size = 5
 
@@ -64,21 +67,22 @@ class DataSet(object):
 
         for s in self:
             if type(s) is Undefined:
-                res.add(Undefined())
+                res.add(Undefined(s.bits))
             else:
                 try:
                     tmp = op(s)
                     if isinstance(tmp, int):
                         tmp &= self._mask
                     res.add(tmp)
-                except TypeError as e:
-                    res.add(Undefined())
-                    l.warning(e)
+                except TypeError as ex:  # pylint:disable=try-except-raise,unused-variable
+                    # l.warning(ex)
+                    raise
 
         return DataSet(res, self._bits)
 
     def _bin_op(self, other, op):
-        assert type(other) is DataSet
+        if not type(other) is DataSet:
+            raise TypeError("_bin_op() only works on another DataSet instance.")
 
         res = set()
 
@@ -88,16 +92,16 @@ class DataSet(object):
         for o in other:
             for s in self:
                 if type(o) is Undefined or type(s) is Undefined:
-                    res.add(Undefined())
+                    res.add(Undefined(self.bits))
                 else:
                     try:
                         tmp = op(s, o)
                         if isinstance(tmp, int):
                             tmp &= self._mask
                         res.add(tmp)
-                    except TypeError as e:
-                        res.add(Undefined())
-                        l.warning(e)
+                    except TypeError as ex:  # pylint;disable=try-except-raise,unused-variable
+                        # l.warning(ex)
+                        raise
 
         return DataSet(res, self._bits)
 
@@ -106,6 +110,12 @@ class DataSet(object):
 
     def __sub__(self, other):
         return self._bin_op(other, operator.sub)
+
+    def __mul__(self, other):
+        return self._bin_op(other, operator.mul)
+
+    def __div__(self, other):
+        return self._bin_op(other, operator.floordiv)
 
     def __lshift__(self, other):
         return self._bin_op(other, operator.lshift)
@@ -124,6 +134,9 @@ class DataSet(object):
 
     def __neg__(self):
         return self._un_op(operator.neg)
+
+    def __invert__(self):
+        return self._un_op(operator.invert)
 
     def __eq__(self, other):
         if type(other) == DataSet:

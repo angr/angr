@@ -4,7 +4,6 @@ import pickle
 import shutil
 import nose
 import angr
-import ana
 import gc
 import os
 
@@ -74,27 +73,13 @@ def teardown():
         os.remove('pickletest_bad')
     except:
         pass
-    ana.set_dl(ana.SimpleDataLayer())
 
 @nose.with_setup(setup, teardown)
 def test_pickling():
-    # set up ANA and make the pickles
-    ana.set_dl(ana.DirDataLayer('pickletest'))
     make_pickles()
-
-    # make sure the pickles work in the same "session"
     load_pickles()
-
-    # reset ANA, and load the pickles
-    ana.set_dl(ana.DirDataLayer('pickletest'))
     gc.collect()
     load_pickles()
-
-    # purposefully set the wrong directory to make sure this excepts out
-    ana.set_dl(ana.DirDataLayer('pickletest2'))
-    gc.collect()
-    #load_pickles()
-    nose.tools.assert_raises(Exception, load_pickles)
 
 
 if __name__ == '__main__':

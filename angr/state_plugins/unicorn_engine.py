@@ -1,7 +1,6 @@
 import os
 import sys
 import copy
-import struct
 import ctypes
 import threading
 import itertools
@@ -17,7 +16,7 @@ from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMe
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
 
-l = logging.getLogger("angr.state_plugins.unicorn_engine")
+l = logging.getLogger(name=__name__)
 
 try:
     import unicorn
@@ -42,7 +41,7 @@ TRANSMIT_RECORD._fields_ = [
         ('count', ctypes.c_uint32)
     ]
 
-class STOP(object): # stop_t
+class STOP:  # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
     STOP_SYMBOLIC_MEM   = 2
@@ -55,6 +54,7 @@ class STOP(object): # stop_t
     STOP_SEGFAULT       = 9
     STOP_ZERO_DIV       = 10
     STOP_NODECODE       = 11
+    STOP_HLT            = 12
 
     @staticmethod
     def name_stop(num):
@@ -220,7 +220,8 @@ def _load_native():
         _setup_prototype(h, 'activate', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
-        _setup_prototype(h, 'uncache_page', None, state_t, ctypes.c_uint64)
+        _setup_prototype(h, 'uncache_pages_touching_region', None, state_t, ctypes.c_uint64, ctypes.c_uint64)
+        _setup_prototype(h, 'clear_page_cache', None, state_t)
         _setup_prototype(h, 'enable_symbolic_reg_tracking', None, state_t, VexArch, _VexArchInfo)
         _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
@@ -232,6 +233,7 @@ def _load_native():
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'in_cache', ctypes.c_bool, state_t, ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -308,7 +310,8 @@ class Unicorn(SimStatePlugin):
 
         self.steps = 0
         self._mapped = 0
-        self._uncache_pages = []
+        self._uncache_regions = []
+        self.gdt = None
 
         # following variables are used in python level hook
         # we cannot see native hooks from python
@@ -376,7 +379,8 @@ class Unicorn(SimStatePlugin):
         u.countdown_symbolic_memory = self.countdown_symbolic_memory
         u.countdown_stop_point = self.countdown_stop_point
         u.transmit_addr = self.transmit_addr
-        u._uncache_pages = list(self._uncache_pages)
+        u._uncache_regions = list(self._uncache_regions)
+        u.gdt = self.gdt
         return u
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
@@ -462,12 +466,12 @@ class Unicorn(SimStatePlugin):
 
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
-        if state.arch.name == "MIPS32":
+        if self._is_mips32:
             self._unicount = next(_unicounter)
 
     @property
     def _reuse_unicorn(self):
-        return self.state.arch.name != "MIPS32"
+        return not self._is_mips32
 
     @property
     def uc(self):
@@ -834,14 +838,17 @@ class Unicorn(SimStatePlugin):
 
             # investigate the chunk, taint if symbolic
             chunk_size = last_missing - mo_addr + 1
-            chunk = mo.bytes_at(mo_addr, chunk_size)
-            d = self._process_value(chunk, 'mem')
-            if d is None:
-                #print "TAINT: %x, %d" % (mo_addr, chunk_size)
-                _taint(mo_addr, chunk_size)
+            chunk = mo.bytes_at(mo_addr, chunk_size, allow_concrete=True)
+            if mo.is_bytes:
+                data[mo_addr - start : mo_addr - start + chunk_size] = chunk
             else:
-                s = self.state.solver.eval(d, cast_to=bytes)
-                data[mo_addr-start:mo_addr-start+chunk_size] = s
+                d = self._process_value(chunk, 'mem')
+                if d is None:
+                    #print "TAINT: %x, %d" % (mo_addr, chunk_size)
+                    _taint(mo_addr, chunk_size)
+                else:
+                    s = self.state.solver.eval(d, cast_to=bytes)
+                    data[mo_addr-start:mo_addr-start+chunk_size] = s
             last_missing = mo_addr - 1
 
         # handle missing bytes at the beginning
@@ -865,31 +872,60 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
             return True
 
-    def uncache_page(self, addr):
-        self._uncache_pages.append(addr & ~0xfff)
+    def uncache_region(self, addr, length):
+        self._uncache_regions.append((addr, length))
+
+    def clear_page_cache(self):
+        self._uncache_regions = [] # this is no longer needed, everything has been uncached
+        _UC_NATIVE.clear_page_cache()
+
+    @property
+    def _is_mips32(self):
+        """
+        There seems to be weird issues with unicorn-engine support on MIPS32 code (see commit 01126bf7). As a result,
+        we test if the current architecture is MIPS32 in several places, and if so, we perform some extra steps, like
+        re-creating the thread-local UC object.
+
+        :return:    True if the current architecture is MIPS32, False otherwise.
+        :rtype:     bool
+        """
+        return self.state.arch.name == "MIPS32"
 
     def setup(self):
+        if self._is_mips32 and options.COPY_STATES not in self.state.options:
+            # we always re-create the thread-local UC object for MIPS32 even if COPY_STATES is disabled in state
+            # options. this is to avoid some weird bugs in unicorn (e.g., it reports stepping 1 step while in reality it
+            # did not step at all).
+            self.delete_uc()
         self._setup_unicorn()
-        self.set_regs()
-        # tricky: using unicorn handle form unicorn.Uc object
+        try:
+            self.set_regs()
+        except SimValueError:
+            # reset the state and re-raise
+            self.uc.reset()
+            raise
+        # tricky: using unicorn handle from unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
+
+        # set (cgc, for now) transmit syscall handler
         if UNICORN_HANDLE_TRANSMIT_SYSCALL in self.state.options and self.state.has_plugin('cgc'):
             if self.transmit_addr is None:
                 l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
                 self.transmit_addr = 0
             _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
-        # just fyi there's a GDT in memory
-        _UC_NATIVE.activate(self._uc_state, 0x1000, 0x1000, None)
+        # activate gdt page, which was written/mapped during set_regs
+        if self.gdt is not None:
+            _UC_NATIVE.activate(self._uc_state, self.gdt.addr, self.gdt.limit, None)
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
-        for addr in self._uncache_pages:
-            l.info("Un-caching writable page %#x", addr)
-            _UC_NATIVE.uncache_page(self._uc_state, addr)
-        self._uncache_pages = []
+        for addr, length in self._uncache_regions:
+            l.debug("Un-caching writable page region @ %#x of length %x", addr, length)
+            _UC_NATIVE.uncache_pages_touching_region(self._uc_state, addr, length)
+        self._uncache_regions = []
 
         # should this be in setup?
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
@@ -953,7 +989,11 @@ class Unicorn(SimStatePlugin):
             self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
 
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
-            raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
+            # unicorn just does quits without warning if it sees hlt. detect that.
+            if (self.state.memory.load(self.state.ip, 1) == 0xf4).is_true():
+                self.stop_reason = STOP.STOP_HLT
+            else:
+                raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
 
         addr = self.state.solver.eval(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
@@ -967,8 +1007,8 @@ class Unicorn(SimStatePlugin):
         while bool(p_update):
             update = p_update.contents
             address, length = update.address, update.length
-            if 0x1000 <= address < 0x2000:
-                l.warning("Emulation touched fake GDT at 0x1000, discarding changes")
+            if self.gdt is not None and self.gdt.addr <= address < self.gdt.addr + self.gdt.limit:
+                l.warning("Emulation touched fake GDT at %#x, discarding changes" % self.gdt.addr)
             else:
                 s = bytes(self.uc.mem_read(address, int(length)))
                 l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, binascii.hexlify(s))
@@ -1084,17 +1124,19 @@ class Unicorn(SimStatePlugin):
             flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
+
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
             fs = self.state.solver.eval(self.state.regs.fs) << 16
             gs = self.state.solver.eval(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
+
 
         for r, c in self._uc_regs.items():
             if r in self.reg_blacklist:
                 continue
             v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
-                    raise SimValueError('setting a symbolic register')
+                raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.solver.eval(v))
             uc.reg_write(c, self.state.solver.eval(v))
 
@@ -1151,59 +1193,24 @@ class Unicorn(SimStatePlugin):
 
             uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
 
-    # this stuff is 100% copied from the unicorn regression tests
-    def setup_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
-        GDT_ADDR = 0x1000
-        GDT_LIMIT = 0x1000
-        A_PRESENT = 0x80
-        A_DATA = 0x10
-        A_DATA_WRITABLE = 0x2
-        A_PRIV_0 = 0x0
-        A_DIR_CON_BIT = 0x4
-        F_PROT_32 = 0x4
-        S_GDT = 0x0
-        S_PRIV_0 = 0x0
-
+    def setup_gdt(self, fs, gs):
+        gdt = self.state.project.simos.generate_gdt(fs, gs)
         uc = self.uc
 
-        uc.mem_map(GDT_ADDR, GDT_LIMIT)
-        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0, F_PROT_32)
-        fs_entry = self.create_gdt_entry(fs, fs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        gs_entry = self.create_gdt_entry(gs, gs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        uc.mem_write(GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry)
+        uc.mem_map(gdt.addr, gdt.limit)
+        uc.mem_write(gdt.addr + 8, gdt.table)
+        uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, gdt.addr, gdt.limit, 0x0))
 
-        uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, GDT_ADDR, GDT_LIMIT, 0x0))
+        uc.reg_write(self._uc_const.UC_X86_REG_CS, gdt.cs)
+        uc.reg_write(self._uc_const.UC_X86_REG_DS, gdt.ds)
+        uc.reg_write(self._uc_const.UC_X86_REG_ES, gdt.es)
+        uc.reg_write(self._uc_const.UC_X86_REG_SS, gdt.ss)
+        uc.reg_write(self._uc_const.UC_X86_REG_FS, gdt.fs)
+        uc.reg_write(self._uc_const.UC_X86_REG_GS, gdt.gs)
+        # if programs want to access this memory....... let them
+        # uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
 
-        selector = self.create_selector(1, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_CS, selector)
-        uc.reg_write(self._uc_const.UC_X86_REG_DS, selector)
-        uc.reg_write(self._uc_const.UC_X86_REG_ES, selector)
-        selector = self.create_selector(2, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_SS, selector)
-        selector = self.create_selector(3, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
-        selector = self.create_selector(4, S_GDT | S_PRIV_0)
-        uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
-        #if programs want to access this memory....... let them
-        #uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
-
-    @staticmethod
-    def create_selector(idx, flags):
-        to_ret = flags
-        to_ret |= idx << 3
-        return to_ret
-
-    @staticmethod
-    def create_gdt_entry(base, limit, access, flags):
-        to_ret = limit & 0xffff
-        to_ret |= (base & 0xffffff) << 16
-        to_ret |= (access & 0xff) << 40
-        to_ret |= ((limit >> 16) & 0xf) << 48
-        to_ret |= (flags & 0xff) << 52
-        to_ret |= ((base >> 24) & 0xff) << 56
-        return struct.pack('<Q', to_ret)
-
+        self.gdt = gdt
 
     # do NOT call either of these functions in a callback, lmao
     def read_msr(self, msr=0xC0000100):
@@ -1240,13 +1247,14 @@ class Unicorn(SimStatePlugin):
         ''' loading registers from unicorn '''
 
         # first, get the ignore list (in case of symbolic registers)
+        saved_registers = []
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
             highest_reg_offset, reg_size = max(self.state.arch.registers.values())
             symbolic_list = (ctypes.c_uint64*(highest_reg_offset + reg_size))()
             num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
 
             # we take the approach of saving off the symbolic regs and then writing them back
-            saved_registers = [ ]
+
             cur_group = None
             last = None
             for i in sorted(symbolic_list[:num_regs]):
@@ -1336,7 +1344,7 @@ class Unicorn(SimStatePlugin):
 
         # now, we restore the symbolic registers
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
-            for o,r in saved_registers:
+            for o, r in saved_registers:
                 self.state.registers.store(o, r)
 
     def _check_registers(self, report=True):

@@ -1,7 +1,7 @@
 import collections
 import claripy
 
-class SimVariable(object):
+class SimVariable:
 
     __slots__ = ['ident', 'name', 'region', 'category']
 
@@ -14,10 +14,6 @@ class SimVariable(object):
         self.name = name
         self.region = region if region is not None else ""
         self.category = category
-
-    @property
-    def phi(self):
-        return False
 
 
 class SimConstantVariable(SimVariable):
@@ -92,9 +88,8 @@ class SimRegisterVariable(SimVariable):
 
         ident_str = "[%s]" % self.ident if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
-        phi_str = ("phi(%s)|" % (",".join(v.ident for v in self.variables))) if self.phi else ""  #pylint:disable=no-member
 
-        s = "<%s%s%s|Reg %s, %sB>" % (phi_str, region_str, ident_str, self.reg, self.size)
+        s = "<%s%s|Reg %s, %sB>" % (region_str, ident_str, self.reg, self.size)
 
         return s
 
@@ -106,47 +101,11 @@ class SimRegisterVariable(SimVariable):
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):
             return self.ident == other.ident and \
-                   self.name == other.name and \
                    self.reg == other.reg and \
                    self.size == other.size and \
-                   self.region == other.region and \
-                   self.phi == other.phi
+                   self.region == other.region
 
         return False
-
-
-class SimRegisterVariablePhi(SimRegisterVariable):
-
-    __slots__ = ['variables', '_hash']
-
-    def __init__(self, ident=None, name=None, region=None, variables=None):
-        var = next(iter(variables))
-        reg_offset = var.reg
-        size = var.size
-
-        super(SimRegisterVariablePhi, self).__init__(reg_offset, size, ident=ident, name=name, region=region)
-
-        self.variables = set(variables)
-        self._hash = None
-
-    def __hash__(self):
-        if self._hash is None:
-            self._hash = hash((self.name, self.region, self.size, self.ident, tuple(self.variables)))
-        return self._hash
-
-    def __eq__(self, other):
-        if type(other) is not SimRegisterVariablePhi:
-            return False
-
-        return self.ident == other.ident and \
-               self.variables == other.variables and \
-               self.name == other.name and \
-               self.region == other.region and \
-               self.size == other.size
-
-    @property
-    def phi(self):
-        return True
 
 
 class SimMemoryVariable(SimVariable):
@@ -202,46 +161,13 @@ class SimMemoryVariable(SimVariable):
         if isinstance(other, SimMemoryVariable):
             return self.ident == other.ident and \
                    self.addr == other.addr and \
-                   self.name == other.name and \
-                   self.size == other.size and \
-                   self.phi == other.phi
+                   self.size == other.size
 
         return False
 
-
-class SimMemoryVariablePhi(SimMemoryVariable):
-
-    __slots__ = ['variables', '_hash']
-
-    def __init__(self, ident=None, name=None, region=None, variables=None):
-        var = next(iter(variables))
-        addr = var.addr
-        size = var.size
-
-        super(SimMemoryVariablePhi, self).__init__(addr, size, ident=ident, name=name, region=region)
-
-        self.variables = set(variables)
-        self._hash = None
-
-    def __hash__(self):
-        if self._hash is None:
-            self._hash = hash((self.name, self.region, self.size, self.ident, tuple(self.variables)))
-        return self._hash
-
-    def __eq__(self, other):
-        if type(other) is not SimMemoryVariablePhi:
-            return False
-
-        return self.ident == other.ident and \
-               self.variables == other.variables and \
-               self.addr == other.addr and \
-               self.name == other.name and \
-               self.region == other.region and \
-               self.size == other.size
-
     @property
-    def phi(self):
-        return True
+    def bits(self):
+        return self.size * 8
 
 
 class SimStackVariable(SimMemoryVariable):
@@ -249,7 +175,7 @@ class SimStackVariable(SimMemoryVariable):
     __slots__ = ['base', 'offset']
 
     def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None, category=None):
-        if offset > 0x1000000 and isinstance(offset, int):
+        if isinstance(offset, int) and offset > 0x1000000:
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
             mask = (1 << offset.bit_length()) - 1
@@ -275,7 +201,6 @@ class SimStackVariable(SimMemoryVariable):
         prefix = "%s(stack)" % self.name if self.name is not None else "Stack"
         ident = "[%s]" % self.ident if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
-        phi_str = "phi|" if self.phi else ""
 
         if type(self.offset) is int:
             if self.offset < 0:
@@ -285,9 +210,9 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = "<%s%s%s|%s %s%s, %s B>" % (phi_str, region_str, ident, prefix, self.base, offset, size)
+            s = "<%s%s|%s %s%s, %s B>" % (region_str, ident, prefix, self.base, offset, size)
         else:
-            s = "<%s%s%s|%s %s%s, %s B>" % (phi_str, region_str, ident, prefix, self.base, self.addr, size)
+            s = "<%s%s|%s %s%s, %s B>" % (region_str, ident, prefix, self.base, self.addr, size)
 
         return s
 
@@ -296,49 +221,12 @@ class SimStackVariable(SimMemoryVariable):
             return False
 
         return self.ident == other.ident and \
-               self.name == other.name and \
                self.base == other.base and \
                self.offset == other.offset and \
-               self.size == other.size and \
-               self.phi == other.phi
-
-    def __hash__(self):
-        return hash((self.ident, self.name, self.base, self.offset, self.size, self.phi))
-
-
-class SimStackVariablePhi(SimStackVariable):
-
-    __slots__ = ['variables', '_hash']
-
-    def __init__(self, ident=None, name=None, region=None, variables=None):
-        var = next(iter(variables))
-        offset = var.addr
-        size = var.size
-
-        super(SimStackVariablePhi, self).__init__(offset, size, ident=ident, name=name, region=region)
-
-        self.variables = set(variables)
-        self._hash = None
-
-    def __hash__(self):
-        if self._hash is None:
-            self._hash = hash((self.name, self.region, self.size, self.ident, tuple(self.variables)))
-        return self._hash
-
-    def __eq__(self, other):
-        if type(other) is not SimStackVariablePhi:
-            return False
-
-        return self.ident == other.ident and \
-               self.variables == other.variables and \
-               self.addr == other.addr and \
-               self.name == other.name and \
-               self.region == other.region and \
                self.size == other.size
 
-    @property
-    def phi(self):
-        return True
+    def __hash__(self):
+        return hash((self.ident, self.base, self.offset, self.size))
 
 
 class SimVariableSet(collections.MutableSet):
@@ -361,7 +249,7 @@ class SimVariableSet(collections.MutableSet):
         # For the sake of performance, we have another set that stores memory addresses of memory_variables
         self.memory_variable_addresses = set()
 
-    def add(self, item):
+    def add(self, item):  # pylint:disable=arguments-differ
         if type(item) is SimRegisterVariable:
             if not self.contains_register_variable(item):
                 self.add_register_variable(item)
@@ -382,7 +270,7 @@ class SimVariableSet(collections.MutableSet):
         for i in range(mem_var.size):
             self.memory_variable_addresses.add(base_address + i)
 
-    def discard(self, item):
+    def discard(self, item):  # pylint:disable=arguments-differ
         if type(item) is SimRegisterVariable:
             if self.contains_register_variable(item):
                 self.discard_register_variable(item)

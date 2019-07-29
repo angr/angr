@@ -1,11 +1,16 @@
 from collections import OrderedDict, defaultdict
+from .misc.ux import deprecated
 import copy
 import re
+import logging
 
 import claripy
 
-import logging
-l = logging.getLogger("angr.sim_type")
+l = logging.getLogger(name=__name__)
+
+# pycparser hack to parse type expressions
+errorlog = logging.getLogger(name=__name__ + ".yacc")
+errorlog.setLevel(logging.ERROR)
 
 try:
     import pycparser
@@ -13,7 +18,7 @@ except ImportError:
     pycparser = None
 
 
-class SimType(object):
+class SimType:
     """
     SimType exists to track type information for SimProcedures.
     """
@@ -35,6 +40,8 @@ class SimType(object):
             return False
 
         for attr in self._fields:
+            if attr == 'size' and self._arch is None and other._arch is None:
+                continue
             if getattr(self, attr) != getattr(other, attr):
                 return False
 
@@ -50,9 +57,6 @@ class SimType(object):
         for attr in self._fields:
             out ^= hash(getattr(self, attr))
         return out
-
-    def view(self, state, addr):
-        return SimMemView(ty=self, addr=addr, state=state)
 
     @property
     def name(self):
@@ -99,7 +103,7 @@ class SimType(object):
 
 class SimTypeBottom(SimType):
     """
-    SimTypeBottom basically repesents a type error.
+    SimTypeBottom basically represents a type error.
     """
 
     def __repr__(self):
@@ -524,7 +528,7 @@ class SimTypeString(SimTypeArray):
             if state.solver.symbolic(last_byte):
                 raise ValueError("Trying to extract a symbolic string at %#x" % state.solver.eval(addr))
             addr += 1
-            while not claripy.is_true(last_byte == 0):
+            while not (claripy.is_true(last_byte == 0) or state.solver.symbolic(last_byte)):
                 out = last_byte if out is None else out.concat(last_byte)
                 last_byte = state.memory.load(addr, 1)
                 addr += 1
@@ -575,7 +579,7 @@ class SimTypeWString(SimTypeArray):
             if state.solver.symbolic(last_byte):
                 raise ValueError("Trying to extract a symbolic string at %#x" % state.solver.eval(addr))
             addr += 2
-            while not claripy.is_true(last_byte == 0):
+            while not (claripy.is_true(last_byte == 0) or state.solver.symbolic(last_byte)):
                 out = last_byte if out is None else out.concat(last_byte)
                 last_byte = state.memory.load(addr, 2)
                 addr += 2
@@ -615,7 +619,7 @@ class SimTypeFunction(SimType):
     _fields = ('args', 'returnty')
     base = False
 
-    def __init__(self, args, returnty, label=None):
+    def __init__(self, args, returnty, label=None, arg_names=None):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
@@ -624,6 +628,7 @@ class SimTypeFunction(SimType):
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
         self.returnty = returnty
+        self.arg_names = arg_names if arg_names else []
 
     def __repr__(self):
         return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
@@ -766,7 +771,7 @@ class SimStruct(SimType):
         values = {}
         for name, offset in self.offsets.items():
             ty = self.fields[name]
-            v = ty.view(state, addr + offset)
+            v = SimMemView(ty=ty, addr=addr+offset, state=state)
             if concrete:
                 values[name] = v.concrete
             else:
@@ -814,7 +819,7 @@ class SimStruct(SimType):
             raise TypeError("Can't store struct of type %s" % type(value))
 
         if len(value) != len(self.fields):
-            raise ValueError("Passed bad values for %s; expected %d, got %d" % self, len(self.offsets), len(value))
+            raise ValueError("Passed bad values for %s; expected %d, got %d" % (self, len(self.offsets), len(value)))
 
         for field, offset in self.offsets.items():
             ty = self.fields[field]
@@ -831,7 +836,7 @@ class SimStruct(SimType):
         )
 
 
-class SimStructValue(object):
+class SimStructValue:
     """
     A SimStruct type paired with some real values
     """
@@ -857,15 +862,20 @@ class SimStructValue(object):
 
 
 class SimUnion(SimType):
-    """
-    why
-    """
-    def __init__(self, members, label=None):
+    _fields = ('members', 'name')
+
+    def __init__(self, members, name=None, label=None):
         """
-        :param members:     The members of the struct, as a mapping name -> type
+        :param members:     The members of the union, as a mapping name -> type
+        :param name:        The name of the union
         """
         super(SimUnion, self).__init__(label)
+        self._name = name if name is not None else '<anon>'
         self.members = members
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def size(self):
@@ -876,7 +886,12 @@ class SimUnion(SimType):
         return max(val.alignment for val in self.members.values())
 
     def __repr__(self):
-        return 'union {\n\t%s\n}' % '\n\t'.join('%s %s;' % (name, repr(ty)) for name, ty in self.members.items())
+        # use the str instead of repr of each member to avoid exceed recursion
+        # depth when representing self-referential unions
+        return 'union %s {\n\t%s\n}' % (self.name, '\n\t'.join('%s %s;' % (name, str(ty)) for name, ty in self.members.items()))
+
+    def __str__(self):
+        return 'union %s' % (self.name, )
 
     def _with_arch(self, arch):
         out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.items()}, self.label)
@@ -952,7 +967,7 @@ ALL_TYPES.update(BASIC_TYPES)
 
 # this is a hack, pending https://github.com/eliben/pycparser/issues/187
 def make_preamble():
-    out = []
+    out = ['typedef int TOP;']
     types_out = []
     for ty in ALL_TYPES:
         if ty in BASIC_TYPES:
@@ -982,7 +997,26 @@ def make_preamble():
 
     return '\n'.join(out) + '\n', types_out
 
+def _make_scope():
+    """
+    Generate CParser scope_stack argument to parse method
+    """
+    scope = dict()
+    for ty in ALL_TYPES:
+        if ty in BASIC_TYPES:
+            continue
+        if ' ' in ty:
+            continue
 
+        typ = ALL_TYPES[ty]
+        if isinstance(typ, (SimTypeFunction,SimTypeString, SimTypeWString)):
+            continue
+
+        scope[ty] = True
+    return [scope]
+
+
+@deprecated(replacement="register_types(parse_type(struct_expr))")
 def define_struct(defn):
     """
     Register a struct definition globally
@@ -991,24 +1025,37 @@ def define_struct(defn):
     """
     struct = parse_type(defn)
     ALL_TYPES[struct.name] = struct
+    ALL_TYPES['struct ' + struct.name] = struct
     return struct
 
 
-def register_types(mapping):
+def register_types(types):
     """
-    Pass in a mapping from name to SimType and they will be registered to the global type store
+    Pass in some types and they will be registered to the global type store.
+
+    The argument may be either a mapping from name to SimType, or a plain SimType.
+    The plain SimType must be either a struct or union type with a name present.
 
     >>> register_types(parse_types("typedef int x; typedef float y;"))
+    >>> register_types(parse_type("struct abcd { int ab; float cd; }"))
     """
-    ALL_TYPES.update(mapping)
+    if type(types) is SimStruct:
+        if types.name == '<anon>':
+            raise ValueError("Cannot register anonymous struct")
+        ALL_TYPES['struct ' + types.name] = types
+    elif type(types) is SimUnion:
+        if types.name == '<anon>':
+            raise ValueError("Cannot register anonymous union")
+        ALL_TYPES['union ' + types.name] = types
+    else:
+        ALL_TYPES.update(types)
 
 
 def do_preprocess(defn):
     """
     Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
     """
-    import pycparser.ply.lex as lex
-    import pycparser.ply.cpp as cpp
+    from pycparser.ply import lex, cpp
     lexer = lex.lex(cpp)
     p = cpp.Preprocessor(lexer)
     # p.add_path(dir) will add dir to the include search path
@@ -1074,27 +1121,52 @@ def parse_type(defn, preprocess=True):
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
-    defn = 'typedef ' + defn.strip('; \n\t\r') + ' QQQQ;'
+    defn = re.sub(r"/\*.*?\*/", r"", defn)
 
-    if preprocess:
-        defn = do_preprocess(defn)
+    parser = pycparser.CParser()
 
-    node = pycparser.c_parser.CParser().parse(make_preamble()[0] + defn)
-    if not isinstance(node, pycparser.c_ast.FileAST) or \
-            not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
+    parser.cparser = pycparser.ply.yacc.yacc(module=parser,
+                                             start='parameter_declaration',
+                                             debug=False,
+                                             optimize=False,
+                                             errorlog=errorlog)
+
+    node = parser.parse(text=defn, scope_stack=_make_scope())
+    if not isinstance(node, pycparser.c_ast.Typename) and \
+            not isinstance(node, pycparser.c_ast.Decl):
         raise ValueError("Something went horribly wrong using pycparser")
 
-    decl = node.ext[-1].type
+    decl = node.type
     return _decl_to_type(decl)
+
+
+def _accepts_scope_stack():
+    """
+    pycparser hack to include scope_stack as parameter in CParser parse method
+    """
+    def parse(self, text, scope_stack=None, filename='', debuglevel=0):
+        self.clex.filename = filename
+        self.clex.reset_lineno()
+        self._scope_stack = [dict()] if scope_stack is None else scope_stack
+        self._last_yielded_token = None
+        return self.cparser.parse(
+            input=text,
+            lexer=self.clex,
+            debug=debuglevel)
+    setattr(pycparser.CParser, 'parse', parse)
+
 
 def _decl_to_type(decl, extra_types=None):
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
         argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) for x in decl.args.params]
-        return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types))
+        arg_names = [ arg.name for arg in decl.args.params] if decl.args else None
+        return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types), arg_names=arg_names)
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
+        if decl.declname == 'TOP':
+            return SimTypeTop()
         return _decl_to_type(decl.type, extra_types)
 
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
@@ -1111,22 +1183,58 @@ def _decl_to_type(decl, extra_types=None):
         return SimTypeFixedSizeArray(elem_type, size)
 
     elif isinstance(decl, pycparser.c_ast.Struct):
-        struct = SimStruct(OrderedDict(), decl.name)
+        if decl.decls is not None:
+            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
+        else:
+            fields = OrderedDict()
+
         if decl.name is not None:
             key = 'struct ' + decl.name
             if key in extra_types:
                 struct = extra_types[key]
+            elif key in ALL_TYPES:
+                struct = ALL_TYPES[key]
             else:
-                extra_types[key] = struct
+                struct = None
 
-        if decl.decls is not None:
-            for field in decl.decls:
-                struct.fields[field.name] = _decl_to_type(field.type, extra_types)
+            if struct is None:
+                struct = SimStruct(fields, decl.name)
+            elif not struct.fields:
+                struct.fields = fields
+            elif fields and struct.fields != fields:
+                raise ValueError("Redefining body of " + key)
+
+            extra_types[key] = struct
+        else:
+            struct = SimStruct(fields)
         return struct
 
     elif isinstance(decl, pycparser.c_ast.Union):
-        members = {child[1].name: _decl_to_type(child[1].type, extra_types) for child in decl.children()}
-        return SimUnion(members)
+        if decl.decls is not None:
+            fields = {field.name: _decl_to_type(field.type, extra_types) for field in decl.decls}
+        else:
+            fields = {}
+
+        if decl.name is not None:
+            key = 'union ' + decl.name
+            if key in extra_types:
+                union = extra_types[key]
+            elif key in ALL_TYPES:
+                union = ALL_TYPES[key]
+            else:
+                union = None
+
+            if union is None:
+                union = SimUnion(fields, decl.name)
+            elif not union.members:
+                union.members = fields
+            elif fields and union.members != fields:
+                raise ValueError("Redefining body of " + key)
+
+            extra_types[key] = union
+        else:
+            union = SimUnion(fields)
+        return union
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
         key = ' '.join(decl.names)
@@ -1156,6 +1264,8 @@ def _parse_const(c):
     else:
         raise ValueError(c)
 
+if pycparser is not None:
+    _accepts_scope_stack()
 
 try:
     register_types(parse_types("""
@@ -1173,6 +1283,5 @@ struct timeval {
 """))
 except ImportError:
     pass
-
 
 from .state_plugins.view import SimMemView

@@ -13,26 +13,30 @@ class StringTableSpec(object):
             self.add_null()
 
     def append_env(self, env, add_null=True):
-        for k, v in env.items():
-            if type(k) is bytes:
-                k = claripy.BVV(k)
-            elif type(k) is str:
-                k = claripy.BVV(k.encode())
-            elif isinstance(k, claripy.ast.Bits):
-                pass
-            else:
-                raise TypeError("Key in env must be either string or bitvector")
+        if isinstance(env, dict):
+            for k, v in env.items():
+                if type(k) is bytes:
+                    k = claripy.BVV(k)
+                elif type(k) is str:
+                    k = claripy.BVV(k.encode())
+                elif isinstance(k, claripy.ast.Bits):
+                    pass
+                else:
+                    raise TypeError("Key in env must be either string or bitvector")
 
-            if type(v) is bytes:
-                v = claripy.BVV(v)
-            elif type(v) is str:
-                v = claripy.BVV(v.encode())
-            elif isinstance(v, claripy.ast.Bits):
-                pass
-            else:
-                raise TypeError("Value in env must be either string or bitvector")
+                if type(v) is bytes:
+                    v = claripy.BVV(v)
+                elif type(v) is str:
+                    v = claripy.BVV(v.encode())
+                elif isinstance(v, claripy.ast.Bits):
+                    pass
+                else:
+                    raise TypeError("Value in env must be either string or bitvector")
 
-            self.add_string(k.concat(claripy.BVV(b'='), v))
+                self.add_string(k.concat(claripy.BVV(b'='), v))
+        else:
+            for v in env:
+                self.add_string(v)
         if add_null:
             self.add_null()
 

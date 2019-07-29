@@ -11,7 +11,8 @@ env:
   - PY=e ANGR_REPO=fidget
   - PY=e ANGR_REPO=patcherex
   - PY=e ANGR_REPO=tracer NOSE_OPTIONS="--process-timeout=900"
-#  - PY=p ANGR_REPO=rex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
+  - PY=p ANGR_REPO=rex
+  - PY=e ANGR_REPO=heaphopper
 install: ( curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/tests/travis-install.sh | grep -v 404 || curl https://raw.githubusercontent.com/angr/angr-dev/master/tests/travis-install.sh ) | bash
 script: ~/angr-dev/tests/travis-test.sh
 notifications:

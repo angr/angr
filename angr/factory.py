@@ -4,9 +4,11 @@ from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 from .errors import AngrAssemblyError
+from archinfo import ArchSoot
 
 
-l = logging.getLogger("angr.factory")
+l = logging.getLogger(name=__name__)
+
 
 class AngrObjectFactory(object):
     """
@@ -29,6 +31,10 @@ class AngrObjectFactory(object):
             hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get('length', 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
+        elif self.project.simos.is_syscall_addr(addr):
+            syscall = self.project.simos.syscall_from_addr(addr)
+            size = syscall.kwargs.get('length', 0)
+            return SyscallNode(addr, size, syscall)
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
@@ -200,7 +206,7 @@ class AngrObjectFactory(object):
         :param cc:              The SimCC to use for a calling convention
         :returns:               A Callable object that can be used as a interface for executing guest code like a
                                 python function.
-        :rtype:                 angr.surveyors.caller.Callable
+        :rtype:                 angr.callable.Callable
         """
         return Callable(self.project,
                         addr=addr,
@@ -210,7 +216,6 @@ class AngrObjectFactory(object):
                         toc=toc,
                         cc=cc)
 
-
     def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
         """
         Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
@@ -218,13 +223,20 @@ class AngrObjectFactory(object):
         :param args:        A list of argument storage locations, as SimFunctionArguments.
         :param ret_val:     The return value storage location, as a SimFunctionArgument.
         :param sp_delta:    Does this even matter??
-        :param func_ty:     The protoype for the given function, as a SimType.
+        :param func_ty:     The prototype for the given function, as a SimType or a C-style function declaration that
+                            can be parsed into a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
 
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
 
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
+
         return self._default_cc(arch=self.project.arch,
                                   args=args,
                                   ret_val=ret_val,
@@ -242,7 +254,14 @@ class AngrObjectFactory(object):
         :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
                             size of the corresponding argument in bytes.
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :parmm func_ty:     A SimType for the function itself
+        :param func_ty:     A SimType for the function itself or a C-style function declaration that can be parsed into
+                            a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         """
         return self._default_cc.from_arg_kinds(arch=self.project.arch,
                 fp_args=fp_args,
@@ -252,10 +271,13 @@ class AngrObjectFactory(object):
                 func_ty=func_ty)
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-              opt_level=None, num_inst=None, traceflags=0,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
               strict_block_end=None, collect_data_refs=False,
               ):
+
+        if isinstance(self.project.arch, ArchSoot):
+            return SootBlock(addr, arch=self.project.arch, project=self.project)
 
         if insn_bytes is not None and insn_text is not None:
             raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
@@ -273,10 +295,11 @@ class AngrObjectFactory(object):
         if max_size is not None:
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
             size = max_size
-        return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
-                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
+        return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex,
+                     extra_stop_points=extra_stop_points, thumb=thumb, backup_state=backup_state,
+                     opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
                      strict_block_end=strict_block_end, collect_data_refs=collect_data_refs,
-                     )
+         )
 
     def fresh_block(self, addr, size, backup_state=None):
         return Block(addr, project=self.project, size=size, backup_state=backup_state)
@@ -290,5 +313,5 @@ class AngrObjectFactory(object):
 
 from .errors import AngrError
 from .sim_manager import SimulationManager
-from .codenode import HookNode
-from .block import Block
+from .codenode import HookNode, SyscallNode
+from .block import Block, SootBlock

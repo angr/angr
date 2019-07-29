@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import angr
 import archinfo
+from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
 from . import Analysis
@@ -18,7 +19,7 @@ from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, Angr
 from ..procedures import SIM_PROCEDURES
 from ..state_plugins.callstack import CallStack
 
-l = logging.getLogger("angr.analyses.vfg")
+l = logging.getLogger(name=__name__)
 
 
 class VFGJob(CFGJobBase):
@@ -1200,7 +1201,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         if self.project.arch.name in ('X86', 'AMD64'):
             state.stack_push(ret_bvv)
-        elif self.project.arch.name in ('ARMEL', 'ARMHF', 'AARCH64'):
+        elif is_arm_arch(self.project.arch):
             state.regs.lr = ret_bvv
         elif self.project.arch.name in ('MIPS32', 'MIPS64'):
             state.regs.ra = ret_bvv
@@ -1567,7 +1568,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         func = self.project.loader.find_symbol(job.addr)
         function_name = func.name if func is not None else None
-        module_name = self.project.loader.find_module_name(job.addr)
+        module_name = self.project.loader.find_object_containing(job.addr).provides
 
         l.debug("VFGJob @ %#08x with callstack [ %s ]", job.addr,
                 job.callstack_repr(self.kb),

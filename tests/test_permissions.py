@@ -5,10 +5,10 @@ import logging
 l = logging.getLogger("angr_tests")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_nx():
-    nx_amd64 = angr.Project(test_location + "/x86_64/memmove")
+    nx_amd64 = angr.Project(os.path.join(test_location, 'x86_64', 'memmove'))
     es = nx_amd64.factory.entry_state()
 
     # .text should be PROT_READ|PROT_EXEC

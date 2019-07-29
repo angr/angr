@@ -11,7 +11,7 @@ import nose
 import angr
 
 # Load the tests
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def perform_one(binary_path):
     proj = angr.Project(binary_path,
@@ -75,13 +75,13 @@ def test_ddg_0():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda kv: kv[0].startswith('test_') and hasattr(v, '__call__')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_') and hasattr(kv[1], '__call__')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 
 if __name__ == "__main__":
-    #logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
-    #logging.getLogger("angr.analyses.ddg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.ddg").setLevel(logging.DEBUG)
 
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
