@@ -4,7 +4,7 @@ from copy import deepcopy
 import cle
 import pyvex
 import claripy
-from archinfo import ArchARM
+from archinfo import ArchARM, Arch8086
 
 from ... import sim_options as o
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
