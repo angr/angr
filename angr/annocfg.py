@@ -19,8 +19,8 @@ class AnnotatedCFG:
         Constructor.
 
         :param project: The angr Project instance
-        :param cfg: Control flow graph. Only used when path prioritizer is used.
-        :param detect_loops: Only used when path prioritizer is used.
+        :param cfg: Control flow graph.
+        :param detect_loops:
         """
         self._project = project
 
@@ -33,8 +33,6 @@ class AnnotatedCFG:
         self._addr_to_last_stmt_id = {}
         self._loops = []
         self._path_merge_points = [ ]
-        self._path_prioritizer = None
-
 
         if cfg is not None:
             self._cfg = cfg
@@ -267,12 +265,6 @@ class AnnotatedCFG:
         else:
             return set()
 
-    def path_priority(self, path):
-        """
-        Given a path, returns the path priority. A lower number means a higher priority.
-        """
-        return self._path_prioritizer.get_priority(path)
-
     def successor_func(self, path):
         """
         Callback routine that takes in a path, and returns all feasible successors to path group. This callback routine
@@ -317,7 +309,6 @@ class AnnotatedCFG:
         state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
         state['_loops'] = self._loops
         state['_path_merge_points'] = self._path_merge_points
-        state['_path_prioritizer'] = self._path_prioritizer
         state['_cfg'] = None
         state['_project'] = None
         state['_addr_to_run'] = None
