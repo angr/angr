@@ -111,9 +111,6 @@ class AnnotatedCFG:
         """
         self._loops.append(loop_tuple)
 
-    def set_path_merge_points(self, points):
-        self._path_merge_points = points.copy()
-
     def should_take_exit(self, addr_from, addr_to):
         if addr_from in self._exit_taken:
             return addr_to in self._exit_taken[addr_from]
