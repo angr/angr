@@ -4,8 +4,12 @@ import time
 
 class GetSystemTimeAsFileTime(angr.SimProcedure):
     timestamp = None
+
     def run(self, outptr):
         self.instrument()
+
+        print("Setting buffer for GetSystemTimeAsFileTime at {} with {}".format(str(outptr), str(self.timestamp)))
+
         self.state.mem[outptr].qword = self.timestamp
 
     def instrument(self):

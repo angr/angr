@@ -4,6 +4,7 @@ import logging
 import itertools
 
 l = logging.getLogger(name=__name__)
+#l.setLevel(logging.DEBUG)
 
 import claripy
 
@@ -605,6 +606,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
               disable_actions=False, inspect=True, chunk_size=None):
+
+
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 

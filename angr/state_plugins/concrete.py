@@ -4,14 +4,14 @@ import io
 import logging
 import os
 import re
-
+import struct
 
 from .plugin import SimStatePlugin
 from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
@@ -19,7 +19,7 @@ class Concrete(SimStatePlugin):
                  whitelist=None, fs_register_bp=None, synchronize_cle=True, already_sync_objects_addresses=None,
                  ):
 
-        SimStatePlugin.__init__(self)
+        super().__init__()
 
         self.segment_registers_initialized = segment_registers_initialized
         self.segment_registers_callback_initialized = segment_registers_callback_initialized
@@ -40,10 +40,10 @@ class Concrete(SimStatePlugin):
     def copy(self, _memo):
         conc = Concrete(segment_registers_initialized=self.segment_registers_initialized,
                         segment_registers_callback_initialized=self.segment_registers_callback_initialized,
-                        whitelist=self.whitelist,
+                        whitelist=list(self.whitelist),
                         fs_register_bp=self.fs_register_bp,
                         synchronize_cle=self.synchronize_cle,
-                        already_sync_objects_addresses=self.already_sync_objects_addresses
+                        already_sync_objects_addresses=list(self.already_sync_objects_addresses)
                         )
         return conc
 
@@ -223,12 +223,14 @@ class Concrete(SimStatePlugin):
                 l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
                 # l.debug("reloc.rebased_addr: %#x " % reloc.rebased_addr)
 
-                #if self.state.project.arch.name is not 'ARMHF':
-                #    func_address = self.state.project.concrete_target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
-                #    func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
-                #else:
-
-                func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+                if self.state.project.simos.name == 'Win32':
+                    func_address = self.state.project.concrete_target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
+                    func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
+                elif self.state.project.simos.name == 'Linux':
+                    func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+                else:
+                    l.warn("Can't synchronize simproc, binary format not supported.")
+                    return
 
                 l.debug("Function address hook is now: %#x ", func_address)
                 self.state.project.rehook_symbol(func_address, reloc.symbol.name)

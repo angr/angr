@@ -6,7 +6,7 @@ from .. import BP_BEFORE, BP_AFTER, sim_options
 from ..errors import AngrTracerError
 
 l = logging.getLogger(name=__name__)
-
+l.setLevel(logging.DEBUG)
 
 class TracingMode:
     """
@@ -131,11 +131,11 @@ class Tracer(ExplorationTechnique):
 
     def __init__(self,
             trace=None,
-            resiliency=False,
+            resiliency=True,
             keep_predecessors=1,
             crash_addr=None,
-            copy_states=False,
-            mode=TracingMode.Strict):
+            copy_states=True,
+            mode=TracingMode.Permissive):
         super(Tracer, self).__init__()
         self._trace = trace
         self._resiliency = resiliency
@@ -179,8 +179,13 @@ class Tracer(ExplorationTechnique):
         else:
             raise AngrTracerError("Could not identify program entry point in trace!")
 
+        l.debug("Entry point identified at idx %s at address %s ", idx, addr)
+
         # pylint: disable=undefined-loop-variable
         # pylint doesn't know jack shit
+
+        l.debug("Entry point of is %s", hex(self.project.entry))
+
         self._current_slide = self._aslr_slides[self.project.loader.main_object] = self._trace[idx] - self.project.entry
 
         # step to entry point
@@ -191,6 +196,8 @@ class Tracer(ExplorationTechnique):
             elif len(simgr.active) > 1:
                 raise AngrTracerError("Could not step to the first address of the trace - state split")
             simgr.drop(stash='unsat')
+
+        l.debug("Stepped to entry point!")
 
         # initialize the state info
         simgr.one_active.globals['trace_idx'] = idx
@@ -225,6 +232,10 @@ class Tracer(ExplorationTechnique):
         return simgr.step(stash=stash, **kwargs)
 
     def step_state(self, simgr, state, **kwargs):
+
+        address = state.solver.eval(state.regs.pc)
+        print(state.block(addr=address).capstone.pp())
+
         if state.history.jumpkind == 'Ijk_Exit':
             return {'traced': [state]}
 
@@ -281,6 +292,8 @@ class Tracer(ExplorationTechnique):
                 succs_dict['missed'] = [s for s in succs if s is not succ]
 
         assert len(succs_dict[None]) == 1
+
+
         return succs_dict
 
     def _force_resync(self, simgr, state, deviating_trace_idx, deviating_addr, kwargs):
@@ -442,6 +455,7 @@ class Tracer(ExplorationTechnique):
         if state.globals['sync_idx'] is not None:
             l.debug("Trace: %d-%d/%d synchronizing %d", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
         else:
+            print(state)
             l.debug("Trace: %d/%d", state.globals['trace_idx'], len(self._trace))
 
     def _translate_state_addr(self, state_addr, obj=None):
