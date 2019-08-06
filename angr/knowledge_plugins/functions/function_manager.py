@@ -1035,6 +1035,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(retn_node, self.address_types):
             retn_node = self._kb._project.factory.snippet(retn_node)
+
         func = self._function_map[function_addr]
         func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
