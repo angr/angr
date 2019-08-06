@@ -2,7 +2,6 @@ from ...... import sim_options as o
 from ......state_plugins.sim_action_object import SimActionObject
 from ......state_plugins.sim_action import SimActionData
 
-
 def SimIRStmt_Store(engine, state, abstract_state, code_loc ,stmt):
 
     # first resolve the address and record stuff
@@ -28,4 +27,3 @@ def SimIRStmt_Store(engine, state, abstract_state, code_loc ,stmt):
     # Now do the store (if we should)
     if o.DO_STORES in state.options:
         state.memory.store(addr, data, action=a, endness=stmt.endness)
-
