@@ -17,6 +17,8 @@ from .....utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
 from .statements import STMT_CLASSES
 from .expressions import EXPR_CLASSES, SimIRExpr_Unsupported
+from .....sim_variable import SimConstantVariable
+
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -468,10 +470,14 @@ class SimEngineVEX(SimEngine):
             concrete_value = state.solver.BVV(state.solver.eval(result), len(result))
             state.add_constraints(result == concrete_value)
             result = concrete_value
-
         state._inspect('expr', BP_AFTER, expr=expr, expr_result=result)
-        if result.op == 'BVV':
-            abstract_state.add_replacement(code_loc, result, "Constant")
+
+        if result.op == 'BVV' or result.op == 'FPV':
+            abstract_state.add_replacement(code_loc, expr, SimConstantVariable(value=state.solver.eval(result)))
+        else:
+            print(result.op)
+            print("\n")
+
         return result
 
     def lift(self,
