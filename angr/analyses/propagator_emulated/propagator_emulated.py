@@ -72,7 +72,6 @@ class PropagatorState:
                         else:
                             if state._replacements[loc][var] != repl:
                                 state._replacements[loc][var] = TOP
-
         return state
 
 
@@ -115,8 +114,12 @@ class PropagatorVEXState(PropagatorState):
             replacements=self._replacements.copy(),
             concrete_states=self._concrete_states
         )
-
         return cp
+    def add_replacement(self, codeloc, old, new):
+        if old not in self._replacements[codeloc]:
+            self._replacements[codeloc][old] = new
+        elif self._replacements[codeloc][old] != new:
+            self._replacements[codeloc][old] = TOP
 
 # AIL state
 
@@ -249,12 +252,19 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
 
+    def _add_input_state(self, node, input_state):
+        successors = self._graph_visitor.successors(node)
+
+        for succ in successors:
+            self._state_map[succ] = input_state
 
     def _run_on_node(self, node, abstract_state):
+        print("Node: "+str(node))
         concrete_state = abstract_state.get_concrete_state(node.addr)
         if concrete_state is None:
             # didn't find any state going to here
             print("_run_on_node(): cannot find any state for address ", hex(node.addr))
+            print("\n")
             return False, abstract_state
 
         if isinstance(node, ailment.Block):
@@ -266,14 +276,19 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             block_key = node.block_id
             engine = self._engine_vex
 
-        abstract_state = abstract_state.copy()
+        #abstract_state = abstract_state.copy()
+        if block_key in self._states:
+            abstract_state = self._states[block_key]
+        else:
+            abstract_state = PropagatorVEXState(arch=self.project.arch)
         sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key)
         abstract_state.concrete_states = sim_successors.all_successors
+        print("All successors: "+ str(sim_successors.all_successors))
+        print(block_key)
+        print(hash(block_key))
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
         self.replacements[block_key] = abstract_state._replacements
-        print("Replacements for node: "+hex(node.addr))
-        print(abstract_state._replacements)
         print("\n")
 
         if self._node_iterations[block_key] < self._max_iterations:
