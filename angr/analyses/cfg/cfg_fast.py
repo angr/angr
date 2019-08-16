@@ -3371,6 +3371,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                 # decoding error
+                # is the current location already occupied and marked as non-code?
+                # it happens in cases like the following:
+                #
+                #     BL a_nonreturning_func (but we don't know it does not return)
+                #     alignment  (mov r8, r8)
+                #  data_ref_0:
+                #     DCD "type found!"
+                #
+                occupied_sort = self._seg_list.occupied_by_sort(real_addr)
+                if occupied_sort and occupied_sort != "code":
+                    # no wonder we cannot decode it
+                    return None, None, None, None
+
                 # we still occupy that location since it cannot be decoded anyways
                 if irsb is None:
                     irsb_size = 0
