@@ -1871,6 +1871,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _process_irsb_data_refs(self, irsb):
         for ref in irsb.data_refs:
+            if ref.data_size:
+                self._seg_list.occupy(ref.data_addr, ref.data_size, "unknown")
+
             self._add_data_reference(
                     irsb.addr,
                     ref.stmt_idx,
