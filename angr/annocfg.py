@@ -38,7 +38,7 @@ class AnnotatedCFG:
             self._cfg = cfg
 
         if self._cfg is not None:
-            for run in self._cfg.nodes():
+            for run in self._cfg.model.nodes():
                 self._addr_to_run[self.get_addr(run)] = run
 
     #
