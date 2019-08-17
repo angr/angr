@@ -3469,7 +3469,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # do a bunch of checks to avoid unnecessary simulation from happening
                     self._arm_track_read_lr_from_stack(irsb, self.functions[func_addr])
 
-        elif self.project.arch.name == "MIPS32":
+        elif self.project.arch.name in {"MIPS32", "MIPS64"}:
             function = self.kb.functions.function(func_addr)
             if addr >= func_addr and addr - func_addr < 15 * 4 and 'gp' not in function.info:
                 # check if gp is being written to

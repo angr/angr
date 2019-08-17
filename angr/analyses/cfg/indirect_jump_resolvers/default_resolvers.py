@@ -19,6 +19,9 @@ DEFAULT_RESOLVERS = {
     'MIPS32': {
         cle.MetaELF: [ MipsElfFastResolver, ],
     },
+    'MIPS64': {
+        cle.MetaELF: [ MipsElfFastResolver, ],
+    },
     'ALL': [ JumpTableResolver ],
 }
 
