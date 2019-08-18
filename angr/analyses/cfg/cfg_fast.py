@@ -622,8 +622,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        self._function_addresses_from_symbols = self._func_addrs_from_symbols()
-
         self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
 
@@ -1268,16 +1266,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     l.exception("Error collecting XRefs for function %#x.", f_addr, exc_info=True)
 
     # Methods to get start points for scanning
-
-    def _func_addrs_from_symbols(self):
-        """
-        Get all possible function addresses that are specified by the symbols in the binary
-
-        :return: A set of addresses that are probably functions
-        :rtype: set
-        """
-
-        return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
 
     def _func_addrs_from_prologues(self):
         """
