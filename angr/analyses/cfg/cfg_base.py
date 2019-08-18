@@ -268,12 +268,12 @@ class CFGBase(Analysis):
         return self._model.get_successors_and_jumpkind(node, excluding_fakeret=excluding_fakeret)
 
     @deprecated(replacement="self.model.get_all_predecessors()")
-    def get_all_predecessors(self, cfgnode):
-        return self._model.get_all_predecessors(cfgnode)
+    def get_all_predecessors(self, cfgnode, depth_limit=None):
+        return self._model.get_all_predecessors(cfgnode, depth_limit)
 
     @deprecated(replacement="self.model.get_all_successors()")
-    def get_all_successors(self, cfgnode):
-        return self._model.get_all_successors(cfgnode)
+    def get_all_successors(self, cfgnode, depth_limit=None):
+        return self._model.get_all_successors(cfgnode, depth_limit)
 
     @deprecated(replacement="self.model.get_node()")
     def get_node(self, block_id):
