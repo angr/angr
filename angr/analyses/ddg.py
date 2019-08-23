@@ -970,7 +970,10 @@ class DDG(Analysis):
             if addr_tmp in self._temp_register_symbols:
                 # it must be a stack variable
                 sort, offset = self._temp_register_symbols[addr_tmp]
-                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=addr - offset)
+                base_addr = addr - offset
+                if base_addr < 0:
+                    base_addr += (1 << self.project.arch.bits)
+                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=base_addr)
 
         if variable is None:
             variable = SimMemoryVariable(addr, action.size.ast // 8)
@@ -1237,6 +1240,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset -= const_value
+                    if offset < 0:
+                        offset += (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
         elif action.op.endswith('Add32') or action.op.endswith('Add64'):
@@ -1252,6 +1257,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset += const_value
+                    if offset >= (1 << self.project.arch.bits):
+                        offset -= (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
     def _process_operation(self, action, location, state, statement):  # pylint:disable=unused-argument
