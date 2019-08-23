@@ -152,6 +152,8 @@ class CFGBase(Analysis):
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
 
+        self._function_addresses_from_symbols = self._func_addrs_from_symbols()
+
         if model is not None:
             self._model = model
         else:
@@ -268,12 +270,12 @@ class CFGBase(Analysis):
         return self._model.get_successors_and_jumpkind(node, excluding_fakeret=excluding_fakeret)
 
     @deprecated(replacement="self.model.get_all_predecessors()")
-    def get_all_predecessors(self, cfgnode):
-        return self._model.get_all_predecessors(cfgnode)
+    def get_all_predecessors(self, cfgnode, depth_limit=None):
+        return self._model.get_all_predecessors(cfgnode, depth_limit)
 
     @deprecated(replacement="self.model.get_all_successors()")
-    def get_all_successors(self, cfgnode):
-        return self._model.get_all_successors(cfgnode)
+    def get_all_successors(self, cfgnode, depth_limit=None):
+        return self._model.get_all_successors(cfgnode, depth_limit)
 
     @deprecated(replacement="self.model.get_node()")
     def get_node(self, block_id):
@@ -717,6 +719,16 @@ class CFGBase(Analysis):
             return self.project.loader.memory.unpack_word(addr, size=size)
         except KeyError:
             return None
+
+    def _func_addrs_from_symbols(self):
+        """
+        Get all possible function addresses that are specified by the symbols in the binary
+
+        :return: A set of addresses that are probably functions
+        :rtype:  set
+        """
+
+        return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
 
     #
     # Analyze function features
@@ -1256,13 +1268,15 @@ class CFGBase(Analysis):
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
         called_function_addrs = { n.addr for n in function_nodes }
+        # Any function addresses that appear as symbols won't be removed
+        predetermined_function_addrs = called_function_addrs | self._function_addresses_from_symbols
 
         removed_functions_a = self._process_irrational_functions(tmp_functions,
-                                                                 called_function_addrs,
+                                                                 predetermined_function_addrs,
                                                                  blockaddr_to_function
                                                                  )
         removed_functions_b, adjusted_cfgnodes = self._process_irrational_function_starts(tmp_functions,
-                                                                                          called_function_addrs,
+                                                                                          predetermined_function_addrs,
                                                                                           blockaddr_to_function
                                                                                           )
         removed_functions = removed_functions_a | removed_functions_b

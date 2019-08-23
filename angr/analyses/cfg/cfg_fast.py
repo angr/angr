@@ -622,8 +622,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        self._function_addresses_from_symbols = self._func_addrs_from_symbols()
-
         self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
 
@@ -1147,6 +1145,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 l.debug("Force-scanning to %#x", addr)
 
             if addr is not None:
+                # if this is ARM and addr % 4 != 0, it has to be THUMB
+                if is_arm_arch(self.project.arch) and addr % 2 == 0 and addr % 4 != 0:
+                    addr |= 1
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJob.JOB_TYPE_COMPLETE_SCANNING)
                 self._insert_job(job)
                 self._register_analysis_job(addr, job)
@@ -1265,16 +1266,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     l.exception("Error collecting XRefs for function %#x.", f_addr, exc_info=True)
 
     # Methods to get start points for scanning
-
-    def _func_addrs_from_symbols(self):
-        """
-        Get all possible function addresses that are specified by the symbols in the binary
-
-        :return: A set of addresses that are probably functions
-        :rtype: set
-        """
-
-        return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
 
     def _func_addrs_from_prologues(self):
         """
@@ -1868,6 +1859,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _process_irsb_data_refs(self, irsb):
         for ref in irsb.data_refs:
+            if ref.data_size:
+                self._seg_list.occupy(ref.data_addr, ref.data_size, "unknown")
+
             self._add_data_reference(
                     irsb.addr,
                     ref.stmt_idx,
@@ -3319,7 +3313,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # in the end, check the distance between `addr` and the closest occupied region in segment list
             next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, { "code" }, max_distance=distance)
             if next_noncode_addr is not None:
-                distance_to_noncode_addr = next_noncode_addr - addr
+                distance_to_noncode_addr = next_noncode_addr - real_addr
                 distance = min(distance, distance_to_noncode_addr)
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
@@ -3365,6 +3359,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                 # decoding error
+                # is the current location already occupied and marked as non-code?
+                # it happens in cases like the following:
+                #
+                #     BL a_nonreturning_func (but we don't know it does not return)
+                #     alignment  (mov r8, r8)
+                #  data_ref_0:
+                #     DCD "type found!"
+                #
+                occupied_sort = self._seg_list.occupied_by_sort(real_addr)
+                if occupied_sort and occupied_sort != "code":
+                    # no wonder we cannot decode it
+                    return None, None, None, None
+
                 # we still occupy that location since it cannot be decoded anyways
                 if irsb is None:
                     irsb_size = 0
@@ -3450,7 +3457,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # do a bunch of checks to avoid unnecessary simulation from happening
                     self._arm_track_read_lr_from_stack(irsb, self.functions[func_addr])
 
-        elif self.project.arch.name == "MIPS32":
+        elif self.project.arch.name in {"MIPS32", "MIPS64"}:
             function = self.kb.functions.function(func_addr)
             if addr >= func_addr and addr - func_addr < 15 * 4 and 'gp' not in function.info:
                 # check if gp is being written to

@@ -296,7 +296,8 @@ class FormatString:
                 argpos += 1
 
         if simfd is not None:
-            simfd.read_data(position - addr)
+            _, realsize = simfd.read_data(position - addr)
+            self.state.solver.add(realsize == position - addr)
 
         return (argpos - startpos) - failed
 

@@ -359,26 +359,32 @@ class CFGModel(Serializable):
                 successors.append((suc, data['jumpkind']))
         return successors
 
-    def get_all_predecessors(self, cfgnode):
+    def get_all_predecessors(self, cfgnode, depth_limit=None):
         """
         Get all predecessors of a specific node on the control flow graph.
 
         :param CFGNode cfgnode: The CFGNode object
+        :param int depth_limit: Optional depth limit for the depth-first search
         :return: A list of predecessors in the CFG
         :rtype: list
         """
-        s = set()
-        for child, parent in networkx.dfs_predecessors(self.graph, cfgnode).items():
-            s.add(child)
-            s.add(parent)
-        return list(s)
+        # use the reverse graph and query for successors (networkx.dfs_predecessors is misleading)
+        # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
+        predecessors = set().union(*networkx.dfs_successors(self.graph.reverse(), cfgnode, depth_limit).values())
+        return list(predecessors)
 
-    def get_all_successors(self, cfgnode):
-        s = set()
-        for parent, children in networkx.dfs_successors(self.graph, cfgnode).items():
-            s.add(parent)
-            s = s.union(children)
-        return list(s)
+    def get_all_successors(self, cfgnode, depth_limit=None):
+        """
+        Get all successors of a specific node on the control flow graph.
+
+        :param CFGNode cfgnode: The CFGNode object
+        :param int depth_limit: Optional depth limit for the depth-first search
+        :return: A list of successors in the CFG
+        :rtype: list
+        """
+        # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
+        successors = set().union(*networkx.dfs_successors(self.graph, cfgnode, depth_limit).values())
+        return list(successors)
 
     def get_branching_nodes(self):
         """
