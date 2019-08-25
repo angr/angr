@@ -25,7 +25,7 @@ class LoadLibraryA(angr.SimProcedure):
         return self.project.loader.find_object(lib).mapped_base
 
     def register(self, obj): # can be overridden for instrumentation
-        self.project._register_object(obj)
+        self.project._register_object(obj, obj.arch)
 
 class LoadLibraryExW(LoadLibraryA):
     def run(self, lib_ptr, flag1, flag2):
