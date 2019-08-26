@@ -1,0 +1,7 @@
+steps:
+- task: DownloadPipelineArtifact@0
+  inputs:
+    artifactName: "build_archive"
+    targetPath: .
+
+- script: /root/scripts/azure-lint.sh

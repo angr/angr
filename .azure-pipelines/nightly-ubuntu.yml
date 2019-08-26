@@ -1,0 +1,52 @@
+name: nightly-ubuntu
+triggers: none
+pr: none
+schedules:
+- cron: "0 0 * * *"
+  displayName: Daily midnight build
+  branches:
+    include:
+    - master
+
+jobs:
+- job: Build
+  pool: linux-docker
+  container:
+    image: angr/ci:2
+  steps: ./steps/linux-build.yml
+
+- job: Test
+  pool: linux-docker
+  container:
+    image: angr/ci:2
+    options: --cap-add=SYS_PTRACE
+  dependsOn: Build
+  condition: succeeded()
+  variables:
+    NUM_WORKERS: 10
+  strategy:
+    maxParallel: 10
+    matrix:
+      worker_0:
+        WORKER: 0
+      worker_1:
+        WORKER: 1
+      worker_2:
+        WORKER: 2
+      worker_3:
+        WORKER: 3
+      worker_4:
+        WORKER: 4
+      worker_5:
+        WORKER: 5
+      worker_6:
+        WORKER: 6
+      worker_7:
+        WORKER: 7
+      worker_8:
+        WORKER: 8
+      worker_9:
+        WORKER: 9
+  steps:
+    template: ./steps/linux-build.yml
+

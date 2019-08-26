@@ -1,0 +1,15 @@
+parameters:
+  includeSlowTests: false
+
+steps:
+- checkout: none
+
+- script: /root/scripts/azure-build.sh nightly
+  condition: and(eq('${{ parameters.includeSlowTests }}', 'true'))
+- script: /root/scripts/azure-build.sh
+  condition: and(eq('${{ parameters.includeSlowTests }}', 'false'))
+
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: "build_archive"
+    targetPath: ./build.tar.gz

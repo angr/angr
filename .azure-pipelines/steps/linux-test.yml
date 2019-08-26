@@ -1,0 +1,15 @@
+steps:
+- task: DownloadPipelineArtifact@0
+  inputs:
+    artifactName: "build_archive"
+    targetPath: .
+
+- script: /root/scripts/azure-test.sh
+
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testRunner: "JUnit"
+    testResultsFiles: "build/results/*.xml"
+    mergeTestResults: true
+
