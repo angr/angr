@@ -1,6 +1,10 @@
 import angr
 import nose
+import os
 from unittest.mock import patch, PropertyMock
+
+fauxware_path = \
+str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/fauxware'))
 
 @patch('angr.state_plugins.libc.SimStateLibc.errno',
        new_callable=PropertyMock)
@@ -36,7 +40,7 @@ def test_file_unlink(mock_errno):
             mock_errno.assert_called_once_with(self.state.posix.ENOENT)
 
     # Load the 'fauxware' binary and hook TestProc
-    project = angr.Project('../../binaries/tests/x86_64/fauxware')
+    project = angr.Project(fauxware_path)
     project.hook_symbol('main', TestProc())
     simgr = project.factory.simulation_manager()
     simgr.run()
