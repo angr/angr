@@ -1,3 +1,4 @@
+# pylint: disable=unused-argument, arguments-differ
 import angr
 import nose
 import os
@@ -13,7 +14,7 @@ def test_file_unlink(mock_errno):
         def run(self, argc, argv):
             # Load the unlink SimProcedure
             unlink = angr.SIM_PROCEDURES['posix']['unlink']
-            
+
             # Create a file 'test'
             fd = self.state.posix.open(b'test', 1)
             self.state.posix.close(fd)
@@ -25,7 +26,7 @@ def test_file_unlink(mock_errno):
             malloc = angr.SIM_PROCEDURES['libc']['malloc']
             addr = self.inline_call(malloc, len('test')).ret_expr
             self.state.memory.store(addr, b'test\x00')
-            
+
             # Unlink 'test': should return 0 and leave ERRNO unchanged
             rval = self.inline_call(unlink, addr).ret_expr
             nose.tools.assert_equal(rval, 0)
