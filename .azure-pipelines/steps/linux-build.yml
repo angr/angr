@@ -5,9 +5,9 @@ steps:
 - checkout: none
 
 - script: /root/scripts/azure-build.sh nightly
-  condition: and(eq('${{ parameters.includeSlowTests }}', 'true'))
+  condition: eq('${{ parameters.includeSlowTests }}', 'true')
 - script: /root/scripts/azure-build.sh
-  condition: and(eq('${{ parameters.includeSlowTests }}', 'false'))
+  condition: eq('${{ parameters.includeSlowTests }}', 'false')
 
 - task: PublishPipelineArtifact@0
   inputs:
