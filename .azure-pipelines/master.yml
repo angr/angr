@@ -10,7 +10,7 @@ jobs:
   container:
     image: angr/ci:2
   steps:
-    template: ./steps/linux-build.yml
+  - template: ./steps/linux-build.yml
 
 - job: Lint
   pool:
@@ -20,7 +20,7 @@ jobs:
   dependsOn: Build
   condition: succeeded()
   steps:
-    template: ./steps/linux-lint.yml
+  - template: ./steps/linux-lint.yml
 
 - job: Test
   pool:
@@ -56,4 +56,4 @@ jobs:
       worker_9:
         WORKER: 9
   steps:
-    template: ./steps/linux-test.yml
+  - template: ./steps/linux-test.yml

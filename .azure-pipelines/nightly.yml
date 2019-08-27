@@ -14,7 +14,8 @@ jobs:
     vmImage: ubuntu-16.04
   container:
     image: angr/ci:2
-  steps: ./steps/linux-build.yml
+  steps:
+  - template: ./steps/linux-build.yml
 
 - job: Test
   pool:
@@ -50,5 +51,5 @@ jobs:
       worker_9:
         WORKER: 9
   steps:
-    template: ./steps/linux-build.yml
+  - template: ./steps/linux-build.yml
 
