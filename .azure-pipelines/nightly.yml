@@ -1,5 +1,5 @@
 name: nightly
-triggers: none
+trigger: none
 pr: none
 schedules:
 - cron: "0 0 * * *"
