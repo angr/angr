@@ -1,4 +1,4 @@
-name: nightly
+name: $(BuildDefinitionName)-$(Date:yyyyMMdd)-$(BuildID)
 trigger: none
 pr: none
 schedules:

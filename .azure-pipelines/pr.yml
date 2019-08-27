@@ -1,4 +1,4 @@
-name: pr
+name: $(BuildDefinitionName)-$(SourceBranchName)-$(Rev:.rr)-$(BuildID)
 trigger: none
 pr:
   branches:
