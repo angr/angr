@@ -1,7 +1,9 @@
-name: master-ubuntu
-triggers:
- - master
-pr: none
+name: pr
+triggers: none
+pr:
+  branches:
+    include:
+    - '*'
 
 jobs:
 - job: Build

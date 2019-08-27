@@ -1,26 +1,19 @@
-name: pr-ubuntu
+name: nightly
 triggers: none
-pr:
+pr: none
+schedules:
+- cron: "0 0 * * *"
+  displayName: Daily midnight build
   branches:
     include:
-    - '*'
+    - master
 
 jobs:
 - job: Build
   pool: linux-docker
   container:
     image: angr/ci:2
-  steps:
-    template: ./steps/linux-build.yml
-
-- job: Lint
-  pool: linux-docker
-  container:
-    image: angr/ci:2
-  dependsOn: Build
-  condition: succeeded()
-  steps:
-    template: ./steps/linux-lint.yml
+  steps: ./steps/linux-build.yml
 
 - job: Test
   pool: linux-docker
@@ -55,4 +48,5 @@ jobs:
       worker_9:
         WORKER: 9
   steps:
-    template: ./steps/linux-test.yml
+    template: ./steps/linux-build.yml
+
