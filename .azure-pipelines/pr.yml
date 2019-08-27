@@ -7,14 +7,16 @@ pr:
 
 jobs:
 - job: Build
-  pool: linux-docker
+  pool:
+    vmImage: ubuntu-16.04
   container:
     image: angr/ci:2
   steps:
     template: ./steps/linux-build.yml
 
 - job: Lint
-  pool: linux-docker
+  pool:
+    vmImage: ubuntu-16.04
   container:
     image: angr/ci:2
   dependsOn: Build
@@ -23,7 +25,8 @@ jobs:
     template: ./steps/linux-lint.yml
 
 - job: Test
-  pool: linux-docker
+  pool:
+    vmImage: ubuntu-16.04
   container:
     image: angr/ci:2
     options: --cap-add=SYS_PTRACE

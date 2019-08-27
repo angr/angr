@@ -10,13 +10,15 @@ schedules:
 
 jobs:
 - job: Build
-  pool: linux-docker
+  pool:
+    vmImage: ubuntu-16.04
   container:
     image: angr/ci:2
   steps: ./steps/linux-build.yml
 
 - job: Test
-  pool: linux-docker
+  pool:
+    vmImage: ubuntu-16.04
   container:
     image: angr/ci:2
     options: --cap-add=SYS_PTRACE
