@@ -16,6 +16,8 @@ jobs:
     image: angr/ci:2
   steps:
   - template: ./steps/linux-build.yml
+    parameters:
+      nightly: True
 
 - job: Test
   pool:
@@ -51,5 +53,7 @@ jobs:
       worker_9:
         WORKER: 9
   steps:
-  - template: ./steps/linux-build.yml
+  - template: ./steps/linux-test.yml
+    parameters:
+      nightly: True
 

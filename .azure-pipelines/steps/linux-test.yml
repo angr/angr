@@ -10,6 +10,10 @@ steps:
   condition: succeededOrFailed()
   inputs:
     testRunner: "JUnit"
-    testResultsFiles: "build/results/*.xml"
+    testResultsFiles: "build/results/*.tests.xml"
     mergeTestResults: true
 
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: "cobertura"
+    summaryFileLocation: "build/results/*.coverage.xml"
