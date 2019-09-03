@@ -217,9 +217,8 @@ class AnnotatedCFG:
         if project is None:
             raise Exception("Dict addr_to_run is empty. " + \
                             "Give me a project, and I'll recreate the IRSBs for you.")
-        else:
-            vex_block = project.factory.block(irsb_addr).vex
 
+        vex_block = project.factory.block(irsb_addr).vex
         statements = vex_block.statements
         whitelist = self.get_whitelisted_statements(irsb_addr)
         for i in range(0, len(statements)):
