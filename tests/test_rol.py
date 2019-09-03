@@ -1,6 +1,5 @@
 import nose
 import angr
-from angr.calling_conventions import SimCCSystemVAMD64
 
 import logging
 l = logging.getLogger("angr.tests.test_rol")
@@ -40,9 +39,6 @@ def test_rol_i386():
     result = found_state.solver.eval(r_eax)
     nose.tools.assert_equal(result, 0x37B7AB70)
 
-def test_all():
+if __name__ == "__main__":
     test_rol_x86_64()
     test_rol_i386()
-
-if __name__ == "__main__":
-    test_all()
