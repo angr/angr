@@ -29,10 +29,6 @@ class Slicecutor(ExplorationTechnique):
 
     def filter(self, simgr, state, **kwargs):
         l.debug("Checking state %s for filtering...", state)
-        if not self._annotated_cfg.filter_path(state):
-            l.debug("... %s is cut by AnnoCFG explicitly.", state)
-            return 'cut'
-
         return simgr.filter(state, **kwargs)
 
     def step_state(self, simgr, state, **kwargs):

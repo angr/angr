@@ -245,16 +245,6 @@ class AnnotatedCFG:
 
         return self.should_take_exit(path.addr_trace[-2], path.addr_trace[-1])
 
-    def filter_path(self, path):
-        """
-        Used for debugging.
-
-        :param path: A Path instance
-        :return: True/False
-        """
-
-        return True
-
     def merge_points(self, path):
         addr = path.addr
         if addr in self._path_merge_points:
