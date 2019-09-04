@@ -12,4 +12,4 @@ steps:
 - task: PublishPipelineArtifact@0
   inputs:
     artifactName: "build_archive"
-    targetPath: ./build.tar.gz
+    targetPath: ./build/
