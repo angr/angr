@@ -3,14 +3,11 @@ from .graph import GraphVisitor
 
 
 class FunctionGraphVisitor(GraphVisitor):
+    """
+    :param knowledge.Function func:
+    """
     def __init__(self, func, graph=None):
-        """
-
-        :param knowledge.Function func:
-        """
-
         super(FunctionGraphVisitor, self).__init__()
-
         self.function = func
 
         if graph is None:
@@ -21,19 +18,15 @@ class FunctionGraphVisitor(GraphVisitor):
         self.reset()
 
     def startpoints(self):
-
         return [ self.function.startpoint ]
 
     def successors(self, node):
-
         return list(self.graph.successors(node))
 
     def predecessors(self, node):
-
         return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-
         sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
 
         if nodes is not None:

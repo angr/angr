@@ -3,22 +3,17 @@ from .graph import GraphVisitor
 
 
 class CallGraphVisitor(GraphVisitor):
+    """
+    :param networkx.DiGraph callgraph:
+    """
     def __init__(self, callgraph):
-        """
-
-        :param networkx.DiGraph callgraph:
-        """
-
         super(CallGraphVisitor, self).__init__()
-
         self.callgraph = callgraph
 
         self.reset()
 
     def startpoints(self):
-
         # TODO: make sure all connected components are covered
-
         start_nodes = [node for node in self.callgraph.nodes() if self.callgraph.in_degree(node) == 0]
 
         if not start_nodes:
@@ -28,15 +23,12 @@ class CallGraphVisitor(GraphVisitor):
         return start_nodes
 
     def successors(self, node):
-
         return list(self.callgraph.successors(node))
 
     def predecessors(self, node):
-
         return list(self.callgraph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-
         sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.callgraph)
 
         if nodes is not None:

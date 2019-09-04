@@ -2,14 +2,11 @@ from .graph import GraphVisitor
 
 
 class SingleNodeGraphVisitor(GraphVisitor):
+    """
+    :param node: The single node that should be in the graph.
+    """
     def __init__(self, node):
-        """
-
-        :param node: The single node that should be in the graph.
-        """
-
         super(SingleNodeGraphVisitor, self).__init__()
-
         self.node = node
 
         self.reset()

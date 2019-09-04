@@ -3,16 +3,16 @@ from .graph import GraphVisitor
 
 
 class LoopVisitor(GraphVisitor):
+    """
+    :param angr.analyses.loopfinder.Loop loop: The loop to visit.
+    """
     def __init__(self, loop):
-
         super(LoopVisitor, self).__init__()
-
         self.loop = loop
 
         self.reset()
 
     def startpoints(self):
-
         return [ self.loop.entry ]
 
     def successors(self, node):
@@ -22,7 +22,6 @@ class LoopVisitor(GraphVisitor):
         return self.loop.graph.predecessors(node)
 
     def sort_nodes(self, nodes=None):
-
         sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.loop.graph)
 
         if nodes is not None:

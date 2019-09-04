@@ -9,7 +9,6 @@ class GraphVisitor:
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
     """
     def __init__(self):
-
         self._sorted_nodes = OrderedSet()
         self._node_to_index = { }
         self._reached_fixedpoint = set()
@@ -71,9 +70,9 @@ class GraphVisitor:
         :return:
         """
 
-        sorted_nodes = self.sort_nodes()
-
-        return iter(sorted_nodes)
+        return iter(
+            self.sort_nodes()
+        )
 
     @deprecated(replacement='nodes')
     def nodes_iter(self):
@@ -149,7 +148,6 @@ class GraphVisitor:
         for succ in successors:
             self._sorted_nodes.add(succ)
 
-        # reorder it
         self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
 
     def revisit_node(self, node):
@@ -161,8 +159,6 @@ class GraphVisitor:
         """
 
         self._sorted_nodes.add(node)
-
-        # reorder it
         self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
 
     def reached_fixedpoint(self, node):
