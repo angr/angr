@@ -7,6 +7,7 @@ import ailment
 import pyvex
 
 from ...block import Block
+from ...knowledge_plugins.cfg.cfg_node import CFGNode
 from ...codenode import CodeNode
 from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
@@ -46,7 +47,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
                  dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
-        :param Block|Function subject: The subject of the analysis: a function, or a single basic block.
+        :param Union[Block,Function,SliceToSink] subject:
+                                                The subject of the analysis: a function, a single basic block, or the
+                                                representation of a slice to a sink.
         :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
         :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
@@ -273,6 +276,12 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             engine = self._engine_ail
         elif isinstance(node, (Block, CodeNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
+            block_key = node.addr
+            engine = self._engine_vex
+        elif isinstance(node, CFGNode):
+            if node.is_simprocedure or node.is_syscall:
+                return False, state.copy()
+            block = node.block
             block_key = node.addr
             engine = self._engine_vex
         else:
