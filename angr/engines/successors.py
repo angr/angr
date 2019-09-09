@@ -190,10 +190,6 @@ class SimSuccessors:
         # apply the guard constraint and new program counter to the state
         if add_guard:
             state.add_constraints(state.scratch.guard)
-            # TEMP: for catching the unsat error
-            if state.addr == 0x4005e3:
-                import pdb
-                pdb.set_trace()
 
         # trigger inspect breakpoints here since this statement technically shows up in the IRSB as the "next"
         state.ip = state.scratch.target

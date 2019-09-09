@@ -472,11 +472,9 @@ class SimEngineVEX(SimEngine):
             result = concrete_value
         state._inspect('expr', BP_AFTER, expr=expr, expr_result=result)
 
-        if result.op == 'BVV' or result.op == 'FPV':
+        ###adding the replacements if they are not symbolic
+        if not state.solver.symbolic(result):
             abstract_state.add_replacement(code_loc, expr, SimConstantVariable(value=state.solver.eval(result)))
-        else:
-            print(result.op)
-            print("\n")
 
         return result
 
