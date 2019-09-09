@@ -259,12 +259,10 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             self._state_map[succ] = input_state
 
     def _run_on_node(self, node, abstract_state):
-        print("Node: "+str(node))
         concrete_state = abstract_state.get_concrete_state(node.addr)
         if concrete_state is None:
             # didn't find any state going to here
             print("_run_on_node(): cannot find any state for address ", hex(node.addr))
-            print("\n")
             return False, abstract_state
 
         if isinstance(node, ailment.Block):
@@ -283,13 +281,9 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             abstract_state = PropagatorVEXState(arch=self.project.arch)
         sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key)
         abstract_state.concrete_states = sim_successors.all_successors
-        print("All successors: "+ str(sim_successors.all_successors))
-        print(block_key)
-        print(hash(block_key))
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
         self.replacements[block_key] = abstract_state._replacements
-        print("\n")
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, abstract_state
