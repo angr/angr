@@ -24,9 +24,6 @@ def SimIRExpr_Load(engine, state, abstract_state, code_loc, expr):
         result = state.solver.Unconstrained("load_expr_%#x_%d" % (state.scratch.ins_addr, state.scratch.stmt_idx), size_bits)
     else:
         # load from memory and fix endianness
-        if state.addr == 0x4004bf:
-                import pdb
-                pdb.set_trace()
         result = state.memory.load(addr, size, endness=expr.endness)
 
     if expr.type.startswith('Ity_F'):
