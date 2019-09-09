@@ -365,11 +365,9 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         if self._function is not None:
             self._init_func = init_func
             self._cc = cc
-            self._func_addr = func.addr
         else:
             self._init_func = False
             self._cc = None
-            self._func_addr = None
 
         self._observe_all = observe_all
 
@@ -477,8 +475,9 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         if self._init_state is not None:
             return self._init_state
         else:
+            func_addr = self._function.addr if self._function else None
             return LiveDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
-                                   init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
+                                   init_func=self._init_func, cc=self._cc, func_addr=func_addr)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
