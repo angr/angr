@@ -17,7 +17,6 @@ message CFG {
     repeated CFGNode        nodes = 2; // All nodes in this CFG
     repeated Edge           edges = 3; // All edges in this CFG
     repeated MemoryData     memory_data = 4;
-    repeated CodeReference  refs = 5;
 }
 
 message MemoryData {
@@ -31,6 +30,7 @@ message MemoryData {
         SegmentBoundary = 6;
         CodeReference = 7;
         GOTPLTEntry = 8;
+        ELFHeader = 9;
     }
 
     int64           ea = 1; // Address of the data

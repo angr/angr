@@ -5,7 +5,7 @@ import nose
 import angr
 import os
 
-internaltest_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+internaltest_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 internaltest_files = [ 'argc_decide', 'argc_symbol', 'argv_test', 'counter', 'fauxware', 'fauxware.idb', 'manysum', 'pw', 'strlen', 'test_arrays', 'test_division', 'test_loops' ]
 internaltest_arch = [ 'i386', 'armel' ]
 
@@ -65,7 +65,7 @@ def internaltest_project(fpath):
 
 
 def test_analyses():
-    p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
+    p = angr.Project(os.path.join(internaltest_location, 'i386', 'fauxware'), load_options={'auto_load_libs': False})
     cfg = p.analyses.CFG()
     cfb = p.analyses.CFB(cfg)
     vrf = p.analyses.VariableRecoveryFast(p.kb.functions['main'])
@@ -95,7 +95,7 @@ def test_serialization():
             if os.path.isfile(fpath) and os.access(fpath, os.X_OK):
                 internaltest_project(fpath)
 
-    p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
+    p = angr.Project(os.path.join(internaltest_location, 'i386', 'fauxware'), load_options={'auto_load_libs': False})
     internaltest_cfgfast(p)
 
     cfg = internaltest_cfg(p)

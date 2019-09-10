@@ -7,14 +7,14 @@ import logging
 l = logging.getLogger('angr.tests.strtol')
 
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 
 
 def run_strtol(threads):
     if not sys.platform.startswith('linux'):
         raise nose.SkipTest()
 
-    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test")
+    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "strtol_test")
     b = angr.Project(test_bin)
 
     initial_state = b.factory.entry_state(remove_options={angr.options.LAZY_SOLVES})
@@ -58,7 +58,7 @@ def test_strtol_long_string():
 
     state.libc.max_strtol_len = 11
 
-    strtol = angr.SIM_LIBRARIES['libc.so.6'].procedures['strtol']
+    strtol = angr.SIM_LIBRARIES['libc.so.6'].get('strtol', arch=b.arch)
     strtol.state = state.copy()
     ret = strtol.run(0x500000, 0, 0)
 

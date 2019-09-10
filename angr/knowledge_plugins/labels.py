@@ -12,7 +12,7 @@ class Labels(KnowledgeBasePlugin):
         self._reverse_labels = {}
         for obj in kb._project.loader.all_objects:
             for v in obj.symbols:
-                if v.name and not v.is_import and v.type not in {cle.Symbol.TYPE_OTHER, }:
+                if v.name and not v.is_import and v.type not in {cle.SymbolType.TYPE_OTHER, }:
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr
             try:

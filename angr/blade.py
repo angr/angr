@@ -12,7 +12,7 @@ class Blade:
     It is meant to be used in angr for small or on-the-fly analyses.
     """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
-                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None):
+                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None, stop_at_calls=False):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGEmulated or angr.analyses.CFGFast.
@@ -25,6 +25,8 @@ class Blade:
                                         dependency from/to stack pointers will be ignored if this options is True.
         :param bool ignore_bp:          Whether the base pointer should be ignored or not.
         :param int  max_level:          The maximum number of blocks that we trace back for.
+        :param int stop_at_calls:       Limit slicing within a single function. Do not proceed when encounters a call
+                                        edge.
         :return: None
         """
 
@@ -35,6 +37,7 @@ class Blade:
         self._ignore_bp = ignore_bp
         self._max_level = max_level
         self._base_state = base_state
+        self._stop_at_calls = stop_at_calls
 
         self._slice = networkx.DiGraph()
 
@@ -85,14 +88,14 @@ class Blade:
 
         s = ""
 
-        block_addrs = list(set([ a for a, _ in self.slice.nodes() ]))
+        block_addrs = { a for a, _ in self.slice.nodes() }
 
         for block_addr in block_addrs:
             block_str = "       IRSB %#x\n" % block_addr
 
             block = self.project.factory.block(block_addr, backup_state=self._base_state).vex
 
-            included_stmts = set([ stmt for _, stmt in self.slice.nodes() if _ == block_addr ])
+            included_stmts = { stmt for _, stmt in self.slice.nodes() if _ == block_addr }
             default_exit_included = any(stmt == DEFAULT_STATEMENT for _, stmt in self.slice.nodes() if _ == block_addr)
 
             for i, stmt in enumerate(block.statements):
@@ -155,7 +158,7 @@ class Blade:
                 raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
 
         else:
-            raise AngrBladeError('Unsupported SimRun argument type %s', type(v))
+            raise AngrBladeError('Unsupported SimRun argument type %s' % type(v))
 
     def _get_cfgnode(self, thing):
         """
@@ -168,7 +171,8 @@ class Blade:
 
         return self._cfg.get_any_node(self._get_addr(thing))
 
-    def _get_addr(self, v):
+    @staticmethod
+    def _get_addr(v):
         """
         Get address of the basic block or CFG node specified by v.
         :param v: Can be one of the following: a CFGNode, or an address.
@@ -277,8 +281,13 @@ class Blade:
             in_edges = self._graph.in_edges(cfgnode, data=True)
 
             for pred, _, data in in_edges:
-                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
-                    continue
+                if 'jumpkind' in data:
+                    if data['jumpkind'] == 'Ijk_FakeRet':
+                        # Skip fake rets
+                        continue
+                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
+                        # Skip calls
+                        continue
                 if self.project.is_hooked(pred.addr):
                     # Skip SimProcedures
                     continue
@@ -354,8 +363,13 @@ class Blade:
             in_edges = self._graph.in_edges(self._get_cfgnode(run), data=True)
 
             for pred, _, data in in_edges:
-                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
-                    continue
+                if 'jumpkind' in data:
+                    if data['jumpkind'] == 'Ijk_FakeRet':
+                        # skip fake rets
+                        continue
+                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
+                        # skip calls as instructed
+                        continue
                 if self.project.is_hooked(pred.addr):
                     # Stop at SimProcedures
                     continue

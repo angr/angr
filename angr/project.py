@@ -257,7 +257,7 @@ class Project:
             func = reloc.symbol
             if func is None:
                 continue
-            if not func.is_function and func.type != cle.backends.symbol.Symbol.TYPE_NONE:
+            if not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
                 continue
             if not reloc.resolved:
                 # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency

@@ -350,19 +350,19 @@ class SymbolManager(object):
                     symbol_name = symbol_name[ : symbol_name.index('@') ]
 
                 # check the type...
-                if symbol.type == cle.Symbol.TYPE_FUNCTION:
+                if symbol.type == cle.SymbolType.TYPE_FUNCTION:
                     # it's a function!
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = FunctionLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_OBJECT:
+                elif symbol.type == cle.SymbolType.TYPE_OBJECT:
                     # it's an object
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = ObjectLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_NONE:
+                elif symbol.type == cle.SymbolType.TYPE_NONE:
                     # notype
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = NotypeLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_SECTION:
+                elif symbol.type == cle.SymbolType.TYPE_SECTION:
                     # section label
                     # use a normal label instead
                     if not name:
@@ -371,6 +371,12 @@ class SymbolManager(object):
                     label = Label.new_label(self.binary, name=name, original_addr=addr)
                 else:
                     raise Exception('Unsupported symbol type %s. Bug Fish about it!' % symbol.type)
+
+            else:
+                raise Exception("the symbol %s is not owned by the main object. Try reload the project with"
+                                "\"auto_load_libs=False\". If that does not solve the issue, please report to GitHub."
+                                % symbol.name
+                                )
 
         elif (addr is not None and addr in self.cfg.functions) or is_function:
             # It's a function identified by angr's CFG recovery
@@ -2161,22 +2167,22 @@ class Reassembler(Analysis):
         # there is a single function referencing them
         cgcpl_memory_data = self.cfg.memory_data.get(cgc_package_list.addr, None)
         cgcea_memory_data = self.cfg.memory_data.get(cgc_extended_application.addr, None)
-        refs = self.cfg.model.references
+        refs = self.cfg.kb.xrefs
 
         if cgcpl_memory_data is None or cgcea_memory_data is None:
             return False
 
-        if len(refs.data_addr_to_ref[cgcpl_memory_data.addr]) != 1:
+        if len(refs.get_xrefs_by_dst(cgcpl_memory_data.addr)) != 1:
             return False
-        if len(refs.data_addr_to_ref[cgcea_memory_data.addr]) != 1:
+        if len(refs.get_xrefs_by_dst(cgcea_memory_data.addr)) != 1:
             return False
 
         # check if the irsb addresses are the same
-        if next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).block_addr != \
-                next(iter(refs.data_addr_to_ref[cgcea_memory_data.addr])).block_addr:
+        if next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).block_addr != \
+                next(iter(refs.get_xrefs_by_dst(cgcea_memory_data.addr))).block_addr:
             return False
 
-        insn_addr = next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).insn_addr
+        insn_addr = next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).ins_addr
         # get the basic block
         cfg_node = self.cfg.get_any_node(insn_addr, anyaddr=True)
         if not cfg_node:
@@ -2345,7 +2351,7 @@ class Reassembler(Analysis):
             self._section_alignments[section.name] = alignment
 
         l.debug('Generating CFG...')
-        cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, collect_data_references=True,
+        cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, data_references=True,
                                         extra_memory_regions=[(0x4347c000, 0x4347c000 + 0x1000)],
                                         data_type_guessing_handlers=[
                                             self._sequence_handler,

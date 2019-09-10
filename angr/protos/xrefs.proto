@@ -1,0 +1,11 @@
+
+syntax = "proto3";
+
+import "protos/primitives.proto";
+
+package angr.protos;
+
+
+message XRefs {
+    repeated CodeReference xrefs = 1;
+}

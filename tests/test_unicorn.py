@@ -6,7 +6,7 @@ from angr import options as so
 from nose.plugins.attrib import attr
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 
 
@@ -30,7 +30,7 @@ def _compare_trace(trace, expected):
         nose.tools.assert_equal(trace_item_str, expected_str)
 
 def test_stops():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'))
 
     # test STOP_NORMAL, STOP_STOPPOINT
     s_normal = p.factory.entry_state(args=['a'], add_options=so.unicorn)
@@ -86,7 +86,7 @@ def test_stops():
     nose.tools.assert_equal(pg_segfault_angr.errored[0].error.addr, pg_segfault.errored[0].error.addr)
 
 def run_longinit(arch):
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/' + arch + '/longinit'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', arch, 'longinit'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn, remove_options={so.SHORT_READS})
     pg = p.factory.simulation_manager(s_unicorn, save_unconstrained=True, save_unsat=True)
     pg.explore()
@@ -102,7 +102,7 @@ def test_longinit_x86_64():
     run_longinit('x86_64')
 
 def test_fauxware():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
     pg = p.factory.simulation_manager(s_unicorn)
     pg.explore()
@@ -115,7 +115,7 @@ def test_fauxware():
     )))
 
 def test_fauxware_aggressive():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'))
     s_unicorn = p.factory.entry_state(
         add_options=so.unicorn | { so.UNICORN_AGGRESSIVE_CONCRETIZATION },
         remove_options={ so.LAZY_SOLVES }
@@ -148,11 +148,11 @@ def test_similarity_fauxware():
         # gotta skip the initializers because of cpuid and RDTSC
         pg.one_left.unicorn.countdown_nonunicorn_blocks = 39
         return pg
-    run_similarity("binaries/tests/i386/fauxware", 1000, prehook=cooldown)
+    run_similarity(os.path.join("binaries", "tests", "i386", "fauxware"), 1000, prehook=cooldown)
 
 def test_fp():
-    type_cache = angr.sim_type.parse_defns(open(os.path.join(test_location, 'binaries/tests_src/manyfloatsum.c')).read())
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/manyfloatsum'))
+    type_cache = angr.sim_type.parse_defns(open(os.path.join(test_location, 'binaries', 'tests_src', 'manyfloatsum.c')).read())
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'manyfloatsum'))
 
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
         cc = p.factory.cc(func_ty=type_cache[function])
@@ -167,7 +167,7 @@ def test_fp():
         nose.tools.assert_equal(answer, result_concrete)
 
 def test_unicorn_pickle():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'))
 
     def _uni_state():
         # try pickling out paths that went through unicorn
@@ -197,7 +197,7 @@ def test_unicorn_pickle():
     )))
 
     # test the pickling of SimUnicorn itself
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'))
     pg = p.factory.simulation_manager(_uni_state())
     pg.run(n=2)
     assert p.factory.successors(pg.one_active).sort == 'Unicorn'
@@ -215,7 +215,7 @@ def test_unicorn_pickle():
     )))
 
 def test_concrete_transmits():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/PIZZA_00001'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'cgc', 'PIZZA_00001'))
     inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, stdin=inp, flag_page=b'\0'*4096)
@@ -225,7 +225,7 @@ def test_concrete_transmits():
     nose.tools.assert_equal(pg_unicorn.one_active.posix.dumps(1), b'1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
 
 def test_inspect():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'))
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
@@ -269,7 +269,7 @@ def test_inspect():
     nose.tools.assert_equal(collect_trace(so.unicorn), collect_trace(set()))
 
 def test_explore():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'))
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
@@ -290,7 +290,7 @@ def test_explore():
 
 
 def test_single_step():
-    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'))
 
 
     def main_state(argc, add_options=None):

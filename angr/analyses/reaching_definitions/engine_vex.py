@@ -1,5 +1,4 @@
 import logging
-import struct
 
 import pyvex
 
@@ -8,14 +7,17 @@ from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
 from .undefined import Undefined
-from ...engines.light import SimEngineLightVEX, SpOffset
+from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.irop import operations as vex_operations
 from ...errors import SimEngineError
 
 l = logging.getLogger(name=__name__)
 
 
-class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
+class SimEngineRDVEX(
+    SimEngineLightVEXMixin,
+    SimEngineLight,
+):  # pylint:disable=abstract-method
     def __init__(self, project, current_local_call_depth, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDVEX, self).__init__()
         self.project = project
@@ -31,8 +33,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
-            else:
-                l.error(e)
+            l.error(e)
         return self.state
 
     #
@@ -209,7 +210,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                 else:
                     try:
-                        data.add(self.state.loader.memory.unpack_word(a, size=size))
+                        data.add(self.project.loader.memory.unpack_word(a, size=size))
                     except KeyError:
                         pass
 
@@ -391,7 +392,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     # User defined high level statement handlers
     #
 
-    def _handle_function(self):
+    def _handle_function(self, *args, **kwargs):  # pylint:disable=unused-argument
         if self._current_local_call_depth > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return None
@@ -424,12 +425,12 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
 
         is_internal = False
         ext_func_name = None
-        if self.state.loader.main_object.contains_addr(ip_addr) is True:
-            ext_func_name = self.state.loader.find_plt_stub_name(ip_addr)
+        if self.project.loader.main_object.contains_addr(ip_addr) is True:
+            ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
             if ext_func_name is None:
                 is_internal = True
         else:
-            symbol = self.state.loader.find_symbol(ip_addr)
+            symbol = self.project.loader.find_symbol(ip_addr)
             if symbol is not None:
                 ext_func_name = symbol.name
 
@@ -471,7 +472,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
             if len(defs_sp) == 0:
                 raise ValueError('No definition for SP found')
-            elif len(defs_sp) == 1:
+            if len(defs_sp) == 1:
                 sp_data = next(iter(defs_sp)).data.data
             else:  # len(defs_sp) > 1
                 sp_data = set()

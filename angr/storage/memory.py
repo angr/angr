@@ -514,6 +514,9 @@ class SimMemory(SimStatePlugin):
         elif size_e is None:
             size_e = self.state.solver.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
 
+        if endness is None:
+            endness = self.endness
+
         if len(data_e) % self.state.arch.byte_width != 0:
             raise SimMemoryError("Attempting to store non-byte data to memory")
         if not size_e.symbolic and (len(data_e) < size_e*self.state.arch.byte_width).is_true():
@@ -528,11 +531,13 @@ class SimMemory(SimStatePlugin):
                     reg_write_length=size_e,
                     reg_write_expr=data_e,
                     reg_write_condition=condition_e,
+                    reg_write_endness=endness,
                 )
                 addr_e = self.state._inspect_getattr('reg_write_offset', addr_e)
                 size_e = self.state._inspect_getattr('reg_write_length', size_e)
                 data_e = self.state._inspect_getattr('reg_write_expr', data_e)
                 condition_e = self.state._inspect_getattr('reg_write_condition', condition_e)
+                endness = self.state._inspect_getattr('reg_write_endness', endness)
             elif self.category == 'mem':
                 self.state._inspect(
                     'mem_write',
@@ -541,11 +546,13 @@ class SimMemory(SimStatePlugin):
                     mem_write_length=size_e,
                     mem_write_expr=data_e,
                     mem_write_condition=condition_e,
+                    mem_write_endness=endness,
                 )
                 addr_e = self.state._inspect_getattr('mem_write_address', addr_e)
                 size_e = self.state._inspect_getattr('mem_write_length', size_e)
                 data_e = self.state._inspect_getattr('mem_write_expr', data_e)
                 condition_e = self.state._inspect_getattr('mem_write_condition', condition_e)
+                endness = self.state._inspect_getattr('mem_write_endness', endness)
 
         # if the condition is false, bail
         if condition_e is not None and self.state.solver.is_false(condition_e):
@@ -555,7 +562,8 @@ class SimMemory(SimStatePlugin):
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
             isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized
+            addr_e.uninitialized and
+            addr_e.uc_alloc_depth is not None
         ):
             self._constrain_underconstrained_index(addr_e)
 
@@ -747,27 +755,32 @@ class SimMemory(SimStatePlugin):
             size = self.state.arch.bits // self.state.arch.byte_width
             size_e = size
 
+        endness = self.endness if endness is None else endness
+
         if _inspect:
             if self.category == 'reg':
                 self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e,
-                                    reg_read_condition=condition_e
+                                    reg_read_condition=condition_e, reg_read_endness=endness,
                                     )
                 addr_e = self.state._inspect_getattr("reg_read_offset", addr_e)
                 size_e = self.state._inspect_getattr("reg_read_length", size_e)
                 condition_e = self.state._inspect_getattr("reg_read_condition", condition_e)
+                endness = self.state._inspect_getattr("reg_read_endness", endness)
 
             elif self.category == 'mem':
                 self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e,
-                                    mem_read_condition=condition_e
+                                    mem_read_condition=condition_e, mem_read_endness=endness,
                                     )
                 addr_e = self.state._inspect_getattr("mem_read_address", addr_e)
                 size_e = self.state._inspect_getattr("mem_read_length", size_e)
                 condition_e = self.state._inspect_getattr("mem_read_condition", condition_e)
+                endness = self.state._inspect_getattr('mem_read_endness', endness)
 
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
             isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized
+            addr_e.uninitialized and
+            addr_e.uc_alloc_depth is not None
         ):
             self._constrain_underconstrained_index(addr_e)
 
@@ -800,7 +813,6 @@ class SimMemory(SimStatePlugin):
             self.state.uninitialized_access_handler(self.category, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         # the endianess
-        endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             r = r.reversed
 

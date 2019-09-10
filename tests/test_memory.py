@@ -662,6 +662,38 @@ def test_crosspage_read():
     assert bytes.fromhex("77665544") in state.solver.eval(r, cast_to=bytes)
     #assert s.solver.eval(r, 2) == ( 0xffeeddccbbaa998877665544, )
 
+def test_underconstrained():
+    state = SimState(arch='AMD64', add_options={o.UNDER_CONSTRAINED_SYMEXEC})
+
+    # test that under-constrained load is constrained
+    ptr1 = state.memory.load(0x4141414141414000, size=8, endness='Iend_LE')
+    assert ptr1.uc_alloc_depth == 0
+    assert ptr1.uninitialized
+    state.memory.load(ptr1, size=1)
+    # ptr1 should have been constrained
+    assert state.solver.min_int(ptr1) == state.solver.max_int(ptr1)
+
+    # test that under-constrained store is constrained
+    ptr2 = state.memory.load(0x4141414141414008, size=8, endness='Iend_LE')
+    assert ptr2.uc_alloc_depth == 0
+    assert ptr2.uninitialized
+    state.memory.store(ptr2, b"\x41", size=1)
+    # ptr2 should have been constrained
+    assert state.solver.min_int(ptr2) == state.solver.max_int(ptr2)
+
+    # ptr1 and ptr2 should not point to the same region
+    assert state.solver.eval(ptr1) != state.solver.eval(ptr2)
+
+    # uninitialized load and stores w/o uc_alloc_depth should not crash
+    ptr3 = claripy.Concat(
+            state.memory.load(0x4141414141414010, size=4, endness='Iend_LE'),
+            state.memory.load(0x4141414141414014, size=4, endness='Iend_LE'))
+    assert ptr3.uninitialized
+    assert ptr3.uc_alloc_depth is None # because uc_alloc_depth doesn't carry across Concat
+    # we don't care what these do, as long as they don't crash
+    state.memory.store(ptr3, b"\x41", size=1)
+    state.memory.load(ptr3, size=1)
+
 if __name__ == '__main__':
     test_crosspage_read()
     test_fast_memory()
@@ -678,3 +710,4 @@ if __name__ == '__main__':
     test_registers()
     test_concrete_memset()
     test_paged_memory_membacker_equal_size()
+    test_underconstrained()

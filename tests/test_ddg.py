@@ -11,7 +11,7 @@ import nose
 import angr
 
 # Load the tests
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def perform_one(binary_path):
     proj = angr.Project(binary_path,

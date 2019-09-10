@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 
 import ailment
+import archinfo
 import pyvex
 
 from ...calling_conventions import SimRegArg, SimStackArg
@@ -28,18 +29,39 @@ l = logging.getLogger(name=__name__)
 
 
 class LiveDefinitions:
-    def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
+    """
+    Represents the internal state of the ReachingDefinitionAnalysis.
+
+    It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
+
+    :param archinfo.Arch arch: The architecture targeted by the program.
+    :param Boolean track_tmps: Only tells whether or not temporary variables should be taken into consideration when
+                              representing the state of the analysis.
+                              Should be set to true when the analysis has counted uses and definitions for temporary
+                              variables, false otherwise.
+    :param angr.analyses.analysis.Analysis analysis: The analysis that generated the state represented by this object.
+    :param Boolean init_func: Whether or not the internal state of the analysis should be initialized.
+    :param angr.calling_conventions.SimCC cc: The calling convention the analyzed function respects.
+    :param int func_addr: The address of the analyzed function.
+    :param int rtoc_value: When the targeted architecture is ppc64, the initial function needs to know the `rtoc_value`.
+    """
+    def __init__(self, arch, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None,
+                 rtoc_value=None):
 
         # handy short-hands
         self.arch = arch
-        self.loader = loader
         self._track_tmps = track_tmps
         self.analysis = analysis
+        self.rtoc_value = rtoc_value
 
-        self.register_definitions = KeyedRegion()  # register region
-        self.stack_definitions = KeyedRegion()  # stack region
-        self.memory_definitions = KeyedRegion()  # non-stack memory region
+        self.register_definitions = KeyedRegion()
+        self.stack_definitions = KeyedRegion()
+        self.memory_definitions = KeyedRegion()
         self.tmp_definitions = {}
+
+        # sanity check
+        if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not self.rtoc_value:
+            raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
 
         if init_func:
             self._init_func(cc, func_addr)
@@ -93,12 +115,10 @@ class LiveDefinitions:
 
         # architecture dependent initialization
         if self.arch.name.lower().find('ppc64') > -1:
-            rtoc_value = self.loader.main_object.ppc64_initial_rtoc
-            if rtoc_value:
-                offset, size = self.arch.registers['rtoc']
-                rtoc = Register(offset, size)
-                rtoc_def = Definition(rtoc, None, DataSet(rtoc_value, self.arch.bits))
-                self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
+            offset, size = self.arch.registers['rtoc']
+            rtoc = Register(offset, size)
+            rtoc_def = Definition(rtoc, None, DataSet(self.rtoc_value, self.arch.bits))
+            self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
         elif self.arch.name.lower().find('mips64') > -1:
             offset, size = self.arch.registers['t9']
             t9 = Register(offset, size)
@@ -108,7 +128,6 @@ class LiveDefinitions:
     def copy(self):
         rd = LiveDefinitions(
             self.arch,
-            self.loader,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
             init_func=False,
@@ -125,6 +144,20 @@ class LiveDefinitions:
         rd._dead_virgin_definitions = self._dead_virgin_definitions.copy()
 
         return rd
+
+
+    def get_sp(self):
+        """
+        Return the concrete value contained by the stack pointer.
+        """
+        sp_definitions = self.register_definitions.get_objects_by_offset(self.arch.sp_offset)
+
+        assert len(sp_definitions) == 1
+        [sp_definition] = sp_definitions
+
+        # Assuming sp_definition has only one concrete value.
+        return sp_definition.data.get_first_element()
+
 
     def merge(self, *others):
 
@@ -204,15 +237,6 @@ class LiveDefinitions:
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
 
     def _kill_and_add_stack_definition(self, atom, code_loc, data, dummy=False):
-        """
-
-        :param SpOffset atom:
-        :param code_loc:
-        :param data:
-        :param dummy:
-        :return:
-        """
-
         current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
         if current_defs:
             uses = set()
@@ -292,20 +316,21 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                 specify both `func` and `block`.
         :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
-        :param bool track_tmps:                 Whether tmps are tracked or not.
-        :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
-                                                definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
-                                                OP_AFTER.
+        :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
+                                                during the analysis.
+        :param iterable observation_points:     A collection of tuples of ("node"|"insn", ins_addr, OP_TYPE) defining
+                                                where reaching definitions should be copied and stored. OP_TYPE can be
+                                                OP_BEFORE or OP_AFTER.
         :param angr.analyses.reaching_definitions.reaching_definitions.LiveDefinitions init_state:
                                                 An optional initialization state. The analysis creates and works on a
                                                 copy.
-        :param bool init_func:                  Whether stack and arguments are initialized or not.
+        :param Boolean init_func:               Whether stack and arguments are initialized or not.
         :param SimCC cc:                        Calling convention of the function.
         :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
                                                 <ReachingDefinitions>, <Codeloc>, <IP address>).
         :param int current_local_call_depth:    Current local function recursion depth.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
-        :param bool observa_all:                Observe every statement, both before and after.
+        :param Boolean observe_all:             Observe every statement, both before and after.
         """
 
         if func is not None:
@@ -380,45 +405,59 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return next(iter(self.observed_results.values()))
 
     @deprecated(replacement="get_reaching_definitions_by_insn")
-    def get_reaching_definitions(self, ins_addr, ob_type):
-        return self.get_reaching_definitions_by_insn(ins_addr, ob_type)
+    def get_reaching_definitions(self, ins_addr, op_type):
+        return self.get_reaching_definitions_by_insn(ins_addr, op_type)
 
-    def get_reaching_definitions_by_insn(self, ins_addr, ob_type):
-
-        key = 'insn', ins_addr, ob_type
+    def get_reaching_definitions_by_insn(self, ins_addr, op_type):
+        key = 'insn', ins_addr, op_type
         if key not in self.observed_results:
             raise KeyError(("Reaching definitions are not available at observation point %s. "
                             "Did you specify that observation point?") % key)
 
         return self.observed_results[key]
 
-    def get_reaching_definitions_by_node(self, node_addr, ob_type):
-
-        key = 'node', node_addr, ob_type
+    def get_reaching_definitions_by_node(self, node_addr, op_type):
+        key = 'node', node_addr, op_type
         if key not in self.observed_results:
             raise KeyError(("Reaching definitions are not available at observation point %s. "
                             "Did you specify that observation point?") % key)
 
         return self.observed_results[key]
 
-    def node_observe(self, node_addr, state, ob_type):
-        key = 'node', node_addr, ob_type
+    def node_observe(self, node_addr, state, op_type):
+        """
+        :param int node_addr:
+        :param angr.analyses.reaching_definitions.LiveDefinitions state:
+        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
+        """
+
+        key = 'node', node_addr, op_type
+
         if self._observe_all or \
                 self._observation_points is not None and key in self._observation_points:
             self.observed_results[key] = state
 
-    def insn_observe(self, ins_addr, stmt, block, state, ob_type):
-        key = 'insn', ins_addr, ob_type
+    def insn_observe(self, insn_addr, stmt, block, state, op_type):
+        """
+        :param int insn_addr:
+        :param ailment.Stmt.Statement|pyvex.stmt.IRStmt stmt:
+        :param angr.Block block:
+        :param angr.analyses.reaching_definitions.LiveDefinitions state:
+        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
+        """
+
+        key = 'insn', insn_addr, op_type
+
         if self._observe_all or \
                 self._observation_points is not None and key in self._observation_points:
-            if isinstance(stmt, pyvex.IRStmt.IRStmt):
+            if isinstance(stmt, pyvex.stmt.IRStmt):
                 # it's an angr block
                 vex_block = block.vex
                 # OP_BEFORE: stmt has to be IMark
-                if ob_type == OP_BEFORE and type(stmt) is pyvex.IRStmt.IMark:
+                if op_type == OP_BEFORE and type(stmt) is pyvex.stmt.IMark:
                     self.observed_results[key] = state.copy()
                 # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
-                elif ob_type == OP_AFTER:
+                elif op_type == OP_AFTER:
                     idx = vex_block.statements.index(stmt)
                     if idx == len(vex_block.statements) - 1 or type(
                             vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
@@ -438,8 +477,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         if self._init_state is not None:
             return self._init_state
         else:
-            return LiveDefinitions(self.project.arch, self.project.loader, track_tmps=self._track_tmps,
-                                   analysis=self, init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
+            return LiveDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
+                                   init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
@@ -460,7 +499,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
         self.node_observe(node.addr, state, OP_BEFORE)
 
-        state = state.copy()  # type: LiveDefinitions
+        state = state.copy()
         state = engine.process(state, block=block, fail_fast=self._fail_fast)
 
         # clear the tmp store

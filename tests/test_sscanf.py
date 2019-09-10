@@ -7,14 +7,14 @@ import logging
 l = logging.getLogger('angr.tests.sscanf')
 
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 
 
 def test_sscanf():
     if not sys.platform.startswith('linux'):
         raise nose.SkipTest()
 
-    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/sscanf_test")
+    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sscanf_test")
     b = angr.Project(test_bin)
 
     pg = b.factory.simulation_manager()

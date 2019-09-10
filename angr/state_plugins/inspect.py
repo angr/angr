@@ -22,6 +22,7 @@ event_types = {
     'call',
     'return',
     'simprocedure',
+    'dirty',
     'syscall',
     'cfg_handle_job',
     'vfg_handle_successor',
@@ -35,24 +36,28 @@ inspect_attributes = {
     'mem_read_expr',
     'mem_read_length',
     'mem_read_condition',
+    'mem_read_endness',
 
     # mem_write
     'mem_write_address',
     'mem_write_expr',
     'mem_write_length',
     'mem_write_condition',
+    'mem_write_endness',
 
     # reg_read
     'reg_read_offset',
     'reg_read_expr',
     'reg_read_length',
     'reg_read_condition',
+    'reg_read_endness',
 
     # reg_write
     'reg_write_offset',
     'reg_write_expr',
     'reg_write_length',
     'reg_write_condition',
+    'reg_write_endness',
 
     # tmp_read
     'tmp_read_num',
@@ -85,7 +90,7 @@ inspect_attributes = {
     'exit_target',
     'exit_guard',
     'exit_jumpkind',
-    'backtrace',
+    'backtrace', #unused?
 
     # symbolic_variable
     'symbolic_name',
@@ -106,12 +111,21 @@ inspect_attributes = {
     # simprocedure
     'simprocedure_name',
     'simprocedure_addr',
+    'simprocedure_result',
     'simprocedure',
+
+    # dirty
+    'dirty_name',
+    'dirty_handler',
+    'dirty_args',
+    'dirty_result',
 
     # engine_process
     'sim_engine',
     'sim_successors',
     }
+
+NO_OVERRIDE = object()
 
 BP_BEFORE = 'before'
 BP_AFTER = 'after'

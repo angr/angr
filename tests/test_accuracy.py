@@ -2,7 +2,7 @@ import nose
 import angr
 
 import os
-test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '../../binaries/tests/')
+test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..', 'binaries', 'tests')
 
 arch_data = { # (steps, [hit addrs], finished)
     'x86_64':  (330, (0x1021c20, 0x1021980, 0x1021be0, 0x4004b0, 0x400440, 0x400570), True),  # Finishes
@@ -52,15 +52,15 @@ def emulate(p, steps, hit_addrs, finished):
 def test_emulation():
     for arch in arch_data:
         steps, hit_addrs, finished = arch_data[arch]
-        filepath = test_location + arch + '/test_arrays'
+        filepath = os.path.join(test_location, arch, 'test_arrays')
         p = angr.Project(filepath, use_sim_procedures=False)
         yield emulate, p, steps, hit_addrs, finished
 
 def test_windows():
-    yield emulate, angr.Project(test_location + 'i386/test_arrays.exe'), 41, [], False # blocked on GetLastError or possibly dynamic loading
+    yield emulate, angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe')), 41, [], False # blocked on GetLastError or possibly dynamic loading
 
 def test_locale():
-    p = angr.Project(test_location + 'i386/isalnum', use_sim_procedures=False)
+    p = angr.Project(os.path.join(test_location, 'i386', 'isalnum'), use_sim_procedures=False)
     state = p.factory.full_init_state(args=['./isalnum'], add_options={angr.options.STRICT_PAGE_ACCESS})
     pg = p.factory.simulation_manager(state)
     pg2 = pg.run(until=lambda lpg: len(lpg.active) != 1,

@@ -3,11 +3,11 @@ import angr
 import networkx
 
 import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
 def test_kb_plugins():
-    p = angr.Project(location + "/x86_64/fauxware")
+    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'))
 
     nose.tools.assert_is_instance(p.kb.data, angr.knowledge_plugins.Data)
     nose.tools.assert_is_instance(p.kb.functions, angr.knowledge_plugins.FunctionManager)

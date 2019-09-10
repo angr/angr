@@ -70,7 +70,7 @@ class CFGNode(Serializable):
         self.no_ret = no_ret
         self._cfg_model = cfg
         self.function_address = function_address
-        self.block_id = block_id  # type: int or tuple
+        self.block_id = block_id  # type: int or BlockID
         self.thumb = thumb
         self.byte_string = byte_string  # type: None or bytes
 
@@ -131,14 +131,35 @@ class CFGNode(Serializable):
     def predecessors(self):
         return self._cfg_model.get_predecessors(self)
 
-    @property
-    def accessed_data_references(self):
-        if self._cfg_model.sort != 'fast':
+    def get_data_references(self, kb=None):
+        """
+        Get the known data references for this CFGNode via the knowledge base.
+
+        :param kb:  Which knowledge base to use; uses the global KB by default if none is provided
+        :return:    Generator yielding xrefs to this CFGNode's block.
+        :rtype:     iter
+        """
+        if self._cfg_model.ident != 'CFGFast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
+        if not kb:
+            kb = self._cfg_model.project.kb
+        if not kb:
+            raise ValueError("The Knowledge Base does not exist!")
 
         for instr_addr in self.instruction_addrs:
-            if instr_addr in self._cfg_model.insn_addr_to_memory_data:
-                yield self._cfg_model.insn_addr_to_memory_data[instr_addr]
+            refs = list(kb.xrefs.get_xrefs_by_ins_addr(instr_addr))
+            for ref in refs:
+                yield ref
+
+    @property
+    def accessed_data_references(self):
+        """
+        Property providing a view of all the known data references for this CFGNode via the global knowledge base
+
+        :return:    Generator yielding xrefs to this CFGNode's block.
+        :rtype:     iter
+        """
+        return self.get_data_references()
 
     @property
     def is_simprocedure(self):
@@ -158,25 +179,25 @@ class CFGNode(Serializable):
         return cfg_pb2.CFGNode()
 
     def serialize_to_cmessage(self):
+        if isinstance(self, CFGENode):
+            raise NotImplementedError("CFGEmulated instances are not currently serializable")
+
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
         if self.block_id is not None:
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
-            else:  # should be a tuple
-                obj.block_id.extend(self.block_id)  # pylint:disable=no-member
+            else:  # should be a BlockID
+                raise NotImplementedError("CFGEmulated instances are not currently serializable")
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
-
         if len(cmsg.block_id) == 0:
             block_id = None
-        elif len(cmsg.block_id) == 1:
-            block_id = cmsg.block_id[0]
         else:
-            block_id = tuple(cmsg.block_id)
+            block_id = cmsg.block_id[0]
 
         obj = cls(cmsg.ea,
                   cmsg.size,

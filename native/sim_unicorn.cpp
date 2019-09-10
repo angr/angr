@@ -1,8 +1,8 @@
 #include <unicorn/unicorn.h>
 
+#include <cinttypes>
 #include <cstring>
 #include <cstdint>
-#include <cinttypes>
 
 #include <memory>
 #include <map>
@@ -10,8 +10,10 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <set>
+#include <algorithm>
 
 extern "C" {
+#include <assert.h>
 #include <libvex.h>
 #include <pyvex.h>
 }
@@ -529,35 +531,21 @@ public:
 
 	std::pair<uint64_t, size_t> cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
 	{
-		//printf("caching page %#lx - %#lx.\n", address, address + size);
-		// Make sure this page is not overlapping with any existing cached page
-		auto after = page_cache->lower_bound(address);
-		auto before = page_cache->lower_bound(address);
+		assert(address % 0x1000 == 0);
+		assert(size % 0x1000 == 0);
 
-		if (after != page_cache->end()) {
-			if (address + size >= after->first) {
-				if (address >= after->first) {
-					printf("[%#" PRIx64 ", %#" PRIx64 "](%#zx) overlaps with [%#" PRIx64 ", %#" PRIx64 "](%#zx).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
-					// A complete overlap
-					return std::make_pair(address, size);
-				}
-				size = after->first - address;
-			}
-		}
-		if (before != page_cache->begin()) {
-			before--;
-			if (address < before->first + before->second.size) {
-				if (address + size <= before->first + before->second.size) {
-					// A complete overlap
-					printf("[%#" PRIx64 ", %#" PRIx64 "](%#zx) overlaps with [%#" PRIx64 ", %#" PRIx64 "](%#zx).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
-					return std::make_pair(address, size);
-				}
-				size = address + size - (before->first + before->second.size);
-				address = before->first + before->second.size;
-			}
-		}
+		for (uint64_t offset = 0; offset < size; offset += 0x1000)
+		{
+			auto page = page_cache->find(address+offset);
+			if (page != page_cache->end())
+			{
+				fprintf(stderr, "[%#" PRIx64 ", %#" PRIx64 "](%#zx) already in cache.\n", address+offset, address+offset + 0x1000, 0x1000);
+				assert(page->second.size == 0x1000);
+				assert(memcmp(page->second.bytes, bytes + offset, 0x1000) == 0);
 
-		for (uint64_t offset = 0; offset < size; offset += 0x1000) {
+				continue;
+			}
+
 			uint8_t *copy = (uint8_t *)malloc(0x1000);
 			CachedPage cached_page = {
 				0x1000,
@@ -571,66 +559,71 @@ public:
 		return std::make_pair(address, size);
 	}
 
-	void uncache_page(uint64_t address) {
-		if ((address & 0xfff) != 0) {
-			printf("Warning: Address #%" PRIx64 " passed to uncache_page is not aligned\n", address);
-			return;
-		}
-
+    void wipe_page_from_cache(uint64_t address) {
 		auto page = page_cache->find(address);
 		if (page != page_cache->end()) {
 			//printf("Internal: unmapping %#llx size %#x, result %#x", page->first, page->second.size, uc_mem_unmap(uc, page->first, page->second.size));
-			uc_mem_unmap(uc, page->first, page->second.size);
-			//free(page->second.bytes); // other forks might need this I guess :( how the HELL do you make memory management sane?
+			uc_err err = uc_mem_unmap(uc, page->first, page->second.size);
+			//if (err) {
+			//	fprintf(stderr, "wipe_page_from_cache [%#lx, %#lx]: %s\n", page->first, page->first + page->second.size, uc_strerror(err));
+			//}
+			free(page->second.bytes); // might explode
 			page_cache->erase(page);
 		} else {
 			//printf("Uh oh! Couldn't find page at %#llx\n", address);
 		}
-	}
+    }
+
+    void uncache_pages_touching_region(uint64_t address, uint64_t length)
+    {
+    	    address &= ~(0x1000-1);
+
+	    for (uint64_t offset = 0; offset < length; offset += 0x1000)
+	    {
+            	    wipe_page_from_cache(address + offset);
+	    }
+
+    }
+
+    void clear_page_cache()
+    {
+        while (!page_cache->empty())
+        {
+            wipe_page_from_cache(page_cache->begin()->first);
+        }
+    }
 
 	bool map_cache(uint64_t address, size_t size) {
-		auto it = page_cache->lower_bound(address);
+		assert(address % 0x1000 == 0);
+		assert(size % 0x1000 == 0);
 
-		if (it == page_cache->end() && it != page_cache->begin()) {
-			// Maybe the previous one works?
-			it--;
-		}
+		bool success = true;
 
-		if (it != page_cache->end()) {
-			uint64_t cached_page_addr = it->first;
-			if (cached_page_addr > address && it != page_cache->begin()) {
-				it--;
-				cached_page_addr = it->first;
+		for (uint64_t offset = 0; offset < size; offset += 0x1000)
+		{
+			auto page = page_cache->find(address+offset);
+			if (page == page_cache->end())
+			{
+				success = false;
+				continue;
 			}
-			auto itt = it->second;
-			size_t page_size = itt.size;
-			uint8_t *bytes = itt.bytes;
-			uint64_t permissions = itt.perms;
 
-			if (address >= cached_page_addr && address < cached_page_addr + page_size) {
-				while (cached_page_addr < address + size) {
-					//LOG_D("hit cache [%#lx, %#lx]", address, address + size);
-					uc_err err = uc_mem_map_ptr(uc, cached_page_addr, page_size, permissions, bytes);
-					if (err) {
-						//LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
-						return false;
-					}
+			auto cached_page = page->second;
+			size_t page_size = cached_page.size;
+			uint8_t *bytes = cached_page.bytes;
+			uint64_t permissions = cached_page.perms;
 
-					it++;
-					if (it != page_cache->end()) {
-						cached_page_addr = it->first;
-						page_size = it->second.size;
-						bytes = it->second.bytes;
-						permissions = it->second.perms;
-					} else {
-						break;
-					}
-				}
-				return true;
+			assert(page_size == 0x1000);
+
+			//LOG_D("hit cache [%#lx, %#lx]", address, address + size);
+			uc_err err = uc_mem_map_ptr(uc, page->first, page_size, permissions, bytes);
+			if (err) {
+				fprintf(stderr, "map_cache [%#lx, %#lx]: %s\n", address, address + size, uc_strerror(err));
+				success = false;
+				continue;
 			}
 		}
-		//LOG_D("cache miss.");
-		return false;
+		return success;
 	}
 
 	bool in_cache(uint64_t address) {
@@ -1412,8 +1405,13 @@ bool simunicorn_cache_page(State *state, uint64_t address, uint64_t length, char
 }
 
 extern "C"
-void simunicorn_uncache_page(State *state, uint64_t address) {
-	state->uncache_page(address);
+void simunicorn_uncache_pages_touching_region(State *state, uint64_t address, uint64_t length) {
+	state->uncache_pages_touching_region(address, length);
+}
+
+extern "C"
+void simunicorn_clear_page_cache(State *state) {
+	state->clear_page_cache();
 }
 
 // Tracking settings
@@ -1421,4 +1419,9 @@ extern "C"
 void simunicorn_set_tracking(State *state, bool track_bbls, bool track_stack) {
 	state->track_bbls = track_bbls;
 	state->track_stack = track_stack;
+}
+
+extern "C"
+bool simunicorn_in_cache(State *state, uint64_t address) {
+	return state->in_cache(address);
 }

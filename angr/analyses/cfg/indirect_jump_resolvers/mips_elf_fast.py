@@ -21,7 +21,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         super(MipsElfFastResolver, self).__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(self.project.arch, archinfo.ArchMIPS32):
+        if not isinstance(self.project.arch, (archinfo.ArchMIPS32, archinfo.ArchMIPS64, )):
             return False
         return True
 

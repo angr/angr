@@ -14,6 +14,7 @@ from .sim_type import SimTypeDouble
 from .sim_type import SimTypeReg
 from .sim_type import SimStruct
 from .sim_type import parse_file
+from .sim_type import SimTypeTop
 
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -56,6 +57,11 @@ class AllocHelper:
 
 
 class SimFunctionArgument:
+    """
+    Represent a generic function argument.
+
+    :ivar int size:    The size of the argument, in number of bytes.
+    """
     def __init__(self, size):
         self.size = size
 
@@ -79,6 +85,12 @@ class SimFunctionArgument:
 
 
 class SimRegArg(SimFunctionArgument):
+    """
+    Represents a function argument that has been passed in a register.
+
+    :ivar string reg_name:    The name of the represented register.
+    :ivar int size:           The size of the register, in number of bytes.
+    """
     def __init__(self, reg_name, size, alt_offsets=None):
         SimFunctionArgument.__init__(self, size)
         self.reg_name = reg_name
@@ -126,6 +138,12 @@ class SimRegArg(SimFunctionArgument):
 
 
 class SimStackArg(SimFunctionArgument):
+    """
+    Represents a function argument that has been passed on the stack.
+
+    :var int stack_offset:    The position of the argument relative to the stack pointer after the function prelude.
+    :ivar int size:           The size of the argument, in number of bytes.
+    """
     def __init__(self, stack_offset, size):
         SimFunctionArgument.__init__(self, size)
         self.stack_offset = stack_offset
@@ -838,10 +856,26 @@ class SimCC:
             return val
 
         elif isinstance(arg, claripy.ast.Base):
-            if check and isinstance(ty, SimTypeReg):
-                arg = arg.reversed
+            endswap = False
+            bypass_sizecheck = False
+            if check:
+                if isinstance(ty, SimTypePointer):
+                    # we have been passed an AST as a pointer argument. is this supposed to be the pointer or the
+                    # content of the pointer?
+                    # in the future (a breaking change) we should perhaps say it ALWAYS has to be the pointer itself
+                    # but for now use the heuristic that if it's the right size for the pointer it is the pointer
+                    endswap = True
+                elif isinstance(ty, SimTypeReg):
+                    # definitely endswap.
+                    # TODO: should we maybe pad the value to the type size here?
+                    endswap = True
+                    bypass_sizecheck = True
+            else:
+                # if we know nothing about the type assume it's supposed to be an int if it looks like an int
+                endswap = True
+
             # yikes
-            elif state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
+            if endswap and state.arch.memory_endness == 'Iend_LE' and (bypass_sizecheck or arg.length == state.arch.bits):
                 arg = arg.reversed
             return arg
 
@@ -914,10 +948,16 @@ class SimCC:
         :param angr.SimState state: The state to evaluate and extract the values from
         :return:    A list of tuples, where the nth tuple is (type, name, location, value) of the nth argument
         """
-        argument_types = self.func_ty.args
-        argument_names = self.func_ty.arg_names if self.func_ty.arg_names else ['unknown'] * len(self.func_ty.args)
+
         argument_locations = self.arg_locs(is_fp=is_fp, sizes=sizes)
         argument_values = self.get_args(state, is_fp=is_fp, sizes=sizes)
+
+        if self.func_ty:
+            argument_types = self.func_ty.args
+            argument_names = self.func_ty.arg_names if self.func_ty.arg_names else ['unknown'] * len(self.func_ty.args)
+        else:
+            argument_types = [SimTypeTop] * len(argument_locations)
+            argument_names = ['unknown'] * len(argument_locations)
         return list(zip(argument_types, argument_names, argument_locations, argument_values))
 
 class SimLyingRegArg(SimRegArg):

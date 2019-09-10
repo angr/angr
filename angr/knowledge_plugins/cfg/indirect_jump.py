@@ -5,10 +5,10 @@ from ...serializable import Serializable
 class IndirectJump(Serializable):
 
     __slots__ = ("addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
-                 "jumptable_addr", "jumptable_entries", )
+                 "jumptable_addr", "jumptable_size", "jumptable_entry_size", "jumptable_entries", )
 
     def __init__(self, addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=None, jumptable=False,
-                 jumptable_addr=None, jumptable_entries=None):
+                 jumptable_addr=None, jumptable_size=None, jumptable_entry_size=None, jumptable_entries=None):
         self.addr = addr
         self.ins_addr = ins_addr
         self.func_addr = func_addr
@@ -17,6 +17,8 @@ class IndirectJump(Serializable):
         self.resolved_targets = set() if resolved_targets is None else set(resolved_targets)
         self.jumptable = jumptable
         self.jumptable_addr = jumptable_addr
+        self.jumptable_size = jumptable_size
+        self.jumptable_entry_size = jumptable_entry_size
         self.jumptable_entries = jumptable_entries
 
     def __repr__(self):

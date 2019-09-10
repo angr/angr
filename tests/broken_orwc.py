@@ -12,17 +12,17 @@ import nose
 
 # load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 p_rw = None
 p = None
 
 def setup_rw():
     global p_rw
-    p_rw = angr.Project(test_location + "/blob/x86_64/rw",  use_sim_procedures=False)
+    p_rw = angr.Project(os.path.join(test_location, 'x86_64', 'rw'),  use_sim_procedures=False)
 
 def setup_orwc():
     global p
-    p = angr.Project(test_location + "/blob/x86_64/orwc",  use_sim_procedures=False)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'orwc'),  use_sim_procedures=False)
 
 def setup_module():
     setup_rw()

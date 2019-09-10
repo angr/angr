@@ -7,7 +7,7 @@ import nose
 import angr
 
 l = logging.getLogger("angr.tests")
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 insn_texts = {
     'i386': b"add eax, 15",

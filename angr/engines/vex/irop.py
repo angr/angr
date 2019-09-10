@@ -1,13 +1,12 @@
 """
 This module contains symbolic implementations of VEX operations.
 """
-
-import re
-import sys
-import math
+from functools import partial
 import collections
 import itertools
 import operator
+import math
+import re
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -114,9 +113,9 @@ def make_operations():
         if p in ('Iop_INVALID', 'Iop_LAST'):
             continue
 
-        if p in explicit_attrs:
+        try:
             attrs = explicit_attrs[p]
-        else:
+        except KeyError:
             attrs = op_attrs(p)
 
         if attrs is None:
@@ -151,6 +150,12 @@ bitwise_operation_map = {
     'And': '__and__',
     'Not': '__invert__',
 }
+
+operation_map = {}
+operation_map.update(arithmetic_operation_map)
+operation_map.update(shift_operation_map)
+operation_map.update(bitwise_operation_map)
+
 rm_map = {
     0: claripy.fp.RM.RM_NearestTiesEven,
     1: claripy.fp.RM.RM_TowardsNegativeInf,
@@ -279,6 +284,18 @@ class SimIROp:
                 l.error("%s is an unexpected conversion operation configuration", self)
                 assert False
 
+        elif self._float and self._vector_zero:
+            # /* --- lowest-lane-only scalar FP --- */
+            f = getattr(claripy, 'fp' + self._generic_name, None)
+            if f is not None:
+                f = partial(f, claripy.fp.RM.default()) # always? really?
+
+            f = f if f is not None else getattr(self, '_fgeneric_' + self._generic_name, None)
+            if f is None:
+                raise SimOperationError("no implementation found for operation {}".format(self._generic_name))
+
+            self._calculate = partial(self._vectorize_or_dont, f)
+
         # other conversions
         elif self._conversion and self._generic_name not in {'Round', 'Reinterp'}:
             if self._generic_name == "DivMod":
@@ -293,12 +310,11 @@ class SimIROp:
             self._calculate = self._op_mapped
 
         # generic mapping operations
-        elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map:
+        elif    self._generic_name in arithmetic_operation_map or \
+                self._generic_name in shift_operation_map:
             assert self._from_side is None
 
-            if self._float and self._vector_zero:
-                self._calculate = self._op_float_op_just_low
-            elif self._float and self._vector_count is None:
+            if self._float and self._vector_count is None:
                 self._calculate = self._op_float_mapped
             elif not self._float and self._vector_count is not None:
                 self._calculate = self._op_vector_mapped
@@ -362,17 +378,19 @@ class SimIROp:
 
     def extend_size(self, o):
         cur_size = o.size()
+        if cur_size == self._output_size_bits:
+            return o
         if cur_size < self._output_size_bits:
             ext_size = self._output_size_bits - cur_size
             if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed is None):
                 return claripy.SignExt(ext_size, o)
             else:
                 return claripy.ZeroExt(ext_size, o)
-        elif cur_size > self._output_size_bits:
-            __import__('ipdb').set_trace()
-            raise SimOperationError('output of %s is too big', self.name)
-        else:
-            return o
+
+        # if cur_size > self._output_size_bits:
+        # breakpoint here. it should never happen!
+        __import__('ipdb').set_trace()
+        raise SimOperationError('output of %s is too big' % self.name)
 
     @property
     def is_signed(self):
@@ -400,12 +418,8 @@ class SimIROp:
         else:
             sized_args = args
 
-        if self._generic_name in bitwise_operation_map:
-            o = bitwise_operation_map[self._generic_name]
-        elif self._generic_name in arithmetic_operation_map:
-            o = arithmetic_operation_map[self._generic_name]
-        elif self._generic_name in shift_operation_map:
-            o = shift_operation_map[self._generic_name]
+        if self._generic_name in operation_map:  # bitwise/arithmetic/shift operations
+            o = operation_map[self._generic_name]
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
@@ -443,11 +457,6 @@ class SimIROp:
                 ] for i in reversed(range(self._vector_count))
             )
         return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
-
-    def _op_float_op_just_low(self, args):
-        chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
-        result = getattr(claripy, 'fp' + self._generic_name)(claripy.fp.RM.default(), *chopped).raw_to_bv()
-        return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
 
     def _op_concat(self, args):
         return claripy.Concat(*args)
@@ -761,6 +770,43 @@ class SimIROp:
             (claripy.fpEQ(a, b), claripy.BVV(0x40, 32)),
             ), claripy.BVV(0x45, 32))
 
+    def _vectorize_or_dont(self, f, args, rm=None, rm_passed=False):
+        if rm is not None:
+            rm = self._translate_rm(rm)
+            if rm_passed:
+                f = partial(f, rm)
+
+        #import ipdb; ipdb.set_trace()
+
+        if self._vector_size is None:
+            return f(args)
+
+        if self._vector_zero:
+            chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
+            result = f(*chopped).raw_to_bv()
+            return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
+        else:
+            result = []
+            for i in reversed(range(self._vector_count)):
+                # pylint:disable=no-member
+                left = claripy.Extract(
+                    (i + 1) * self._vector_size - 1, i * self._vector_size, args[0]
+                ).raw_to_fp()
+
+                result.append(f(left, *args[1:]))
+            return claripy.Concat(*result)
+
+    @staticmethod
+    def _fgeneric_minmax(cmp_op, a, b):
+        a, b = a.raw_to_fp(), b.raw_to_fp()
+        return claripy.If(cmp_op(a, b), a, b)
+
+    def _fgeneric_Min(self, a, b):
+        return self._fgeneric_minmax(claripy.fpLT, a, b)
+
+    def _fgeneric_Max(self, a, b):
+        return self._fgeneric_minmax(claripy.fpGT, a, b)
+
     def _op_fgeneric_Reinterp(self, args):
         if self._to_type == 'I':
             return args[0].raw_to_bv()
@@ -828,12 +874,18 @@ class SimIROp:
     def _op_Iop_64x4toV256(self, args) :
         return self._op_concat(args)
 
-    def _op_Iop_V256to64_0(self, args): return args[0][63:0]
-    def _op_Iop_V256to64_1(self, args): return args[0][127:64]
-    def _op_Iop_V256to64_2(self, args): return args[0][191:128]
-    def _op_Iop_V256to64_3(self, args): return args[0][255:192]
-    def _op_Iop_V256toV128_0(self, args): return args[0][127:0]
-    def _op_Iop_V256toV128_1(self, args): return args[0][255:128]
+    @staticmethod
+    def _op_Iop_V256to64_0(args): return args[0][63:0]
+    @staticmethod
+    def _op_Iop_V256to64_1(args): return args[0][127:64]
+    @staticmethod
+    def _op_Iop_V256to64_2(args): return args[0][191:128]
+    @staticmethod
+    def _op_Iop_V256to64_3(args): return args[0][255:192]
+    @staticmethod
+    def _op_Iop_V256toV128_0(args): return args[0][127:0]
+    @staticmethod
+    def _op_Iop_V256toV128_1(args): return args[0][255:128]
 
     def _op_Iop_QNarrowBin16Sto8Ux16(self, args):
         """
@@ -848,7 +900,8 @@ class SimIROp:
         """
         return self._op_generic_pack_StoU_saturation(args, 16, 8)
 
-    def _op_Iop_MAddF64(self, args):
+    @staticmethod
+    def _op_Iop_MAddF64(args):
         """
         Ternary operation.
             arg0 == 0

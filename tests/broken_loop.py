@@ -8,12 +8,12 @@ import angr
 
 # load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 loop_nolibs = None
 
 def setup_module():
     global loop_nolibs
-    loop_nolibs = angr.Project(test_location + "/blob/x86_64/loop",  default_analysis_mode='symbolic')
+    loop_nolibs = angr.Project(os.path.join(test_location, 'x86_64', 'loop'),  default_analysis_mode='symbolic')
 
 def test_loop_entry():
     s = loop_nolibs.sim_run(loop_nolibs.exit_to(0x4004f4))

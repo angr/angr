@@ -1,5 +1,5 @@
 # pylint:disable=no-member
-from ...protos import primitives_pb2, cfg_pb2
+from ...protos import cfg_pb2
 from ...serializable import Serializable
 
 
@@ -13,6 +13,7 @@ class MemoryDataSort:
     SegmentBoundary = "segment-boundary"
     CodeReference = "code reference"
     GOTPLTEntry = "GOT PLT Entry"
+    ELFHeader = 'elf-header'
 
 _SORT_TO_IDX = {
     MemoryDataSort.Unspecified: cfg_pb2.MemoryData.Unspecified,
@@ -24,61 +25,10 @@ _SORT_TO_IDX = {
     MemoryDataSort.SegmentBoundary: cfg_pb2.MemoryData.SegmentBoundary,
     MemoryDataSort.CodeReference: cfg_pb2.MemoryData.CodeReference,
     MemoryDataSort.GOTPLTEntry: cfg_pb2.MemoryData.GOTPLTEntry,
+    MemoryDataSort.ELFHeader: cfg_pb2.MemoryData.ELFHeader,
 }
 
 _IDX_TO_SORT = dict((v, k) for k, v in _SORT_TO_IDX.items())
-
-
-class CodeReference(Serializable):
-    """
-    CodeReference describes a reference to a MemoryData instance.
-    """
-
-    __slots__ = ('insn_addr', 'block_addr', 'stmt_idx', 'insn_op_idx', 'insn_op_type', 'memory_data')
-
-    def __init__(self, insn_addr, block_addr, stmt_idx, insn_op_idx=None, memory_data=None):
-        self.insn_addr = insn_addr
-        self.insn_op_idx = insn_op_idx
-        self.block_addr = block_addr
-        self.stmt_idx = stmt_idx
-        self.memory_data = memory_data
-
-    def __repr__(self):
-        return "Ref@%#x" % self.insn_addr
-
-    @classmethod
-    def _get_cmsg(cls):
-        return primitives_pb2.CodeReference()
-
-    def serialize_to_cmessage(self):
-        cmsg = self._get_cmsg()
-        if self.memory_data is not None:
-            cmsg.target_type = primitives_pb2.CodeReference.CodeTarget \
-                if self.memory_data.sort == MemoryDataSort.CodeReference else primitives_pb2.CodeReference.DataTarget
-            cmsg.location = primitives_pb2.CodeReference.Internal
-            cmsg.data_ea = self.memory_data.addr
-        else:
-            cmsg.data_ea = -1
-        if self.insn_op_idx is None:
-            cmsg.operand_idx = -1
-        else:
-            cmsg.operand_idx = self.insn_op_idx
-        cmsg.ea = self.insn_addr
-        cmsg.block_ea = self.block_addr
-        cmsg.stmt_idx = self.stmt_idx
-        return cmsg
-
-    @classmethod
-    def parse_from_cmessage(cls, cmsg, **kwargs):
-        # Note that we cannot recover _memory_data from cmsg
-        cr = CodeReference(cmsg.ea, cmsg.block_ea, cmsg.stmt_idx,
-                           insn_op_idx=None if cmsg.operand_idx == -1 else cmsg.opearnd_idx)
-        return cr
-
-    def copy(self):
-        cr = CodeReference(self.insn_addr, self.block_addr, self.stmt_idx, insn_op_idx=self.insn_op_idx,
-                           memory_data=self.memory_data)
-        return cr
 
 
 class MemoryData(Serializable):

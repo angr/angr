@@ -10,39 +10,11 @@ from ...serializable import Serializable
 from ...utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from ...errors import AngrCFGError
 from .cfg_node import CFGNode
-from .memory_data import CodeReference, MemoryData
+from .memory_data import MemoryData
+from ...misc.ux import once
 
 
 l = logging.getLogger(name=__name__)
-
-
-class ReferenceManager:
-
-    def __init__(self):
-        self.refs = defaultdict(list)
-        self.data_addr_to_ref = defaultdict(list)
-
-    def add_ref(self, ref):
-        """
-        Add a reference to a memory data object.
-
-        :param CodeReference ref:   The reference.
-        :return:                    None
-        """
-
-        self.refs[ref.insn_addr].append(ref)
-        self.data_addr_to_ref[ref.memory_data.addr].append(ref)
-
-    def add_refs(self, refs):
-        """
-        Add multiple references at the same time.
-
-        :param iterable refs:   A collection of reference objects.
-        :return:                None
-        """
-
-        for ref in refs:
-            self.add_ref(ref)
 
 
 class CFGModel(Serializable):
@@ -72,8 +44,6 @@ class CFGModel(Serializable):
         self.memory_data = { }
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data = { }
-        # Data references
-        self.references = ReferenceManager()
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
         self._nodes_by_addr = defaultdict(list)
@@ -99,6 +69,9 @@ class CFGModel(Serializable):
         return cfg_pb2.CFG()
 
     def serialize_to_cmessage(self):
+        if "Emulated" in self.ident:
+            raise NotImplementedError("Serializing a CFGEmulated instance is currently not supported.")
+
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
 
@@ -132,29 +105,32 @@ class CFGModel(Serializable):
             memory_data.append(data.serialize_to_cmessage())
         cmsg.memory_data.extend(memory_data)
 
-        # references
-        refs = [ ]
-        for ref_lst in self.references.refs.values():
-            for ref in ref_lst:
-                refs.append(ref.serialize_to_cmessage())
-        cmsg.refs.extend(refs)
-
         return cmsg
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg_manager=None):  # pylint:disable=arguments-differ
-        model = cls(cmsg.ident, cfg_manager=cfg_manager)
+        if cfg_manager is None:
+            # create a new model unassociated from any project
+            model = cls(cmsg.ident)
+        else:
+            model = cfg_manager.new_model(cmsg.ident)
+
         # nodes
         for node_pb2 in cmsg.nodes:
-            node = CFGNode.parse_from_cmessage(node_pb2)
+            node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
             model._nodes[node.block_id] = node
-            model._nodes_by_addr[node.addr] = node
+            model._nodes_by_addr[node.addr].append(node)
             model.graph.add_node(node)
+            if len(model._nodes_by_addr[node.block_id]) > 1:
+                if once("cfg_model_parse_from_cmessage many nodes at addr"):
+                    l.warning("Importing a CFG with more than one node for a given address is currently unsupported. "
+                              "The resulting graph may be broken.")
 
         # edges
         for edge_pb2 in cmsg.edges:
-            src = model._nodes_by_addr[edge_pb2.src_ea]
-            dst = model._nodes_by_addr[edge_pb2.dst_ea]
+            # more than one node at a given address is unsupported, grab the first one
+            src = model._nodes_by_addr[edge_pb2.src_ea][0]
+            dst = model._nodes_by_addr[edge_pb2.dst_ea][0]
             data = { }
             for k, v in edge_pb2.data.items():
                 data[k] = pickle.loads(v)
@@ -167,15 +143,6 @@ class CFGModel(Serializable):
         for data_pb2 in cmsg.memory_data:
             md = MemoryData.parse_from_cmessage(data_pb2)
             model.memory_data[md.addr] = md
-
-        # references
-        for ref_pb2 in cmsg.refs:
-            if ref_pb2.data_ea == -1:
-                l.warning("Unknown address of the referenced data item. Ignore the reference at %#x.", ref_pb2.ea)
-                continue
-            ref = CodeReference.parse_from_cmessage(ref_pb2)
-            ref.memory_data = model.memory_data[ref_pb2.data_ea]
-            model.references.add_ref(ref)
 
         return model
 
@@ -259,7 +226,7 @@ class CFGModel(Serializable):
             else:
                 cond = True
             if anyaddr and n.size is not None:
-                cond = cond and n.addr <= addr < n.addr + n.size
+                cond = cond and (addr == n.addr or n.addr <= addr < n.addr + n.size)
             else:
                 cond = cond and (addr == n.addr)
             if cond:
@@ -392,26 +359,32 @@ class CFGModel(Serializable):
                 successors.append((suc, data['jumpkind']))
         return successors
 
-    def get_all_predecessors(self, cfgnode):
+    def get_all_predecessors(self, cfgnode, depth_limit=None):
         """
         Get all predecessors of a specific node on the control flow graph.
 
         :param CFGNode cfgnode: The CFGNode object
+        :param int depth_limit: Optional depth limit for the depth-first search
         :return: A list of predecessors in the CFG
         :rtype: list
         """
-        s = set()
-        for child, parent in networkx.dfs_predecessors(self.graph, cfgnode).items():
-            s.add(child)
-            s.add(parent)
-        return list(s)
+        # use the reverse graph and query for successors (networkx.dfs_predecessors is misleading)
+        # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
+        predecessors = set().union(*networkx.dfs_successors(self.graph.reverse(), cfgnode, depth_limit).values())
+        return list(predecessors)
 
-    def get_all_successors(self, cfgnode):
-        s = set()
-        for parent, children in networkx.dfs_successors(self.graph, cfgnode).items():
-            s.add(parent)
-            s = s.union(children)
-        return list(s)
+    def get_all_successors(self, cfgnode, depth_limit=None):
+        """
+        Get all successors of a specific node on the control flow graph.
+
+        :param CFGNode cfgnode: The CFGNode object
+        :param int depth_limit: Optional depth limit for the depth-first search
+        :return: A list of successors in the CFG
+        :rtype: list
+        """
+        # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
+        successors = set().union(*networkx.dfs_successors(self.graph, cfgnode, depth_limit).values())
+        return list(successors)
 
     def get_branching_nodes(self):
         """

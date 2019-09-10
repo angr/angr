@@ -1,386 +1,13 @@
-
-import logging
-
 import networkx
 
-from claripy.utils.orderedset import OrderedSet
+from functools import reduce
 
-from ..misc.ux import deprecated
-# errors
-from ..errors import AngrForwardAnalysisError
-# notices
-from ..errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, \
-    AngrJobWideningFailureNotice
-from .cfg.cfg_utils import CFGUtils
+from ...errors import AngrForwardAnalysisError
+from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
 
-
-#
-# Graph traversal
-#
-
-class GraphVisitor(object):
-    """
-    A graph visitor takes a node in the graph and returns its successors. Typically it visits a control flow graph, and
-    returns successors of a CFGNode each time. This is the base class of all graph visitors.
-    """
-    def __init__(self):
-
-        self._sorted_nodes = OrderedSet()
-        self._node_to_index = { }
-        self._reached_fixedpoint = set()
-
-    #
-    # Interfaces
-    #
-
-    def startpoints(self):
-        """
-        Get all start points to begin the traversal.
-
-        :return: A list of startpoints that the traversal should begin with.
-        """
-
-        raise NotImplementedError()
-
-    def successors(self, node):
-        """
-        Get successors of a node. The node should be in the graph.
-
-        :param node: The node to work with.
-        :return:     A list of successors.
-        :rtype:      list
-        """
-
-        raise NotImplementedError()
-
-    def predecessors(self, node):
-        """
-        Get predecessors of a node. The node should be in the graph.
-
-        :param node: The node to work with.
-        :return:     A list of predecessors.
-        :rtype:      list
-        """
-
-        raise NotImplementedError()
-
-    def sort_nodes(self, nodes=None):
-        """
-        Get a list of all nodes sorted in an optimal traversal order.
-
-        :param iterable nodes: A collection of nodes to sort. If none, all nodes in the graph will be used to sort.
-        :return:               A list of sorted nodes.
-        :rtype:                list
-        """
-
-        raise NotImplementedError()
-
-    #
-    # Public methods
-    #
-
-    def nodes(self):
-        """
-        Return an iterator of nodes following an optimal traversal order.
-
-        :return:
-        """
-
-        sorted_nodes = self.sort_nodes()
-
-        return iter(sorted_nodes)
-
-    @deprecated(replacement='nodes')
-    def nodes_iter(self):
-        """
-        (Deprecated) Return an iterator of nodes following an optimal traversal order. Will be removed in the future.
-        """
-        return self.nodes()
-
-    # Traversal
-
-    def reset(self):
-        """
-        Reset the internal node traversal state. Must be called prior to visiting future nodes.
-
-        :return: None
-        """
-
-        self._sorted_nodes.clear()
-        self._node_to_index.clear()
-        self._reached_fixedpoint.clear()
-
-        for i, n in enumerate(self.sort_nodes()):
-            self._node_to_index[n] = i
-            self._sorted_nodes.add(n)
-
-    def next_node(self):
-        """
-        Get the next node to visit.
-
-        :return: A node in the graph.
-        """
-
-        if not self._sorted_nodes:
-            return None
-
-        return self._sorted_nodes.pop(last=False)
-
-    def all_successors(self, node, skip_reached_fixedpoint=False):
-        """
-        Returns all successors to the specific node.
-
-        :param node: A node in the graph.
-        :return:     A set of nodes that are all successors to the given node.
-        :rtype:      set
-        """
-
-        successors = set()
-
-        stack = [ node ]
-        while stack:
-            n = stack.pop()
-            successors.add(n)
-            stack.extend(succ for succ in self.successors(n) if
-                         succ not in successors and
-                            (not skip_reached_fixedpoint or succ not in self._reached_fixedpoint)
-                         )
-
-        return successors
-
-    def revisit(self, node, include_self=True):
-        """
-        Revisit a node in the future. As a result, the successors to this node will be revisited as well.
-
-        :param node: The node to revisit in the future.
-        :return:     None
-        """
-
-        successors = self.successors(node) #, skip_reached_fixedpoint=True)
-
-        if include_self:
-            self._sorted_nodes.add(node)
-
-        for succ in successors:
-            self._sorted_nodes.add(succ)
-
-        # reorder it
-        self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
-
-    def reached_fixedpoint(self, node):
-        """
-        Mark a node as reached fixed-point. This node as well as all its successors will not be visited in the future.
-
-        :param node: The node to mark as reached fixed-point.
-        :return:     None
-        """
-
-        self._reached_fixedpoint.add(node)
-
-
-class FunctionGraphVisitor(GraphVisitor):
-    def __init__(self, func, graph=None):
-        """
-
-        :param knowledge.Function func:
-        """
-
-        super(FunctionGraphVisitor, self).__init__()
-
-        self.function = func
-
-        if graph is None:
-            self.graph = self.function.graph
-        else:
-            self.graph = graph
-
-        self.reset()
-
-    def startpoints(self):
-
-        return [ self.function.startpoint ]
-
-    def successors(self, node):
-
-        return list(self.graph.successors(node))
-
-    def predecessors(self, node):
-
-        return list(self.graph.predecessors(node))
-
-    def sort_nodes(self, nodes=None):
-
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
-
-        if nodes is not None:
-            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
-
-        return sorted_nodes
-
-
-class CallGraphVisitor(GraphVisitor):
-    def __init__(self, callgraph):
-        """
-
-        :param networkx.DiGraph callgraph:
-        """
-
-        super(CallGraphVisitor, self).__init__()
-
-        self.callgraph = callgraph
-
-        self.reset()
-
-    def startpoints(self):
-
-        # TODO: make sure all connected components are covered
-
-        start_nodes = [node for node in self.callgraph.nodes() if self.callgraph.in_degree(node) == 0]
-
-        if not start_nodes:
-            # randomly pick one
-            start_nodes = [ self.callgraph.nodes()[0] ]
-
-        return start_nodes
-
-    def successors(self, node):
-
-        return list(self.callgraph.successors(node))
-
-    def predecessors(self, node):
-
-        return list(self.callgraph.predecessors(node))
-
-    def sort_nodes(self, nodes=None):
-
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.callgraph)
-
-        if nodes is not None:
-            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
-
-        return sorted_nodes
-
-
-class SingleNodeGraphVisitor(GraphVisitor):
-    def __init__(self, node):
-        """
-
-        :param node: The single node that should be in the graph.
-        """
-
-        super(SingleNodeGraphVisitor, self).__init__()
-
-        self.node = node
-
-        self.reset()
-
-    def startpoints(self):
-        return [ self.node.addr ]
-
-    def successors(self, node):
-        return [ ]
-
-    def predecessors(self, node):
-        return [ ]
-
-    def sort_nodes(self, nodes=None):
-        if nodes:
-            return nodes
-        else:
-            return [ self.node ]
-
-class LoopVisitor(GraphVisitor):
-    def __init__(self, loop):
-
-        super(LoopVisitor, self).__init__()
-
-        self.loop = loop
-
-        self.reset()
-
-    def startpoints(self):
-
-        return [ self.loop.entry ]
-
-    def successors(self, node):
-        return self.loop.graph.successors(node)
-
-    def predecessors(self, node):
-        return self.loop.graph.predecessors(node)
-
-    def sort_nodes(self, nodes=None):
-
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.loop.graph)
-
-        if nodes is not None:
-            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
-
-        return sorted_nodes
-
-
-#
-# Job info
-#
-
-
-class JobInfo:
-    """
-    Stores information of each job.
-    """
-    def __init__(self, key, job):
-        self.key = key
-        self.jobs = [(job, '')]
-
-        self.narrowing_count = 0  # not used
-
-    def __hash__(self):
-        return hash(self.key)
-
-    def __eq__(self, o):
-        return type(self) == type(o) and \
-               self.key == o.key
-
-    def __repr__(self):
-        s = "<JobInfo %s>" % (str(self.key))
-        return s
-
-    @property
-    def job(self):
-        """
-        Get the latest available job.
-
-        :return: The latest available job.
-        """
-
-        job, _ = self.jobs[-1]
-        return job
-
-    @property
-    def merged_jobs(self):
-        for job, job_type in self.jobs:
-            if job_type == 'merged':
-                yield job
-
-    @property
-    def widened_jobs(self):
-        for job, job_type in self.jobs:
-            if job_type == 'widened':
-                yield job
-
-    def add_job(self, job, merged=False, widened=False):
-        """
-        Appended a new job to this JobInfo node.
-        :param job: The new job to append.
-        :param bool merged: Whether it is a merged job or not.
-        :param bool widened: Whether it is a widened job or not.
-        """
-
-        job_type = ''
-        if merged:
-            job_type = 'merged'
-        elif widened:
-            job_type = 'widened'
-        self.jobs.append((job, job_type))
+from .job_info import JobInfo
+# Make visitors exposed directly from the `forward_analysis` module.
+from .visitors import CallGraphVisitor, FunctionGraphVisitor, LoopVisitor, SingleNodeGraphVisitor
 
 
 class ForwardAnalysis:
@@ -527,6 +154,13 @@ class ForwardAnalysis:
         """
         The analysis routine that runs on each node in the graph.
 
+        For compatibility reasons, the variable `changed` in the returning tuple can have three values:
+        - True, means a change has occurred, the output state is not the same as the input state, and a fixed point is
+          not reached. Usually used if the analysis performs weak updates.
+        - False, means no change has occurred. Usually used if the analysis performs weak updates.
+        - None, means no change detection is performed during this process (e.g., if the analysis requires strong
+          updates), and change detection will be performed later during _merge_states().
+
         :param node:    A node in the graph.
         :param state:   An abstract state that acts as the initial abstract state of this analysis routine.
         :return:        A tuple: (changed, output abstract state)
@@ -540,7 +174,8 @@ class ForwardAnalysis:
 
         :param node:   A node in the graph.
         :param states: Abstract states to merge.
-        :return:       A merged abstract state.
+        :return:       A merged abstract state, and a boolean variable indicating if a local fixed-point has reached (
+                       i.e., union(state0, state1) == state0), in which case, its successors will not be revisited.
         """
 
         raise NotImplementedError('_merge_states() is not implemented.')
@@ -601,7 +236,7 @@ class ForwardAnalysis:
                 # all done!
                 break
 
-            job_state = self._pop_input_state(n)
+            job_state = self._get_input_state(n)
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
 
@@ -611,14 +246,21 @@ class ForwardAnalysis:
             changed, output_state = self._run_on_node(n, job_state)
 
             # output state of node n is input state for successors to node n
-            self._add_input_state(n, output_state)
+            successors_to_visit = self._add_input_state(n, output_state)
 
-            if not changed:
-                # reached a fixed point
+            if changed is False:
+                # no change is detected
                 continue
-
-            # add all successors
-            self._graph_visitor.revisit(n, include_self=False)
+            elif changed is True:
+                # changes detected
+                # revisit all its successors
+                self._graph_visitor.revisit_successors(n, include_self=False)
+            else:
+                # the change of states are determined during state merging (_add_input_state()) instead of during
+                # simulated execution (_run_on_node()).
+                # revisit all successors in the `successors_to_visit` list
+                for succ in successors_to_visit:
+                    self._graph_visitor.revisit_node(succ)
 
     def _add_input_state(self, node, input_state):
         """
@@ -630,12 +272,26 @@ class ForwardAnalysis:
         """
 
         successors = self._graph_visitor.successors(node)
+        successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
         for succ in successors:
             if succ in self._state_map:
-                self._state_map[succ] = self._merge_states(succ, *([ self._state_map[succ], input_state ]))
+                to_merge = [ self._state_map[succ], input_state ]
+                r = self._merge_states(succ, *to_merge)
+                if type(r) is tuple and len(r) == 2:
+                    merged_state, reached_fixedpoint = r
+                else:
+                    # compatibility concerns
+                    merged_state, reached_fixedpoint = r, False
+                self._state_map[succ] = merged_state
             else:
                 self._state_map[succ] = input_state
+                reached_fixedpoint = False
+
+            if not reached_fixedpoint:
+                successors_to_visit.add(succ)
+
+        return successors_to_visit
 
     def _pop_input_state(self, node):
         """
@@ -648,6 +304,16 @@ class ForwardAnalysis:
         if node in self._state_map:
             return self._state_map.pop(node)
         return None
+
+    def _get_input_state(self, node):
+        """
+        Get the input abstract state for this node.
+
+        :param node:    The node in graph.
+        :return:        A merged state, or None if there is no input state for this node available.
+        """
+
+        return self._state_map.get(node, None)
 
     def _merge_state_from_predecessors(self, node):
         """

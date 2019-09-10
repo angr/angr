@@ -68,7 +68,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         Return a copy of the SimMemory.
         """
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-        c = SimSymbolicMemory(
+        c = type(self)(
             mem=self.mem.branch(),
             memory_id=self.id,
             endness=self.endness,
@@ -897,8 +897,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return stored_values
 
-    def flush_pages(self,whitelist):
-        self.mem.flush_pages(whitelist)
+    def flush_pages(self, whitelist):
+        flushed_regions = self.mem.flush_pages(whitelist)
+        if self.state.has_plugin('unicorn'):
+            for addr, length in flushed_regions:
+                self.state.unicorn.uncache_region(addr, length)
 
     @staticmethod
     def _create_segment(addr, size, s_options, idx, segments):
@@ -1248,7 +1251,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # if unicorn is in play and we've marked a page writable, it must be uncached
         if permissions is not None and self.state.solver.is_true(permissions & 2 == 2):
             if self.state.has_plugin('unicorn'):
-                self.state.unicorn.uncache_page(addr)
+                p = self.mem._get_page(self.mem._page_id(addr))
+                self.state.unicorn.uncache_region(p._page_addr, p._page_size)
         return out
 
     def map_region(self, addr, length, permissions, init_zero=False):
@@ -1268,6 +1272,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :param addr: address to unmap the pages at
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         """
+        if self.state.has_plugin('unicorn'):
+            self.state.unicorn.uncache_region(addr, length)
+
         return self.mem.unmap_region(addr, length)
 
 

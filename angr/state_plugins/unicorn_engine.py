@@ -220,7 +220,8 @@ def _load_native():
         _setup_prototype(h, 'activate', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
-        _setup_prototype(h, 'uncache_page', None, state_t, ctypes.c_uint64)
+        _setup_prototype(h, 'uncache_pages_touching_region', None, state_t, ctypes.c_uint64, ctypes.c_uint64)
+        _setup_prototype(h, 'clear_page_cache', None, state_t)
         _setup_prototype(h, 'enable_symbolic_reg_tracking', None, state_t, VexArch, _VexArchInfo)
         _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
@@ -232,6 +233,7 @@ def _load_native():
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'in_cache', ctypes.c_bool, state_t, ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -308,7 +310,7 @@ class Unicorn(SimStatePlugin):
 
         self.steps = 0
         self._mapped = 0
-        self._uncache_pages = []
+        self._uncache_regions = []
         self.gdt = None
 
         # following variables are used in python level hook
@@ -377,7 +379,7 @@ class Unicorn(SimStatePlugin):
         u.countdown_symbolic_memory = self.countdown_symbolic_memory
         u.countdown_stop_point = self.countdown_stop_point
         u.transmit_addr = self.transmit_addr
-        u._uncache_pages = list(self._uncache_pages)
+        u._uncache_regions = list(self._uncache_regions)
         u.gdt = self.gdt
         return u
 
@@ -836,14 +838,17 @@ class Unicorn(SimStatePlugin):
 
             # investigate the chunk, taint if symbolic
             chunk_size = last_missing - mo_addr + 1
-            chunk = mo.bytes_at(mo_addr, chunk_size)
-            d = self._process_value(chunk, 'mem')
-            if d is None:
-                #print "TAINT: %x, %d" % (mo_addr, chunk_size)
-                _taint(mo_addr, chunk_size)
+            chunk = mo.bytes_at(mo_addr, chunk_size, allow_concrete=True)
+            if mo.is_bytes:
+                data[mo_addr - start : mo_addr - start + chunk_size] = chunk
             else:
-                s = self.state.solver.eval(d, cast_to=bytes)
-                data[mo_addr-start:mo_addr-start+chunk_size] = s
+                d = self._process_value(chunk, 'mem')
+                if d is None:
+                    #print "TAINT: %x, %d" % (mo_addr, chunk_size)
+                    _taint(mo_addr, chunk_size)
+                else:
+                    s = self.state.solver.eval(d, cast_to=bytes)
+                    data[mo_addr-start:mo_addr-start+chunk_size] = s
             last_missing = mo_addr - 1
 
         # handle missing bytes at the beginning
@@ -867,8 +872,12 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
             return True
 
-    def uncache_page(self, addr):
-        self._uncache_pages.append(addr & ~0xfff)
+    def uncache_region(self, addr, length):
+        self._uncache_regions.append((addr, length))
+
+    def clear_page_cache(self):
+        self._uncache_regions = [] # this is no longer needed, everything has been uncached
+        _UC_NATIVE.clear_page_cache()
 
     @property
     def _is_mips32(self):
@@ -913,10 +922,10 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
-        for addr in self._uncache_pages:
-            l.info("Un-caching writable page %#x", addr)
-            _UC_NATIVE.uncache_page(self._uc_state, addr)
-        self._uncache_pages = []
+        for addr, length in self._uncache_regions:
+            l.debug("Un-caching writable page region @ %#x of length %x", addr, length)
+            _UC_NATIVE.uncache_pages_touching_region(self._uc_state, addr, length)
+        self._uncache_regions = []
 
         # should this be in setup?
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
@@ -1238,13 +1247,14 @@ class Unicorn(SimStatePlugin):
         ''' loading registers from unicorn '''
 
         # first, get the ignore list (in case of symbolic registers)
+        saved_registers = []
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
             highest_reg_offset, reg_size = max(self.state.arch.registers.values())
             symbolic_list = (ctypes.c_uint64*(highest_reg_offset + reg_size))()
             num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
 
             # we take the approach of saving off the symbolic regs and then writing them back
-            saved_registers = [ ]
+
             cur_group = None
             last = None
             for i in sorted(symbolic_list[:num_regs]):
@@ -1334,7 +1344,7 @@ class Unicorn(SimStatePlugin):
 
         # now, we restore the symbolic registers
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
-            for o,r in saved_registers:
+            for o, r in saved_registers:
                 self.state.registers.store(o, r)
 
     def _check_registers(self, report=True):

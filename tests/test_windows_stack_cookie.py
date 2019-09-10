@@ -6,7 +6,7 @@ import angr
 import angr.simos.windows
 
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '../../binaries/tests/')
+test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..', 'binaries', 'tests')
 
 
 def compare_none(state, test_value):
@@ -42,7 +42,7 @@ def check_value(project, init_type, comparison):
 
 
 def test_security_cookie_init():
-    project = angr.Project(test_location + 'i386/test_arrays.exe')
+    project = angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe'))
     check_value(project, angr.simos.windows.SecurityCookieInit.NONE, compare_none)
     check_value(project, angr.simos.windows.SecurityCookieInit.RANDOM, compare_random)
     check_value(project, angr.simos.windows.SecurityCookieInit.STATIC, compare_static)
