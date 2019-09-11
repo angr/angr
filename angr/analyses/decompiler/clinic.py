@@ -186,7 +186,7 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(func=self.function, func_graph=self.graph, observe_all=True)
+        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph, observe_all=True)
 
         simp = self.project.analyses.AILSimplifier(self.function, func_graph=self.graph, reaching_definitions=rd)
 
@@ -218,7 +218,7 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(func=self.function, func_graph=self.graph, observe_all=True)
+        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph, observe_all=True)
 
         for key in self._blocks:
             block = self._blocks[key]
