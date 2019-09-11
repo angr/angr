@@ -92,7 +92,7 @@ class BlockSimplifier(Analysis):
         if not block.statements:
             return block
 
-        rd = self.project.analyses.ReachingDefinitions(block=block,
+        rd = self.project.analyses.ReachingDefinitions(subject=block,
                                                        track_tmps=True,
                                                        observation_points=[('insn', block.statements[-1].ins_addr, OP_AFTER)]
                                                        )
