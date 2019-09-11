@@ -482,27 +482,31 @@ def test_cfg_switches():
                                  )
 
 
-def test_abort_and_resume():
-
+class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
+    """
+    Only used in the test_abort_and_resume test case.
+    """
     should_abort = False
 
-    class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
-        def _intra_analysis(self):
-            if should_abort:
-                self.abort()
-            else:
-                super()._intra_analysis()
+    def _intra_analysis(self):
+        if CFGEmulatedAborted.should_abort:
+            self.abort()
+        else:
+            super()._intra_analysis()
+
+def test_abort_and_resume():
 
     angr.analyses.AnalysesHub.register_default('CFGEmulatedAborted', CFGEmulatedAborted)
 
+    CFGEmulatedAborted.should_abort = False
     binary_path = os.path.join(test_location, "x86_64", "fauxware")
     b = angr.Project(binary_path, auto_load_libs=False)
 
-    should_abort = True
+    CFGEmulatedAborted.should_abort = True
     cfg = b.analyses.CFGEmulatedAborted()
     nose.tools.assert_greater(len(list(cfg.jobs)), 0)  # there should be left-over jobs
 
-    should_abort = False
+    CFGEmulatedAborted.should_abort = False
     cfg.resume()
 
     nose.tools.assert_equal(len(list(cfg.jobs)), 0)  # no left-over job
