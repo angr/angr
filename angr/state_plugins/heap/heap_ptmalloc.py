@@ -6,7 +6,6 @@ from ...errors import SimHeapError, SimMergeError, SimSolverError
 
 
 import logging
-from IPython import embed
 
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")
 sml = logging.getLogger('angr.state_plugins.symbolic_memory')
