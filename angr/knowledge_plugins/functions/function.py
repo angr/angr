@@ -96,7 +96,9 @@ class Function(Serializable):
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
 
-        self._addr_to_block_node = {}  # map addresses to nodes
+        self._addr_to_block_node = {}  # map addresses to nodes. it's a cache of blocks. if a block is removed from the
+                                       # function, it may not be removed from _addr_to_block_node. if you want to list
+                                       # all blocks of a function, access .blocks.
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
         self._local_blocks = {}  # a dict of all blocks inside the function
