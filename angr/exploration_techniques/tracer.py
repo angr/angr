@@ -404,10 +404,6 @@ class Tracer(ExplorationTechnique):
         elif self._compare_addr(self._trace[idx + 1], state.addr):
             # normal case
             state.globals['trace_idx'] = idx + 1
-        elif state.addr == self._trace[-1]:
-            # we may have prematurely stopped because of setting stop points. try to resync.
-            state.globals['sync_idx'] = idx + 1
-            state.globals['sync_timer'] = 1
         elif self.project.loader._extern_object is not None and self.project.loader.extern_object.contains_addr(state.addr):
             # externs
             proc = self.project.hooked_by(state.addr)
@@ -435,6 +431,10 @@ class Tracer(ExplorationTechnique):
         elif self.project.is_hooked(state.history.addr):
             # simprocedures - is this safe..?
             self._fast_forward(state)
+        elif state.addr == self._trace[-1]:
+            # we may have prematurely stopped because of setting stop points. try to resync.
+            state.globals['sync_idx'] = idx + 1
+            state.globals['sync_timer'] = 1
         elif self._analyze_misfollow(state, idx):
             # misfollow analysis will set a sync point somewhere if it succeeds
             pass
