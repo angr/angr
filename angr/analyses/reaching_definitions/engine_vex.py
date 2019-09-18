@@ -418,7 +418,7 @@ class SimEngineRDVEX(
                 _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                 self.state = state
             else:
-                l.warning('Please implement the inderect function handler with your own logic.')
+                l.warning('Please implement the indirect function handler with your own logic.')
             return None
 
         ip_addr = ip_data.get_first_element()
@@ -492,11 +492,14 @@ class SimEngineRDVEX(
                 raise ValueError('Invalid number of values for stack pointer.')
 
             sp_addr = next(iter(sp_data))
-            if not isinstance(sp_addr, int):
+            if isinstance(sp_addr, int):
+                sp_addr -= self.arch.stack_change
+            elif isinstance(sp_addr, Undefined):
+                pass
+            else:
                 raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)
-            sp_addr -= self.arch.stack_change
             self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
 
         return None
