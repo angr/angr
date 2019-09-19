@@ -2,7 +2,7 @@ import logging
 
 import pyvex
 
-from .atoms import Register, MemoryLocation, Parameter
+from .atoms import Register, MemoryLocation, Parameter, Tmp
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
@@ -57,6 +57,10 @@ class SimEngineRDVEX(
 
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+
+    def _handle_WrTmp(self, stmt):
+        super()._handle_WrTmp(stmt)
+        self.state.kill_and_add_definition(Tmp(stmt.tmp), self._codeloc(), self.tmps[stmt.tmp])
 
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
@@ -164,6 +168,8 @@ class SimEngineRDVEX(
 
     def _handle_RdTmp(self, expr):
         tmp = expr.tmp
+
+        self.state.add_use(Tmp(tmp), self._codeloc())
 
         if tmp in self.tmps:
             return self.tmps[tmp]
