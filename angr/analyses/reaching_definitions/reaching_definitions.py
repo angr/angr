@@ -128,7 +128,7 @@ class LiveDefinitions:
             self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
 
     def copy(self):
-        rd = LiveDefinitions(
+        rd = type(self)(
             self.arch,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
@@ -199,13 +199,13 @@ class LiveDefinitions:
 
     def kill_and_add_definition(self, atom, code_loc, data, dummy=False):
         if type(atom) is Register:
-            self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
+            return self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is SpOffset:
-            self._kill_and_add_stack_definition(atom, code_loc, data, dummy=dummy)
+            return self._kill_and_add_stack_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is MemoryLocation:
-            self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
+            return self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is Tmp:
-            self._add_tmp_definition(atom, code_loc, data)
+            return self._add_tmp_definition(atom, code_loc, data)
         else:
             raise NotImplementedError()
 
@@ -231,6 +231,16 @@ class LiveDefinitions:
         else:
             raise TypeError()
 
+    def get_definitions(self, atom):
+        if type(atom) is Register:
+            return self.register_definitions.get_objects_by_offset(atom.reg_offset)
+        elif type(atom) is SpOffset:
+            return self.stack_definitions.get_objects_by_offset(atom.offset)
+        elif type(atom) is MemoryLocation:
+            return self.memory_definitions.get_objects_by_offset(atom.addr)
+        elif type(atom) is Tmp:
+            return {Definition(*self.tmp_definitions[atom.tmp_idx], None, False)}
+
     #
     # Private methods
     #
@@ -249,6 +259,7 @@ class LiveDefinitions:
         definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
+        return definition
 
     def _kill_and_add_stack_definition(self, atom, code_loc, data, dummy=False):
         current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
@@ -261,18 +272,23 @@ class LiveDefinitions:
 
         definition = Definition(atom, code_loc, data, dummy=dummy)
         self.stack_definitions.set_object(atom.offset, definition, data.bits // 8)
+        return definition
 
     def _kill_and_add_memory_definition(self, atom, code_loc, data, dummy=False):
         definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.memory_definitions.set_object(atom.addr, definition, atom.size)
+        return definition
 
     def _add_tmp_definition(self, atom, code_loc, data):
 
         if self._track_tmps:
-            self.tmp_definitions[atom.tmp_idx] = Definition(atom, code_loc, data)
+            def_ = Definition(atom, code_loc, data)
+            self.tmp_definitions[atom.tmp_idx] = def_
+            return def_
         else:
             self.tmp_definitions[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
+            return None
 
     def _add_register_use(self, atom, code_loc):
 
@@ -561,6 +577,5 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def _post_analysis(self):
         pass
-
 
 register_analysis(ReachingDefinitionAnalysis, "ReachingDefinitions")
