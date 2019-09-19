@@ -190,8 +190,7 @@ class SimEngineRDAIL(
 
     def _ail_handle_Tmp(self, expr):
 
-        if self.state._track_tmps:
-            self.state.add_use(Tmp(expr.tmp_idx), self._codeloc())
+        self.state.add_use(Tmp(expr.tmp_idx), self._codeloc())
 
         return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
 

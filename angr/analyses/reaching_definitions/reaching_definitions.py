@@ -70,6 +70,7 @@ class LiveDefinitions:
         self.register_uses = Uses()
         self.stack_uses = Uses()
         self.memory_uses = Uses()
+        self.uses_by_codeloc = defaultdict(set)
         self.tmp_uses = defaultdict(set)
 
         self._dead_virgin_definitions = set()  # definitions that are killed before used
@@ -204,7 +205,7 @@ class LiveDefinitions:
         elif type(atom) is MemoryLocation:
             self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is Tmp:
-            self._add_tmp_definition(atom, code_loc)
+            self._add_tmp_definition(atom, code_loc, data)
         else:
             raise NotImplementedError()
 
@@ -217,6 +218,18 @@ class LiveDefinitions:
             self._add_memory_use(atom, code_loc)
         elif type(atom) is Tmp:
             self._add_tmp_use(atom, code_loc)
+
+    def add_use_by_def(self, def_, code_loc):
+        if type(def_.atom) is Register:
+            self._add_register_use_by_def(def_, code_loc)
+        elif type(def_.atom) is SpOffset:
+            self._add_stack_use_by_def(def_, code_loc)
+        elif type(def_.atom) is MemoryLocation:
+            self._add_memory_use_by_def(def_, code_loc)
+        elif type(def_.atom) is Tmp:
+            self._add_tmp_use_by_def(def_, code_loc)
+        else:
+            raise TypeError()
 
     #
     # Private methods
@@ -254,9 +267,12 @@ class LiveDefinitions:
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.memory_definitions.set_object(atom.addr, definition, atom.size)
 
-    def _add_tmp_definition(self, atom, code_loc):
+    def _add_tmp_definition(self, atom, code_loc, data):
 
-        self.tmp_definitions[atom.tmp_idx] = (atom, code_loc)
+        if self._track_tmps:
+            self.tmp_definitions[atom.tmp_idx] = Definition(atom, code_loc, data)
+        else:
+            self.tmp_definitions[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
 
     def _add_register_use(self, atom, code_loc):
 
@@ -264,7 +280,11 @@ class LiveDefinitions:
         current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
 
         for current_def in current_defs:
-            self.register_uses.add_use(current_def, code_loc)
+            self._add_register_use_by_def(current_def, code_loc)
+
+    def _add_register_use_by_def(self, def_, code_loc):
+        self.register_uses.add_use(def_, code_loc)
+        self.uses_by_codeloc[code_loc].add(def_)
 
     def _add_stack_use(self, atom, code_loc):
         """
@@ -277,7 +297,11 @@ class LiveDefinitions:
         current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
 
         for current_def in current_defs:
-            self.stack_uses.add_use(current_def, code_loc)
+            self._add_stack_use_by_def(current_def, code_loc)
+
+    def _add_stack_use_by_def(self, def_, code_loc):
+        self.stack_uses.add_use(def_, code_loc)
+        self.uses_by_codeloc[code_loc].add(def_)
 
     def _add_memory_use(self, atom, code_loc):
 
@@ -285,12 +309,26 @@ class LiveDefinitions:
         current_defs = self.memory_definitions.get_objects_by_offset(atom.addr)
 
         for current_def in current_defs:
-            self.memory_uses.add_use(current_def, code_loc)
+            self._add_memory_use_by_def(current_def, code_loc)
+
+    def _add_memory_use_by_def(self, def_, code_loc):
+        self.memory_uses.add_use(def_, code_loc)
+        self.uses_by_codeloc[code_loc].add(def_)
 
     def _add_tmp_use(self, atom, code_loc):
 
-        current_def = self.tmp_definitions[atom.tmp_idx]
-        self.tmp_uses[atom.tmp_idx].add((code_loc, current_def))
+        if self._track_tmps:
+            def_ = self.tmp_definitions[atom.tmp_idx]
+            self._add_tmp_use_by_def(def_, code_loc)
+        else:
+            defs = self.tmp_definitions[atom.tmp_idx]
+            for d in defs:
+                assert not type(d.atom) is Tmp
+                self.add_use_by_def(d, code_loc)
+
+    def _add_tmp_use_by_def(self, def_, code_loc):
+        self.tmp_uses[def_.atom.tmp_idx].add(code_loc)
+        self.uses_by_codeloc[code_loc].add(def_)
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
