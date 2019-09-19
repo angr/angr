@@ -183,7 +183,10 @@ class SimEngineRDVEX(
         for current_def in current_defs:
             data.update(current_def.data)
         if len(data) == 0:
-            data.add(Undefined(bits))
+            # no defs can be found. add a fake definition
+            u = Undefined(bits)
+            data.add(u)
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), u)
         if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
