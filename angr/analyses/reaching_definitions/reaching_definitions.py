@@ -205,7 +205,7 @@ class LiveDefinitions:
         elif type(atom) is MemoryLocation:
             self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is Tmp:
-            self._add_tmp_definition(atom, code_loc)
+            self._add_tmp_definition(atom, code_loc, data)
         else:
             raise NotImplementedError()
 
@@ -267,10 +267,10 @@ class LiveDefinitions:
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.memory_definitions.set_object(atom.addr, definition, atom.size)
 
-    def _add_tmp_definition(self, atom, code_loc):
+    def _add_tmp_definition(self, atom, code_loc, data):
 
         if self._track_tmps:
-            self.tmp_definitions[atom.tmp_idx] = code_loc
+            self.tmp_definitions[atom.tmp_idx] = Definition(atom, code_loc, data)
         else:
             self.tmp_definitions[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
 
@@ -318,8 +318,8 @@ class LiveDefinitions:
     def _add_tmp_use(self, atom, code_loc):
 
         if self._track_tmps:
-            current_def = self.tmp_definitions[atom.tmp_idx]
-            self._add_tmp_use_by_def(current_def, code_loc)
+            def_ = self.tmp_definitions[atom.tmp_idx]
+            self._add_tmp_use_by_def(def_, code_loc)
         else:
             defs = self.tmp_definitions[atom.tmp_idx]
             for d in defs:
