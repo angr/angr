@@ -239,7 +239,10 @@ class LiveDefinitions:
         elif type(atom) is MemoryLocation:
             return self.memory_definitions.get_objects_by_offset(atom.addr)
         elif type(atom) is Tmp:
-            return {Definition(*self.tmp_definitions[atom.tmp_idx], None, False)}
+            if self._track_tmps:
+                return {self.tmp_definitions[atom.tmp_idx]}
+            else:
+                return self.tmp_definitions[atom.tmp_idx]
 
     #
     # Private methods
