@@ -283,7 +283,7 @@ class SimSolver(SimStatePlugin):
                 )
         elif o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
-        elif o.SYMBOLIC in self.state.options and o.REPLACEMENT_SOLVER in self.state.options:
+        if o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.SYMBOLIC in self.state.options and o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless(track=track)
