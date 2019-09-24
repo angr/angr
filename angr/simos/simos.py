@@ -137,13 +137,14 @@ class SimOS:
         actual_brk = (last_addr - last_addr % 0x1000 + 0x1000) if brk is None else brk
         state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
-
         actual_stack_end = state.arch.initial_sp if stack_end is None else stack_end
         if o.ABSTRACT_MEMORY not in state.options:
             state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
 
         if state.arch.sp_offset is not None:
-            state.regs.sp = actual_stack_end
+            state.regs.sp = state.solver.BVS("precon_sp", 64)
+            ## preconstraining the stack pointer
+            state.preconstrainer.preconstrain(actual_stack_end, state.regs.sp)
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:

@@ -37,6 +37,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         endness=None, abstract_backer=False, check_permissions=None,
         read_strategies=None, write_strategies=None, stack_region_map=None, generic_region_map=None
     ):
+
         SimMemory.__init__(self,
                            endness=endness,
                            abstract_backer=abstract_backer,
@@ -562,8 +563,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self.state.history.add_event('memory_limit', message="0-length read")
 
         size = max_size
+
         if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*self.state.arch.byte_width), [ ]
+            if options.REPLACEMENT_SOLVER in self.state.options:
+                new = dst.replace_dict(self.state.solver._solver._replacement_cache)
+                if new is dst:
+                    return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*self.state.arch.byte_width), [ ]
+            else:
+                return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained",size * self.state.arch.byte_width), [ ]
 
         # get a concrete set of read addresses
         try:
@@ -605,6 +612,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
               disable_actions=False, inspect=True, chunk_size=None):
+
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
@@ -746,14 +754,25 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if self.state.solver.symbolic(req.size):
             if options.AVOID_MULTIVALUED_WRITES in self.state.options:
-                return req
+                if options.REPLACEMENT_SOLVER in self.state.options:
+                    new = req.size.replace_dict(self.state.solver._solver._replacement_cache)
+                    if new is req.size:
+                        return req
+                else:
+                    return req
+
             if options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
                 new_size = self.state.solver.eval(req.size)
                 self.state.add_constraints(req.size == new_size)
                 req.size = new_size
 
         if self.state.solver.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return req
+            if options.REPLACEMENT_SOLVER in self.state.options:
+                new = req.addr.replace_dict(self.state.solver._solver._replacement_cache)
+                if new is req.addr:
+                    return req
+            else:
+                return req
 
         if not self.state.solver.symbolic(req.size) and self.state.solver.eval(req.size) > req.data.length//self.state.arch.byte_width:
             raise SimMemoryError("Not enough data for requested storage size (size: {}, data: {})".format(req.size, req.data))
