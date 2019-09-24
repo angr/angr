@@ -137,7 +137,6 @@ class SimSuccessors:
         :param int exit_ins_addr: The instruction pointer of this exit, which is an integer by default.
         :param int source:        The source of the jump (i.e., the address of the basic block).
         """
-
         # First, trigger the SimInspect breakpoint
         state._inspect("exit", BP_BEFORE, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
         state.scratch.target = state._inspect_getattr("exit_target", target)
