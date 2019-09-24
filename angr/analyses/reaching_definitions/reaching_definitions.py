@@ -244,6 +244,9 @@ class LiveDefinitions:
             else:
                 return self.tmp_definitions[atom.tmp_idx]
 
+    def mark_guard(self, code_loc, data, target):
+        pass
+
     #
     # Private methods
     #

@@ -154,7 +154,9 @@ class SimEngineRDVEX(
             self._handle_WrTmpData(stmt.dst, DataSet(data, load_expr.result_size(self.tyenv)))
 
     def _handle_Exit(self, stmt):
-        pass
+        guard = self._expr(stmt.guard)
+        target = stmt.dst.value
+        self.state.mark_guard(self._codeloc(), guard, target)
 
     def _handle_IMark(self, stmt):
         pass
@@ -394,6 +396,8 @@ class SimEngineRDVEX(
 
     def _handle_CCall(self, expr):
         bits = expr.result_size(self.tyenv)
+        for arg_expr in expr.args:
+            self._expr(arg_expr)
         return DataSet(undefined, bits)
 
     #
