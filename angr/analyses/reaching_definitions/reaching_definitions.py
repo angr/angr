@@ -22,7 +22,7 @@ from .dataset import DataSet
 from .definition import Definition
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
-from .undefined import Undefined
+from .undefined import undefined
 from .uses import Uses
 
 
@@ -193,7 +193,7 @@ class LiveDefinitions:
         """
 
         if data is None:
-            data = DataSet(Undefined(atom.size), atom.size)
+            data = DataSet(undefined, atom.size)
 
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
 

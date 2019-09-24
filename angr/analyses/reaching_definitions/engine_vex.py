@@ -6,7 +6,7 @@ from .atoms import Register, MemoryLocation, Parameter, Tmp
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
-from .undefined import Undefined
+from .undefined import Undefined, undefined
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.irop import operations as vex_operations
 from ...errors import SimEngineError
@@ -174,7 +174,7 @@ class SimEngineRDVEX(
         if tmp in self.tmps:
             return self.tmps[tmp]
         bits = expr.result_size(self.tyenv)
-        return DataSet(Undefined(bits), bits)
+        return DataSet(undefined, bits)
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_Get(self, expr):
@@ -190,9 +190,8 @@ class SimEngineRDVEX(
             data.update(current_def.data)
         if len(data) == 0:
             # no defs can be found. add a fake definition
-            u = Undefined(bits)
-            data.add(u)
-            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), u)
+            data.add(undefined)
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), DataSet(data, bits))
         if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
@@ -229,7 +228,7 @@ class SimEngineRDVEX(
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(Undefined(bits))
+            data.add(undefined)
 
         return DataSet(data, bits)
 
@@ -326,7 +325,7 @@ class SimEngineRDVEX(
                         head = ((1 << e1) - 1) << (bits - e1)
                     data.add(head | (e0 >> e1))
                 except (ValueError, TypeError) as e:
-                    data.add(Undefined(bits))
+                    data.add(undefined)
                     l.warning(e)
 
         return DataSet(data, expr.result_size(self.tyenv))
@@ -395,7 +394,7 @@ class SimEngineRDVEX(
 
     def _handle_CCall(self, expr):
         bits = expr.result_size(self.tyenv)
-        return DataSet(Undefined(bits), bits)
+        return DataSet(undefined, bits)
 
     #
     # User defined high level statement handlers
