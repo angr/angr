@@ -5,9 +5,6 @@ class Atom:
 
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation, or a Parameter.
     """
-    def __init__(self):
-        pass
-
     def __repr__(self):
         raise NotImplementedError()
 
