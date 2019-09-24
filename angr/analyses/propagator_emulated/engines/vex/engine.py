@@ -207,7 +207,7 @@ class SimEngineVEX(SimEngine):
                 state = e.state
                 if insn_bytes is not None:
                     raise SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
-                new_ip = state.scratch.ins_addr
+                new_ip = state.scratch.ins_addrins_addr
                 if size is not None:
                     size -= new_ip - addr
                 if num_inst is not None:

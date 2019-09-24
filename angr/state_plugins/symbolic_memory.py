@@ -569,7 +569,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self.state.history.add_event('memory_limit', message="0-length read")
 
         size = max_size
-        ####TEMP the line below
+
         if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
             if options.REPLACEMENT_SOLVER in self.state.options:
                 new = dst.replace_dict(self.state.solver._solver._replacement_cache)
@@ -577,10 +577,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*self.state.arch.byte_width), [ ]
             else:
                 return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained",size * self.state.arch.byte_width), [ ]
-        ###TEMP
-        # if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-        #     return [], self.get_unconstrained_bytes("symbolic_read_unconstrained",
-        #                                             size * self.state.arch.byte_width), []
 
         # get a concrete set of read addresses
         try:
@@ -770,9 +766,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         return req
                 else:
                     return req
-            ####TEMP
-            # if options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            #     return req
+
             if options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
                 new_size = self.state.solver.eval(req.size)
                 self.state.add_constraints(req.size == new_size)
@@ -785,8 +779,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     return req
             else:
                 return req
-            ####TEMP
-            #return req
 
         if not self.state.solver.symbolic(req.size) and self.state.solver.eval(req.size) > req.data.length//self.state.arch.byte_width:
             raise SimMemoryError("Not enough data for requested storage size (size: {}, data: {})".format(req.size, req.data))
