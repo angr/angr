@@ -3,14 +3,14 @@ from collections import defaultdict
 
 import ailment
 
-from ...engines.light import SpOffset
 from .. import register_analysis
 from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor, GraphVisitor
+from ..forward_analysis.visitors.graph import GraphVisitor
+from ..forward_analysis import ForwardAnalysis
 from .values import TOP
 from .engines.vex.engine import SimEngineVEX
 from ..cfg.cfg_utils import CFGUtils
-from ...sim_state import SimState
+
 
 class EmulatedCFGVisitor(GraphVisitor):
     def __init__(self, graph, start):
@@ -195,7 +195,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None, start=None, graph=None):
+                 load_callback=None, stack_pointer_tracker=None, start=None, graph=None, iropt_level=None):
 
         # if func is not None:
         #     if block is not None:
@@ -218,6 +218,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._max_iterations = max_iterations
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
+        self._iropt_level = iropt_level
 
         self._node_iterations = defaultdict(int)
         self._states = { }
@@ -266,11 +267,9 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             return False, abstract_state
 
         if isinstance(node, ailment.Block):
-            block = node
             block_key = node.addr
             engine = self._engine_ail
         else:
-            block = self.project.factory.block(node.addr, node.size, opt_level=0)
             block_key = node.block_id
             engine = self._engine_vex
 
@@ -279,7 +278,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             abstract_state = self._states[block_key]
         else:
             abstract_state = PropagatorVEXState(arch=self.project.arch)
-        sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key)
+        sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level)
         abstract_state.concrete_states = sim_successors.all_successors
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
