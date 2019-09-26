@@ -142,10 +142,13 @@ class SimOS:
             state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
 
         if state.arch.sp_offset is not None:
-            state.regs.sp = state.solver.BVS("precon_sp", 64)
-            ## preconstraining the stack pointer
-            state.preconstrainer.preconstrain(actual_stack_end, state.regs.sp)
-
+            ## preconstraining the stack pointer if replcement solver is used
+            if o.REPLACEMENT_SOLVER in state.options:
+                state.regs.sp = state.solver.BVS("precon_sp", 64)
+                state.preconstrainer.preconstrain(actual_stack_end, state.regs.sp)
+            else:
+                state.regs.sp = actual_stack_end
+                
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
                 state.registers.store(reg, state.solver.BVS(
