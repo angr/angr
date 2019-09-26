@@ -4,13 +4,6 @@
 import string
 from .sim_state_options import SimStateOptions
 
-# DEBUG options: these options cause angr to set breakpoints in various
-# places or raise exceptions when checks fail.
-BREAK_SIRSB_START = "BREAK_SIRSB_START"
-BREAK_SIRSB_END = "BREAK_SIRSB_END"
-BREAK_SIRSTMT_START = "BREAK_SIRSTMT_START"
-BREAK_SIRSTMT_END = "BREAK_SIRSTMT_END"
-
 # This option controls whether register puts are carried out by the analysis.
 # Without this, put statements are still analyzed, but the state is not updated.
 DO_PUTS = "DO_PUTS"
