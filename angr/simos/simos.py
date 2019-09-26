@@ -148,7 +148,6 @@ class SimOS:
                 state.preconstrainer.preconstrain(actual_stack_end, state.regs.sp)
             else:
                 state.regs.sp = actual_stack_end
-                
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
                 state.registers.store(reg, state.solver.BVS(
