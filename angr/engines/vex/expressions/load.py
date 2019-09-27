@@ -19,12 +19,8 @@ def SimIRExpr_Load(engine, state, expr):
         if getattr(addr._model_vsa, 'uninitialized', False):
             raise SimUninitializedAccessError('addr', addr)
 
-    if o.DO_LOADS not in state.options:
-        # only do the load if, uh, we have to
-        result = state.solver.Unconstrained("load_expr_%#x_%d" % (state.scratch.ins_addr, state.scratch.stmt_idx), size_bits)
-    else:
-        # load from memory and fix endianness
-        result = state.memory.load(addr, size, endness=expr.endness)
+    # load from memory and fix endianness
+    result = state.memory.load(addr, size, endness=expr.endness)
 
     if expr.type.startswith('Ity_F'):
         result = result.raw_to_fp()

@@ -16,6 +16,4 @@ def SimIRStmt_Put(engine, state, stmt):
     else:
         a = None
 
-    # do the put (if we should)
-    if o.DO_PUTS in state.options:
-        state.registers.store(stmt.offset, data, action=a)
+    state.registers.store(stmt.offset, data, action=a)

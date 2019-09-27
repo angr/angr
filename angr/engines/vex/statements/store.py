@@ -23,7 +23,4 @@ def SimIRStmt_Store(engine, state, stmt):
     else:
         a = None
 
-
-    # Now do the store (if we should)
-    if o.DO_STORES in state.options:
-        state.memory.store(addr, data, action=a, endness=stmt.endness)
+    state.memory.store(addr, data, action=a, endness=stmt.endness)
