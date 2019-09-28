@@ -1334,6 +1334,7 @@ class Function(Serializable):
             # PLT entries must have the same declaration as their jump targets
             # Try to determine which library this PLT entry will jump to
             edges = self.transition_graph.edges()
+            if len(edges) == 0: return
             node = next(iter(edges))[1]
             if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
                 target = node.addr
