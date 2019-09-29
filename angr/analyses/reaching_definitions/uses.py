@@ -36,7 +36,7 @@ class Uses:
         :return angr.angr.analyses.reaching_definitions.uses.Uses: Return a new <Uses> instance containing the same data.
         """
         u = Uses()
-        u._uses_by_definition = self._uses_by_definition.copy()
+        u._uses_by_definition = defaultdict(set, ((k, set(v)) for k, v in self._uses_by_definition.items()))
 
         return u
 

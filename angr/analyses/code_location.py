@@ -64,8 +64,8 @@ class CodeLocation:
         """
         Check if self is the same as other.
         """
-        return self.block_addr == other.block_addr and self.stmt_idx == other.stmt_idx and \
-               self.sim_procedure is other.sim_procedure
+        return type(self) is type(other) and self.block_addr == other.block_addr and \
+               self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure
 
     def __hash__(self):
         """

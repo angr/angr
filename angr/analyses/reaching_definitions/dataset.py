@@ -2,7 +2,7 @@ import logging
 import operator
 
 from .constants import DEBUG
-from .undefined import Undefined
+from .undefined import Undefined, undefined
 
 l = logging.getLogger(name=__name__)
 
@@ -67,7 +67,7 @@ class DataSet:
 
         for s in self:
             if type(s) is Undefined:
-                res.add(Undefined(s.bits))
+                res.add(undefined)
             else:
                 try:
                     tmp = op(s)
@@ -92,7 +92,7 @@ class DataSet:
         for o in other:
             for s in self:
                 if type(o) is Undefined or type(s) is Undefined:
-                    res.add(Undefined(self.bits))
+                    res.add(undefined)
                 else:
                     try:
                         tmp = op(s, o)
