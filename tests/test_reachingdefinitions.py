@@ -85,6 +85,9 @@ class ReachingDefinitionAnalysisTest(TestCase):
             key=lambda x: x['key']
         ))
 
+        # Uncomment these to regenerate the reference results... if you dare
+        #with open(result_path, 'wb') as result_file:
+        #    pickle.dump(result, result_file)
         with open(result_path, 'rb') as result_file:
             expected_result = pickle.load(result_file)
 
