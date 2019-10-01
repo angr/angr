@@ -9,7 +9,7 @@ from claripy.ast.fp import FP, fpToIEEEBV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SimEngineSoot
-from ..engines.soot.expressions import SimSootExpr_NewArray, SimSootExpr_NewMultiArray
+from ..engines.soot.expressions import SimSootExpr_NewArray #, SimSootExpr_NewMultiArray
 from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_StringRef,
                                    SimSootValue_ThisRef,
@@ -42,9 +42,9 @@ class SimJavaVM(SimOS):
             # Step 2: determine and set the native SimOS
             from . import os_mapping  # import dynamically, since the JavaVM class is part of the os_mapping dict
             # for each native library get the Arch
-            native_libs_arch = set([obj.arch.__class__ for obj in self.native_libs])
+            native_libs_arch = {obj.arch.__class__ for obj in self.native_libs}
             # for each native library get the compatible SimOS
-            native_libs_simos = set([os_mapping[obj.os] for obj in self.native_libs])
+            native_libs_simos = {os_mapping[obj.os] for obj in self.native_libs}
             # show warning, if more than one SimOS or Arch would be required
             if len(native_libs_simos) > 1 or len(native_libs_arch) > 1:
                 l.warning("Native libraries appear to require different SimOS's (%s) or Arch's (%s).",
@@ -300,7 +300,7 @@ class SimJavaVM(SimOS):
         return SimSootValue_ThisRef.new_object(state, type_, symbolic=True, init_object=False)
 
     @staticmethod
-    def _get_default_concrete_value_by_type(type_, state=None):
+    def _get_default_concrete_value_by_type(type_, state=None): # pylint: disable=unused-argument
         if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
             return BVV(0, 32)
         elif type_ == "long":
