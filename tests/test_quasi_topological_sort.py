@@ -5,8 +5,6 @@ from hypothesis_networkx import graph_builder
 
 from angr.analyses.cfg.cfg_utils import CFGUtils
 
-graphs = graph_builder
-
 def two_node_loop():
     g = nx.DiGraph()
     g.add_edge(0, 1)
@@ -18,7 +16,7 @@ def one_node():
     g.add_node(0)
     return g
 
-@given(graph_builder(
+@given(graph_builder( # pylint: disable=no-value-for-parameter
     graph_type=nx.DiGraph,
     node_keys=st.integers(),
     min_nodes=1, max_nodes=20,
