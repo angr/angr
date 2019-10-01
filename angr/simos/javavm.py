@@ -99,8 +99,10 @@ class SimJavaVM(SimOS):
         if not kwargs.get('arch', None):  kwargs['arch'] = self.arch
         if not kwargs.get('os_name', None): kwargs['os_name'] = self.name
         # enable support for string analysis
-        if not kwargs.get('add_options', None): kwargs['add_options'] = []
-        kwargs['add_options'] += [options.STRINGS_ANALYSIS, options.COMPOSITE_SOLVER]
+        add_options = kwargs.get('add_options', set())
+        add_options.add(options.STRINGS_ANALYSIS)
+        add_options.add(options.COMPOSITE_SOLVER)
+        kwargs['add_options'] = add_options
 
         if self.is_javavm_with_jni_support:
             # If the JNI support is enabled (i.e. JNI libs are loaded), the SimState
@@ -262,39 +264,54 @@ class SimJavaVM(SimOS):
     #
 
     @staticmethod
-    def get_default_value_by_type(type_, state=None):
+    def get_default_value_by_type(type_, state):
         """
         Java specify defaults values for primitive and reference types. This
         method returns the default value for a given type.
 
         :param str type_:   Name of type.
+        :param str state:   Current SimState.
         :return:            Default value for this type.
         """
+        if options.ZERO_FILL_UNCONSTRAINED_MEMORY not in state.options:
+            return SimJavaVM._get_default_symbolic_value_by_type(type_, state)
+        return SimJavaVM._get_default_concrete_value_by_type(type_, state)
+
+    @staticmethod
+    def _get_default_symbolic_value_by_type(type_, state):
         if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
             return BVS('default_value_{}'.format(type_), 32)
-        elif type_ == "long":
+        if type_ == "long":
             return BVS('default_value_{}'.format(type_), 64)
-        elif type_ == 'float':
+        if type_ == 'float':
             return FPS('default_value_{}'.format(type_), FSORT_FLOAT)
-        elif type_ == 'double':
+        if type_ == 'double':
             return FPS('default_value_{}'.format(type_), FSORT_DOUBLE)
-        elif state is not None:
-            if type_ == 'java.lang.String':
-                return SimSootValue_StringRef.new_string(state, StringS('default_value_{}'.format(type_), 1000))
-            if type_.endswith('[][]'):
-                raise NotImplementedError
-                # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)
-                # multiarray.add_default_value_generator(lambda s: SimSootExpr_NewMultiArray._generate_inner_array(s, element_type, sizes))
-                # return  multiarray
-            elif type_.endswith('[]'):
-                array = SimSootExpr_NewArray.new_array(state, type_[:-2], BVV(2, 32))
-                return array
-            else:
-                return SimSootValue_ThisRef.new_object(state, type_, symbolic=True, init_object=False)
-        else:
-            # not a primitive type
-            # => treat it as a reference
-            return SootNullConstant()
+        if type_ == 'java.lang.String':
+            return SimSootValue_StringRef.new_string(state, StringS('default_value_{}'.format(type_), 1000))
+        if type_.endswith('[][]'):
+            raise NotImplementedError
+            # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)
+            # multiarray.add_default_value_generator(lambda s: SimSootExpr_NewMultiArray._generate_inner_array(s, element_type, sizes))
+            # return  multiarray
+        if type_.endswith('[]'):
+            array = SimSootExpr_NewArray.new_array(state, type_[:-2], BVV(2, 32))
+            return array
+        return SimSootValue_ThisRef.new_object(state, type_, symbolic=True, init_object=False)
+
+    @staticmethod
+    def _get_default_concrete_value_by_type(type_, state=None):
+        if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
+            return BVV(0, 32)
+        elif type_ == "long":
+            return BVV(0, 64)
+        elif type_ == 'float':
+            return FPV(0, FSORT_FLOAT)
+        elif type_ == 'double':
+            return FPV(0, FSORT_DOUBLE)
+        # not a primitive type
+        # => treat it as a reference
+        return SootNullConstant()
 
     @staticmethod
     def cast_primitive(state, value, to_type):
@@ -429,3 +446,5 @@ def prepare_native_return_state(native_state):
     Note: Redirection needed for pickling.
     """
     return SimEngineSoot.prepare_native_return_state(native_state)
+
+from .. import sim_options as options
