@@ -233,15 +233,11 @@ class ForwardAnalysis:
             n = self._graph_visitor.next_node()
 
             if n is None:
-                # all done!
                 break
 
             job_state = self._get_input_state(n)
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
-
-            if n is None:
-                break
 
             changed, output_state = self._run_on_node(n, job_state)
 
