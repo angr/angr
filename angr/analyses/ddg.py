@@ -1593,7 +1593,6 @@ class DDG(Analysis):
         consumers = []
         srcs = [var_def]
         traversed = set()
-
         while srcs:
             src = srcs.pop()
             out_edges = graph.out_edges(src, data=True)

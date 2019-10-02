@@ -278,7 +278,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             abstract_state = self._states[block_key]
         else:
             abstract_state = PropagatorVEXState(arch=self.project.arch)
-        sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level)
+        sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
         abstract_state.concrete_states = sim_successors.all_successors
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
@@ -294,6 +294,5 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def _post_analysis(self):
         pass
-
 
 register_analysis(PropagatorEmulatedAnalysis, "PropagatorEmulated")
