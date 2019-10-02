@@ -919,6 +919,23 @@ def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
     else:
         return arg_out, []
 
+def amd64g_calculate_mmx_pmaddwd(_state, xx, yy):
+    xx_3, xx_2, xx_1, xx_0 = xx.chop(16)
+    yy_3, yy_2, yy_1, yy_0 = yy.chop(16)
+    xx_3 = xx_3.sign_extend(16)
+    xx_2 = xx_2.sign_extend(16)
+    xx_1 = xx_1.sign_extend(16)
+    xx_0 = xx_0.sign_extend(16)
+    yy_3 = yy_3.sign_extend(16)
+    yy_2 = yy_2.sign_extend(16)
+    yy_1 = yy_1.sign_extend(16)
+    yy_0 = yy_0.sign_extend(16)
+
+    res_1 = xx_3 * yy_3 + xx_2 * yy_2
+    res_0 = xx_1 * yy_1 + xx_0 * yy_0
+
+    return claripy.Concat(res_1, res_0), []
+
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
         try:
