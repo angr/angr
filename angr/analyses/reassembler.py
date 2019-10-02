@@ -856,7 +856,7 @@ class Instruction(object):
         operand_offsets = operand_offsets[ - len(all_operands) : ]
 
         for operand, operand_str, offset in zip(capstone_operands, all_operands, operand_offsets):
-            self.operands.append(Operand(self.binary, self.addr, self.size, operand, operand_str, self.mnemonic,offset))
+            self.operands.append(Operand(self.binary, self.addr, self.size, operand, operand_str, self.mnemonic, offset))
 
 class BasicBlock(object):
     """
