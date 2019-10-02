@@ -14,6 +14,7 @@ from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLoca
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
+from angr.analyses.cfg_slice_to_sink import CFGSliceToSink
 from angr.block import Block
 from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -229,6 +230,83 @@ def test_insn_observe_after_a_pyvex_statement():
         lambda x: InsnAndNodeObserveTestingUtils.assert_equals_for_live_definitions(x[0], x[1]),
         zip(results, expected_results)
     ))
+
+def test_init_the_call_stack_with_a_block_as_subject_add_its_owning_function_to_the_call_stack():
+    binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+    project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    cfg = project.analyses.CFGFast()
+
+    _start = cfg.kb.functions['_start']
+    __libc_start_main = cfg.kb.functions['__libc_start_main']
+    call_stack = [ _start, __libc_start_main ]
+
+    main_function = cfg.kb.functions['main']
+    main_address = main_function.addr
+    main_block = Block(addr=main_address, project=project)
+
+    reaching_definitions = project.analyses.ReachingDefinitions(subject=main_block, call_stack=call_stack)
+    expected_call_stack = call_stack + [ main_function ]
+
+    nose.tools.assert_equal(reaching_definitions._call_stack, expected_call_stack)
+
+def test_init_the_call_stack_with_another_block_as_subject_does_not_deepen_the_call_stack():
+    binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+    project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    cfg = project.analyses.CFGFast()
+
+    _start = cfg.kb.functions['_start']
+    __libc_start_main = cfg.kb.functions['__libc_start_main']
+    initial_call_stack = [ _start, __libc_start_main ]
+
+    main_function = cfg.kb.functions['main']
+    main_address = main_function.addr
+    main_block = Block(addr=main_address, project=project)
+    another_block_in_main = Block(addr=0x4006fd, project=project)
+
+    new_call_stack = project.analyses.ReachingDefinitions(
+        subject=main_block,
+        call_stack=initial_call_stack
+    )._call_stack
+
+    reaching_definitions = project.analyses.ReachingDefinitions(
+        subject=another_block_in_main,
+        call_stack=new_call_stack
+    )
+    expected_call_stack = initial_call_stack + [ main_function ]
+
+    nose.tools.assert_equal(reaching_definitions._call_stack, expected_call_stack)
+
+def test_init_the_call_stack_with_a_function_as_subject_adds_it_to_the_call_stack():
+    binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+    project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    cfg = project.analyses.CFGFast()
+
+    _start = cfg.kb.functions['_start']
+    __libc_start_main = cfg.kb.functions['__libc_start_main']
+    initial_call_stack = [ _start, __libc_start_main ]
+
+    main_function = cfg.kb.functions['main']
+
+    reaching_definitions = project.analyses.ReachingDefinitions(
+        subject=main_function,
+        call_stack=initial_call_stack
+    )
+    expected_call_stack = initial_call_stack + [ main_function ]
+
+    nose.tools.assert_equal(reaching_definitions._call_stack, expected_call_stack)
+
+def test_init_the_call_stack_with_a_slice_as_subject_does_not_change_the_call_stack():
+    binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+    project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+
+    initial_call_stack = [ ]
+
+    reaching_definitions = project.analyses.ReachingDefinitions(
+        subject=CFGSliceToSink(None, {}),
+        call_stack=initial_call_stack
+    )
+
+    nose.tools.assert_equal(reaching_definitions._call_stack, initial_call_stack)
 
 def test_reaching_definition_analysis_exposes_its_subject():
     binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')

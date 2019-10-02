@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional, DefaultDict, Dict, Tuple, Set, Any, Union, TYPE_CHECKING
+from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
 from collections import defaultdict
 from functools import partial
 
@@ -45,7 +45,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state: ReachingDefinitionsState=None, cc=None, function_handler=None,
-                 current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
+                 call_stack=None, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
                  dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
         :param Union[Block,Function,CFGSliceToSink] subject:
@@ -65,7 +65,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param SimCC cc:                        Calling convention of the function.
         :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
                                                 <ReachingDefinitions>, <Codeloc>, <IP address>).
-        :param int current_local_call_depth:    Current local function recursion depth.
+        :param call_stack:                      An ordered list of Functions representing the call stack leading to the
+                                                analysed subject, from older to newer calls.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
         :param Boolean observe_all:             Observe every statement, both before and after.
         :param visited_blocks:                  A set of previously visited blocks.
@@ -88,10 +89,28 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._observation_points = observation_points
         self._init_state = init_state
         self._function_handler = function_handler
-        self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
 
         self._dep_graph = dep_graph
+
+        def _init_call_stack(call_stack, subject):
+            if self._subject.type == SubjectType.Function:
+                return call_stack + [ subject ]
+            elif self._subject.type == SubjectType.Block:
+                cfg = self.kb.cfgs['CFGFast']
+                function_address = cfg.get_any_node(subject.addr).function_address
+                function = self.kb.functions.function(function_address)
+                if len(call_stack) > 0 and call_stack[-1] == function:
+                    return call_stack
+                else:
+                    return call_stack + [ function ]
+            elif self._subject.type == SubjectType.CFGSliceToSink:
+                # CFGSliceToSink does not update the "call stack" itself.
+                return call_stack
+            else:
+                raise ValueError('self._subject.type is of unexpected kind')
+
+        self._call_stack: List[Function] = _init_call_stack(call_stack or [], subject)
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
@@ -114,10 +133,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
-        self._engine_vex = SimEngineRDVEX(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
+        self._engine_vex = SimEngineRDVEX(self.project, self._call_stack, self._maximum_local_call_depth,
                                           functions=self.kb.functions,
                                           function_handler=self._function_handler)
-        self._engine_ail = SimEngineRDAIL(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
+        self._engine_ail = SimEngineRDAIL(self.project, self._call_stack, self._maximum_local_call_depth,
                                           function_handler=self._function_handler)
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
@@ -180,6 +199,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     @property
     def visited_blocks(self):
         return self._visited_blocks
+
+    def _current_local_call_depth(self):
+        return len(self._call_stack)
 
     @deprecated(replacement="get_reaching_definitions_by_insn")
     def get_reaching_definitions(self, ins_addr, op_type):

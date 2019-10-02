@@ -21,10 +21,10 @@ class SimEngineRDAIL(
     SimEngineLightAILMixin,
     SimEngineLight,
 ):  # pylint:disable=abstract-method
-    def __init__(self, project, current_local_call_depth, maximum_local_call_depth, function_handler=None):
+    def __init__(self, project, call_stack, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDAIL, self).__init__()
         self.project = project
-        self._current_local_call_depth = current_local_call_depth
+        self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
         self._visited_blocks = None
@@ -433,7 +433,7 @@ class SimEngineRDAIL(
     #
 
     def _handle_function(self):
-        if self._current_local_call_depth > self._maximum_local_call_depth:
+        if len(self._call_stack) + 1 > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return None
 
@@ -474,7 +474,7 @@ class SimEngineRDAIL(
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
                 is_updated, state = getattr(self._function_handler, handler_name)(self.state, ip_addr,
-                                                                                  self._current_local_call_depth + 1,
+                                                                                  self._call_stack,
                                                                                   self._maximum_local_call_depth)
                 if is_updated is True:
                     self.state = state

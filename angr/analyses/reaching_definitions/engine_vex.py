@@ -27,13 +27,13 @@ class SimEngineRDVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):  # pylint:disable=abstract-method
-    def __init__(self, project, current_local_call_depth, maximum_local_call_depth, functions=None,
+    def __init__(self, project, call_stack, maximum_local_call_depth, functions=None,
                  function_handler=None):
         super(SimEngineRDVEX, self).__init__()
         self.project = project
-        self.functions: Optional['FunctionManager'] = functions
-        self._current_local_call_depth = current_local_call_depth
+        self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
+        self.functions: Optional['FunctionManager'] = functions
         self._function_handler = function_handler
         self._visited_blocks = None
         self._dep_graph = None
@@ -481,7 +481,7 @@ class SimEngineRDVEX(
 
     def _handle_function_core(self, func_addr: Optional[DataSet], **kwargs) -> bool:  # pylint:disable=unused-argument
 
-        if self._current_local_call_depth > self._maximum_local_call_depth:
+        if len(self._call_stack) + 1 > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return False
 
@@ -547,7 +547,7 @@ class SimEngineRDVEX(
                 executed_rda, state = getattr(self._function_handler, handler_name)(
                     self.state,
                     func_addr_int,
-                    self._current_local_call_depth + 1,
+                    self._call_stack,
                     self._maximum_local_call_depth,
                     self._codeloc(),
                 )
