@@ -11,7 +11,7 @@ from .....errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddres
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
                        SimMemoryError, SimIRSBNoDecodeError, AngrAssemblyError, UnsupportedIRExprError,
                        UnsupportedIRStmtError)
-
+from ....code_location import CodeLocation
 from .....misc.ux import once
 from .....utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
@@ -265,7 +265,7 @@ class SimEngineVEX(SimEngine):
         state.scratch.bbl_addr = irsb.addr
 
         for stmt_idx, stmt in enumerate(ss):
-            code_loc = "stmt_id:" + str(stmt_idx) + " " + str(block_key)
+            code_loc = CodeLocation(irsb.addr , stmt_idx, block_key)
             if isinstance(stmt, pyvex.IRStmt.IMark):
                 insn_addrs.append(stmt.addr + stmt.delta)
 
@@ -314,7 +314,7 @@ class SimEngineVEX(SimEngine):
             try:
                 with state.history.subscribe_actions() as next_deps:
                     # Not sure what the code_loc should be here, so set it to the last stmt_idx
-                    code_loc = "stmt_id:" + str(len(ss)-1) + " " + str(block_key)
+                    code_loc = CodeLocation(irsb.addr , len(ss)-1, block_key)
                     next_expr = self.handle_expression(state, abstract_state, code_loc, irsb.next)
 
                 if o.TRACK_JMP_ACTIONS in state.options:
@@ -473,8 +473,8 @@ class SimEngineVEX(SimEngine):
         state._inspect('expr', BP_AFTER, expr=expr, expr_result=result)
 
         ###adding the replacements if they are not symbolic
-        if not state.solver.symbolic(result):
-            abstract_state.add_replacement(code_loc, expr, SimConstantVariable(value=state.solver.eval(result)))
+        if not state.solver.symbolic(result) and not(type(expr) == pyvex.expr.Const):
+            abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(pyvex.expr.U64(state.solver.eval(result))))
 
         return result
 
