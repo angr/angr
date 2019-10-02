@@ -18,4 +18,8 @@ class unlink(angr.SimProcedure): #pylint:disable=W0622
         if self.state.fs.delete(str_val):
             return 0
         else:
+            #In case of failure, unlink sets an errno.  Don't fully care what.
+            errno_loc = self.state.libc.errno_location
+            errno_val = self.state.solver.BVS("unlink_errno", self.state.arch.bits)
+            self.state.memory.store(errno_loc, errno_val)
             return -1
