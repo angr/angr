@@ -576,42 +576,42 @@ def zen_hook(state, expr):
             zen_plugin = state.get_plugin("zen_plugin")
 
             if expr.cache_key in zen_plugin.replacements:
-                # we already have the replacement
+                # we already have the replacement_variable
                 concrete_val = state.solver.eval(expr)
-                replacement = zen_plugin.replacements[expr.cache_key]
-                state.preconstrainer.preconstrain(concrete_val, replacement)
-                zen_plugin.preconstraints.append(replacement == concrete_val)
+                replacement_variable = zen_plugin.replacements[expr.cache_key]
+                state.preconstrainer.preconstrain(replacement_variable, concrete_val)
+                zen_plugin.preconstraints.append(replacement_variable == concrete_val)
             else:
-                # we need to make a new replacement
-                replacement = claripy.BVS("cgc-flag-zen", expr.size())
+                # we need to make a new replacement_variable
+                replacement_variable = claripy.BVS("cgc-flag-zen", expr.size())
                 concrete_val = state.solver.eval(expr)
-                state.solver._solver.add_replacement(replacement, concrete_val, invalidate_cache=False)
+                state.solver._solver.add_replacement(replacement_variable, concrete_val, invalidate_cache=False)
 
                 # if the depth is less than the max add the constraint and get which bytes it contains
                 depth = zen_plugin.get_expr_depth(expr)
                 if depth < zen_plugin.max_depth:
-                    con = replacement == expr
+                    con = replacement_variable == expr
                     state.add_constraints(con)
                     contained_bytes = zen_plugin.get_flag_bytes(expr)
-                    zen_plugin.byte_dict[list(replacement.variables)[0]] = contained_bytes
+                    zen_plugin.byte_dict[list(replacement_variable.variables)[0]] = contained_bytes
                     zen_plugin.zen_constraints.append(con)
                     # saves a ton of memory to do this here rather than later
                     zen_plugin.zen_constraints.append(state.solver.simplify(con))
                 else:
                     # otherwise don't add the constraint, just replace
                     depth = 0
-                    zen_plugin.byte_dict[list(replacement.variables)[0]] = set()
+                    zen_plugin.byte_dict[list(replacement_variable.variables)[0]] = set()
 
                 # save and replace
-                var = list(replacement.variables)[0]
+                var = list(replacement_variable.variables)[0]
                 zen_plugin.depths[var] = depth
-                constraint = replacement == concrete_val
+                constraint = replacement_variable == concrete_val
                 zen_plugin.state.preconstrainer.preconstraints.append(constraint)
-                zen_plugin.preconstraints.append(replacement == concrete_val)
+                zen_plugin.preconstraints.append(replacement_variable == concrete_val)
 
-                zen_plugin.replacements[expr.cache_key] = replacement
+                zen_plugin.replacements[expr.cache_key] = replacement_variable
 
-            return replacement
+            return replacement_variable
     return None
 
 

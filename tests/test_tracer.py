@@ -13,7 +13,7 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False):
 
     trace, magic, crash_mode, crash_addr = do_trace(p, test_name, stdin)
     s = p.factory.entry_state(mode='tracing', stdin=angr.SimFileStream, flag_page=magic)
-    s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
+    s.preconstrainer.preconstrain_file(s.posix.stdin, stdin, True)
 
     simgr = p.factory.simulation_manager(s, hierarchy=False, save_unconstrained=crash_mode)
     t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr, keep_predecessors=1, copy_states=copy_states)
@@ -27,7 +27,7 @@ def tracer_linux(filename, test_name, stdin):
 
     trace, _, crash_mode, crash_addr = do_trace(p, test_name, stdin, ld_linux=p.loader.linux_loader_object.binary, library_path=set(os.path.dirname(obj.binary) for obj in p.loader.all_elf_objects), record_stdout=True)
     s = p.factory.full_init_state(mode='tracing', stdin=angr.SimFileStream)
-    s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
+    s.preconstrainer.preconstrain_file(s.posix.stdin, stdin, True)
 
     simgr = p.factory.simulation_manager(s, hierarchy=False, save_unconstrained=crash_mode)
     t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr)

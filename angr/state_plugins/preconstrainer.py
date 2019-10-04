@@ -43,7 +43,7 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         return c
 
-    def preconstrain(self, value, variable):
+    def preconstrain(self, variable, value):
         """
         Add a preconstraint that ``variable == value`` to the state.
 
@@ -73,7 +73,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         if not self.state.satisfiable():
             l.warning("State went unsat while adding preconstraints")
 
-    def preconstrain_file(self, content, simfile, set_length=False):
+    def preconstrain_file(self, simfile, content, set_length=False):
         """
         Preconstrain the contents of a file.
 
@@ -92,10 +92,10 @@ class SimStatePreconstrainer(SimStatePlugin):
         for write in content:
             if type(write) is int:
                 write = bytes([write])
-            data, length, pos = simfile.read(pos, len(write), disable_actions=True, inspect=False, short_reads=False)
+            data_var, length, pos = simfile.read(pos, len(write), disable_actions=True, inspect=False, short_reads=False)
             if not claripy.is_true(length == len(write)):
                 raise AngrError("Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file")
-            self.preconstrain(write, data)
+            self.preconstrain(data_var, write)
 
         # if the file is a stream, reset its position
         if simfile.pos is not None:
@@ -114,7 +114,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         :param magic_content:   The content of the magic page as a bytestring.
         """
         for m, v in zip(magic_content, self.state.cgc.flag_bytes):
-            self.preconstrain(m, v)
+            self.preconstrain(v, m)
 
     def remove_preconstraints(self, to_composite_solver=True, simplify=True):
         """
