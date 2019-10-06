@@ -6,7 +6,7 @@ l = logging.getLogger(name=__name__)
 
 class LoadLibraryA(angr.SimProcedure):
     def run(self, lib_ptr):
-        lib = self.state.mem[lib_ptr].string.concrete
+        lib = self.state.mem[lib_ptr].string.concrete.decode('utf-8')
         return self.load(lib)
 
     def load(self, lib):
