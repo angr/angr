@@ -34,6 +34,11 @@ def constant_propagation(cfg, proj):
     new_nodes = []
     node_map = {}
     node_map_by_addr = defaultdict(list)
+
+    # not setting the attributes for the model since they will *most likely* be not used on the analysis
+    new_model = proj.kb.cfgs.new_model("temporary_model")
+    new_model.graph = new_cfg_graph
+
     for node in cfg.graph.nodes():
         new_node = CFGENode(irsb=copy.deepcopy(node.irsb),
                             block_id=copy.deepcopy(node.block_id),
@@ -45,7 +50,7 @@ def constant_propagation(cfg, proj):
                             addr=copy.deepcopy(node.addr),
                             input_state=None,
                             final_states=None,
-                            cfg=cfg.model)
+                            cfg=new_model)
 
         new_nodes.append(new_node)
         node_map[new_node.block_id] = new_node
@@ -57,6 +62,9 @@ def constant_propagation(cfg, proj):
 
     new_cfg_graph.add_nodes_from(new_nodes)
     new_cfg_graph.add_edges_from(new_edges)
+
+    new_model._nodes = node_map
+    new_model._nodes_by_addr = node_map_by_addr
 
 
     ## Setting the input state for the first node(need to automate this)
@@ -149,7 +157,7 @@ new_cfg = proj.analyses.CFGEmulated(fail_fast=True,
                                     state_add_options=angr.sim_options.refs | {angr.sim_options.DO_CCALLS},
                                     iropt_level=0)
 new_cfg._graph = new_cfg_graph
-new_cfg._model = new_cfg.kb.cfgs.new_model("new_model")
+new_cfg._model = proj.kb.cfgs.new_model("constant_propagated_model")
 new_cfg._model._iropt_level = 0
 new_cfg._model._nodes = new_node_map
 new_cfg._model._nodes_by_addr = new_node_map_by_addr
