@@ -96,7 +96,6 @@ class PropagatorState:
         for s in self.concrete_states:
             if s.ip._model_concrete.value == addr:
                 return s
-
         return None
 
 # VEX state
@@ -261,6 +260,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def _run_on_node(self, node, abstract_state):
         concrete_state = abstract_state.get_concrete_state(node.addr)
+        node.input_state = concrete_state
         if concrete_state is None:
             # didn't find any state going to here
             print("_run_on_node(): cannot find any state for address ", hex(node.addr))
@@ -278,7 +278,8 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             abstract_state = self._states[block_key]
         else:
             abstract_state = PropagatorVEXState(arch=self.project.arch)
-        sim_successors = engine.process(concrete_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
+        sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
+        node.final_states = sim_successors.all_successors
         abstract_state.concrete_states = sim_successors.all_successors
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
