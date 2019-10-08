@@ -58,15 +58,19 @@ def constant_propagation(cfg, proj):
     new_cfg_graph.add_nodes_from(new_nodes)
     new_cfg_graph.add_edges_from(new_edges)
 
-    initial_input_state = proj.factory.blank_state(addr=0x4005e8, add_options={angr.sim_options.REPLACEMENT_SOLVER,
-                                          angr.sim_options.DO_CCALLS})
-    import pdb
-    pdb.set_trace()
-    node_map_by_addr[0x4005e8][0].input_state = initial_input_state
 
-    #Should I create a new copy of cfg?? to do the replacements in ?? ## yes yes i should
+    ## Setting the input state for the first node(need to automate this)
+    main = proj.loader.main_object.get_symbol("main")
+    initial_input_state = proj.factory.blank_state(addr=main.rebased_addr,
+                                                   mode='fastpath',
+                                                   add_options=angr.sim_options.refs | {angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+
+    node_map_by_addr[main.rebased_addr][0].input_state = initial_input_state
+
+    ## find the replacements
     prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0)
 
+    ## do the actual replacements
     for key, value in prop.replacements.items():
         node = node_map[key]
         new_stmts = node.irsb.statements
@@ -75,13 +79,22 @@ def constant_propagation(cfg, proj):
             for old, new in repl_pair.items():
                 new_stmts[stmt.stmt_idx].replace_expression(old, new)
 
+    ### Clearing the states for the newly created graph (or should I create a new copy again)
+    for node in node_map.values():
+        node.input_state = None
+        node.final_states = None
+    ## Setting the input state for the first node(need to automate this)
+    node_map_by_addr[main.rebased_addr][0].input_state = initial_input_state
+
     #Run the emulation on the new graph to update the state attributes
     proj.analyses.CFGEmulated(graph=new_cfg_graph)
+
     return new_cfg_graph, node_map, node_map_by_addr
 
 ####### Dead Cod Elimination
 def dead_code_elimination(cfg, proj):
-    ddg = proj.analyses.DDG(cfg, 0x4005e8)
+    main = proj.loader.main_object.get_symbol("main")
+    ddg = proj.analyses.DDG(cfg, main.rebased_addr)
     for node in list(cfg.graph.nodes()):
         old_stmts = node.irsb.statements
         new_stmts = []
