@@ -37,7 +37,6 @@ class SimEngineHook(SimEngine):
         :param force_addr:  Force execution to pretend that we're working at this concrete address
         :returns:           A SimSuccessors object categorizing the execution's successor states
         """
-
         addr = state.addr if force_addr is None else force_addr
 
         if procedure is None:
@@ -53,5 +52,4 @@ class SimEngineHook(SimEngine):
             l.debug("Running %s (originally at %r)", repr(procedure), addr)
         else:
             l.debug("Running %s (originally at %#x)", repr(procedure), addr)
-
         return self.project.factory.procedure_engine.process(state, procedure, force_addr=force_addr, **kwargs)

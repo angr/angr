@@ -6,7 +6,7 @@ from .. import BP_BEFORE, BP_AFTER, sim_options
 from ..errors import AngrTracerError
 
 l = logging.getLogger(name=__name__)
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 class TracingMode:
     """
@@ -135,7 +135,7 @@ class Tracer(ExplorationTechnique):
             keep_predecessors=1,
             crash_addr=None,
             copy_states=False,
-            mode=TracingMode.Permissive):
+            mode=TracingMode.Strict):
         super(Tracer, self).__init__()
         self._trace = trace
         self._resiliency = resiliency
@@ -181,7 +181,6 @@ class Tracer(ExplorationTechnique):
 
         # pylint: disable=undefined-loop-variable
         # pylint doesn't know jack shit
-
         self._current_slide = self._aslr_slides[self.project.loader.main_object] = self._trace[idx] - self.project.entry
 
         # step to entry point
@@ -447,7 +446,6 @@ class Tracer(ExplorationTechnique):
         if state.globals['sync_idx'] is not None:
             l.debug("Trace: %d-%d/%d synchronizing %d", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
         else:
-            print(state)
             l.debug("Trace: %d/%d", state.globals['trace_idx'], len(self._trace))
 
     def _translate_state_addr(self, state_addr, obj=None):

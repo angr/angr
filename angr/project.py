@@ -254,15 +254,12 @@ class Project:
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
         for reloc in obj.imports.values():
-
             # Step 2.1: Quick filter on symbols we really don't care about
             func = reloc.symbol
-
             if func is None:
                 continue
             if not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
                 continue
-
             if not reloc.resolved:
                 # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency
                 # library names. The backend creates the Relocation objects, but leaves them unresolved so that
@@ -277,9 +274,6 @@ class Project:
                     l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner)
                 continue
             export = reloc.resolvedby
-
-            #l.debug("Symbol %s resolved by %s", reloc.symbol.name, export.owner)
-
             if self.is_hooked(export.rebased_addr):
                 l.debug("Already hooked %s (%s)", export.name, export.owner)
                 continue

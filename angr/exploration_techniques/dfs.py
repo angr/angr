@@ -21,7 +21,6 @@ class DFS(ExplorationTechnique):
 
     def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
-
         if len(simgr.stashes[stash]) > 1:
             self._random.shuffle(simgr.stashes[stash])
             simgr.split(from_stash=stash, to_stash=self.deferred_stash, limit=1)
