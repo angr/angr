@@ -564,7 +564,7 @@ class Project:
         self.unhook(hook_addr)
         return True
 
-    def rehook_symbol(self, new_address, symbol_name):
+    def rehook_symbol(self, new_address, symbol_name, stubs_on_sync):
         """
         Move the hook for a symbol to a specific address
         :param new_address: the new address that will trigger the SimProc execution
@@ -572,11 +572,17 @@ class Project:
         :return: None
         """
         new_sim_procedures = {}
+
         for key_address, simproc_obj in self._sim_procedures.items():
-            if simproc_obj.display_name == symbol_name:
-                new_sim_procedures[new_address] = simproc_obj
+
+            #if we don't want stubs during the sync let's skip those, we will execute the real function.
+            if not stubs_on_sync and simproc_obj.is_stub:
+                continue
             else:
-                new_sim_procedures[key_address] = simproc_obj
+                if simproc_obj.display_name == symbol_name:
+                    new_sim_procedures[new_address] = simproc_obj
+                else:
+                    new_sim_procedures[key_address] = simproc_obj
 
         self._sim_procedures = new_sim_procedures
 

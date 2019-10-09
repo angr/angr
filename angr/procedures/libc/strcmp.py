@@ -21,7 +21,4 @@ class strcmp(angr.SimProcedure):
 
         strncmp = self.inline_call(angr.SIM_PROCEDURES['libc']['strncmp'], a_addr, b_addr, maxlen, a_len=a_strlen, b_len=b_strlen, wchar=wchar, ignore_case=ignore_case)
 
-
-        import ipdb; ipdb.set_trace()
-
         return strncmp.ret_expr

@@ -51,7 +51,7 @@ class SimEngineConcrete(SimEngine):
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
         successors.add_successor(new_state, new_state.ip, new_state.solver.true, new_state.unicorn.jumpkind)
-        successors.description = "Concrete Successors "
+        successors.description = "Concrete Successors"
         successors.processed = True
 
     def to_engine(self, state, extra_stop_points, memory_concretize, register_concretize, timeout):

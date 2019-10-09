@@ -19,7 +19,8 @@ class Symbion(ExplorationTechnique):
                         the concrete process.
     """
 
-    def __init__(self, find=None, memory_concretize=None, register_concretize=None, timeout=0, find_stash='found'):
+    def __init__(self, find=None, memory_concretize=None, register_concretize=None,
+                 timeout=0, find_stash='found'):
         super(Symbion, self).__init__()
 
         # need to keep the raw list of addresses to
@@ -55,7 +56,8 @@ class Symbion(ExplorationTechnique):
                                              extra_stop_points=self.breakpoints,
                                              memory_concretize=self.memory_concretize,
                                              register_concretize=self.register_concretize,
-                                             timeout=self.timeout)
+                                             timeout=self.timeout,
+                                             )
 
         new_state = ss.successors
 

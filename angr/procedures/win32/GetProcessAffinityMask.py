@@ -2,6 +2,7 @@ import angr
 import logging
 
 l = logging.getLogger(name=__name__)
+l.setLevel("DEBUG")
 
 '''
 BOOL GetProcessAffinityMask(
@@ -20,6 +21,8 @@ class GetProcessAffinityMask(angr.SimProcedure):
 
         self.state.mem[lpProcessAffinityMask].dword = self.paffinity_mask
         self.state.mem[lpSystemAffinityMask].dword = self.saffinity_mask
+
+
 
         return 1
 

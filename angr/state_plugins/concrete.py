@@ -16,7 +16,8 @@ l.setLevel(logging.DEBUG)
 
 class Concrete(SimStatePlugin):
     def __init__(self, segment_registers_initialized=False, segment_registers_callback_initialized=False,
-                 whitelist=None, fs_register_bp=None, synchronize_cle=True, already_sync_objects_addresses=None,
+                 whitelist=None, fs_register_bp=None, synchronize_cle=True, stubs_on_sync=False,
+                 already_sync_objects_addresses=None,
                  ):
 
         super().__init__()
@@ -31,6 +32,7 @@ class Concrete(SimStatePlugin):
 
         self.fs_register_bp = fs_register_bp
         self.synchronize_cle = synchronize_cle  # synchronize_cle
+        self.stubs_on_sync = stubs_on_sync
 
         if not already_sync_objects_addresses:
             self.already_sync_objects_addresses = []
@@ -227,13 +229,16 @@ class Concrete(SimStatePlugin):
                     func_address = self.state.project.concrete_target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
                     func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
                 elif self.state.project.simos.name == 'Linux':
-                    func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+                    try:
+                        func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+                    except KeyError:
+                        continue
                 else:
                     l.warn("Can't synchronize simproc, binary format not supported.")
                     return
 
                 l.debug("Function address hook is now: %#x ", func_address)
-                self.state.project.rehook_symbol(func_address, reloc.symbol.name)
+                self.state.project.rehook_symbol(func_address, reloc.symbol.name, self.stubs_on_sync)
 
                 if self.synchronize_cle and not self.state.project.loader.main_object.contains_addr(func_address):
                     old_func_symbol = self.state.project.loader.find_symbol(reloc.symbol.name)
