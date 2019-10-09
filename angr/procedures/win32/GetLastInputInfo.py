@@ -36,4 +36,3 @@ class GetLastInputInfo(angr.SimProcedure):
     def fill_concrete(self):
         self.cbSize = self.state.solver.BVV(3, 32)
         self.dwTime = self.state.solver.BVV(3, 32)
-
