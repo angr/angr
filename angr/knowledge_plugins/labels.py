@@ -11,7 +11,6 @@ class Labels(KnowledgeBasePlugin):
         self._labels = {}
         self._reverse_labels = {}
         for obj in kb._project.loader.all_objects:
-
             for v in obj.symbols:
                 if v.name and not v.is_import and v.type not in {cle.Symbol.TYPE_OTHER, }:
                     self._labels[v.rebased_addr] = v.name
@@ -19,7 +18,7 @@ class Labels(KnowledgeBasePlugin):
             try:
                 for v, k in obj.plt.items():
                     self._labels[k] = v
-            except AttributeError: #need it because sometimes it explodes.
+            except AttributeError:
                 pass
 
         # Artificial labels for the entry point

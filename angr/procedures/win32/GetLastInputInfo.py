@@ -25,7 +25,7 @@ class GetLastInputInfo(angr.SimProcedure):
         l.warn("Setting symbolic memory at %s", str(plii))
 
         self.state.mem[plii].dword = self.cbSize
-        self.state.mem[plii].dword = self.dwTime
+        self.state.mem[plii+4].dword = self.dwTime
 
         return 1
 
