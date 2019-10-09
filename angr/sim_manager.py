@@ -11,7 +11,7 @@ from .misc.ux import once
 
 import logging
 l = logging.getLogger(name=__name__)
-
+#l.setLevel(logging.DEBUG)
 
 class SimulationManager:
     """
@@ -327,7 +327,6 @@ class SimulationManager:
         bucket = defaultdict(list)
 
         for state in self._fetch_states(stash=stash):
-
             goto = self.filter(state, filter_func=filter_func)
             if isinstance(goto, tuple):
                 goto, state = goto
@@ -341,6 +340,9 @@ class SimulationManager:
                 continue
 
             pre_errored = len(self._errored)
+
+            #print("Stepping " + str(state))
+
             successors = self.step_state(state, successor_func=successor_func, **run_args)
 
             # handle degenerate stepping cases here. desired behavior:

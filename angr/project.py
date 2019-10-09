@@ -13,6 +13,7 @@ import cle
 from .misc.ux import deprecated
 
 l = logging.getLogger(name=__name__)
+l.setLevel(logging.DEBUG)
 
 def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
     """
@@ -253,12 +254,15 @@ class Project:
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
         for reloc in obj.imports.values():
+
             # Step 2.1: Quick filter on symbols we really don't care about
             func = reloc.symbol
+
             if func is None:
                 continue
             if not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
                 continue
+
             if not reloc.resolved:
                 # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency
                 # library names. The backend creates the Relocation objects, but leaves them unresolved so that
@@ -273,6 +277,9 @@ class Project:
                     l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner)
                 continue
             export = reloc.resolvedby
+
+            l.debug("Symbol %s resolved by %s", reloc.symbol.name, export.owner)
+
             if self.is_hooked(export.rebased_addr):
                 l.debug("Already hooked %s (%s)", export.name, export.owner)
                 continue
@@ -291,8 +298,10 @@ class Project:
                 if owner_name not in SIM_LIBRARIES:
                     continue
                 sim_lib = SIM_LIBRARIES[owner_name]
+
                 if not sim_lib.has_implementation(export.name):
                     continue
+
                 l.info("Using builtin SimProcedure for %s from %s", export.name, sim_lib.name)
                 self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, sim_proc_arch))
 
@@ -555,7 +564,7 @@ class Project:
         self.unhook(hook_addr)
         return True
 
-    def rehook_symbol(self, new_address, symbol_name):
+    def rehook_symbol(self, new_address, symbol_name, stubs_on_sync):
         """
         Move the hook for a symbol to a specific address
         :param new_address: the new address that will trigger the SimProc execution
@@ -563,11 +572,17 @@ class Project:
         :return: None
         """
         new_sim_procedures = {}
+
         for key_address, simproc_obj in self._sim_procedures.items():
-            if simproc_obj.display_name == symbol_name:
-                new_sim_procedures[new_address] = simproc_obj
+
+            #if we don't want stubs during the sync let's skip those, we will execute the real function.
+            if not stubs_on_sync and simproc_obj.is_stub:
+                continue
             else:
-                new_sim_procedures[key_address] = simproc_obj
+                if simproc_obj.display_name == symbol_name:
+                    new_sim_procedures[new_address] = simproc_obj
+                else:
+                    new_sim_procedures[key_address] = simproc_obj
 
         self._sim_procedures = new_sim_procedures
 

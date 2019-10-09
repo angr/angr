@@ -11,7 +11,7 @@ from .. import sim_options as options
 from .memory_object import SimMemoryObject
 
 l = logging.getLogger(name=__name__)
-
+#l.setLevel(logging.DEBUG)
 
 class BasePage:
     """
