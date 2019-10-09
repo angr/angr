@@ -13,7 +13,7 @@ import cle
 from .misc.ux import deprecated
 
 l = logging.getLogger(name=__name__)
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
     """
@@ -278,7 +278,7 @@ class Project:
                 continue
             export = reloc.resolvedby
 
-            l.debug("Symbol %s resolved by %s", reloc.symbol.name, export.owner)
+            #l.debug("Symbol %s resolved by %s", reloc.symbol.name, export.owner)
 
             if self.is_hooked(export.rebased_addr):
                 l.debug("Already hooked %s (%s)", export.name, export.owner)
@@ -298,10 +298,8 @@ class Project:
                 if owner_name not in SIM_LIBRARIES:
                     continue
                 sim_lib = SIM_LIBRARIES[owner_name]
-
                 if not sim_lib.has_implementation(export.name):
                     continue
-
                 l.info("Using builtin SimProcedure for %s from %s", export.name, sim_lib.name)
                 self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, sim_proc_arch))
 

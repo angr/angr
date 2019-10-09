@@ -131,10 +131,10 @@ class Tracer(ExplorationTechnique):
 
     def __init__(self,
             trace=None,
-            resiliency=True,
+            resiliency=False,
             keep_predecessors=1,
             crash_addr=None,
-            copy_states=True,
+            copy_states=False,
             mode=TracingMode.Permissive):
         super(Tracer, self).__init__()
         self._trace = trace
@@ -179,12 +179,8 @@ class Tracer(ExplorationTechnique):
         else:
             raise AngrTracerError("Could not identify program entry point in trace!")
 
-        l.debug("Entry point identified at idx %s at address %s ", idx, addr)
-
         # pylint: disable=undefined-loop-variable
         # pylint doesn't know jack shit
-
-        l.debug("Entry point of is %s", hex(self.project.entry))
 
         self._current_slide = self._aslr_slides[self.project.loader.main_object] = self._trace[idx] - self.project.entry
 
@@ -196,8 +192,6 @@ class Tracer(ExplorationTechnique):
             elif len(simgr.active) > 1:
                 raise AngrTracerError("Could not step to the first address of the trace - state split")
             simgr.drop(stash='unsat')
-
-        l.debug("Stepped to entry point!")
 
         # initialize the state info
         simgr.one_active.globals['trace_idx'] = idx
@@ -232,10 +226,6 @@ class Tracer(ExplorationTechnique):
         return simgr.step(stash=stash, **kwargs)
 
     def step_state(self, simgr, state, **kwargs):
-
-        address = state.solver.eval(state.regs.pc)
-        print(state.block(addr=address).capstone.pp())
-
         if state.history.jumpkind == 'Ijk_Exit':
             return {'traced': [state]}
 
@@ -292,8 +282,6 @@ class Tracer(ExplorationTechnique):
                 succs_dict['missed'] = [s for s in succs if s is not succ]
 
         assert len(succs_dict[None]) == 1
-
-
         return succs_dict
 
     def _force_resync(self, simgr, state, deviating_trace_idx, deviating_addr, kwargs):

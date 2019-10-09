@@ -5,7 +5,7 @@ from .successors import SimSuccessors
 from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ
 class SimEngineHook(SimEngine):

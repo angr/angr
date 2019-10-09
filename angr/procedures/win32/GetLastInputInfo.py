@@ -1,7 +1,7 @@
 import angr
 import logging
 
-l = logging.getLogger(name=__name__)
+#l = logging.getLogger(name=__name__)
 
 
 

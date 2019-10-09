@@ -4,7 +4,7 @@ from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging
 l = logging.getLogger(name=__name__)
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 class strstr(angr.SimProcedure):
     #pylint:disable=arguments-differ

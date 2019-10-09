@@ -19,7 +19,7 @@ class Labels(KnowledgeBasePlugin):
 
                 for v, k in obj.plt.items():
                     self._labels[k] = v
-            except AttributeError:
+            except AttributeError: #need it because sometimes it explodes.
                 pass
 
         # Artificial labels for the entry point

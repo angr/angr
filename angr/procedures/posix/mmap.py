@@ -2,7 +2,7 @@ import angr
 
 import logging
 l = logging.getLogger(name=__name__)
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 PROT_READ       = 0x1  #    /* Page can be read.  */
 PROT_WRITE      = 0x2  #    /* Page can be written.  */

@@ -8,8 +8,7 @@ class GetSystemTimeAsFileTime(angr.SimProcedure):
     def run(self, outptr):
         self.instrument()
 
-        print("Setting buffer for GetSystemTimeAsFileTime at {} with {}".format(str(outptr), str(self.timestamp)))
-
+        #l.debug("Setting buffer for GetSystemTimeAsFileTime at {} with {}".format(str(outptr), str(self.timestamp)))
         self.state.mem[outptr].qword = self.timestamp
 
     def instrument(self):
