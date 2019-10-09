@@ -200,21 +200,21 @@ class Concrete(SimStatePlugin):
                             self.already_sync_objects_addresses.append(mmap.name)
 
                             break  # object has been synchronized, move to the next one!
-                        else:
-                            # rebase the object if the CLE address doesn't match the real one,
-                            # this can happen with PIE binaries and libraries.
-                            l.debug("Remapping object %s mapped at address 0x%x at address 0x%x", binary_name,
-                                    mapped_object.mapped_base, mmap.start_address)
 
-                            old_mapped_base = mapped_object.mapped_base
-                            mapped_object.mapped_base = mmap.start_address  # Rebase now!
+                        # rebase the object if the CLE address doesn't match the real one,
+                        # this can happen with PIE binaries and libraries.
+                        l.debug("Remapping object %s mapped at address 0x%x at address 0x%x", binary_name,
+                                mapped_object.mapped_base, mmap.start_address)
 
-                            # TODO re-write this horrible thing
-                            mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
-                            mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
+                        old_mapped_base = mapped_object.mapped_base
+                        mapped_object.mapped_base = mmap.start_address  # Rebase now!
 
-                            self.already_sync_objects_addresses.append(mmap.name)
-                            break  # object has been synchronized, move to the next one!
+                        # TODO re-write this horrible thing
+                        mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
+                        mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
+
+                        self.already_sync_objects_addresses.append(mmap.name)
+                        break  # object has been synchronized, move to the next one!
 
     def _sync_simproc(self):
 
@@ -234,7 +234,7 @@ class Concrete(SimStatePlugin):
                     except KeyError:
                         continue
                 else:
-                    l.warn("Can't synchronize simproc, binary format not supported.")
+                    l.info("Can't synchronize simproc, binary format not supported.")
                     return
 
                 l.debug("Function address hook is now: %#x ", func_address)

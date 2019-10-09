@@ -1,9 +1,8 @@
 import angr
 import logging
 
-#l = logging.getLogger(name=__name__)
-
-
+l = logging.getLogger(name=__name__)
+#l.setLevel("DEBUG")
 
 '''
 BOOL GetLastInputInfo(
@@ -11,7 +10,6 @@ BOOL GetLastInputInfo(
 );
 
 typedef struct tagLASTINPUTINFO {
-
   UINT  cbSize;  // The size of the structure, in bytes. 
                  // This member must be set to sizeof(LASTINPUTINFO).
   DWORD dwTime;
@@ -38,3 +36,4 @@ class GetLastInputInfo(angr.SimProcedure):
     def fill_concrete(self):
         self.cbSize = self.state.solver.BVV(3, 32)
         self.dwTime = self.state.solver.BVV(3, 32)
+

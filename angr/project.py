@@ -570,11 +570,11 @@ class Project:
             #if we don't want stubs during the sync let's skip those, we will execute the real function.
             if not stubs_on_sync and simproc_obj.is_stub:
                 continue
+
+            if simproc_obj.display_name == symbol_name:
+                new_sim_procedures[new_address] = simproc_obj
             else:
-                if simproc_obj.display_name == symbol_name:
-                    new_sim_procedures[new_address] = simproc_obj
-                else:
-                    new_sim_procedures[key_address] = simproc_obj
+                new_sim_procedures[key_address] = simproc_obj
 
         self._sim_procedures = new_sim_procedures
 

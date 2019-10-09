@@ -15,14 +15,12 @@ class GetProcessAffinityMask(angr.SimProcedure):
     paffinity_mask = None
     saffinity_mask = None
 
-    def run(self, hProcess, lpProcessAffinityMask, lpSystemAffinityMask):
+    def run(self, _, lpProcessAffinityMask, lpSystemAffinityMask):
         self.fill_symbolic()
-        l.warn("Setting symbolic memory at %s %s", str(lpProcessAffinityMask), str(lpSystemAffinityMask))
+        l.info("Setting symbolic memory at %s %s", str(lpProcessAffinityMask), str(lpSystemAffinityMask))
 
         self.state.mem[lpProcessAffinityMask].dword = self.paffinity_mask
         self.state.mem[lpSystemAffinityMask].dword = self.saffinity_mask
-
-
 
         return 1
 
