@@ -16,7 +16,7 @@ l = logging.getLogger("state_plugin.concrete")
 
 class Concrete(SimStatePlugin):
     def __init__(self, segment_registers_initialized=False, segment_registers_callback_initialized=False,
-                 whitelist=None, fs_register_bp=None, synchronize_cle=True, stubs_on_sync=False,
+                 whitelist=None, fs_register_bp=None, synchronize_cle=True, stubs_on_sync=True,
                  already_sync_objects_addresses=None,
                  ):
 
@@ -32,6 +32,8 @@ class Concrete(SimStatePlugin):
 
         self.fs_register_bp = fs_register_bp
         self.synchronize_cle = synchronize_cle  # synchronize_cle
+
+        # this control if we want to get rid of stubs and execute real libraries functions after we sync.
         self.stubs_on_sync = stubs_on_sync
 
         if not already_sync_objects_addresses:

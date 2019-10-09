@@ -27,7 +27,6 @@ class SimulationManager:
 
     Note that you shouldn't usually be constructing SimulationManagers directly - there is a convenient shortcut for
     creating them in ``Project.factory``: see :class:`angr.factory.AngrObjectFactory`.
-    creating them in ``Project.factory``: see :class:`angr.factory.AngrObjectFactory`.
 
     The most important methods you should look at are ``step``, ``explore``, and ``use_technique``.
 
@@ -315,7 +314,7 @@ class SimulationManager:
         :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
-        #l.info("Stepping %s of %s", stash, self)
+        l.info("Stepping %s of %s", stash, self)
         # 8<----------------- Compatibility layer -----------------
         if n is not None or until is not None:
             if once('simgr_step_n_until'):
