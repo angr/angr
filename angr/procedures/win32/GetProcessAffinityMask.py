@@ -11,11 +11,11 @@ BOOL GetProcessAffinityMask(
   PDWORD_PTR lpSystemAffinityMask
 );
 '''
-class GetProcessAffinityMask(angr.SimProcedure): #pylint:disable=arguments-differ
+class GetProcessAffinityMask(angr.SimProcedure): 
     paffinity_mask = None
     saffinity_mask = None
 
-    def run(self, _, lpProcessAffinityMask, lpSystemAffinityMask):
+    def run(self, _, lpProcessAffinityMask, lpSystemAffinityMask): #pylint:disable=arguments-differ
         self.fill_symbolic()
         l.info("Setting symbolic memory at %s %s", str(lpProcessAffinityMask), str(lpSystemAffinityMask))
 
