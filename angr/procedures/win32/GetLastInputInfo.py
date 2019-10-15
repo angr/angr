@@ -10,7 +10,7 @@ BOOL GetLastInputInfo(
 );
 
 typedef struct tagLASTINPUTINFO {
-  UINT  cbSize;  // The size of the structure, in bytes. 
+  UINT  cbSize;  // The size of the structure, in bytes.
                  // This member must be set to sizeof(LASTINPUTINFO).
   DWORD dwTime;
 } LASTINPUTINFO, *PLASTINPUTINFO;
@@ -20,9 +20,9 @@ class GetLastInputInfo(angr.SimProcedure):
     cbSize = None
     dwTime = None
 
-    def run(self, plii):
+    def run(self, plii):  #pylint:disable=arguments-differ
         self.fill_symbolic()
-        l.warn("Setting symbolic memory at %s", str(plii))
+        l.info("Setting symbolic memory at %s", str(plii))
 
         self.state.mem[plii].dword = self.cbSize
         self.state.mem[plii+4].dword = self.dwTime
