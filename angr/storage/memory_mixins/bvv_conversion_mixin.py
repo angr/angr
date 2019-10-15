@@ -2,7 +2,7 @@ import logging
 
 l = logging.getLogger(__name__)
 
-class FixupMixin:
+class BVVConversionMixin:
     def store(self, addr, data, size=None, **kwargs):
         if isinstance(data, str):
             l.warning("Storing unicode string encoded as utf-8. Did you mean to use a bytestring?")

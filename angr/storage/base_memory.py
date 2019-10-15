@@ -1,7 +1,5 @@
 import logging
 import claripy
-from sortedcontainers import SortedDict
-from archinfo.arch_arm import is_arm_arch
 from ..state_plugins.plugin import SimStatePlugin
 
 
@@ -63,14 +61,6 @@ class SimMemory(SimStatePlugin):
         if condition_e is not None and self.state.solver.is_false(condition_e):
             if priv is not None: self.state.scratch.pop_priv()
             return
-
-        if (
-            o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
-            isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized and
-            addr_e.uc_alloc_depth is not None
-        ):
-            self._constrain_underconstrained_index(addr_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         try:
@@ -234,14 +224,6 @@ class SimMemory(SimStatePlugin):
 
         endness = self.endness if endness is None else endness
 
-        if (
-            o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
-            isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized and
-            addr_e.uc_alloc_depth is not None
-        ):
-            self._constrain_underconstrained_index(addr_e)
-
         try:
             a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=_inspect,
                                events=not disable_actions, ret_on_segv=ret_on_segv)
@@ -295,16 +277,6 @@ class SimMemory(SimStatePlugin):
                                                                if len(c) > 0 else self.state.solver.true)
 
         return r
-
-    def _constrain_underconstrained_index(self, addr_e):
-        if not self.state.uc_manager.is_bounded(addr_e) or self.state.solver.max_int(addr_e) - self.state.solver.min_int( addr_e) >= self._read_address_range:
-            # in under-constrained symbolic execution, we'll assign a new memory region for this address
-            mem_region = self.state.uc_manager.assign(addr_e)
-
-            # ... but only if it's not already been constrained to something!
-            if self.state.solver.solution(addr_e, mem_region):
-                self.state.add_constraints(addr_e == mem_region)
-            l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
     def normalize_address(self, addr, is_write=False):  # pylint:disable=no-self-use,unused-argument
         """
@@ -370,6 +342,5 @@ class SimMemory(SimStatePlugin):
 
 from .. import sim_options as o
 from ..state_plugins.sim_action import SimActionData
-from ..state_plugins.sim_action_object import SimActionObject, _raw_ast
-from ..errors import SimMemoryError, SimRegionMapError, SimSegfaultError
-from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
+from ..state_plugins.sim_action_object import SimActionObject
+from ..errors import SimMemoryError, SimSegfaultError
