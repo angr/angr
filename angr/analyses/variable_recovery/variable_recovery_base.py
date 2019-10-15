@@ -7,6 +7,7 @@ from ailment.expression import BinaryOp, StackBaseOffset
 from ...keyed_region import KeyedRegion
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 from ..analysis import Analysis
+from ..typehoon.typevars import TypeVariables
 
 l = logging.getLogger(name=__name__)
 
@@ -87,7 +88,8 @@ class VariableRecoveryStateBase:
     The base abstract state for variable recovery analysis.
     """
 
-    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None):
+    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, typevars=None,
+                 type_constraints=None):
 
         self.block_addr = block_addr
         self._analysis = analysis
@@ -102,6 +104,9 @@ class VariableRecoveryStateBase:
             self.register_region = register_region
         else:
             self.register_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
+
+        self.typevars = TypeVariables() if typevars is None else typevars
+        self.type_constraints = set() if type_constraints is None else type_constraints
 
     @property
     def func_addr(self):
@@ -133,6 +138,16 @@ class VariableRecoveryStateBase:
         """
 
         return self._analysis.get_variable_definitions(block_addr)
+
+    def add_type_constraint(self, constraint):
+        """
+        Add a new type constraint.
+
+        :param constraint:
+        :return:
+        """
+
+        self.type_constraints.add(constraint)
 
     #
     # Private methods

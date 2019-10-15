@@ -60,12 +60,12 @@ class SimEngineRDAIL(
     # AIL statement handlers
     #
 
-    def _ail_handle_Stmt(self, stmt):
+    def _handle_Stmt(self, stmt):
 
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
-        super(SimEngineRDAIL, self)._ail_handle_Stmt(stmt)
+        super(SimEngineRDAIL, self)._handle_Stmt(stmt)
 
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
