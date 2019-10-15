@@ -11,7 +11,7 @@ BOOL GetProcessAffinityMask(
   PDWORD_PTR lpSystemAffinityMask
 );
 '''
-class GetProcessAffinityMask(angr.SimProcedure): 
+class GetProcessAffinityMask(angr.SimProcedure):
     paffinity_mask = None
     saffinity_mask = None
 
