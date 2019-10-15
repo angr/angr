@@ -132,12 +132,11 @@ class Project:
         if isinstance(arch, str):
             self.arch = archinfo.arch_from_id(arch)  # may raise ArchError, let the user see this
         elif isinstance(arch, archinfo.Arch):
-            self.arch = arch
+            self.arch = arch # type: archinfo.Arch
         elif arch is None:
             self.arch = self.loader.main_object.arch
         else:
             raise ValueError("Invalid arch specification.")
-
         # Step 3: Set some defaults and set the public and private properties
         if not default_analysis_mode:
             default_analysis_mode = 'symbolic'

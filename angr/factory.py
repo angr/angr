@@ -1,5 +1,8 @@
 import logging
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+from typing import overload, Any, Union
+
+from archinfo.arch_soot import SootAddressDescriptor
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
@@ -273,6 +276,21 @@ class AngrObjectFactory(object):
                 sizes=sizes,
                 sp_delta=sp_delta,
                 func_ty=func_ty)
+
+
+    @overload
+    def block(self, addr: int, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None, collect_data_refs=False,
+              ) -> 'Block': ...
+
+    @overload
+    def block(self, addr: SootAddressDescriptor, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None, collect_data_refs=False,
+              ) -> 'SootBlock': ...
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,

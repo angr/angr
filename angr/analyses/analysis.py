@@ -127,7 +127,7 @@ class Analysis:
     :ivar progressbar.ProgressBar _progressbar: The progress bar object.
     """
 
-    project = None
+    project = None # type: 'angr.Project'
     kb = None
     _fail_fast = None
     _name = None
