@@ -231,6 +231,8 @@ class LiveDefinitions:
                 return {self.tmp_definitions[atom.tmp_idx]}
             else:
                 return self.tmp_definitions[atom.tmp_idx]
+        else:
+            raise TypeError()
 
     def mark_guard(self, code_loc, data, target):
         pass
