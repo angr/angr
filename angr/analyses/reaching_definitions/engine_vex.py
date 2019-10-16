@@ -168,6 +168,13 @@ class SimEngineRDVEX(
     # VEX expression handlers
     #
 
+    def _expr(self, stmt):
+        data = super()._expr(stmt)
+        if data is None:
+            bits = stmt.result_size(self.tyenv)
+            data = DataSet(undefined, bits)
+        return data
+
     def _handle_RdTmp(self, expr):
         tmp = expr.tmp
 
@@ -175,8 +182,7 @@ class SimEngineRDVEX(
 
         if tmp in self.tmps:
             return self.tmps[tmp]
-        bits = expr.result_size(self.tyenv)
-        return DataSet(undefined, bits)
+        return None
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_Get(self, expr):
