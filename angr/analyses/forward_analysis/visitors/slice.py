@@ -2,6 +2,7 @@ from functools import reduce
 
 from angr.analyses.cfg.cfg_utils import CFGUtils
 from angr.analyses.forward_analysis.visitors.graph import GraphVisitor
+from angr.analyses.slice_to_sink import slice_graph
 
 
 class SliceVisitor(GraphVisitor):
@@ -25,29 +26,11 @@ class SliceVisitor(GraphVisitor):
     @property
     def cfg(self):
         if self._cfg is None:
-            if (self._original_cfg):
-                graph = self._original_cfg.graph
-
-            def _edge_in_slice_transitions(transitions, edge):
-                if edge[0].addr not in transitions.keys():
-                    return False
-                return edge[1].addr in self._slice.transitions[edge[0].addr]
-
-            original_edges = self._original_cfg.graph.edges()
-            edges_to_remove = list(filter(
-                lambda edge: not _edge_in_slice_transitions(self._slice.transitions, edge),
-                original_edges
-            ))
-
-            original_nodes = self._original_cfg.graph.nodes()
-            nodes_to_remove = list(filter(
-                lambda node: node.addr not in self._slice.nodes,
-                original_nodes
-            ))
-
             self._cfg = self._original_cfg.copy()
-            self._cfg.graph.remove_edges_from(edges_to_remove)
-            self._cfg.graph.remove_nodes_from(nodes_to_remove)
+            slice_graph(self._cfg.graph, self._slice)
+
+            for node in self._cfg.nodes():
+                node._cfg_model = self._cfg
 
         return self._cfg
 
@@ -93,3 +76,22 @@ class SliceVisitor(GraphVisitor):
             sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
 
         return sorted_nodes
+
+    def remove_from_sorted_nodes(self, visited_blocks):
+        """
+        :param List[Union[Block,CFGNode]] visited_blocks: A list of visited blocks, to remove from the list of things to visit.
+
+        Remove visited nodes from the iherited `_sorted_nodes` attribute.
+        """
+        visited_addresses = list(map(
+            lambda n: n.addr,
+            visited_blocks
+        ))
+
+        nodes_to_remove = list(filter(
+            lambda n: n.addr in visited_addresses,
+            self._sorted_nodes
+        ))
+
+        for n in nodes_to_remove:
+            self._sorted_nodes.remove(n)

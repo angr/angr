@@ -10,6 +10,7 @@ from angr.analyses.forward_analysis.visitors.slice import SliceVisitor
 from angr.analyses.slice_to_sink import SliceToSink
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.project import Project
+from claripy.utils.orderedset import OrderedSet
 
 
 BINARIES_PATH = os.path.join(
@@ -120,3 +121,19 @@ class TestSliceVisitor():
         nose.tools.assert_equal(isinstance(slice_cfg, CFGBase), True)
         nose.tools.assert_equal(len(slice_cfg.graph.edges), 1)
         nose.tools.assert_equal(len(slice_cfg.graph.nodes), 2)
+
+
+    def test_remove_from_sorted_nodes(self, _):
+        """
+        Test the side-effect of a method on an ihnerited private property...
+        """
+        slice_visitor = SliceVisitor(None, None)
+
+        arbitrarily_chosen_nodes = [PRINTF_NODE] + PRINTF_NODE.predecessors
+        slice_visitor._sorted_nodes = OrderedSet(arbitrarily_chosen_nodes)
+
+        visited_blocks = PRINTF_NODE.predecessors
+
+        slice_visitor.remove_from_sorted_nodes(visited_blocks)
+
+        nose.tools.assert_list_equal(list(slice_visitor._sorted_nodes), [PRINTF_NODE])
