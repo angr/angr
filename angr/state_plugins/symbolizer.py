@@ -11,6 +11,8 @@ def _reg_write_cb(s): s.symbolizer._reg_write_callback()
 def _reg_read_cb(s): s.symbolizer._reg_read_callback()
 def _page_map_cb(s): s.symbolizer._page_map_callback()
 
+PAGE_SIZE = 0x1000
+
 from .plugin import SimStatePlugin
 class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
     """
@@ -36,7 +38,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
     def _page_map_callback(self):
         if self._symbolize_all:
-            self.symbolization_target_pages.add(self.state.inspect.mapped_address//0x1000)
+            self.symbolization_target_pages.add(self.state.memory.mem._page_id(self.state.inspect.mapped_address))
 
     def _mem_write_callback(self):
         if not isinstance(self.state.inspect.mem_write_expr, int) and self.state.inspect.mem_write_expr.symbolic:
@@ -49,7 +51,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         #   return
 
         write_expr = self.state.inspect.mem_write_expr
-        byte_expr = self.state.solver.eval_one(self.state.inspect.mem_write_expr, cast_to=bytes).rjust(write_expr.length//8)
+        byte_expr = self.state.solver.eval_one(write_expr, cast_to=bytes).rjust(write_expr.length//8)
         replacement_expr = self._resymbolize_data(byte_expr)
         if replacement_expr is not None:
             assert replacement_expr.length == write_expr.length
@@ -77,10 +79,10 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         self._BE_FMT = self.state.arch.struct_fmt(endness='Iend_BE')
 
         # ignore CLE pages
-        for i in range(0, self.state.project.loader.kernel_object.map_size, 0x1000):
-            self.ignore_target_pages.add((self.state.project.loader.kernel_object.mapped_base+i)//0x1000)
-        for i in range(0, self.state.project.loader.extern_object.map_size, 0x1000):
-            self.ignore_target_pages.add((self.state.project.loader.extern_object.mapped_base+i)//0x1000)
+        for i in range(0, self.state.project.loader.kernel_object.map_size, PAGE_SIZE):
+            self.ignore_target_pages.add((self.state.project.loader.kernel_object.mapped_base+i)//PAGE_SIZE)
+        for i in range(0, self.state.project.loader.extern_object.map_size, PAGE_SIZE):
+            self.ignore_target_pages.add((self.state.project.loader.extern_object.mapped_base+i)//PAGE_SIZE)
 
         self.state.inspect.make_breakpoint('memory_page_map', when=self.state.inspect.BP_BEFORE, action=_page_map_cb)
         self.state.inspect.make_breakpoint('mem_write', when=self.state.inspect.BP_BEFORE, action=_mem_write_cb)
@@ -90,9 +92,19 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
         self._zero = claripy.BVV(0, self.state.arch.bytes)
 
+    @staticmethod
+    def _page_id(x):
+        return x // PAGE_SIZE
+    @staticmethod
+    def _page_addr(p):
+        return p * PAGE_SIZE
+    @staticmethod
+    def _page_offset(p):
+        return p % PAGE_SIZE
+
     def _update_ranges(self):
-        self._min_addr = min(self.symbolization_target_pages)*0x1000
-        self._max_addr = (max(self.symbolization_target_pages)+1)*0x1000
+        self._min_addr = self._page_addr(min(self.symbolization_target_pages))
+        self._max_addr = self._page_addr((max(self.symbolization_target_pages)+1))
 
     def set_symbolization_for_all_pages(self):
         """
@@ -102,8 +114,8 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         self.symbolization_target_pages.update(set(self.state.memory.mem._pages.keys()))
         # handle bigger pages
         for pg in self.state.memory.mem._pages.values():
-            if pg._page_size != 0x1000:
-                self.symbolization_target_pages.update(pg._page_size + i for i in range(0, pg._page_size, 0x1000))
+            if pg._page_size != PAGE_SIZE:
+                self.symbolization_target_pages.update(pg._page_size + i for i in range(0, pg._page_size, PAGE_SIZE))
         self._update_ranges()
 
     def set_symbolized_target_range(self, base, length):
@@ -113,14 +125,14 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         Due to optimizations, the _pages_ containing this range will be set as symbolization targets,
         not just the range itself.
         """
-        base_page = base // 0x1000
-        pages = (length + base % 0x1000 + 0x999) // 0x1000
+        base_page = self._page_id(base)
+        pages = (length + self._page_offset(base) + PAGE_SIZE-1) // PAGE_SIZE
         assert pages > 0
         self.symbolization_target_pages.update(range(base_page, base_page+pages))
         self._update_ranges()
 
     def _preconstrain(self, value, name_prefix="address_"):
-        page_base = value & ~(0x1000-1)
+        page_base = value & ~(PAGE_SIZE-1)
         try:
             symbol = self.page_symbols[page_base]
         except KeyError:
@@ -131,7 +143,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         return symbol + (value - page_base)
 
     def _should_symbolize(self, addr):
-        return addr//0x1000 in self.symbolization_target_pages and not addr//0x1000 in self.ignore_target_pages
+        return self._page_id(addr) in self.symbolization_target_pages and not self._page_id(addr) in self.ignore_target_pages
 
     def _resymbolize_int(self, be, le=0, base=0, offset=0, skip=()):
         if base+offset in skip:
