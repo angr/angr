@@ -18,52 +18,32 @@ class TypeState:
             self.constraints.add(constraint)
 
 
-class Typehoon(ForwardAnalysis, Analysis):
+class Typehoon(Analysis):
     """
     A spiritual tribute to the long-standing typehoon project that @jmg (John Grosen) worked on during his days in the
     angr team. Now I feel really bad of asking the poor guy to work directly on VEX IR without any fancy static analysis
     support as we have right now...
+
+    Typehoon analysis implements a pushdown system that simplifies and solves type constraints. Our type constraints are
+    largely an implementation of the paper Polymorphic Type Inference for Machine Code by Noonan, Loginov, and Cok from
+    GrammaTech (with missing functionality support and bugs, of course). Type constraints are collected by running
+    VariableRecoveryFast (maybe VariableRecovery later as well) on a function, and then solved using this analysis.
+
+    User may specify ground truth, which will override all types at certain program points during constraint solving.
     """
-    def __init__(self, func, clinic=None, ground_truth=None):
+    def __init__(self, constraints, ground_truth=None):
 
-        self._graph_visitor = FunctionGraphVisitor(func)
-
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, graph_visitor=self._graph_visitor)
-
-        self._func = func
-        self._clinic = clinic
+        self._constraints = constraints
         self._ground_truth = ground_truth
 
         self._analyze()
 
-    @property
-    def _use_ail(self):
-        return self._clinic is not None
+    def _analyze(self):
 
-    def _to_ailblock(self, node):
-        return self._clinic.block(node.addr, node.size)
+        self._simplify()
 
-    def _to_block(self, node):
-        return self.project.factory.block(node.addr, size=node.size)
-
-    #
-    # Handlers
-    #
-
-    def _pre_analysis(self):
-        pass
-
-    def _intra_analysis(self):
-        pass
-
-    def _post_analysis(self):
-        pass
-
-    def _initial_abstract_state(self, node):
-        return TypeState(node.addr, self.project.arch)
-
-    def _run_on_node(self, node, state):
-        raise NotImplementedError()
+    def _simplify(self):
+        print(self._constraints)
 
 
 AnalysesHub.register_default("Typehoon", Typehoon)

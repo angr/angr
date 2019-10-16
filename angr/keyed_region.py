@@ -312,13 +312,13 @@ class KeyedRegion:
         Find variables covering the given region offset.
 
         :param int start:
-        :return: A list of stack variables.
+        :return: A set of stack variables.
         :rtype:  set
         """
 
         _, container = self._get_container(start)
         if container is None:
-            return []
+            return set()
         else:
             return container.internal_objects
 

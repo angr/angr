@@ -310,18 +310,16 @@ class SimEngineVRBase(SimEngineLight):
 
             # create type constraints
             if not self.state.typevars.has_type_variable_for(var, codeloc):
-                addr_typevar = typevars.TypeVariable()
-                self.state.typevars.add_type_variable(var, codeloc, addr_typevar)
+                typevar = typevars.TypeVariable()
+                self.state.typevars.add_type_variable(var, codeloc, typevar)
             else:
-                addr_typevar = self.state.typevars.get_type_variable(var, codeloc)
-            self.state.add_type_constraint(
-                typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(addr_typevar, typevars.Load()),
-                    typevars.HasField(size * 8, 0)
-                )
+                typevar = self.state.typevars.get_type_variable(var, codeloc)
+            typevar = typevars.DerivedTypeVariable(
+                typevars.DerivedTypeVariable(typevar, typevars.Load()),
+                typevars.HasField(size * 8, 0)
             )
 
-            return RichR(None, variable=var)
+            return RichR(None, variable=var, typevar=typevar)
 
         # Loading data from a pointer
 
@@ -330,14 +328,16 @@ class SimEngineVRBase(SimEngineLight):
         if (isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and
                 isinstance(richr_addr.typevar.label, typevars.AddN)):
             offset = richr_addr.typevar.label.n
+            richr_addr_typevar = richr_addr.typevar.type_var  # unpack
+        else:
+            richr_addr_typevar = richr_addr.typevar
 
         # create a type constraint
-        self.state.add_type_constraint(typevars.DerivedTypeVariable(
-                typevars.DerivedTypeVariable(richr_addr.typevar, typevars.Load()),
-                typevars.HasField(size * 8, offset)
-            )
+        typevar = typevars.DerivedTypeVariable(
+            typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
+            typevars.HasField(size * 8, offset)
         )
-        return RichR(None)
+        return RichR(None, typevar=typevar)
 
     def _read_from_register(self, offset, size, expr=None):
         """
