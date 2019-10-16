@@ -168,10 +168,10 @@ class SimEngineRDVEX(
     # VEX expression handlers
     #
 
-    def _expr(self, stmt):
-        data = super()._expr(stmt)
+    def _expr(self, expr):
+        data = super()._expr(expr)
         if data is None:
-            bits = stmt.result_size(self.tyenv)
+            bits = expr.result_size(self.tyenv)
             data = DataSet(undefined, bits)
         return data
 
