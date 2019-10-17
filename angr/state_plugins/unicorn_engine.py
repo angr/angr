@@ -1371,8 +1371,7 @@ class Unicorn(SimStatePlugin):
         return True
 
 
-
-from ..engines.vex import ccall
+from angr.engines.vex.claripy import ccall
 from .. import sim_options as options
 
 from angr.sim_state import SimState

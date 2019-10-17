@@ -6,9 +6,9 @@ from archinfo import ArchARM
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
-from .engines import SimEngineVEX
+from .engines.vex import VEXLifter
 
-DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
+DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not initialized with a project
 
 
 class Block(Serializable):

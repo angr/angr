@@ -2,15 +2,21 @@ import angr
 import logging
 l = logging.getLogger(name=__name__)
 
-from .engine import SimEngine
+from .engine import SuccessorsMixin
+from .procedure import ProcedureMixin
 
 #pylint:disable=abstract-method,arguments-differ
-class SimEngineSyscall(SimEngine):
-    def _check(self, state, **kwargs):
-        jumpkind = state.history.jumpkind
-        return jumpkind is not None and jumpkind.startswith('Ijk_Sys')
+class SimEngineSyscall(SuccessorsMixin, ProcedureMixin):
+    """
+    A SimEngine mixin which adds a successors handling step that checks if a syscall was just requested and if so
+    handles it as a step.
+    """
+    def process_successors(self, successors, **kwargs):
+        state = self.state
+        # we have at this point entered the next step so we need to check the previous jumpkind
+        if not state.history or not state.history.parent or not state.history.parent.jumpkind or not state.history.parent.jumpkind.startswith('Ijk_Sys'):
+            return super().process_successors(successors, **kwargs)
 
-    def process(self, state, **kwargs):
         l.debug("Invoking system call handler")
         sys_procedure = self.project.simos.syscall(state)
 
@@ -29,7 +35,6 @@ class SimEngineSyscall(SimEngine):
 
                 sys_procedure = angr.SIM_PROCEDURES['stubs']['syscall'](cc=cc)
 
-        addr = state.solver.eval(state._ip)
-        return self.project.factory.procedure_engine.process(state, sys_procedure, force_addr=addr)
+        return self.process_procedure(state, successors, sys_procedure, **kwargs)
 
 from ..errors import AngrUnsupportedSyscallError

@@ -5,7 +5,7 @@ import pyvex
 import claripy
 
 from angr import SimState, SimEngineVEX
-import angr.engines.vex.ccall as s_ccall
+import angr.engines.vex.claripy.ccall as s_ccall
 
 l = logging.getLogger('angr.tests.test_vex')
 
@@ -146,7 +146,7 @@ def test_aarch64_32bit_ccalls():
 
 
 def test_some_vector_ops():
-    from angr.engines.vex.irop import translate
+    from angr.engines.vex.claripy.irop import translate
 
     s = SimState(arch='AMD64')
 
@@ -240,8 +240,6 @@ def test_loadg_no_constraint_creation():
 
     state = SimState(arch='armel', mode='symbolic')
     engine = SimEngineVEX()
-
-    from angr.engines.vex.statements.loadg import SimIRStmt_LoadG
 
     stmt = pyvex.IRStmt.LoadG('Iend_LE', 'ILGop_16Uto32',
                               0, # dst

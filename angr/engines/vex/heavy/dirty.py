@@ -3,10 +3,9 @@ import claripy
 import logging
 import time
 
-from ... import sim_options as o
+from angr import sim_options as o
 
 l = logging.getLogger(name=__name__)
-
 
 #####################
 # Dirty calls

@@ -5,7 +5,7 @@ from collections import defaultdict, OrderedDict
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from ....engines.vex import ccall
+from angr.engines.vex.claripy import ccall
 from ....engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, RegisterOffset
 from ....errors import AngrError, SimError
 from ....blade import Blade

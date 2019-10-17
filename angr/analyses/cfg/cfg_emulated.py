@@ -12,7 +12,7 @@ from archinfo import ArchARM
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
-from ...engines import SimEngineProcedure
+from ...engines.procedure import ProcedureMixin
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
 from ...exploration_techniques.explorer import Explorer
