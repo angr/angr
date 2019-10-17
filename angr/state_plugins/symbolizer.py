@@ -75,6 +75,8 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
     def init_state(self):
         super().init_state()
+        assert self.state.memory.mem._page_size == PAGE_SIZE
+
         self._LE_FMT = self.state.arch.struct_fmt(endness='Iend_LE')
         self._BE_FMT = self.state.arch.struct_fmt(endness='Iend_BE')
 
