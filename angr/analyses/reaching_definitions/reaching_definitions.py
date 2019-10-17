@@ -38,7 +38,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state=None, init_func=False, cc=None, function_handler=None,
-                 current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False):
+                 current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None):
         """
         :param Block|Function subject: The subject of the analysis: a function, or a single basic block.
         :param func_graph:                      Alternative graph for function.graph.
@@ -58,6 +58,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         :param int current_local_call_depth:    Current local function recursion depth.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
         :param Boolean observe_all:             Observe every statement, both before and after.
+        :param List<ailment.Block|Block|CodeNode|CFGNode> visited_blocks:
+                                                A list of previously visited blocks.
         """
 
         def _init_subject(subject):
@@ -109,6 +111,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._engine_ail = SimEngineRDAIL(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
 
+        self._visited_blocks = visited_blocks or []
+
         self.observed_results = {}
 
         self._analyze()
@@ -122,6 +126,10 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             raise ValueError("More than one results are available.")
 
         return next(iter(self.observed_results.values()))
+
+    @property
+    def visited_blocks(self):
+        return self._visited_blocks
 
     @deprecated(replacement="get_reaching_definitions_by_insn")
     def get_reaching_definitions(self, ins_addr, op_type):
@@ -204,6 +212,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return states[0].merge(*states[1:])
 
     def _run_on_node(self, node, state):
+        self._visited_blocks.append(node)
 
         if isinstance(node, ailment.Block):
             block = node
@@ -220,11 +229,12 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self.node_observe(node.addr, state, OP_BEFORE)
 
         state = state.copy()
-        state = engine.process(state, block=block, fail_fast=self._fail_fast)
-
-        # clear the tmp store
-        # state.tmp_uses.clear()
-        # state.tmp_definitions.clear()
+        state, self._visited_blocks = engine.process(
+            state,
+            block=block,
+            fail_fast=self._fail_fast,
+            visited_blocks=self._visited_blocks
+        )
 
         self._node_iterations[block_key] += 1
 

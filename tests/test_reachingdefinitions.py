@@ -122,6 +122,23 @@ class ReachingDefinitionAnalysisTest(TestCase):
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
 
 
+    def test_reaching_definition_analysis_visited_blocks(self):
+        def _result_extractor(rda):
+            return rda.visited_blocks
+
+        binaries_and_results = list(map(
+            lambda binary: (self._binary_path(binary), self._result_path(binary + '_visited_blocks')),
+            ['all', 'fauxware', 'loop']
+        ))
+
+        for binary, result_path in binaries_and_results:
+            project = angr.Project(binary, load_options={'auto_load_libs': False})
+            cfg = project.analyses.CFGFast()
+            function = cfg.kb.functions['main']
+
+            self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
+
+
     def test_node_observe(self):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_AFTER)]

@@ -53,7 +53,7 @@ class SimEngineLight(SimEngine):
 
 class SimEngineLightVEXMixin:
 
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
+    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
         assert block is not None
 
@@ -61,8 +61,11 @@ class SimEngineLightVEXMixin:
         self.tmps = {}
         self.block = block
         self.state = state
+
         if state is not None:
             self.arch = state.arch
+
+        self._visited_blocks = kwargs.pop('visited_blocks', None)
 
         self.tyenv = block.vex.tyenv
 
@@ -520,12 +523,14 @@ class SimEngineLightVEXMixin:
 
 class SimEngineLightAILMixin:
 
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
+    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
         self.tmps = {}
         self.block = block
         self.state = state
         self.arch = state.arch
+
+        self._visited_blocks = kwargs.pop('visited_blocks', None)
 
         self._process_Stmt(whitelist=whitelist)
 
