@@ -1,39 +1,15 @@
 import logging
 l = logging.getLogger(name=__name__)
 
-from .engine import SimEngine
-
 #pylint: disable=arguments-differ
 
-class SimEngineProcedure(SimEngine):
+class ProcedureMixin:
     """
-    An engine for running SimProcedures
+    A mixin for SimEngine which adds the ``process_procedure`` method for calling a SimProcedure and adding its results
+    to a SimSuccessors.
     """
 
-    def process(self, state, procedure,
-            ret_to=None,
-            inline=None,
-            force_addr=None,
-            **kwargs):
-        """
-        Perform execution with a state.
-
-        :param state:       The state with which to execute
-        :param procedure:   An instance of a SimProcedure to run
-        :param ret_to:      The address to return to when this procedure is finished
-        :param inline:      This is an inline execution. Do not bother copying the state.
-        :param force_addr:  Force execution to pretend that we're working at this concrete address
-        :returns:           A SimSuccessors object categorizing the execution's successor states
-        """
-        return super(SimEngineProcedure, self).process(state, procedure,
-                ret_to=ret_to,
-                inline=inline,
-                force_addr=force_addr)
-
-    def _check(self, state, *args, **kwargs):
-        return True
-
-    def _process(self, state, successors, procedure, ret_to=None):
+    def process_procedure(self, state, successors, procedure, ret_to=None, **kwargs):
         successors.sort = 'SimProcedure'
 
         # fill in artifacts

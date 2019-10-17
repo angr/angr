@@ -262,11 +262,11 @@ def test_inspect_engine_process():
 
     def first_symbolic_fork(state):
         return hex(state.addr) == '0x40068eL' \
-           and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
+           and type(state.inspect.sim_engine) == angr.engines.vex.light.SimEngineVEX
 
     def second_symbolic_fork(state):
         return hex(state.addr) == '0x4006dbL' \
-           and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
+           and type(state.inspect.sim_engine) == angr.engines.vex.light.SimEngineVEX
 
     def check_state(state):
         nose.tools.assert_in(hex(state.inspect.sim_successors.addr), ('0x40068eL', '0x4006dbL'))

@@ -7,7 +7,7 @@ import ailment
 import pyvex
 
 from ..engine import SimEngine
-from ..vex.irop import operations as vex_operations
+from angr.engines.vex.claripy.irop import operations as vex_operations
 from ...analyses.code_location import CodeLocation
 
 

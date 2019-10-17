@@ -8,7 +8,7 @@ from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
 from .undefined import Undefined, undefined
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
-from ...engines.vex.irop import operations as vex_operations
+from angr.engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 
 l = logging.getLogger(name=__name__)

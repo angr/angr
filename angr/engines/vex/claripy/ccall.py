@@ -15,26 +15,29 @@ l = logging.getLogger(name=__name__)
 ###############
 
 # There might be a better way of doing this
-def calc_paritybit(state, p, msb=7, lsb=0):
+def calc_paritybit(p, msb=7, lsb=0):
     if len(p) > msb:
         p_part = p[msb:lsb]
     else:
         p_part = p
 
-    b = state.solver.BVV(1, 1)
+    b = claripy.BVV(1, 1)
     for i in range(p_part.size()):
         b = b ^ p_part[i]
     return b
 
-def calc_zerobit(state, p):
-    return state.solver.If(p == 0, state.solver.BVV(1, 1), state.solver.BVV(0, 1))
+def calc_zerobit(p):
+    return claripy.If(p == 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
 
-def boolean_extend(state, O, a, b, size):
-    return state.solver.If(O(a, b), state.solver.BVV(1, size), state.solver.BVV(0, size))
+def boolean_extend(O, a, b, size):
+    return claripy.If(O(a, b), claripy.BVV(1, size), claripy.BVV(0, size))
 
-def flag_concretize(state, flag):
-    return state.solver.eval(flag)
-    #return state.solver.eval_one(flag)
+def op_concretize(op):
+    if type(op) is int:
+        return op
+    if op.op != 'BVV':
+        raise SimError("Hit a symbolic conditional operation. Something has gone wildly wrong.")
+    return op.args[0]
 
 ##################
 ### x86* data ###
@@ -241,8 +244,8 @@ data['X86']['size'] = 32
 #
 # AMD64 internal helpers
 #
-def pc_preamble(state, nbits, platform=None):
-    data_mask = state.solver.BVV(2 ** nbits - 1, nbits)
+def pc_preamble(nbits):
+    data_mask = claripy.BVV(2 ** nbits - 1, nbits)
     sign_mask = 1 << (nbits - 1)
     return data_mask, sign_mask
 
@@ -260,54 +263,50 @@ def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
     return _concat_flags(nbits, vec)
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
-    data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
+    data_mask, sign_mask = pc_preamble(nbits)
     res = arg_l + arg_r
 
-    cf = state.solver.If(state.solver.ULT(res, arg_l), state.solver.BVV(1, 1), state.solver.BVV(0, 1))
-    pf = calc_paritybit(state, res)
+    cf = claripy.If(claripy.ULT(res, arg_l), claripy.BVV(1, 1), claripy.BVV(0, 1))
+    pf = calc_paritybit(res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
-    zf = calc_zerobit(state, res)
+    zf = calc_zerobit(res)
     sf = res[nbits - 1:nbits - 1]
     of = ((arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))[nbits - 1:nbits - 1]
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
-    data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
     res = arg_l - arg_r
 
-    cf = state.solver.If(state.solver.ULT(arg_l, arg_r), state.solver.BVV(1, 1), state.solver.BVV(0, 1))
-    pf = calc_paritybit(state, res)
+    cf = claripy.If(claripy.ULT(arg_l, arg_r), claripy.BVV(1, 1), claripy.BVV(0, 1))
+    pf = calc_paritybit(res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
-    zf = calc_zerobit(state, res)
+    zf = calc_zerobit(res)
     sf = res[nbits - 1:nbits - 1]
     of = ((arg_l ^ arg_r) & (arg_l ^ res))[nbits - 1:nbits - 1]
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_LOGIC(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
-    data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
-
-    cf = state.solver.BVV(0, 1)
-    pf = calc_paritybit(state, arg_l)
-    af = state.solver.BVV(0, 1)
-    zf = calc_zerobit(state, arg_l)
+    cf = claripy.BVV(0, 1)
+    pf = calc_paritybit(arg_l)
+    af = claripy.BVV(0, 1)
+    zf = calc_zerobit(arg_l)
     sf = arg_l[nbits-1]
-    of = state.solver.BVV(0, 1)
+    of = claripy.BVV(0, 1)
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
-    data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
     arg_l = res + 1
     arg_r = 1
 
     cf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
-    pf = calc_paritybit(state, res)
+    pf = calc_paritybit(res)
     af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
-    zf = calc_zerobit(state, res)
+    zf = calc_zerobit(res)
     sf = res[nbits-1]
-    of = state.solver.If(sf == arg_l[nbits-1], state.solver.BVV(0, 1), state.solver.BVV(1, 1))
+    of = claripy.If(sf == arg_l[nbits-1], claripy.BVV(0, 1), claripy.BVV(1, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
@@ -316,63 +315,61 @@ def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     arg_r = cc_dep2 ^ old_c
     res = (arg_l + arg_r) + old_c
 
-    cf = state.solver.If(
+    cf = claripy.If(
             old_c != 0,
-            state.solver.If(res <= arg_l, state.solver.BVV(1, 1), state.solver.BVV(0, 1)),
-            state.solver.If(res < arg_l, state.solver.BVV(1, 1), state.solver.BVV(0, 1))
+            claripy.If(res <= arg_l, claripy.BVV(1, 1), claripy.BVV(0, 1)),
+            claripy.If(res < arg_l, claripy.BVV(1, 1), claripy.BVV(0, 1))
     )
-    pf = calc_paritybit(state, res)
+    pf = calc_paritybit(res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
-    zf = calc_zerobit(state, res)
+    zf = calc_zerobit(res)
     sf = res[nbits - 1]
     of = ((arg_l ^ arg_r ^ -1) & (arg_l ^ res))[nbits-1]
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SBB(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
-    data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
     old_c = cc_ndep[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']].zero_extend(nbits-1)
     arg_l = cc_dep1
     arg_r = cc_dep2 ^ old_c
     res = (arg_l - arg_r) - old_c
 
-    cf_c = state.solver.If(state.solver.ULE(arg_l, arg_r), state.solver.BVV(1, 1), state.solver.BVV(0, 1))
-    cf_noc = state.solver.If(state.solver.ULT(arg_l, arg_r), state.solver.BVV(1, 1), state.solver.BVV(0, 1))
-    cf = state.solver.If(old_c == 1, cf_c, cf_noc)
-    pf = calc_paritybit(state, res)
+    cf_c = claripy.If(claripy.ULE(arg_l, arg_r), claripy.BVV(1, 1), claripy.BVV(0, 1))
+    cf_noc = claripy.If(claripy.ULT(arg_l, arg_r), claripy.BVV(1, 1), claripy.BVV(0, 1))
+    cf = claripy.If(old_c == 1, cf_c, cf_noc)
+    pf = calc_paritybit(res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
-    zf = calc_zerobit(state, res)
+    zf = calc_zerobit(res)
     sf = res[nbits-1]
     of = ((arg_l ^ arg_r) & (arg_l ^ res))[nbits-1]
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
-    data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
     arg_l = res - 1
     arg_r = 1
 
     cf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
-    pf = calc_paritybit(state, res)
+    pf = calc_paritybit(res)
     af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
-    zf = calc_zerobit(state, res)
+    zf = calc_zerobit(res)
     sf = res[nbits-1]
-    of = state.solver.If(sf == arg_l[nbits-1], state.solver.BVV(0, 1), state.solver.BVV(1, 1))
+    of = claripy.If(sf == arg_l[nbits-1], claripy.BVV(0, 1), claripy.BVV(1, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHL(state, nbits, remaining, shifted, cc_ndep, platform=None):
     cf = ((remaining >> (nbits - 1)) & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
-    pf = calc_paritybit(state, remaining[7:0])
-    af = state.solver.BVV(0, 1)
-    zf = calc_zerobit(state, remaining)
+    pf = calc_paritybit(remaining[7:0])
+    af = claripy.BVV(0, 1)
+    zf = calc_zerobit(remaining)
     sf = remaining[nbits-1]
     of = (remaining[0] ^ shifted[0])[0]
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
-    cf = state.solver.If(shifted & 1 != 0, state.solver.BVV(1, 1), state.solver.BVV(0, 1))
-    pf = calc_paritybit(state, remaining[7:0])
-    af = state.solver.BVV(0, 1)
-    zf = calc_zerobit(state, remaining)
+    cf = claripy.If(shifted & 1 != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
+    pf = calc_paritybit(remaining[7:0])
+    af = claripy.BVV(0, 1)
+    zf = calc_zerobit(remaining)
     sf = remaining[nbits-1]
     of = (remaining[0] ^ shifted[0])[0]
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
@@ -383,7 +380,7 @@ def pc_actions_ROL(state, nbits, res, _, cc_ndep, platform=None):
     af = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_A'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_Z'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_Z']]
     sf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_S'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_S']]
-    of = (state.solver.LShR(res, nbits-1) ^ res)[0]
+    of = (claripy.LShR(res, nbits-1) ^ res)[0]
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ROR(state, nbits, res, _, cc_ndep, platform=None):
@@ -399,10 +396,10 @@ def pc_actions_UMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     lo = (cc_dep1 * cc_dep2)[nbits - 1:0]
     rr = lo
     hi = (rr >> nbits)[nbits - 1:0]
-    cf = state.solver.If(hi != 0, state.solver.BVV(1, 1), state.solver.BVV(0, 1))
-    zf = calc_zerobit(state, lo)
-    pf = calc_paritybit(state, lo)
-    af = state.solver.BVV(0, 1)
+    cf = claripy.If(hi != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
+    zf = calc_zerobit(lo)
+    pf = calc_paritybit(lo)
+    af = claripy.BVV(0, 1)
     sf = lo[nbits - 1]
     of = cf
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
@@ -415,10 +412,10 @@ def pc_actions_SMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     lo = (cc_dep1 * cc_dep2)[nbits - 1:0]
     rr = lo
     hi = (rr >> nbits)[nbits - 1:0]
-    cf = state.solver.If(hi != (lo >> (nbits - 1)), state.solver.BVV(1, 1), state.solver.BVV(0, 1))
-    zf = calc_zerobit(state, lo)
-    pf = calc_paritybit(state, lo)
-    af = state.solver.BVV(0, 1)
+    cf = claripy.If(hi != (lo >> (nbits - 1)), claripy.BVV(1, 1), claripy.BVV(0, 1))
+    zf = calc_zerobit(lo)
+    pf = calc_paritybit(lo)
+    af = claripy.BVV(0, 1)
     sf = lo[nbits - 1]
     of = cf
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
@@ -431,8 +428,7 @@ def pc_actions_SMULQ(*args, **kwargs):
 
 def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=None):
     # sanity check
-    if not isinstance(cc_op, int):
-        cc_op = flag_concretize(state, cc_op)
+    cc_op = op_concretize(cc_op)
 
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
         l.debug("cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']")
@@ -512,9 +508,9 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
     if isinstance(rdata_all, tuple):
-        return pc_make_rdata_if_necessary(data[platform]['size'], *rdata_all, platform=platform), [ ]
+        return pc_make_rdata_if_necessary(data[platform]['size'], *rdata_all, platform=platform)
     else:
-        return rdata_all, [ ]
+        return rdata_all
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
 # returns that bit
@@ -522,64 +518,61 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
     if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
-        if state.solver.symbolic(cond):
-            raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
+        v = op_concretize(cond)
 
-        v = flag_concretize(state, cond)
         inv = v & 1
         l.debug("inv: %d", inv)
 
         if v in [ data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO'] ]:
             l.debug("CondO")
-            #of = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+            #of = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
             r = 1 & (inv ^ of)
 
         elif v in [ data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ'] ]:
             l.debug("CondZ")
-            #zf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+            #zf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
             r = 1 & (inv ^ zf)
 
         elif v in [ data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB'] ]:
             l.debug("CondB")
-            #cf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
+            #cf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
             r = 1 & (inv ^ cf)
 
         elif v in [ data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE'] ]:
             l.debug("CondBE")
-            #cf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-            #zf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+            #cf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
+            #zf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
             r = 1 & (inv ^ (cf | zf))
 
         elif v in [ data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS'] ]:
             l.debug("CondS")
-            #sf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+            #sf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
             r = 1 & (inv ^ sf)
 
         elif v in [ data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP'] ]:
             l.debug("CondP")
-            #pf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
+            #pf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
             r = 1 & (inv ^ pf)
 
         elif v in [ data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL'] ]:
             l.debug("CondL")
-            #sf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            #of = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+            #sf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+            #of = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
             r = 1 & (inv ^ (sf ^ of))
 
         elif v in [ data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE'] ]:
             l.debug("CondLE")
-            #sf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            #of = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-            #zf = state.solver.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+            #sf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+            #of = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+            #zf = claripy.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
             r = 1 & (inv ^ ((sf ^ of) | zf))
+        else:
+            raise SimCCallError("Unrecognized condition in pc_calculate_condition. Panic.")
 
-        return state.solver.Concat(state.solver.BVV(0, state.arch.bits-1), r), [ ]
+        return claripy.Concat(claripy.BVV(0, state.arch.bits-1), r)
     else:
         rdata = rdata_all
-        if state.solver.symbolic(cond):
-            raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
-
-        v = flag_concretize(state, cond)
+        v = op_concretize(cond)
         inv = v & 1
         l.debug("inv: %d", inv)
 
@@ -590,47 +583,47 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
             pass
         if v in [data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO']]:
             l.debug("CondO")
-            of = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
-            return 1 & (inv ^ of), []
+            of = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
+            return 1 & (inv ^ of)
 
         if v in [data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ']]:
             l.debug("CondZ")
-            zf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ zf), []
+            zf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
+            return 1 & (inv ^ zf)
 
         if v in [data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB']]:
             l.debug("CondB")
-            cf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
-            return 1 & (inv ^ cf), []
+            cf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
+            return 1 & (inv ^ cf)
 
         if v in [data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE']]:
             l.debug("CondBE")
-            cf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
-            zf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ (cf | zf)), []
+            cf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
+            zf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
+            return 1 & (inv ^ (cf | zf))
 
         if v in [data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS']]:
             l.debug("CondS")
-            sf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
-            return 1 & (inv ^ sf), []
+            sf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
+            return 1 & (inv ^ sf)
 
         if v in [data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP']]:
             l.debug("CondP")
-            pf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_P'])
-            return 1 & (inv ^ pf), []
+            pf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_P'])
+            return 1 & (inv ^ pf)
 
         if v in [data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL']]:
             l.debug("CondL")
-            sf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
-            of = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
-            return 1 & (inv ^ (sf ^ of)), []
+            sf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
+            of = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
+            return 1 & (inv ^ (sf ^ of))
 
         if v in [data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE']]:
             l.debug("CondLE")
-            sf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
-            of = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
-            zf = state.solver.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ ((sf ^ of) | zf)), []
+            sf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
+            of = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
+            zf = claripy.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
+            return 1 & (inv ^ ((sf ^ of) | zf))
 
     l.error("Unsupported condition %d in in pc_calculate_condition", v)
     raise SimCCallError("Unrecognized condition in pc_calculate_condition")
@@ -645,7 +638,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
 # for each conditional flag, which greatly helps static analysis (like VSA).
 
 def _cond_flag(state, condition):
-    return state.solver.If(condition, state.solver.BVV(1, 1), state.solver.BVV(0, 1))
+    return claripy.If(condition, claripy.BVV(1, 1), claripy.BVV(0, 1))
 
 # TODO: Implement the missing ones
 
@@ -679,25 +672,25 @@ def pc_actions_cond_CondNZ(state, cc_expr):
     return _cond_flag(state, cc_expr != 0)
 
 def pc_actions_cond_CondS(state, cc_expr):
-    return _cond_flag(state, state.solver.SLT(cc_expr, 0))
+    return _cond_flag(state, claripy.SLT(cc_expr, 0))
 
 def pc_actions_cond_CondB(state, cc_expr):
-    return _cond_flag(state, state.solver.ULT(cc_expr, 0))
+    return _cond_flag(state, claripy.ULT(cc_expr, 0))
 
 def pc_actions_cond_CondBE(state, cc_expr):
-    return _cond_flag(state, state.solver.ULE(cc_expr, 0))
+    return _cond_flag(state, claripy.ULE(cc_expr, 0))
 
 def pc_actions_cond_CondNBE(state, cc_expr):
-    return _cond_flag(state, state.solver.UGT(cc_expr, 0))
+    return _cond_flag(state, claripy.UGT(cc_expr, 0))
 
 def pc_actions_cond_CondL(state, cc_expr):
-    return _cond_flag(state, state.solver.SLT(cc_expr, 0))
+    return _cond_flag(state, claripy.SLT(cc_expr, 0))
 
 def pc_actions_cond_CondLE(state, cc_expr):
-    return _cond_flag(state, state.solver.SLE(cc_expr, 0))
+    return _cond_flag(state, claripy.SLE(cc_expr, 0))
 
 def pc_actions_cond_CondNLE(state, cc_expr):
-    return _cond_flag(state, state.solver.SGT(cc_expr, 0))
+    return _cond_flag(state, claripy.SGT(cc_expr, 0))
 
 
 # Specialized versions of (op,cond) to make claripy happy
@@ -708,22 +701,22 @@ def pc_actions_SUB_CondNZ(state, arg_l, arg_r, cc_ndep):
     return _cond_flag(state, arg_l != arg_r)
 
 def pc_actions_SUB_CondB(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, state.solver.ULT(arg_l, arg_r))
+    return _cond_flag(state, claripy.ULT(arg_l, arg_r))
 
 def pc_actions_SUB_CondBE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, state.solver.ULE(arg_l, arg_r))
+    return _cond_flag(state, claripy.ULE(arg_l, arg_r))
 
 def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, state.solver.UGT(arg_l, arg_r))
+    return _cond_flag(state, claripy.UGT(arg_l, arg_r))
 
 def pc_actions_SUB_CondL(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, state.solver.SLT(arg_l, arg_r))
+    return _cond_flag(state, claripy.SLT(arg_l, arg_r))
 
 def pc_actions_SUB_CondLE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, state.solver.SLE(arg_l, arg_r))
+    return _cond_flag(state, claripy.SLE(arg_l, arg_r))
 
 def pc_actions_SUB_CondNLE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, state.solver.SGT(arg_l, arg_r))
+    return _cond_flag(state, claripy.SGT(arg_l, arg_r))
 
 
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
@@ -733,13 +726,10 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
     Limitation: symbolic flags are not supported for now.
     """
 
-    if state.solver.symbolic(cond):
-        raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
-
-    v = flag_concretize(state, cond)
 
     # Extract the operation
-    cc_op = flag_concretize(state, cc_op)
+    v = op_concretize(cond)
+    cc_op = op_concretize(cc_op)
 
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
         raise SimCCallError("G_CC_OP_COPY is not supported in pc_calculate_condition_simple(). Consider implementing.")
@@ -775,33 +765,33 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
             raise SimCCallError('Operation %s with condition %s not found.' % (op, cond))
 
-    return state.solver.Concat(state.solver.BVV(0, state.arch.bits - 1), r), []
+    return claripy.Concat(claripy.BVV(0, state.arch.bits - 1), r)
 
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-    cc_op = flag_concretize(state, cc_op)
+    cc_op = op_concretize(cc_op)
 
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
-        return state.solver.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, [ ] # TODO: actual constraints
+        return claripy.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, [ ] # TODO: actual constraints
     elif cc_op in ( data[platform]['OpTypes']['G_CC_OP_LOGICQ'], data[platform]['OpTypes']['G_CC_OP_LOGICL'], data[platform]['OpTypes']['G_CC_OP_LOGICW'], data[platform]['OpTypes']['G_CC_OP_LOGICB'] ):
-        return state.solver.BVV(0, state.arch.bits), [ ] # TODO: actual constraints
+        return claripy.BVV(0, state.arch.bits), [ ] # TODO: actual constraints
 
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
 
     if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
-        return state.solver.Concat(state.solver.BVV(0, state.arch.bits-1), cf & 1), [ ]
+        return claripy.Concat(claripy.BVV(0, state.arch.bits-1), cf & 1)
     else:
-        return state.solver.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, []
+        return claripy.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1
 
 def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
     # returns cf, of, result
     # make sure sz is not symbolic
-    if sz.symbolic:
+    if sz.op != 'BVV':
         raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
 
     # convert sz to concrete value
-    sz = state.solver.eval_one(sz)
+    sz = sz.args[0]
     bits = sz * 8
     bits_in = len(arg)
 
@@ -821,7 +811,7 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
     rotatable_in = carry_bit_in.concat(sized_arg_in)
 
     # compute and extract
-    op = state.solver.RotateLeft if left else state.solver.RotateRight
+    op = claripy.RotateLeft if left else claripy.RotateRight
     rotatable_out = op(rotatable_in, sized_amt)
     sized_arg_out = rotatable_out[bits-1:0]
     carry_bit_out = rotatable_out[bits]
@@ -858,13 +848,13 @@ def amd64g_check_ldmxcsr(state, mxcsr):
         # /* DAZ is set */
         ew = EmWarn_X86_daz
 
-    return (ew << 32) | rmode, []
+    return (ew << 32) | rmode
 
 
 # https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2304
 def amd64g_create_mxcsr(state, sseround):
     sseround &= 3
-    return 0x1F80 | (sseround << 13), []
+    return 0x1F80 | (sseround << 13)
 
 
 # https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2316
@@ -876,17 +866,20 @@ def amd64g_check_fldcw(state, fpucw):
         ew = EmWarn_X86_x87exns
     elif (((fpucw >> 8) & 3) != 3).is_true:
         ew = EmWarn_X86_x87precision
-    return (ew << 32) | rmode, []
+    return (ew << 32) | rmode
 
 
 # https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2342
 def amd64g_create_fpucw(state, fpround):
     fpround &= 3
-    return 0x037f | (fpround << 10), []
+    return 0x037f | (fpround << 10)
 
 
 def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
-    want_flags = state.solver.is_true(state.solver.SLT(sz, 0))
+    if sz.op != 'BVV':
+        raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
+
+    want_flags = claripy.SLT(sz, 0).is_true()
     if want_flags: sz = -sz
     carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
     carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, True, arg, rot_amt, carry_bit_in, sz)
@@ -898,12 +891,15 @@ def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
         eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
         eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
                       (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
-        return eflags_out, []
+        return eflags_out
     else:
-        return arg_out, []
+        return arg_out
 
 def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
-    want_flags = state.solver.is_true(state.solver.SLT(sz, 0))
+    if sz.op != 'BVV':
+        raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
+
+    want_flags = claripy.SLT(sz, 0).is_true()
     if want_flags: sz = -sz
     carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
     carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, False, arg, rot_amt, carry_bit_in, sz)
@@ -915,9 +911,9 @@ def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
         eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
         eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
                       (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
-        return eflags_out, []
+        return eflags_out
     else:
-        return arg_out, []
+        return arg_out
 
 def amd64g_calculate_mmx_pmaddwd(_state, xx, yy):
     xx_3, xx_2, xx_1, xx_0 = xx.chop(16)
@@ -966,7 +962,7 @@ def x86g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
     eflags_out |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
                   (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
 
-    return eflags_out.concat(arg_out), []
+    return eflags_out.concat(arg_out)
 
 def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
     carry_bit_in = eflags_in[data['X86']['CondBitOffsets']['G_CC_SHIFT_C']]
@@ -979,7 +975,7 @@ def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
     eflags_out |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
                   (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
 
-    return eflags_out.concat(arg_out), []
+    return eflags_out.concat(arg_out)
 
 def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
@@ -1001,8 +997,8 @@ def x86g_create_fpucw(state, fpround):
 
 def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     assert len(flags_and_AX) == 32
-    assert not opcode.symbolic
-    opcode = state.solver.eval(opcode)
+    assert opcode.op == 'BVV'
+    opcode = opcode.args[0]
 
     r_O  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_O'] + 16].zero_extend(31)
     r_S  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_S'] + 16].zero_extend(31)
@@ -1014,62 +1010,62 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     r_AL = (flags_and_AX >> 0) & 0xFF
     r_AH = (flags_and_AX >> 8) & 0xFF
 
-    zero = state.solver.BVV(0, 32)
-    one = state.solver.BVV(1, 32)
+    zero = claripy.BVV(0, 32)
+    one = claripy.BVV(1, 32)
 
     if opcode == 0x27: # DAA
         old_AL = r_AL
         old_C  = r_C
 
-        condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
-        r_AL = state.solver.If(condition, r_AL + 6, old_AL)
-        r_C = state.solver.If(condition, state.solver.If(r_AL >= 0x100, one, old_C), zero)
-        r_A = state.solver.If(condition, one, zero)
+        condition = claripy.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = claripy.If(condition, r_AL + 6, old_AL)
+        r_C = claripy.If(condition, claripy.If(r_AL >= 0x100, one, old_C), zero)
+        r_A = claripy.If(condition, one, zero)
 
-        condition = state.solver.Or(old_AL > 0x99, old_C == 1)
-        r_AL = state.solver.If(condition, r_AL + 0x60, r_AL)
-        r_C = state.solver.If(condition, one, zero)
+        condition = claripy.Or(old_AL > 0x99, old_C == 1)
+        r_AL = claripy.If(condition, r_AL + 0x60, r_AL)
+        r_C = claripy.If(condition, one, zero)
     
         r_AL = r_AL&0xFF
         r_O = zero 
-        r_S = state.solver.If((r_AL & 0x80) != 0, one, zero)
-        r_Z = state.solver.If(r_AL == 0, one, zero)
-        r_P = calc_paritybit(state, r_AL).zero_extend(31)
+        r_S = claripy.If((r_AL & 0x80) != 0, one, zero)
+        r_Z = claripy.If(r_AL == 0, one, zero)
+        r_P = calc_paritybit(r_AL).zero_extend(31)
 
     elif opcode == 0x2F: # DAS
         old_AL = r_AL
         old_C  = r_C
 
-        condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
-        r_AL = state.solver.If(condition, r_AL - 6, old_AL)
-        r_C = state.solver.If(condition, state.solver.If(r_AL < 6, one, zero), zero)
-        r_A = state.solver.If(condition, one, zero)
+        condition = claripy.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = claripy.If(condition, r_AL - 6, old_AL)
+        r_C = claripy.If(condition, claripy.If(r_AL < 6, one, zero), zero)
+        r_A = claripy.If(condition, one, zero)
 
-        condition = state.solver.Or(old_AL > 0x99, old_C == 1)
-        r_AL = state.solver.If(condition, r_AL - 0x60, r_AL)
-        r_C = state.solver.If(condition, one, zero)
+        condition = claripy.Or(old_AL > 0x99, old_C == 1)
+        r_AL = claripy.If(condition, r_AL - 0x60, r_AL)
+        r_C = claripy.If(condition, one, zero)
 
         r_AL &= 0xFF
         r_O = zero
-        r_S = state.solver.If((r_AL & 0x80) != 0, one, zero)
-        r_Z = state.solver.If(r_AL == 0, one, zero)
-        r_P = calc_paritybit(state, r_AL).zero_extend(31)
+        r_S = claripy.If((r_AL & 0x80) != 0, one, zero)
+        r_Z = claripy.If(r_AL == 0, one, zero)
+        r_P = calc_paritybit(r_AL).zero_extend(31)
 
     elif opcode == 0x37: # AAA
         nudge = r_AL > 0xF9
-        condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
-        r_AL = state.solver.If(condition, (r_AL + 6) & 0xF, r_AL & 0xF)
-        r_AH = state.solver.If(condition, state.solver.If(nudge, r_AH + 2, r_AH + 1), r_AH)
-        r_A  = state.solver.If(condition, one, zero)
-        r_C = state.solver.If(condition, one, zero)
+        condition = claripy.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = claripy.If(condition, (r_AL + 6) & 0xF, r_AL & 0xF)
+        r_AH = claripy.If(condition, claripy.If(nudge, r_AH + 2, r_AH + 1), r_AH)
+        r_A  = claripy.If(condition, one, zero)
+        r_C = claripy.If(condition, one, zero)
         r_O = r_S = r_Z = r_P = 0
     elif opcode == 0x3F: # AAS
         nudge = r_AL < 0x06
-        condition = state.solver.Or((r_AL & 0xF) > 9, r_A == 1)
-        r_AL = state.solver.If(condition, (r_AL - 6) & 0xF, r_AL & 0xF)
-        r_AH = state.solver.If(condition, state.solver.If(nudge, r_AH - 2, r_AH - 1), r_AH)
-        r_A  = state.solver.If(condition, one, zero)
-        r_C = state.solver.If(condition, one, zero)
+        condition = claripy.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = claripy.If(condition, (r_AL - 6) & 0xF, r_AL & 0xF)
+        r_AH = claripy.If(condition, claripy.If(nudge, r_AH - 2, r_AH - 1), r_AH)
+        r_A  = claripy.If(condition, one, zero)
+        r_C = claripy.If(condition, one, zero)
         r_O = r_S = r_Z = r_P = 0
 
     result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
@@ -1080,12 +1076,12 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
              | ( (r_P & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_P']) ) \
              | ( (r_AH & 0xFF) << 8 ) \
              | ( (r_AL & 0xFF) << 0 )
-    return result, []
+    return result
 
 def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
     assert len(flags_and_AX) == 32
-    assert not opcode.symbolic
-    opcode = state.solver.eval(opcode)
+    assert opcode.op == 'BVV'
+    opcode = opcode.args[0]
 
     r_AL = (flags_and_AX >> 0) & 0xFF
     r_AH = (flags_and_AX >> 8) & 0xFF
@@ -1095,16 +1091,16 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
         r_AL = r_AL % 10
     elif opcode == 0xD5: # AAD
         r_AL = ((r_AH * 10) + r_AL) & 0xff
-        r_AH = state.solver.BVV(0, 32)
+        r_AH = claripy.BVV(0, 32)
     else:
         raise SimCCallError("Unknown opcode %#x in AAD/AAM ccall" % opcode)
 
-    r_O = state.solver.BVV(0, 32)
-    r_C = state.solver.BVV(0, 32)
-    r_A = state.solver.BVV(0, 32)
+    r_O = claripy.BVV(0, 32)
+    r_C = claripy.BVV(0, 32)
+    r_A = claripy.BVV(0, 32)
     r_S = r_AL[7].zero_extend(31)
-    r_Z = state.solver.If(r_AL == 0, state.solver.BVV(1, 32), state.solver.BVV(0, 32))
-    r_P = calc_paritybit(state, r_AL).zero_extend(31)
+    r_Z = claripy.If(r_AL == 0, claripy.BVV(1, 32), claripy.BVV(0, 32))
+    r_P = calc_paritybit(r_AL).zero_extend(31)
 
     result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
              | ( (r_S & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_S']) ) \
@@ -1114,7 +1110,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
              | ( (r_P & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_P']) ) \
              | ( (r_AH & 0xFF) << 8 ) \
              | ( (r_AL & 0xFF) << 0 )
-    return result, []
+    return result
 
 #
 # x86 segment selection
@@ -1126,14 +1122,14 @@ def get_segdescr_base(state, descriptor):
     lo = descriptor[31:16]
     mid = descriptor[39:32]
     hi = descriptor[63:56]
-    return state.solver.Concat(hi, mid, lo)
+    return claripy.Concat(hi, mid, lo)
 
 def get_segdescr_limit(state, descriptor):
     granularity = descriptor[55]
     lo = descriptor[15:0]
     hi = descriptor[51:48]
-    limit = state.solver.Concat(hi, lo).zero_extend(12)
-    if state.solver.is_true(granularity == 0):
+    limit = claripy.Concat(hi, lo).zero_extend(12)
+    if (granularity == 0).is_true():
         return limit
     else:
         return (limit << 12) | 0xfff
@@ -1143,9 +1139,9 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     def bad(msg):
         if msg:
             l.warning("x86g_use_seg_selector: %s", msg)
-        return state.solver.BVV(1 << 32, state.arch.bits).zero_extend(32), ()
+        return claripy.BVV(1 << 32, 32).zero_extend(32), ()
 
-    if state.solver.is_true(seg_selector & ~0xFFFF != 0):
+    if (seg_selector & ~0xFFFF != 0).is_true():
         return bad("invalid selector (" + str(seg_selector) + ")")
 
     if virtual_addr.length == 16:
@@ -1157,9 +1153,9 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     seg_selector &= 0x0000FFFF
 
-    segment_selector_val = state.solver.eval(seg_selector >> 3)
+    segment_selector_val = seg_selector >> 3
 
-    if state.project.simos.name == "Win32" and segment_selector_val == 0x6 and state.project.concrete_target is not None:
+    if state.project.simos.name == "Win32" and (segment_selector_val == 0x6).is_true() and state.project.concrete_target is not None:
             return bad("angr doesn't support Windows Heaven's gate calls http://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
                    "Please use the native 32 bit libs (not WoW64) or implement a simprocedure to avoid executing these instructions"
                    )
@@ -1170,7 +1166,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     #    return bad()
 
     tiBit = (seg_selector >> 2) & 1
-    if state.solver.is_true(tiBit == 0):
+    if (tiBit == 0).is_true():
         # GDT access
         gdt_value = state.solver.eval_one(gdt)
         if gdt_value == 0:
@@ -1180,7 +1176,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         seg_selector = seg_selector.zero_extend(32)
 
         gdt_limit = gdt[15:0]
-        if state.solver.is_true(seg_selector >= gdt_limit.zero_extend(48)):
+        if (seg_selector >= gdt_limit.zero_extend(48)).is_true():
             return bad("index out of range")
 
         gdt_base = gdt[47:16]
@@ -1196,7 +1192,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         seg_selector = seg_selector.zero_extend(32)
 
         ldt_limit = ldt[15:0]
-        if state.solver.is_true(seg_selector >= ldt_limit.zero_extend(48)):
+        if (seg_selector >= ldt_limit.zero_extend(48)).is_true():
             return bad("index out of range")
 
         ldt_base = ldt[47:16]
@@ -1206,7 +1202,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         descriptor = state.memory.load(ldt_value + seg_selector * 8, 8, endness='Iend_LE')
 
     present = descriptor[47]
-    if state.solver.is_true(present == 0):
+    if (present == 0).is_true():
         return bad("present bit set to 0")
 
     base = get_segdescr_base(state, descriptor)
@@ -1252,18 +1248,18 @@ def amd64g_create_mxcsr(state, sseround):
     return 0x1F80 | ((sseround & 3) << 13), ()
 
 def amd64g_check_ldmxcsr(state, mxcsr):
-    rmode = state.solver.LShR(mxcsr, 13) & 3
+    rmode = claripy.LShR(mxcsr, 13) & 3
 
-    ew = state.solver.If(
+    ew = claripy.If(
             (mxcsr & 0x1F80) != 0x1F80,
-            state.solver.BVV(EmWarn_X86_sseExns, 64),
-            state.solver.If(
+            claripy.BVV(EmWarn_X86_sseExns, 64),
+            claripy.If(
                 mxcsr & (1<<15) != 0,
-                state.solver.BVV(EmWarn_X86_fz, 64),
-                state.solver.If(
+                claripy.BVV(EmWarn_X86_fz, 64),
+                claripy.If(
                     mxcsr & (1<<6) != 0,
-                    state.solver.BVV(EmWarn_X86_daz, 64),
-                    state.solver.BVV(EmNote_NONE, 64)
+                    claripy.BVV(EmWarn_X86_daz, 64),
+                    claripy.BVV(EmNote_NONE, 64)
                 )
             )
          )
@@ -1310,43 +1306,43 @@ ARMG_CC_SHIFT_Q = 27
 ARMG_NBITS = 32
 
 def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     if concrete_op == ARMG_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARMG_CC_SHIFT_N) & 1
+        flag = claripy.LShR(cc_dep1, ARMG_CC_SHIFT_N) & 1
     elif concrete_op == ARMG_CC_OP_ADD:
         res = cc_dep1 + cc_dep2
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARMG_CC_OP_SUB:
         res = cc_dep1 - cc_dep2
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARMG_CC_OP_ADC:
         res = cc_dep1 + cc_dep2 + cc_dep3
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARMG_CC_OP_SBB:
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARMG_CC_OP_LOGIC:
-        flag = state.solver.LShR(cc_dep1, 31)
+        flag = claripy.LShR(cc_dep1, 31)
     elif concrete_op == ARMG_CC_OP_MUL:
-        flag = state.solver.LShR(cc_dep1, 31)
+        flag = claripy.LShR(cc_dep1, 31)
     elif concrete_op == ARMG_CC_OP_MULL:
-        flag = state.solver.LShR(cc_dep2, 31)
+        flag = claripy.LShR(cc_dep2, 31)
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
     l.error("Unknown cc_op %s (armg_calculate_flag_n)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def arm_zerobit(state, x):
-    return calc_zerobit(state, x).zero_extend(31)
+    return calc_zerobit(x).zero_extend(31)
 
 def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     if concrete_op == ARMG_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
+        flag = claripy.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
     elif concrete_op == ARMG_CC_OP_ADD:
         res = cc_dep1 + cc_dep2
         flag = arm_zerobit(state, res)
@@ -1366,61 +1362,63 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = arm_zerobit(state, cc_dep1 | cc_dep2)
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_z)", concrete_op)
     raise SimCCallError("Unknown cc_op %s" % concrete_op)
 
 def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     if concrete_op == ARMG_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARMG_CC_SHIFT_C) & 1
+        flag = claripy.LShR(cc_dep1, ARMG_CC_SHIFT_C) & 1
     elif concrete_op == ARMG_CC_OP_ADD:
         res = cc_dep1 + cc_dep2
-        flag = boolean_extend(state, state.solver.ULT, res, cc_dep1, 32)
+        flag = boolean_extend(claripy.ULT, res, cc_dep1, 32)
     elif concrete_op == ARMG_CC_OP_SUB:
-        flag = boolean_extend(state, state.solver.UGE, cc_dep1, cc_dep2, 32)
+        flag = boolean_extend(claripy.UGE, cc_dep1, cc_dep2, 32)
     elif concrete_op == ARMG_CC_OP_ADC:
         res = cc_dep1 + cc_dep2 + cc_dep3
-        flag = state.solver.If(cc_dep3 != 0, boolean_extend(state, state.solver.ULE, res, cc_dep1, 32), boolean_extend(state, state.solver.ULT, res, cc_dep1, 32))
+        flag = claripy.If(cc_dep3 != 0, boolean_extend(claripy.ULE, res, cc_dep1, 32),
+                          boolean_extend(claripy.ULT, res, cc_dep1, 32))
     elif concrete_op == ARMG_CC_OP_SBB:
-        flag = state.solver.If(cc_dep3 != 0, boolean_extend(state, state.solver.UGE, cc_dep1, cc_dep2, 32), boolean_extend(state, state.solver.UGT, cc_dep1, cc_dep2, 32))
+        flag = claripy.If(cc_dep3 != 0, boolean_extend(claripy.UGE, cc_dep1, cc_dep2, 32),
+                          boolean_extend(claripy.UGT, cc_dep1, cc_dep2, 32))
     elif concrete_op == ARMG_CC_OP_LOGIC:
         flag = cc_dep2
     elif concrete_op == ARMG_CC_OP_MUL:
-        flag = (state.solver.LShR(cc_dep3, 1)) & 1
+        flag = (claripy.LShR(cc_dep3, 1)) & 1
     elif concrete_op == ARMG_CC_OP_MULL:
-        flag = (state.solver.LShR(cc_dep3, 1)) & 1
+        flag = (claripy.LShR(cc_dep3, 1)) & 1
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_c)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     if concrete_op == ARMG_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARMG_CC_SHIFT_V) & 1
+        flag = claripy.LShR(cc_dep1, ARMG_CC_SHIFT_V) & 1
     elif concrete_op == ARMG_CC_OP_ADD:
         res = cc_dep1 + cc_dep2
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-        flag = state.solver.LShR(v, 31)
+        flag = claripy.LShR(v, 31)
     elif concrete_op == ARMG_CC_OP_SUB:
         res = cc_dep1 - cc_dep2
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-        flag = state.solver.LShR(v, 31)
+        flag = claripy.LShR(v, 31)
     elif concrete_op == ARMG_CC_OP_ADC:
         res = cc_dep1 + cc_dep2 + cc_dep3
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-        flag = state.solver.LShR(v, 31)
+        flag = claripy.LShR(v, 31)
     elif concrete_op == ARMG_CC_OP_SBB:
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-        flag = state.solver.LShR(v, 31)
+        flag = claripy.LShR(v, 31)
     elif concrete_op == ARMG_CC_OP_LOGIC:
         flag = cc_dep3
     elif concrete_op == ARMG_CC_OP_MUL:
@@ -1428,7 +1426,7 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = cc_dep3 & 1
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_v)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
@@ -1441,19 +1439,19 @@ def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     z, c2 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c, c3 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     v, c4 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    vec = [(ARMG_CC_SHIFT_N, state.solver.Extract(0, 0, n)),
-           (ARMG_CC_SHIFT_Z, state.solver.Extract(0, 0, z)),
-           (ARMG_CC_SHIFT_C, state.solver.Extract(0, 0, c)),
-           (ARMG_CC_SHIFT_V, state.solver.Extract(0, 0, v))]
+    vec = [(ARMG_CC_SHIFT_N, claripy.Extract(0, 0, n)),
+           (ARMG_CC_SHIFT_Z, claripy.Extract(0, 0, z)),
+           (ARMG_CC_SHIFT_C, claripy.Extract(0, 0, c)),
+           (ARMG_CC_SHIFT_V, claripy.Extract(0, 0, v))]
     return _concat_flags(ARMG_NBITS, vec), c1 + c2 + c3 + c4
 
 
 def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
-    cond = state.solver.LShR(cond_n_op, 4)
+    cond = claripy.LShR(cond_n_op, 4)
     cc_op = cond_n_op & 0xF
     inv = cond & 1
 
-    concrete_cond = flag_concretize(state, cond)
+    concrete_cond = op_concretize(cond)
     flag = None
     c1,c2,c3 = [ ], [ ], [ ]
 
@@ -1462,7 +1460,7 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     # created.
 
     if concrete_cond == ARMCondAL:
-        flag = state.solver.BVV(1, 32)
+        flag = claripy.BVV(1, 32)
     elif concrete_cond in [ ARMCondEQ, ARMCondNE ]:
         zf, c1 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ zf
@@ -1532,49 +1530,49 @@ ARM64CondNV = 15 #/* always (unconditional)        : 1 */
 ARM64G_NBITS = 64
 
 def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
 
     if concrete_op == ARM64G_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_N) & 1
+        flag = claripy.LShR(cc_dep1, ARM64G_CC_SHIFT_N) & 1
     elif concrete_op == ARM64G_CC_OP_ADD32:
         res = cc_dep1 + cc_dep2
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARM64G_CC_OP_ADD64:
         res = cc_dep1 + cc_dep2
-        flag = state.solver.LShR(res, 63)
+        flag = claripy.LShR(res, 63)
     elif concrete_op == ARM64G_CC_OP_SUB32:
         res = cc_dep1 - cc_dep2
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARM64G_CC_OP_SUB64:
         res = cc_dep1 - cc_dep2
-        flag = state.solver.LShR(res, 63)
+        flag = claripy.LShR(res, 63)
     elif concrete_op == ARM64G_CC_OP_ADC32:
         res = cc_dep1 + cc_dep2 + cc_dep3
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARM64G_CC_OP_ADC64:
         res = cc_dep1 + cc_dep2 + cc_dep3
-        flag = state.solver.LShR(res, 63)
+        flag = claripy.LShR(res, 63)
     elif concrete_op == ARM64G_CC_OP_SBC32:
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-        flag = state.solver.LShR(res, 31)
+        flag = claripy.LShR(res, 31)
     elif concrete_op == ARM64G_CC_OP_SBC64:
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-        flag = state.solver.LShR(res, 63)
+        flag = claripy.LShR(res, 63)
     elif concrete_op == ARM64G_CC_OP_LOGIC32:
-        flag = state.solver.LShR(cc_dep1, 31)
+        flag = claripy.LShR(cc_dep1, 31)
     elif concrete_op == ARM64G_CC_OP_LOGIC64:
-        flag = state.solver.LShR(cc_dep1, 63)
+        flag = claripy.LShR(cc_dep1, 63)
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
     l.error("Unknown cc_op %s (arm64g_calculate_flag_n)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 
 def arm64_zerobit(state, x):
-    return calc_zerobit(state, x).zero_extend(63)
+    return calc_zerobit(x).zero_extend(63)
 
 
 def u64_to_u32(n):
@@ -1596,13 +1594,13 @@ def arm64g_32bit_truncate_operands(cc_op, cc_dep1, cc_dep2, cc_dep3):
 
 
 def arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
 
     if concrete_op == ARM64G_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_Z) & 1
+        flag = claripy.LShR(cc_dep1, ARM64G_CC_SHIFT_Z) & 1
     elif concrete_op in (ARM64G_CC_OP_ADD32, ARM64G_CC_OP_ADD64):
         res = cc_dep1 + cc_dep2
         flag = arm64_zerobit(state, res)
@@ -1618,89 +1616,91 @@ def arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
         flag = arm64_zerobit(state, cc_dep1)
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_z)", concrete_op)
     raise SimCCallError("Unknown cc_op %s" % concrete_op)
 
 def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
 
     if concrete_op == ARM64G_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_C) & 1
+        flag = claripy.LShR(cc_dep1, ARM64G_CC_SHIFT_C) & 1
     elif concrete_op in (ARM64G_CC_OP_ADD32, ARM64G_CC_OP_ADD64):
         res = cc_dep1 + cc_dep2
-        flag = boolean_extend(state, state.solver.ULT, res, cc_dep1, 64)
+        flag = boolean_extend(claripy.ULT, res, cc_dep1, 64)
     elif concrete_op in (ARM64G_CC_OP_SUB32, ARM64G_CC_OP_SUB64):
-        flag = boolean_extend(state, state.solver.UGE, cc_dep1, cc_dep2, 64)
+        flag = boolean_extend(claripy.UGE, cc_dep1, cc_dep2, 64)
     elif concrete_op in (ARM64G_CC_OP_ADC32, ARM64G_CC_OP_ADC64):
         res = cc_dep1 + cc_dep2 + cc_dep3
-        flag = state.solver.If(cc_dep2 != 0, boolean_extend(state, state.solver.ULE, res, cc_dep1, 64), boolean_extend(state, state.solver.ULT, res, cc_dep1, 64))
+        flag = claripy.If(cc_dep2 != 0, boolean_extend(claripy.ULE, res, cc_dep1, 64),
+                          boolean_extend(claripy.ULT, res, cc_dep1, 64))
     elif concrete_op in (ARM64G_CC_OP_SBC32, ARM64G_CC_OP_SBC64):
-        flag = state.solver.If(cc_dep2 != 0, boolean_extend(state, state.solver.UGE, cc_dep1, cc_dep2, 64), boolean_extend(state, state.solver.UGT, cc_dep1, cc_dep2, 64))
+        flag = claripy.If(cc_dep2 != 0, boolean_extend(claripy.UGE, cc_dep1, cc_dep2, 64),
+                          boolean_extend(claripy.UGT, cc_dep1, cc_dep2, 64))
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
-        flag = state.solver.BVV(0, 64) # C after logic is zero on arm64
+        flag = claripy.BVV(0, 64) # C after logic is zero on arm64
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_c)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    concrete_op = flag_concretize(state, cc_op)
+    concrete_op = op_concretize(cc_op)
     flag = None
 
     cc_dep1, cc_dep2, cc_dep3 = arm64g_32bit_truncate_operands(concrete_op, cc_dep1, cc_dep2, cc_dep3)
 
     if concrete_op == ARM64G_CC_OP_COPY:
-        flag = state.solver.LShR(cc_dep1, ARM64G_CC_SHIFT_V) & 1
+        flag = claripy.LShR(cc_dep1, ARM64G_CC_SHIFT_V) & 1
     elif concrete_op == ARM64G_CC_OP_ADD32:
         cc_dep1 = cc_dep1[31:0]
         cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 + cc_dep2
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-        flag = state.solver.LShR(v, 31).zero_extend(32)
+        flag = claripy.LShR(v, 31).zero_extend(32)
     elif concrete_op == ARM64G_CC_OP_ADD64:
         res = cc_dep1 + cc_dep2
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-        flag = state.solver.LShR(v, 63)
+        flag = claripy.LShR(v, 63)
     elif concrete_op == ARM64G_CC_OP_SUB32:
         cc_dep1 = cc_dep1[31:0]
         cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 - cc_dep2
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-        flag = state.solver.LShR(v, 31).zero_extend(32)
+        flag = claripy.LShR(v, 31).zero_extend(32)
     elif concrete_op == ARM64G_CC_OP_SUB64:
         res = cc_dep1 - cc_dep2
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-        flag = state.solver.LShR(v, 63)
+        flag = claripy.LShR(v, 63)
     elif concrete_op == ARM64G_CC_OP_ADC32:
         cc_dep1 = cc_dep1[31:0]
         cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 + cc_dep2 + cc_dep3
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-        flag = state.solver.LShR(v, 31).zero_extend(32)
+        flag = claripy.LShR(v, 31).zero_extend(32)
     elif concrete_op == ARM64G_CC_OP_ADC64:
         res = cc_dep1 + cc_dep2 + cc_dep3
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-        flag = state.solver.LShR(v, 63)
+        flag = claripy.LShR(v, 63)
     elif concrete_op == ARM64G_CC_OP_SBC32:
         cc_dep1 = cc_dep1[31:0]
         cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-        flag = state.solver.LShR(v, 31).zero_extend(32)
+        flag = claripy.LShR(v, 31).zero_extend(32)
     elif concrete_op == ARM64G_CC_OP_SBC64:
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-        flag = state.solver.LShR(v, 63)
+        flag = claripy.LShR(v, 63)
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
-        flag = state.solver.BVV(0, 64)
+        flag = claripy.BVV(0, 64)
 
-    if flag is not None: return flag, [ cc_op == concrete_op ]
+    if flag is not None: return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_v)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
@@ -1713,23 +1713,23 @@ def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     z, c2 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c, c3 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     v, c4 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    vec = [(ARM64G_CC_SHIFT_N, state.solver.Extract(0, 0, n)),
-           (ARM64G_CC_SHIFT_Z, state.solver.Extract(0, 0, z)),
-           (ARM64G_CC_SHIFT_C, state.solver.Extract(0, 0, c)),
-           (ARM64G_CC_SHIFT_V, state.solver.Extract(0, 0, v))]
+    vec = [(ARM64G_CC_SHIFT_N, claripy.Extract(0, 0, n)),
+           (ARM64G_CC_SHIFT_Z, claripy.Extract(0, 0, z)),
+           (ARM64G_CC_SHIFT_C, claripy.Extract(0, 0, c)),
+           (ARM64G_CC_SHIFT_V, claripy.Extract(0, 0, v))]
     return _concat_flags(ARM64G_NBITS, vec), c1 + c2 + c3 + c4
 
 def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
-    cond = state.solver.LShR(cond_n_op, 4)
+    cond = claripy.LShR(cond_n_op, 4)
     cc_op = cond_n_op & 0xF
     inv = cond & 1
 
-    concrete_cond = flag_concretize(state, cond)
+    concrete_cond = op_concretize(cond)
     flag = None
     c1,c2,c3 = [ ], [ ], [ ]
 
     if concrete_cond in (ARM64CondAL, ARM64CondNV):
-        flag = state.solver.BVV(1, 64)
+        flag = claripy.BVV(1, 64)
     elif concrete_cond in (ARM64CondEQ, ARM64CondNE):
         zf, c1 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ zf
@@ -1811,5 +1811,5 @@ def _get_nbits(cc_str):
         nbits = 64
     return nbits
 
-from ...errors import SimError, SimCCallError
-from ...sim_options import USE_SIMPLIFIED_CCALLS
+from angr.errors import SimError, SimCCallError
+from angr.sim_options import USE_SIMPLIFIED_CCALLS

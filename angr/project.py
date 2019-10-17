@@ -177,22 +177,23 @@ class Project:
 
         # Step 4: Set up the project's plugin hubs
         # Step 4.1: Engines. Get the preset from the loader, from the arch, or use the default.
-        engines = EngineHub(self)
-        if engines_preset is not None:
-            engines.use_plugin_preset(engines_preset)
-        elif self.loader.main_object.engine_preset is not None:
-            try:
-                engines.use_plugin_preset(self.loader.main_object.engine_preset)
-            except AngrNoPluginError:
-                raise ValueError("The CLE loader asked to use a engine preset: %s" % \
-                        self.loader.main_object.engine_preset)
-        else:
-            try:
-                engines.use_plugin_preset(self.arch.name)
-            except AngrNoPluginError:
-                engines.use_plugin_preset('default')
+        #engines = EngineHub(self)
+        #if engines_preset is not None:
+        #    engines.use_plugin_preset(engines_preset)
+        #elif self.loader.main_object.engine_preset is not None:
+        #    try:
+        #        engines.use_plugin_preset(self.loader.main_object.engine_preset)
+        #    except AngrNoPluginError:
+        #        raise ValueError("The CLE loader asked to use a engine preset: %s" % \
+        #                self.loader.main_object.engine_preset)
+        #else:
+        #    try:
+        #        engines.use_plugin_preset(self.arch.name)
+        #    except AngrNoPluginError:
+        #        engines.use_plugin_preset('default')
 
-        self.engines = engines
+        #self.engines = engines
+        self.engines = None
         self.factory = AngrObjectFactory(self)
 
         # Step 4.2: Analyses
@@ -712,5 +713,4 @@ from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub
 from .knowledge_base import KnowledgeBase
-from .engines import EngineHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

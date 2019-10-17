@@ -1023,48 +1023,19 @@ class SimIROp:
 # Op Handler
 #
 
-def vexop_to_simop(op, extended=True):
+def vexop_to_simop(op, extended=True, fp=True):
     res = operations.get(op)
     if res is None and extended:
         attrs = op_attrs(op)
         if attrs is None:
-            raise SimOperationError
+            raise UnsupportedIROpError("Operation not implemented")
         res = SimIROp(op, **attrs)
     if res is None:
-        raise SimOperationError
+        raise UnsupportedIROpError("Operation not implemented")
+    if res._float and not fp:
+        raise UnsupportedIROpError("Floating point support disabled")
     return res
 
-
-def translate(state, op, s_args):
-    try:
-        simop = vexop_to_simop(op, options.EXTENDED_IROP_SUPPORT in state.options)
-    except SimOperationError:
-        error = 'Unsupported operation: %s' % op
-        l.error(error)
-        raise UnsupportedIROpError(error)
-    return translate_inner(state, simop, s_args)
-
-
-def translate_inner(state, irop, s_args):
-    try:
-        if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
-            raise UnsupportedIROpError("floating point support disabled")
-        return irop.calculate(*s_args)
-    except SimZeroDivisionException:
-        if state.mode == 'static' and len(s_args) == 2 and state.solver.is_true(s_args[1] == 0):
-            # Monkeypatch the dividend to another value instead of 0
-            s_args[1] = state.solver.BVV(1, s_args[1].size())
-            return irop.calculate(*s_args)
-        else:
-            raise
-    except SimOperationError:
-        l.warning("IROp error (for operation %s)", irop.name, exc_info=True)
-        if options.BYPASS_ERRORED_IROP in state.options:
-            return state.solver.Unconstrained("irop_error", irop._output_size_bits)
-        else:
-            raise
-
-from ...errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
-from ... import sim_options as options
+from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
 
 make_operations()

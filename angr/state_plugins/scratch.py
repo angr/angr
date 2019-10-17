@@ -101,7 +101,7 @@ class SimStateScratch(SimStatePlugin):
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 
-    def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None, deps=None):
+    def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None, deps=None, **kwargs):
         """
         Stores a Claripy expression in a VEX temp value.
         If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.

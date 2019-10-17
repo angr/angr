@@ -56,7 +56,7 @@ from . import sim_type as types
 from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
-from .engines import SimEngineVEX, SimEngine
+from . import engines
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
 from .storage.file import SimFileBase, SimFile, SimPackets, SimFileStream, SimPacketsStream, SimFileDescriptor, SimFileDescriptorDuplex
 from .state_plugins.filesystem import SimMount, SimHostFilesystem
