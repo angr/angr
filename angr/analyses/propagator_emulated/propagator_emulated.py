@@ -2,6 +2,7 @@
 from collections import defaultdict
 
 import ailment
+import claripy
 
 from .. import register_analysis
 from ..analysis import Analysis
@@ -9,8 +10,11 @@ from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
 from .engines.vex.engine import SimEngineVEX
+from .engines.syscall import SimEngineSyscall
+from .engines.hook import SimEngineHook
 from ..cfg.cfg_utils import CFGUtils
-
+from ... import SIM_PROCEDURES
+from ...engines import SimEngineProcedure
 
 class EmulatedCFGVisitor(GraphVisitor):
     def __init__(self, graph, start):
@@ -207,6 +211,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         # else:
         #     raise ValueError('Unsupported analysis target.')
 
+
         graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
@@ -224,7 +229,12 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self.replacements = {}
 
         self._engine_vex = SimEngineVEX(project=self.project)
+        self._engine_syscall = SimEngineSyscall(project=self.project)
+        self._engine_hook = SimEngineHook(project=self.project)
         self._engine_ail = None
+
+
+        self._engines = [ self._engine_hook, self._engine_syscall, self._engine_vex]
 
         self._analyze()
 
@@ -259,26 +269,30 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             self._state_map[succ] = input_state
 
     def _run_on_node(self, node, abstract_state):
+
         concrete_state = abstract_state.get_concrete_state(node.addr)
+
         node.input_state = concrete_state
         if concrete_state is None:
             # didn't find any state going to here
             print("_run_on_node(): cannot find any state for address ", hex(node.addr))
             return False, abstract_state
 
-        if isinstance(node, ailment.Block):
-            block_key = node.addr
-            engine = self._engine_ail
-        else:
-            block_key = node.block_id
-            engine = self._engine_vex
-
+        block_key = node.block_id
         #abstract_state = abstract_state.copy()
         if block_key in self._states:
             abstract_state = self._states[block_key]
         else:
             abstract_state = PropagatorVEXState(arch=self.project.arch)
-        sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
+
+        sim_successors=None
+        for engine in self._engines:
+            if engine.check(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb):
+                sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
+                if sim_successors.processed:
+                    break
+
+        #sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
         node.final_states = sim_successors.all_successors
         abstract_state.concrete_states = sim_successors.all_successors
         self._node_iterations[block_key] += 1
