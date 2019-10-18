@@ -2,11 +2,11 @@
 import logging
 
 import pyvex
-from angr.engines.vex.irop import vexop_to_simop
+from angr.engines.vex.claripy.irop import vexop_to_simop
 
 from .block import Block
 from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement
-from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
+from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
 
 l = logging.getLogger(name=__name__)
 
