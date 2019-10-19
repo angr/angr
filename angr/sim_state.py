@@ -62,6 +62,9 @@ class SimState(PluginHub):
     registers: 'SimSymbolicMemory'
     regs: 'SimRegNameView'
     heap: 'SimHeapBase'
+    memory: 'SimMemory'
+    callstack: 'CallStack'
+    mem: "SimMemView"
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
                  options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
                  plugin_preset='default', **kwargs):
@@ -930,9 +933,31 @@ from .state_plugins.sim_action import SimActionConstraint
 from .state_plugins.solver import SimSolver
 from .state_plugins.posix import SimSystemPosix
 from .state_plugins.symbolic_memory import SimSymbolicMemory
-from .state_plugins.view import SimRegNameView
-#from .state_plugins.heap import SimHeapBase
+from .state_plugins.view import SimRegNameView, SimMemView
+# For some reason importing `from .state_plugins.heap import SimHeapBase` here breaks importing angr with:
+# Traceback (most recent call last):
+#   File "dbg.py", line 1, in <module>
+#     import angr
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/__init__.py", line 24, in <module>
+#     from .misc.loggers import Loggers
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/misc/__init__.py", line 6, in <module>
+#     from .plugins import PluginHub, PluginPreset
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/misc/plugins.py", line 288, in <module>
+#     from ..state_plugins import SimStatePlugin
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/state_plugins/__init__.py", line 3, in <module>
+#     from .libc import *
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/state_plugins/libc.py", line 267, in <module>
+#     from angr.sim_state import SimState
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/sim_state.py", line 943, in <module>
+#     from .state_plugins.heap import SimHeapBase
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/state_plugins/heap/__init__.py", line 2, in <module>
+#     from .heap_base import *
+#   File "/home/fmagin/Projects/angr-dev/angr/angr/state_plugins/heap/heap_base.py", line 4, in <module>
+#     from .. import sim_options as opts
+# ImportError: cannot import name 'sim_options' from 'angr.state_plugins' (/home/fmagin/Projects/angr-dev/angr/angr/state_plugins/__init__.py)
 
+from .storage import SimMemory
+from .state_plugins.callstack import CallStack
 
 from . import sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError

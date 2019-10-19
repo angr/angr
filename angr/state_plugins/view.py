@@ -145,7 +145,7 @@ class SimMemView(SimStatePlugin):
         if isinstance(self._addr, int):
             self._addr = self.state.solver.BVV(self._addr, self.state.arch.bits)
 
-    def _deeper(self, **kwargs):
+    def _deeper(self, **kwargs) -> 'SimMemView':
         if 'ty' not in kwargs:
             kwargs['ty'] = self._type
         if 'addr' not in kwargs:
@@ -154,7 +154,7 @@ class SimMemView(SimStatePlugin):
             kwargs['state'] = self.state
         return SimMemView(**kwargs)
 
-    def __getitem__(self, k):
+    def __getitem__(self, k) -> 'SimMemView':
         if isinstance(k, slice):
             if k.step is not None:
                 raise ValueError("Slices with strides are not supported")
