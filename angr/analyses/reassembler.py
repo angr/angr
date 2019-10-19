@@ -416,7 +416,7 @@ class SymbolManager(object):
 
 
 class Operand(object):
-    def __init__(self, binary, insn_addr, insn_size, capstone_operand, operand_str, mnemonic, syntax=None):
+    def __init__(self, binary, insn_addr, insn_size, capstone_operand, operand_str, mnemonic, operand_offset, syntax=None):
         """
         Constructor.
 
@@ -425,6 +425,7 @@ class Operand(object):
         :param capstone_operand:
         :param str operand_str: the string representation of this operand
         :param str mnemonic: Mnemonic of the instruction that this operand belongs to.
+        :param int operand_offset: offset of the operand into the instruction.
         :param str syntax: Provide a way to override the default syntax coming from `binary`.
         :return: None
         """
@@ -435,8 +436,8 @@ class Operand(object):
         self.insn_size = insn_size
         self.operand_str = operand_str
         self.mnemonic = mnemonic
+        self.operand_offset = operand_offset
         self.syntax = self.binary.syntax if syntax is None else syntax
-
         self.type = None
         self.size = capstone_operand.size
 
@@ -606,7 +607,7 @@ class Operand(object):
                     sort = 'call'
                 else:
                     sort = 'absolute'
-                self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.insn_size)
+                self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.operand_offset)
 
         elif self.type == OP_TYPE_MEM:
 
@@ -626,7 +627,7 @@ class Operand(object):
                 self.disp_label = self.binary.symbol_manager.new_label(addr=baseaddr)
                 self.disp_label_offset = self.disp - baseaddr
 
-                self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size)
+                self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.operand_offset)
 
     def _imm_to_ptr(self, imm, operand_type, mnemonic):  # pylint:disable=no-self-use,unused-argument
         """
@@ -702,8 +703,17 @@ class Instruction(object):
 
         self.labels = [ ]
 
+        operand_offsets = [ ]
+        for operand in capstone_instr.operands:
+            if operand.type == capstone.CS_OP_IMM:
+                operand_offsets.append(capstone_instr.imm_offset)
+            elif operand.type == capstone.CS_OP_MEM:
+                operand_offsets.append(capstone_instr.disp_offset)
+            else:
+                operand_offsets.append(None)
+
         if self.addr is not None:
-            self._initialize(capstone_instr.operands)
+            self._initialize(capstone_instr.operands, operand_offsets)
 
     #
     # Overridden predefined instructions
@@ -823,7 +833,7 @@ class Instruction(object):
     # Private methods
     #
 
-    def _initialize(self, capstone_operands):
+    def _initialize(self, capstone_operands, operand_offsets):
         """
         Initialize this object
 
@@ -833,9 +843,9 @@ class Instruction(object):
         if self.addr is None:
             raise InstructionError('self.addr must be specified')
 
-        self._initialize_operands(capstone_operands)
+        self._initialize_operands(capstone_operands, operand_offsets)
 
-    def _initialize_operands(self, capstone_operands):
+    def _initialize_operands(self, capstone_operands, operand_offsets):
         """
 
         :return:
@@ -843,9 +853,10 @@ class Instruction(object):
 
         all_operands = split_operands(self.op_str)
         capstone_operands = capstone_operands[ - len(all_operands) : ] # sometimes there are more operands than expected...
+        operand_offsets = operand_offsets[ - len(all_operands) : ]
 
-        for operand, operand_str in zip(capstone_operands, all_operands):
-            self.operands.append(Operand(self.binary, self.addr, self.size, operand, operand_str, self.mnemonic))
+        for operand, operand_str, offset in zip(capstone_operands, all_operands, operand_offsets):
+            self.operands.append(Operand(self.binary, self.addr, self.size, operand, operand_str, self.mnemonic, offset))
 
 class BasicBlock(object):
     """
@@ -1892,54 +1903,12 @@ class Reassembler(Analysis):
             return closest_region
         return False, None
 
-    def register_instruction_reference(self, insn_addr, ref_addr, sort, insn_size):
+    def register_instruction_reference(self, insn_addr, ref_addr, sort, operand_offset):
 
         if not self.log_relocations:
             return
 
-        addr = insn_addr
-        if sort == 'jump':
-            addr += 1
-        elif sort == 'call':
-            addr += 1
-        elif sort == 'absolute':
-            # detect it...
-            ptr_size = self.project.arch.bytes
-            for i in range(0, insn_size):
-                # an absolute address is used
-                if insn_size - i >= ptr_size:
-                    ptr = self.fast_memory_load(insn_addr + i, ptr_size, int, endness='Iend_LE')
-                    if ptr == ref_addr:
-                        addr += i
-                        break
-
-                # an absolute address of 4 bytes is used
-                # e.g. AMD64:
-                #      mov r8, offset 0x400070
-                #      49 c7 c0 xx xx xx xx
-                if ptr_size == 8 and insn_size - i >= 4:
-                    ptr = self.fast_memory_load(insn_addr + i, 4, int, endness='Iend_LE')
-                    if ptr == ref_addr:
-                        addr += i
-                        break
-
-                # an relative offset is used, and size of the offset is 4
-                # e.g. AMD64:
-                #      mov rax, 0x600100
-                #      48 8b 05 xx xx xx
-                if insn_size - i >= 4:
-                    ptr = self.fast_memory_load(insn_addr + i, 4, int, endness='Iend_LE')
-                    if (ptr + insn_addr + insn_size) == ref_addr:
-                        addr += i
-                        break
-            else:
-                l.warning('Cannot find the absolute address inside instruction at %#x. Use the default address.',
-                          insn_addr
-                          )
-
-        else:
-            raise BinaryError('Unsupported sort "%s" in register_instruction_reference().' % sort)
-
+        addr = insn_addr + operand_offset
         r = Relocation(addr, ref_addr, sort)
 
         self._relocations.append(r)
