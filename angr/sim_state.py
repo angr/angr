@@ -4,6 +4,9 @@ import contextlib
 import weakref
 
 import logging
+from typing import Type
+
+
 l = logging.getLogger(name=__name__)
 
 import angr # type annotations; pylint:disable=unused-import
@@ -13,6 +16,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
+from .state_plugins import SimStatePlugin
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -52,7 +56,12 @@ class SimState(PluginHub):
     :ivar uc_manager:   Control of under-constrained symbolic execution
     :ivar str unicorn:      Control of the Unicorn Engine
     """
-
+    # Type Annotations for default plugins to allow type inference
+    solver: 'SimSolver'
+    posix: 'SimSystemPosix'
+    registers: 'SimSymbolicMemory'
+    regs: 'SimRegNameView'
+    heap: 'SimHeapBase'
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
                  options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
                  plugin_preset='default', **kwargs):
@@ -365,12 +374,12 @@ class SimState(PluginHub):
         self._set_plugin_state(plugin, inhibit_init=inhibit_init)
         return super(SimState, self).register_plugin(name, plugin)
 
-    def _init_plugin(self, plugin_cls):
+    def _init_plugin(self, plugin_cls: Type[SimStatePlugin]) -> SimStatePlugin:
         plugin = plugin_cls()
         self._set_plugin_state(plugin)
         return plugin
 
-    def _set_plugin_state(self, plugin, inhibit_init=False):
+    def _set_plugin_state(self, plugin: SimStatePlugin, inhibit_init: bool =False):
         plugin.set_state(self)
         if plugin.STRONGREF_STATE:
             plugin.set_strongref_state(self)
@@ -916,6 +925,14 @@ SimState.register_preset('default', default_state_plugin_preset)
 from .state_plugins.history import SimStateHistory
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
+
+# Type imports for annotations
+from .state_plugins.solver import SimSolver
+from .state_plugins.posix import SimSystemPosix
+from .state_plugins.symbolic_memory import SimSymbolicMemory
+from .state_plugins.view import SimRegNameView
+#from .state_plugins.heap import SimHeapBase
+
 
 from . import sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError

@@ -77,7 +77,7 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_blank(**kwargs)
 
-    def entry_state(self, **kwargs):
+    def entry_state(self, **kwargs) -> SimState:
         """
         Returns a state object representing the program at its entry point. All parameters are optional.
 

@@ -5,6 +5,7 @@ from io import BytesIO, IOBase
 import pickle
 import string
 from collections import defaultdict
+from typing import Dict, Any
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
@@ -95,7 +96,7 @@ class Project:
                  exclude_sim_procedures_list=(),
                  arch=None, simos=None,
                  engine=None,
-                 load_options=None,
+                 load_options: Dict[str, Any]=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
                  store_function=None,

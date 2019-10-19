@@ -1,3 +1,5 @@
+from typing import Type, Dict, Optional, List
+
 from angr.errors import AngrNoPluginError
 
 import logging
@@ -21,9 +23,9 @@ class PluginHub(object):
 
     def __init__(self):
         super(PluginHub, self).__init__()
-        self._active_plugins = {}
-        self._active_preset = None
-        self._provided_by_preset = []
+        self._active_plugins = {} # type: Dict[str, SimStatePlugin]
+        self._active_preset = None # type: Optional[PluginPreset]
+        self._provided_by_preset = [] # type: List[int]
 
     #
     #   Class methods for registration
@@ -66,7 +68,7 @@ class PluginHub(object):
             if name not in self._active_plugins:
                 self.register_plugin(name, plugin)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> 'SimStatePlugin':
         try:
             return self.get_plugin(name)
         except AngrNoPluginError:
@@ -100,7 +102,7 @@ class PluginHub(object):
         return self._active_preset
 
     @property
-    def has_plugin_preset(self):
+    def has_plugin_preset(self) -> bool:
         """
         Check whether or not there is a plugin preset in use on this hub right now
         """
@@ -143,7 +145,7 @@ class PluginHub(object):
     #   Methods for managing the current active plugins
     #
 
-    def get_plugin(self, name):
+    def get_plugin(self, name: str) -> 'SimStatePlugin':
         """
         Get the plugin named ``name``. If no such plugin is currently active, try to activate a new
         one using the current preset.
@@ -164,7 +166,7 @@ class PluginHub(object):
         else:
             raise AngrNoPluginError("No such plugin: %s" % name)
 
-    def _init_plugin(self, plugin_cls):  # pylint: disable=no-self-use
+    def _init_plugin(self, plugin_cls: Type['SimStatePlugin']) -> 'SimStatePlugin':  # pylint: disable=no-self-use
         """
         Perform any initialization actions on plugin before it is added to the list of active plugins.
 
@@ -178,7 +180,7 @@ class PluginHub(object):
         """
         return name in self._active_plugins
 
-    def register_plugin(self, name, plugin):
+    def register_plugin(self, name: str, plugin):
         """
         Add a new plugin ``plugin`` with name ``name`` to the active plugins.
         """
@@ -210,7 +212,7 @@ class PluginPreset(object):
     """
 
     def __init__(self):
-        self._default_plugins = {}
+        self._default_plugins = {} # type: Dict[str, Type['SimStatePlugin']]
 
     def activate(self, hub):  # pylint:disable=no-self-use,unused-argument
         """
@@ -236,7 +238,7 @@ class PluginPreset(object):
         """
         return self._default_plugins.keys()
 
-    def request_plugin(self, name):
+    def request_plugin(self, name: str) -> Type['SimStatePlugin']:
         """
         Return the plugin class which is registered under the name ``name``, or raise NoPlugin if
         the name isn't available.
@@ -282,3 +284,5 @@ class VendorPreset(PluginPreset):
     """
 
     pass
+
+from ..state_plugins import SimStatePlugin
