@@ -7,6 +7,10 @@ import logging
 from typing import Type
 
 
+from typing import Type, TypeVar
+
+from archinfo import Arch
+
 l = logging.getLogger(name=__name__)
 
 import angr # type annotations; pylint:disable=unused-import
@@ -65,6 +69,10 @@ class SimState(PluginHub):
     memory: 'SimMemory'
     callstack: 'CallStack'
     mem: "SimMemView"
+    callstack: 'CallStack'
+    mem: "SimMemView"
+    history: 'SimStateHistory'
+    inspect: 'SimInspector'
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
                  options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
                  plugin_preset='default', **kwargs):
@@ -329,7 +337,7 @@ class SimState(PluginHub):
         return self.solver.eval_one(self.regs._ip)
 
     @property
-    def arch(self):
+    def arch(self) -> Arch:
         if self._is_java_jni_project:
             return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
         else:
@@ -347,7 +355,8 @@ class SimState(PluginHub):
         if self.supports_inspect:
             self.inspect.action(*args, **kwargs)
 
-    def _inspect_getattr(self, attr, default_value):
+    T = TypeVar("T")
+    def _inspect_getattr(self, attr: str, default_value: T):
         if self.supports_inspect:
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
@@ -958,6 +967,10 @@ from .state_plugins.view import SimRegNameView, SimMemView
 
 from .storage import SimMemory
 from .state_plugins.callstack import CallStack
+
+from .state_plugins.callstack import CallStack
+from .state_plugins.history import SimStateHistory
+from .state_plugins.inspect import SimInspector
 
 from . import sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
