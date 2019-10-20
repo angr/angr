@@ -16,6 +16,13 @@ def test_smoketest():
 
     vr = p.analyses.VariableRecoveryFast(main_func)
 
+    import pprint
+    tcons = vr._outstates[0x4005b2].type_constraints
+    pprint.pprint(vr._outstates[0x4005b2].typevars._typevars)
+    pprint.pprint(tcons)
+
+    p.analyses.Typehoon(tcons)
+
     # convert function blocks to AIL blocks
     # clinic = p.analyses.Clinic(main_func)
 
