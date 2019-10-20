@@ -209,10 +209,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._analyze()
 
-        import pprint
-        pprint.pprint(self._outstates[0x4005b2].typevars._typevars)
-        pprint.pprint(self._outstates[0x4005b2].type_constraints)
-
         # cleanup (for cpython pickle)
         self._ail_engine = None
         self._vex_engine = None
