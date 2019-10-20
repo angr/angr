@@ -14,6 +14,12 @@ class Subtype:
     def __repr__(self):
         return "%s <: %s" % (self.sub_type, self.super_type)
 
+    def __eq__(self, other):
+        return type(other) is Subtype and self.sub_type == other.sub_type and self.super_type == other.super_type
+
+    def __hash__(self):
+        return hash((Subtype, hash(self.sub_type), hash(self.super_type)))
+
 
 _typevariable_counter = count()
 

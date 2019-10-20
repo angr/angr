@@ -5,7 +5,12 @@ All type constants used in type inference. They can be mapped, translated, or re
 
 
 class TypeConstant:
-    pass
+
+    def __eq__(self, other):
+        return type(self) == type(other)
+
+    def __hash__(self):
+        return hash(type(self))
 
 
 class TopType(TypeConstant):
@@ -25,7 +30,9 @@ class Int1(TypeConstant):
 
 
 class Int8(TypeConstant):
-    pass
+
+    def __repr__(self):
+        return "int8"
 
 
 class Int16(TypeConstant):

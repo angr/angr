@@ -5,7 +5,7 @@ from ...engines.light import SimEngineLight, SpOffset, ArithmeticExpression
 from ...errors import SimEngineError
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 from ..code_location import CodeLocation
-from ..typehoon import typevars
+from ..typehoon import typevars, typeconsts
 
 #
 # The base engine used in VariableRecoveryFast
@@ -157,13 +157,14 @@ class SimEngineVRBase(SimEngineLight):
         self.state.register_region.set_variable(offset, variable)
         self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
 
-        if richr.typevar is not None:
+        if not self.arch.is_artificial_register(offset, size) and richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable, codeloc):
                 # assign a new type variable to it
                 typevar = typevars.TypeVariable()
                 self.state.typevars.add_type_variable(variable, codeloc, typevar)
                 # create constraints
                 self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+                self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
     def _store(self, addr, data, size, stmt=None):  # pylint:disable=unused-argument
         """
@@ -218,20 +219,15 @@ class SimEngineVRBase(SimEngineLight):
                 # create type constraints
                 if data.typevar is not None:
                     if not self.state.typevars.has_type_variable_for(variable, codeloc):
-                        addr_vartype = typevars.TypeVariable()
-                        self.state.typevars.add_type_variable(variable, codeloc, addr_vartype)
+                        typevar = typevars.TypeVariable()
+                        self.state.typevars.add_type_variable(variable, codeloc, typevar)
                     else:
-                        addr_vartype = self.state.typevars.get_type_variable(variable, codeloc)
-                    if addr_vartype is not None:
+                        typevar = self.state.typevars.get_type_variable(variable, codeloc)
+                    if typevar is not None:
                         self.state.add_type_constraint(
-                            typevars.Subtype(
-                                typevars.DerivedTypeVariable(
-                                    typevars.DerivedTypeVariable(addr_vartype, typevars.Store()),
-                                    typevars.HasField(size * 8, 0)
-                                ),
-                                data.typevar
-                            )
+                            typevars.Subtype(data.typevar, typevar)
                         )
+                # TODO: Createa a tv_sp.store.<bits>@N <: typevar type constraint for the stack pointer
 
     def _load(self, richr_addr, size, expr=None):
         """
@@ -314,10 +310,11 @@ class SimEngineVRBase(SimEngineLight):
                 self.state.typevars.add_type_variable(var, codeloc, typevar)
             else:
                 typevar = self.state.typevars.get_type_variable(var, codeloc)
-            typevar = typevars.DerivedTypeVariable(
-                typevars.DerivedTypeVariable(typevar, typevars.Load()),
-                typevars.HasField(size * 8, 0)
-            )
+            # TODO: Create a tv_sp.load.<bits>@N type variable for the stack variable
+            #typevar = typevars.DerivedTypeVariable(
+            #    typevars.DerivedTypeVariable(typevar, typevars.Load()),
+            #    typevars.HasField(size * 8, 0)
+            #)
 
             return RichR(None, variable=var, typevar=typevar)
 
@@ -369,12 +366,15 @@ class SimEngineVRBase(SimEngineLight):
 
         # we accept the precision loss here by only returning the first variable
         var = next(iter(self.state.register_region.get_variables_by_offset(offset)))
-        if var not in self.state.typevars:
-            typevar = typevars.TypeVariable()
-            self.state.typevars.add_type_variable(var, codeloc, typevar)
+        if self.arch.is_artificial_register(offset, size):
+            typevar = None
         else:
-            # FIXME: This is an extremely stupid hack. Fix it later.
-            # typevar = next(reversed(list(self.state.typevars[var].values())))
-            typevar = self.state.typevars[var]
+            if var not in self.state.typevars:
+                typevar = typevars.TypeVariable()
+                self.state.typevars.add_type_variable(var, codeloc, typevar)
+            else:
+                # FIXME: This is an extremely stupid hack. Fix it later.
+                # typevar = next(reversed(list(self.state.typevars[var].values())))
+                typevar = self.state.typevars[var]
 
         return RichR(None, variable=var, typevar=typevar)
