@@ -1,4 +1,5 @@
 import logging
+from typing import overload, Any, Union, List, Optional
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from typing import overload, Any, Union
 
@@ -166,7 +167,7 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(self, thing=None, **kwargs):
+    def simulation_manager(self, thing: Optional[Union[List[SimState], SimState]]=None, **kwargs) -> 'SimulationManager':
         """
         Constructs a new simulation manager.
 
