@@ -105,7 +105,11 @@ class CFBlanket(Analysis):
                 else:
                     raise NotImplementedError()
             else:
-                mr = MemoryRegion(obj.min_addr, obj.size if hasattr(obj, 'size') else 80, 'TODO', obj, None)
+                if hasattr(obj, "size"):
+                    size = obj.size
+                else:
+                    size = obj.max_addr - obj.min_addr
+                mr = MemoryRegion(obj.min_addr, size, 'TODO', obj, None)
                 self._regions.append(mr)
 
         # Sort them just in case
