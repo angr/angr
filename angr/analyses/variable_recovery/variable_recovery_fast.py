@@ -740,7 +740,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         # readjusting sp at the end for blocks that end in a call
         if block.addr in self._node_to_cc:
             cc = self._node_to_cc[block.addr]
-            if cc is not None:
+            if cc is not None and cc.sp_delta is not None:
                 state.processor_state.sp_adjustment += cc.sp_delta
                 state.processor_state.sp_adjusted = True
                 l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.',
