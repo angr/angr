@@ -24,5 +24,20 @@ def test_function_serialization():
     nose.tools.assert_equal(func_main.name, f.name)
 
 
+def test_function_instruction_addr_from_any_addr():
+
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
+    cfg = p.analyses.CFG()
+
+    func_main = cfg.kb.functions['main']
+
+    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x400739), 0x400739)
+    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x40073a), 0x400739)
+    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x40073d), 0x400739)
+    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x400742), 0x400742)
+    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x400743), 0x400742)
+
+
 if __name__ == "__main__":
     test_function_serialization()
+    test_function_instruction_addr_from_any_addr()
