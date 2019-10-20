@@ -1137,6 +1137,29 @@ class Function(Serializable):
 
         return None
 
+    def addr_to_instruction_addr(self, addr):
+        """
+        Obtain the address of the instruction that covers @addr.
+
+        :param int addr:    An address.
+        :return:            Address of the instruction that covers @addr, or None if this addr is not covered by any
+                            instruction of this function.
+        :rtype:             int or None
+        """
+
+        # TODO: Replace the linear search with binary search
+        for b in self.blocks:
+            if b.addr <= addr < b.addr + b.size:
+                # found it
+                for i, instr_addr in enumerate(b.instruction_addrs):
+                    if i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i+1]:
+                        return instr_addr
+                    elif i == len(b.instruction_addrs) - 1 and instr_addr <= addr:
+                        return instr_addr
+                # Not covered by any instruction... why?
+                return None
+        return None
+
     def dbg_print(self):
         """
         Returns a representation of the list of basic blocks in this function.
@@ -1368,7 +1391,6 @@ class Function(Serializable):
             return addr[0]
         else:  # int, long
             return addr
-
 
     @property
     def demangled_name(self):
