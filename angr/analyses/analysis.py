@@ -198,6 +198,8 @@ class Analysis:
                 self._initialize_progressbar()
             if self._progressbar is not None:
                 self._progressbar.finish()
+                # Remove the progressbar object so it will not be pickled
+                self._progressbar = None
 
         if self._progress_callback is not None:
             self._progress_callback(100.0)  # pylint:disable=not-callable
