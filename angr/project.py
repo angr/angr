@@ -159,13 +159,11 @@ class Project:
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
-        self._should_use_sim_procedures = use_sim_procedures
+        self.use_sim_procedures = use_sim_procedures
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
-        self._is_java_project = None
-        self._is_java_jni_project = None
 
         if self._support_selfmodifying_code:
             if self._translation_cache is True:
@@ -213,6 +211,9 @@ class Project:
             self.simos = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        self.is_java_project = isinstance(self.arch, ArchSoot)
+        self.is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
 
         # Step 6: Register simprocedures as appropriate for library functions
         if isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support:
@@ -365,7 +366,7 @@ class Project:
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return not self._should_use_sim_procedures or \
+        return not self.use_sim_procedures or \
             f in self._exclude_sim_procedures_list or \
             f in self._ignore_functions or \
             (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
@@ -688,33 +689,6 @@ class Project:
 
     def __repr__(self):
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
-
-    #
-    # Properties
-    #
-
-    @property
-    def use_sim_procedures(self):
-        return self._should_use_sim_procedures
-
-    @property
-    def is_java_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive.
-        """
-        if self._is_java_project is None:
-            self._is_java_project = isinstance(self.arch, ArchSoot)
-        return self._is_java_project
-
-    @property
-    def is_java_jni_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive, which
-        interacts during its execution with native libraries (via JNI).
-        """
-        if self._is_java_jni_project is None:
-            self._is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
-        return self._is_java_jni_project
 
     #
     # Compatibility

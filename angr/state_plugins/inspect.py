@@ -28,6 +28,7 @@ event_types = {
     'vfg_handle_successor',
     'vfg_widen_state',
     'engine_process',
+    'memory_page_map',
 }
 
 inspect_attributes = {
@@ -123,6 +124,10 @@ inspect_attributes = {
     # engine_process
     'sim_engine',
     'sim_successors',
+
+    # memory mapping
+    'mapped_page',
+    'mapped_address',
     }
 
 NO_OVERRIDE = object()
