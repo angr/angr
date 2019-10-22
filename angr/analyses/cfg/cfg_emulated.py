@@ -3065,7 +3065,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if is_simprocedure:
             simproc_name = sa['name'].split('.')[-1]
-            if simproc_name == "ReturnUnconstrained" and sa['resolves'] is not None:
+            if simproc_name == "ReturnUnconstrained" and 'resolves' in sa and sa['resolves'] is not None:
                 simproc_name = sa['resolves']
 
             no_ret = False
