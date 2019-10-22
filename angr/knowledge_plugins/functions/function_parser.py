@@ -1,9 +1,9 @@
 import logging
 import pickle
 
-import angr.knowledge_plugins.functions.function
-
 from collections import defaultdict
+
+import angr.knowledge_plugins.functions.function
 
 from ...codenode import BlockNode
 from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
@@ -13,6 +13,9 @@ l = logging.getLogger(name=__name__)
 
 
 class FunctionParser():
+    """
+    The implementation of the serialization methods for the <Function> class.
+    """
     @staticmethod
     def serialize(function):
         """
@@ -32,8 +35,9 @@ class FunctionParser():
         # blocks
         blocks_list = [ b.serialize_to_cmessage() for b in function.blocks ]
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
+
         # graph
-        edges = [ ]
+        edges = []
         external_functions = set()
         TRANSITION_JK = func_edge_type_to_pb('transition')  # default edge type
         for src, dst, data in function.transition_graph.edges(data=True):
@@ -45,17 +49,17 @@ class FunctionParser():
             if isinstance(dst, angr.knowledge_plugins.functions.function.Function):
                 external_functions.add(dst.addr)
             edge.jumpkind = TRANSITION_JK
-            for k, v in data.items():
-                if k == "type":
-                    edge.jumpkind = func_edge_type_to_pb(v)
-                elif k == "ins_addr":
-                    edge.ins_addr = v
-                elif k == "stmt_idx":
-                    edge.stmt_idx = v
-                elif k == "outside":
-                    edge.is_outside = v
+            for key, address in data.items():
+                if key == "type":
+                    edge.jumpkind = func_edge_type_to_pb(address)
+                elif key == "ins_addr":
+                    edge.ins_addr = address
+                elif key == "stmt_idx":
+                    edge.stmt_idx = address
+                elif key == "outside":
+                    edge.is_outside = address
                 else:
-                    edge.data[k] = pickle.dumps(v)  # pylint:disable=no-member
+                    edge.data[key] = pickle.dumps(address)  # pylint:disable=no-member
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
@@ -84,24 +88,35 @@ class FunctionParser():
         )
 
         # blocks
-        blocks = { }
-        for block_cmsg in cmsg.blocks:
-            b = BlockNode(block_cmsg.ea,
-                          block_cmsg.size,
-                          bytestr=block_cmsg.bytes
-                          )
-            blocks[b.addr] = b
+        blocks = dict(map(
+            lambda block: (block.addr, block),
+            map(
+                lambda b: BlockNode(b.ea, b.size, bytestr=b.bytes),
+                cmsg.blocks
+            )
+        ))
         external_functions = set(cmsg.external_functions)
+
         # edges
-        edges = { }
+        edges = {}
         fake_return_edges = defaultdict(list)
         for edge_cmsg in cmsg.graph.edges:
             try:
-                src = FunctionParser._get_block_or_func(edge_cmsg.src_ea, blocks, external_functions, function_manager)
+                src = FunctionParser._get_block_or_func(
+                    edge_cmsg.src_ea,
+                    blocks,
+                    external_functions,
+                    function_manager
+                )
             except KeyError:
                 raise KeyError("Address of the edge source %#x is not found." % edge_cmsg.src_ea)
             try:
-                dst = FunctionParser._get_block_or_func(edge_cmsg.dst_ea, blocks, external_functions, function_manager)
+                dst = FunctionParser._get_block_or_func(
+                    edge_cmsg.dst_ea,
+                    blocks,
+                    external_functions,
+                    function_manager
+                )
             except KeyError:
                 raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
             edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
@@ -147,14 +162,14 @@ class FunctionParser():
     @staticmethod
     def _get_block_or_func(addr, blocks, external_functions, function_manager):
         try:
-            o = blocks[addr]
+            block_or_func = blocks[addr]
         except KeyError:
             if addr in external_functions:
                 if function_manager is not None:
-                    o = function_manager.function(addr=addr, create=True)
+                    block_or_func = function_manager.function(addr=addr, create=True)
                 else:
                     # TODO:
-                    o = None
+                    block_or_func = None
             else:
                 raise
-        return o
+        return block_or_func
