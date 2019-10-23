@@ -12,9 +12,6 @@ class LoopVisitor(GraphVisitor):
 
         self.reset()
 
-    def startpoints(self):
-        return [ self.loop.entry ]
-
     def successors(self, node):
         return self.loop.graph.successors(node)
 
