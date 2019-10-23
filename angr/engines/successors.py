@@ -5,7 +5,7 @@ from archinfo.arch_soot import ArchSoot
 import logging
 l = logging.getLogger(name=__name__)
 
-class SimSuccessors:
+class SimSuccessors(object):
     """
     This class serves as a categorization of all the kinds of result states that can come from a
     SimEngine run.
@@ -208,10 +208,7 @@ class SimSuccessors:
 
             state._inspect('call', BP_AFTER)
         else:
-            while True:
-                cur_sp = state.solver.max(state.regs._sp) if state.has_plugin('symbolizer') else state.regs._sp
-                if not state.solver.is_true(cur_sp > state.callstack.top.stack_ptr):
-                    break
+            while state.solver.is_true(state.regs._sp > state.callstack.top.stack_ptr):
                 state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
                 state.callstack.pop()
                 state._inspect('return', BP_AFTER)
