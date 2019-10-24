@@ -1,5 +1,5 @@
 import logging
-from archinfo import ArchSoot
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
@@ -271,7 +271,7 @@ class AngrObjectFactory(object):
               strict_block_end=None, collect_data_refs=False,
               ):
 
-        if isinstance(self.project.arch, ArchSoot):
+        if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
 
         if insn_bytes is not None and insn_text is not None:

@@ -14,7 +14,7 @@ class JavaSimProcedure(SimProcedure):
 
     @property
     def _engine(self):
-        return self.project.factory.default_engine  # FIXME: Currently we assume that it must be a SimEngineSoot
+        return self.project.factory.default_engine  # FIXME: Currently we assume that it must be a SootMixin
 
     def _setup_args(self, inst, state, _):
         sim_args = []

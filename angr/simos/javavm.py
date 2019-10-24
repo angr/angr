@@ -8,7 +8,7 @@ from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, 
 from claripy.ast.fp import FP, fpToIEEEBV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
-from ..engines.soot import SimEngineSoot
+from ..engines.soot import SootMixin
 from ..engines.soot.expressions import SimSootExpr_NewArray #, SimSootExpr_NewMultiArray
 from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_StringRef,
@@ -178,7 +178,7 @@ class SimJavaVM(SimOS):
             # => saves it in the globals dict
             state.globals['cmd_line_args'] = cmd_line_args
         # setup arguments
-        SimEngineSoot.setup_arguments(state, args)
+        SootMixin.setup_arguments(state, args)
         return state
 
     @staticmethod
@@ -445,6 +445,6 @@ def prepare_native_return_state(native_state):
 
     Note: Redirection needed for pickling.
     """
-    return SimEngineSoot.prepare_native_return_state(native_state)
+    return SootMixin.prepare_native_return_state(native_state)
 
 from .. import sim_options as options

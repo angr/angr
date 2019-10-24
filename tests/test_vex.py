@@ -5,7 +5,7 @@ import pyvex
 import claripy
 
 from angr import SimState
-from angr.engines import SimEngineVEXMixin
+from angr.engines import HeavyVEXMixin
 import angr.engines.vex.claripy.ccall as s_ccall
 
 l = logging.getLogger('angr.tests.test_vex')
@@ -147,7 +147,7 @@ def test_aarch64_32bit_ccalls():
 
 
 def test_some_vector_ops():
-    engine = SimEngineVEXMixin(None)
+    engine = HeavyVEXMixin(None)
     s = SimState(arch='AMD64')
 
     def translate(state, op, args):
@@ -233,7 +233,7 @@ def test_store_simplification():
     state.regs.eax = state.solver.BVS('base_eax', 32)
 
     irsb = pyvex.IRSB(b'PT]\xc2\x10\x00', 0x4000, state.arch)
-    sim_successors = SimEngineVEXMixin(None).process(state.copy(), irsb=irsb)
+    sim_successors = HeavyVEXMixin(None).process(state.copy(), irsb=irsb)
     exit_state = sim_successors.all_successors[0]
 
     nose.tools.assert_true(claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4))
@@ -242,7 +242,7 @@ def test_store_simplification():
 def test_loadg_no_constraint_creation():
 
     state = SimState(arch='armel', mode='symbolic')
-    engine = SimEngineVEXMixin(None)
+    engine = HeavyVEXMixin(None)
 
     stmt = pyvex.IRStmt.LoadG('Iend_LE', 'ILGop_16Uto32',
                               0, # dst

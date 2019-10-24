@@ -19,7 +19,7 @@ from .sim_type import SimTypeTop
 from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
-from .engines.soot.engine import SimEngineSoot
+from .engines.soot.engine import SootMixin
 
 # TODO: This file contains explicit and implicit byte size assumptions all over. A good attempt to fix them was made.
 # If your architecture hails from the astral plane, and you're reading this, start fixing here.
@@ -566,7 +566,7 @@ class SimCC:
         # STEP 0: clerical work
 
         if isinstance(self, SimCCSoot):
-            SimEngineSoot.setup_callsite(state, args, ret_addr)
+            SootMixin.setup_callsite(state, args, ret_addr)
             return
 
         allocator = AllocHelper(self.arch.bits, self.arch.memory_endness == 'Iend_LE')

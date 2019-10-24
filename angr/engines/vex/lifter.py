@@ -108,8 +108,6 @@ class VEXLifter(SimEngineBase):
         """
 
         # phase 0: sanity check
-        if clemory is None and self.project is not None:
-            clemory = self.project.loader.memory
         if not state and not clemory and not insn_bytes:
             raise ValueError("Must provide state or clemory or insn_bytes!")
         if not state and not clemory and not arch:
