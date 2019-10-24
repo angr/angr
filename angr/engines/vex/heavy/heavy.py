@@ -15,7 +15,28 @@ l = logging.getLogger(__name__)
 class VEXEarlyExit(Exception):
     pass
 
-class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
+
+class SimStateStorageMixin(VEXMixin):
+    def _perform_vex_expr_Get(self, offset, ty, action=None, inspect=True):
+        return self.state.registers.load(offset, self._ty_to_bytes(ty), action=action, inspect=inspect)
+
+    def _perform_vex_expr_RdTmp(self, tmp):
+        return self.state.scratch.tmp_expr(tmp)
+
+    def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, **kwargs):
+        return self.state.memory.load(addr, self._ty_to_bytes(ty), endness=endness, action=action, inspect=inspect)
+
+    def _perform_vex_stmt_Put(self, offset, data, action=None, inspect=True):
+        self.state.registers.store(offset, data, action=action, inspect=inspect)
+
+    def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
+        self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=None)
+
+    def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
+        self.state.scratch.store_tmp(tmp, data, deps=deps)
+
+
+class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
     """
     Execution engine based on VEX, Valgrind's IR.
 
@@ -188,15 +209,6 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
         l.debug("IMark: %#x", stmt.addr)
         super()._handle_vex_stmt_IMark(stmt)
 
-    def _perform_vex_stmt_Put(self, offset, data, action=None, inspect=True):
-        self.state.registers.store(offset, data, action=action, inspect=inspect)
-
-    def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
-        self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=None)
-
-    def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
-        self.state.scratch.store_tmp(tmp, data, deps=deps)
-
     def _perform_vex_stmt_Exit(self, guard, target, jumpkind):
         cont_state = None
         exit_state = None
@@ -257,14 +269,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
 
         return super()._instrument_vex_expr(result)
 
-    def _perform_vex_expr_Get(self, offset, ty, action=None, inspect=True):
-        return self.state.registers.load(offset, self._ty_to_bytes(ty), action=action, inspect=inspect)
-
-    def _perform_vex_expr_RdTmp(self, tmp):
-        return self.state.scratch.tmp_expr(tmp)
-
-    def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, **kwargs):
-        result = self.state.memory.load(addr, self._ty_to_bytes(ty), endness=endness, action=action, inspect=inspect)
+    def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
+        result = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
             if getattr(addr._model_vsa, 'uninitialized', False):
                 raise errors.SimUninitializedAccessError('addr', addr)

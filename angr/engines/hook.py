@@ -56,6 +56,6 @@ class HooksMixin(SuccessorsMixin, ProcedureMixin):
         if isinstance(procedure.addr, SootAddressDescriptor):
             l.debug("Running %s (originally at %r)", repr(procedure), procedure.addr)
         else:
-            l.debug("Running %s (originally at %#x)", repr(procedure), procedure.addr)
+            l.debug("Running %s (originally at %s)", repr(procedure), procedure.addr if procedure.addr is None else hex(procedure.addr))
 
         return self.process_procedure(state, successors, procedure, **kwargs)

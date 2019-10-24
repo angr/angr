@@ -128,7 +128,7 @@ class VEXMixin(SimEngineBase):
     def _handle_vex_expr_GetI(self, expr: pyvex.expr.GetI):
         return self._perform_vex_expr_GetI(
             expr.descr.base,
-            expr.descr.ty,
+            expr.descr.elemTy,
             expr.bias,
             self._analyze_vex_expr_GetI_ix(expr.ix),
             expr.descr.nElems,
@@ -245,7 +245,7 @@ class VEXMixin(SimEngineBase):
         index = self._perform_vex_expr_Op('Iop_Add32', (self._handle_vex_const(pyvex.const.U32(bias)), ix))
         big_index = self._perform_vex_expr_Op('Iop_32HLto64', (self._handle_vex_const(pyvex.const.U32(0)), index))
         divmod_index = self._perform_vex_expr_Op('Iop_DivModU64to32', (big_index, self._handle_vex_const(pyvex.const.U32(nElems))))
-        mod_index = self._perform_vex_expr_Op('Iop_64Hto32', (divmod_index,))
+        mod_index = self._perform_vex_expr_Op('Iop_64HIto32', (divmod_index,))
         offset = self._perform_vex_expr_Op('Iop_Mul32', (mod_index, self._handle_vex_const(pyvex.const.U32(elemSize))))
         return self._perform_vex_expr_Op('Iop_Add32', (self._handle_vex_const(pyvex.const.U32(base)), offset))
     def _perform_vex_stmt_PutI(self, base, elemSize, bias, ix, nElems, data):
