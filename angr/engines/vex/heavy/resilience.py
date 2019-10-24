@@ -4,7 +4,7 @@ from ..light.resilience import VEXResilienceMixin, raiseme
 from ..claripy.datalayer import ClaripyDataMixin, symbol, value
 from angr import sim_options as o
 
-class HeavyResilience(VEXResilienceMixin, ClaripyDataMixin):
+class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def __make_default(self, ty, symbolic, name):
         if symbolic:
             return symbol(ty, name)

@@ -262,7 +262,7 @@ class SootBlock:
 
     @property
     def soot(self):
-        return self._soot_engine.lift(self.addr, the_binary=self._the_binary)
+        return self._soot_engine.lift_soot(self.addr, the_binary=self._the_binary)
 
     @property
     def size(self):

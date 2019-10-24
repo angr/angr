@@ -15,7 +15,7 @@ l = logging.getLogger(__name__)
 class VEXEarlyExit(Exception):
     pass
 
-class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
+class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
     """
     Execution engine based on VEX, Valgrind's IR.
 
@@ -81,7 +81,7 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
                                                "a python replacement using project.hook"
                                                "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
 
-                raise errors.SimIRSBError("Empty IRSB passed to SimEngineVEXMixin.")
+                raise errors.SimIRSBError("Empty IRSB passed to HeavyVEXMixin.")
 
             # check permissions, are we allowed to execute here? Do we care?
             if o.STRICT_PAGE_ACCESS in self.state.options:

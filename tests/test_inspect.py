@@ -7,9 +7,9 @@ import logging
 
 import os
 from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
-from angr.engines import ProcedureEngine, SimEngineVEXMixin, SimInspectMixin
+from angr.engines import ProcedureEngine, HeavyVEXMixin, SimInspectMixin
 
-class InspectEngine(SimInspectMixin, SimEngineVEXMixin):
+class InspectEngine(SimInspectMixin, HeavyVEXMixin):
     pass
 
 def test_inspect():
@@ -131,7 +131,7 @@ def test_inspect_exit():
     s.inspect.b('exit', BP_AFTER, action=handle_exit_after)
 
     # step it
-    succ = SimEngineVEXMixin(None).process(s, irsb=irsb).flat_successors
+    succ = HeavyVEXMixin(None).process(s, irsb=irsb).flat_successors
 
     # check
     nose.tools.assert_equal( succ[0].solver.eval(succ[0].ip), 0x41414141)
@@ -265,12 +265,12 @@ def test_inspect_engine_process():
 
     def first_symbolic_fork(state):
         return hex(state.addr) == '0x40068eL' \
-           and isinstance(state.inspect.sim_engine, SimEngineVEXMixin)
+           and isinstance(state.inspect.sim_engine, HeavyVEXMixin)
         # TODO: I think this latter check is meaningless with the eleventh hour refactor
 
     def second_symbolic_fork(state):
         return hex(state.addr) == '0x4006dbL' \
-           and isinstance(state.inspect.sim_engine, SimEngineVEXMixin)
+           and isinstance(state.inspect.sim_engine, HeavyVEXMixin)
 
     def check_state(state):
         nose.tools.assert_in(hex(state.inspect.sim_successors.addr), ('0x40068eL', '0x4006dbL'))

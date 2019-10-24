@@ -1,2 +1,2 @@
 
-from .engine import SimEngineSoot
+from .engine import SootMixin
