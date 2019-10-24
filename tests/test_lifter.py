@@ -14,7 +14,7 @@ def test_strict_block_ends_cbz():
     assert p.factory.block(1, strict_block_end=True).instructions == 2
     p.factory.default_engine._default_strict_block_end = False
     assert p.factory.block(1).instructions == 7
-    p.engines.default_engine._default_strict_block_end = True
+    p.factory.default_engine._default_strict_block_end = True
     assert p.factory.block(1).instructions == 2
 
 if __name__ == '__main__':

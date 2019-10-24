@@ -21,6 +21,13 @@ class SimEngineBase:
 
     __tls = ('state',)
 
+    def __getstate__(self):
+        return self.project,
+
+    def __setstate__(self, state):
+        self.project = state[0]
+        self.state = None
+
 class SimEngine(SimEngineBase):
     """
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.

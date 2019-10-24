@@ -58,7 +58,7 @@ class ClaripyDataMixin(VEXMixin):
             return res
 
     def _perform_vex_stmt_Put(self, offset, data, **kwargs):
-        super()._perform_vex_stmt_Store(offset, data.raw_to_bv(), **kwargs)
+        super()._perform_vex_stmt_Put(offset, data.raw_to_bv(), **kwargs)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, **kwargs):
         super()._perform_vex_stmt_Store(addr, data.raw_to_bv(), endness, **kwargs)
