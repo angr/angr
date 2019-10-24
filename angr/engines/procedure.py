@@ -1,6 +1,8 @@
 import logging
 l = logging.getLogger(name=__name__)
 
+from .engine import SuccessorsMixin
+
 #pylint: disable=arguments-differ
 
 class ProcedureMixin:
@@ -49,5 +51,17 @@ class ProcedureMixin:
             successors.description += ' (stub)'
         successors.processed = True
 
+
+class ProcedureEngine(ProcedureMixin, SuccessorsMixin):
+    """
+    A SimEngine that you may use if you only care about processing SimProcedures. *Requires* the procedure
+    kwarg to be passed to process.
+    """
+    def process_successors(self, successors, procedure=None, **kwargs):
+        if procedure is None:
+            raise errors.SimEngineError("Must provide the procedure explicitly to use ProcedureEngine")
+        self.process_procedure(self.state, successors, procedure, **kwargs)
+
 from .. import sim_options as o
+from .. import errors
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

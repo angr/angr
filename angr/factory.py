@@ -1,10 +1,11 @@
 import logging
+from archinfo import ArchSoot
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 from .errors import AngrAssemblyError
-from archinfo import ArchSoot
+from .engines import UberEngine, ProcedureEngine
 
 
 l = logging.getLogger(name=__name__)
@@ -17,14 +18,8 @@ class AngrObjectFactory(object):
     def __init__(self, project):
         self.project = project
         self._default_cc = DEFAULT_CC[project.arch.name]
-
-    @property
-    def default_engine(self):
-        return self.project.engines.default_engine
-
-    @property
-    def procedure_engine(self):
-        return self.project.engines.procedure_engine
+        self.default_engine = UberEngine(project)
+        self.procedure_engine = ProcedureEngine(project)
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
@@ -51,7 +46,7 @@ class AngrObjectFactory(object):
         Additional keyword arguments will be passed directly into each engine's process method.
         """
 
-        return self.project.engines.successors(*args, **kwargs)
+        return self.default_engine.process(*args, **kwargs)
 
     def blank_state(self, **kwargs):
         """

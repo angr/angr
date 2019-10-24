@@ -7,6 +7,7 @@ from .... import errors
 from .... import sim_options as o
 
 l = logging.getLogger(__name__)
+zero = claripy.BVV(0, 32)
 
 def value(ty, val):
     if ty == 'Ity_F32':
@@ -29,6 +30,16 @@ class ClaripyDataMixin(VEXMixin):
 
     def _handle_vex_const(self, const):
         return value(const.type, const.value)
+
+    # is this right? do I care?
+    def _handle_vex_expr_GSPTR(self, expr):
+        return zero
+
+    def _handle_vex_expr_VECRET(self, expr):
+        return zero
+
+    def _handle_vex_expr_Binder(self, expr):
+        return zero
 
     # simple wrappers to implement the fp/bv data casting
 

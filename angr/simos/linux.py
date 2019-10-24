@@ -143,12 +143,16 @@ class SimLinux(SimUserland):
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':
             return None
-        if state.history.jumpkind == 'Ijk_Sys_int128':
+        jk = state.history.jumpkind
+        if jk is None:
+            # we are being invoked in the middle of a step
+            jk = state.history.parent.jumpkind
+        if jk == 'Ijk_Sys_int128':
             return 'i386'
-        elif state.history.jumpkind == 'Ijk_Sys_syscall':
+        elif jk == 'Ijk_Sys_syscall':
             return 'amd64'
         else:
-            raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
+            raise AngrSyscallError("Unknown syscall jumpkind %s" % jk)
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,

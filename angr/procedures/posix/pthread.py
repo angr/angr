@@ -25,7 +25,7 @@ class pthread_create(angr.SimProcedure):
         # Execute each block
         state = blank_state
         for b in blocks:
-            irsb = self.project.engines.default_engine.process(state, b,
+            irsb = self.project.factory.default_engine.process(state, b,
                     force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
                                                   )
             if irsb.successors:

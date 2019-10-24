@@ -52,7 +52,7 @@ class Block(Serializable):
             elif vex is not None:
                 size = vex.size
             else:
-                vex = self._vex_engine.lift(
+                vex = self._vex_engine.lift_vex(
                         clemory=project.loader.memory,
                         state=backup_state,
                         insn_bytes=byte_string,
@@ -143,7 +143,7 @@ class Block(Serializable):
     @property
     def vex(self):
         if not self._vex:
-            self._vex = self._vex_engine.lift(
+            self._vex = self._vex_engine.lift_vex(
                     clemory=self._project.loader.memory if self._project is not None else None,
                     insn_bytes=self._bytes,
                     addr=self.addr,
@@ -166,7 +166,7 @@ class Block(Serializable):
         if self._vex:
             return self._vex
 
-        self._vex_nostmt = self._vex_engine.lift(
+        self._vex_nostmt = self._vex_engine.lift_vex(
             clemory=self._project.loader.memory if self._project is not None else None,
             insn_bytes=self._bytes,
             addr=self.addr,

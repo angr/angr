@@ -772,9 +772,9 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     cc_op = op_concretize(cc_op)
 
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
-        return claripy.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, [ ] # TODO: actual constraints
+        return claripy.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1 # TODO: actual constraints
     elif cc_op in ( data[platform]['OpTypes']['G_CC_OP_LOGICQ'], data[platform]['OpTypes']['G_CC_OP_LOGICL'], data[platform]['OpTypes']['G_CC_OP_LOGICW'], data[platform]['OpTypes']['G_CC_OP_LOGICB'] ):
-        return claripy.BVV(0, state.arch.bits), [ ] # TODO: actual constraints
+        return claripy.BVV(0, state.arch.bits) # TODO: actual constraints
 
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
 
@@ -930,7 +930,7 @@ def amd64g_calculate_mmx_pmaddwd(_state, xx, yy):
     res_1 = xx_3 * yy_3 + xx_2 * yy_2
     res_0 = xx_1 * yy_1 + xx_0 * yy_0
 
-    return claripy.Concat(res_1, res_0), []
+    return claripy.Concat(res_1, res_0)
 
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
@@ -990,10 +990,10 @@ def x86g_calculate_eflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
 def x86g_check_fldcw(state, fpucw):
-    return ((fpucw >> 10) & 3).zero_extend(32), ()
+    return ((fpucw >> 10) & 3).zero_extend(32)
 
 def x86g_create_fpucw(state, fpround):
-    return 0x037f | ((fpround & 3) << 10), ()
+    return 0x037f | ((fpround & 3) << 10)
 
 def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     assert len(flags_and_AX) == 32
@@ -1139,7 +1139,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     def bad(msg):
         if msg:
             l.warning("x86g_use_seg_selector: %s", msg)
-        return claripy.BVV(1 << 32, 32).zero_extend(32), ()
+        return claripy.BVV(1 << 32, 32).zero_extend(32)
 
     if (seg_selector & ~0xFFFF != 0).is_true():
         return bad("invalid selector (" + str(seg_selector) + ")")
@@ -1149,7 +1149,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     # are we in real mode?
     if state.arch.vex_archinfo['x86_cr0'] & 1 == 0:
-        return ((seg_selector << 4) + virtual_addr).zero_extend(32), ()
+        return ((seg_selector << 4) + virtual_addr).zero_extend(32)
 
     seg_selector &= 0x0000FFFF
 
@@ -1170,7 +1170,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         # GDT access
         gdt_value = state.solver.eval_one(gdt)
         if gdt_value == 0:
-            return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
+            return ((seg_selector << 16) + virtual_addr).zero_extend(32)
 
         seg_selector >>= 3 # bit 3 to 15 are the index in the table
         seg_selector = seg_selector.zero_extend(32)
@@ -1186,7 +1186,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         # LDT access
         ldt_value = state.solver.eval_one(ldt)
         if ldt_value == 0:
-            return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
+            return ((seg_selector << 16) + virtual_addr).zero_extend(32)
 
         seg_selector >>= 3 # bit 3 to 15 are the index in the table
         seg_selector = seg_selector.zero_extend(32)
@@ -1216,7 +1216,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     r = (base + virtual_addr).zero_extend(32)
     l.debug("x86g_use_seg_selector: addr=%s", str(r))
 
-    return r, ()
+    return r
 
 #
 # other amd64 craziness
@@ -1245,7 +1245,7 @@ EmFail_S390X_invalid_PFPO_function = 19
 
 
 def amd64g_create_mxcsr(state, sseround):
-    return 0x1F80 | ((sseround & 3) << 13), ()
+    return 0x1F80 | ((sseround & 3) << 13)
 
 def amd64g_check_ldmxcsr(state, mxcsr):
     rmode = claripy.LShR(mxcsr, 13) & 3
@@ -1264,7 +1264,7 @@ def amd64g_check_ldmxcsr(state, mxcsr):
             )
          )
 
-    return (ew << 32) | rmode, ()
+    return (ew << 32) | rmode
 
 #################
 ### ARM Flags ###
@@ -1435,15 +1435,15 @@ def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
     # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
     # created.
-    n, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    z, c2 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    c, c3 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    v, c4 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    n = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    z = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    c = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    v = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     vec = [(ARMG_CC_SHIFT_N, claripy.Extract(0, 0, n)),
            (ARMG_CC_SHIFT_Z, claripy.Extract(0, 0, z)),
            (ARMG_CC_SHIFT_C, claripy.Extract(0, 0, c)),
            (ARMG_CC_SHIFT_V, claripy.Extract(0, 0, v))]
-    return _concat_flags(ARMG_NBITS, vec), c1 + c2 + c3 + c4
+    return _concat_flags(ARMG_NBITS, vec)
 
 
 def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1453,7 +1453,6 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 
     concrete_cond = op_concretize(cond)
     flag = None
-    c1,c2,c3 = [ ], [ ], [ ]
 
     # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
     # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
@@ -1462,32 +1461,32 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     if concrete_cond == ARMCondAL:
         flag = claripy.BVV(1, 32)
     elif concrete_cond in [ ARMCondEQ, ARMCondNE ]:
-        zf, c1 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ zf
     elif concrete_cond in [ ARMCondHS, ARMCondLO ]:
-        cf, c1 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        cf = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ cf
     elif concrete_cond in [ ARMCondMI, ARMCondPL ]:
-        nf, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        nf = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ nf
     elif concrete_cond in [ ARMCondVS, ARMCondVC ]:
-        vf, c1 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ vf
     elif concrete_cond in [ ARMCondHI, ARMCondLS ]:
-        cf, c1 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        zf, c2 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        cf = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (cf & ~zf)
     elif concrete_cond in [ ARMCondGE, ARMCondLT ]:
-        nf, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        vf, c2 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        nf = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (1 & ~(nf ^ vf))
     elif concrete_cond in [ ARMCondGT, ARMCondLE ]:
-        nf, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        vf, c2 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        zf, c3 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        nf = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (1 & ~(zf | (nf ^ vf)))
 
-    if flag is not None: return flag, [ cond == concrete_cond ] + c1 + c2 + c3
+    if flag is not None: return flag
 
     l.error("Unrecognized condition %d in armg_calculate_condition", concrete_cond)
     raise SimCCallError("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
@@ -1709,15 +1708,15 @@ def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
     # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
     # created.
-    n, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    z, c2 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    c, c3 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    v, c4 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    n = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    z = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    c = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    v = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     vec = [(ARM64G_CC_SHIFT_N, claripy.Extract(0, 0, n)),
            (ARM64G_CC_SHIFT_Z, claripy.Extract(0, 0, z)),
            (ARM64G_CC_SHIFT_C, claripy.Extract(0, 0, c)),
            (ARM64G_CC_SHIFT_V, claripy.Extract(0, 0, v))]
-    return _concat_flags(ARM64G_NBITS, vec), c1 + c2 + c3 + c4
+    return _concat_flags(ARM64G_NBITS, vec)
 
 def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     cond = claripy.LShR(cond_n_op, 4)
@@ -1726,37 +1725,36 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 
     concrete_cond = op_concretize(cond)
     flag = None
-    c1,c2,c3 = [ ], [ ], [ ]
 
     if concrete_cond in (ARM64CondAL, ARM64CondNV):
         flag = claripy.BVV(1, 64)
     elif concrete_cond in (ARM64CondEQ, ARM64CondNE):
-        zf, c1 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ zf
     elif concrete_cond in (ARM64CondCS, ARM64CondCC):
-        cf, c1 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        cf = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ cf
     elif concrete_cond in (ARM64CondMI, ARM64CondPL):
-        nf, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        nf = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ nf
     elif concrete_cond in (ARM64CondVS, ARM64CondVC):
-        vf, c1 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ vf
     elif concrete_cond in (ARM64CondHI, ARM64CondLS):
-        cf, c1 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        zf, c2 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        cf = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (1 & (cf & ~zf))
     elif concrete_cond in (ARM64CondGE, ARM64CondLT):
-        nf, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        vf, c2 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        nf = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (1 & ~(nf ^ vf))
     elif concrete_cond in (ARM64CondGT, ARM64CondLE):
-        nf, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        vf, c2 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-        zf, c3 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        nf = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (1 & ~(zf | (nf ^ vf)))
 
-    if flag is not None: return flag, [ cond == concrete_cond ] + c1 + c2 + c3
+    if flag is not None: return flag
 
     l.error("Unrecognized condition %d in arm64g_calculate_condition", concrete_cond)
     raise SimCCallError("Unrecognized condition %d in arm64g_calculate_condition" % concrete_cond)
