@@ -1,6 +1,8 @@
 import sys
 import logging
 import threading
+from typing import Optional
+import angr
 
 from archinfo.arch_soot import SootAddressDescriptor
 
@@ -11,10 +13,10 @@ class SimEngineBase:
     Even more basey of a base class for SimEngine. Used as a base by mixins which want access to the project but for
     which process doesn't make sense.
     """
-    def __init__(self, project, **kwargs):
+    def __init__(self, project=None, **kwargs):
         if kwargs:
             raise TypeError("Unused initializer args: " + ", ".join(kwargs.keys()))
-        self.project = project
+        self.project = project  # type: Optional[angr.Project]
         self.state = None
 
     __tls = ('state',)

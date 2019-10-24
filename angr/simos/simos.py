@@ -72,7 +72,7 @@ class SimOS:
 
             return val._model_concrete.value
 
-        #self.project.loader.perform_irelative_relocs(irelative_resolver)
+        self.project.loader.perform_irelative_relocs(irelative_resolver)
 
     def _weak_hook_symbol(self, name, hook, scope=None):
         if scope is None:

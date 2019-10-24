@@ -12,7 +12,7 @@ from archinfo import ArchARM
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
-from ...engines.procedure import ProcedureMixin
+from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
 from ...exploration_techniques.explorer import Explorer
@@ -2841,7 +2841,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # instantiate the stub
                     new_stub_inst = new_stub(display_name=old_name)
 
-                    sim_successors = self.project.engines.procedure_engine.process(
+                    sim_successors = self.project.factory.procedure_engine.process(
                         state,
                         new_stub_inst,
                         force_addr=addr,
@@ -2890,7 +2890,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
                 inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-                sim_successors = SimEngineProcedure().process(state, inst)
+                sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimIRSBError:
             exception_info = sys.exc_info()
@@ -2898,28 +2898,28 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except claripy.ClaripyError:
             exception_info = sys.exc_info()
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimError:
             exception_info = sys.exc_info()
             l.debug("Caught a SimError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrExitError as ex:
             exception_info = sys.exc_info()
             l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrError:
             exception_info = sys.exc_info()

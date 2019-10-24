@@ -18,7 +18,16 @@ class TrackActionsMixin(SimEngineVEXMixin):
         super().handle_vex_block(irsb)
 
     def _handle_vex_const(self, const):
-        return super()._handle_vex_const(const), []
+        return super()._handle_vex_const(const), ()
+
+    def _handle_vex_expr_GSPTR(self, expr):
+        return super()._handle_vex_expr_GSPTR(expr), ()
+
+    def _handle_vex_expr_VECRET(self, expr):
+        return super()._handle_vex_expr_VECRET(expr), ()
+
+    def _handle_vex_expr_Binder(self, expr):
+        return super()._handle_vex_expr_Binder(expr), ()
 
     def _instrument_vex_expr(self, result):
         return super()._instrument_vex_expr(result[0]), result[1]
@@ -31,27 +40,27 @@ class TrackActionsMixin(SimEngineVEXMixin):
             action_objects = [SimActionObject(arg, deps=deps, state=self.state) for arg, dep in args]
             r = SimActionOperation(self.state, op, action_objects, result)
             self.state.history.add_action(r)
-            result_deps = [r]
+            result_deps = (r,)
         else:
-            result_deps = sum(deps, [])
+            result_deps = sum(deps, ())
         return result, result_deps
 
     def _perform_vex_expr_ITE(self, *args):
         exprs, deps = zip(*args)
-        combined_deps = sum(deps, [])
+        combined_deps = sum(deps, ())
         result = super()._perform_vex_expr_ITE(*exprs)
         return result, combined_deps
 
     # TODO for this and below: what if we made AUTO_DEPS work here?
     def _perform_vex_expr_CCall(self, func_name, ty, args, func=None):
         exprs, deps = zip(*args)
-        combined_deps = sum(deps, [])
+        combined_deps = sum(deps, ())
         result = super()._perform_vex_expr_CCall(func_name, ty, exprs, func=None)
         return result, combined_deps
 
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
-        exprs, deps = zip(*args)
-        combined_deps = sum(deps, [])
+        exprs, deps = zip(*args) if args else ((), ())
+        combined_deps = sum(deps, ())
         result = super()._perform_vex_stmt_Dirty_call(func_name, ty, exprs, func=None)
         return result, combined_deps
 
@@ -62,9 +71,9 @@ class TrackActionsMixin(SimEngineVEXMixin):
         if o.TRACK_TMP_ACTIONS in self.state.options:
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.READ, tmp=tmp, size=self.irsb.tyenv.sizeof(tmp), data=result)
             self.state.history.add_action(r)
-            a = [r]
+            a = (r,)
         else:
-            a = self.__tmp_deps.get(tmp, [])
+            a = self.__tmp_deps.get(tmp, ())
         return result, a
 
     def _perform_vex_expr_Get(self, offset_bundle, ty, **kwargs):
@@ -77,9 +86,9 @@ class TrackActionsMixin(SimEngineVEXMixin):
                               size=pyvex.get_type_size(ty), data=result
                               )
             self.state.history.add_action(r)
-            a = [r]
+            a = (r,)
         else:
-            a = []
+            a = ()
         return result, a
 
     def _perform_vex_expr_Load(self, addr_bundle, ty, end, **kwargs):
@@ -90,9 +99,9 @@ class TrackActionsMixin(SimEngineVEXMixin):
             addr_ao = SimActionObject(addr, deps=addr_deps, state=self.state)
             r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=pyvex.get_type_size(ty), data=result)
             self.state.history.add_action(r)
-            a = [r]
+            a = (r,)
         else:
-            a = []
+            a = ()
         return result, a
 
     # statements
@@ -152,11 +161,14 @@ class TrackActionsMixin(SimEngineVEXMixin):
         super()._perform_vex_stmt_Exit(guard, target, jumpkind)
 
     def _perform_vex_defaultexit(self, target_bundle, jumpkind):
-        target, target_deps = target_bundle
+        if target_bundle is not None:
+            target, target_deps = target_bundle
 
-        if o.TRACK_JMP_ACTIONS in self.state.options:
-            target_ao = SimActionObject(target, deps=target_deps, state=self.state)
-            self.state.history.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
+            if o.TRACK_JMP_ACTIONS in self.state.options:
+                target_ao = SimActionObject(target, deps=target_deps, state=self.state)
+                self.state.history.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
+        else:
+            target = None
 
         super()._perform_vex_defaultexit(target, jumpkind)
 

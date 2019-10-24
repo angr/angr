@@ -2433,7 +2433,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
 
         # try to resolve the jump target
-        simsucc = self.project.engines.default_engine.process(self._initial_state, irsb, force_addr=addr)
+        simsucc = self.project.factory.default_engine.process(self._initial_state, irsb, force_addr=addr)
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
             if ip._model_concrete is not ip:

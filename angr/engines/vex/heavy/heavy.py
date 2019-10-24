@@ -45,6 +45,7 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
         thumb=False,
         size=None,
         num_inst=None,
+        extra_stop_points=None,
         **kwargs):
         if insn_text is not None:
             if insn_bytes is not None:
@@ -71,7 +72,8 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
                     insn_bytes=insn_bytes,
                     thumb=thumb,
                     size=size,
-                    num_inst=num_inst)
+                    num_inst=num_inst,
+                    extra_stop_points=extra_stop_points)
 
             if irsb.size == 0:
                 if irsb.jumpkind == 'Ijk_NoDecode' and not self.state.project.is_hooked(irsb.addr):
@@ -155,7 +157,7 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith('Ijk_Sys'):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
-                    ret_target, guard, 'Ijk_FakeRet', exit_stmt_idx=DEFAULT_STATEMENT,
+                    ret_state, ret_target, guard, 'Ijk_FakeRet', exit_stmt_idx=DEFAULT_STATEMENT,
                     exit_ins_addr=self.state.scratch.ins_addr
                 )
 
@@ -186,10 +188,10 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
         l.debug("IMark: %#x", stmt.addr)
         super()._handle_vex_stmt_IMark(stmt)
 
-    def _perform_vex_stmt_Put(self, offset, data, action=None, inspect=None):
+    def _perform_vex_stmt_Put(self, offset, data, action=None, inspect=True):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
-    def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=None, condition=None):
+    def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
         self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=None)
 
     def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
@@ -237,7 +239,7 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
                  func = getattr(dirty, func_name)
             except AttributeError as e:
                 raise errors.UnsupportedDirtyError("Unsupported dirty helper %s" % func_name) from e
-        retval, retval_constraints = func(*args)
+        retval, retval_constraints = func(self.state, *args)
         self.state.add_constraints(*retval_constraints)
         return retval
 
@@ -255,13 +257,13 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
 
         return super()._instrument_vex_expr(result)
 
-    def _perform_vex_expr_Get(self, offset, ty, action=None, inspect=None):
+    def _perform_vex_expr_Get(self, offset, ty, action=None, inspect=True):
         return self.state.registers.load(offset, self._ty_to_bytes(ty), action=action, inspect=inspect)
 
     def _perform_vex_expr_RdTmp(self, tmp):
         return self.state.scratch.tmp_expr(tmp)
 
-    def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=None, **kwargs):
+    def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, **kwargs):
         result = self.state.memory.load(addr, self._ty_to_bytes(ty), endness=endness, action=action, inspect=inspect)
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
             if getattr(addr._model_vsa, 'uninitialized', False):
@@ -278,5 +280,7 @@ class SimEngineVEXMixin(SuccessorsMixin, ClaripyDataMixin, VEXMixin, VEXLifter):
         return super()._analyze_vex_defaultexit(expr)
 
     def _perform_vex_defaultexit(self, expr, jumpkind):
+        if expr is None:
+            expr = self.state.regs.ip
         self.successors.add_successor(self.state, expr, self.state.scratch.guard, jumpkind,
                                  exit_stmt_idx=DEFAULT_STATEMENT, exit_ins_addr=self.state.scratch.ins_addr)

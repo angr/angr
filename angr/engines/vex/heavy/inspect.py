@@ -18,7 +18,8 @@ class SimInspectMixin(VEXMixin):
         return self.state._inspect_getattr('dirty_result', retval)
 
     def _handle_vex_stmt_IMark(self, stmt):
-        self.state._inspect('instruction', BP_AFTER)
+        if self.stmt_idx != 0:
+            self.state._inspect('instruction', BP_AFTER)
         super()._handle_vex_stmt_IMark(stmt)
         self.state._inspect('instruction', BP_BEFORE, instruction=stmt.addr + stmt.delta)
 
@@ -41,7 +42,6 @@ class SimInspectMixin(VEXMixin):
 
     def handle_vex_block(self, irsb):
         self.state._inspect('irsb', BP_BEFORE, address=irsb.addr)
-        self.state._inspect('instruction', BP_BEFORE, instruction=irsb.addr)
         super().handle_vex_block(irsb)
         self.state._inspect('instruction', BP_AFTER)
         self.state._inspect('irsb', BP_AFTER, address=irsb.addr)

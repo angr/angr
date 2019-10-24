@@ -29,11 +29,11 @@ class VEXSlicingMixin(VEXMixin):
         if self._check_vex_slice(self.stmt_idx):
             super()._handle_vex_stmt(stmt)
 
-    def _perform_vex_defaultexit(self, expr, jumpkind):
+    def _handle_vex_defaultexit(self, expr, jumpkind):
         if self.__no_exit_sliced:
-            super()._perform_vex_defaultexit(None, 'Ijk_Boring')
+            super()._handle_vex_defaultexit(None, 'Ijk_Boring')
         elif self._check_vex_slice(DEFAULT_STATEMENT):
-            super()._perform_vex_defaultexit(expr, jumpkind)
+            super()._handle_vex_defaultexit(expr, jumpkind)
 
     def _check_vex_slice(self, stmt_idx):
         if stmt_idx == DEFAULT_STATEMENT:

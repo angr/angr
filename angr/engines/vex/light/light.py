@@ -1,8 +1,9 @@
 import pyvex
-
-from angr.engines.engine import SimEngineBase
-
 import logging
+
+from ...engine import SimEngineBase
+from ....utils.constants import DEFAULT_STATEMENT
+
 l = logging.getLogger(name=__name__)
 
 #pylint: disable=arguments-differ
@@ -49,7 +50,8 @@ class VEXMixin(SimEngineBase):
 
     def _handle_vex_expr(self, expr: pyvex.expr.IRExpr):
         handler = self._vex_expr_handlers[expr.tag_int]
-        return self._instrument_vex_expr(handler(expr))
+        result = handler(expr)
+        return self._instrument_vex_expr(result)
 
     def _instrument_vex_expr(self, result):
         return result
@@ -254,11 +256,11 @@ class VEXMixin(SimEngineBase):
     def _analyze_vex_stmt_LLSC_storedata(self, *a, **kw): return self._handle_vex_expr(*a, **kw)
     def _handle_vex_stmt_LLSC(self, stmt: pyvex.stmt.LLSC):
         self._perform_vex_stmt_LLSC(
-            stmt.result.tmp,
+            stmt.result,
             self._analyze_vex_stmt_LLSC_addr(stmt.addr),
             stmt.endness,
             self._analyze_vex_stmt_LLSC_storedata(stmt.storedata) if stmt.storedata is not None else None,
-            stmt.result.result_type(self.irsb.tyenv))
+            self.irsb.tyenv.lookup(stmt.result))
 
     def _perform_vex_stmt_LLSC_load(self, *a, **kw): return self. _perform_vex_expr_Load(*a, **kw)
     def _perform_vex_stmt_LLSC_store(self, *a, **kw): return self. _perform_vex_stmt_Store(*a, **kw)
@@ -279,7 +281,7 @@ class VEXMixin(SimEngineBase):
             self._analyze_vex_stmt_LoadG_addr(stmt.addr),
             self._analyze_vex_stmt_LoadG_alt(stmt.alt),
             self._analyze_vex_stmt_LoadG_guard(stmt.guard),
-            stmt.dst.tmp,
+            stmt.dst,
             stmt.cvt,
             stmt.end)
     def _perform_vex_stmt_LoadG_load(self, *a, **kw): return self. _perform_vex_expr_Load(*a, **kw)
@@ -401,9 +403,14 @@ class VEXMixin(SimEngineBase):
         for stmt_idx, stmt in enumerate(irsb.statements):
             self.stmt_idx = stmt_idx
             self._handle_vex_stmt(stmt)
+        self.stmt_idx = DEFAULT_STATEMENT
+        self._handle_vex_defaultexit(irsb.next, irsb.jumpkind)
+
+    def _handle_vex_defaultexit(self, expr: pyvex.expr.IRExpr, jumpkind: str):
         self._perform_vex_defaultexit(
-            self._analyze_vex_defaultexit(irsb.next) if irsb.next is not None else None,
-            irsb.jumpkind)
+            self._analyze_vex_defaultexit(expr) if expr is not None else None,
+            jumpkind
+        )
 
     def _perform_vex_defaultexit(self, expr, jumpkind):
         pass
