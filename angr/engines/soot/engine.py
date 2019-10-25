@@ -114,6 +114,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         successors.processed = True
 
     def _handle_soot_block(self, state, successors, block, starting_stmt_idx, method=None):
+        stmt = stmt_idx = None
         for tindex, stmt in enumerate(block.statements[starting_stmt_idx:]):
             stmt_idx = starting_stmt_idx + tindex
             state._inspect('statement', BP_BEFORE, statement=stmt_idx)
