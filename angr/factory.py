@@ -33,12 +33,12 @@ class AngrObjectFactory(object):
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def successors(self, *args, **kwargs):
+    def successors(self, *args, engine=None, **kwargs):
         """
-        Perform execution using any applicable engine. Enumerate the current engines and use the
-        first one that works. Return a SimSuccessors object classifying the results of the run.
+        Perform execution using an engine. Generally, return a SimSuccessors object classifying the results of the run.
 
         :param state:           The state to analyze
+        :param engine:          The engine to use. If not provided, will use the project default.
         :param addr:            optional, an address to execute at instead of the state's ip
         :param jumpkind:        optional, the jumpkind of the previous exit
         :param inline:          This is an inline execution. Do not bother copying the state.
@@ -46,6 +46,8 @@ class AngrObjectFactory(object):
         Additional keyword arguments will be passed directly into each engine's process method.
         """
 
+        if engine is not None:
+            return engine.process(*args, **kwargs)
         return self.default_engine.process(*args, **kwargs)
 
     def blank_state(self, **kwargs):
