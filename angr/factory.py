@@ -15,10 +15,13 @@ class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project):
+    def __init__(self, project, default_engine=None):
+        if default_engine is None:
+            default_engine = UberEngine
+
         self.project = project
         self._default_cc = DEFAULT_CC[project.arch.name]
-        self.default_engine = UberEngine(project)
+        self.default_engine = default_engine(project)
         self.procedure_engine = ProcedureEngine(project)
 
     def snippet(self, addr, jumpkind=None, **block_opts):

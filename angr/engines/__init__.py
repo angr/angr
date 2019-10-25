@@ -1,5 +1,5 @@
 from .successors import SimSuccessors
-from .engine import SimEngine
+from .engine import SimEngine, SuccessorsMixin
 
 from .vex import HeavyVEXMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from .procedure import ProcedureMixin, ProcedureEngine
