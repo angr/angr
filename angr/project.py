@@ -53,6 +53,7 @@ class Project:
     :param exclude_sim_procedures_list: A list of functions to *not* wrap with simprocedures.
     :param arch:                        The target architecture (auto-detected otherwise).
     :param simos:                       a SimOS class to use for this project.
+    :param engine:                      The SimEngine class to use for this project.
     :param bool translation_cache:      If True, cache translated basic blocks rather than re-translating them.
     :param support_selfmodifying_code:  Whether we aggressively support self-modifying code. When enabled, emulation
                                         will try to read code from the current state instead of the original memory,
@@ -84,6 +85,7 @@ class Project:
                  exclude_sim_procedures_func=None,
                  exclude_sim_procedures_list=(),
                  arch=None, simos=None,
+                 engine=None,
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
@@ -174,7 +176,7 @@ class Project:
 
         # Step 4: Set up the project's hubs
         # Step 4.1 Factory
-        self.factory = AngrObjectFactory(self)
+        self.factory = AngrObjectFactory(self, default_engine=engine)
 
         # Step 4.2: Analyses
         self.analyses = AnalysesHub(self)

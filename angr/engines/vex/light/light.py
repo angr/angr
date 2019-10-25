@@ -1,5 +1,6 @@
 import pyvex
 import logging
+from typing import Optional
 
 from ...engine import SimEngineBase
 from ....utils.constants import DEFAULT_STATEMENT
@@ -406,7 +407,7 @@ class VEXMixin(SimEngineBase):
         self.stmt_idx = DEFAULT_STATEMENT
         self._handle_vex_defaultexit(irsb.next, irsb.jumpkind)
 
-    def _handle_vex_defaultexit(self, expr: pyvex.expr.IRExpr, jumpkind: str):
+    def _handle_vex_defaultexit(self, expr: Optional[pyvex.expr.IRExpr], jumpkind: str):
         self._perform_vex_defaultexit(
             self._analyze_vex_defaultexit(expr) if expr is not None else None,
             jumpkind
