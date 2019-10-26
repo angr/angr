@@ -6,7 +6,11 @@ import copy
 from collections import defaultdict
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 
-filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
+from angr.analyses.cfg.cfg_job_base import BlockID
+
+#filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
+filename = "/media/sf_Security/sample_vm/a.out"
+
 
 ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
 ## and keeps certain attributes
@@ -98,20 +102,22 @@ def constant_propagation(cfg, proj):
 
     ### Clearing the states for the newly created graph (or should I create a new copy again)
     new_model = new_model_graph(new_cfg_graph, proj, "temporary2")
-    new_cfg_graph = new_model.graph
 
     ## Setting the input state for the first node(need to automate this)
     new_model._nodes_by_addr[main.rebased_addr][0].input_state = initial_input_state
 
     #Run the emulation on the new graph to update the state attributes
-    proj.analyses.CFGEmulated(graph=new_cfg_graph)
+    new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True)
 
-    return new_model
+    ### Returning a new CFGEmulated object with the updated graph
+    return new_cfg
 
 ####### Dead Cod Elimination
 def dead_code_elimination(cfg, proj):
     main = proj.loader.main_object.get_symbol("main")
     ddg = proj.analyses.DDG(cfg, main.rebased_addr)
+
+    ## Doing the replacements
     for node in list(cfg.graph.nodes()):
         if not node.is_simprocedure:
             print(node.simprocedure_name)
@@ -130,6 +136,9 @@ def dead_code_elimination(cfg, proj):
                     print(stmt)
                     print(ddg._stmt_graph.out_edges([location]))
                     new_stmts.append(stmt)
+                ## check if there's a Store from a symbolic memory address
+                elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
+                    new_stmts.append(stmt)
 
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                node.irsb.addr,
@@ -146,30 +155,28 @@ def dead_code_elimination(cfg, proj):
             print(node)
             print("\n")
 
+
+    ### Returning a new CFGEmulated object with the updated graph
+    dce_new_model = new_model_graph(cfg.graph, proj, 'dce')
+    initial_input_state = proj.factory.blank_state(addr=main.rebased_addr,
+                                                   mode='fastpath',
+                                                   add_options=angr.sim_options.refs | {
+                                                   angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+    dce_new_model._nodes_by_addr[main.rebased_addr][0].input_state = initial_input_state
+    new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True)
+    return new_cfg
+
+
 cfg, proj = data_sensitive_graph(filename)
-const_prop_model = constant_propagation(cfg, proj)
 
-### Just to create a new CFGEmulated instance
-main = proj.loader.main_object.get_symbol("main")
-start_state = proj.factory.blank_state(addr=main.rebased_addr,
-                                       add_options={angr.sim_options.REPLACEMENT_SOLVER,
-                                                    angr.sim_options.DO_CCALLS})
-new_cfg = proj.analyses.CFGEmulated(fail_fast=True,
-                                    data_sensitive=True ,
-                                    starts=[main.rebased_addr],
-                                    initial_state=start_state,
-                                    max_iterations=5,
-                                    resolve_indirect_jumps=True,
-                                    keep_state=True,
-                                    state_add_options=angr.sim_options.refs | {angr.sim_options.DO_CCALLS},
-                                    iropt_level=0)
-new_cfg._graph = const_prop_model.graph
-new_cfg._model = const_prop_model
-dead_code_elimination(new_cfg, proj)
+#### HACK TO REMOVE the last FakeRet Node, because it was not being corectly analysed in ddg. !!!!!!
+for node in cfg.graph.nodes():
+    if node.block_id == BlockID(addr=0x4005d1, data_offset=5, jump_type="normal", callsite_tuples=tuple()):
+        break
+cfg.graph.remove_node(node)
 
-## Doing DCE second time
-# dce2_new_model = new_model_graph(new_cfg.graph, proj, 'dce2')
-#
-# new_cfg._graph = dce2_new_model.graph
-# new_cfg._model = dce2_new_model
-# dead_code_elimination(new_cfg, proj)
+new_cfg = constant_propagation(cfg, proj)
+new_cfg = dead_code_elimination(new_cfg, proj)
+# DCE second time
+new_cfg = dead_code_elimination(new_cfg, proj)
+new_cfg = dead_code_elimination(new_cfg, proj)
