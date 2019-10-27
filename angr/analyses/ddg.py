@@ -1104,6 +1104,7 @@ class DDG(Analysis):
                         if isinstance(s.variable, SimTemporaryVariable) and s.variable.tmp_id == src_tmp_idx
                     )
                     self._ast_graph.add_edge(src_tmp_def, pv)
+
                 elif isinstance(statement.data, pyvex.IRExpr.Const):
                     # assignment
                     const = statement.data.con.value
