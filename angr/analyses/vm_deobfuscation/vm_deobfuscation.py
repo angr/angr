@@ -8,8 +8,8 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 
 from angr.analyses.cfg.cfg_job_base import BlockID
 
-#filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
-filename = "/media/sf_Security/sample_vm/a.out"
+filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
+#filename = "/media/sf_Security/sample_vm/a.out"
 
 
 ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
@@ -71,6 +71,7 @@ def data_sensitive_graph(filename):
                                     keep_state=True,
                                     state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                     iropt_level=0)
+
     return cfg, proj
 
 
@@ -107,10 +108,11 @@ def constant_propagation(cfg, proj):
     new_model._nodes_by_addr[main.rebased_addr][0].input_state = initial_input_state
 
     #Run the emulation on the new graph to update the state attributes
-    new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True)
+    new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True)
 
     ### Returning a new CFGEmulated object with the updated graph
     return new_cfg
+
 
 ####### Dead Cod Elimination
 def dead_code_elimination(cfg, proj):
@@ -163,20 +165,22 @@ def dead_code_elimination(cfg, proj):
                                                    add_options=angr.sim_options.refs | {
                                                    angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
     dce_new_model._nodes_by_addr[main.rebased_addr][0].input_state = initial_input_state
-    new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True)
+    new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True)
     return new_cfg
 
 
 cfg, proj = data_sensitive_graph(filename)
 
-#### HACK TO REMOVE the last FakeRet Node, because it was not being corectly analysed in ddg. !!!!!!
-for node in cfg.graph.nodes():
-    if node.block_id == BlockID(addr=0x4005d1, data_offset=5, jump_type="normal", callsite_tuples=tuple()):
-        break
-cfg.graph.remove_node(node)
+# #### HACK TO REMOVE the last FakeRet Node, because it was not being corectly analysed in ddg. !!!!!!
+# for node in cfg.graph.nodes():
+#     print(node.input_state.history.jumpkind)
+#     if node.block_id == BlockID(addr=0x4005d1, data_offset=5, jump_type="normal", callsite_tuples=tuple()):
+#     #if node.block_id == BlockID(addr=0x40069d, data_offset=5, jump_type="normal", callsite_tuples=tuple()):
+#         break
+# cfg.graph.remove_node(node)
 
 new_cfg = constant_propagation(cfg, proj)
 new_cfg = dead_code_elimination(new_cfg, proj)
 # DCE second time
-new_cfg = dead_code_elimination(new_cfg, proj)
-new_cfg = dead_code_elimination(new_cfg, proj)
+#new_cfg = dead_code_elimination(new_cfg, proj)
+# new_cfg = dead_code_elimination(new_cfg, proj)
