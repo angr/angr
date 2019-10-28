@@ -37,7 +37,7 @@ class TrackActionsMixin(HeavyVEXMixin):
         result = super()._perform_vex_expr_Op(op, exprs)
 
         if o.TRACK_OP_ACTIONS in self.state.options:
-            action_objects = [SimActionObject(arg, deps=deps, state=self.state) for arg, dep in args]
+            action_objects = [SimActionObject(arg, deps=dep, state=self.state) for arg, dep in args]
             r = SimActionOperation(self.state, op, action_objects, result)
             self.state.history.add_action(r)
             result_deps = (r,)

@@ -1,5 +1,6 @@
 import claripy
 import logging
+import pyvex
 
 from angr.engines.engine import SuccessorsMixin
 from ..light import VEXMixin
@@ -68,7 +69,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         num_inst=None,
         extra_stop_points=None,
         **kwargs):
-        if self.state.arch.vex_arch is None or type(successors.addr) is not int:
+        if not pyvex.lifting.lifters[self.state.arch.name] or type(successors.addr) is not int:
             return super().process_successors(successors, extra_stop_points=extra_stop_points, num_inst=num_inst, size=size, insn_text=insn_text, insn_bytes=insn_bytes, **kwargs)
 
         if insn_text is not None:
@@ -151,7 +152,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 ex.record_state(self.state)
                 raise
             except VEXEarlyExit:
-                pass
+                break
             else:
                 break
 
@@ -215,6 +216,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
     def _perform_vex_stmt_Exit(self, guard, target, jumpkind):
         cont_state = None
         exit_state = None
+        guard = guard != 0
 
         if o.COPY_STATES not in self.state.options:
             # very special logic to try to minimize copies
@@ -237,14 +239,14 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             cont_state = self.state
 
         if exit_state is not None:
-            self.successors.add_successor(exit_state, target, guard != 0, jumpkind,
+            self.successors.add_successor(exit_state, target, guard, jumpkind,
                                      exit_stmt_idx=self.stmt_idx, exit_ins_addr=self.state.scratch.ins_addr)
 
         if cont_state is None:
             raise VEXEarlyExit
 
         # Do our bookkeeping on the continuing self.state
-        cont_condition = guard == 0
+        cont_condition = ~guard
         cont_state.add_constraints(cont_condition)
         cont_state.scratch.guard = claripy.And(cont_state.scratch.guard, cont_condition)
 

@@ -337,11 +337,11 @@ class VEXMixin(SimEngineBase):
         self._perform_vex_stmt_CAS(
             self._analyze_vex_stmt_CAS_addr(stmt.addr),
             self._analyze_vex_stmt_CAS_dataLo(stmt.dataLo),
-            self._analyze_vex_stmt_CAS_dataHi(stmt.dataHi),
+            self._analyze_vex_stmt_CAS_dataHi(stmt.dataHi) if stmt.dataHi is not None else None,
             self._analyze_vex_stmt_CAS_expdLo(stmt.expdLo),
-            self._analyze_vex_stmt_CAS_expdHi(stmt.expdHi),
-            stmt.oldLo.tmp,
-            stmt.oldHi.tmp,
+            self._analyze_vex_stmt_CAS_expdHi(stmt.expdHi) if stmt.expdHi is not None else None,
+            stmt.oldLo,
+            stmt.oldHi,
             stmt.endness,
             stmt.expdLo.result_type(self.irsb.tyenv)
         )
