@@ -474,7 +474,10 @@ class SimEngineVEX(SimEngine):
 
         ###adding the replacements if they are not symbolic
         if not state.solver.symbolic(result) and not(type(expr) == pyvex.expr.Const):
-            abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(pyvex.expr.U64(state.solver.eval(result))))
+            const_class = pyvex.const.ty_to_const_class(expr.result_type(state.scratch.tyenv))
+            #pyvex.expr.Const(pyvex.expr.U64(state.solver.eval(result)))
+            abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(const_class(state.solver.eval(result))))
+
 
         return result
 
