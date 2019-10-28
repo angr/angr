@@ -17,9 +17,6 @@ class FunctionGraphVisitor(GraphVisitor):
 
         self.reset()
 
-    def startpoints(self):
-        return [ self.function.startpoint ]
-
     def successors(self, node):
         return list(self.graph.successors(node))
 

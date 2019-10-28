@@ -17,15 +17,6 @@ class GraphVisitor:
     # Interfaces
     #
 
-    def startpoints(self):
-        """
-        Get all start points to begin the traversal.
-
-        :return: A list of startpoints that the traversal should begin with.
-        """
-
-        raise NotImplementedError()
-
     def successors(self, node):
         """
         Get successors of a node. The node should be in the graph.

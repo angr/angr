@@ -11,9 +11,6 @@ class SingleNodeGraphVisitor(GraphVisitor):
 
         self.reset()
 
-    def startpoints(self):
-        return [ self.node.addr ]
-
     def successors(self, node):
         return [ ]
 
