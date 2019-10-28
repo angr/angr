@@ -8,9 +8,9 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 
 from angr.analyses.cfg.cfg_job_base import BlockID
 
-#filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
+filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
-filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
+#filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 
 
 ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
@@ -183,5 +183,5 @@ cfg, proj = data_sensitive_graph(filename)
 new_cfg = constant_propagation(cfg, proj)
 new_cfg = dead_code_elimination(new_cfg, proj)
 # DCE second time
-#new_cfg = dead_code_elimination(new_cfg, proj)
-# new_cfg = dead_code_elimination(new_cfg, proj)
+new_cfg = dead_code_elimination(new_cfg, proj)
+new_cfg = dead_code_elimination(new_cfg, proj)
