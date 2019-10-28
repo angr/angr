@@ -48,12 +48,14 @@ data = {
         'CondTypes': { },
         'CondBitOffsets': { },
         'CondBitMasks': { },
-        'OpTypes': { }
+        'OpTypes': { },
+        'Bits': 64,
     }, 'X86': {
         'CondTypes': { },
         'CondBitOffsets': { },
         'CondBitMasks': { },
-        'OpTypes': { }
+        'OpTypes': { },
+        'Bits': 32,
     }
 }
 
@@ -569,7 +571,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
         else:
             raise SimCCallError("Unrecognized condition in pc_calculate_condition. Panic.")
 
-        return claripy.Concat(claripy.BVV(0, state.arch.bits-1), r)
+        return claripy.Concat(claripy.BVV(0, data[platform]['Bits']-1), r)
     else:
         rdata = rdata_all
         v = op_concretize(cond)
@@ -765,7 +767,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
             raise SimCCallError('Operation %s with condition %s not found.' % (op, cond))
 
-    return claripy.Concat(claripy.BVV(0, state.arch.bits - 1), r)
+    return claripy.Concat(claripy.BVV(0, data[platform]['Bits'] - 1), r)
 
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
@@ -774,13 +776,13 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
         return claripy.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1 # TODO: actual constraints
     elif cc_op in ( data[platform]['OpTypes']['G_CC_OP_LOGICQ'], data[platform]['OpTypes']['G_CC_OP_LOGICL'], data[platform]['OpTypes']['G_CC_OP_LOGICW'], data[platform]['OpTypes']['G_CC_OP_LOGICB'] ):
-        return claripy.BVV(0, state.arch.bits) # TODO: actual constraints
+        return claripy.BVV(0, data[platform]['Bits']) # TODO: actual constraints
 
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
 
     if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
-        return claripy.Concat(claripy.BVV(0, state.arch.bits-1), cf & 1)
+        return claripy.Concat(claripy.BVV(0, data[platform]['Bits']-1), cf & 1)
     else:
         return claripy.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1
 
@@ -937,7 +939,6 @@ def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
         try:
             return pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
         except KeyError:
-
             pass
     return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
@@ -1763,7 +1764,7 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 # Some helpers
 #
 
-def _get_flags(state):
+def _get_flags(state) -> claripy.ast.bv.BV:
     if state.arch.name == 'X86':
         return x86g_calculate_eflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AMD64':

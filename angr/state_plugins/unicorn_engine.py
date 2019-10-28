@@ -1360,7 +1360,7 @@ class Unicorn(SimStatePlugin):
                 return False
 
         if self.state.arch.vex_conditional_helpers:
-            flags = ccall._get_flags(self.state)[0]
+            flags = ccall._get_flags(self.state)
             processed_flags = self._process_value(flags, 'reg')
             if processed_flags is None or processed_flags.symbolic:
                 #l.info("detected symbolic rflags/eflags")
