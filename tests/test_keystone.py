@@ -39,7 +39,7 @@ def run_keystone(arch):
 
     nose.tools.assert_equal(block.instructions, 1)
 
-    sm.step(addr=addr, insn_text=insn_texts[arch], thumb=is_thumb)
+    sm.step(force_addr=addr, insn_text=insn_texts[arch], thumb=is_thumb)
 
     if arch in ['i386', 'x86_64']:
         nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.eax), 0x12)
