@@ -62,6 +62,10 @@ class SimEngineRDVEX(
         super()._handle_WrTmp(stmt)
         self.state.kill_and_add_definition(Tmp(stmt.tmp), self._codeloc(), self.tmps[stmt.tmp])
 
+    def _handle_WrTmpData(self, tmp, data):
+        super()._handle_WrTmpData(tmp, data)
+        self.state.kill_and_add_definition(Tmp(tmp), self._codeloc(), self.tmps[tmp])
+
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
         reg_offset = stmt.offset
