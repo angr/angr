@@ -49,13 +49,11 @@ data = {
         'CondBitOffsets': { },
         'CondBitMasks': { },
         'OpTypes': { },
-        'Bits': 64,
     }, 'X86': {
         'CondTypes': { },
         'CondBitOffsets': { },
         'CondBitMasks': { },
         'OpTypes': { },
-        'Bits': 32,
     }
 }
 
@@ -571,7 +569,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
         else:
             raise SimCCallError("Unrecognized condition in pc_calculate_condition. Panic.")
 
-        return claripy.Concat(claripy.BVV(0, data[platform]['Bits']-1), r)
+        return claripy.Concat(claripy.BVV(0, data[platform]['size']-1), r)
     else:
         rdata = rdata_all
         v = op_concretize(cond)
@@ -767,7 +765,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
             raise SimCCallError('Operation %s with condition %s not found.' % (op, cond))
 
-    return claripy.Concat(claripy.BVV(0, data[platform]['Bits'] - 1), r)
+    return claripy.Concat(claripy.BVV(0, data[platform]['size'] - 1), r)
 
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
@@ -776,13 +774,13 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
         return claripy.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1 # TODO: actual constraints
     elif cc_op in ( data[platform]['OpTypes']['G_CC_OP_LOGICQ'], data[platform]['OpTypes']['G_CC_OP_LOGICL'], data[platform]['OpTypes']['G_CC_OP_LOGICW'], data[platform]['OpTypes']['G_CC_OP_LOGICB'] ):
-        return claripy.BVV(0, data[platform]['Bits']) # TODO: actual constraints
+        return claripy.BVV(0, data[platform]['size']) # TODO: actual constraints
 
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
 
     if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
-        return claripy.Concat(claripy.BVV(0, data[platform]['Bits']-1), cf & 1)
+        return claripy.Concat(claripy.BVV(0, data[platform]['size']-1), cf & 1)
     else:
         return claripy.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1
 
