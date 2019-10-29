@@ -2446,7 +2446,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         next_node = next_nodes[0]
 
         # Get the weakly-connected subgraph that contains `next_node`
-        all_subgraphs = networkx.weakly_connected_component_subgraphs(taint_graph)
+        all_subgraphs = ( networkx.induced_subgraph(taint_graph, nodes) for nodes in networkx.weakly_connected_components(taint_graph))
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
