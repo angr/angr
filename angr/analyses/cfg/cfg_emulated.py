@@ -2843,7 +2843,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                     sim_successors = self.project.factory.procedure_engine.process(
                         state,
-                        new_stub_inst,
+                        procedure=new_stub_inst,
                         force_addr=addr,
                         ret_to=ret_to,
                     )
