@@ -12,16 +12,6 @@ class CallGraphVisitor(GraphVisitor):
 
         self.reset()
 
-    def startpoints(self):
-        # TODO: make sure all connected components are covered
-        start_nodes = [node for node in self.callgraph.nodes() if self.callgraph.in_degree(node) == 0]
-
-        if not start_nodes:
-            # randomly pick one
-            start_nodes = [ self.callgraph.nodes()[0] ]
-
-        return start_nodes
-
     def successors(self, node):
         return list(self.callgraph.successors(node))
 

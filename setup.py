@@ -143,7 +143,7 @@ setup(
         'cooldict',
         'dpkt',
         'mulpyplexer',
-        'networkx>=2.0',
+        'networkx==2.3',
         'progressbar2',
         'rpyc',
         'cffi>=1.7.0',
