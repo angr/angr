@@ -1,3 +1,4 @@
+#define __STDC_FORMAT_MACROS 1
 #include <unicorn/unicorn.h>
 
 #include <cinttypes>
