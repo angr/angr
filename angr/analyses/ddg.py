@@ -741,7 +741,7 @@ class DDG(Analysis):
             matches = len(match_suc) == len(successing_nodes) and len(match_state) == len(final_states)
 
             for state in final_states:
-                if not matches and state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
