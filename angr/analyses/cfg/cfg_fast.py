@@ -19,7 +19,7 @@ from ...knowledge_plugins.xrefs import XRef, XRefType
 from ...misc.ux import deprecated
 from ... import sim_options as o
 from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
-                       AngrUnsupportedSyscallError
+                       SimOperationError, SimError, AngrUnsupportedSyscallError
                        )
 from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
@@ -1737,15 +1737,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             # Find the first successor with a syscall jumpkind
-            succ = next(iter(succ for succ in self.project.factory.successors(tmp_state).flat_successors
-                             if succ.history.jumpkind and succ.history.jumpkind.startswith("Ijk_Sys")), None)
+            successors = self._simulate_block_with_resilience(tmp_state)
+            if successors is not None:
+                succ = next(iter(succ for succ in successors.flat_successors
+                                 if succ.history.jumpkind and succ.history.jumpkind.startswith("Ijk_Sys")), None)
+            else:
+                succ = None
             if succ is None:
                 # For some reason, there is no such successor with a syscall jumpkind
                 target_addr = self._unresolvable_call_target_addr
             else:
                 try:
                     syscall_stub = self.project.simos.syscall(succ)
-                    if syscall_stub:  # can be None if simos is not a subclass of SimUserspac
+                    if syscall_stub:  # can be None if simos is not a subclass of SimUserspace
                         syscall_addr = syscall_stub.addr
                         target_addr = syscall_addr
                     else:
@@ -1837,6 +1841,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
 
         return jobs
+
+    def _simulate_block_with_resilience(self, state):
+        """
+        Execute a basic block with "On Error Resume Next". Give up when there is no way moving forward.
+
+        :param SimState state:  The initial state to start simulation with.
+        :return:                A SimSuccessors instance or None if we are unable to resume execution with resilience.
+        :rtype:                 SimSuccessors or None
+        """
+
+        stmt_idx = 0
+        successors = None  # make PyCharm's linting happy
+
+        while True:
+            try:
+                successors = self.project.factory.successors(state, skip_stmts=stmt_idx)
+                break
+            except SimOperationError as ex:
+                stmt_idx = ex.stmt_idx + 1
+                continue
+            except SimError:
+                return None
+
+        return successors
 
     # Data reference processing
 
