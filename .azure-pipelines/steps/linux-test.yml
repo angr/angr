@@ -24,3 +24,4 @@ steps:
   inputs:
     codeCoverageTool: "cobertura"
     summaryFileLocation: "build/results/*.coverage.xml"
+    additionalCodeCoverageFiles: "build/results/*.coverage.xml"
