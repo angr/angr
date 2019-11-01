@@ -4,7 +4,7 @@ jobs:
     vmImage: ubuntu-16.04
   container:
     image: angr/ci:1
-    options: --cap-add=SYS_PTRACE
+    options: --cap-add=SYS_PTRACE --security-opt seccomp:unconfined
   steps:
   - script: /root/scripts/azure-build.sh
 
@@ -18,7 +18,7 @@ jobs:
     vmImage: ubuntu-16.04
   container:
     image: angr/ci:1
-    options: --cap-add=SYS_PTRACE
+    options: --cap-add=SYS_PTRACE --security-opt seccomp:unconfined
   dependsOn: Build
   condition: succeeded()
   steps:
@@ -34,7 +34,7 @@ jobs:
     vmImage: ubuntu-16.04
   container:
     image: angr/ci:1
-    options: --cap-add=SYS_PTRACE
+    options: --cap-add=SYS_PTRACE --security-opt seccomp:unconfined
   dependsOn: Build
   condition: succeeded()
   variables:
