@@ -1984,10 +1984,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Update transition graphs of functions in function manager based on information passed in.
 
-        :param str jumpkind: Jumpkind.
-        :param CFGNode src_node: Source CFGNode
-        :param CFGNode dst_node: Destionation CFGNode
-        :param int ret_addr: The theoretical return address for calls
+        :param src_node_key:    Node key of the source CFGNode. Might be None.
+        :param dst_node:        Node key of the destination CFGNode. Might be None.
+        :param str jumpkind:    Jump kind of this transition.
+        :param int ret_addr:    The theoretical return address for calls.
+        :param int or None ins_addr:    Address of the instruction where this transition is made.
+        :param int or None stmt_idx:    ID of the statement where this transition is made.
+        :param bool or None confirmed:  Whether this call transition has been confirmed or not.
         :return: None
         """
 
