@@ -445,16 +445,14 @@ class SimEngineRDVEX(
                 l.warning('Please implement the unknown function handler with your own logic.')
             return None
 
-        is_internal = False
         ext_func_name = None
-        if self.project.loader.main_object.contains_addr(ip_addr) is True:
+        if self.project.loader.main_object.contains_addr(ip_addr):
             ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
-            if ext_func_name is None:
-                is_internal = True
         else:
             symbol = self.project.loader.find_symbol(ip_addr)
             if symbol is not None:
                 ext_func_name = symbol.name
+        is_internal = ext_func_name is None
 
         executed_rda = False
         if ext_func_name is not None:

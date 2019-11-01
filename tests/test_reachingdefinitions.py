@@ -249,14 +249,13 @@ class ReachingDefinitionAnalysisTest(TestCase):
 
 
     # @mock.patch.object(ReachingDefinitionAnalysis, '_analyze')
-    def test_reaching_definition_analysis_with_a_block_as_suject(self):
+    def test_reaching_definition_analysis_with_a_block_as_subject(self):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
         cfg = project.analyses.CFGFast()
 
         main_function = cfg.kb.functions['main']
-        block_node = main_function._addr_to_block_node[main_function.addr] # pylint: disable=W0212
-        main_block = Block(addr=0x42, byte_string=block_node.bytestr, project=project)
+        main_block = Block(addr=main_function.addr, project=project)
 
         reaching_definitions = project.analyses.ReachingDefinitions(subject=main_block)
 
