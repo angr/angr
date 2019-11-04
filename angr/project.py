@@ -260,6 +260,13 @@ class Project:
                 continue
             if not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
                 continue
+            if func.resolvedby is None:
+                # I don't understand the binary which made me add this case. If you are debugging and see this comment,
+                # good luck.
+                # ref: https://github.com/angr/angr/issues/1782
+                # (I also don't know why the TYPE_NONE check in the previous clause is there but I can't find a ref for
+                # that. they are probably related.)
+                continue
             if not reloc.resolved:
                 # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency
                 # library names. The backend creates the Relocation objects, but leaves them unresolved so that
