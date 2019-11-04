@@ -516,7 +516,8 @@ class Operand(object):
                     s.append(base)
 
                 if self.index and self.scale:
-                    s.append('+')
+                    if s:
+                        s.append('+')
                     s.append("(%s * %d)" % (CAPSTONE_REG_MAP[self.project.arch.name][self.index], self.scale))
 
                 if disp:
@@ -531,11 +532,15 @@ class Operand(object):
                 asm = " ".join(s)
 
                 # we need to specify the size here
-                if 'dword' in self.operand_str.lower():
+                if self.size == 16:
+                    asm = 'xmmword ptr [%s]' % asm
+                elif self.size == 8:
+                    asm = 'qword ptr [%s]' % asm
+                elif self.size == 4:
                     asm = 'dword ptr [%s]' % asm
-                elif 'word' in self.operand_str.lower():
+                elif self.size == 2:
                     asm = 'word ptr [%s]' % asm
-                elif 'byte' in self.operand_str.lower():
+                elif self.size == 1:
                     asm = 'byte ptr [%s]' % asm
                 else:
                     raise BinaryError('Unsupported memory operand size for operand "%s"' % self.operand_str)
@@ -799,13 +804,10 @@ class Instruction(object):
             for i, op in enumerate(self.operands):
                 op_asm = op.assembly()
                 if op_asm is not None:
-                    if op.type == OP_TYPE_IMM:
+                    if op.type in (OP_TYPE_IMM, OP_TYPE_MEM):
                         all_operands[i] = op_asm
-                    elif op.type == OP_TYPE_MEM:
-                        if self.binary.syntax == 'intel':
-                            all_operands[i] = all_operands[i][ : all_operands[i].index('ptr') + 3] + " [" + op_asm + "]"
-                        elif self.binary.syntax == 'at&t':
-                            all_operands[i] = op_asm
+                    else:
+                        raise BinaryError("Unsupported operand type %d." % op.type)
 
                     if self.capstone_operand_types[i] == capstone.CS_OP_IMM:
                         if mnemonic.startswith('j') or mnemonic.startswith('call') or mnemonic.startswith('loop'):
