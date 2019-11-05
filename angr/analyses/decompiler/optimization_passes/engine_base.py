@@ -55,7 +55,7 @@ class SimplifierAILEngine(
 
         super().__init__()
 
-    def process(self, state, block, whitelist=None): #pylint: arguments-differ
+    def process(self, state, block, whitelist=None): #pylint: disable=arguments-differ
 
         self.block = block
         self.state = state
