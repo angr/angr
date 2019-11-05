@@ -1,7 +1,7 @@
 import logging
 import math
 
-from ailment import Expr, Stmt
+from ailment import Expr
 
 from ... import AnalysesHub
 from .engine_base import SimplifierAILEngine, SimplifierAILState
@@ -12,7 +12,7 @@ _l = logging.getLogger(name=__name__)
 class DivSimplifierAILEngine(SimplifierAILEngine):
 
 
-    def _check_divisor(self, a, b, ndigits=6): #pylint disable=no-self-use
+    def _check_divisor(self, a, b, ndigits=6): #pylint: disable=no-self-use
         divisor_1 = 1 + (a//b)
         divisor_2 = int(round(a/float(b), ndigits))
         return divisor_1 if divisor_1 == divisor_2 else None
@@ -23,19 +23,19 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             if isinstance(operand_expr, Expr.BinaryOp) \
                 and operand_expr.op == 'Mul' \
                     and isinstance(operand_expr.operands[1], Expr.Const) \
-                and isinstance(operand_expr.operands[0], Expr.BinaryOp) \
-                    and operand_expr.operands[0].op in {'Shr', 'DivMod'} \
+                        and isinstance(operand_expr.operands[0], Expr.BinaryOp):
+                if operand_expr.operands[0].op in {'Shr', 'DivMod'} \
                     and isinstance(operand_expr.operands[0].operands[1], Expr.Const):
-                if operand_expr.operands[0].op == 'Shr':
-                    Y = operand_expr.operands[0].operands[1].value
-                else:
-                    Y = int(math.log2(operand_expr.operands[0].operands[1].value))
-                C = operand_expr.operands[1].value
-                divisor = self._check_divisor(pow(2, 64+Y), C)
-                if divisor:
-                    X = operand_expr.operands[0].operands[0]
-                    new_const = Expr.Const(expr.idx, None, divisor, 64)
-                    return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], **expr.tags)
+                    if operand_expr.operands[0].op == 'Shr':
+                        Y = operand_expr.operands[0].operands[1].value
+                    else:
+                        Y = int(math.log2(operand_expr.operands[0].operands[1].value))
+                    C = operand_expr.operands[1].value
+                    divisor = self._check_divisor(pow(2, 64+Y), C)
+                    if divisor:
+                        X = operand_expr.operands[0].operands[0]
+                        new_const = Expr.Const(expr.idx, None, divisor, 64)
+                        return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], **expr.tags)
 
         return super()._ail_handle_Convert(expr)
 
@@ -63,24 +63,24 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         if isinstance(operand_1, Expr.Const) \
             and isinstance(operand_0, Expr.Convert) \
                 and operand_0.from_bits == 128 \
-                    and operand_0.to_bits == 64 \
-                        and isinstance(operand_0.operand, Expr.BinaryOp)\
-                            and operand_0.operand.op == 'Mul':
-            if isinstance(operand_0.operand.operands[1], Expr.Const):
-                C = operand_0.operand.operands[1].value
-                Y = operand_1.value
-                divisor = self._check_divisor(pow(2, 64+Y), C)
-                X = operand_0.operand.operands[0]
-            elif isinstance(operand_0.operand.operands[0], Expr.BinaryOp) \
-                and operand_0.operand.operands[0].op in {'Shr', 'DivMod'}:
-                C = operand_0.operand.operands[1].value
-                Z = operand_1.value
-                if operand_0.operand.operands[0].op == 'Shr':
-                    Y = operand_0.operand.operands[0].operands[1].value
-                else:
-                    Y = int(math.log2(operand_0.operand.operands[0].operands[1].value))
-                divisor = self._check_divisor(pow(2, 64+Z+Y), C)
-                X = operand_0.operand.operands[0].operands[0]
+                    and operand_0.to_bits == 64:
+            if isinstance(operand_0.operand, Expr.BinaryOp)\
+                and operand_0.operand.op == 'Mul':
+                if isinstance(operand_0.operand.operands[1], Expr.Const):
+                    C = operand_0.operand.operands[1].value
+                    Y = operand_1.value
+                    divisor = self._check_divisor(pow(2, 64+Y), C)
+                    X = operand_0.operand.operands[0]
+                elif isinstance(operand_0.operand.operands[0], Expr.BinaryOp) \
+                    and operand_0.operand.operands[0].op in {'Shr', 'DivMod'}:
+                    C = operand_0.operand.operands[1].value
+                    Z = operand_1.value
+                    if operand_0.operand.operands[0].op == 'Shr':
+                        Y = operand_0.operand.operands[0].operands[1].value
+                    else:
+                        Y = int(math.log2(operand_0.operand.operands[0].operands[1].value))
+                    divisor = self._check_divisor(pow(2, 64+Z+Y), C)
+                    X = operand_0.operand.operands[0].operands[0]
         if isinstance(operand_1, Expr.Const) \
             and isinstance(operand_0, Expr.BinaryOp) \
                 and operand_0.op == 'Add':
@@ -121,17 +121,17 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                     if isinstance(xC.operands[1], Expr.Const) \
                         and isinstance(xC.operands[0], Expr.BinaryOp) \
                             and xC.operands[0].op == 'Mul' \
-                        and isinstance(xC.operands[0].operands[1], Expr.Const) \
-                            and isinstance(x_xC, Expr.BinaryOp) \
-                        and isinstance(x_xC.operands[1], Expr.Const) \
-                            and isinstance(x_xC.operands[0], Expr.BinaryOp) \
-                        and x_xC.op == 'Shr' and x_xC.operands[0].op == 'Sub':
-                        X = xC.operands[0].operands[0]
-                        C = xC.operands[0].operands[1].value
-                        Y = xC.operands[1].value
-                        V = x_xC.operands[1].value
-                        if X == x_xC.operands[0].operands[0]:
-                            divisor = self._check_divisor(pow(2, Y+V+Z), C*(pow(2, V) - 1) + pow(2, Y))
+                                and isinstance(xC.operands[0].operands[1], Expr.Const):
+                        if isinstance(x_xC, Expr.BinaryOp) \
+                            and isinstance(x_xC.operands[1], Expr.Const) \
+                                and isinstance(x_xC.operands[0], Expr.BinaryOp) \
+                                    and x_xC.op == 'Shr' and x_xC.operands[0].op == 'Sub':
+                            X = xC.operands[0].operands[0]
+                            C = xC.operands[0].operands[1].value
+                            Y = xC.operands[1].value
+                            V = x_xC.operands[1].value
+                            if X == x_xC.operands[0].operands[0]:
+                                divisor = self._check_divisor(pow(2, Y+V+Z), C*(pow(2, V) - 1) + pow(2, Y))
 
 
         # unsigned int

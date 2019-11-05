@@ -14,7 +14,6 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
 
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
-        # import ipdb; ipdb.set_trace()
 
         if isinstance(operand_1, Expr.BinaryOp) \
             and isinstance(operand_1.operands[1], Expr.Const) \
@@ -40,7 +39,7 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, 'Sub', [operand_0, operand_1], **expr.tags)
         return expr
 
-    def _ail_handle_Mod(self, expr): #pylint disable=no-self-use
+    def _ail_handle_Mod(self, expr): #pylint: disable=no-self-use
         return expr
 
 

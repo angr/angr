@@ -51,11 +51,11 @@ class SimplifierAILEngine(
     SimEngineLight,
     ):
 
-    def __init__(self):
+    def __init__(self): #pylint: disable=useless-super-delegation
 
         super().__init__()
 
-    def process(self, state, block, whitelist=None):
+    def process(self, state, block, whitelist=None): #pylint: arguments-differ
 
         self.block = block
         self.state = state
@@ -119,7 +119,7 @@ class SimplifierAILEngine(
 
         return Stmt.Jump(stmt.idx, target, **stmt.tags)
 
-    def _ail_handle_ConditionalJump(self, stmt): #pylint disable=no-self-use
+    def _ail_handle_ConditionalJump(self, stmt): #pylint: disable=no-self-use
         return stmt
 
     def _ail_handle_Call(self, stmt):
