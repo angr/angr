@@ -7,7 +7,6 @@ from .engine_base import SimplifierAILEngine, SimplifierAILState
 from .optimization_pass import OptimizationPass
 
 _l = logging.getLogger(name=__name__)
-_l.setLevel('DEBUG')
 
 class MultiSimplifierAILEngine(SimplifierAILEngine):
 
@@ -161,8 +160,8 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
                     and operand_0.operand.op == 'Mul' \
                     and isinstance(operand_0.operand.operands[1], Expr.Const):
                 x = operand_0.operand.operands[0]
-                new_const = Expr.Const(operand_1.idx, None, 
-                    operand_1.value*operand_0.operand.operands[1].value, operand_1.bits)
+                new_const = Expr.Const(operand_1.idx, None,
+                     operand_1.value*operand_0.operand.operands[1].value, operand_1.bits)
                 new_expr = Expr.BinaryOp(expr.idx, 'Mul', [x, new_const], **expr.tags)
                 return new_expr
 

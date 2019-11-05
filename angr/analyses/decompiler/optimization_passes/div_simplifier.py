@@ -11,6 +11,7 @@ _l = logging.getLogger(name=__name__)
 
 class DivSimplifierAILEngine(SimplifierAILEngine):
 
+
     def _check_divisor(self, a, b, ndigits=6):
         divisor_1 = 1 + (a//b)
         divisor_2 = int(round(a/float(b), ndigits))
@@ -23,7 +24,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 and operand_expr.op == 'Mul' \
                     and isinstance(operand_expr.operands[1], Expr.Const) \
                 and isinstance(operand_expr.operands[0], Expr.BinaryOp) \
-                    and operand_expr.operands[0].op in ['Shr', 'DivMod'] \
+                    and operand_expr.operands[0].op in {'Shr', 'DivMod'} \
                     and isinstance(operand_expr.operands[0].operands[1], Expr.Const):
                 if operand_expr.operands[0].op == 'Shr':
                     Y = operand_expr.operands[0].operands[1].value
@@ -65,15 +66,13 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                     and operand_0.to_bits == 64 \
                         and isinstance(operand_0.operand, Expr.BinaryOp)\
                             and operand_0.operand.op == 'Mul':
-            # if isinstance(operand_0.operand.operands[0], Expr.Register) \
             if isinstance(operand_0.operand.operands[1], Expr.Const):
                 C = operand_0.operand.operands[1].value
                 Y = operand_1.value
                 divisor = self._check_divisor(pow(2,64+Y), C)
                 X = operand_0.operand.operands[0]
             elif isinstance(operand_0.operand.operands[0], Expr.BinaryOp) \
-                and operand_0.operand.operands[0].op in ['Shr', 'DivMod']:
-                    # and isinstance(operand_0.operand.operands[0].operands[0], Expr.Register):
+                and operand_0.operand.operands[0].op in {'Shr', 'DivMod'}:
                 C = operand_0.operand.operands[1].value
                 Z = operand_1.value
                 if operand_0.operand.operands[0].op == 'Shr':
@@ -148,8 +147,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 divisor = self._check_divisor(pow(2,V+Z), C)
             elif isinstance(operand_0.operands[0], Expr.BinaryOp) \
                 and isinstance(operand_0.operands[0].operands[1], Expr.Const) \
-                    and operand_0.operands[0].op in ['Shr', 'DivMod']:
-                # import ipdb; ipdb.set_trace()
+                    and operand_0.operands[0].op in {'Shr', 'DivMod'}:
                 X = operand_0.operands[0].operands[0]
                 V = 0
                 ndigits = 6
@@ -193,12 +191,11 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
     def _ail_handle_Mul(self, expr):
 
         operand_0, operand_1 = expr.operands
-        # import ipdb; ipdb.set_trace()
 
         if isinstance(operand_1, Expr.Const) \
             and isinstance(operand_0, Expr.BinaryOp) \
                 and isinstance(operand_0.operands[1], Expr.Const) \
-                    and operand_0.op in ['DivMod', 'Shr']:
+                    and operand_0.op in {'DivMod', 'Shr'}:
             if operand_0.op == 'DivMod':
                 Y = int(math.log2(operand_0.operands[1].value))
             else:
@@ -218,7 +215,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             and isinstance(operand_0, Expr.Convert) \
                 and isinstance(operand_0.operand, Expr.BinaryOp) \
                     and isinstance(operand_0.operand.operands[1], Expr.Const) \
-                and operand_0.operand.op in ['DivMod', 'Shr']:
+                and operand_0.operand.op in {'DivMod', 'Shr'}:
             if operand_0.operand.op == 'DivMod':
                 Y = int(math.log2(operand_0.operand.operands[1].value))
             else:
@@ -240,7 +237,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
 
         if isinstance(operand_1, Expr.Const) \
             and isinstance(operand_0, Expr.BinaryOp) \
-            and operand_0.op in ['Div', 'DivMod'] \
+            and operand_0.op in {'Div', 'DivMod'} \
             and isinstance(operand_0.operands[1], Expr.Const):
 
             new_const_value = operand_1.value * operand_0.operands[1].value

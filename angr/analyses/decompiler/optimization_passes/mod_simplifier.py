@@ -7,7 +7,6 @@ from .engine_base import SimplifierAILEngine, SimplifierAILState
 from .optimization_pass import OptimizationPass
 
 _l = logging.getLogger(name=__name__)
-_l.setLevel('DEBUG')
 
 class ModSimplifierAILEngine(SimplifierAILEngine):
 

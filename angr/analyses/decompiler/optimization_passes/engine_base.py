@@ -6,7 +6,6 @@ from ....engines.light import SimEngineLightAILMixin
 from ....engines.light import SimEngineLight
 
 _l = logging.getLogger(name=__name__)
-_l.setLevel('DEBUG')
 
 class SimplifierAILState:
     def __init__(self, arch, variables=None):
@@ -76,8 +75,7 @@ class SimplifierAILEngine(
                 continue
 
             new_stmt = self._ail_handle_Stmt(stmt)
-            assert new_stmt != None
-            if new_stmt != stmt:
+            if new_stmt and new_stmt != stmt:
                 self.block.statements[stmt_idx] = new_stmt
 
     # handle stmt
@@ -123,13 +121,7 @@ class SimplifierAILEngine(
         return Stmt.Jump(stmt.idx, target, **stmt.tags)
 
     def _ail_handle_ConditionalJump(self, stmt):
-
-        cond = self._expr(stmt.condition)
-        true_target = self._expr(stmt.true_target)
-        false_target = self._expr(stmt.false_target)
-
-        return Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target, **stmt.tags)
-
+        return stmt
 
     def _ail_handle_Call(self, stmt):
 
@@ -200,7 +192,7 @@ class SimplifierAILEngine(
             value &= mask
             return Expr.Const(expr.idx, operand_expr.variable, value, expr.to_bits, **expr.tags)
         elif type(operand_expr) is Expr.BinaryOp \
-            and operand_expr.op in ['Mul', 'Shl', 'Div', 'DivMod', 'Add', 'Sub']:
+            and operand_expr.op in {'Mul', 'Shl', 'Div', 'DivMod', 'Add', 'Sub'}:
             if isinstance(operand_expr.operands[1], Expr.Const):
                 if isinstance(operand_expr.operands[0], Expr.Register) and \
                     expr.from_bits == operand_expr.operands[0].bits:
@@ -220,8 +212,8 @@ class SimplifierAILEngine(
                     and expr.from_bits == operand_expr.operands[0].to_bits \
                 and expr.to_bits == operand_expr.operands[1].from_bits:
                 return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
-                         [operand_expr.operands[0].operand, operand_expr.operands[1].operand], 
-                         **operand_expr.tags)
+                         [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
+                            **operand_expr.tags)
 
 
         converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
