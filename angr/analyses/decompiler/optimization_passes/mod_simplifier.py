@@ -1,6 +1,6 @@
 import logging
 
-from ailment import Expr, Stmt
+from ailment import Expr
 
 from ... import AnalysesHub
 from .engine_base import SimplifierAILEngine, SimplifierAILState
@@ -40,7 +40,7 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, 'Sub', [operand_0, operand_1], **expr.tags)
         return expr
 
-    def _ail_handle_Mod(self, expr):
+    def _ail_handle_Mod(self, expr): #pylint disable=no-self-use
         return expr
 
 
@@ -70,7 +70,7 @@ class ModSimplifier(OptimizationPass):
             while new_block != old_block:
                 old_block = new_block
                 new_block = self.engine.process(state=self.state.copy(), block=old_block.copy())
-                _l.debug("new block: %s"%(new_block.statements))
+                _l.debug("new block: %s", new_block.statements)
 
             self._update_block(block, new_block)
 

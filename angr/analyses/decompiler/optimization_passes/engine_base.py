@@ -119,7 +119,7 @@ class SimplifierAILEngine(
 
         return Stmt.Jump(stmt.idx, target, **stmt.tags)
 
-    def _ail_handle_ConditionalJump(self, stmt):
+    def _ail_handle_ConditionalJump(self, stmt): #pylint disable=no-self-use
         return stmt
 
     def _ail_handle_Call(self, stmt):
@@ -206,11 +206,11 @@ class SimplifierAILEngine(
                         [operand_expr.operands[0].operand, operand_expr.operands[1]], **operand_expr.tags)
             elif isinstance(operand_expr.operands[0], Expr.Convert) \
                 and isinstance(operand_expr.operands[1], Expr.Convert) \
-                    and operand_expr.operands[0].from_bits == operand_expr.operands[1].from_bits \
-                and operand_expr.operands[0].to_bits == operand_expr.operands[1].to_bits \
+                    and operand_expr.operands[0].from_bits == operand_expr.operands[1].from_bits:
+                if operand_expr.operands[0].to_bits == operand_expr.operands[1].to_bits \
                     and expr.from_bits == operand_expr.operands[0].to_bits \
-                and expr.to_bits == operand_expr.operands[1].from_bits:
-                return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
+                        and expr.to_bits == operand_expr.operands[1].from_bits:
+                    return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
                                     [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
                                      **operand_expr.tags)
 

@@ -12,7 +12,7 @@ _l = logging.getLogger(name=__name__)
 class DivSimplifierAILEngine(SimplifierAILEngine):
 
 
-    def _check_divisor(self, a, b, ndigits=6):
+    def _check_divisor(self, a, b, ndigits=6): #pylint disable=no-self-use
         divisor_1 = 1 + (a//b)
         divisor_2 = int(round(a/float(b), ndigits))
         return divisor_1 if divisor_1 == divisor_2 else None
@@ -274,7 +274,7 @@ class DivSimplifier(OptimizationPass):
             while new_block != old_block:
                 old_block = new_block
                 new_block = self.engine.process(state=self.state.copy(), block=old_block.copy())
-                _l.debug("new block: %s"%(new_block.statements))
+                _l.debug("new block: %s", new_block.statements)
 
             self._update_block(block, new_block)
 
