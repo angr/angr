@@ -92,8 +92,7 @@ class SimplifierAILEngine(
         src = self._expr(stmt.src)
         dst = self._expr(stmt.dst)
 
-
-        if isinstance(dst, Expr.Register):
+        if isinstance(dst, Expr.Register) and not src.has_atom(dst):
             self.state.filter_variables(dst)
             self.state.store_variable(dst, src)
 
