@@ -28,11 +28,16 @@ class SimEngineRDAIL(
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
-            self._process(state, None, block=kwargs.pop('block', None))
+            self._process(
+                state,
+                None,
+                block=kwargs.pop('block', None),
+                visited_blocks=kwargs.pop('visited_blocks', None),
+            )
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
-        return self.state
+        return self.state, self._visited_blocks
 
     #
     # Private methods

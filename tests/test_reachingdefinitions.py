@@ -67,23 +67,13 @@ class InsnAndNodeObserveTestingUtils():
 
 
 class ReachingDefinitionAnalysisTest(TestCase):
-    def _run_reaching_definition_analysis(self, project, func, result_path):
+    def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses.ReachingDefinitions(
-            subject=func, init_func=True, kb=tmp_kb, observe_all=True
+            subject=function, init_func=True, kb=tmp_kb, observe_all=True
         )
 
-        unsorted_result = map(
-            lambda x: {'key': x[0],\
-                       'register_definitions': x[1].register_definitions,\
-                       'stack_definitions': x[1].stack_definitions,\
-                       'memory_definitions': x[1].memory_definitions},
-            reaching_definition.observed_results.items()
-        )
-        result = list(sorted(
-            unsorted_result,
-            key=lambda x: x['key']
-        ))
+        result = _extract_result(reaching_definition)
 
         # Uncomment these to regenerate the reference results... if you dare
         #with open(result_path, 'wb') as result_file:
@@ -93,28 +83,60 @@ class ReachingDefinitionAnalysisTest(TestCase):
 
         nose.tools.assert_list_equal(result, expected_result)
 
+    def _binary_path(self, binary_name):
+        return os.path.join(TESTS_LOCATION, 'x86_64', binary_name)
 
-    def test_reaching_definition_analysis(self):
-        def _binary_path(binary_name):
-            return os.path.join(TESTS_LOCATION, 'x86_64', binary_name)
-        def _result_path(binary_name):
-            return os.path.join(
-                os.path.dirname(os.path.realpath(__file__)),
-                'reachingdefinitions_results',
-                'x86_64',
-                binary_name + '.pickle'
+    def _result_path(self, binary_results_name):
+        return os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            'reachingdefinitions_results',
+            'x86_64',
+            binary_results_name + '.pickle'
+        )
+
+
+    def test_reaching_definition_analysis_definitions(self):
+        def _result_extractor(rda):
+            unsorted_result = map(
+                lambda x: {'key': x[0],\
+                           'register_definitions': x[1].register_definitions,\
+                           'stack_definitions': x[1].stack_definitions,\
+                           'memory_definitions': x[1].memory_definitions},
+                rda.observed_results.items()
             )
+            return list(sorted(
+                unsorted_result,
+                key=lambda x: x['key']
+            ))
 
         binaries_and_results = list(map(
-            lambda binary: (_binary_path(binary), _result_path(binary)),
+            lambda binary: (self._binary_path(binary), self._result_path(binary + '_definitions')),
             ['all', 'fauxware', 'loop']
         ))
 
         for binary, result_path in binaries_and_results:
             project = angr.Project(binary, load_options={'auto_load_libs': False})
             cfg = project.analyses.CFGFast()
+            function = cfg.kb.functions['main']
 
-            self._run_reaching_definition_analysis(project, cfg.kb.functions['main'], result_path)
+            self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
+
+
+    def test_reaching_definition_analysis_visited_blocks(self):
+        def _result_extractor(rda):
+            return rda.visited_blocks
+
+        binaries_and_results = list(map(
+            lambda binary: (self._binary_path(binary), self._result_path(binary + '_visited_blocks')),
+            ['all', 'fauxware', 'loop']
+        ))
+
+        for binary, result_path in binaries_and_results:
+            project = angr.Project(binary, load_options={'auto_load_libs': False})
+            cfg = project.analyses.CFGFast()
+            function = cfg.kb.functions['main']
+
+            self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
 
 
     def test_node_observe(self):
