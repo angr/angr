@@ -19,6 +19,10 @@ def get_optimization_passes(arch, platform):
 
     import archinfo
 
+    # sanity check
+    if platform is None:
+        return [ ]
+
     if isinstance(arch, archinfo.Arch):
         arch = arch.name
 
