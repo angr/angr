@@ -28,7 +28,8 @@ def test_tight_loop(arch):
     elapsed = time.time() - start
 
     print("Elapsed %f sec" % elapsed)
-    print(simgr)
+    #print(simgr)
+    b.loader.close()
 
 
 if __name__ == "__main__":

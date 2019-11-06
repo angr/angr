@@ -53,22 +53,20 @@ def print_results(tests):
     print('Maximum RAM usage (in MB)')
     print(tabulate(table_mems, headers=header))
 
-
 def run_counter(path):
-    p = angr.Project(path)
+    p = angr.Project(path, auto_load_libs=False)
 
     sm = p.factory.simulation_manager()
-    sm.run(n=500)
+    sm.one_active.options.add(angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+    sm.one_active.options.add(angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+    sm.run(n=500, engine=engine)
+    p.loader.close()
 
 
 def run_cfg_analysis(path):
-    load_options = {}
-    load_options['auto_load_libs'] = False
-    p = angr.Project(path,
-                     load_options=load_options,
-                     translation_cache=True
-                     )
+    p = angr.Project(path, auto_load_libs=False, translation_cache=True)
     p.analyses.CFGEmulated()
+    p.loader.close()
 
 
 def time_one(args, test, queue):
@@ -89,6 +87,9 @@ parser.add_argument(
 parser.add_argument(
     '-s', '--seed', default=1234, type=int,
     help='Seed for random (default: 1234)')
+parser.add_argument(
+    '-i', '--inline', action='store_true',
+    help='Run tests inline (not multiprocessed)')
 
 args = parser.parse_args()
 
@@ -121,6 +122,7 @@ for arch in arch_counter:
 
 print('Seed: ' + str(args.seed))
 print('N runs: ' + str(args.n_runs))
+print('Inline: ' + str(args.inline))
 queue = multiprocessing.Queue()
 for test in tests:
     runs = []
@@ -132,9 +134,12 @@ for test in tests:
     print(test)
     pbar = ProgressBar(maxval=args.n_runs, widgets=widgets).start()
     for i in range(0, args.n_runs):
-        p = multiprocessing.Process(target=time_one, args=(args, tests[test], queue))
-        p.start()
-        p.join()
+        if not args.inline:
+            p = multiprocessing.Process(target=time_one, args=(args, tests[test], queue))
+            p.start()
+            p.join()
+        else:
+            time_one(args, tests[test], queue)
         runs.append(queue.get())
         mems.append(queue.get())
         pbar.update(i + 1)
