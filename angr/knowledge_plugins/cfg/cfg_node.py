@@ -220,6 +220,7 @@ class CFGNode(Serializable):
             'block_id': self.block_id,
             'thumb': self.thumb,
             'byte_string': self.byte_string,
+            '_cfg_model': self._cfg_model,
             '_name': self._name,
             'instruction_addrs': self.instruction_addrs,
             'is_syscall': self.is_syscall,
@@ -230,7 +231,7 @@ class CFGNode(Serializable):
     def __setstate__(self, state):
         self.__init__(state['addr'],
                       state['size'],
-                      None,
+                      state['_cfg_model'],
                       simprocedure_name=state['simprocedure_name'],
                       no_ret=state['no_ret'],
                       function_address=state['function_address'],
@@ -447,7 +448,7 @@ class CFGENode(CFGNode):
     def __setstate__(self, state):
         self.__init__(state['addr'],
                       state['size'],
-                      None,
+                      state['_cfg_model'],
                       simprocedure_name=state['simprocedure_name'],
                       no_ret=state['no_ret'],
                       function_address=state['function_address'],
