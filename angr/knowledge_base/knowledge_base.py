@@ -3,6 +3,10 @@
 from itertools import count
 import logging
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from angr.knowledge_plugins import FunctionManager
+
 from ..knowledge_plugins.plugin import default_plugins
 
 
@@ -17,6 +21,7 @@ class KnowledgeBase:
 
     Contains things like a CFG, data references, etc.
     """
+    functions: 'FunctionManager'
     def __init__(self, project, obj=None, name=None):
         if obj is not None:
             l.warning("The obj parameter in KnowledgeBase.__init__() has been deprecated.")
