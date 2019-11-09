@@ -6,14 +6,18 @@ import os
 import pickle
 import random
 
-from unittest import TestCase
+from unittest import mock, TestCase
 import nose
 
-import archinfo
-import angr
-from angr.analyses.reaching_definitions import LiveDefinitions
-from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 import ailment
+import angr
+import archinfo
+from angr.analyses.reaching_definitions import LiveDefinitions, ReachingDefinitionAnalysis
+from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.analyses.reaching_definitions.atoms import Tmp, Register
+from angr.analyses.reaching_definitions.def_use import GuardUse
+
+from angr.block import Block
 
 LOGGER = logging.getLogger('test_reachingdefinitions')
 
@@ -54,7 +58,7 @@ class InsnAndNodeObserveTestingUtils():
 
         main_function = cfg.kb.functions['main']
         reaching_definition = project.analyses.ReachingDefinitions(
-            main_function, init_func=True, observation_points=observation_points
+            subject=main_function, init_func=True, observation_points=observation_points
         )
 
         state = LiveDefinitions(project.arch, project.loader)
@@ -66,7 +70,7 @@ class ReachingDefinitionAnalysisTest(TestCase):
     def _run_reaching_definition_analysis(self, project, func, result_path):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses.ReachingDefinitions(
-            func, init_func=True, kb=tmp_kb, observe_all=True
+            subject=func, init_func=True, kb=tmp_kb, observe_all=True
         )
 
         unsorted_result = map(
@@ -81,6 +85,9 @@ class ReachingDefinitionAnalysisTest(TestCase):
             key=lambda x: x['key']
         ))
 
+        # Uncomment these to regenerate the reference results... if you dare
+        #with open(result_path, 'wb') as result_file:
+        #    pickle.dump(result, result_file)
         with open(result_path, 'rb') as result_file:
             expected_result = pickle.load(result_file)
 
@@ -208,6 +215,57 @@ class ReachingDefinitionAnalysisTest(TestCase):
         ))
 
 
+    def test_reaching_definition_analysis_returns_an_error_without_suject(self):
+        binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+
+        with nose.tools.assert_raises(ValueError) as reaching_definitions:
+            project.analyses.ReachingDefinitions()
+
+        nose.tools.assert_equal("%s" % reaching_definitions.exception, 'Unsupported analysis target.')
+
+
+    @mock.patch.object(ReachingDefinitionAnalysis, '_analyze')
+    def test_reaching_definition_analysis_with_a_function_as_suject(self, _):
+        binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+        cfg = project.analyses.CFGFast()
+
+        main_function = cfg.kb.functions['main']
+        # Valuable to test that `init_func` and `cc` are assigned correctly.
+        # However, set `init_func` to False so `cc` content does not get checked (which would fail here because it is
+        # not supposed to be a string).
+        init_func = False
+        cc = "cc_mock"
+
+        reaching_definitions = project.analyses.ReachingDefinitions(
+            subject=main_function, init_func=init_func, cc=cc
+        )
+
+        nose.tools.assert_equal(reaching_definitions._function, main_function)
+        nose.tools.assert_equal(reaching_definitions._block, None)
+        nose.tools.assert_equal(reaching_definitions._init_func, init_func)
+        nose.tools.assert_equal(reaching_definitions._cc, cc)
+
+
+    # @mock.patch.object(ReachingDefinitionAnalysis, '_analyze')
+    def test_reaching_definition_analysis_with_a_block_as_suject(self):
+        binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+        cfg = project.analyses.CFGFast()
+
+        main_function = cfg.kb.functions['main']
+        block_node = main_function._addr_to_block_node[main_function.addr] # pylint: disable=W0212
+        main_block = Block(addr=0x42, byte_string=block_node.bytestr, project=project)
+
+        reaching_definitions = project.analyses.ReachingDefinitions(subject=main_block)
+
+        nose.tools.assert_equal(reaching_definitions._function, None)
+        nose.tools.assert_equal(reaching_definitions._block, main_block)
+        nose.tools.assert_equal(reaching_definitions._init_func, False)
+        nose.tools.assert_equal(reaching_definitions._cc, None)
+
+
 class LiveDefinitionsTest(TestCase):
     def test_initializing_live_definitions_for_ppc_without_rtoc_value_should_raise_an_error(self):
         arch = archinfo.arch_ppc64.ArchPPC64()
@@ -235,7 +293,9 @@ class LiveDefinitionsTest(TestCase):
 
         tmp_kb = angr.KnowledgeBase(project)
         main_func = cfg.kb.functions['main']
-        rda = project.analyses.ReachingDefinitions(main_func, init_func=True, kb=tmp_kb, observe_all=True)
+        rda = project.analyses.ReachingDefinitions(
+            subject=main_func, init_func=True, kb=tmp_kb, observe_all=True
+        )
 
         def _is_right_before_main_node(definition):
             bloc, ins_addr, op_type = definition[0]
@@ -253,6 +313,24 @@ class LiveDefinitionsTest(TestCase):
         sp_value = reach_definition_at_main.get_sp()
 
         nose.tools.assert_equal(sp_value, project.arch.initial_sp)
+
+def test_def_use_graph():
+    p = angr.Project(os.path.join(TESTS_LOCATION, 'x86_64', 'true'), auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+    main = cfg.functions['main']
+
+    # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's guard is the four cc registers
+    rda = p.analyses.DefUseAnalysis(subject=main, track_tmps=False)
+    guard_use = [def_ for def_ in rda.def_use_graph.nodes() if type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr][0]
+    assert len(rda.def_use_graph.pred[guard_use]) == 4
+    assert all(type(def_.atom) is Register for def_ in rda.def_use_graph.pred[guard_use])
+    assert set(def_.atom.reg_offset for def_ in rda.def_use_graph.pred[guard_use]) == {reg.vex_offset for reg in p.arch.register_list if reg.name.startswith('cc_')}
+
+    # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
+    rda = p.analyses.DefUseAnalysis(subject=main, track_tmps=True)
+    tmp_7 = [def_ for def_ in rda.def_use_graph.nodes() if type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr][0]
+    assert len(rda.def_use_graph.succ[tmp_7]) == 1
+    assert type(list(rda.def_use_graph.succ[tmp_7])[0].atom) is GuardUse
 
 
 if __name__ == '__main__':

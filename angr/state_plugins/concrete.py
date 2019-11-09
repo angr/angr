@@ -116,7 +116,7 @@ class Concrete(SimStatePlugin):
 
         # Synchronize the imported functions addresses (.got, IAT) in the
         # concrete process with ones used in the SimProcedures dictionary
-        if self.state.project._should_use_sim_procedures and not self.state.project.loader.main_object.pic:
+        if self.state.project.use_sim_procedures and not self.state.project.loader.main_object.pic:
             self._sync_simproc()
         else:
             l.debug("SimProc not restored, you are going to simulate also the code of external libraries!")

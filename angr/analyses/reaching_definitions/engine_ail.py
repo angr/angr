@@ -6,7 +6,7 @@ from .atoms import Register, Tmp, MemoryLocation
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
-from .undefined import Undefined
+from .undefined import Undefined, undefined
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
 from ...errors import SimEngineError
 
@@ -73,7 +73,7 @@ class SimEngineRDAIL(
         dst = stmt.dst
 
         if src is None:
-            src = DataSet(Undefined(dst.bits), dst.bits)
+            src = DataSet(undefined, dst.bits)
 
         if type(dst) is ailment.Tmp:
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), src)
@@ -190,8 +190,7 @@ class SimEngineRDAIL(
 
     def _ail_handle_Tmp(self, expr):
 
-        if self.state._track_tmps:
-            self.state.add_use(Tmp(expr.tmp_idx), self._codeloc())
+        self.state.add_use(Tmp(expr.tmp_idx), self._codeloc())
 
         return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
 
@@ -259,14 +258,14 @@ class SimEngineRDAIL(
                     if any(type(d) is Undefined for d in data):
                         l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
                 else:
-                    data.add(Undefined(bits))
+                    data.add(undefined)
 
                 self.state.add_use(addr, self._codeloc())
             else:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(Undefined(bits))
+            data.add(undefined)
 
         return DataSet(data, bits)
 

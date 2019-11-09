@@ -473,8 +473,7 @@ class SimPagedMemory:
                     if ret_on_segv:
                         break
                     raise SimSegfaultError(addr, 'read-miss')
-                else:
-                    continue
+                continue
 
             if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
                 #print "... SEGV"
@@ -490,10 +489,18 @@ class SimPagedMemory:
     #
 
     def _create_page(self, page_num, permissions=None):
-        return Page(
+        if self.state is not None:
+            self.state._inspect('memory_page_map', BP_BEFORE, mapped_address=page_num*self._page_size)
+
+        pg = Page(
             page_num*self._page_size, self._page_size,
             executable=self._executable_pages, permissions=permissions
         )
+
+        if self.state is not None:
+            self.state._inspect('memory_page_map', BP_AFTER, mapped_page=pg)
+            self.state._inspect_getattr('mapped_page', pg)
+        return pg
 
     def _initialize_page(self, n, new_page):
         if n in self._initialized:
@@ -749,8 +756,7 @@ class SimPagedMemory:
         except KeyError:
             if self.allow_segv:
                 raise SimSegfaultError(mo.base, 'write-miss')
-            else:
-                raise
+            raise
         if self.allow_segv and not page.concrete_permissions & Page.PROT_WRITE:
             raise SimSegfaultError(mo.base, 'non-writable')
 
@@ -788,7 +794,7 @@ class SimPagedMemory:
         :returns: the new memory object
         """
 
-        if old.object.size() != new_content.size():
+        if (old.object.size() if not old.is_bytes else len(old.object)*self.state.arch.byte_width) != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base, byte_width=self.byte_width)
@@ -1141,3 +1147,4 @@ class SimPagedMemory:
 
 
 from .. import sim_options as o
+from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

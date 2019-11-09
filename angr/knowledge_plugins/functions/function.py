@@ -96,7 +96,9 @@ class Function(Serializable):
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
 
-        self._addr_to_block_node = {}  # map addresses to nodes
+        self._addr_to_block_node = {}  # map addresses to nodes. it's a cache of blocks. if a block is removed from the
+                                       # function, it may not be removed from _addr_to_block_node. if you want to list
+                                       # all blocks of a function, access .blocks.
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
         self._local_blocks = {}  # a dict of all blocks inside the function
@@ -1135,6 +1137,29 @@ class Function(Serializable):
 
         return None
 
+    def addr_to_instruction_addr(self, addr):
+        """
+        Obtain the address of the instruction that covers @addr.
+
+        :param int addr:    An address.
+        :return:            Address of the instruction that covers @addr, or None if this addr is not covered by any
+                            instruction of this function.
+        :rtype:             int or None
+        """
+
+        # TODO: Replace the linear search with binary search
+        for b in self.blocks:
+            if b.addr <= addr < b.addr + b.size:
+                # found it
+                for i, instr_addr in enumerate(b.instruction_addrs):
+                    if i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i+1]:
+                        return instr_addr
+                    elif i == len(b.instruction_addrs) - 1 and instr_addr <= addr:
+                        return instr_addr
+                # Not covered by any instruction... why?
+                return None
+        return None
+
     def dbg_print(self):
         """
         Returns a representation of the list of basic blocks in this function.
@@ -1332,6 +1357,7 @@ class Function(Serializable):
             # PLT entries must have the same declaration as their jump targets
             # Try to determine which library this PLT entry will jump to
             edges = self.transition_graph.edges()
+            if len(edges) == 0: return
             node = next(iter(edges))[1]
             if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
                 target = node.addr
@@ -1365,7 +1391,6 @@ class Function(Serializable):
             return addr[0]
         else:  # int, long
             return addr
-
 
     @property
     def demangled_name(self):

@@ -10,6 +10,7 @@ from angr.storage.file import SimFileDescriptor
 
 class dup(angr.SimProcedure):  #pylint:disable=W0622
     def run(self, oldfd): # pylint:disable=arguments-differ
+        oldfd = self.state.solver.eval(oldfd)
         if oldfd not in self.state.posix.fd.keys():
             return self.state.libc.ret_errno('EBADF')
 
@@ -24,6 +25,9 @@ class dup(angr.SimProcedure):  #pylint:disable=W0622
 
 class dup2(angr.SimProcedure):
     def run(self, oldfd, newfd):# pylint:disable=arguments-differ
+        oldfd = self.state.solver.eval(oldfd)
+        newfd = self.state.solver.eval(newfd)
+
         if oldfd not in self.state.posix.fd.keys():
             return self.state.libc.ret_errno('EBADF')
 
@@ -39,6 +43,9 @@ class dup2(angr.SimProcedure):
 
 class dup3(angr.SimProcedure):
     def run(self, oldfd, newfd, flags):# pylint:disable=arguments-differ
+        oldfd = self.state.solver.eval(oldfd)
+        newfd = self.state.solver.eval(newfd)
+
         if oldfd not in self.state.posix.fd.keys():
             return self.state.libc.ret_errno('EBADF')
 
