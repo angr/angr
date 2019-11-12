@@ -64,6 +64,22 @@ class CFGModel(Serializable):
     # Serialization
     #
 
+    def __getstate__(self):
+        state = dict(map(
+            lambda x: (x, self.__getattribute__(x)),
+            self.__slots__
+        ))
+
+        return state
+
+    def __setstate__(self, state):
+        for attribute, value in state.items():
+            self.__setattr__(attribute, value)
+
+        for addr in self._nodes:
+            node = self._nodes[addr]
+            node._cfg_model = self
+
     @classmethod
     def _get_cmsg(cls):
         return cfg_pb2.CFG()
