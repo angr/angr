@@ -340,14 +340,14 @@ def test_def_use_graph():
     main = cfg.functions['main']
 
     # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's guard is the four cc registers
-    rda = p.analyses.DefUseAnalysis(subject=main, track_tmps=False)
+    rda = p.analyses.DefUse(subject=main, track_tmps=False)
     guard_use = [def_ for def_ in rda.def_use_graph.nodes() if type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr][0]
     assert len(rda.def_use_graph.pred[guard_use]) == 4
     assert all(type(def_.atom) is Register for def_ in rda.def_use_graph.pred[guard_use])
     assert set(def_.atom.reg_offset for def_ in rda.def_use_graph.pred[guard_use]) == {reg.vex_offset for reg in p.arch.register_list if reg.name.startswith('cc_')}
 
     # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
-    rda = p.analyses.DefUseAnalysis(subject=main, track_tmps=True)
+    rda = p.analyses.DefUse(subject=main, track_tmps=True)
     tmp_7 = [def_ for def_ in rda.def_use_graph.nodes() if type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr][0]
     assert len(rda.def_use_graph.succ[tmp_7]) == 1
     assert type(list(rda.def_use_graph.succ[tmp_7])[0].atom) is GuardUse

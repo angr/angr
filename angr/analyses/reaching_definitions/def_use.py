@@ -1,6 +1,6 @@
 import networkx
 
-from .reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis, register_analysis
+from .reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis
 from .definition import Definition
 from .atoms import Atom
 
@@ -59,5 +59,3 @@ class DefUseAnalysis(ReachingDefinitionsAnalysis):
             func_addr = self._function.addr if self._function else None
             return DefUseState(self.project.arch, track_tmps=self._track_tmps, analysis=self,
                                    init_func=self._init_func, cc=self._cc, func_addr=func_addr)
-
-register_analysis(DefUseAnalysis, 'DefUseAnalysis')

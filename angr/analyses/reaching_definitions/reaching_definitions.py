@@ -8,7 +8,6 @@ from ...block import Block
 from ...knowledge_plugins.functions.function_manager import Function
 from ...codenode import CodeNode
 from ...misc.ux import deprecated
-from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from ..code_location import CodeLocation
@@ -261,5 +260,3 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
     def _post_analysis(self):
         pass
-
-register_analysis(ReachingDefinitionAnalysis, "ReachingDefinitions")
