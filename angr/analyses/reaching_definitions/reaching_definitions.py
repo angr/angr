@@ -22,9 +22,9 @@ from .engine_vex import SimEngineRDVEX
 l = logging.getLogger(name=__name__)
 
 
-class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
+class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
-    ReachingDefinitionAnalysis is a text-book implementation of a static data-flow analysis that works on either a
+    ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a
     function or a block. It supports both VEX and AIL. By registering observers to observation points, users may use
     this analysis to generate use-def chains, def-use chains, and reaching definitions, and perform other traditional
     data-flow analyses such as liveness analysis.
@@ -98,7 +98,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
             raise ValueError('"observation_points" must be tuples.')
 
-        if type(self) is ReachingDefinitionAnalysis and not self._observe_all and not self._observation_points:
+        if type(self) is ReachingDefinitionsAnalysis and not self._observe_all and not self._observation_points:
             l.warning('No observation point is specified. '
                       'You cannot get any analysis result from performing the analysis.'
                       )

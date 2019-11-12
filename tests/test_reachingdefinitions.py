@@ -12,7 +12,7 @@ import nose
 import ailment
 import angr
 import archinfo
-from angr.analyses.reaching_definitions import LiveDefinitions, ReachingDefinitionAnalysis
+from angr.analyses.reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.analyses.reaching_definitions.atoms import Tmp, Register
 from angr.analyses.reaching_definitions.def_use import GuardUse
@@ -66,7 +66,7 @@ class InsnAndNodeObserveTestingUtils():
         return (project, main_function, reaching_definition, state)
 
 
-class ReachingDefinitionAnalysisTest(TestCase):
+class ReachingDefinitionsAnalysisTest(TestCase):
     def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses.ReachingDefinitions(
@@ -247,7 +247,7 @@ class ReachingDefinitionAnalysisTest(TestCase):
         nose.tools.assert_equal("%s" % reaching_definitions.exception, 'Unsupported analysis target.')
 
 
-    @mock.patch.object(ReachingDefinitionAnalysis, '_analyze')
+    @mock.patch.object(ReachingDefinitionsAnalysis, '_analyze')
     def test_reaching_definition_analysis_with_a_function_as_suject(self, _):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
@@ -270,7 +270,6 @@ class ReachingDefinitionAnalysisTest(TestCase):
         nose.tools.assert_equal(reaching_definitions._cc, cc)
 
 
-    # @mock.patch.object(ReachingDefinitionAnalysis, '_analyze')
     def test_reaching_definition_analysis_with_a_block_as_subject(self):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})

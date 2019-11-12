@@ -19,7 +19,7 @@ l = logging.getLogger(name=__name__)
 
 class LiveDefinitions:
     """
-    Represents the internal state of the ReachingDefinitionAnalysis.
+    Represents the internal state of the ReachingDefinitionsAnalysis.
 
     It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
 

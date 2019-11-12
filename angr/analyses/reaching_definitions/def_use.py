@@ -1,6 +1,6 @@
 import networkx
 
-from .reaching_definitions import LiveDefinitions, ReachingDefinitionAnalysis, register_analysis
+from .reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis, register_analysis
 from .definition import Definition
 from .atoms import Atom
 
@@ -45,7 +45,7 @@ class DefUseState(LiveDefinitions):
             self.analysis.def_use_graph.add_edge(used, kinda_definition)
 
 
-class DefUseAnalysis(ReachingDefinitionAnalysis):
+class DefUseAnalysis(ReachingDefinitionsAnalysis):
     def __init__(self, *args, **kwargs):
         self.def_use_graph = networkx.DiGraph()
         self.current_codeloc = None
