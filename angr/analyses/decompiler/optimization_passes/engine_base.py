@@ -7,6 +7,7 @@ from ....engines.light import SimEngineLight
 
 _l = logging.getLogger(name=__name__)
 
+
 class SimplifierAILState:
     def __init__(self, arch, variables=None):
         self.arch = arch
@@ -46,6 +47,7 @@ class SimplifierAILState:
         for k in keys_to_remove:
             self._variables.pop(k)
 
+
 class SimplifierAILEngine(
     SimEngineLightAILMixin,
     SimEngineLight,
@@ -55,14 +57,10 @@ class SimplifierAILEngine(
 
         super().__init__()
 
-    def process(self, state, block, whitelist=None): #pylint: disable=arguments-differ
+    def process(self, state, *args, **kwargs):
 
-        self.block = block
-        self.state = state
-        self.arch = state.arch
-
-        self._process_Stmt(whitelist=whitelist)
-
+        # override SimEngineLight.process() so that we can return the processed block
+        super().process(state, *args, **kwargs)
         return self.block
 
     def _process_Stmt(self, whitelist=None):
@@ -194,26 +192,25 @@ class SimplifierAILEngine(
             and operand_expr.op in {'Mul', 'Shl', 'Div', 'DivMod', 'Add', 'Sub'}:
             if isinstance(operand_expr.operands[1], Expr.Const):
                 if isinstance(operand_expr.operands[0], Expr.Register) and \
-                    expr.from_bits == operand_expr.operands[0].bits:
+                        expr.from_bits == operand_expr.operands[0].bits:
                     converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
                                              operand_expr.operands[0])
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
                                          [converted, operand_expr.operands[1]], **expr.tags)
                 elif isinstance(operand_expr.operands[0], Expr.Convert) and \
-                    expr.from_bits == operand_expr.operands[0].to_bits and \
+                        expr.from_bits == operand_expr.operands[0].to_bits and \
                         expr.to_bits == operand_expr.operands[0].from_bits:
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
                         [operand_expr.operands[0].operand, operand_expr.operands[1]], **operand_expr.tags)
             elif isinstance(operand_expr.operands[0], Expr.Convert) \
-                and isinstance(operand_expr.operands[1], Expr.Convert) \
+                    and isinstance(operand_expr.operands[1], Expr.Convert) \
                     and operand_expr.operands[0].from_bits == operand_expr.operands[1].from_bits:
                 if operand_expr.operands[0].to_bits == operand_expr.operands[1].to_bits \
-                    and expr.from_bits == operand_expr.operands[0].to_bits \
+                        and expr.from_bits == operand_expr.operands[0].to_bits \
                         and expr.to_bits == operand_expr.operands[1].from_bits:
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
                                     [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
                                      **operand_expr.tags)
-
 
         converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
                                  operand_expr, **expr.tags)
