@@ -1615,10 +1615,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             jobs += self._create_job_call(cfg_node.addr, irsb, cfg_node, stmt_idx, ins_addr,
                                                           current_function_addr, resolved_target, jumpkind)
                         else:
+                            to_outside, target_func_addr = self._is_branching_to_outside(addr, resolved_target,
+                                                                                         current_function_addr)
                             edge = FunctionTransitionEdge(cfg_node, resolved_target, current_function_addr,
-                                                          to_outside=False, stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                                          to_outside=to_outside, stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                                          dst_func_addr=target_func_addr,
                                                           )
-                            ce = CFGJob(resolved_target, current_function_addr, jumpkind,
+                            ce = CFGJob(resolved_target, target_func_addr, jumpkind,
                                         last_addr=resolved_target, src_node=cfg_node, src_stmt_idx=stmt_idx,
                                         src_ins_addr=ins_addr, func_edges=[ edge ],
                                         )
@@ -1672,23 +1675,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # pylint: disable=too-many-nested-blocks
             if jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
-                # if the target address is at another section, it has to be jumping to a new function
-                if not self._addrs_belong_to_same_section(addr, target_addr):
-                    target_func_addr = target_addr
-                    to_outside = True
-                else:
-                    # it might be a jumpout
-                    target_func_addr = None
-                    real_target_addr = get_real_address_if_arm(self.project.arch, target_addr)
-                    if real_target_addr in self._traced_addresses:
-                        node = self.model.get_any_node(target_addr)
-                        if node is not None:
-                            target_func_addr = node.function_address
-                    if target_func_addr is None:
-                        target_func_addr = current_function_addr
-
-                    to_outside = not target_func_addr == current_function_addr
-
+                to_outside, target_func_addr = self._is_branching_to_outside(addr, target_addr, current_function_addr)
                 edge = FunctionTransitionEdge(cfg_node, target_addr, current_function_addr,
                                               to_outside=to_outside,
                                               dst_func_addr=target_func_addr,
@@ -1865,6 +1852,36 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return None
 
         return successors
+
+    def _is_branching_to_outside(self, src_addr, target_addr, current_function_addr):
+        """
+        Determine if a branch is branching to a different function (i.e., branching to outside the current function).
+
+        :param int src_addr:    The source address.
+        :param int target_addr: The destination address.
+        :param int current_function_addr:   Address of the current function.
+        :return:    A tuple of (to_outside, target_func_addr)
+        :rtype:     tuple
+        """
+
+        if not self._addrs_belong_to_same_section(src_addr, target_addr):
+            # if the target address is at another section, it has to be jumping to a new function
+            target_func_addr = target_addr
+            to_outside = True
+        else:
+            # it might be a jumpout
+            target_func_addr = None
+            real_target_addr = get_real_address_if_arm(self.project.arch, target_addr)
+            if real_target_addr in self._traced_addresses:
+                node = self.model.get_any_node(target_addr)
+                if node is not None:
+                    target_func_addr = node.function_address
+            if target_func_addr is None:
+                target_func_addr = current_function_addr
+
+            to_outside = not target_func_addr == current_function_addr
+
+        return to_outside, target_func_addr
 
     # Data reference processing
 
