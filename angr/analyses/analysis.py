@@ -1,6 +1,7 @@
 import sys
 import contextlib
 from collections import defaultdict
+from inspect import Signature
 import progressbar
 import logging
 import time
@@ -83,6 +84,7 @@ class AnalysisFactory:
         self.__doc__ = ''
         self.__doc__ += analysis_cls.__doc__ or ''
         self.__doc__ += analysis_cls.__init__.__doc__ or ''
+        self.__call__.__func__.__signature__ = Signature.from_callable(analysis_cls.__init__)
 
     def __call__(self, *args, **kwargs):
         fail_fast = kwargs.pop('fail_fast', False)
