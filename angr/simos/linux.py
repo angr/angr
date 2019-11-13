@@ -188,7 +188,7 @@ class SimLinux(SimUserland):
 
         state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
-        if self.project.loader.main_object.is_ppc64_abiv1:
+        if isinstance(self.project.loader.main_object, MetaELF) and self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
 
         return state

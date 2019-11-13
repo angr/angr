@@ -249,6 +249,23 @@ def test_global_condition():
         nose.tools.assert_sequence_equal(s.solver.eval_upto(s.regs.rax, 10), [ 25 ])
 
 
+def test_successors_catch_arbitrary_interrupts():
+
+    # int 0xd2 should fail on x86/amd64 since it's an unsupported interrupt
+    block_bytes = b"\xcd\xd2"
+
+    proj = angr.load_shellcode(block_bytes, "amd64")
+    proj.simos = angr.simos.SimLinux(proj)
+    state = proj.factory.blank_state(addr=0)
+    simgr = proj.factory.simgr(state)
+
+    simgr.step()
+
+    nose.tools.assert_equal(len(simgr.errored), 0, msg="The state should not go to the errored stash. Is "
+                                                       "AngrSyscallError handled in SimSuccessors?")
+    nose.tools.assert_equal(len(simgr.unsat), 1)
+
+
 if __name__ == '__main__':
     test_state()
     test_state_merge()
@@ -258,3 +275,4 @@ if __name__ == '__main__':
     test_state_merge_static()
     test_state_pickle()
     test_global_condition()
+    test_successors_catch_arbitrary_interrupts()
