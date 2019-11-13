@@ -1454,6 +1454,10 @@ class CFGBase(Analysis):
             tmp_state = self.project.factory.blank_state(mode='fastpath')
             while True:
                 try:
+                    # do not follow hooked addresses (such as SimProcedures)
+                    if self.project.is_hooked(last_addr):
+                        break
+
                     # using successors is slow, but acceptable since we won't be creating millions of blocks here...
                     tmp_state.ip = last_addr
                     b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
