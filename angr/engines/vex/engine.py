@@ -389,8 +389,15 @@ class SimEngineVEX(SimEngine):
                 raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
             state.history.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')
             return None
-        else:
+
+        try:
             exit_data = stmt_handler(self, state, stmt)
+        except SimError as ex:
+            if o.BYPASS_ERRORED_IRSTMT not in state.options:
+                raise ex
+            state.history.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__,
+                                    message='errored IRStmt')
+            return None
 
         # for the exits, put *not* taking the exit on the list of constraints so
         # that we can continue on. Otherwise, add the constraints
