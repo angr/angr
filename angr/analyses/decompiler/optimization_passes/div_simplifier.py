@@ -9,8 +9,8 @@ from .optimization_pass import OptimizationPass
 
 _l = logging.getLogger(name=__name__)
 
-class DivSimplifierAILEngine(SimplifierAILEngine):
 
+class DivSimplifierAILEngine(SimplifierAILEngine):
 
     def _check_divisor(self, a, b, ndigits=6): #pylint: disable=no-self-use
         divisor_1 = 1 + (a//b)
@@ -21,11 +21,11 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         if expr.from_bits == 128 and expr.to_bits == 64:
             operand_expr = self._expr(expr.operand)
             if isinstance(operand_expr, Expr.BinaryOp) \
-                and operand_expr.op == 'Mul' \
+                    and operand_expr.op == 'Mul' \
                     and isinstance(operand_expr.operands[1], Expr.Const) \
-                        and isinstance(operand_expr.operands[0], Expr.BinaryOp):
+                    and isinstance(operand_expr.operands[0], Expr.BinaryOp):
                 if operand_expr.operands[0].op in {'Shr', 'DivMod'} \
-                    and isinstance(operand_expr.operands[0].operands[1], Expr.Const):
+                        and isinstance(operand_expr.operands[0].operands[1], Expr.Const):
                     if operand_expr.operands[0].op == 'Shr':
                         Y = operand_expr.operands[0].operands[1].value
                     else:
@@ -61,18 +61,18 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             divisor = operand_0.operand.operands[1].value * pow(2, operand_1.value)
             X = operand_0.operand.operands[0]
         if isinstance(operand_1, Expr.Const) \
-            and isinstance(operand_0, Expr.Convert) \
+                and isinstance(operand_0, Expr.Convert) \
                 and operand_0.from_bits == 128 \
-                    and operand_0.to_bits == 64:
+                and operand_0.to_bits == 64:
             if isinstance(operand_0.operand, Expr.BinaryOp)\
-                and operand_0.operand.op == 'Mul':
+                    and operand_0.operand.op == 'Mul':
                 if isinstance(operand_0.operand.operands[1], Expr.Const):
                     C = operand_0.operand.operands[1].value
                     Y = operand_1.value
                     divisor = self._check_divisor(pow(2, 64+Y), C)
                     X = operand_0.operand.operands[0]
                 elif isinstance(operand_0.operand.operands[0], Expr.BinaryOp) \
-                    and operand_0.operand.operands[0].op in {'Shr', 'DivMod'}:
+                        and operand_0.operand.operands[0].op in {'Shr', 'DivMod'}:
                     C = operand_0.operand.operands[1].value
                     Z = operand_1.value
                     if operand_0.operand.operands[0].op == 'Shr':
@@ -82,7 +82,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                     divisor = self._check_divisor(pow(2, 64+Z+Y), C)
                     X = operand_0.operand.operands[0].operands[0]
         if isinstance(operand_1, Expr.Const) \
-            and isinstance(operand_0, Expr.BinaryOp) \
+                and isinstance(operand_0, Expr.BinaryOp) \
                 and operand_0.op == 'Add':
             add_0, add_1 = operand_0.operands
             Z = operand_1.value
@@ -133,7 +133,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                             if X == x_xC.operands[0].operands[0]:
                                 divisor = self._check_divisor(pow(2, Y+V+Z), C*(pow(2, V) - 1) + pow(2, Y))
 
-
         # unsigned int
         if isinstance(operand_1, Expr.Const) \
             and isinstance(operand_0, Expr.BinaryOp) \
@@ -179,14 +178,13 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             elif isinstance(operand_0, Expr.BinaryOp) \
                 and operand_0.op == 'Shr' \
                     and isinstance(operand_0.operands[1], Expr.Const):
-                new_const = Expr.Const(operand_1.idx, None, \
+                new_const = Expr.Const(operand_1.idx, None,
                     operand_0.operands[1].value+operand_1.value, operand_1.bits)
                 return Expr.BinaryOp(expr.idx, 'Shr', [operand_0.operands[0], new_const], **expr.tags)
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
             return Expr.BinaryOp(expr.idx, 'Shr', [operand_0, operand_1])
         return expr
-
 
     def _ail_handle_Mul(self, expr):
 
@@ -247,6 +245,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
             return Expr.BinaryOp(expr.idx, 'Div', [operand_0, operand_1], **expr.tags)
         return expr
+
 
 class DivSimplifier(OptimizationPass):
 
