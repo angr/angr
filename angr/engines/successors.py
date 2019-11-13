@@ -288,7 +288,7 @@ class SimSuccessors:
                     # up, and create a "unknown syscall" stub for it.
                     self._fix_syscall_ip(state)
                     self.flat_successors.append(state)
-            except AngrUnsupportedSyscallError:
+            except (AngrUnsupportedSyscallError, AngrSyscallError):
                 self.unsat_successors.append(state)
 
         else:
@@ -514,7 +514,7 @@ class SimSuccessors:
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
+from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
