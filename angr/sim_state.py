@@ -34,8 +34,8 @@ class SimState(PluginHub):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
-    :param angr.Project project:
-    :param archinfo.Arch arch:
+    :param angr.Project project:    The project instance.
+    :param archinfo.Arch|str arch:  The architecture of the state.
 
     :ivar regs:         A convenient view of the state's registers, where each register is a property
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
