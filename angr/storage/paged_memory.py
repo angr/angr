@@ -393,8 +393,8 @@ class SimPagedMemory:
         self.__dict__.update(s)
 
     def branch(self):
-        new_name_mapping = ChainMap({}, self._name_mapping) if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
-        new_hash_mapping = ChainMap({}, self._hash_mapping) if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
+        new_name_mapping = ChainMap({}, *self._name_mapping.maps) if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
+        new_hash_mapping = ChainMap({}, *self._hash_mapping.maps) if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
         new_pages = dict(self._pages)
         self._cowed = set()
