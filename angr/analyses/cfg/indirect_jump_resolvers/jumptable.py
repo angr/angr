@@ -1063,6 +1063,10 @@ class JumpTableResolver(IndirectJumpResolver):
             mask = (2 ** self.project.arch.bits) - 1
             all_targets = [(target + base_addr) & mask for target in all_targets]
 
+        # special case for ARM: if the source block is in THUMB mode, all jump targets should be in THUMB mode, too
+        if is_arm_arch(self.project.arch) and (addr & 1) == 1:
+            all_targets = [ target | 1 for target in all_targets ]
+
         # Finally... all targets are ready
         illegal_target_found = False
         for target in all_targets:
