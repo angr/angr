@@ -10,12 +10,12 @@ from . import Analysis
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
-from .forward_analysis import ForwardAnalysis, AngrSkipJobNotice, AngrDelayJobNotice
+from .forward_analysis import ForwardAnalysis
 from .. import sim_options
 from ..engines import SimEngineProcedure
 from ..engines import SimSuccessors
-from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice, SimValueError, \
-    SimIRSBError, SimError
+from ..errors import AngrDelayJobNotice, AngrSkipJobNotice, AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, \
+    AngrJobMergingFailureNotice, SimValueError, SimIRSBError, SimError
 from ..procedures import SIM_PROCEDURES
 from ..state_plugins.callstack import CallStack
 

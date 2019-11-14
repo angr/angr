@@ -18,11 +18,11 @@ from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData
 from ...knowledge_plugins.xrefs import XRef, XRefType
 from ...misc.ux import deprecated
 from ... import sim_options as o
-from ...errors import (AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError,
-                       SimOperationError, SimError, AngrUnsupportedSyscallError
+from ...errors import (AngrCFGError, AngrSkipJobNotice, AngrUnsupportedSyscallError, SimEngineError, SimMemoryError,
+                       SimTranslationError, SimValueError, SimOperationError, SimError
                        )
 from ...utils.constants import DEFAULT_STATEMENT
-from ..forward_analysis import ForwardAnalysis, AngrSkipJobNotice
+from ..forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .segment_list import SegmentList
