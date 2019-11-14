@@ -1146,8 +1146,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if addr is not None:
                 # if this is ARM and addr % 4 != 0, it has to be THUMB
-                if is_arm_arch(self.project.arch) and addr % 2 == 0 and addr % 4 != 0:
-                    addr |= 1
+                if is_arm_arch(self.project.arch):
+                    if addr % 2 == 0 and addr % 4 != 0:
+                        addr |= 1
+                    else:
+                        # load 8 bytes and test with THUMB-mode prologues
+                        bytes_prefix = self._fast_memory_load_bytes(addr, 8)
+                        if any(re.match(prolog, bytes_prefix) for prolog in self.project.arch.thumb_prologs):
+                            addr |= 1
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJob.JOB_TYPE_COMPLETE_SCANNING)
                 self._insert_job(job)
                 self._register_analysis_job(addr, job)
