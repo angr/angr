@@ -554,7 +554,7 @@ class CFGENode(CFGNode):
     def __repr__(self):
         s = "<CFGENode "
         if self.name is not None:
-            s += self.name + " "
+            s += self.name + " " + "data-offset:"+str(self.data_offset)+" "
         s += hex(self.addr)
         if self.size is not None:
             s += f"[{self.size}]"
