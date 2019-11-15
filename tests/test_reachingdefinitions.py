@@ -15,7 +15,7 @@ import archinfo
 from angr.analyses.reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.analyses.reaching_definitions.atoms import Tmp, Register
-from angr.analyses.reaching_definitions.def_use import GuardUse
+from angr.analyses.reaching_definitions.def_use_state import GuardUse
 
 from angr.block import Block
 
