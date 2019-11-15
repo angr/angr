@@ -9,8 +9,8 @@ import networkx as nx
 from angr.analyses.cfg.cfg_job_base import BlockID
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
-filename = "/media/sf_Security/sample_vm/a.out"
-#filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
+#filename = "/media/sf_Security/sample_vm/a.out"
+filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 
 
 ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
@@ -169,9 +169,28 @@ def dead_code_elimination(cfg, proj):
     new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True)
     return new_cfg
 
+def draw_graph(cfg, filename):
+    A = nx.nx_agraph.to_agraph(cfg.graph)
+    for node in cfg.graph.nodes():
+        stmt_str = str(node)
+        prev_stmt = None
+        if node.irsb != None:
+            for stmt in node.irsb.statements:
+                if stmt.tag == "Ist_IMark" and prev_stmt != None and prev_stmt.tag == "Ist_IMark":
+                    prev_stmt = stmt
+                    continue
+                else:
+                    stmt_str = stmt_str + "\l" + str(stmt)
+                    prev_stmt = stmt
+        graphviz_node = A.get_node(str(node))
+        graphviz_node.attr["label"] = stmt_str
+        graphviz_node.attr["shape"] = "box"
+    A.layout(prog="dot")
+    A.draw(path=filename, format="svg")
+
 
 cfg, proj = data_sensitive_graph(filename)
-
+draw_graph(cfg,"input.svg")
 # #### HACK TO REMOVE the last FakeRet Node, because it was not being corectly analysed in ddg. !!!!!!
 # for node in cfg.graph.nodes():
 #     print(node.input_state.history.jumpkind)
@@ -185,11 +204,4 @@ new_cfg = dead_code_elimination(new_cfg, proj)
 # DCE second time
 new_cfg = dead_code_elimination(new_cfg, proj)
 new_cfg = dead_code_elimination(new_cfg, proj)
-A = nx.nx_agraph.to_agraph(new_cfg.graph)
-
-for node in new_cfg.graph.nodes():
-    print(str(node.irsb))
-    graphviz_node = A.get_node(str(node))
-    graphviz_node.attr["label"] = str(node) + str(node.irsb).split("\n",2)[2]
-A.layout(prog="dot")
-A.draw('simple.png') # draw png
+draw_graph(new_cfg,"final_result.svg")
