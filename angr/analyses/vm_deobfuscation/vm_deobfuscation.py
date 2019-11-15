@@ -5,11 +5,11 @@ from angr.analyses.code_location import CodeLocation
 import copy
 from collections import defaultdict
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
-
+import networkx as nx
 from angr.analyses.cfg.cfg_job_base import BlockID
 
-filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
-#filename = "/media/sf_Security/sample_vm/a.out"
+#filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
+filename = "/media/sf_Security/sample_vm/a.out"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 
 
@@ -185,3 +185,11 @@ new_cfg = dead_code_elimination(new_cfg, proj)
 # DCE second time
 new_cfg = dead_code_elimination(new_cfg, proj)
 new_cfg = dead_code_elimination(new_cfg, proj)
+A = nx.nx_agraph.to_agraph(new_cfg.graph)
+
+for node in new_cfg.graph.nodes():
+    print(str(node.irsb))
+    graphviz_node = A.get_node(str(node))
+    graphviz_node.attr["label"] = str(node) + str(node.irsb).split("\n",2)[2]
+A.layout(prog="dot")
+A.draw('simple.png') # draw png
