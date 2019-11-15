@@ -140,7 +140,6 @@ setup(
         'sortedcontainers',
         'cachetools',
         'capstone>=3.0.5rc2',
-        'cooldict',
         'dpkt',
         'mulpyplexer',
         'networkx>=2.0',

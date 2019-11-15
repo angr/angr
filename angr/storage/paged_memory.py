@@ -1,7 +1,7 @@
-import cooldict
 import claripy
 import cle
 from sortedcontainers import SortedDict
+from collections import ChainMap
 import logging
 
 
@@ -342,8 +342,8 @@ class SimPagedMemory:
         self._check_perms = check_permissions
 
         # reverse mapping
-        self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
-        self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
+        self._name_mapping = ChainMap() if name_mapping is None else name_mapping
+        self._hash_mapping = ChainMap() if hash_mapping is None else hash_mapping
         self._updated_mappings = set()
 
     def _page_align_down(self, x):
@@ -393,8 +393,8 @@ class SimPagedMemory:
         self.__dict__.update(s)
 
     def branch(self):
-        new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
-        new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
+        new_name_mapping = self._name_mapping.new_child() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
+        new_hash_mapping = self._hash_mapping.new_child() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
         new_pages = dict(self._pages)
         self._cowed = set()

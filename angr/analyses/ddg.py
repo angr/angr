@@ -103,7 +103,7 @@ class LiveDefinitions(object):
 
         # byte-to-byte mappings
         # TODO: make it copy-on-write in order to save memory.
-        # TODO: options are either cooldict.COWDict or a modified version of simuvex.SimPagedMemory
+        # TODO: options are either collections.ChainMap or a modified version of simuvex.SimPagedMemory
         self._memory_map = defaultdict(set)
         self._register_map = defaultdict(set)
         self._defs = defaultdict(set)
