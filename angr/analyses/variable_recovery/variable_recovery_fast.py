@@ -8,6 +8,7 @@ from ...errors import AngrVariableRecoveryError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from ..typehoon.typevars import Equivalence, TypeVariable
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
@@ -135,6 +136,15 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
                                                                                          replacements=replacements)
         merged_typevars = self.typevars.merge(other.typevars)
         merged_typeconstraints = self.type_constraints.copy() | other.type_constraints
+        # add subtype constraints for all replacements
+        for v0, v1 in replacements.items():
+            if not merged_typevars.has_type_variable_for(v1, None):
+                merged_typevars.add_type_variable(v1, None, TypeVariable())
+            if not merged_typevars.has_type_variable_for(v0, None):
+                merged_typevars.add_type_variable(v0, None, TypeVariable())
+            merged_typeconstraints.add(Equivalence(merged_typevars.get_type_variable(v1, None),
+                                               merged_typevars.get_type_variable(v0, None))
+                                       )
 
         state = VariableRecoveryFastState(
             successor,

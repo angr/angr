@@ -6,6 +6,40 @@ Type variables and constraints
 """
 
 
+class Equivalence:
+    def __init__(self, type_a, type_b):
+        self.type_a = type_a
+        self.type_b = type_b
+
+    def __repr__(self):
+        return "%s == %s" % (self.type_a, self.type_b)
+
+    def __eq__(self, other):
+        return type(other) is Equivalence and (
+                self.type_a == other.type_a and self.type_b == other.type_b or
+                self.type_b == other.type_a and self.type_a == other.type_b)
+
+    def __hash__(self):
+        return hash((Equivalence, tuple(sorted(
+            (hash(self.type_a), hash(self.type_b)
+             ))
+        )))
+
+
+class Existence:
+    def __init__(self, type_):
+        self.type_ = type_
+
+    def __repr__(self):
+        return "V %s" % self.type_
+
+    def __eq__(self, other):
+        return type(other) is Existence and self.type_ == other.type_
+
+    def __hash__(self):
+        return hash((Existence, self.type_))
+
+
 class Subtype:
     def __init__(self, super_type, sub_type):
         self.super_type = super_type
@@ -19,6 +53,33 @@ class Subtype:
 
     def __hash__(self):
         return hash((Subtype, hash(self.sub_type), hash(self.super_type)))
+
+    def replace(self, replacements):
+
+        subtype, supertype = None, None
+
+        if self.sub_type in replacements:
+            subtype = replacements[self.sub_type]
+        else:
+            if isinstance(self.sub_type, DerivedTypeVariable):
+                r, newtype = self.sub_type.replace(replacements)
+                if r:
+                    subtype = newtype
+
+        if self.super_type in replacements:
+            supertype = replacements[self.super_type]
+        else:
+            if isinstance(self.super_type, DerivedTypeVariable):
+                r, newtype = self.super_type.replace(replacements)
+                if r:
+                    supertype = newtype
+
+        if subtype is not None or supertype is not None:
+            # replacement has happened
+            return True, Subtype(supertype if supertype is not None else self.super_type,
+                                 subtype if subtype is not None else self.sub_type)
+        else:
+            return False, self
 
 
 _typevariable_counter = count()
@@ -38,7 +99,7 @@ class TypeVariable:
         return hash((TypeVariable, self.idx))
 
     def __repr__(self):
-        return "tv_%s" % self.idx
+        return "tv_%02d" % self.idx
 
 
 class DerivedTypeVariable(TypeVariable):
@@ -57,6 +118,24 @@ class DerivedTypeVariable(TypeVariable):
 
     def __repr__(self):
         return "%r.%r" % (self.type_var, self.label)
+
+    def replace(self, replacements):
+
+        typevar = None
+
+        if self.type_var in replacements:
+            typevar = replacements[self.type_var]
+        else:
+            if isinstance(self.type_var, DerivedTypeVariable):
+                r, t = self.type_var.replace(replacements)
+                if r:
+                    typevar = t
+
+        if typevar is not None:
+            # replacement has happened
+            return True, DerivedTypeVariable(typevar, self.label, idx=self.idx)
+        else:
+            return False, self
 
 
 class TypeVariables:

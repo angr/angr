@@ -4,7 +4,8 @@ import logging
 import ailment
 
 from ...engines.light import SimEngineLightAILMixin, SpOffset
-from .engine_base import SimEngineVRBase
+from ..typehoon import typeconsts, typevars
+from .engine_base import SimEngineVRBase, RichR
 
 l = logging.getLogger(name=__name__)
 
@@ -68,12 +69,25 @@ class SimEngineVRAIL(
         if ret_expr is not None:
             self._assign_to_register(
                 ret_expr.reg_offset,
-                None,
+                RichR(None),
                 self.state.arch.bytes,
                 dst=ret_expr,
             )
 
     # Expression handlers
+
+    def _expr(self, expr):
+        """
+
+        :param expr:
+        :return:
+        :rtype: RichR
+        """
+
+        expr = super()._expr(expr)
+        if expr is None:
+            return RichR(None)
+        return expr
 
     def _ail_handle_Register(self, expr):
         offset = expr.reg_offset
@@ -87,24 +101,31 @@ class SimEngineVRAIL(
 
         return self._load(addr, size, expr=expr)
 
+    def _ail_handle_Const(self, expr):
+        return RichR(expr.value, typevar=typeconsts.int_type(expr.size * 8))
+
     def _ail_handle_BinaryOp(self, expr):
         r = super()._ail_handle_BinaryOp(expr)
         if r is None:
             # Treat it as a normal binaryop expression
             self._expr(expr.operands[0])
             self._expr(expr.operands[1])
+            # still return a RichR instance
+            r = RichR(None)
         return r
 
     def _ail_handle_Convert(self, expr):
         return self._expr(expr.operand)
 
     def _ail_handle_StackBaseOffset(self, expr):
-        return SpOffset(self.arch.bits, expr.offset, is_base=False)
+        return RichR(
+            SpOffset(self.arch.bits, expr.offset, is_base=False)
+        )
 
     def _ail_handle_Cmp(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
-        return None
+        return RichR(None)
 
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
@@ -112,3 +133,26 @@ class SimEngineVRAIL(
     _ail_handle_CmpLE = _ail_handle_Cmp
     _ail_handle_CmpGT = _ail_handle_Cmp
     _ail_handle_CmpGE = _ail_handle_Cmp
+
+    def _ail_handle_Add(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            typevar = None
+            if r0.typevar is not None and isinstance(r1.data, int):
+                typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data))
+
+            sum_ = None
+            if r0.data is not None and r1.data is not None:
+                sum_ = r0.data + r1.data
+
+            return RichR(sum_,
+                         typevar=typevar,
+                         type_constraints={ typevars.Subtype(r0.typevar, r1.typevar) }
+                         )
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Add', [r0, r1], **expr.tags)

@@ -170,7 +170,7 @@ class SimEngineVRBase(SimEngineLight):
         """
 
         :param addr:
-        :param data:
+        :param RichR data:
         :param int size:
         :return:
         """
@@ -334,6 +334,7 @@ class SimEngineVRBase(SimEngineLight):
             typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
             typevars.HasField(size * 8, offset)
         )
+        self.state.add_type_constraint(typevars.Existence(typevar))
         return RichR(None, typevar=typevar)
 
     def _read_from_register(self, offset, size, expr=None):

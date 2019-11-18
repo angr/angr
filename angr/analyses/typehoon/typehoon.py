@@ -1,21 +1,7 @@
 
 from ..analysis import Analysis, AnalysesHub
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-
-
-class TypeState:
-    """
-    The abstract state used during analysis in Typehoon.
-    """
-    def __init__(self, addr, arch):
-        self._addr = addr
-        self.arch = arch
-        self.constraints = set()
-
-    def add_constraints(self, *constraints):
-
-        for constraint in constraints:
-            self.constraints.add(constraint)
+from .simple_solver import SimpleSolver
+from .translator import TypeTranslator
 
 
 class Typehoon(Analysis):
@@ -36,14 +22,38 @@ class Typehoon(Analysis):
         self._constraints = constraints
         self._ground_truth = ground_truth
 
+        self.solution = None
+        self.simtypes_solution = None
+
         self._analyze()
 
     def _analyze(self):
 
-        self._simplify()
+        self._solve()
+        self._translate_to_simtypes()
 
-    def _simplify(self):
-        print(self._constraints)
+    def _solve(self):
+        solver = SimpleSolver(self._constraints)
+        self.solution = solver.solution
+
+    def _translate_to_simtypes(self):
+
+        simtypes_solution = { }
+        translator = TypeTranslator()
+        needs_backpatch = set()
+
+        for tv, sol in self.solution.items():
+            simtypes_solution[tv], has_nonexistent_ref = translator.translate(sol)
+
+            if has_nonexistent_ref:
+                needs_backpatch.add(tv)
+
+        # back patch
+        for tv in needs_backpatch:
+            translator.backpatch(simtypes_solution[tv], simtypes_solution)
+
+        self.sim_types = simtypes_solution
+        self.structs = translator.structs
 
 
 AnalysesHub.register_default("Typehoon", Typehoon)

@@ -21,7 +21,7 @@ def test_smoketest():
     pprint.pprint(vr._outstates[0x4005b2].typevars._typevars)
     pprint.pprint(tcons)
 
-    p.analyses.Typehoon(tcons)
+    t = p.analyses.Typehoon(tcons)
 
     # convert function blocks to AIL blocks
     # clinic = p.analyses.Clinic(main_func)
