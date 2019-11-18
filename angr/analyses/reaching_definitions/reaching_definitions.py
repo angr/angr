@@ -1,4 +1,5 @@
 import logging
+import networkx
 from collections import defaultdict
 
 import ailment
@@ -86,6 +87,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._function_handler = function_handler
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
+
+        self.def_use_graph = networkx.DiGraph()
+        self.current_codeloc = None
+        self.codeloc_uses = set()
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()

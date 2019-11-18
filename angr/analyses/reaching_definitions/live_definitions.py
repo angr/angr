@@ -7,7 +7,7 @@ from collections import defaultdict
 from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
-from .atoms import Register, MemoryLocation, Tmp, Parameter
+from .atoms import Atom, Register, MemoryLocation, Tmp, Parameter
 from .dataset import DataSet
 from .definition import Definition
 from .undefined import undefined
@@ -15,6 +15,14 @@ from .uses import Uses
 
 
 l = logging.getLogger(name=__name__)
+
+
+class GuardUse(Atom):
+    def __init__(self, target):
+        self.target = target
+
+    def __repr__(self):
+        return '<Guard %#x>' % self.target
 
 
 class LiveDefinitions:
@@ -166,6 +174,11 @@ class LiveDefinitions:
 
         return state
 
+    def _cycle(self, code_loc):
+        if code_loc != self.analysis.current_codeloc:
+            self.analysis.current_codeloc = code_loc
+            self.analysis.codeloc_uses = set()
+
     def kill_definitions(self, atom, code_loc, data=None, dummy=True):
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
@@ -183,18 +196,35 @@ class LiveDefinitions:
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
 
     def kill_and_add_definition(self, atom, code_loc, data, dummy=False):
+        self._cycle(code_loc)
+
         if type(atom) is Register:
-            return self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
+            definition = self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is SpOffset:
-            return self._kill_and_add_stack_definition(atom, code_loc, data, dummy=dummy)
+            definition = self._kill_and_add_stack_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is MemoryLocation:
-            return self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
+            definition = self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
         elif type(atom) is Tmp:
-            return self._add_tmp_definition(atom, code_loc, data)
+            definition = self._add_tmp_definition(atom, code_loc, data)
         else:
             raise NotImplementedError()
 
+        if definition is not None:
+            self.analysis.def_use_graph.add_node(definition)
+            for used in self.analysis.codeloc_uses:
+                # Moderately confusing misnomers. This is an edge from a def to a use, since the
+                # "uses" are actually the definitions that we're using and the "definition" is the
+                # new definition; i.e. The def that the old def is used to construct so this is
+                # really a graph where nodes are defs and edges are uses.
+                self.analysis.def_use_graph.add_edge(used, definition)
+
+        return definition
+
+
     def add_use(self, atom, code_loc):
+        self._cycle(code_loc)
+        self.analysis.codeloc_uses.update(self.get_definitions(atom))
+
         if type(atom) is Register:
             self._add_register_use(atom, code_loc)
         elif type(atom) is SpOffset:
@@ -232,7 +262,12 @@ class LiveDefinitions:
             raise TypeError()
 
     def mark_guard(self, code_loc, data, target):
-        pass
+        self._cycle(code_loc)
+        atom = GuardUse(target)
+        kinda_definition = Definition(atom, code_loc, data)
+        self.analysis.def_use_graph.add_node(kinda_definition)
+        for used in self.analysis.codeloc_uses:
+            self.analysis.def_use_graph.add_edge(used, kinda_definition)
 
     #
     # Private methods

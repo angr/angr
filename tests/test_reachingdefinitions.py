@@ -12,10 +12,10 @@ import nose
 import ailment
 import angr
 import archinfo
-from angr.analyses.reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from angr.analyses.reaching_definitions.live_definitions import GuardUse, LiveDefinitions
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.analyses.reaching_definitions.atoms import Tmp, Register
-from angr.analyses.reaching_definitions.def_use_state import GuardUse
 
 from angr.block import Block
 
@@ -340,7 +340,7 @@ def test_def_use_graph():
     main = cfg.functions['main']
 
     # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's guard is the four cc registers
-    rda = project.analyses.DefUse(subject=main, track_tmps=False)
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False)
     guard_use = list(filter(
         lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
         rda.def_use_graph.nodes()
@@ -359,7 +359,7 @@ def test_def_use_graph():
     )
 
     # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
-    rda = project.analyses.DefUse(subject=main, track_tmps=True)
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=True)
     tmp_7 = list(filter(
         lambda def_: type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr,
         rda.def_use_graph.nodes()
