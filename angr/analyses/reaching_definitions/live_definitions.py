@@ -166,9 +166,6 @@ class LiveDefinitions:
 
         return state
 
-    def downsize(self):
-        self.analysis = None
-
     def kill_definitions(self, atom, code_loc, data=None, dummy=True):
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
