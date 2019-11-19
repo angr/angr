@@ -13,7 +13,9 @@ class SimTypeTempRef(sim_type.SimType):
 
 class TypeTranslator:
 
-    def __init__(self):
+    def __init__(self, arch=None):
+
+        self.arch = arch
 
         self.translated = { }
         self.structs = { }
@@ -55,26 +57,26 @@ class TypeTranslator:
     def _translate_Pointer64(self, tc):
 
         internal = self._translate(tc.basetype)
-        return sim_type.SimTypePointer(internal)
+        return sim_type.SimTypePointer(internal).with_arch(self.arch)
 
     def _translate_Struct(self, tc):
 
         if tc in self.structs:
             return self.structs[tc]
 
-        s = sim_type.SimStruct({}, name=self.struct_name())
+        s = sim_type.SimStruct({}, name=self.struct_name()).with_arch(self.arch)
         self.structs[tc] = s
 
         for offset, typ in tc.fields.items():
-            s.fields[offset] = self._translate(typ)
+            s.fields["field_%x" % offset] = self._translate(typ)
 
         return s
 
     def _translate_Int32(self, tc):
-        return sim_type.SimTypeInt(signed=False)
+        return sim_type.SimTypeInt(signed=False).with_arch(self.arch)
 
     def _translate_Int64(self, tc):
-        return sim_type.SimTypeLongLong(signed=False)
+        return sim_type.SimTypeLongLong(signed=False).with_arch(self.arch)
 
     def _translate_TypeVariableReference(self, tc):
 
