@@ -23,8 +23,11 @@ class SimEngineRDAIL(
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
+        self._visited_blocks = None
 
     def process(self, state, *args, **kwargs):
+        self._visited_blocks = kwargs.pop('visited_blocks', None)
+
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
@@ -32,7 +35,6 @@ class SimEngineRDAIL(
                 state,
                 None,
                 block=kwargs.pop('block', None),
-                visited_blocks=kwargs.pop('visited_blocks', None),
             )
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:

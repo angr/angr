@@ -65,8 +65,6 @@ class SimEngineLightVEXMixin:
         if state is not None:
             self.arch = state.arch
 
-        self._visited_blocks = kwargs.pop('visited_blocks', None)
-
         self.tyenv = block.vex.tyenv
 
         self._process_Stmt(whitelist=whitelist)
@@ -529,8 +527,6 @@ class SimEngineLightAILMixin:
         self.block = block
         self.state = state
         self.arch = state.arch
-
-        self._visited_blocks = kwargs.pop('visited_blocks', None)
 
         self._process_Stmt(whitelist=whitelist)
 
