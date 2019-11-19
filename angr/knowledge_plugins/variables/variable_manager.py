@@ -27,8 +27,10 @@ class LiveVariables:
         self.register_region = register_region
         self.stack_region = stack_region
 
+
 def _defaultdict_set():
     return defaultdict(set)
+
 
 class VariableManagerInternal:
     """
@@ -58,6 +60,8 @@ class VariableManagerInternal:
 
         self._phi_variables = { }
         self._phi_variables_by_block = defaultdict(set)
+
+        self.types = { }
 
     #
     # Public methods
@@ -359,6 +363,12 @@ class VariableManagerInternal:
                 if var.name is not None:
                     continue
                 var.name = var.ident
+
+    def get_variable_type(self, var):
+        return self.types.get(var, None)
+
+    def remove_types(self):
+        self.types.clear()
 
 
 class VariableManager(KnowledgeBasePlugin):

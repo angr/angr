@@ -300,8 +300,13 @@ class Clinic(Analysis):
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
                                                         func_graph=self._func_graph,
                                                         clinic=self, kb=tmp_kb, track_sp=False)
+        # clean up existing types
+        tmp_kb.variables[self.function.addr].remove_types()
+        tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb)
+        tp.update_variable_types(self.function.addr, vr.var_to_typevar)
 
         # TODO: The current mapping implementation is kinda hackish...
+
         # Link variables to each statement
         for block in self._blocks_by_addr_and_size.values():
             self._link_variables_on_block(block, tmp_kb)

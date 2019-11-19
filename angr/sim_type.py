@@ -101,6 +101,9 @@ class SimType:
     def _init_str(self):
         return "NotImplemented(%s)" % (self.__class__.__name__)
 
+    def c_repr(self):
+        raise NotImplementedError()
+
 
 class SimTypeBottom(SimType):
     """
@@ -116,6 +119,9 @@ class SimTypeBottom(SimType):
             ("label=\"%s\"" % self.label) if self.label else ""
         )
 
+    def c_repr(self):
+        return "BOT"
+
 
 class SimTypeTop(SimType):
     """
@@ -130,6 +136,9 @@ class SimTypeTop(SimType):
 
     def __repr__(self):
         return 'TOP'
+
+    def c_repr(self):
+        return "TOP"
 
 
 class SimTypeReg(SimType):
@@ -192,6 +201,9 @@ class SimTypeNum(SimType):
         self._size = size
         self.signed = signed
 
+    def c_repr(self):
+        return "{}int{}_t".format('' if self.signed else 'u', self.size)
+
     def __repr__(self):
         return "{}int{}_t".format('' if self.signed else 'u', self.size)
 
@@ -235,6 +247,12 @@ class SimTypeInt(SimTypeReg):
         """
         super(SimTypeInt, self).__init__(None, label=label)
         self.signed = signed
+
+    def c_repr(self):
+        name = self._base_name
+        if not self.signed:
+            name = 'unsigned ' + name
+        return name
 
     def __repr__(self):
         name = self._base_name
@@ -315,6 +333,9 @@ class SimTypeChar(SimTypeReg):
     def __repr__(self):
         return 'char'
 
+    def c_repr(self):
+        return "char"
+
     def store(self, state, addr, value):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
@@ -359,6 +380,9 @@ class SimTypeBool(SimTypeChar):
     def _init_str(self):
         return "%s()" % (self.__class__.__name__)
 
+    def c_repr(self):
+        return "bool"
+
 
 class SimTypeFd(SimTypeReg):
     """
@@ -377,6 +401,9 @@ class SimTypeFd(SimTypeReg):
 
     def __repr__(self):
         return 'fd_t'
+
+    def c_repr(self):
+        return "fd_t"
 
 
 class SimTypePointer(SimTypeReg):
@@ -398,6 +425,9 @@ class SimTypePointer(SimTypeReg):
 
     def __repr__(self):
         return '{}*'.format(self.pts_to)
+
+    def c_repr(self):
+        return '{}*'.format(self.pts_to.c_repr())
 
     def make(self, pts_to):
         new = type(self)(pts_to)
@@ -435,6 +465,9 @@ class SimTypeFixedSizeArray(SimType):
         self.length = length
 
     def __repr__(self):
+        return '{}[{}]'.format(self.elem_type, self.length)
+
+    def c_repr(self):
         return '{}[{}]'.format(self.elem_type, self.length)
 
     _can_refine_int = True
@@ -490,6 +523,9 @@ class SimTypeArray(SimType):
     def __repr__(self):
         return '{}[{}]'.format(self.elem_type, '' if self.length is None else self.length)
 
+    def c_repr(self):
+        return '{}[{}]'.format(self.elem_type, '' if self.length is None else self.length)
+
     @property
     def size(self):
         if self._arch is None:
@@ -522,6 +558,9 @@ class SimTypeString(SimTypeArray):
         super(SimTypeString, self).__init__(SimTypeChar(), label=label, length=length)
 
     def __repr__(self):
+        return 'string_t'
+
+    def c_repr(self):
         return 'string_t'
 
     def extract(self, state, addr, concrete=False):
@@ -573,6 +612,9 @@ class SimTypeWString(SimTypeArray):
         super(SimTypeWString, self).__init__(SimTypeNum(16, False), label=label, length=length)
 
     def __repr__(self):
+        return 'wstring_t'
+
+    def c_repr(self):
         return 'wstring_t'
 
     def extract(self, state, addr, concrete=False):
@@ -642,6 +684,9 @@ class SimTypeFunction(SimType):
             argstrs.append('...')
         return '({}) -> {}'.format(', '.join(argstrs), self.returnty)
 
+    def c_repr(self):
+        return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
+
     @property
     def size(self):
         return 4096     # ???????????
@@ -695,6 +740,9 @@ class SimTypeLength(SimTypeLong):
     def __repr__(self):
         return 'size_t'
 
+    def c_repr(self):
+        return 'size_t'
+
     @property
     def size(self):
         if self._arch is None:
@@ -738,6 +786,9 @@ class SimTypeFloat(SimTypeReg):
             self.size
         )
 
+    def c_repr(self):
+        return 'float'
+
 
 class SimTypeDouble(SimTypeFloat):
     """
@@ -750,6 +801,9 @@ class SimTypeDouble(SimTypeFloat):
     sort = claripy.FSORT_DOUBLE
 
     def __repr__(self):
+        return 'double'
+
+    def c_repr(self):
         return 'double'
 
     @property
@@ -818,6 +872,12 @@ class SimStruct(SimType):
 
     def __repr__(self):
         return 'struct %s' % self.name
+
+    def c_repr(self):
+        return 'struct %s' % self.name
+
+    def __hash__(self):
+        return hash((SimStruct, self._name, self._align, self._pack, tuple(self.fields.keys())))
 
     @property
     def size(self):
@@ -917,6 +977,9 @@ class SimUnion(SimType):
     def __repr__(self):
         # use the str instead of repr of each member to avoid exceed recursion
         # depth when representing self-referential unions
+        return 'union %s {\n\t%s\n}' % (self.name, '\n\t'.join('%s %s;' % (name, str(ty)) for name, ty in self.members.items()))
+
+    def c_repr(self):
         return 'union %s {\n\t%s\n}' % (self.name, '\n\t'.join('%s %s;' % (name, str(ty)) for name, ty in self.members.items()))
 
     def __str__(self):
