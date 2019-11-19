@@ -27,6 +27,21 @@ class Typehoon(Analysis):
 
         self._analyze()
 
+    #
+    # Public methods
+    #
+
+    def update_variable_types(self, func_addr, var_to_typevar):
+
+        for var, typevar in var_to_typevar.items():
+            type_ = self.simtypes_solution.get(typevar, None)
+            if type_ is not None:
+                self.kb.variables[func_addr].types[var] = type_
+
+    #
+    # Private methods
+    #
+
     def _analyze(self):
 
         self._solve()
@@ -39,7 +54,7 @@ class Typehoon(Analysis):
     def _translate_to_simtypes(self):
 
         simtypes_solution = { }
-        translator = TypeTranslator()
+        translator = TypeTranslator(arch=self.project.arch)
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():
@@ -52,7 +67,7 @@ class Typehoon(Analysis):
         for tv in needs_backpatch:
             translator.backpatch(simtypes_solution[tv], simtypes_solution)
 
-        self.sim_types = simtypes_solution
+        self.simtypes_solution = simtypes_solution
         self.structs = translator.structs
 
 

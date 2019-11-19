@@ -39,6 +39,17 @@ class Existence:
     def __hash__(self):
         return hash((Existence, self.type_))
 
+    def replace(self, replacements):
+
+        if self.type_ in replacements:
+            return True, Existence(replacements[self.type_])
+
+        else:
+            replaced, new_type = self.type_.replace(replacements)
+            if replaced:
+                return True, Existence(new_type)
+            return False, self
+
 
 class Subtype:
     def __init__(self, super_type, sub_type):
