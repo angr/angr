@@ -348,6 +348,11 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         self._node_iterations[block_key] += 1
 
+        # The Slice analysis happens recursively, so there will be no need to "start" any RDA from nodes that were
+        # analysed "down the stack" during a run on a node.
+        if self._subject.type == SubjectType.CFGSliceToSink:
+            self._graph_visitor.remove_from_sorted_nodes(self._visited_blocks)
+
         self.node_observe(node.addr, state, OP_AFTER)
 
         # update all definitions and all uses
