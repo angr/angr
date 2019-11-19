@@ -13,9 +13,9 @@ import ailment
 import angr
 import archinfo
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
-from angr.analyses.reaching_definitions.live_definitions import GuardUse, LiveDefinitions
+from angr.analyses.reaching_definitions.live_definitions import LiveDefinitions
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.analyses.reaching_definitions.atoms import Tmp, Register
+from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register
 
 from angr.block import Block
 

@@ -7,7 +7,7 @@ from collections import defaultdict
 from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
-from .atoms import Atom, Register, MemoryLocation, Tmp, Parameter
+from .atoms import GuardUse, Register, MemoryLocation, Tmp, Parameter
 from .dataset import DataSet
 from .definition import Definition
 from .undefined import undefined
@@ -15,14 +15,6 @@ from .uses import Uses
 
 
 l = logging.getLogger(name=__name__)
-
-
-class GuardUse(Atom):
-    def __init__(self, target):
-        self.target = target
-
-    def __repr__(self):
-        return '<Guard %#x>' % self.target
 
 
 class LiveDefinitions:
