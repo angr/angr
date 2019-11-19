@@ -166,14 +166,16 @@ class SimEngineVRBase(SimEngineLight):
                 self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
                 self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
-    def _store(self, addr, data, size, stmt=None):  # pylint:disable=unused-argument
+    def _store(self, richr_addr, data, size, stmt=None):  # pylint:disable=unused-argument
         """
 
-        :param addr:
+        :param RichR addr:
         :param RichR data:
         :param int size:
         :return:
         """
+
+        addr = richr_addr.data
 
         if type(addr) is SpOffset:
             # Storing data to stack

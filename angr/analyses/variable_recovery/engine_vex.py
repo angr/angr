@@ -26,7 +26,7 @@ class SimEngineVRVEX(
         size = stmt.data.result_size(self.tyenv) // 8
         r = self._expr(stmt.data)
 
-        self._store(addr_r.data, r, size, stmt=stmt)
+        self._store(addr_r, r, size, stmt=stmt)
 
     # Expression handlers
 

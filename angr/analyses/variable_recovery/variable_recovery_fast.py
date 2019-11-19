@@ -216,6 +216,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._node_iterations = defaultdict(int)
 
         self._node_to_cc = { }
+        self.var_to_typevar = { }
+        self.type_constraints = None
 
         self._analyze()
 
@@ -228,6 +230,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     #
 
     def _pre_analysis(self):
+
+        self.type_constraints = set()
 
         self.initialize_dominance_frontiers()
 
@@ -311,6 +315,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._outstates[node.addr] = state
 
         self._node_iterations[node.addr] += 1
+        self.type_constraints |= state.type_constraints
+        self.var_to_typevar.update(state.typevars._typevars)
 
         return True, state
 

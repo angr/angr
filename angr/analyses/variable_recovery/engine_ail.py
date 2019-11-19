@@ -39,11 +39,11 @@ class SimEngineVRAIL(
             l.warning('Unsupported dst type %s.', dst_type)
 
     def _ail_handle_Store(self, stmt):
-        addr = self._expr(stmt.addr)
+        addr_r = self._expr(stmt.addr)
         data = self._expr(stmt.data)
         size = stmt.data.bits // 8
 
-        self._store(addr, data, size, stmt=stmt)
+        self._store(addr_r, data, size, stmt=stmt)
 
     def _ail_handle_Jump(self, stmt):
         pass
@@ -96,10 +96,10 @@ class SimEngineVRAIL(
         return self._read_from_register(offset, size, expr=expr)
 
     def _ail_handle_Load(self, expr):
-        addr = self._expr(expr.addr)
+        addr_r = self._expr(expr.addr)
         size = expr.size
 
-        return self._load(addr, size, expr=expr)
+        return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_Const(self, expr):
         return RichR(expr.value, typevar=typeconsts.int_type(expr.size * 8))
