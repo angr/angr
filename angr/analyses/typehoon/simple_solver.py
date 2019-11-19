@@ -79,6 +79,8 @@ class SimpleSolver:
 
     def _handle_equivalence(self):
 
+        graph = networkx.Graph()
+
         replacements = { }
         constraints = set()
 
@@ -86,21 +88,13 @@ class SimpleSolver:
         for constraint in self._constraints:
 
             if isinstance(constraint, Existence):
-                constraints.add(constraint)
+                pass
 
             elif isinstance(constraint, Equivalence):
                 # type_a == type_b
                 # we apply unification and removes one of them
                 ta, tb = constraint.type_a, constraint.type_b
-
-                if ta not in replacements and tb not in replacements:
-                    replacements[ta] = tb
-                elif ta in replacements:
-                    if replacements[ta] != tb:
-                        replacements[tb] = replacements[ta]
-                elif tb in replacements:
-                    if replacements[tb] != ta:
-                        replacements[ta] = replacements[tb]
+                graph.add_edge(ta, tb)
 
             elif isinstance(constraint, Subtype):
                 pass
@@ -108,9 +102,23 @@ class SimpleSolver:
             else:
                 raise NotImplementedError("Unsupported instance type %s." % type(constraint))
 
+        for components in networkx.connected_components(graph):
+            components_lst = list(components)
+            representative = components_lst[0]
+            for tv in components_lst[1:]:
+                replacements[tv] = representative
+
         # replace
         for constraint in self._constraints:
-            if isinstance(constraint, Subtype):
+            if isinstance(constraint, Existence):
+                replaced, new_constraint = constraint.replace(replacements)
+
+                if replaced:
+                    constraints.add(new_constraint)
+                else:
+                    constraints.add(constraint)
+
+            elif isinstance(constraint, Subtype):
                 # subtype <: supertype
                 # replace type variables
                 replaced, new_constraint = constraint.replace(replacements)
@@ -157,26 +165,32 @@ class SimpleSolver:
                 subtype, supertype = constraint.sub_type, constraint.super_type
 
                 if isinstance(supertype, TypeVariable):
-                    subtypevars[supertype].add(subtype)
+                    if subtype not in subtypevars[supertype]:
+                        subtypevars[supertype].add(subtype)
+                        for s in supertypevars[subtype]:
+                            # re-add impacted constraints
+                            constraints.add(Subtype(s, subtype))
+
                     if subtype in subtypevars:
                         for v in subtypevars[subtype]:
                             if v not in subtypevars[supertype]:
                                 subtypevars[supertype].add(v)
-                                constraints.add(Subtype(supertype, v))
-                    else:
-                        subtypevars[subtype].add(BottomType())
-                        constraints.add(constraint)
+                                for sub in supertypevars[v]:
+                                    constraints.add(Subtype(supertype, sub))
 
                 if isinstance(subtype, TypeVariable):
-                    supertypevars[subtype].add(supertype)
+                    if supertype not in supertypevars[subtype]:
+                        supertypevars[subtype].add(supertype)
+                        for s in subtypevars[supertype]:
+                            # re-add impacted constraints
+                            constraints.add(Subtype(supertype, s))
+
                     if supertype in supertypevars:
                         for v in supertypevars[supertype]:
                             if v not in supertypevars[subtype]:
                                 supertypevars[subtype].add(v)
-                                constraints.add(Subtype(v, subtype))
-                    else:
-                        supertypevars[supertype].add(TopType())
-                        constraints.add(constraint)
+                                for s in supertypevars[v]:
+                                    constraints.add(Subtype(s, subtype))
 
             elif isinstance(constraint, Equivalence):
                 raise Exception("Shouldn't exist anymore.")
