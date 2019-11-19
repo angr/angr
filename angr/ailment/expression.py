@@ -398,6 +398,9 @@ class BasePointerOffset(Expression):
 
 class StackBaseOffset(BasePointerOffset):
     def __init__(self, idx, bits, offset, **kwargs):
+        # stack base offset is always signed
+        if offset >= (1 << (bits - 1)):
+            offset -= 1 << bits
         super().__init__(idx, bits, 'stack_base', offset, **kwargs)
 
     def copy(self):
