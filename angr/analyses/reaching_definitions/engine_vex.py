@@ -544,14 +544,16 @@ class SimEngineRDVEX(
         elif is_internal is True:
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(
+                executed_rda, state, visited_blocks = getattr(self._function_handler, handler_name)(
                     self.state,
                     func_addr_int,
                     self._call_stack,
                     self._maximum_local_call_depth,
+                    self._visited_blocks,
                     self._codeloc(),
                 )
                 self.state = state
+                self._visited_blocks = visited_blocks
             else:
                 # l.warning('Please implement the local function handler with your own logic.')
                 pass
