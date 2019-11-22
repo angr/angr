@@ -6,7 +6,7 @@ l = logging.getLogger(name=__name__)
 
 def auto_import_packages(base_module, base_path, ignore_dirs=(), ignore_files=(), scan_modules=True):
     for lib_module_name in os.listdir(base_path):
-        if lib_module_name in ignore_dirs:
+        if lib_module_name in ignore_dirs or lib_module_name == '__pycache__':
             continue
 
         lib_path = os.path.join(base_path, lib_module_name)
