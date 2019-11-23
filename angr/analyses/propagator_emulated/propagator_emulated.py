@@ -13,6 +13,8 @@ from .engines.vex.engine import SimEngineVEX
 from .engines.syscall import SimEngineSyscall
 from .engines.hook import SimEngineHook
 from ..cfg.cfg_utils import CFGUtils
+from ...engines.successors import SimSuccessors
+
 from ... import SIM_PROCEDURES
 from ...engines import SimEngineProcedure
 
@@ -121,8 +123,10 @@ class PropagatorVEXState(PropagatorState):
     def add_replacement(self, codeloc, old, new):
         if old not in self._replacements[codeloc]:
             self._replacements[codeloc][old] = new
-        elif self._replacements[codeloc][old] != new:
-            self._replacements[codeloc][old] = TOP
+
+        ## I think we don't need this if we control the order of the visiting the nodes
+        # elif self._replacements[codeloc][old] != new:
+        #     self._replacements[codeloc][old] = TOP
 
 # AIL state
 
@@ -214,7 +218,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
         graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
 
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
+        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_widening=False,
                                  graph_visitor=graph_visitor)
 
         self._base_state = base_state
@@ -259,19 +263,19 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             state.concrete_states = [node.input_state]
         return state
 
-    def _merge_states(self, node, *states):
-        return states[0].merge(*states[1:])
-
     def _add_input_state(self, node, input_state):
+        successors_to_visit = []
         successors = self._graph_visitor.successors(node)
-
         for succ in successors:
             self._state_map[succ] = input_state
+            for concrete_state in input_state.concrete_states:
+                if succ.addr == concrete_state.ip._model_concrete.value:
+                    successors_to_visit.append(succ)
+        return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
-
+        print(node)
         concrete_state = abstract_state.get_concrete_state(node.addr)
-
         node.input_state = concrete_state
         if concrete_state is None:
             # didn't find any state going to here
@@ -293,16 +297,30 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                     break
 
         #sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
-        node.final_states = sim_successors.all_successors
-        abstract_state.concrete_states = sim_successors.all_successors
+
+        symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+        symbolic_sim_successors.artifacts = sim_successors.artifacts
+        symbolic_sim_successors.engine = sim_successors.engine
+        symbolic_sim_successors.processed = sim_successors.processed
+        symbolic_sim_successors.description = sim_successors.description
+        symbolic_sim_successors.sort = sim_successors.sort
+
+        for successor in sim_successors.all_successors:
+            ### Only add those successors which have symbolic guard or which evaluates to True
+            if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
+                symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                                                      successor.history.jumpkind, True,
+                                                      successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
+                                                      successor.scratch.source)
+
+
+        node.final_states = symbolic_sim_successors
+        abstract_state.concrete_states = symbolic_sim_successors
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
         self.replacements[block_key] = abstract_state._replacements
 
-        if self._node_iterations[block_key] < self._max_iterations:
-            return True, abstract_state
-        else:
-            return False, abstract_state
+        return None, abstract_state
 
     def _intra_analysis(self):
         pass
