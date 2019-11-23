@@ -10,8 +10,8 @@ from angr.analyses.cfg.cfg_job_base import BlockID
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
-filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
-
+#filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
+filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 
 ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
 ## and keeps certain attributes
@@ -56,19 +56,24 @@ def new_model_graph(old_graph, proj, identifier):
     return new_model
 
 ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
-def data_sensitive_graph(filename):
+def data_sensitive_graph(filename,start_addr):
     logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
     proj = angr.Project(filename)
-    main = proj.loader.main_object.get_symbol("main")
-    start_state = proj.factory.blank_state(addr=main.rebased_addr,
+
+    if start_addr == None:
+        main = proj.loader.main_object.get_symbol("main")
+        start_addr = main.rebased_addr
+
+    start_state = proj.factory.blank_state(addr=start_addr,
                                            add_options={angr.sim_options.REPLACEMENT_SOLVER,
                                                           angr.sim_options.DO_CCALLS})
+
     cfg = proj.analyses.CFGEmulated(fail_fast=True,
                                     data_sensitive=True ,
-                                    starts=[main.rebased_addr],
+                                    starts=[start_addr],
                                     initial_state=start_state,
-                                    max_iterations=5,
-                                    resolve_indirect_jumps=True,
+                                    max_iterations=50,
+                                    resolve_indirect_jumps=False, ##### Need to resolve the issue that arises when this is set to True
                                     keep_state=True,
                                     state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                     iropt_level=0)
@@ -77,21 +82,23 @@ def data_sensitive_graph(filename):
 
 
 ####### Constant Propagation
-def constant_propagation(cfg, proj):
+def constant_propagation(cfg, proj, start_addr):
     old_graph = cfg.graph
     new_model = new_model_graph(old_graph, proj, "temporary1")
     new_cfg_graph = new_model.graph
 
     ## Setting the input state for the first node(need to automate this)
-    main = proj.loader.main_object.get_symbol("main")
-    initial_input_state = proj.factory.blank_state(addr=main.rebased_addr,
+    if start_addr == None:
+        main = proj.loader.main_object.get_symbol("main")
+        start_addr = main.rebased_addr
+    initial_input_state = proj.factory.blank_state(addr=start_addr,
                                                    mode='fastpath',
                                                    add_options=angr.sim_options.refs | {angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
 
 
-    new_model._nodes_by_addr[main.rebased_addr][0].input_state = initial_input_state
+    new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
     ## find the replacements
-    prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=main.rebased_addr)
+    prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=start_addr)
 
     ## do the actual replacements
     for key, value in prop.replacements.items():
@@ -106,7 +113,7 @@ def constant_propagation(cfg, proj):
     new_model = new_model_graph(new_cfg_graph, proj, "temporary2")
 
     ## Setting the input state for the first node(need to automate this)
-    new_model._nodes_by_addr[main.rebased_addr][0].input_state = initial_input_state
+    new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
 
     #Run the emulation on the new graph to update the state attributes
     new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True)
@@ -116,9 +123,11 @@ def constant_propagation(cfg, proj):
 
 
 ####### Dead Cod Elimination
-def dead_code_elimination(cfg, proj):
-    main = proj.loader.main_object.get_symbol("main")
-    ddg = proj.analyses.DDG(cfg, main.rebased_addr)
+def dead_code_elimination(cfg, proj, start_addr):
+    if start_addr == None:
+        main = proj.loader.main_object.get_symbol("main")
+        start_addr = main.rebased_addr
+    ddg = proj.analyses.DDG(cfg, start_addr)
 
     ## Doing the replacements
     for node in list(cfg.graph.nodes()):
@@ -161,11 +170,11 @@ def dead_code_elimination(cfg, proj):
 
     ### Returning a new CFGEmulated object with the updated graph
     dce_new_model = new_model_graph(cfg.graph, proj, 'dce')
-    initial_input_state = proj.factory.blank_state(addr=main.rebased_addr,
+    initial_input_state = proj.factory.blank_state(addr=start_addr,
                                                    mode='fastpath',
                                                    add_options=angr.sim_options.refs | {
                                                    angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
-    dce_new_model._nodes_by_addr[main.rebased_addr][0].input_state = initial_input_state
+    dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
     new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True)
     return new_cfg
 
@@ -173,15 +182,13 @@ def draw_graph(cfg, filename):
     A = nx.nx_agraph.to_agraph(cfg.graph)
     for node in cfg.graph.nodes():
         stmt_str = str(node)
-        prev_stmt = None
+
         if node.irsb != None:
-            for stmt in node.irsb.statements:
-                if stmt.tag == "Ist_IMark" and prev_stmt != None and prev_stmt.tag == "Ist_IMark":
-                    prev_stmt = stmt
+            for ind, stmt in enumerate(node.irsb.statements):
+                if stmt.tag == "Ist_IMark" and node.irsb.statements[ind+1].tag == "Ist_IMark":
                     continue
                 else:
                     stmt_str = stmt_str + "\l" + str(stmt)
-                    prev_stmt = stmt
         graphviz_node = A.get_node(str(node))
         graphviz_node.attr["label"] = stmt_str
         graphviz_node.attr["shape"] = "box"
@@ -189,7 +196,9 @@ def draw_graph(cfg, filename):
     A.draw(path=filename, format="svg")
 
 
-cfg, proj = data_sensitive_graph(filename)
+start_addr = 0x4006d1
+#start_addr = None
+cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
 draw_graph(cfg,"input.svg")
 # #### HACK TO REMOVE the last FakeRet Node, because it was not being corectly analysed in ddg. !!!!!!
 # for node in cfg.graph.nodes():
@@ -199,9 +208,12 @@ draw_graph(cfg,"input.svg")
 #         break
 # cfg.graph.remove_node(node)
 
-new_cfg = constant_propagation(cfg, proj)
-new_cfg = dead_code_elimination(new_cfg, proj)
+new_cfg = constant_propagation(cfg, proj, start_addr=start_addr)
+
+draw_graph(new_cfg,"cp_result.svg")
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 # DCE second time
-new_cfg = dead_code_elimination(new_cfg, proj)
-new_cfg = dead_code_elimination(new_cfg, proj)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 draw_graph(new_cfg,"final_result.svg")
