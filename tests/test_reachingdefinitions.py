@@ -292,18 +292,18 @@ def test_def_use_graph():
     rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False)
     guard_use = list(filter(
         lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
-        rda.def_use_graph.nodes()
+        rda.def_use_graph._graph.nodes()
     ))[0]
     nose.tools.assert_equal(
-        len(rda.def_use_graph.pred[guard_use]),
+        len(rda.def_use_graph._graph.pred[guard_use]),
         4
     )
     nose.tools.assert_equal(
-        all(type(def_.atom) is Register for def_ in rda.def_use_graph.pred[guard_use]),
+        all(type(def_.atom) is Register for def_ in rda.def_use_graph._graph.pred[guard_use]),
         True
     )
     nose.tools.assert_equal(
-        set(def_.atom.reg_offset for def_ in rda.def_use_graph.pred[guard_use]),
+        set(def_.atom.reg_offset for def_ in rda.def_use_graph._graph.pred[guard_use]),
         {reg.vex_offset for reg in project.arch.register_list if reg.name.startswith('cc_')}
     )
 
@@ -311,14 +311,14 @@ def test_def_use_graph():
     rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=True)
     tmp_7 = list(filter(
         lambda def_: type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr,
-        rda.def_use_graph.nodes()
+        rda.def_use_graph._graph.nodes()
     ))[0]
     nose.tools.assert_equal(
-        len(rda.def_use_graph.succ[tmp_7]),
+        len(rda.def_use_graph._graph.succ[tmp_7]),
         1
     )
     nose.tools.assert_equal(
-        type(list(rda.def_use_graph.succ[tmp_7])[0].atom),
+        type(list(rda.def_use_graph._graph.succ[tmp_7])[0].atom),
         GuardUse
     )
 
