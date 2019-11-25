@@ -45,7 +45,7 @@ class DefUseState(LiveDefinitions):
             self.analysis.def_use_graph.add_edge(used, kinda_definition)
 
 
-class DefUseAnalysis(ReachingDefinitionsAnalysis):
+class DefUseAnalysis(ReachingDefinitionsAnalysis): # pylint: disable=abstract-method
     def __init__(self, *args, **kwargs):
         self.def_use_graph = networkx.DiGraph()
         self.current_codeloc = None
