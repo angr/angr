@@ -19,7 +19,7 @@ l = logging.getLogger(name=__name__)
 
 class LiveDefinitions:
     """
-    Represents the internal state of the ReachingDefinitionAnalysis.
+    Represents the internal state of the ReachingDefinitionsAnalysis.
 
     It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
 
@@ -165,9 +165,6 @@ class LiveDefinitions:
             state._dead_virgin_definitions |= other._dead_virgin_definitions
 
         return state
-
-    def downsize(self):
-        self.analysis = None
 
     def kill_definitions(self, atom, code_loc, data=None, dummy=True):
         """

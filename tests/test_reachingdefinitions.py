@@ -12,7 +12,7 @@ import nose
 import ailment
 import angr
 import archinfo
-from angr.analyses.reaching_definitions import LiveDefinitions, ReachingDefinitionAnalysis
+from angr.analyses.reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.analyses.reaching_definitions.atoms import Tmp, Register
 from angr.analyses.reaching_definitions.def_use import GuardUse
@@ -66,7 +66,7 @@ class InsnAndNodeObserveTestingUtils():
         return (project, main_function, reaching_definition, state)
 
 
-class ReachingDefinitionAnalysisTest(TestCase):
+class ReachingDefinitionsAnalysisTest(TestCase):
     def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses.ReachingDefinitions(
@@ -247,7 +247,7 @@ class ReachingDefinitionAnalysisTest(TestCase):
         nose.tools.assert_equal("%s" % reaching_definitions.exception, 'Unsupported analysis target.')
 
 
-    @mock.patch.object(ReachingDefinitionAnalysis, '_analyze')
+    @mock.patch.object(ReachingDefinitionsAnalysis, '_analyze')
     def test_reaching_definition_analysis_with_a_function_as_suject(self, _):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
@@ -270,7 +270,6 @@ class ReachingDefinitionAnalysisTest(TestCase):
         nose.tools.assert_equal(reaching_definitions._cc, cc)
 
 
-    # @mock.patch.object(ReachingDefinitionAnalysis, '_analyze')
     def test_reaching_definition_analysis_with_a_block_as_subject(self):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
@@ -336,22 +335,43 @@ class LiveDefinitionsTest(TestCase):
         nose.tools.assert_equal(sp_value, project.arch.initial_sp)
 
 def test_def_use_graph():
-    p = angr.Project(os.path.join(TESTS_LOCATION, 'x86_64', 'true'), auto_load_libs=False)
-    cfg = p.analyses.CFGFast()
+    project = angr.Project(os.path.join(TESTS_LOCATION, 'x86_64', 'true'), auto_load_libs=False)
+    cfg = project.analyses.CFGFast()
     main = cfg.functions['main']
 
     # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's guard is the four cc registers
-    rda = p.analyses.DefUseAnalysis(subject=main, track_tmps=False)
-    guard_use = [def_ for def_ in rda.def_use_graph.nodes() if type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr][0]
-    assert len(rda.def_use_graph.pred[guard_use]) == 4
-    assert all(type(def_.atom) is Register for def_ in rda.def_use_graph.pred[guard_use])
-    assert set(def_.atom.reg_offset for def_ in rda.def_use_graph.pred[guard_use]) == {reg.vex_offset for reg in p.arch.register_list if reg.name.startswith('cc_')}
+    rda = project.analyses.DefUse(subject=main, track_tmps=False)
+    guard_use = list(filter(
+        lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
+        rda.def_use_graph.nodes()
+    ))[0]
+    nose.tools.assert_equal(
+        len(rda.def_use_graph.pred[guard_use]),
+        4
+    )
+    nose.tools.assert_equal(
+        all(type(def_.atom) is Register for def_ in rda.def_use_graph.pred[guard_use]),
+        True
+    )
+    nose.tools.assert_equal(
+        set(def_.atom.reg_offset for def_ in rda.def_use_graph.pred[guard_use]),
+        {reg.vex_offset for reg in project.arch.register_list if reg.name.startswith('cc_')}
+    )
 
     # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
-    rda = p.analyses.DefUseAnalysis(subject=main, track_tmps=True)
-    tmp_7 = [def_ for def_ in rda.def_use_graph.nodes() if type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr][0]
-    assert len(rda.def_use_graph.succ[tmp_7]) == 1
-    assert type(list(rda.def_use_graph.succ[tmp_7])[0].atom) is GuardUse
+    rda = project.analyses.DefUse(subject=main, track_tmps=True)
+    tmp_7 = list(filter(
+        lambda def_: type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr,
+        rda.def_use_graph.nodes()
+    ))[0]
+    nose.tools.assert_equal(
+        len(rda.def_use_graph.succ[tmp_7]),
+        1
+    )
+    nose.tools.assert_equal(
+        type(list(rda.def_use_graph.succ[tmp_7])[0].atom),
+        GuardUse
+    )
 
 
 if __name__ == '__main__':

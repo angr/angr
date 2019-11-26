@@ -1,6 +1,6 @@
 import networkx
 
-from .reaching_definitions import LiveDefinitions, ReachingDefinitionAnalysis, register_analysis
+from .reaching_definitions import LiveDefinitions, ReachingDefinitionsAnalysis
 from .definition import Definition
 from .atoms import Atom
 
@@ -45,7 +45,7 @@ class DefUseState(LiveDefinitions):
             self.analysis.def_use_graph.add_edge(used, kinda_definition)
 
 
-class DefUseAnalysis(ReachingDefinitionAnalysis):
+class DefUseAnalysis(ReachingDefinitionsAnalysis): # pylint: disable=abstract-method
     def __init__(self, *args, **kwargs):
         self.def_use_graph = networkx.DiGraph()
         self.current_codeloc = None
@@ -59,5 +59,3 @@ class DefUseAnalysis(ReachingDefinitionAnalysis):
             func_addr = self._function.addr if self._function else None
             return DefUseState(self.project.arch, track_tmps=self._track_tmps, analysis=self,
                                    init_func=self._init_func, cc=self._cc, func_addr=func_addr)
-
-register_analysis(DefUseAnalysis, 'DefUseAnalysis')
