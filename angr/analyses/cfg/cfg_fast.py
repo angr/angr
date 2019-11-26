@@ -1113,16 +1113,26 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._insert_job(job)
                 return
 
-            job = self._pop_pending_job(returning=False)
-            if job is not None:
-                self._insert_job(job)
-                return
-
         # Try to see if there is any indirect jump left to be resolved
+        # it's possible that certain indirect jumps must be resolved before the returning status of a function can be
+        # determined. e.g., in AArch64
+        # __stubs:00000001000064B0 ___stack_chk_fail
+        # __stubs:00000001000064B0                 NOP
+        # __stubs:00000001000064B4                 LDR             X16, =__imp____stack_chk_fail
+        # __stubs:00000001000064B8                 BR              X16
+        #
+        # we need to rely on indirect jump resolving to identify this call to stack_chk_fail before knowing that
+        # function 0x100006480 does not return. Hence, we resolve indirect jumps before popping undecided pending jobs.
         if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
             self._process_unresolved_indirect_jumps()
 
             if self._job_info_queue:
+                return
+
+        if self._pending_jobs:
+            job = self._pop_pending_job(returning=False)
+            if job is not None:
+                self._insert_job(job)
                 return
 
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
@@ -2863,7 +2873,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._pending_jobs.add_nonreturning_function(nonreturning_function.addr)
                 if nonreturning_function.addr in self._function_returns:
                     for fr in self._function_returns[nonreturning_function.addr]:
-                        # Remove all those FakeRet edges
+                        # Remove all pending FakeRet edges
                         if self.kb.functions.contains_addr(fr.caller_func_addr) and \
                                 self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
