@@ -9,6 +9,7 @@ class Decompiler(Analysis):
         self._optimization_passes = optimization_passes
         self._sp_tracker_track_memory = sp_tracker_track_memory
 
+        self.clinic = None  # mostly for debugging purposes
         self.codegen = None
 
         self._decompile()
@@ -35,6 +36,7 @@ class Decompiler(Analysis):
 
         codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg, kb=self.kb)
 
+        self.clinic = clinic
         self.codegen = codegen
 
 
