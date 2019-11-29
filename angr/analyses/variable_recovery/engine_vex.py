@@ -126,3 +126,28 @@ class SimEngineVRVEX(
         except TypeError as e:
             self.l.warning(e)
             return RichR(None)
+
+    def _handle_Shr(self, expr):
+        arg0, arg1 = expr.args
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                # constants
+                result_size = expr.result_size(self.tyenv)
+                return RichR(r0.data >> r1.data,
+                             typevar=typeconsts.int_type(result_size),
+                             type_constraints=None)
+
+            r = None
+            if r0.data is not None and r1.data is not None:
+                r = r0.data >> r1.data
+
+            return RichR(r,
+                         typevar=r0.typevar,
+                         )
+
+        except TypeError as e:
+            self.l.warning(e)
+            return RichR(None)
