@@ -654,7 +654,7 @@ class CExpression:
 
     @property
     def type(self):
-        raise NotImplementedError()
+        raise NotImplementedError("Class %s does not implement type()." % type(self))
 
     def set_type(self, v):
         self._type = v
