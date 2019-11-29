@@ -468,6 +468,4 @@ class KeyedRegion:
                     item.set_object(stored_object)
                     return
 
-            # l.warning("Overlapping objects %s.", str({stored_object.obj} | item.internal_objects))
-            # import ipdb; ipdb.set_trace()
         item.add_object(stored_object)
