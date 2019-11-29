@@ -12,7 +12,7 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 def _get_block(clinic, addr):
 
-    for (block_addr, size), block in clinic._blocks.items():
+    for (block_addr, _), block in clinic._blocks.items():
         if block_addr == addr:
             return block
     return None
@@ -39,13 +39,13 @@ def test_baseptr_save_simplifier_amd64():
     for stmt in entry_block.statements:
         if isinstance(stmt, ailment.Stmt.Store) \
                 and isinstance(stmt.data, ailment.Expr.StackBaseOffset):
-            nose.tools.assert_true(False, "Found a base-pointer saving statement in the first block.")
+            assert False, "Found a base-pointer saving statement in the first block."
 
     for stmt in endpoint_block.statements:
         if isinstance(stmt, ailment.Stmt.Assignment) \
                 and isinstance(stmt.dst, ailment.Expr.Register) \
                 and stmt.dst.reg_offset == proj.arch.bp_offset:
-            nose.tools.assert_true(False, "Found a base-pointer restoring statement in the last block.")
+            assert False, "Found a base-pointer restoring statement in the last block."
 
 
 if __name__ == "__main__":
