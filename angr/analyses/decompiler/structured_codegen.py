@@ -1103,6 +1103,11 @@ class CRegister(CExpression):
 
         self.reg = reg
 
+    @property
+    def type(self):
+        # FIXME
+        return SimTypeInt()
+
     def c_repr(self, posmap=None):
         s = str(self.reg)
         if posmap: posmap.tick_pos(len(s))
@@ -1483,7 +1488,10 @@ class StructuredCodeGenerator(Analysis):
         if hasattr(expr, 'referenced_variable') and expr.referenced_variable is not None:
             return CUnaryOp('Reference', expr, referenced_variable=self._handle(expr.referenced_variable))
 
-        return expr
+        # FIXME
+        r = CUnaryOp('Reference', expr, referenced_variable=None)
+        r.set_type(SimTypeLongLong())
+        return r
 
     def _handle_Variable_SimStackVariable(self, variable):  # pylint:disable=no-self-use
 
