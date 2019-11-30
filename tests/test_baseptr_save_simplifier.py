@@ -48,5 +48,31 @@ def test_baseptr_save_simplifier_amd64():
             assert False, "Found a base-pointer restoring statement in the last block."
 
 
+def check_bp_save_fauxware(arch):
+    p = angr.Project(os.path.join(test_location, arch, 'fauxware'), auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+    main = p.kb.functions['main']
+    optimization_passes = [ BasePointerSaveSimplifier ]
+    dra = p.analyses.Decompiler(main, cfg=cfg, optimization_passes=optimization_passes)
+    first_block_stmts = dra.codegen._sequence.nodes[0].nodes[0].statements
+    for stmt in first_block_stmts:
+        if isinstance(stmt, ailment.Stmt.Store):
+            nose.tools.assert_false(
+                (isinstance(stmt.data, ailment.Expr.Register)
+                 and stmt.data.reg_offset == p.arch.bp_offset)
+                or (isinstance(stmt.data, ailment.Expr.StackBaseOffset)
+                    and stmt.data.offset == 0))
+
+
+def test_bp_save_amd64_fauxware():
+    check_bp_save_fauxware('x86_64')
+
+
+def test_bp_save_armel_fauxware():
+    check_bp_save_fauxware('armel')
+
+
 if __name__ == "__main__":
     test_baseptr_save_simplifier_amd64()
+    test_bp_save_amd64_fauxware()
+    test_bp_save_armel_fauxware()
