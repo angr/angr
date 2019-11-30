@@ -8,10 +8,10 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 import networkx as nx
 from angr.analyses.cfg.cfg_job_base import BlockID
 
-#filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
+filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
-filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
+#filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 
 ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
 ## and keeps certain attributes
@@ -57,7 +57,7 @@ def new_model_graph(old_graph, proj, identifier):
 
 ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
 def data_sensitive_graph(filename,start_addr):
-    logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
+    #logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
     proj = angr.Project(filename)
 
     if start_addr == None:
@@ -196,17 +196,10 @@ def draw_graph(cfg, filename):
     A.draw(path=filename, format="svg")
 
 
-start_addr = 0x4006d1
-#start_addr = None
+#start_addr = 0x4006d1
+start_addr = None
 cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
 draw_graph(cfg,"input.svg")
-# #### HACK TO REMOVE the last FakeRet Node, because it was not being corectly analysed in ddg. !!!!!!
-# for node in cfg.graph.nodes():
-#     print(node.input_state.history.jumpkind)
-#     if node.block_id == BlockID(addr=0x4005d1, data_offset=5, jump_type="normal", callsite_tuples=tuple()):
-#     #if node.block_id == BlockID(addr=0x40069d, data_offset=5, jump_type="normal", callsite_tuples=tuple()):
-#         break
-# cfg.graph.remove_node(node)
 
 new_cfg = constant_propagation(cfg, proj, start_addr=start_addr)
 
@@ -217,3 +210,13 @@ new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 draw_graph(new_cfg,"final_result.svg")
+
+for test_node in new_cfg.graph.nodes:
+    test_func = proj.kb.functions.function(test_node.addr, create=True, syscall=test_node.irsb.jumpkind.startswith("Ijk_Sys"))
+    try:
+        dec = proj.analyses.Decompiler(test_func, cfg=new_cfg)
+        if dec.codegen is not None:
+            print(dec.codegen.text)
+
+    except:
+        print("Failed to decompile function %s." % repr(test_func))
