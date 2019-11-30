@@ -103,6 +103,7 @@ class BasePointerSaveSimplifier(OptimizationPass):
         """
 
         endpoints = self._func.endpoints
+        callouts_and_jumpouts = { n.addr for n in self._func.callout_sites + self._func.jumpout_sites }
 
         baseptr_restore_stmts = [ ]
 
@@ -123,8 +124,13 @@ class BasePointerSaveSimplifier(OptimizationPass):
                     baseptr_restore_stmts.append((endpoint_block, idx, stmt.src.addr))
                     break
             else:
-                _l.debug("Could not find baseptr restoring statement in function %#x.", endpoint.addr)
-                return None
+                if endpoint.addr not in callouts_and_jumpouts:
+                    _l.debug("Could not find baseptr restoring statement in function %#x.", endpoint.addr)
+                    return None
+                else:
+                    _l.debug("No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
+                             endpoint.addr
+                             )
 
         return baseptr_restore_stmts
 
