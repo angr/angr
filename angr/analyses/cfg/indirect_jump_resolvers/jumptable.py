@@ -1095,25 +1095,25 @@ class JumpTableResolver(IndirectJumpResolver):
             if sort == 'mem_write':
                 bp = BP(when=BP_BEFORE, enabled=True, action=StoreHook.hook,
                         condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
                         )
                 state.inspect.add_breakpoint('mem_write', bp)
             elif sort == 'mem_read':
                 hook = LoadHook()
                 bp0 = BP(when=BP_BEFORE, enabled=True, action=hook.hook_before,
                          condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
                          )
                 state.inspect.add_breakpoint('mem_read', bp0)
                 bp1 = BP(when=BP_AFTER, enabled=True, action=hook.hook_after,
                          condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
                          )
                 state.inspect.add_breakpoint('mem_read', bp1)
             elif sort == 'reg_write':
                 bp = BP(when=BP_BEFORE, enabled=True, action=PutHook.hook,
                         condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
                         )
                 state.inspect.add_breakpoint('reg_write', bp)
             else:
@@ -1125,7 +1125,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     state.arch.translate_register_name(reg_offset, size=reg_bits),
                     block_addr, stmt_idx)
             bp = BP(when=BP_BEFORE, enabled=True, action=RegisterInitializerHook(reg_offset, reg_bits, reg_val).hook,
-                    condition=lambda _s: _s.scratch.bbl_addr == block_addr and _s.scratch.stmt_idx == stmt_idx
+                    condition=lambda _s: _s.scratch.bbl_addr == block_addr and _s.inspect.statement == stmt_idx
                     )
             state.inspect.add_breakpoint('statement', bp)
             reg_val += 16
