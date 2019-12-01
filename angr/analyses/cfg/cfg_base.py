@@ -2155,6 +2155,10 @@ class CFGBase(Analysis):
         # Create an IndirectJump instance
         if addr not in self.indirect_jumps:
             if self.project.arch.branch_delay_slot:
+                if len(cfg_node.instruction_addrs) < 2:
+                    # sanity check
+                    # decoding failed when decoding the second instruction (or even the first instruction)
+                    return False, [ ], None
                 ins_addr = cfg_node.instruction_addrs[-2]
             else:
                 ins_addr = cfg_node.instruction_addrs[-1]

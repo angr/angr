@@ -1644,6 +1644,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             jobs.append(ce)
                     return jobs
 
+                if ij is None:
+                    # this is not a valid indirect jump. maybe it failed sanity checks.
+                    # for example, `jr $v0` might show up in a MIPS binary without a following instruction (because
+                    # decoding failed). in this case, `jr $v0` shouldn't be a valid instruction, either.
+                    return [ ]
+
                 if jumpkind in ("Ijk_Boring", 'Ijk_InvalICache'):
                     resolved_as_plt = False
 
