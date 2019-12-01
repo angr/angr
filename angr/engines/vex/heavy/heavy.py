@@ -246,7 +246,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             raise VEXEarlyExit
 
         # Do our bookkeeping on the continuing self.state
-        cont_condition = ~guard
+        cont_condition = claripy.Not(guard)
         cont_state.add_constraints(cont_condition)
         cont_state.scratch.guard = claripy.And(cont_state.scratch.guard, cont_condition)
 
