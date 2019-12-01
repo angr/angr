@@ -1576,6 +1576,9 @@ class CFGBase(Analysis):
                 cfgnode_0 = self.model.get_any_node(addr_0)
                 cfgnode_1 = self.model.get_any_node(addr_1)
 
+                if cfgnode_0 is None or cfgnode_1 is None:
+                    continue
+
                 # Are func_0 adjacent to func_1?
                 if cfgnode_0.addr + cfgnode_0.size != addr_1:
                     continue
