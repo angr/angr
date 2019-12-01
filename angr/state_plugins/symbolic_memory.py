@@ -57,6 +57,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self.read_strategies = read_strategies
         self.write_strategies = write_strategies
 
+        # temporary switchs for unconstrained read warnings
+        self.warn_unconstrained_memory_read = True
+        self.warn_unconstrained_register_read = True
+
 
     #
     # Lifecycle management
@@ -449,7 +453,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 eternal=False) # :(
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
-        if all_missing:
+
+        # Generate warning messsages
+        if all_missing and (self.warn_unconstrained_memory_read or self.warn_unconstrained_register_read):
             is_mem = self.category == 'mem' and \
                     options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and \
                     options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options
@@ -468,7 +474,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
                         "to suppress these messages.")
 
-                if is_mem:
+                if is_mem and self.warn_unconstrained_memory_read:
                     refplace_str = "unknown"
                     if not self.state._ip.symbolic:
                         refplace_int = self.state.solver.eval(self.state._ip)
@@ -477,8 +483,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                             refplace_str = self.state.project.loader.describe_addr(refplace_int)
                     else:
                         refplace_int_s = repr(self.state._ip)
-                    l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %s (%s)", addr, num_bytes, refplace_int_s, refplace_str)
-                else:
+                    l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %s (%s)", addr,
+                              num_bytes, refplace_int_s, refplace_str)
+                elif is_reg and self.warn_unconstrained_register_read:
                     if addr == self.state.arch.ip_offset:
                         refplace_int_s = "0"
                         refplace_str = "symbolic"
@@ -492,7 +499,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         else:
                             refplace_int_s = repr(self.state._ip)
                     reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
-                    l.warning("Filling register %s with %d unconstrained bytes referenced from %s (%s)", reg_str, num_bytes, refplace_int_s, refplace_str)
+                    l.warning("Filling register %s with %d unconstrained bytes referenced from %s (%s)", reg_str,
+                              num_bytes, refplace_int_s, refplace_str)
 
         # this is an optimization to ensure most operations in the future will deal with leaf ASTs (instead of reversed
         # ASTs)
