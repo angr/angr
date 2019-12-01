@@ -303,6 +303,7 @@ class Blade:
         temps = set()
         regs = regs.copy()
 
+        irsb_addr = self._get_addr(run)
         stmts = self._get_irsb(run).statements
 
         if exit_stmt_idx is None or exit_stmt_idx == DEFAULT_STATEMENT:
@@ -310,6 +311,10 @@ class Blade:
             next_expr = self._get_irsb(run).next
             if type(next_expr) is pyvex.IRExpr.RdTmp:
                 temps.add(next_expr.tmp)
+
+        # add the default exit into our slice
+        self._inslice_callback(DEFAULT_STATEMENT, None, {'irsb_addr': irsb_addr, 'prev': prev})
+        prev = irsb_addr, DEFAULT_STATEMENT
 
         # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
         # lose the condition)
@@ -323,11 +328,10 @@ class Blade:
                 temps.add(s_.guard.tmp)
 
             # Put it in our slice
-            irsb_addr = self._get_addr(run)
             self._inslice_callback(stmt_idx_, s_, {'irsb_addr': irsb_addr, 'prev': prev})
             prev = (irsb_addr, stmt_idx_)
 
-        infodict = {'irsb_addr' : self._get_addr(run),
+        infodict = {'irsb_addr' : irsb_addr,
                     'prev' : prev,
                     'has_statement': False
                     }
