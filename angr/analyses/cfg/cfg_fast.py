@@ -19,7 +19,7 @@ from ...knowledge_plugins.xrefs import XRef, XRefType
 from ...misc.ux import deprecated
 from ... import sim_options as o
 from ...errors import (AngrCFGError, AngrSkipJobNotice, AngrUnsupportedSyscallError, SimEngineError, SimMemoryError,
-                       SimTranslationError, SimValueError, SimOperationError, SimError
+                       SimTranslationError, SimValueError, SimOperationError, SimError, SimIRSBNoDecodeError,
                        )
 from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis
@@ -3527,7 +3527,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 if not irsb.statements:
                     # Get an IRSB with statements
-
                     irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
 
                 for stmt in irsb.statements:
@@ -3548,7 +3547,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                          )
                 state.regs.t9 = func_addr
                 state.regs.gp = 0xffffffff
-                succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
+                try:
+                    succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
+                except SimIRSBNoDecodeError:
+                    # if last_gp_setting_insn_id is the last instruction, a SimIRSBNoDecodeError will be raised since
+                    # there is no instruction left in the current block
+                    return
 
                 if not succ.flat_successors:
                     return
