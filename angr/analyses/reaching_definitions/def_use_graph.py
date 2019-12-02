@@ -1,5 +1,7 @@
 import networkx
 
+from functools import reduce
+
 from .definition import Definition
 
 
@@ -51,3 +53,27 @@ class DefUseGraph:
             raise TypeError("In a DefUseGraph, edges need to be between <%s>s." % Definition.__name__)
 
         self._graph.add_edge(source, destination)
+
+    def top_predecessors(self, definition):
+        """
+        Recover the "entrypoint definitions" flowing into a given definition.
+        Obtained by transitively computing the top-level ancestors (nodes without predecessors) of this definition in
+        the graph.
+
+        :param Definition definition: The <Definition> to return the top-level ancestors for.
+        :return List[Definition]: The list of top-level definitions flowing into the <node>.
+        """
+
+        def _top_predecessors(definition, graph, result):
+            predecessors = list(graph.predecessors(definition))
+
+            if len(predecessors) == 0 and definition not in result:
+                return result + [ definition ]
+
+            return reduce(
+                lambda acc, definition: _top_predecessors(definition, graph, acc),
+                predecessors,
+                result
+            )
+
+        return _top_predecessors(definition, self._graph, [])
