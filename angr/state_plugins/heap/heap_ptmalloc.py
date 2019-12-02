@@ -234,6 +234,8 @@ class SimHeapPTMalloc(SimHeapFreelist):
     (corresponding to their different sizes), this more basic model uses a single list of chunks and searches for free
     chunks using a first-fit algorithm.
 
+    **NOTE:** The plugin must be registered using ``register_plugin`` with name ``heap`` in order to function properly.
+
     :ivar heap_base: the address of the base of the heap in memory
     :ivar heap_size: the total size of the main memory region managed by the heap in memory
     :ivar mmap_base: the address of the region from which large mmap allocations will be made
