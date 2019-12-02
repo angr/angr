@@ -154,9 +154,9 @@ class SimEngineRDAIL(
         # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
         # to using all caller-saved registers.
         if stmt.args is not None:
-            used_vars = stmt.args
+            used_exprs = stmt.args
         else:
-            used_vars = None
+            used_exprs = None
 
         # All caller-saved registers will always be killed.
         if stmt.calling_convention is not None:
@@ -170,10 +170,10 @@ class SimEngineRDAIL(
         return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
 
         # Add uses
-        if used_vars is None:
-            used_vars = [ var for var in killed_vars if var.reg_offset != return_reg_offset ]
-        for var in used_vars:
-            self.state.add_use(var, self._codeloc())
+        if used_exprs is None:
+            used_exprs = [ var for var in killed_vars if var.reg_offset != return_reg_offset ]
+        for expr in used_exprs:
+            self._expr(expr)
 
         # Return value is redefined here, so it is not a dummy value
         self.state.kill_definitions(Register(return_reg_offset, return_reg_size), self._codeloc(), dummy=False)
@@ -204,9 +204,10 @@ class SimEngineRDAIL(
     def _ail_handle_Register(self, expr):
 
         reg_offset = expr.reg_offset
-        bits = expr.bits
+        size = expr.size
+        bits = size * 8
 
-        self.state.add_use(Register(reg_offset, bits // 8), self._codeloc())
+        self.state.add_use(Register(reg_offset, size), self._codeloc())
 
         if reg_offset == self.arch.sp_offset:
             return DataSet(SpOffset(bits, 0), bits)
@@ -218,7 +219,7 @@ class SimEngineRDAIL(
             defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
             if not defs:
                 # define it right away as an external dependency
-                self.state.kill_and_add_definition(Register(reg_offset, bits // 8), self._external_codeloc(),
+                self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
                                                    data=expr
                                                    )
                 defs = self.state.register_definitions.get_objects_by_offset(reg_offset)

@@ -68,6 +68,10 @@ class Register(Atom):
     def __hash__(self):
         return hash(('reg', self.reg_offset, self.size))
 
+    @property
+    def bits(self):
+        return self.size * 8
+
 
 class MemoryLocation(Atom):
     """
