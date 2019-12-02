@@ -9,6 +9,14 @@ class Atom:
         raise NotImplementedError()
 
 
+class GuardUse(Atom):
+    def __init__(self, target):
+        self.target = target
+
+    def __repr__(self):
+        return '<Guard %#x>' % self.target
+
+
 class Tmp(Atom):
     """
     Represents a variable used by the IR to store intermediate values.
@@ -59,6 +67,10 @@ class Register(Atom):
 
     def __hash__(self):
         return hash(('reg', self.reg_offset, self.size))
+
+    @property
+    def bits(self):
+        return self.size * 8
 
 
 class MemoryLocation(Atom):
