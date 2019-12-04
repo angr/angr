@@ -107,7 +107,9 @@ class SimEngineRDAIL(
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             else:
                 if any(type(d) is Undefined for d in data):
-                    l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
+                    l.info('Data to write at address %s undefined, ins_addr = %#x.',
+                           hex(a) if type(a) is int else a, self.ins_addr
+                           )
 
                 if type(a) is SpOffset:
                     # Writing to stack
