@@ -1,6 +1,6 @@
 import angr
 
-from . import io_file_data_for_arch
+from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 ######################################
 # fread
@@ -19,4 +19,4 @@ class fread(angr.SimProcedure):
             return -1
 
         ret = simfd.read(dst, size * nm)
-        return self.state.se.If(self.state.se.Or(size == 0, nm == 0), 0, ret / size)
+        return self.state.solver.If(self.state.solver.Or(size == 0, nm == 0), 0, ret // size)

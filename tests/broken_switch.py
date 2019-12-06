@@ -8,14 +8,13 @@ import angr
 
 # load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 switch_nolibs = None
 
 def setup_module():
     global switch_nolibs
     switch_nolibs = angr.Project(
-        test_location +
-        "/blob/x86_64/switch",
+        os.path.join(test_location, 'x86_64', 'switch'),
         default_analysis_mode='symbolic')
 
 

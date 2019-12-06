@@ -3,7 +3,7 @@ import logging
 import angr
 from angr.sim_type import SimTypeInt, SimTypeTop
 
-l = logging.getLogger("angr.procedures.msvcr.__getmainargs")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # __getmainargs
@@ -21,12 +21,12 @@ class __getmainargs(angr.SimProcedure):
         }
         self.return_type = SimTypeInt()
 
-        if any(map(self.state.se.symbolic, [argc_p, argv_ppp, env_ppp])):
-            l.warn("got a symbolic argument... aborting")
+        if any(map(self.state.solver.symbolic, [argc_p, argv_ppp, env_ppp])):
+            l.warning("got a symbolic argument... aborting")
             return -1
 
-        self.state.memory.store(argc_p, self.state.posix.argc, self.state.posix.argc.length/8, endness=self.state.arch.memory_endness)
-        self.state.memory.store(argv_ppp, self.state.posix.argv, self.state.posix.argv.length/8, endness=self.state.arch.memory_endness)
-        self.state.memory.store(env_ppp, self.state.posix.environ, self.state.posix.environ.length/8, endness=self.state.arch.memory_endness)
+        self.state.memory.store(argc_p, self.state.posix.argc, endness=self.state.arch.memory_endness)
+        self.state.memory.store(argv_ppp, self.state.posix.argv, endness=self.state.arch.memory_endness)
+        self.state.memory.store(env_ppp, self.state.posix.environ, endness=self.state.arch.memory_endness)
 
         return 0

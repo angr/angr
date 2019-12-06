@@ -9,10 +9,10 @@ class InterlockedExchange(angr.SimProcedure):
         }
         self.return_type = SimTypeInt()
 
-        if not self.state.se.symbolic(target):
+        if not self.state.solver.symbolic(target):
             old_value = self.state.memory.load(target, 4, endness=self.state.arch.memory_endness)
             self.state.memory.store(target, value)
         else:
-            old_value = self.state.se.Unconstrained("unconstrained_ret_%s" % self.display_name, self.state.arch.bits)
+            old_value = self.state.solver.Unconstrained("unconstrained_ret_%s" % self.display_name, self.state.arch.bits)
 
         return old_value

@@ -8,7 +8,7 @@ from ..state_plugins.sim_action_object import SimActionObject
 from ..state_plugins.symbolic_memory import SimSymbolicMemory
 from .. import sim_options
 
-l = logging.getLogger("angr.storage.file")
+l = logging.getLogger(name=__name__)
 
 file_counter = itertools.count()
 dialogue_counter = itertools.count()
@@ -62,15 +62,18 @@ class SimFileBase(SimStatePlugin):
                     must be a number of bytes from the start of the file.
     :ivar writable: Bool indicating whether writing to this file is allowed.
     :ivar pos:      If the file is a stream, this will be the current position. Otherwise, None.
+    :ivar concrete: Whether or not this file contains mostly concrete data. Will be used by some SimProcedures to
+                    choose how to handle variable-length operations like fgets.
     """
 
     seekable = False
     pos = None
 
-    def __init__(self, name, writable=True, ident=None, **kwargs):
+    def __init__(self, name, writable=True, ident=None, concrete=False, **kwargs):
         self.name = name
         self.ident = ident
         self.writable = writable
+        self.concrete = concrete
 
         if ident is None:
             self.ident = self.make_ident(self.name)
@@ -81,12 +84,15 @@ class SimFileBase(SimStatePlugin):
 
     @staticmethod
     def make_ident(name):
+        if type(name) is str:
+            name = name.encode()
+
         def generate():
             consecutive_bad = 0
             for ch in name:
-                if 0x20 <= ord(ch) <= 0x7e:
+                if 0x20 <= ch <= 0x7e:
                     consecutive_bad = 0
-                    yield ch
+                    yield chr(ch)
                 elif consecutive_bad < 3:
                     consecutive_bad += 1
                     yield '?'
@@ -144,10 +150,12 @@ class SimFile(SimFileBase, SimSymbolicMemory):
                         caveat is that if the size is also unspecified this value will default to False.
     :param seekable:    Optional bool indicating whether seek operations on this file should succeed, default True.
     :param writable:    Whether writing to this file is allowed
+    :param concrete:    Whether or not this file contains mostly concrete data. Will be used by some SimProcedures to
+                        choose how to handle variable-length operations like fgets.
 
     :ivar has_end:      Whether this file has an EOF
     """
-    def __init__(self, name, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, **kwargs):
+    def __init__(self, name, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, concrete=None, **kwargs):
         kwargs['memory_id'] = kwargs.get('memory_id', 'file')
         super(SimFile, self).__init__(name, writable=writable, ident=ident, **kwargs)
         self._size = size
@@ -157,15 +165,22 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         # this is hacky because we need to work around not having a state yet
         content = _deps_unpack(content)[0]
         if type(content) is bytes:
+            if concrete is None: concrete = True
             content = claripy.BVV(content)
-        elif type(content) is unicode:
-            content = claripy.BVV(content.encode('utf-8'))
+        elif type(content) is str:
+            if concrete is None: concrete = True
+            content = claripy.BVV(content.encode())
         elif content is None:
             pass
         elif isinstance(content, claripy.Bits):
+            if concrete is None and not content.symbolic: concrete = True
             pass
         else:
             raise TypeError("Can't handle SimFile content of type %s" % type(content))
+
+        if concrete is None:
+            concrete = False
+        self.concrete = concrete
 
         if content is not None:
             mo = SimMemoryObject(content, 0, length=len(content)//8)
@@ -188,7 +203,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         if self.has_end is None:
             self.has_end = sim_options.FILES_HAVE_EOF in state.options
 
-        if type(self._size) in (int, long):
+        if type(self._size) is int:
             self._size = claripy.BVV(self._size, state.arch.bits)
         elif len(self._size) != state.arch.bits:
             raise TypeError("SimFile size must be a bitvector of size %d (arch.bits)" % state.arch.bits)
@@ -204,11 +219,14 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         size = self.state.solver.min(self._size, **kwargs)
         data = self.load(0, size)
 
-        kwargs['cast_to'] = kwargs.get('cast_to', str)
+        kwargs['cast_to'] = kwargs.get('cast_to', bytes)
         kwargs['extra_constraints'] = tuple(kwargs.get('extra_constraints', ())) + (self._size == size,)
         return self.state.solver.eval(data, **kwargs)
 
     def read(self, pos, size, **kwargs):
+        disable_actions = kwargs.pop('disable_actions', False)
+        inspect = kwargs.pop('inspect', True)
+
         # Step 1: figure out a reasonable concrete size to use for the memory load
         # since we don't want to concretize anything
         if self.state.solver.symbolic(size):
@@ -228,7 +246,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         if not self.has_end:
             # bump the storage size as we read
             self._size = self.state.solver.If(size + pos > self._size, size + pos, self._size)
-            return self.load(pos, passed_max_size), size, size + pos
+            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
 
         # Step 2.2: check harder for the possibility of EOFs
         # This is the size if we're reading to the end of the file
@@ -241,13 +259,14 @@ class SimFile(SimFileBase, SimSymbolicMemory):
             # final size = min(passed_size, max(distance_to_eof, 0))
             real_size = self.state.solver.If(size >= distance_to_eof, distance_to_eof, size)
 
-            return self.load(pos, passed_max_size), real_size, real_size + pos
+            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), \
+                   real_size, real_size + pos
         else:
             # it's not possible to EOF
             # we don't need to constrain or min/max the output size because there are already constraints asserting
             # that the total filesize is pretty big
             # note: this assumes that constraints cannot be removed
-            return self.load(pos, passed_max_size), size, size + pos
+            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
 
     def write(self, pos, data, size=None, events=True, **kwargs):
         if events:
@@ -265,7 +284,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
     @SimStatePlugin.memo
     def copy(self, _):
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-        return type(self)(name=self.name, size=self._size, has_end=self.has_end, seekable=self.seekable, writable=self.writable, ident=self.ident,
+        return type(self)(name=self.name, size=self._size, has_end=self.has_end, seekable=self.seekable, writable=self.writable, ident=self.ident, concrete=self.concrete,
             mem=self.mem.branch(),
             memory_id=self.id,
             endness=self.endness,
@@ -311,7 +330,7 @@ class SimFileStream(SimFile):
 
     def set_state(self, state):
         super(SimFileStream, self).set_state(state)
-        if type(self.pos) in (int, long):
+        if type(self.pos) is int:
             self.pos = state.solver.BVV(self.pos, state.arch.bits)
         elif len(self.pos) != state.arch.bits:
             raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
@@ -336,7 +355,7 @@ class SimFileStream(SimFile):
         return c
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
-        self.pos = self.state.solver.ite_tree(zip(merge_conditions[1:], [o.pos for o in others]), self.pos)
+        self.pos = self.state.solver.ite_cases(zip(merge_conditions[1:], [o.pos for o in others]), self.pos)
         return super(SimFileStream, self).merge(others, merge_conditions, common_ancestor=common_ancestor)
 
 
@@ -379,6 +398,17 @@ class SimPackets(SimFileBase):
             if any(x is None for x in self.content):
                 raise TypeError("Bad type in initial SimPacket content")
 
+    def set_state(self, state):
+        super().set_state(state)
+        # sanitize the lengths in self.content now that we know the wordsize
+        for i, (data, length) in enumerate(self.content):
+            if type(length) is int:
+                self.content[i] = (data, claripy.BVV(length, state.arch.bits))
+            elif len(length) < state.arch.bits:
+                self.content[i] = (data, length.zero_extend(state.arch.bits - len(length)))
+            elif len(length) != state.arch.bits:
+                raise TypeError('Bad bitvector size for length in SimPackets.content')
+
     @property
     def size(self):
         return sum(x[1] for x in self.content)
@@ -389,7 +419,7 @@ class SimPackets(SimFileBase):
         """
         lengths = [self.state.solver.eval(x[1], **kwargs) for x in self.content]
         kwargs['cast_to'] = bytes
-        return ['' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
+        return [b'' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
 
     def read(self, pos, size, **kwargs):
         """
@@ -417,13 +447,13 @@ class SimPackets(SimFileBase):
             raise SimFileError("SimPacket.read(%d): Packet number is past frontier of %d?" % (pos, len(self.content)))
         elif pos != len(self.content):
             _, realsize = self.content[pos]
-            self.state.solver.add(size <= realsize)
+            self.state.solver.add(realsize <= size)  # assert that the packet fits within the read request
             if not self.state.solver.satisfiable():
-                raise SimFileError("Packet read size constraint made state unsatisfiable???")
+                raise SimFileError("SimPackets could not fit the current packet into the read request of %s bytes: %s" % (size, self.content[pos]))
             return self.content[pos] + (pos+1,)
 
         # typecheck
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # The read is on the frontier. let's generate a new packet.
@@ -480,7 +510,7 @@ class SimPackets(SimFileBase):
             data = claripy.BVV(data)
         if size is None:
             size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
-        if type(size) in (int, long):
+        if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # sanity check on packet number and determine if data is already present
@@ -503,7 +533,7 @@ class SimPackets(SimFileBase):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        return type(self)(self.name, write_mode=self.write_mode, content=self.content, ident=self.ident)
+        return type(self)(self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:
@@ -770,7 +800,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
         if not self.file.seekable:
             return claripy.false
 
-        if type(offset) in (int, long):
+        if type(offset) is int:
             offset = self.state.solver.BVV(offset, self.state.arch.bits)
 
         if whence == 'start':
@@ -895,7 +925,12 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
         super(SimFileDescriptorDuplex, self).set_state(state)
 
     def eof(self):
-        return claripy.false
+        # the thing that makes the most sense is for this to refer to the read eof status...
+        if not self._read_file.seekable:
+            return claripy.false
+        if not getattr(self._read_file, 'has_end', True):
+            return claripy.false
+        return self._read_pos == self._read_file.size
 
     def tell(self):
         return None
@@ -987,7 +1022,7 @@ class SimPacketsSlots(SimFileBase):
         self.read_data = []
 
     def concretize(self, **kwargs):
-        return [self.state.solver.eval(var, cast_to=str, **kwargs) for var in self.read_data]
+        return [self.state.solver.eval(var, cast_to=bytes, **kwargs) for var in self.read_data]
 
     def read(self, pos, size, **kwargs):
         if not self.read_sizes:
@@ -1009,7 +1044,7 @@ class SimPacketsSlots(SimFileBase):
             real_size = avail_size
             self.read_sizes.pop(0)
 
-        data = self.state.solver.BVS('packet_%d_%s' % (len(self.read_data), self.ident), real_size*self.state.arch.byte_width, key=('file', self.ident, 'packet'))
+        data = self.state.solver.BVS('packet_%d_%s' % (len(self.read_data), self.ident), real_size*self.state.arch.byte_width, key=('file', self.ident, 'packet', len(self.read_data)))
         self.read_data.append(data)
         return data, real_size, None
 

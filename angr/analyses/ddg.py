@@ -10,7 +10,7 @@ from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
 from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, \
     SimStackVariable
 
-l = logging.getLogger("angr.analyses.ddg")
+l = logging.getLogger(name=__name__)
 
 
 class AST(object):
@@ -103,7 +103,7 @@ class LiveDefinitions(object):
 
         # byte-to-byte mappings
         # TODO: make it copy-on-write in order to save memory.
-        # TODO: options are either cooldict.COWDict or a modified version of simuvex.SimPagedMemory
+        # TODO: options are either collections.ChainMap or a modified version of simuvex.SimPagedMemory
         self._memory_map = defaultdict(set)
         self._register_map = defaultdict(set)
         self._defs = defaultdict(set)
@@ -124,7 +124,7 @@ class LiveDefinitions(object):
         Create a branch of the current live definition collection.
 
         :return: A new LiveDefinition instance.
-        :rtype: LiveDefinitions
+        :rtype: angr.analyses.ddg.LiveDefinitions
         """
 
         ld = LiveDefinitions()
@@ -139,7 +139,7 @@ class LiveDefinitions(object):
         Make a hard copy of `self`.
 
         :return: A new LiveDefinition instance.
-        :rtype: LiveDefinitions
+        :rtype: angr.analyses.ddg.LiveDefinitions
         """
 
         ld = LiveDefinitions()
@@ -286,7 +286,7 @@ class LiveDefinitions(object):
 
         return live_def_locs
 
-    def iteritems(self):
+    def items(self):
         """
         An iterator that returns all live definitions.
 
@@ -294,7 +294,7 @@ class LiveDefinitions(object):
         :rtype: iter
         """
 
-        return self._defs.iteritems()
+        return self._defs.items()
 
     def itervariables(self):
         """
@@ -304,7 +304,7 @@ class LiveDefinitions(object):
         :rtype: iter
         """
 
-        return self._defs.iterkeys()
+        return self._defs.keys()
 
 
 class DDGViewItem(object):
@@ -436,7 +436,7 @@ class DDGView(object):
         self._project = self._ddg.project
 
     def __getitem__(self, key):
-        if isinstance(key, (int, long)):
+        if isinstance(key, int):
             # instruction address
             return DDGViewInstruction(self._cfg, self._ddg, key, simplified=self._simplified)
 
@@ -450,13 +450,20 @@ class DDG(Analysis):
     For a better data dependence graph, please consider performing a better static analysis first (like Value-set
     Analysis), and then construct a dependence graph on top of the analysis result (for example, the VFG in angr).
 
+    The DDG is based on a CFG, which should ideally be a CFGEmulated generated with the following options:
+
+      - keep_state=True to keep all input states
+      - state_add_options=angr.options.refs to store memory, register, and temporary value accesses
+
+    You may want to consider a high value for context_sensitivity_level as well when generating the CFG.
+
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
     analysis) will directly benefit the DDG.
     """
     def __init__(self, cfg, start=None, call_depth=None, block_addrs=None):
         """
-        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
-                            want to generate your CFG with `keep_state=True`.
+        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it, e.g. by
+                            passing the keep_state=True and state_add_options=angr.options.refs arguments to CFGEmulated.
         :param start:       An address, Specifies where we start the generation of this data dependence graph.
         :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
                             call tree. None disables call_depth limit.
@@ -552,7 +559,7 @@ class DDG(Analysis):
         """
         # TODO: make it prettier
         for src, dst, data in self.graph.edges(data=True):
-            print "%s <-- %s, %s" % (src, dst, data)
+            print("%s <-- %s, %s" % (src, dst, data))
 
     def dbg_repr(self):
         """
@@ -720,7 +727,7 @@ class DDG(Analysis):
                 matched = False
                 for state in final_states:
                     try:
-                        if state.se.eval(state.ip) == suc.addr:
+                        if state.solver.eval(state.ip) == suc.addr:
                             match_suc[suc.addr] = True
                             match_state[state].add(suc)
                             matched = True
@@ -734,7 +741,7 @@ class DDG(Analysis):
             matches = len(match_suc) == len(successing_nodes) and len(match_state) == len(final_states)
 
             for state in final_states:
-                if not matches and state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
@@ -751,7 +758,7 @@ class DDG(Analysis):
                 new_defs = self._track(state, live_defs, node.irsb.statements if node.irsb is not None else None)
 
                 #corresponding_successors = [n for n in successing_nodes if
-                #                            not state.ip.symbolic and n.addr == state.se.eval(state.ip)]
+                #                            not state.ip.symbolic and n.addr == state.solver.eval(state.ip)]
                 #if not corresponding_successors:
                 #    continue
 
@@ -767,7 +774,7 @@ class DDG(Analysis):
                 for successing_node in add_state_to_sucs:
 
                     if (state.history.jumpkind == 'Ijk_Call' or state.history.jumpkind.startswith('Ijk_Sys')) and \
-                            (state.ip.symbolic or successing_node.addr != state.se.eval(state.ip)):
+                            (state.ip.symbolic or successing_node.addr != state.solver.eval(state.ip)):
                         suc_new_defs = self._filter_defs_at_call_sites(new_defs)
                     else:
                         suc_new_defs = new_defs
@@ -778,7 +785,7 @@ class DDG(Analysis):
                         defs_for_next_node = LiveDefinitions()
                         live_defs_per_node[successing_node] = defs_for_next_node
 
-                    for var, code_loc_set in suc_new_defs.iteritems():
+                    for var, code_loc_set in suc_new_defs.items():
                         # l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
                         changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
@@ -799,7 +806,7 @@ class DDG(Analysis):
         :param live_defs:       All live definitions prior to reaching this program point.
         :param list statements: A list of VEX statements.
         :returns:               A list of new live definitions.
-        :rtype:                 LiveDefinitions
+        :rtype:                 angr.analyses.ddg.LiveDefinitions
         """
 
         # Make a copy of live_defs
@@ -850,11 +857,6 @@ class DDG(Analysis):
                 else:
                     l.debug("Skip an unsupported action %s.", a)
 
-        #import pprint
-        #pprint.pprint(self._data_graph.edges())
-        #pprint.pprint(self.simplified_data_graph.edges())
-        # import ipdb; ipdb.set_trace()
-
         return self._live_defs
 
     def _def_lookup(self, variable):  # pylint:disable=no-self-use
@@ -862,7 +864,8 @@ class DDG(Analysis):
         This is a backward lookup in the previous defs. Note that, as we are using VSA, it is possible that `variable`
         is affected by several definitions.
 
-        :param LiveDefinitions live_defs: The collection of live definitions.
+        :param angr.analyses.ddg.LiveDefinitions live_defs:
+                            The collection of live definitions.
         :param SimVariable: The variable to lookup for definitions.
         :returns:           A dict {stmt:labels} where label is the number of individual addresses of `addr_list` (or
                             the actual set of addresses depending on the keep_addrs flag) that are definted by stmt.
@@ -940,7 +943,7 @@ class DDG(Analysis):
         if action.actual_addrs is None:
             # For now, mem reads don't necessarily have actual_addrs set properly
             try:
-                addr_list = {state.se.eval(action.addr.ast)}
+                addr_list = {state.solver.eval(action.addr.ast)}
             except (SimSolverModeError, SimUnsatError, ZeroDivisionError):
                 # FIXME: ZeroDivisionError should have been caught by claripy and simuvex.
                 # FIXME: see claripy issue #75. this is just a temporary workaround.
@@ -967,10 +970,13 @@ class DDG(Analysis):
             if addr_tmp in self._temp_register_symbols:
                 # it must be a stack variable
                 sort, offset = self._temp_register_symbols[addr_tmp]
-                variable = SimStackVariable(offset, action.size.ast / 8, base=sort, base_addr=addr - offset)
+                base_addr = addr - offset
+                if base_addr < 0:
+                    base_addr += (1 << self.project.arch.bits)
+                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=base_addr)
 
         if variable is None:
-            variable = SimMemoryVariable(addr, action.size.ast / 8)
+            variable = SimMemoryVariable(addr, action.size.ast // 8)
 
         return variable
 
@@ -987,7 +993,7 @@ class DDG(Analysis):
             self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_addr')
             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
             prev_defs = self._def_lookup(reg_variable)
-            for loc, _ in prev_defs.iteritems():
+            for loc, _ in prev_defs.items():
                 v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                 self._data_graph_add_edge(v, prog_var, type='mem_addr')
 
@@ -1009,7 +1015,7 @@ class DDG(Analysis):
                 self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_data')
                 reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
                 prev_defs = self._def_lookup(reg_variable)
-                for loc, _ in prev_defs.iteritems():
+                for loc, _ in prev_defs.items():
                     v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                     self._data_graph_add_edge(v, prog_var, type='mem_data')
 
@@ -1032,7 +1038,7 @@ class DDG(Analysis):
 
             if defs:
                 # for each definition, create an edge on the graph
-                for definition_location, labels in defs.iteritems():
+                for definition_location, labels in defs.items():
                     self._stmt_graph_add_edge(definition_location, code_location, **labels)
                     pv = ProgramVariable(variable, definition_location, arch=self.project.arch)
                     variables.append(pv)
@@ -1081,13 +1087,13 @@ class DDG(Analysis):
     def _handle_reg_read(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         reg_offset = action.offset
-        variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
+        variable = SimRegisterVariable(reg_offset, action.data.ast.size() // 8)
 
         # What do we want to do?
         definitions = self._def_lookup(variable)
 
         # add edges to the statement dependence graph
-        for definition_location, labels in definitions.iteritems():
+        for definition_location, labels in definitions.items():
             self._stmt_graph_add_edge(definition_location, location, **labels)
 
             # record the edge
@@ -1109,7 +1115,7 @@ class DDG(Analysis):
     def _handle_reg_write(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         reg_offset = action.offset
-        variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
+        variable = SimRegisterVariable(reg_offset, action.data.ast.size() // 8)
 
         self._kill(variable, location)
 
@@ -1234,6 +1240,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset -= const_value
+                    if offset < 0:
+                        offset += (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
         elif action.op.endswith('Add32') or action.op.endswith('Add64'):
@@ -1249,6 +1257,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset += const_value
+                    if offset >= (1 << self.project.arch.bits):
+                        offset -= (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
     def _process_operation(self, action, location, state, statement):  # pylint:disable=unused-argument
@@ -1354,7 +1364,7 @@ class DDG(Analysis):
 
             data = graph[src][dst]
 
-            for k, v in new_labels.iteritems():
+            for k, v in new_labels.items():
                 if k in data:
                     if v not in data[k]:
                         data[k] = data[k] + (v,)
@@ -1466,7 +1476,7 @@ class DDG(Analysis):
         # Group all dependencies first
 
         block_addr_to_func = { }
-        for _, func in self.kb.functions.iteritems():
+        for _, func in self.kb.functions.items():
             for block in func.blocks:
                 block_addr_to_func[block.addr] = func
 
@@ -1499,7 +1509,7 @@ class DDG(Analysis):
         # TODO: make definition killing architecture independent and calling convention independent
         # TODO: use information from a calling convention analysis
         filtered_defs = LiveDefinitions()
-        for variable, locs in defs.iteritems():
+        for variable, locs in defs.items():
             if isinstance(variable, SimRegisterVariable):
                 if self.project.arch.name == 'X86':
                     if variable.reg in (self.project.arch.registers['eax'][0],

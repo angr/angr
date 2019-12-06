@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeInt
 
 import logging
-l = logging.getLogger("angr.procedures.posix.sleep")
+l = logging.getLogger(name=__name__)
 
 class sleep(angr.SimProcedure):
     #pylint:disable=arguments-differ
@@ -13,4 +13,4 @@ class sleep(angr.SimProcedure):
         self.argument_types = {0: SimTypeInt(self.state.arch.bits, True)}
         self.return_type = SimTypeInt(self.state.arch.bits, True)
 
-        return self.state.se.BVV(0, self.state.arch.bits)
+        return self.state.solver.BVV(0, self.state.arch.bits)

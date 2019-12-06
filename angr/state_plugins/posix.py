@@ -6,7 +6,7 @@ from .filesystem import SimMount
 from ..storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
 from .. import sim_options as options
 
-l = logging.getLogger("angr.state_plugins.posix")
+l = logging.getLogger(name=__name__)
 
 max_fds = 8192
 
@@ -40,6 +40,33 @@ class PosixDevFS(SimMount): # this'll be mounted at /dev
 
     def copy(self, _):
         return self # this holds no state!
+
+
+class PosixProcFS(SimMount):
+    """
+    The virtual file system mounted at /proc (as of now, on Linux).
+    """
+    def get(self, path):
+        if path == [b"uptime"]:
+            return SimFile(b"uptime", content=b"0 0")
+        else:
+            return None
+
+    def insert(self, path, simfile): # pylint: disable=unused-argument
+        return False
+
+    def delete(self, path): # pylint: disable=unused-argument
+        return False
+
+    def merge(self, others, conditions, common_ancestor=None): # pylint: disable=unused-argument
+        return False
+
+    def widen(self, others): # pylint: disable=unused-argument
+        return False
+
+    def copy(self, _):
+        return self # this holds no state!
+
 
 class SimSystemPosix(SimStatePlugin):
     """
@@ -101,7 +128,6 @@ class SimSystemPosix(SimStatePlugin):
             environ=None,
             auxv=None,
             tls_modules=None,
-            queued_syscall_returns=None,
             sigmask=None,
             pid=None,
             ppid=None,
@@ -120,7 +146,6 @@ class SimSystemPosix(SimStatePlugin):
         self.environ = environ
         self.auxv = auxv
         self.tls_modules = tls_modules if tls_modules is not None else {}
-        self.queued_syscall_returns = [ ] if queued_syscall_returns is None else queued_syscall_returns
         self.brk = brk if brk is not None else 0x1b00000
         self._sigmask = sigmask
         self.pid = 1337 if pid is None else pid
@@ -128,7 +153,9 @@ class SimSystemPosix(SimStatePlugin):
         self.uid = 1000 if uid is None else uid
         self.gid = 1000 if gid is None else gid
         self.dev_fs = None
+        self.proc_fs = None
         self.autotmp_counter = 0
+        self._closed_fds = []
 
         self.sockets = sockets if sockets is not None else {}
         self.socket_queue = socket_queue if socket_queue is not None else []
@@ -160,14 +187,23 @@ class SimSystemPosix(SimStatePlugin):
         self.stdout = stdout
         self.stderr = stderr
 
+    @property
+    def closed_fds(self):
+        for _, f in self._closed_fds:
+            f.set_state(self.state)
+        return self._closed_fds
+
     def init_state(self):
         if self.dev_fs is None:
             self.dev_fs = PosixDevFS()
-            self.state.fs.mount("/dev", self.dev_fs)
+            self.state.fs.mount(b"/dev", self.dev_fs)
+        if self.proc_fs is None:
+            self.proc_fs = PosixProcFS()
+            self.state.fs.mount(b"/proc", self.proc_fs)
 
     def set_brk(self, new_brk):
         # arch word size is not available at init for some reason, fix that here
-        if isinstance(self.brk, (int, long)):
+        if isinstance(self.brk, int):
             self.brk = self.state.solver.BVV(self.brk, self.state.arch.bits)
 
         if new_brk.symbolic:
@@ -208,8 +244,20 @@ class SimSystemPosix(SimStatePlugin):
         self.stdout.set_state(state)
         self.stderr.set_state(state)
 
+        if self.socket_queue:
+            for sock_pair in self.socket_queue:
+                if not sock_pair:
+                    continue
+                sock_pair[0].set_state(state)
+                sock_pair[1].set_state(state)
+
+        if self.sockets:
+            for sock_pair in self.sockets.values():
+                sock_pair[0].set_state(state)
+                sock_pair[1].set_state(state)
+
     def _pick_fd(self):
-        for fd in xrange(0, 8192):
+        for fd in range(0, 8192):
             if fd not in self.fd:
                 return fd
         raise SimPosixError('exhausted file descriptors')
@@ -218,7 +266,8 @@ class SimSystemPosix(SimStatePlugin):
         """
         Open a symbolic file. Basically open(2).
 
-        :param name:            Path of the symbolic file, as a string.
+        :param name:            Path of the symbolic file, as a string or bytes.
+        :type name:             string or bytes
         :param flags:           File operation flags, a bitfield of constants from open(2), as an AST
         :param preferred_fd:    Assign this fd if it's not already claimed.
         :return:                The file descriptor number allocated (maps through posix.get_fd to a SimFileDescriptor)
@@ -228,6 +277,12 @@ class SimSystemPosix(SimStatePlugin):
         """
 
         if len(name) == 0:
+            return None
+        if type(name) is str:
+            name = name.encode()
+
+        # FIXME: HACK
+        if self.uid != 0 and name.startswith(b'/var/run'):
             return None
 
         # TODO: speed this up (editor's note: ...really? this is fine)
@@ -275,6 +330,10 @@ class SimSystemPosix(SimStatePlugin):
                 sockpair = self.socket_queue.pop(0)
                 if sockpair is not None:
                     memo = {}
+                    # Since we are not copying sockpairs when the FS state plugin branches, their original SimState
+                    # instances might have long gone. Update their states before making copies.
+                    sockpair[0].set_state(self.state)
+                    sockpair[1].set_state(self.state)
                     sockpair = sockpair[0].copy(memo), sockpair[1].copy(memo)
 
             if sockpair is None:
@@ -305,7 +364,7 @@ class SimSystemPosix(SimStatePlugin):
             if not self.state.solver.satisfiable():
                 raise SimPosixError("Tried to do operation on symbolic but partially constrained file descriptor")
             fd = ideal
-            new_filename = '/tmp/angr_implicit_%d' % self.autotmp_counter
+            new_filename = b'/tmp/angr_implicit_%d' % self.autotmp_counter
             l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", ideal, new_filename)
             self.autotmp_counter += 1
             if self.open(new_filename, Flags.O_RDWR, preferred_fd=fd) != fd:
@@ -328,6 +387,9 @@ class SimSystemPosix(SimStatePlugin):
             l.info("Trying to close an unopened file descriptor")
             return False
 
+        self.state.history.add_event('fs_close', fd=fd, close_idx=len(self.closed_fds))
+        self.closed_fds.append((fd, self.fd[fd]))
+
         del self.fd[fd]
         return True
 
@@ -335,28 +397,28 @@ class SimSystemPosix(SimStatePlugin):
         # sizes are AMD64-specific for now
         # TODO: import results from concrete FS, if using concrete FS
         if self.state.solver.symbolic(fd):
-            mode = self.state.se.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
+            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
         else:
-            fd = self.state.se.eval(fd)
-            mode = self.state.se.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.se.BVV(0, 32)
+            fd = self.state.solver.eval(fd)
+            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
             # return this weird bogus zero value to keep code paths in libc simple :\
 
-        return Stat(self.state.se.BVV(0, 64), # st_dev
-                    self.state.se.BVV(0, 64), # st_ino
-                    self.state.se.BVV(0, 64), # st_nlink
+        return Stat(self.state.solver.BVV(0, 64), # st_dev
+                    self.state.solver.BVV(0, 64), # st_ino
+                    self.state.solver.BVV(0, 64), # st_nlink
                     mode, # st_mode
-                    self.state.se.BVV(0, 32), # st_uid (lol root)
-                    self.state.se.BVV(0, 32), # st_gid
-                    self.state.se.BVV(0, 64), # st_rdev
-                    self.state.se.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
-                    self.state.se.BVV(0, 64), # st_blksize
-                    self.state.se.BVV(0, 64), # st_blocks
-                    self.state.se.BVV(0, 64), # st_atime
-                    self.state.se.BVV(0, 64), # st_atimensec
-                    self.state.se.BVV(0, 64), # st_mtime
-                    self.state.se.BVV(0, 64), # st_mtimensec
-                    self.state.se.BVV(0, 64), # st_ctime
-                    self.state.se.BVV(0, 64)) # st_ctimensec
+                    self.state.solver.BVV(0, 32), # st_uid (lol root)
+                    self.state.solver.BVV(0, 32), # st_gid
+                    self.state.solver.BVV(0, 64), # st_rdev
+                    self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
+                    self.state.solver.BVV(0, 64), # st_blksize
+                    self.state.solver.BVV(0, 64), # st_blocks
+                    self.state.solver.BVV(0, 64), # st_atime
+                    self.state.solver.BVV(0, 64), # st_atimensec
+                    self.state.solver.BVV(0, 64), # st_mtime
+                    self.state.solver.BVV(0, 64), # st_mtimensec
+                    self.state.solver.BVV(0, 64), # st_ctime
+                    self.state.solver.BVV(0, 64)) # st_ctimensec
 
     def sigmask(self, sigsetsize=None):
         """
@@ -367,11 +429,11 @@ class SimSystemPosix(SimStatePlugin):
         """
         if self._sigmask is None:
             if sigsetsize is not None:
-                sc = self.state.se.eval(sigsetsize)
+                sc = self.state.solver.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
-                self._sigmask = self.state.se.BVS('initial_sigmask', sc*self.state.arch.byte_width, key=('initial_sigmask',), eternal=True)
+                self._sigmask = self.state.solver.BVS('initial_sigmask', sc*self.state.arch.byte_width, key=('initial_sigmask',), eternal=True)
             else:
-                self._sigmask = self.state.se.BVS('initial_sigmask', self.sigmask_bits, key=('initial_sigmask',), eternal=True)
+                self._sigmask = self.state.solver.BVS('initial_sigmask', self.sigmask_bits, key=('initial_sigmask',), eternal=True)
         return self._sigmask
 
     def sigprocmask(self, how, new_mask, sigsetsize, valid_ptr=True):
@@ -384,12 +446,12 @@ class SimSystemPosix(SimStatePlugin):
         :param valid_ptr: is set if the new_mask was not NULL
         """
         oldmask = self.sigmask(sigsetsize)
-        self._sigmask = self.state.se.If(valid_ptr,
-            self.state.se.If(how == self.SIG_BLOCK,
+        self._sigmask = self.state.solver.If(valid_ptr,
+            self.state.solver.If(how == self.SIG_BLOCK,
                 oldmask | new_mask,
-                self.state.se.If(how == self.SIG_UNBLOCK,
+                self.state.solver.If(how == self.SIG_UNBLOCK,
                     oldmask & (~new_mask),
-                    self.state.se.If(how == self.SIG_SETMASK,
+                    self.state.solver.If(how == self.SIG_SETMASK,
                         new_mask,
                         oldmask
                      )
@@ -406,13 +468,14 @@ class SimSystemPosix(SimStatePlugin):
                 stderr=self.stderr.copy(memo),
                 fd={k: self.fd[k].copy(memo) for k in self.fd},
                 sockets={ident: tuple(x.copy(memo) for x in self.sockets[ident]) for ident in self.sockets},
-                socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use
+                socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use.
+                                                # as a result, we must update the state of each socket before making
+                                                # copies.
                 argv=self.argv,
                 argc=self.argc,
                 environ=self.environ,
                 auxv=self.auxv,
                 tls_modules=self.tls_modules,
-                queued_syscall_returns=list(self.queued_syscall_returns),
                 sigmask=self._sigmask,
                 pid=self.pid,
                 ppid=self.ppid,
@@ -420,6 +483,8 @@ class SimSystemPosix(SimStatePlugin):
                 gid=self.gid,
                 brk=self.brk)
         o.dev_fs = self.dev_fs.copy(memo)
+        o.proc_fs = self.proc_fs.copy(memo)
+        o._closed_fds = list(self._closed_fds)
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):
@@ -474,10 +539,13 @@ class SimSystemPosix(SimStatePlugin):
         Returns the concrete content for a file by path.
 
         :param path: file path as string
-        :param kwargs: passed to state.se.eval
+        :param kwargs: passed to state.solver.eval
         :return: file contents as string
         """
-        return self.state.fs.get(path).concretize(**kwargs)
+        file = self.state.fs.get(path)
+        if file is None:
+            return None
+        return file.concretize(**kwargs)
 
     def dumps(self, fd, **kwargs):
         """
@@ -493,7 +561,7 @@ class SimSystemPosix(SimStatePlugin):
         if 0 <= fd <= 2:
             data = [self.stdin, self.stdout, self.stderr][fd].concretize(**kwargs)
             if type(data) is list:
-                data = ''.join(data)
+                data = b''.join(data)
             return data
         return self.get_fd(fd).concretize(**kwargs)
 

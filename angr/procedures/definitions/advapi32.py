@@ -6,7 +6,9 @@ from ...sim_type import SimTypeFunction, SimTypeLong
 
 lib = SimLibrary()
 lib.set_library_names('advapi32.dll')
-lib.add_all_from_dict(P['advapi32'])
+if 'advapi32' in P:
+    # The above check can be removed when procedures/advapi32 contains at least one SimProcedure
+    lib.add_all_from_dict(P['advapi32'])
 
 lib.set_default_cc('X86', SimCCStdcall)
 lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)

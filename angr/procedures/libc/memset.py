@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeTop, SimTypeInt, SimTypeLength
 
 import logging
-l = logging.getLogger("angr.procedures.libc.memset")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # memset
@@ -27,7 +27,7 @@ class memset(angr.SimProcedure):
             return byt
 
         remainder = rep % 2
-        quotient = rep / 2
+        quotient = rep // 2
 
         r_ = memset._repeat_bytes(byt, quotient)
         if remainder == 1:

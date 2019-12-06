@@ -4,13 +4,13 @@ import contextlib
 import weakref
 
 import logging
-l = logging.getLogger("angr.sim_state")
+l = logging.getLogger(name=__name__)
 
+import angr # type annotations; pylint:disable=unused-import
 import claripy
-import ana
-from archinfo import arch_from_id
+import archinfo
+from archinfo.arch_soot import SootAddressDescriptor
 
-from .misc.ux import deprecated
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 
@@ -27,10 +27,15 @@ def arch_overrideable(f):
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
+_complained_se = False
+
 # pylint: disable=not-callable
-class SimState(PluginHub, ana.Storable):
+class SimState(PluginHub):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
+
+    :param angr.Project project:    The project instance.
+    :param archinfo.Arch|str arch:  The architecture of the state.
 
     :ivar regs:         A convenient view of the state's registers, where each register is a property
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
@@ -45,17 +50,35 @@ class SimState(PluginHub, ana.Storable):
     :ivar libc:         Information about the standard library we are emulating
     :ivar cgc:          Information about the cgc environment
     :ivar uc_manager:   Control of under-constrained symbolic execution
-    :ivar unicorn:      Control of the Unicorn Engine
+    :ivar str unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default'):
+    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
+                 options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
+                 plugin_preset='default', **kwargs):
+        if kwargs:
+            l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
         self.project = project
-        self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
-        if type(self.arch) is str:
-            self.arch = arch_from_id(self.arch)
+        # Java & Java JNI
+        self._is_java_project = self.project and self.project.is_java_project
+        self._is_java_jni_project = self.project and self.project.is_java_jni_project
+
+        # Arch
+        if self._is_java_jni_project:
+            self._arch = { "soot" : project.arch,
+                           "vex"  : project.simos.native_simos.arch }
+            # This flag indicates whether the current ip is a native address or
+            # a soot address descriptor.
+            # Note: We cannot solely rely on the ip to make that decsision,
+            #       because the registers (storing the ip) are part of the
+            #       plugins that are getting toggled (=> mutual dependence).
+            self.ip_is_soot_addr = False
+        else:
+            self._arch = arch if arch is not None else project.arch.copy() if project is not None else None
+            if type(self._arch) is str:
+                self._arch = archinfo.arch_from_id(self._arch)
 
         # the options
         if options is None:
@@ -70,17 +93,30 @@ class SimState(PluginHub, ana.Storable):
             options |= add_options
         if remove_options is not None:
             options -= remove_options
-        self._options = options
+        self.options = options
         self.mode = mode
+        self.supports_inspect = False
 
+        # OS name
+        self.os_name = os_name
+
+        # This is used in static mode as we don't have any constraints there
+        self._satisfiable = True
+
+        self.uninitialized_access_handler = None
+        self._special_memory_filler = special_memory_filler
+
+        # this is a global condition, applied to all added constraints, memory reads, etc
+        self._global_condition = None
+        self.ip_constraints = []
+
+        # plugins. lord help us
         if plugin_preset is not None:
             self.use_plugin_preset(plugin_preset)
 
         if plugins is not None:
-            for n,p in plugins.iteritems():
+            for n,p in plugins.items():
                 self.register_plugin(n, p, inhibit_init=True)
-            for p in plugins.itervalues():
-                p.init_state()
 
         if not self.has_plugin('memory'):
             # We don't set the memory endness because, unlike registers, it's hard to understand
@@ -91,7 +127,12 @@ class SimState(PluginHub, ana.Storable):
             if self.plugin_preset is None:
                 self.use_plugin_preset('default')
 
-            if o.ABSTRACT_MEMORY in self.options:
+            # Determine memory backend
+            if self._is_java_project and not self._is_java_jni_project:
+                sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
+                sim_memory = sim_memory_cls(memory_id='mem')
+
+            elif o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode.
                 # Convert memory_backer into 'global' region.
                 if memory_backer is not None:
@@ -110,48 +151,64 @@ class SimState(PluginHub, ana.Storable):
                 sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem',
                                             permissions_backer=permissions_backer)
 
-            self.register_plugin('memory', sim_memory)
+            # Add memory plugin
+            if not self._is_java_jni_project:
+                self.register_plugin('memory', sim_memory, inhibit_init=True)
+
+            else:
+                # In case of the JavaVM with JNI support, we add two `memory` plugins; one for modeling the
+                # native memory and another one for the JavaVM memory.
+                native_sim_memory = sim_memory
+                javavm_sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
+                javavm_sim_memory = javavm_sim_memory_cls(memory_id='mem')
+                self.register_plugin('memory_soot', javavm_sim_memory, inhibit_init=True)
+                self.register_plugin('memory_vex', native_sim_memory, inhibit_init=True)
 
         if not self.has_plugin('registers'):
-
             # Same as for 'memory' plugin.
             if self.plugin_preset is None:
                 self.use_plugin_preset('default')
 
-            if o.FAST_REGISTERS in self.options:
+            # Get register endness
+            if self._is_java_jni_project:
+                register_endness = self._arch['vex'].register_endness
+            else:
+                register_endness = self.arch.register_endness
+
+            # Determine register backend
+            if self._is_java_project and not self._is_java_jni_project:
+                sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
+                sim_registers = sim_registers_cls(memory_id='reg')
+
+            elif o.FAST_REGISTERS in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin('fast_memory')
-                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
+                sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
             else:
                 sim_registers_cls = self.plugin_preset.request_plugin('sym_memory')
-                sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
+                sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
 
-            self.register_plugin('registers', sim_registers)
+            # Add registers plugin
+            if not self._is_java_jni_project:
+                self.register_plugin('registers', sim_registers, inhibit_init=True)
 
-        # OS name
-        self.os_name = os_name
+            else:
+                # Analog to memory, we add two registers plugins
+                native_sim_registers = sim_registers
+                javavm_sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
+                javavm_sim_registers = javavm_sim_registers_cls(memory_id='reg')
+                self.register_plugin('registers_soot', javavm_sim_registers, inhibit_init=True)
+                self.register_plugin('registers_vex', native_sim_registers, inhibit_init=True)
 
-        # This is used in static mode as we don't have any constraints there
-        self._satisfiable = True
+        for p in list(self.plugins.values()):
+            p.init_state()
 
-        # states are big, so let's give them UUIDs for ANA right away to avoid
-        # extra pickling
-        self.make_uuid()
-
-        self.uninitialized_access_handler = None
-        self._special_memory_filler = special_memory_filler
-
-        # this is a global condition, applied to all added constraints, memory reads, etc
-        self._global_condition = None
-        self.ip_constraints = []
-
-    def _ana_getstate(self):
-        s = dict(ana.Storable._ana_getstate(self))
-        s = { k:v for k,v in s.iteritems() if k not in ('inspect', 'regs', 'mem')}
-        s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].iteritems() if k not in ('inspect', 'regs', 'mem') }
+    def __getstate__(self):
+        s = { k:v for k,v in self.__dict__.items() if k not in ('inspect', 'regs', 'mem')}
+        s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].items() if k not in ('inspect', 'regs', 'mem') }
         return s
 
-    def _ana_setstate(self, s):
-        ana.Storable._ana_setstate(self, s)
+    def __setstate__(self, s):
+        self.__dict__.update(s)
         for p in self.plugins.values():
             p.set_state(self)
             if p.STRONGREF_STATE:
@@ -165,11 +222,31 @@ class SimState(PluginHub, ana.Storable):
 
     def __repr__(self):
         try:
-            ip_str = "%#x" % self.addr
+            addr = self.addr
+            if type(addr) is int:
+                ip_str = "%#x" % addr
+            else:
+                ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
         return "<SimState @ %s>" % ip_str
+
+    def __setattr__(self, key, value):
+        if key == 'options':
+            # set options
+            # this is done to both keep compatibility and make access to .options fast.
+            self._set_options(value)
+            return
+        super().__setattr__(key, value)
+
+    def _set_options(self, v):
+        if isinstance(v, (set, list)):
+            super().__setattr__("options", SimStateOptions(v))
+        elif isinstance(v, SimStateOptions):
+            super().__setattr__("options", v)
+        else:
+            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
 
     #
     # Easier access to some properties
@@ -182,7 +259,13 @@ class SimState(PluginHub, ana.Storable):
 
     @property
     def se(self):
-        # TODO: Deprecate this
+        """
+        Deprecated alias for `solver`
+        """
+        global _complained_se
+        if not _complained_se:
+            _complained_se = True
+            l.critical("The name state.se is deprecated; please use state.solver.")
         return self.get_plugin('solver')
 
     @property
@@ -228,31 +311,32 @@ class SimState(PluginHub, ana.Storable):
         :return: an int
         """
 
+        ip = self.regs._ip
+        if isinstance(ip, SootAddressDescriptor):
+            return ip
         return self.solver.eval_one(self.regs._ip)
 
     @property
-    def options(self):
-        return self._options
-
-    @options.setter
-    def options(self, v):
-        if isinstance(v, (set, list)):
-            self._options = SimStateOptions(v)
-        elif isinstance(v, SimStateOptions):
-            self._options = v
+    def arch(self):
+        if self._is_java_jni_project:
+            return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
         else:
-            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
+            return self._arch
+
+    @arch.setter
+    def arch(self, v):
+        self._arch = v
 
     #
     # Plugin accessors
     #
 
     def _inspect(self, *args, **kwargs):
-        if self.has_plugin('inspect'):
+        if self.supports_inspect:
             self.inspect.action(*args, **kwargs)
 
     def _inspect_getattr(self, attr, default_value):
-        if self.has_plugin('inspect'):
+        if self.supports_inspect:
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
 
@@ -261,6 +345,20 @@ class SimState(PluginHub, ana.Storable):
     #
     # Plugins
     #
+
+    def get_plugin(self, name):
+        if self._is_java_jni_project:
+            # In case of the JavaVM with JNI support, a state can store the same plugin
+            # twice; one for the native and one for the java view of the state.
+            suffix = '_soot' if self.ip_is_soot_addr else '_vex'
+            name = name + suffix if self.has_plugin(name + suffix) else name
+        return super(SimState, self).get_plugin(name)
+
+    def has_plugin(self, name):
+        if self._is_java_jni_project:
+            # In case of the JavaVM with JNI support, also check for toggled plugins.
+            return super(SimState, self).has_plugin(name) or super(SimState, self).has_plugin(name + '_soot')
+        return super(SimState, self).has_plugin(name)
 
     def register_plugin(self, name, plugin, inhibit_init=False): # pylint: disable=arguments-differ
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
@@ -278,6 +376,36 @@ class SimState(PluginHub, ana.Storable):
             plugin.set_strongref_state(self)
         if not inhibit_init:
             plugin.init_state()
+
+    #
+    # Java support
+    #
+
+    @property
+    def javavm_memory(self):
+        """
+        In case of an JavaVM with JNI support, a state can store the memory
+        plugin twice; one for the native and one for the java view of the state.
+
+        :return: The JavaVM view of the memory plugin.
+        """
+        if self._is_java_jni_project:
+            return self.get_plugin('memory_soot')
+        else:
+            return self.get_plugin('memory')
+
+    @property
+    def javavm_registers(self):
+        """
+        In case of an JavaVM with JNI support, a state can store the registers
+        plugin twice; one for the native and one for the java view of the state.
+
+        :return: The JavaVM view of the registers plugin.
+        """
+        if self._is_java_jni_project:
+            return self.get_plugin('registers_soot')
+        else:
+            return self.get_plugin('registers')
 
     #
     # Constraint pass-throughs
@@ -420,7 +548,7 @@ class SimState(PluginHub, ana.Storable):
     def _copy_plugins(self):
         memo = {}
         out = {}
-        for n, p in self._active_plugins.iteritems():
+        for n, p in self._active_plugins.items():
             if id(p) in memo:
                 out[n] = memo[id(p)]
             else:
@@ -440,6 +568,9 @@ class SimState(PluginHub, ana.Storable):
         c_plugins = self._copy_plugins()
         state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options.copy(),
                          mode=self.mode, os_name=self.os_name)
+
+        if self._is_java_jni_project:
+            state.ip_is_soot_addr = self.ip_is_soot_addr
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler
@@ -476,7 +607,7 @@ class SimState(PluginHub, ana.Storable):
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-            merge_flag = self.solver.BVS("state_merge_%d" % merge_counter.next(), 16)
+            merge_flag = self.solver.BVS("state_merge_%d" % next(merge_counter), 16)
             merge_values = range(len(others)+1)
             merge_conditions = [ merge_flag == b for b in merge_values ]
         else:
@@ -611,7 +742,7 @@ class SimState(PluginHub, ana.Storable):
         """
         sp = self.regs.sp
         self.regs.sp = sp - self.arch.stack_change
-        return self.memory.load(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
+        return self.memory.load(sp, self.arch.bytes, endness=self.arch.memory_endness)
 
     @arch_overrideable
     def stack_read(self, offset, length, bp=False):
@@ -630,7 +761,7 @@ class SimState(PluginHub, ana.Storable):
     ###############################
 
     def make_concrete_int(self, expr):
-        if isinstance(expr, (int, long)):
+        if isinstance(expr, int):
             return expr
 
         if not self.solver.symbolic(expr):
@@ -674,7 +805,7 @@ class SimState(PluginHub, ana.Storable):
         current stack frame (from sp to bp) will be printed out.
         """
 
-        var_size = self.arch.bits / 8
+        var_size = self.arch.bytes
         sp_sim = self.regs._sp
         bp_sim = self.regs._bp
         if self.solver.symbolic(sp_sim) and sp is None:
@@ -691,9 +822,9 @@ class SimState(PluginHub, ana.Storable):
                 result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth is None:
                 # bp_value cannot be None here
-                depth = (bp_value - sp_value) / var_size + 1 # Print one more value
+                depth = (bp_value - sp_value) // var_size + 1 # Print one more value
             pointer_value = sp_value
-            for i in xrange(depth):
+            for i in range(depth):
                 # For AbstractMemory, we wanna utilize more information from VSA
                 stack_values = [ ]
 
@@ -779,66 +910,6 @@ class SimState(PluginHub, ana.Storable):
         else:
             return conditions.__class__((self._adjust_condition(self.solver.And(*conditions)),))
 
-    #
-    # Compatibility layer
-    #
-
-    @property
-    def state(self):
-        return self
-
-    @property
-    def length(self):
-        return self.history.block_count
-
-    @property
-    def jumpkind(self):
-        return self.history.jumpkind
-
-    @property
-    def last_actions(self):
-        return self.history.recent_actions
-
-    @property
-    def history_iterator(self):
-        return self.history.lineage
-
-    @property
-    def addr_trace(self):
-        return self.history.addr_trace
-
-    @property
-    def trace(self):
-        return self.history.trace
-
-    @property
-    def targets(self):
-        return self.history.jump_targets
-
-    @property
-    def guards(self):
-        return self.history.jump_guards
-
-    @property
-    def jumpkinds(self):
-        return self.history.jumpkinds
-
-    @property
-    def events(self):
-        return self.history.events
-
-    @property
-    def actions(self):
-        return self.history.actions
-
-    @property
-    def reachable(self):
-        return self.history.reachable()
-
-    @deprecated()
-    def trim_history(self):
-        self.history.trim()
-
 default_state_plugin_preset = PluginPreset()
 SimState.register_preset('default', default_state_plugin_preset)
 
@@ -847,4 +918,4 @@ from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
 
 from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, AngrNoPluginError
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError

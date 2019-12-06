@@ -1,7 +1,7 @@
 import angr
 import logging
 
-l = logging.getLogger('angr.procedures.linux_kernel.cwd')
+l = logging.getLogger(name=__name__)
 
 class getcwd(angr.SimProcedure):
     def run(self, buf, size):
@@ -9,7 +9,7 @@ class getcwd(angr.SimProcedure):
         size = self.state.solver.If(size-1 > len(cwd), len(cwd), size-1)
         try:
             self.state.memory.store(buf, cwd, size=size)
-            self.state.memory.store(buf + size, '\0')
+            self.state.memory.store(buf + size, b'\0')
         except angr.errors.SimSegfaultException:
             return 0
         else:

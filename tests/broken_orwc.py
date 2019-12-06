@@ -12,17 +12,17 @@ import nose
 
 # load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 p_rw = None
 p = None
 
 def setup_rw():
     global p_rw
-    p_rw = angr.Project(test_location + "/blob/x86_64/rw",  use_sim_procedures=False)
+    p_rw = angr.Project(os.path.join(test_location, 'x86_64', 'rw'),  use_sim_procedures=False)
 
 def setup_orwc():
     global p
-    p = angr.Project(test_location + "/blob/x86_64/orwc",  use_sim_procedures=False)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'orwc'),  use_sim_procedures=False)
 
 def setup_module():
     setup_rw()
@@ -35,7 +35,7 @@ def test_rw():
     system = state.get_plugin('posix')
     w_len = system.get_file(1).pos
     r_len = system.get_file(0).pos
-    r_len = state.se.eval(r_len)
+    r_len = state.solver.eval(r_len)
 
     nose.tools.assert_equal(r_len, w_len)
     nose.tools.assert_equal(32, r_len)
@@ -49,7 +49,7 @@ def test_orwc():
     num_files = len(system.files)
     w_len = system.get_file(3).pos
     r_len = system.get_file(0).pos
-    r_len = state.se.eval(r_len)
+    r_len = state.solver.eval(r_len)
 
     after_close = angr.surveyors.Explorer(p, find=[0x400124]).run()
     path = after_close.found[0]

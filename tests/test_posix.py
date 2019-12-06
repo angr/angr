@@ -10,17 +10,17 @@ def test_file_create():
     state = SimState(arch="AMD64", mode='symbolic')
 
     # Create a file
-    fd = state.posix.open("test", 1)
+    fd = state.posix.open(b"test", 1)
 
     nose.tools.assert_equal(fd, 3)
 
 def test_file_read():
     state = SimState(arch="AMD64", mode='symbolic')
 
-    content = state.se.BVV(0xbadf00d, 32)
-    content_size = content.size() / 8
+    content = state.solver.BVV(0xbadf00d, 32)
+    content_size = content.size() // 8
 
-    fd = state.posix.open("test", 1)
+    fd = state.posix.open(b"test", 1)
     simfd = state.posix.get_fd(fd)
     simfd.write_data(content)
     simfd.seek(0)
@@ -37,7 +37,7 @@ def test_file_seek():
     state = SimState(arch="AMD64", mode='symbolic')
 
     # Normal seeking
-    fd = state.posix.open("test1", 1)
+    fd = state.posix.open(b"test1", 1)
     simfd = state.posix.get_fd(fd)
     simfd.seek(0, 'start')
     nose.tools.assert_true(state.solver.is_true(simfd.tell() == 0))
@@ -52,14 +52,14 @@ def test_file_seek():
 
     # Seek from the end
     state.fs.insert('test2', SimFile(name='qwer', size=20))
-    fd = state.posix.open("test2", 1)
+    fd = state.posix.open(b"test2", 1)
     simfd = state.posix.get_fd(fd)
     simfd.seek(0, 'end')
     nose.tools.assert_true(state.solver.is_true(simfd.tell() == 20))
     state.posix.close(fd)
 
     # seek to a symbolic position (whence symbolic end)
-    fd = state.posix.open("unknown_size", 1)
+    fd = state.posix.open(b"unknown_size", 1)
     simfd = state.posix.get_fd(fd)
     real_end = state.fs.get("unknown_size").size
     simfd.seek(0, 'end')
@@ -73,7 +73,7 @@ def main():
         if f in g and hasattr(g[f], "__call__"):
             g[f]()
     else:
-        for f, func in g.iteritems():
+        for f, func in g.items():
             if f.startswith("test_") and hasattr(func, "__call__"):
                 func()
 

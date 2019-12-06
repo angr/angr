@@ -1,6 +1,7 @@
 import operator
 import logging
 import itertools
+import contextlib
 
 import claripy
 
@@ -8,7 +9,7 @@ from .plugin import SimStatePlugin
 from .. import sim_options
 from ..state_plugins.sim_action import SimActionObject
 
-l = logging.getLogger("angr.state_plugins.history")
+l = logging.getLogger(name=__name__)
 
 
 class SimStateHistory(SimStatePlugin):
@@ -201,7 +202,7 @@ class SimStateHistory(SimStatePlugin):
         #    stmts = self.state.project.factory.block(bbl_addr).vex.statements
         #    if stmt_idx >= len(stmts):
         #        return None
-        #    for i in reversed(xrange(stmt_idx + 1)):
+        #    for i in reversed(range(stmt_idx + 1)):
         #        if stmts[i].tag == 'Ist_IMark':
         #            return stmts[i].addr + stmts[i].delta
         #    return None
@@ -219,7 +220,7 @@ class SimStateHistory(SimStatePlugin):
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = self.state.se.eval(addr)
+                addr = self.state.solver.eval(addr)
             if addr != read_offset:
                 return False
             return True
@@ -237,7 +238,7 @@ class SimStateHistory(SimStatePlugin):
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = self.state.se.eval(addr)
+                addr = self.state.solver.eval(addr)
             if addr != write_offset:
                 return False
             return True
@@ -268,11 +269,11 @@ class SimStateHistory(SimStatePlugin):
     #       self._events = state.history.events
     #
     #   # record constraints, added constraints, and satisfiability
-    #   self._all_constraints = state.se.constraints
+    #   self._all_constraints = state.solver.constraints
     #   self._fresh_constraints = state.history.fresh_constraints
     #
-    #   if isinstance(state.se._solver, claripy.frontend_mixins.SatCacheMixin):
-    #       self._satisfiable = state.se._solver._cached_satness
+    #   if isinstance(state.solver._solver, claripy.frontend_mixins.SatCacheMixin):
+    #       self._satisfiable = state.solver._solver._cached_satness
     #   else:
     #       self._satisfiable = None
     #
@@ -293,7 +294,7 @@ class SimStateHistory(SimStatePlugin):
         if self._satisfiable is not None:
             pass
         elif self.state is not None:
-            self._satisfiable = self.state.se.satisfiable()
+            self._satisfiable = self.state.solver.satisfiable()
         else:
             solver = claripy.Solver()
             solver.add(self._all_constraints)
@@ -314,6 +315,13 @@ class SimStateHistory(SimStatePlugin):
 
     def extend_actions(self, new_actions):
         self.recent_events.extend(new_actions)
+
+    @contextlib.contextmanager
+    def subscribe_actions(self):
+        start_idx = len(self.recent_actions)
+        res = []
+        yield res
+        res.extend(self.recent_actions[start_idx:])
 
     #
     # Convenient accessors
@@ -363,14 +371,6 @@ class SimStateHistory(SimStatePlugin):
     @property
     def ins_addrs(self):
         return LambdaIterIter(self, operator.attrgetter('recent_ins_addrs'))
-    @property
-    def trace(self):
-        print ".trace is deprecated: please use .descriptions"
-        return self.descriptions
-    @property
-    def addr_trace(self):
-        print ".addr_trace is deprecated: please use .bbl_addrs"
-        return self.bbl_addrs
     @property
     def stack_actions(self):
         return LambdaIterIter(self, operator.attrgetter('recent_stack_actions'))

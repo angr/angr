@@ -7,7 +7,7 @@ import binascii
 from .plugin import SimStatePlugin
 from ..errors import SimStateError
 
-l = logging.getLogger("angr.state_plugins.gdb")
+l = logging.getLogger(name=__name__)
 
 #global heap_location
 
@@ -60,7 +60,7 @@ class GDB(SimStatePlugin):
         """
         # We set the heap at the same addresses as the gdb session to avoid pointer corruption.
         data = self._read_data(heap_dump)
-        self.state.libc.heap_location = heap_base + len(data)
+        self.state.heap.heap_location = heap_base + len(data)
         addr = heap_base
         l.info("Set heap from 0x%x to %#x", addr, addr+len(data))
         #FIXME: we should probably make we don't overwrite other stuff loaded there
@@ -86,12 +86,12 @@ class GDB(SimStatePlugin):
                     "adjust_stack to False. Beware that in this case, sp and bp won't be updated")
 
         data = self._read_data(regs_dump)
-        rdata = re.split("\n", data)
+        rdata = re.split(b"\n", data)
         for r in rdata:
-            if r == "":
+            if r == b"":
                 continue
-            reg = re.split(" +", r)[0]
-            val = int(re.split(" +", r)[1],16)
+            reg = re.split(b" +", r)[0].decode()
+            val = int(re.split(b" +", r)[1],16)
             try:
                 self.state.registers.store(reg, claripy.BVV(val, self.state.arch.bits))
             # Some registers such as cs, ds, eflags etc. aren't supported in angr
@@ -125,9 +125,7 @@ class GDB(SimStatePlugin):
         return f.read()
 
     def _write(self, addr, data):
-        for d in data:
-            self.state.memory.store(addr, d, size=1)
-            addr = addr + 1
+        self.state.memory.store(addr, data)
 
     @staticmethod
     def _to_bvv(data):

@@ -1,9 +1,8 @@
-
 import logging
 
 from ..sim_procedure import SimProcedure
 
-l = logging.getLogger("angr.analyses.datagraph_meta")
+l = logging.getLogger(name=__name__)
 
 class DataGraphMeta(object):
     def __init__(self):
@@ -51,7 +50,7 @@ class DataGraphMeta(object):
                 s = "[0x%x]" % self._imarks[stmt]
             pp.append(s)
 
-        print pp[0] + " -> " + pp[1] + " : " + str(data)
+        print(pp[0] + " -> " + pp[1] + " : " + str(data))
 
     def _branch(self, live_defs, node, path=""):
         """

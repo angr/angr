@@ -2,14 +2,14 @@ from . import Analysis
 from .. import SIM_PROCEDURES
 
 import logging
-l = logging.getLogger('angr.analyses.callee_cleanup_finder')
+l = logging.getLogger(name=__name__)
 
 class CalleeCleanupFinder(Analysis):
     def __init__(self, starts=None, hook_all=False):
         self.results = {}
 
         if starts is None:
-            starts = [imp.resolvedby.rebased_addr for imp in self.project.loader.main_object.imports.itervalues()]
+            starts = [imp.resolvedby.rebased_addr for imp in self.project.loader.main_object.imports.values()]
 
         for addr in starts:
             with self._resilience():
@@ -20,13 +20,13 @@ class CalleeCleanupFinder(Analysis):
                     self.results[addr] = size
 
         if hook_all:
-            for addr, size in self.results.iteritems():
+            for addr, size in self.results.items():
                 if self.project.is_hooked(addr):
                     continue
                 if size % self.project.arch.bytes != 0:
                     l.error("Function at %#x has a misaligned return?", addr)
                     continue
-                args = size / self.project.arch.bytes
+                args = size // self.project.arch.bytes
                 cc = self.project.factory.cc_from_arg_kinds([False]*args)
                 cc.CALLEE_CLEANUP = True
                 sym = self.project.loader.find_symbol(addr)

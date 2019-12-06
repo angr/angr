@@ -4,23 +4,22 @@ from collections import defaultdict
 from itertools import count
 
 from claripy.utils.orderedset import OrderedSet
-from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimMemoryVariablePhi, \
-    SimStackVariablePhi, SimRegisterVariablePhi
+from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable
 
 from ...keyed_region import KeyedRegion
 from .variable_access import VariableAccess
 
 from ..plugin import KnowledgeBasePlugin
 
-l = logging.getLogger("angr.knowledge.variable_manager")
+l = logging.getLogger(name=__name__)
 
 
-class VariableType(object):
+class VariableType:
     REGISTER = 0
     MEMORY = 1
 
 
-class LiveVariables(object):
+class LiveVariables:
     """
     A collection of live variables at a program point.
     """
@@ -28,8 +27,10 @@ class LiveVariables(object):
         self.register_region = register_region
         self.stack_region = stack_region
 
+def _defaultdict_set():
+    return defaultdict(set)
 
-class VariableManagerInternal(object):
+class VariableManagerInternal:
     """
     Manage variables for a function. It is meant to be used internally by VariableManager.
     """
@@ -47,12 +48,16 @@ class VariableManagerInternal(object):
         self._insn_to_variable = defaultdict(set)
         self._block_to_variable = defaultdict(set)
         self._stmt_to_variable = defaultdict(set)
+        self._atom_to_variable = defaultdict(_defaultdict_set)
         self._variable_counters = {
             'register': count(),
             'stack': count(),
             'argument': count(),
             'phi': count(),
         }
+
+        self._phi_variables = { }
+        self._phi_variables_by_block = defaultdict(set)
 
     #
     # Public methods
@@ -71,7 +76,8 @@ class VariableManagerInternal(object):
         else:
             prefix = "m"
 
-        return "i%s_%d" % (prefix, self._variable_counters[sort].next())
+        ident = "i%s_%d" % (prefix, next(self._variable_counters[sort]))
+        return ident
 
     def add_variable(self, sort, start, variable):
         if sort == 'stack':
@@ -89,64 +95,76 @@ class VariableManagerInternal(object):
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def write_to(self, variable, offset, location, overwrite=False):
-        self._record_variable_access('write', variable, offset, location, overwrite=overwrite)
+    def write_to(self, variable, offset, location, overwrite=False, atom=None):
+        self._record_variable_access('write', variable, offset, location, overwrite=overwrite, atom=atom)
 
-    def read_from(self, variable, offset, location, overwrite=False):
-        self._record_variable_access('read', variable, offset, location, overwrite=overwrite)
+    def read_from(self, variable, offset, location, overwrite=False, atom=None):
+        self._record_variable_access('read', variable, offset, location, overwrite=overwrite, atom=atom)
 
-    def reference_at(self, variable, offset, location, overwrite=False):
-        self._record_variable_access('reference', variable, offset, location, overwrite=overwrite)
+    def reference_at(self, variable, offset, location, overwrite=False, atom=None):
+        self._record_variable_access('reference', variable, offset, location, overwrite=overwrite, atom=atom)
 
-    def _record_variable_access(self, sort, variable, offset, location, overwrite=False):
+    def _record_variable_access(self, sort, variable, offset, location, overwrite=False, atom=None):
         self._variables.add(variable)
+        var_and_offset = variable, offset
         if overwrite:
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location)}
-            self._insn_to_variable[location.ins_addr] = {(variable, offset)}
-            self._block_to_variable[location.block_addr] = {(variable, offset)}
-            self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {(variable, offset)}
+            self._insn_to_variable[location.ins_addr] = {var_and_offset}
+            self._block_to_variable[location.block_addr] = {var_and_offset}
+            self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {var_and_offset}
+            if atom is not None:
+                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom] = var_and_offset
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location))
-            self._insn_to_variable[location.ins_addr].add((variable, offset))
-            self._block_to_variable[location.block_addr].add((variable, offset))
-            self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add((variable, offset))
+            self._insn_to_variable[location.ins_addr].add(var_and_offset)
+            self._block_to_variable[location.block_addr].add(var_and_offset)
+            self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add(var_and_offset)
+            if atom is not None:
+                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom].add(var_and_offset)
 
-    def make_phi_node(self, *variables):
+    def make_phi_node(self, block_addr, *variables):
+        """
+        Create a phi variable for variables at block `block_addr`.
 
-        # unpack phi nodes
-        existing_phi = [ ]
-        unpacked = set()
+        :param int block_addr:  The address of the current block.
+        :param variables:       Variables that the phi variable represents.
+        :return:                The created phi variable.
+        """
+
+        existing_phis = set()
+        non_phis = set()
         for var in variables:
-            if isinstance(var, (SimRegisterVariablePhi, SimStackVariablePhi, SimMemoryVariablePhi)):
-                unpacked |= var.variables
-                existing_phi.append(var)
+            if self.is_phi_variable(var):
+                existing_phis.add(var)
             else:
-                unpacked.add(var)
-
-        # optimization: if a phi node already contains all of the unpacked variables, just return that phi node
-        for phi_node in existing_phi:
-            if phi_node.variables.issuperset(unpacked):
-                return phi_node
-
-        variables = unpacked
+                non_phis.add(var)
+        if len(existing_phis) == 1:
+            existing_phi = next(iter(existing_phis))
+            if non_phis.issubset(self.get_phi_subvariables(existing_phi)):
+                return existing_phi
+            else:
+                # Update phi variables
+                self._phi_variables[existing_phi] |= non_phis
+                return existing_phi
 
         repre = next(iter(variables))
         repre_type = type(repre)
         if repre_type is SimRegisterVariable:
-            cls = SimRegisterVariablePhi
             ident_sort = 'register'
+            a = SimRegisterVariable(repre.reg, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimMemoryVariable:
-            cls = SimMemoryVariablePhi
             ident_sort = 'memory'
+            a = SimMemoryVariable(repre.addr, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimStackVariable:
-            cls = SimStackVariablePhi
             ident_sort = 'stack'
+            a = SimStackVariable(repre.offset, repre.size, ident=self.next_variable_ident(ident_sort))
         else:
             raise TypeError('make_phi_node(): Unsupported variable type "%s".' % type(repre))
-        a = cls(ident=self.next_variable_ident(ident_sort),
-                   region=self.func_addr,
-                   variables=variables,
-                   )
+
+        # Keep a record of all phi variables
+        self._phi_variables[a] = set(variables)
+        self._phi_variables_by_block[block_addr].add(a)
+
         return a
 
     def set_live_variables(self, addr, register_region, stack_region):
@@ -157,10 +175,10 @@ class VariableManagerInternal(object):
         if ins_addr not in self._insn_to_variable:
             return None
 
-        if sort == VariableType.MEMORY or sort == 'memory':
+        if sort in (VariableType.MEMORY, 'memory'):
             vars_and_offset = [(var, offset) for var, offset in self._insn_to_variable[ins_addr]
                         if isinstance(var, (SimStackVariable, SimMemoryVariable))]
-        elif sort == VariableType.REGISTER or sort == 'register':
+        elif sort in (VariableType.REGISTER, 'register'):
             vars_and_offset = [(var, offset) for var, offset in self._insn_to_variable[ins_addr]
                         if isinstance(var, SimRegisterVariable)]
         else:
@@ -194,6 +212,21 @@ class VariableManagerInternal(object):
             return [ ]
 
         return var_and_offsets
+
+    def find_variable_by_atom(self, block_addr, stmt_idx, atom):
+        return next(iter(self.find_variables_by_atom(block_addr, stmt_idx, atom)), None)
+
+    def find_variables_by_atom(self, block_addr, stmt_idx, atom):
+
+        key = block_addr, stmt_idx
+
+        if key not in self._atom_to_variable:
+            return [ ]
+
+        if atom not in self._atom_to_variable[key]:
+            return [ ]
+
+        return self._atom_to_variable[key][atom]
 
     def get_variable_accesses(self, variable, same_name=False):
 
@@ -241,6 +274,46 @@ class VariableManagerInternal(object):
 
         return variables
 
+    def is_phi_variable(self, var):
+        """
+        Test if `var` is a phi variable.
+
+        :param SimVariable var: The variable instance.
+        :return:                True if `var` is a phi variable, False otherwise.
+        :rtype:                 bool
+        """
+
+        return var in self._phi_variables
+
+    def get_phi_subvariables(self, var):
+        """
+        Get sub-variables that phi variable `var` represents.
+
+        :param SimVariable var: The variable instance.
+        :return:                A set of sub-variables, or an empty set if `var` is not a phi variable.
+        :rtype:                 set
+        """
+
+        if not self.is_phi_variable(var):
+            return set()
+        return self._phi_variables[var]
+
+    def get_phi_variables(self, block_addr):
+        """
+        Get a dict of phi variables and their corresponding variables.
+
+        :param int block_addr:  Address of the block.
+        :return:                A dict of phi variables of an empty dict if there are no phi variables at the block.
+        :rtype:                 dict
+        """
+
+        if block_addr not in self._phi_variables_by_block:
+            return dict()
+        variables = { }
+        for phi in self._phi_variables_by_block[block_addr]:
+            variables[phi] = self._phi_variables[phi]
+        return variables
+
     def input_variables(self, exclude_specials=True):
         """
         Get all variables that have never been written to.
@@ -256,7 +329,7 @@ class VariableManagerInternal(object):
 
         input_variables = [ ]
 
-        for variable, accesses in self._variable_accesses.iteritems():
+        for variable, accesses in self._variable_accesses.items():
             if not has_write_access(accesses) and has_read_access(accesses):
                 if not exclude_specials or not variable.category:
                     input_variables.append(variable)
@@ -312,8 +385,11 @@ class VariableManager(KnowledgeBasePlugin):
             # key refers to a function address
             return self.get_function_manager(key)
 
+    def has_function_manager(self, key):
+        return key in self.function_managers
+
     def get_function_manager(self, func_addr):
-        if not isinstance(func_addr, (int, long)):
+        if not isinstance(func_addr, int):
             raise TypeError('Argument "func_addr" must be an int.')
 
         if func_addr not in self.function_managers:
@@ -323,7 +399,7 @@ class VariableManager(KnowledgeBasePlugin):
 
     def initialize_variable_names(self):
         self.global_manager.assign_variable_names()
-        for manager in self.function_managers.itervalues():
+        for manager in self.function_managers.values():
             manager.assign_variable_names()
 
     def get_variable_accesses(self, variable, same_name=False):

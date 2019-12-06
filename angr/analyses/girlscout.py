@@ -1,3 +1,5 @@
+raise ImportError("Don't import me! I don't work!")
+
 import logging
 import math
 import os
@@ -13,6 +15,7 @@ import progressbar
 import pyvex
 from . import Analysis
 
+from angr.analyses.cfg.cfg_fast import SegmentList
 from .. import options as o
 from ..annocfg import AnnotatedCFG
 from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, SimIRSBError, SimSolverModeError, \
@@ -20,7 +23,7 @@ from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, S
 from ..state_plugins.sim_action import SimActionData
 from ..surveyors import Explorer, Slicecutor
 
-l = logging.getLogger("angr.analyses.girlscout")
+l = logging.getLogger(name=__name__)
 
 class GirlScout(Analysis):
     """
@@ -45,9 +48,7 @@ class GirlScout(Analysis):
 
         # Valid memory regions
         self._valid_memory_regions = sorted(
-            [ (start, start+len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers ],
-            key=lambda x: x[0]
-        )
+            (start, start+len(backer)) for start, backer in self.project.loader.memory.backers())
         self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])
 
         # Size of each basic block
@@ -203,13 +204,13 @@ class GirlScout(Analysis):
                     if type(real_ref) == SimActionData:
                         if real_ref.action == 'write':
                             addr = real_ref.addr
-                            if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.eval(addr)
+                            if not run.initial_state.solver.symbolic(addr):
+                                concrete_addr = run.initial_state.solver.eval(addr)
                                 self._write_addr_to_run[addr].append(run.addr)
                         elif real_ref.action == 'read':
                             addr = real_ref.addr
-                            if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.eval(addr)
+                            if not run.initial_state.solver.symbolic(addr):
+                                concrete_addr = run.initial_state.solver.eval(addr)
                             self._read_addr_to_run[addr].append(run.addr)
 
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
@@ -305,14 +306,14 @@ class GirlScout(Analysis):
         s_path = self.project.factory.path(state)
         try:
             s_run = s_path.next_run
-        except SimIRSBError, ex:
+        except SimIRSBError as ex:
             l.debug(ex)
             return
-        except AngrError, ex:
+        except AngrError as ex:
             # "No memory at xxx"
             l.debug(ex)
             return
-        except (SimValueError, SimSolverModeError), ex:
+        except (SimValueError, SimSolverModeError) as ex:
             # Cannot concretize something when executing the SimRun
             l.debug(ex)
             return
@@ -354,7 +355,7 @@ class GirlScout(Analysis):
             try:
                 # Try to concretize the target. If we can't, just move on
                 # to the next target
-                next_addr = suc.se.eval_one(suc.ip)
+                next_addr = suc.solver.eval_one(suc.ip)
             except (SimValueError, SimSolverModeError) as ex:
                 # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
@@ -449,12 +450,8 @@ class GirlScout(Analysis):
         # TODO: Make sure self._start is aligned
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_object. An interface
-        # to that would be awesome.
 
-        strides = self.project.loader.main_object.memory.stride_repr
-
-        for start_, end_, bytes in strides:
+        for start_, bytes_ in self.project.loader.main_object.memory.backers():
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes):
@@ -477,7 +474,7 @@ class GirlScout(Analysis):
         """
 
         function_starts = set()
-        print "We have %d indirect jumps" % len(self._indirect_jumps)
+        l.info("We have %d indirect jumps", len(self._indirect_jumps))
 
         for jumpkind, irsb_addr in self._indirect_jumps:
             # First execute the current IRSB in concrete mode
@@ -490,11 +487,11 @@ class GirlScout(Analysis):
                                                     add_options={o.SYMBOLIC_INITIAL_VALUES}
                                                    )
                 path = self.project.factory.path(state)
-                print hex(irsb_addr)
+                l.debug(hex(irsb_addr))
 
                 try:
                     r = (path.next_run.successors + path.next_run.unsat_successors)[0]
-                    ip = r.se.eval_one(r.ip)
+                    ip = r.solver.eval_one(r.ip)
 
                     function_starts.add(ip)
                     continue
@@ -513,11 +510,7 @@ class GirlScout(Analysis):
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
                     irsb = self.project.factory.block(addr).vex
                     stmts = irsb.statements
-                    print "%x: %d | " % (addr, stmt_idx),
-                    print "%s" % stmts[stmt_idx],
-                    print "%d" % b.slice.in_degree((addr, stmt_idx))
-
-                print ""
+                    l.debug("%x: %d | %s %d", (addr, stmt_idx), stmts[stmt_idx], b.slice.in_degree((addr, stmt_idx)))
 
                 # Get all sources
                 sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -589,7 +582,7 @@ class GirlScout(Analysis):
                     base_addr_ctr[base_addr] = ctr
 
         if len(base_addr_ctr):
-            base_addr, hits = sorted([(k, v) for k, v in base_addr_ctr.iteritems()], key=lambda x: x[1], reverse=True)[0]
+            base_addr, hits = sorted([(k, v) for k, v in base_addr_ctr.items()], key=lambda x: x[1], reverse=True)[0]
 
             return base_addr
         else:
@@ -758,7 +751,7 @@ class GirlScout(Analysis):
         entropy = 0
         if size is None: size = len(data)
         data = str(pyvex.ffi.buffer(data, size))
-        for x in xrange(0, 256):
+        for x in range(0, 256):
             p_x = float(data.count(chr(x)))/size
             if p_x > 0:
                 entropy += - p_x * math.log(p_x, 2)

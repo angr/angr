@@ -3,6 +3,8 @@ import pkg_resources
 import os
 import sys
 import datetime
+import gc
+import ctypes
 
 have_gitpython = False
 try:
@@ -11,11 +13,12 @@ try:
 except ImportError:
     print("If you install gitpython (`pip install gitpython`), I can give you git info too!")
 
-angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'ana', 'simuvex', 'z3', 'unicorn']
+angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'z3', 'unicorn']
 native_modules = {'angr': 'angr.state_plugins.unicorn_engine._UC_NATIVE',
                   'unicorn': 'unicorn.unicorn._uc',
                   'pyvex': 'pyvex.pvc',
-                  'z3': 'z3.z3core.lib()'}
+                  'z3': "[x for x in gc.get_objects() if type(x) is ctypes.CDLL and 'z3' in str(x)][0]"} # YIKES FOREVER
+python_packages = {'z3': 'z3-solver'}
 
 
 def get_venv():
@@ -42,11 +45,12 @@ def print_versions():
         except ImportError:
             print("Python could not find " + m)
             continue
-        except Exception, e:
-            print("An error occured importing %s: %s" % (m, e.message))
+        except Exception as e:
+            print("An error occured importing %s: %s" % (m, e))
         print("Python found it in %s" % (python_filename))
         try:
-            pip_version = pkg_resources.get_distribution(m)
+            pip_package = python_packages.get(m, m)
+            pip_version = pkg_resources.get_distribution(pip_package)
             print("Pip version %s" % pip_version)
         except:
             print("Pip version not found!")
@@ -83,7 +87,7 @@ def print_system_info():
 
 
 def print_native_info():
-    print "######### Native Module Info ##########"
+    print("######### Native Module Info ##########")
     for module, path in native_modules.items():
         try:
             import_module(module)

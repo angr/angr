@@ -14,7 +14,7 @@ from .. import Analysis
 from ... import options
 from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
-l = logging.getLogger("identifier.identify")
+l = logging.getLogger(name=__name__)
 
 
 NUM_TESTS = 5
@@ -60,8 +60,7 @@ class Identifier(Analysis):
         self._bp_reg = a.register_names[a.bp_offset]
         self._ip_reg = a.register_names[a.ip_offset]
         self._reg_list = a.default_symbolic_registers
-        self._reg_list = filter(lambda r: r != self._sp_reg, self._reg_list)
-        self._reg_list = filter(lambda r: r != self._ip_reg, self._reg_list)
+        self._reg_list = [r for r in self._reg_list if r not in (self._sp_reg, self._ip_reg)]
 
         self.matches = dict()
 
@@ -78,7 +77,7 @@ class Identifier(Analysis):
 
         self.base_symbolic_state = self.make_symbolic_state(self.project, self._reg_list)
         self.base_symbolic_state.options.discard(options.SUPPORT_FLOATING_POINT)
-        self.base_symbolic_state.regs.bp = self.base_symbolic_state.se.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
+        self.base_symbolic_state.regs.bp = self.base_symbolic_state.solver.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
 
         for f in self._cfg.functions.values():
             if f.is_syscall:
@@ -99,11 +98,11 @@ class Identifier(Analysis):
                 func_info = self.find_stack_vars_x86(f)
                 self.func_info[f] = func_info
             except (SimEngineError, SimMemoryError) as e:
-                l.debug("angr translation error: %s", e.message)
+                l.debug("angr translation error: %s", e)
             except IdentifierException as e:
-                l.debug("Identifier error: %s", e.message)
+                l.debug("Identifier error: %s", e)
             except SimError as e:
-                l.debug("Simulation error: %s", e.message)
+                l.debug("Simulation error: %s", e)
 
     def _too_large(self):
         if len(self._cfg.functions) > 400:
@@ -156,15 +155,15 @@ class Identifier(Analysis):
                     result = func.try_match(f, self, self._runner)
                 except IdentifierException as e:
                     l.warning('Encountered IdentifierException trying to analyze %#x, reason: %s',
-                            f.addr, e.message)
+                            f.addr, e)
                     continue
                 except SimSegfaultError:
                     continue
                 except SimError as e:
-                    l.warning("SimError %s", e.message)
+                    l.warning("SimError %s", e)
                     continue
                 except AngrError as e:
-                    l.warning("AngrError %s", e.message)
+                    l.warning("AngrError %s", e)
                     continue
 
                 if result:
@@ -203,7 +202,7 @@ class Identifier(Analysis):
         return False
 
     def get_func_info(self, func):
-        if isinstance(func, (int, long)):
+        if isinstance(func, int):
             func = self._cfg.functions[func]
         if func not in self.func_info:
             return None
@@ -231,7 +230,7 @@ class Identifier(Analysis):
         except NetworkXError:
             calls_other_funcs = False
 
-        for name, f in Functions.iteritems():
+        for name, f in Functions.items():
             # check if we should be finding it
             if self.only_find is not None and name not in self.only_find:
                 continue
@@ -263,7 +262,7 @@ class Identifier(Analysis):
         try:
             if not match_func.pre_test(cfg_func, self._runner):
                 return False
-            for _ in xrange(NUM_TESTS):
+            for _ in range(NUM_TESTS):
                 test_data = match_func.gen_input_output_pair()
                 if test_data is not None and not self._runner.test(cfg_func, test_data):
                     return False
@@ -271,10 +270,10 @@ class Identifier(Analysis):
         except SimSegfaultError:
             return False
         except SimError as e:
-            l.warning("SimError %s", e.message)
+            l.warning("SimError %s", e)
             return False
         except AngrError as e:
-            l.warning("AngrError %s", e.message)
+            l.warning("AngrError %s", e)
             return False
 
     def map_callsites(self):
@@ -288,7 +287,7 @@ class Identifier(Analysis):
 
         # create inverse callsite map
         self.inv_callsites = defaultdict(set)
-        for c, f in self.callsites.iteritems():
+        for c, f in self.callsites.items():
             self.inv_callsites[f].add(c)
 
         # create map of blocks to the function they reside in
@@ -307,8 +306,8 @@ class Identifier(Analysis):
         s.options.discard(options.LAZY_SOLVES)
 
         func_info = self.func_info[self.block_to_func[addr_trace[0]]]
-        for i in range(func_info.frame_size/self.project.arch.bytes+5):
-            s.stack_push(s.se.BVS("var_" + hex(i), self.project.arch.bits))
+        for i in range(func_info.frame_size//self.project.arch.bytes+5):
+            s.stack_push(s.solver.BVS("var_" + hex(i), self.project.arch.bits))
 
         if func_info.bp_based:
             s.regs.bp = s.regs.sp + func_info.bp_sp_diff
@@ -322,7 +321,7 @@ class Identifier(Analysis):
             for ss in simgr.active:
                 # todo could write symbolic data to pointers passed to functions
                 if ss.history.jumpkind == "Ijk_Call":
-                    ss.regs.eax = ss.se.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
+                    ss.regs.eax = ss.solver.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
                     ss.regs.ip = ss.stack_pop()
                     ss.history.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
@@ -333,7 +332,7 @@ class Identifier(Analysis):
                 if len(simgr.unconstrained) > 0:
                     s = simgr.unconstrained[0]
                     if s.history.jumpkind == "Ijk_Call":
-                        s.regs.eax = s.se.BVS("unconstrained_ret", s.arch.bits)
+                        s.regs.eax = s.solver.BVS("unconstrained_ret", s.arch.bits)
                         s.regs.ip = s.stack_pop()
                         s.history.jumpkind = "Ijk_Ret"
                     s.regs.ip = addr_trace[0]
@@ -350,7 +349,7 @@ class Identifier(Analysis):
         return simgr.active[0]
 
     def get_call_args(self, func, callsite):
-        if isinstance(func, (int, long)):
+        if isinstance(func, int):
             func = self._cfg.functions[func]
         func_info = self.func_info[func]
         if len(func_info.stack_args) == 0:
@@ -394,7 +393,7 @@ class Identifier(Analysis):
         args_as_stack_vars = []
         for a in args:
             if not a.symbolic:
-                sp_off = succ_state.se.eval(a-succ_state.regs.sp-arch_bytes)
+                sp_off = succ_state.solver.eval(a-succ_state.regs.sp-arch_bytes)
                 if calling_func_info.bp_based:
                     bp_off = sp_off - calling_func_info.bp_sp_diff
                 else:
@@ -421,7 +420,7 @@ class Identifier(Analysis):
             return None
 
         original_offset = reg_offset
-        while reg_offset >= 0 and reg_offset >= original_offset - (arch.bits/8):
+        while reg_offset >= 0 and reg_offset >= original_offset - (arch.bytes):
             if reg_offset in arch.register_names:
                 return arch.register_names[reg_offset]
             else:
@@ -437,7 +436,7 @@ class Identifier(Analysis):
         state = input_state.copy()
         # overwrite all registers
         for reg in reg_list:
-            state.registers.store(reg, state.se.BVS("sreg_" + reg + "-", project.arch.bits, explicit_name=True))
+            state.registers.store(reg, state.solver.BVS("sreg_" + reg + "-", project.arch.bits, explicit_name=True))
         # restore sp
         state.regs.sp = input_state.regs.sp
         # restore bp
@@ -459,7 +458,7 @@ class Identifier(Analysis):
         # could also figure out if args are buffers etc
         # doesn't handle dynamically allocated stack, etc
 
-        if isinstance(func, (int, long)):
+        if isinstance(func, int):
             func = self._cfg.functions[func]
 
         self._prefilter_floats(func)
@@ -488,7 +487,7 @@ class Identifier(Analysis):
         succ = succs.all_successors[0]
 
         if succ.history.jumpkind == "Ijk_Call":
-            goal_sp = succ.se.eval(succ.regs.sp + self.project.arch.bytes)
+            goal_sp = succ.solver.eval(succ.regs.sp + self.project.arch.bytes)
             # could be that this is wrong since we could be pushing args...
             # so let's do a hacky check for pushes after a sub
             bl = self.project.factory.block(func.startpoint.addr)
@@ -496,31 +495,31 @@ class Identifier(Analysis):
             for i, insn in enumerate(bl.capstone.insns):
                 if str(insn.mnemonic) == "sub" and str(insn.op_str).startswith("esp"):
                     succ = self.project.factory.successors(initial_state, num_inst=i+1).all_successors[0]
-                    goal_sp = succ.se.eval(succ.regs.sp)
+                    goal_sp = succ.solver.eval(succ.regs.sp)
 
         elif succ.history.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
-            min_sp = initial_state.se.eval(initial_state.regs.sp)
-            for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
+            min_sp = initial_state.solver.eval(initial_state.regs.sp)
+            for i in range(self.project.factory.block(func.startpoint.addr).instructions):
                 succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
-                test_sp = succ.se.eval(succ.regs.sp)
+                test_sp = succ.solver.eval(succ.regs.sp)
                 if test_sp < min_sp:
                     min_sp = test_sp
                 elif test_sp > min_sp:
                     break
             goal_sp = min_sp
         else:
-            goal_sp = succ.se.eval(succ.regs.sp)
+            goal_sp = succ.solver.eval(succ.regs.sp)
 
         # find the end of the preamble
         num_preamble_inst = None
         succ = None
-        for i in xrange(0, self.project.factory.block(func.startpoint.addr).instructions):
+        for i in range(0, self.project.factory.block(func.startpoint.addr).instructions):
             if i == 0:
                 succ = initial_state
             if i != 0:
                 succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
-            test_sp = succ.se.eval(succ.regs.sp)
+            test_sp = succ.solver.eval(succ.regs.sp)
             if test_sp == goal_sp:
                 num_preamble_inst = i
                 break
@@ -536,17 +535,17 @@ class Identifier(Analysis):
             succ = self.project.factory.successors(initial_state, num_inst=num_preamble_inst).all_successors[0]
 
         min_sp = goal_sp
-        initial_sp = initial_state.se.eval(initial_state.regs.sp)
+        initial_sp = initial_state.solver.eval(initial_state.regs.sp)
         frame_size = initial_sp - min_sp - self.project.arch.bytes
         if num_preamble_inst is None or succ is None:
             raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
 
-        bp_based = bool(len(succ.se.eval_upto((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
+        bp_based = bool(len(succ.solver.eval_upto((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
 
         preamble_sp_change = succ.regs.sp - initial_state.regs.sp
         if preamble_sp_change.symbolic:
             raise IdentifierException("preamble sp change")
-        preamble_sp_change = initial_state.se.eval(preamble_sp_change)
+        preamble_sp_change = initial_state.solver.eval(preamble_sp_change)
 
         main_state = self._make_regs_symbolic(succ, self._reg_list, self.project)
         if bp_based:
@@ -555,7 +554,7 @@ class Identifier(Analysis):
         pushed_regs = []
         for a in succ.history.recent_actions:
             if a.type == "mem" and a.action == "write":
-                addr = succ.se.eval(a.addr.ast)
+                addr = succ.solver.eval(a.addr.ast)
                 if min_sp <= addr <= initial_sp:
                     if hash(a.data.ast) in reg_dict:
                         pushed_regs.append(reg_dict[hash(a.data.ast)])
@@ -593,17 +592,17 @@ class Identifier(Analysis):
 
         bp_sp_diff = None
         if bp_based:
-            bp_sp_diff = main_state.se.eval(main_state.regs.bp - main_state.regs.sp)
+            bp_sp_diff = main_state.solver.eval(main_state.regs.bp - main_state.regs.sp)
 
         all_addrs = set()
         for bl_addr in func.block_addrs:
             all_addrs.update(set(self._cfg.get_any_node(bl_addr).instruction_addrs))
 
-        sp = main_state.se.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
+        sp = main_state.solver.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
         main_state.regs.sp = sp
         bp = None
         if bp_based:
-            bp = main_state.se.BVS("sym_bp", self.project.arch.bits, explicit_name=True)
+            bp = main_state.solver.BVS("sym_bp", self.project.arch.bits, explicit_name=True)
             main_state.regs.bp = bp
 
         stack_vars = set()
@@ -647,13 +646,13 @@ class Identifier(Analysis):
         for addr, ast, action in possible_stack_vars:
             if "sym_sp" in ast.variables:
                 # constrain all to be zero so we detect the base address of buffers
-                simplified = succ.se.simplify(ast - sp)
-                if succ.se.symbolic(simplified):
+                simplified = succ.solver.simplify(ast - sp)
+                if succ.solver.symbolic(simplified):
                     self.constrain_all_zero(main_state, succ, self._reg_list)
                     is_buffer = True
                 else:
                     is_buffer = False
-                sp_off = succ.se.eval(simplified)
+                sp_off = succ.solver.eval(simplified)
                 if sp_off > 2 ** (self.project.arch.bits - 1):
                     sp_off = 2 ** self.project.arch.bits - sp_off
 
@@ -669,13 +668,13 @@ class Identifier(Analysis):
                 if is_buffer:
                     buffers.add(bp_off)
             else:
-                simplified = succ.se.simplify(ast - bp)
-                if succ.se.symbolic(simplified):
+                simplified = succ.solver.simplify(ast - bp)
+                if succ.solver.symbolic(simplified):
                     self.constrain_all_zero(main_state, succ, self._reg_list)
                     is_buffer = True
                 else:
                     is_buffer = False
-                bp_off = succ.se.eval(simplified)
+                bp_off = succ.solver.eval(simplified)
                 if bp_off > 2 ** (self.project.arch.bits - 1):
                     bp_off = -(2 ** self.project.arch.bits - bp_off)
                 stack_var_accesses[bp_off].add((addr, action))
@@ -730,7 +729,7 @@ class Identifier(Analysis):
     def _sets_ebp_from_esp(self, state, addr):
         state = state.copy()
         state.regs.ip = addr
-        state.regs.sp = state.se.BVS("sym_sp", 32, explicit_name=True)
+        state.regs.sp = state.solver.BVS("sym_sp", 32, explicit_name=True)
         succ = self.project.factory.successors(state).all_successors[0]
 
         diff = state.regs.sp - succ.regs.bp
@@ -738,14 +737,14 @@ class Identifier(Analysis):
             return True
         if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
             return False
-        if len(succ.se.eval_upto((state.regs.sp - succ.regs.bp), 2)) == 1:
+        if len(succ.solver.eval_upto((state.regs.sp - succ.regs.bp), 2)) == 1:
             return True
         return False
 
     @staticmethod
     def _is_bt(bl):
         # vex does really weird stuff with bit test instructions
-        if bl.bytes.startswith("\x0f\xa3"):
+        if bl.bytes.startswith(b"\x0f\xa3"):
             return True
         return False
 
@@ -805,11 +804,11 @@ class Identifier(Analysis):
         initial_state.options.discard(options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         initial_state.options.update({options.TRACK_REGISTER_ACTIONS, options.TRACK_MEMORY_ACTIONS,
                                       options.TRACK_JMP_ACTIONS, options.TRACK_CONSTRAINT_ACTIONS})
-        symbolic_stack = initial_state.se.BVS("symbolic_stack", project.arch.bits * stack_length)
+        symbolic_stack = initial_state.solver.BVS("symbolic_stack", project.arch.bits * stack_length)
         initial_state.memory.store(initial_state.regs.sp, symbolic_stack)
         if initial_state.arch.bp_offset != initial_state.arch.sp_offset:
             initial_state.regs.bp = initial_state.regs.sp + 20 * initial_state.arch.bytes
-        initial_state.se._solver.timeout = 500  # only solve for half a second at most
+        initial_state.solver._solver.timeout = 500  # only solve for half a second at most
         return initial_state
 
     @staticmethod
@@ -822,7 +821,7 @@ class Identifier(Analysis):
         symbolic_state = input_state.copy()
         # overwrite all registers
         for reg in reg_list:
-            symbolic_state.registers.store(reg, symbolic_state.se.BVS("sreg_" + reg + "-", project.arch.bits))
+            symbolic_state.registers.store(reg, symbolic_state.solver.BVS("sreg_" + reg + "-", project.arch.bits))
         # restore sp
         symbolic_state.regs.sp = input_state.regs.sp
         # restore bp

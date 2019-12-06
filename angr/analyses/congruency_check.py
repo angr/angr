@@ -4,7 +4,7 @@ import claripy
 
 from . import Analysis
 
-l = logging.getLogger("angr.analyses.congruency_check")
+l = logging.getLogger(name=__name__)
 #l.setLevel(logging.DEBUG)
 
 
@@ -28,10 +28,12 @@ class CongruencyCheck(Analysis):
         Checks that the specified state options result in the same states over the next `depth` states.
         """
         s_right = self.project.factory.full_init_state(
-            add_options=right_add_options, remove_options=right_remove_options
+            add_options=right_add_options, remove_options=right_remove_options,
+            args=[],
         )
         s_left = self.project.factory.full_init_state(
-            add_options=left_add_options, remove_options=left_remove_options
+            add_options=left_add_options, remove_options=left_remove_options,
+            args=[],
         )
 
         return self.set_states(s_left, s_right)
@@ -41,7 +43,7 @@ class CongruencyCheck(Analysis):
         Checks that the specified paths stay the same over the next `depth` states.
         """
 
-        simgr = self.project.factory.simgr(right_state)
+        simgr = self.project.factory.simulation_manager(right_state)
         simgr.stash(to_stash='right')
         simgr.active.append(left_state)
         simgr.stash(to_stash='left')
@@ -124,7 +126,7 @@ class CongruencyCheck(Analysis):
                     # unicorn "falls behind" on loop and rep instructions, since
                     # it sees them as ending a basic block. Here, we will
                     # step the unicorn until it's caught up
-                    npg = self.project.factory.simgr(unicorn_path)
+                    npg = self.project.factory.simulation_manager(unicorn_path)
                     npg.explore(find=lambda p: p.addr == normal_path.addr, n=200)
                     if len(npg.found) == 0:
                         l.debug("Validator failed to sync paths.")
@@ -147,7 +149,7 @@ class CongruencyCheck(Analysis):
                     # 0x1016f38:      sw      $gp, 0x10($sp)
                     # 0x1016f3c:      lw      $v0, -0x6cf0($gp)
                     # 0x1016f40:      move    $at, $at
-                    npg = self.project.factory.simgr(normal_path)
+                    npg = self.project.factory.simulation_manager(normal_path)
                     npg.explore(find=lambda p: p.addr == unicorn_path.addr, n=200)
                     if len(npg.found) == 0:
                         l.debug("Validator failed to sync paths.")
@@ -283,10 +285,10 @@ class CongruencyCheck(Analysis):
         joint_solver = claripy.Solver()
 
         # make sure the canonicalized constraints are the same
-        n_map, n_counter, n_canon_constraint = claripy.And(*sr.se.constraints).canonicalize() #pylint:disable=no-member
-        u_map, u_counter, u_canon_constraint = claripy.And(*sl.se.constraints).canonicalize() #pylint:disable=no-member
-        n_canoner_constraint = sr.se.simplify(n_canon_constraint)
-        u_canoner_constraint = sl.se.simplify(u_canon_constraint)
+        n_map, n_counter, n_canon_constraint = claripy.And(*sr.solver.constraints).canonicalize() #pylint:disable=no-member
+        u_map, u_counter, u_canon_constraint = claripy.And(*sl.solver.constraints).canonicalize() #pylint:disable=no-member
+        n_canoner_constraint = sr.solver.simplify(n_canon_constraint)
+        u_canoner_constraint = sl.solver.simplify(u_canon_constraint)
         joint_solver.add((n_canoner_constraint, u_canoner_constraint))
         if n_canoner_constraint is not u_canoner_constraint:
             self._report_incongruency("Different constraints!")
@@ -324,13 +326,16 @@ class CongruencyCheck(Analysis):
 
         # make sure the flags are the same
         if sl.arch.name in ("AMD64", "X86", "ARM", "ARMEL", "ARMHF", "AARCH64"):
+            # pylint: disable=unused-variable
+            n_bkp = sr.regs.cc_op, sr.regs.cc_dep1, sr.regs.cc_dep2, sr.regs.cc_ndep
+            u_bkp = sl.regs.cc_op, sl.regs.cc_dep1, sl.regs.cc_dep2, sl.regs.cc_ndep
             if sl.arch.name in ('AMD64', 'X86'):
                 n_flags = sr.regs.eflags.canonicalize(var_map=n_map, counter=n_counter)[-1]
                 u_flags = sl.regs.eflags.canonicalize(var_map=u_map, counter=u_counter)[-1]
             else:
                 n_flags = sr.regs.flags.canonicalize(var_map=n_map, counter=n_counter)[-1]
                 u_flags = sl.regs.flags.canonicalize(var_map=u_map, counter=u_counter)[-1]
-            if n_flags is not u_flags and sl.se.simplify(n_flags) is not sr.se.simplify(u_flags):
+            if n_flags is not u_flags and sl.solver.simplify(n_flags) is not sr.solver.simplify(u_flags):
                 self._report_incongruency("Different flags!")
                 return False
 

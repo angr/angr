@@ -1,14 +1,12 @@
 import angr
 import logging
 
-l = logging.getLogger('angr.procedures.linux_kernel.brk')
+l = logging.getLogger(name=__name__)
 
 class brk(angr.SimProcedure):
     """
     This implements the brk system call.
     """
-
-    IS_SYSCALL = True
 
     #pylint:disable=arguments-differ
 

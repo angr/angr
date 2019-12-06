@@ -5,7 +5,7 @@ from ..errors import AngrUnsupportedSyscallError, SimSolverError
 from ..procedures import SIM_PROCEDURES as P
 from .simos import SimOS
 
-_l = logging.getLogger('angr.simos.userland')
+_l = logging.getLogger(name=__name__)
 
 
 class SimUserland(SimOS):
@@ -95,7 +95,7 @@ class SimUserland(SimOS):
         if addr % self.syscall_addr_alignment != 0:
             return False
 
-        addr /= self.syscall_addr_alignment
+        addr //= self.syscall_addr_alignment
         return addr <= self.unknown_syscall_number
 
     def syscall_from_addr(self, addr, allow_unsupported=True):
@@ -110,7 +110,7 @@ class SimUserland(SimOS):
         if not self.is_syscall_addr(addr):
             return None
 
-        number = (addr - self.kernel_base) / self.syscall_addr_alignment
+        number = (addr - self.kernel_base) // self.syscall_addr_alignment
         for abi in self.syscall_abis:
             baseno, minno, maxno = self.syscall_abis[abi]
             if baseno <= number <= baseno + maxno - minno:

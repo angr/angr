@@ -1,8 +1,9 @@
 import angr
 from angr.sim_type import SimTypeString
+from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging
-l = logging.getLogger("angr.procedures.libc.strstr")
+l = logging.getLogger(name=__name__)
 
 class strstr(angr.SimProcedure):
     #pylint:disable=arguments-differ
@@ -29,9 +30,9 @@ class strstr(angr.SimProcedure):
             return haystack_addr
         elif haystack_maxlen == 0:
             l.debug("... zero-length haystack.")
-            return self.state.se.BVV(0, self.state.arch.bits)
+            return self.state.solver.BVV(0, self.state.arch.bits)
 
-        if self.state.se.symbolic(needle_strlen.ret_expr):
+        if self.state.solver.symbolic(needle_strlen.ret_expr):
             cases = [ [ needle_strlen.ret_expr == 0, haystack_addr ] ]
             exclusions = [ needle_strlen.ret_expr != 0 ]
             remaining_symbolic = self.state.libc.max_symbolic_strstr
@@ -40,10 +41,10 @@ class strstr(angr.SimProcedure):
 
                 # big hack!
                 cmp_res = self.inline_call(strncmp, haystack_addr + i, needle_addr, needle_strlen.ret_expr, a_len=haystack_strlen, b_len=needle_strlen)
-                c = self.state.se.And(*([ self.state.se.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
+                c = self.state.solver.And(*([ self.state.solver.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
                 exclusions.append(cmp_res.ret_expr != 0)
 
-                if self.state.se.symbolic(c):
+                if self.state.solver.symbolic(c):
                     remaining_symbolic -= 1
 
                 #print "CASE:", c
@@ -54,15 +55,19 @@ class strstr(angr.SimProcedure):
                     l.debug("... exhausted remaining symbolic checks.")
                     break
 
-            cases.append([ self.state.se.And(*exclusions), self.state.se.BVV(0, self.state.arch.bits) ])
+            cases.append([ self.state.solver.And(*exclusions), self.state.solver.BVV(0, self.state.arch.bits) ])
             l.debug("... created %d cases", len(cases))
-            r = self.state.se.ite_cases(cases, 0)
-            c = [ self.state.se.Or(*[c for c,_ in cases]) ]
+            r = self.state.solver.ite_cases(cases, 0)
+            c = [ self.state.solver.Or(*[c for c,_ in cases]) ]
         else:
-            needle_length = self.state.se.eval(needle_strlen.ret_expr)
+            needle_length = self.state.solver.eval(needle_strlen.ret_expr)
             needle_str = self.state.memory.load(needle_addr, needle_length)
 
-            r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic_bytes=self.state.libc.max_symbolic_strstr, default=0)
+            chunk_size = None
+            if MEMORY_CHUNK_INDIVIDUAL_READS in self.state.options:
+                chunk_size = 1
+
+            r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic_bytes=self.state.libc.max_symbolic_strstr, default=0, chunk_size=chunk_size)
 
         self.state.add_constraints(*c)
         return r

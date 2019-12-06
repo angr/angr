@@ -2,10 +2,10 @@ import angr
 import os
 import nose
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '../../binaries/tests/')
+test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..', 'binaries', 'tests', '')
 
 def test_static_hooker():
-    test_file = os.path.join(test_location, 'x86_64/static')
+    test_file = os.path.join(test_location, 'x86_64', 'static')
     p = angr.Project(test_file)
     sh = p.analyses.StaticHooker('libc.so.6')
 

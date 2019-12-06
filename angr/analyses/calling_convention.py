@@ -1,11 +1,11 @@
-
 import logging
 
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from . import Analysis, register_analysis
+from archinfo.arch_arm import is_arm_arch
 
-l = logging.getLogger('angr.analyses.calling_convention')
+l = logging.getLogger(name=__name__)
 
 
 class CallingConventionAnalysis(Analysis):
@@ -53,6 +53,13 @@ class CallingConventionAnalysis(Analysis):
         :return:
         """
 
+        if not self._function.is_simprocedure \
+                and not self._function.is_plt \
+                and not self._variable_manager.has_function_manager(self._function.addr):
+            l.warning("Please run variable recovery on %s before analyzing its calling conventions.",
+                      repr(self._function))
+            return None
+
         vm = self._variable_manager[self._function.addr]
 
         input_variables = vm.input_variables()
@@ -60,9 +67,9 @@ class CallingConventionAnalysis(Analysis):
         input_args = self._args_from_vars(input_variables)
 
         # TODO: properly decide sp_delta
-        sp_delta = self.project.arch.bits / 8 if self.project.arch.call_pushes_ret else 0
+        sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
-        cc = SimCC.find_cc(self.project.arch, input_args, sp_delta)
+        cc = SimCC.find_cc(self.project.arch, list(input_args), sp_delta)
 
         if cc is None:
             l.warning('_analyze_function(): Cannot find a calling convention that fits the given arguments.')
@@ -95,7 +102,7 @@ class CallingConventionAnalysis(Analysis):
         if not self.project.arch.call_pushes_ret:
             ret_addr_offset = 0
         else:
-            ret_addr_offset = self.project.arch.bits / 8
+            ret_addr_offset = self.project.arch.bytes
 
         for variable in variables:
             if isinstance(variable, SimStackVariable):
@@ -139,7 +146,7 @@ class CallingConventionAnalysis(Analysis):
                     64 <= variable.reg < 104 or  # rsi, rdi, r8, r9, r10
                     224 <= variable.reg < 480)  # xmm0-xmm7
 
-        elif arch.name == 'ARMEL' or arch.name == 'ARMHF':
+        elif is_arm_arch(arch):
             return 8 <= variable.reg < 24  # r0-r3
 
         elif arch.name == 'MIPS32':
@@ -168,7 +175,7 @@ class CallingConventionAnalysis(Analysis):
         new_cc_found = True
         while new_cc_found:
             new_cc_found = False
-            for func in kb.functions.itervalues():
+            for func in kb.functions.values():
                 if func.calling_convention is None:
                     # determine the calling convention of each function
                     cc_analysis = project.analyses.CallingConvention(func)

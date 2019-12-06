@@ -1,14 +1,17 @@
 import logging
-l = logging.getLogger("angr.block")
+l = logging.getLogger(name=__name__)
 
 import pyvex
 from archinfo import ArchARM
-from .engines import SimEngineVEX
 
-DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
+from .protos import primitives_pb2 as pb2
+from .serializable import Serializable
+from .engines.vex import VEXLifter
+
+DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not initialized with a project
 
 
-class Block(object):
+class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
@@ -16,7 +19,7 @@ class Block(object):
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
+                 extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
 
         # set up arch
         if project is not None:
@@ -49,12 +52,13 @@ class Block(object):
             elif vex is not None:
                 size = vex.size
             else:
-                vex = self._vex_engine.lift(
+                vex = self._vex_engine.lift_vex(
                         clemory=project.loader.memory,
                         state=backup_state,
                         insn_bytes=byte_string,
                         addr=addr,
                         thumb=thumb,
+                        extra_stop_points=extra_stop_points,
                         opt_level=opt_level,
                         num_inst=num_inst,
                         traceflags=traceflags,
@@ -77,8 +81,8 @@ class Block(object):
         if byte_string is None:
             if backup_state is not None:
                 self._bytes = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)[0]
-                if type(self._bytes) is not str:
-                    self._bytes = str(pyvex.ffi.buffer(self._bytes, size))
+                if type(self._bytes) is not bytes:
+                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:
@@ -112,7 +116,7 @@ class Block(object):
         return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
 
     def __setstate__(self, data):
-        for k, v in data.iteritems():
+        for k, v in data.items():
             setattr(self, k, v)
 
     def __hash__(self):
@@ -139,7 +143,7 @@ class Block(object):
     @property
     def vex(self):
         if not self._vex:
-            self._vex = self._vex_engine.lift(
+            self._vex = self._vex_engine.lift_vex(
                     clemory=self._project.loader.memory if self._project is not None else None,
                     insn_bytes=self._bytes,
                     addr=self.addr,
@@ -162,7 +166,7 @@ class Block(object):
         if self._vex:
             return self._vex
 
-        self._vex_nostmt = self._vex_engine.lift(
+        self._vex_nostmt = self._vex_engine.lift_vex(
             clemory=self._project.loader.memory if self._project is not None else None,
             insn_bytes=self._bytes,
             addr=self.addr,
@@ -201,14 +205,7 @@ class Block(object):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
-            buf, size = self._project.loader.memory.read_bytes_c(addr)
-
-            # Make sure it does not go over-bound
-            if buf is not None and self.size <= size:
-                self._bytes = pyvex.ffi.unpack(pyvex.ffi.cast('char*', buf), self.size)
-            else:
-                # fall back to the slow path
-                self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
+            self._bytes = self._project.loader.memory.load(addr, self.size)
         return self._bytes
 
     @property
@@ -227,8 +224,60 @@ class Block(object):
 
         return self._instruction_addrs
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.Block()
 
-class CapstoneBlock(object):
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        obj.ea = self.addr
+        obj.size = self.size
+        obj.bytes = self.bytes
+
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg):
+        obj = cls(cmsg.ea,
+                  size=cmsg.size,
+                  byte_string=cmsg.bytes,
+                  )
+        return obj
+
+
+class SootBlock:
+    def __init__(self, addr, project=None, arch=None):
+
+        self.addr = addr
+        self.arch = arch
+        self._project = project
+        self._the_binary = project.loader.main_object
+
+    @property
+    def _soot_engine(self):
+        if self._project is None:
+            raise Exception('SHIIIIIIIT')
+        else:
+            return self._project.factory.default_engine
+
+    @property
+    def soot(self):
+        return self._soot_engine.lift_soot(self.addr, the_binary=self._the_binary)
+
+    @property
+    def size(self):
+        stmts = None if self.soot is None else self.soot.statements
+        stmts_len = len(stmts) if stmts else 0
+        return stmts_len
+
+    @property
+    def codenode(self):
+        stmts = None if self.soot is None else self.soot.statements
+        stmts_len = len(stmts) if stmts else 0
+        return SootBlockNode(self.addr, stmts_len, stmts=stmts)
+
+
+class CapstoneBlock:
     """
     Deep copy of the capstone blocks, which have serious issues with having extended lifespans
     outside of capstone itself
@@ -242,7 +291,7 @@ class CapstoneBlock(object):
         self.arch = arch
 
     def pp(self):
-        print str(self)
+        print(str(self))
 
     def __str__(self):
         return '\n'.join(map(str, self.insns))
@@ -251,7 +300,7 @@ class CapstoneBlock(object):
         return '<CapstoneBlock for %#x>' % self.addr
 
 
-class CapstoneInsn(object):
+class CapstoneInsn:
     def __init__(self, capstone_insn):
         self.insn = capstone_insn
 
@@ -269,4 +318,4 @@ class CapstoneInsn(object):
         return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
-from .codenode import BlockNode
+from .codenode import BlockNode, SootBlockNode

@@ -10,7 +10,7 @@ from ..state_plugins import SimActionData
 from .. import sim_options as o
 from .userland import SimUserland
 
-_l = logging.getLogger('angr.simos.cgc')
+_l = logging.getLogger(name=__name__)
 
 
 class SimCGC(SimUserland):
@@ -45,9 +45,9 @@ class SimCGC(SimUserland):
 
         # Set up the flag page
         if flag_page is None:
-            flag_page = [s.solver.BVS("cgc-flag-byte-%d" % i, 8, key=('flag', i), eternal=True) for i in xrange(0x1000)]
+            flag_page = [s.solver.BVS("cgc-flag-byte-%d" % i, 8, key=('flag', i), eternal=True) for i in range(0x1000)]
         elif type(flag_page) is bytes:
-            flag_page = [s.solver.BVV(c) for c in flag_page]
+            flag_page = [s.solver.BVV(c, 8) for c in flag_page]
         elif type(flag_page) is list:
             pass
         else:
@@ -87,7 +87,7 @@ class SimCGC(SimUserland):
                 elif reg == 'fstat':
                     state.regs.fc3210 = (val & 0x4700)
                 elif reg == 'ftag':
-                    empty_bools = [((val >> (x * 2)) & 3) == 3 for x in xrange(8)]
+                    empty_bools = [((val >> (x * 2)) & 3) == 3 for x in range(8)]
                     tag_chars = [claripy.BVV(0 if x else 1, 8) for x in empty_bools]
                     for i, tag in enumerate(tag_chars):
                         setattr(state.regs, 'fpu_t%d' % i, tag)

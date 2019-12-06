@@ -5,9 +5,10 @@ import tempfile
 import logging
 
 from . import ExplorationTechnique
+from .common import condition_to_lambda
 
 
-l = logging.getLogger("angr.exploration_techniques.cacher")
+l = logging.getLogger(name=__name__)
 
 
 class Cacher(ExplorationTechnique):
@@ -32,7 +33,7 @@ class Cacher(ExplorationTechnique):
                            SimulationManager. Default to uncaching the stash to be stepped.
         """
         super(Cacher, self).__init__()
-        self._dump_cond = self._condition_to_lambda(when)
+        self._dump_cond, _ = condition_to_lambda(when)
         self._dump_cache = dump_cache
         self._load_cache = load_cache
         self._cache_lookup = self._lookup if lookup is None else lookup
@@ -106,7 +107,6 @@ class Cacher(ExplorationTechnique):
 
         if cached_project is not None:
             cached_project.analyses = project.analyses
-            cached_project.surveyors = project.surveyors
             cached_project.store_function = project.store_function
             cached_project.load_function = project.load_function
 

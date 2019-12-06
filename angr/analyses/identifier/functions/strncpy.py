@@ -1,4 +1,3 @@
-
 import random
 
 from ..func import Func, TestData
@@ -6,12 +5,12 @@ from ..func import Func, TestData
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
-        return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
-    return "".join(random.choice(byte_list) for _ in xrange(length))
+        return bytes(random.randint(0, 255) for _ in range(length))
+    return bytes(random.choice(byte_list) for _ in range(length))
 
 
 class strncpy(Func):
-    non_null = [chr(i) for i in range(1, 256)]
+    non_null = list(range(1, 256))
 
     def __init__(self):
         super(strncpy, self).__init__()
@@ -35,7 +34,7 @@ class strncpy(Func):
         # TODO we don't check the return val, some cases I saw char * strcpy, some size_t strcpy
         strlen = random.randint(1, 20)
         max_len = random.randint(1, 10)
-        buf = rand_str(strlen, byte_list=strncpy.non_null) + "\x00"
+        buf = rand_str(strlen, byte_list=strncpy.non_null) + b"\x00"
         result_buf = rand_str(strlen+1)
         test_input = [result_buf, buf, max_len]
         outlen = min(max_len, strlen+1)

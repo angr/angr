@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeFd, SimTypeLength
 
 import logging
-l = logging.getLogger("angr.procedures.libc.fflush")
+l = logging.getLogger(name=__name__)
 
 class fflush(angr.SimProcedure):
     #pylint:disable=arguments-differ
@@ -13,4 +13,4 @@ class fflush(angr.SimProcedure):
         self.argument_types = {0: SimTypeFd()}
         self.return_type = SimTypeLength(self.state.arch)
 
-        return self.state.se.BVV(0, self.state.arch.bits)
+        return self.state.solver.BVV(0, self.state.arch.bits)

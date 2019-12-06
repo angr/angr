@@ -1,16 +1,7 @@
-class Undefined(object):
-    def __init__(self, type_=None, meta=None):
-        self._type_ = type_
-        self._meta = meta
-
-    @property
-    def type_(self):
-        return self._type_
-
-    @property
-    def meta(self):
-        return self._meta
-
+class Undefined:
+    """
+    A TOP-like value indicating an unknown data source. Should live next to raw integers in DataSets.
+    """
     def __add__(self, other):
         return self
 
@@ -57,14 +48,18 @@ class Undefined(object):
         return self
 
     def __eq__(self, other):
-        return type(other) is Undefined and \
-               self._type_ == other.type_ and \
-               self._meta == other.meta
+        return type(other) is Undefined
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __hash__(self):
-        return hash((self._type_, self._meta))
+        return hash('undefined')
 
     def __str__(self):
-        type_ = (', type=%s' % self._type_) if self._type_ is not None else ''
-        meta = ', meta=%s' % self._meta if self._meta is not None else ''
-        return '<Undef%s%s>' % (type_, meta)
+        return '<Undefined>'
+
+    def __repr__(self):
+        return "<Undefined>"
+
+undefined = Undefined()

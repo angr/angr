@@ -21,7 +21,7 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
 
         # Represent controlled addresses in adjacent memory areas as "base+offset"
         base_length_array = [(controlled_addrs[0], 0)]
-        for i in xrange(1, len(controlled_addrs)):
+        for i in range(1, len(controlled_addrs)):
             if controlled_addrs[i - 1] + 1 == controlled_addrs[i]:
                 base = base_length_array[i-1][0]
             else:
@@ -30,16 +30,16 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
             base_length_array.append((base, controlled_addrs[i] - base))
 
         # create intervals from memory areas
-        intervals = map(lambda t: (t[0], len(list(t[1]))), groupby(base_length_array, key=lambda t: t[0]))
+        intervals = [(t[0], len(list(t[1]))) for t in groupby(base_length_array, key=lambda t: t[0])]
 
         constraints = []
 
         # create constraints from intervals
         for base, length in intervals:
-           constraints.append(memory.state.se.And(addr >= base, addr < base+length))
+           constraints.append(memory.state.solver.And(addr >= base, addr < base+length))
 
         # try to get solutions for controlled memory
-        ored_constraints = memory.state.se.Or(*constraints)
+        ored_constraints = memory.state.solver.Or(*constraints)
         solutions = self._eval(memory, addr, self._limit, extra_constraints=(ored_constraints,))
         if not solutions:
             solutions = None

@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr.tests")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 target_addrs = {
     'i386': [ 0x080485C9 ],
@@ -24,11 +24,11 @@ avoid_addrs = {
 }
 
 corrupt_addrs = {
-    'i386': [ 0x80486B6, 'bO\xcc', lambda s: s.memory.store(s.regs.esp, s.regs.eax) ],
-    'x86_64': [ 0x400742, '\xd4&\xb0[\x41', lambda s: s.registers.store('rdx', 8) ],
-    'ppc': [ 0x100006B8, '\x05\xad\xc2\xea', lambda s: s.registers.store('r5', 8) ],
-    'armel': [ 0x8678, '\xbdM\xec3', lambda s: s.registers.store('r2', 8) ],
-    'mips': [ 0x400918, '[\xf8\x96@'[::-1], lambda s: s.registers.store('a2', 8) ]
+    'i386': [ 0x80486B6, b'bO\xcc', lambda s: s.memory.store(s.regs.esp, s.regs.eax) ],
+    'x86_64': [ 0x400742, b'\xd4&\xb0[\x41', lambda s: s.registers.store('rdx', 8) ],
+    'ppc': [ 0x100006B8, b'\x05\xad\xc2\xea', lambda s: s.registers.store('r5', 8) ],
+    'armel': [ 0x8678, b'\xbdM\xec3', lambda s: s.registers.store('r2', 8) ],
+    'mips': [ 0x400918, b'[\xf8\x96@'[::-1], lambda s: s.registers.store('a2', 8) ]
 }
 
 def run_fauxware_override(arch):
@@ -36,22 +36,35 @@ def run_fauxware_override(arch):
     s = p.factory.full_init_state()
 
     def overwrite_str(state):
-        state.posix.get_fd(1).write_data("HAHA\0")
+        state.posix.get_fd(1).write_data(b"HAHA\0")
 
-    #s.posix.queued_syscall_returns = [ ] #[ lambda s,run: __import__('ipdb').set_trace() ] * 1000
-    s.posix.queued_syscall_returns.append(None) # let the mmap run
-    s.posix.queued_syscall_returns.append(overwrite_str) # prompt for username
-    s.posix.queued_syscall_returns.append(0) # username read
-    s.posix.queued_syscall_returns.append(0) # newline read
-    #s.posix.queued_syscall_returns.append(0) # prompt for password -- why isn't this called?
-    s.posix.queued_syscall_returns.append(None) # password input
-    s.posix.queued_syscall_returns.append(0) # password \n input
+    queued_syscall_returns = [ ]
+    queued_syscall_returns.append(None) # let the mmap run
+    queued_syscall_returns.append(overwrite_str) # prompt for username
+    queued_syscall_returns.append(0) # username read
+    queued_syscall_returns.append(0) # newline read
+    #queued_syscall_returns.append(0) # prompt for password -- why isn't this called?
+    queued_syscall_returns.append(None) # password input
+    queued_syscall_returns.append(0) # password \n input
 
-    results = p.factory.simgr(thing=s).explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
+    def syscall_hook(state):
+        if not state.inspect.simprocedure.is_syscall:
+            return
+        try:
+            f = queued_syscall_returns.pop(0)
+            if f is None:
+                return
+            state.inspect.simprocedure_result = f(state) if callable(f) else f
+        except IndexError:
+            return
+
+    s.inspect.make_breakpoint('simprocedure', s.inspect.BP_BEFORE, action=syscall_hook)
+
+    results = p.factory.simulation_manager(thing=s).explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     stdin = results.found[0].posix.dumps(0)
-    nose.tools.assert_equal('SOSNEAKY', stdin)
+    nose.tools.assert_equal(b'SOSNEAKY', stdin)
     stdout = results.found[0].posix.dumps(1)
-    nose.tools.assert_equal('HAHA\0', stdout)
+    nose.tools.assert_equal(b'HAHA\0', stdout)
 
 def test_fauxware_override():
     #for arch in target_addrs:

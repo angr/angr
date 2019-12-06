@@ -4,7 +4,7 @@ import nose
 
 import angr
 
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 find = {
     'veritesting_a': {
@@ -13,13 +13,13 @@ find = {
 }
 
 criteria = {
-    'veritesting_a': lambda input_found: input_found.count('B') == 10
+    'veritesting_a': lambda input_found: input_found.count(b'B') == 10
 }
 
 def run_unique(binary, arch):
-    proj = angr.Project(os.path.join(os.path.join(location, arch), binary),
+    proj = angr.Project(os.path.join(location, arch, binary),
                         auto_load_libs=False)
-    simgr = proj.factory.simgr()
+    simgr = proj.factory.simulation_manager()
     technique = angr.exploration_techniques.UniqueSearch()
     simgr.use_technique(technique)
 

@@ -1,7 +1,6 @@
 import logging
-l = logging.getLogger("angr.state_plugins.log")
+l = logging.getLogger(name=__name__)
 
-import sys
 import itertools
 
 from .plugin import SimStatePlugin
@@ -25,9 +24,8 @@ class SimStateLog(SimStatePlugin):
         try:
             new_event = SimEvent(self.state, event_type, **kwargs)
             self.events.append(new_event)
-        except TypeError:
-            e_type, value, traceback = sys.exc_info()
-            raise SimEventError, ("Exception when logging event:", e_type, value), traceback
+        except TypeError as e:
+            raise SimEventError("Exception encountered when logging event") from e
 
     def _add_event(self, event):
         self.events.append(event)

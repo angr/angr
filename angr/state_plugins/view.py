@@ -1,8 +1,13 @@
+import logging
+
 import claripy
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+from archinfo.arch_arm import is_arm_arch
 from .plugin import SimStatePlugin
 
-import logging
-l = logging.getLogger("angr.state_plugins.view")
+
+l = logging.getLogger(name=__name__)
+
 
 class SimRegNameView(SimStatePlugin):
     def __getattr__(self, k):
@@ -52,15 +57,29 @@ class SimRegNameView(SimStatePlugin):
             inspect = True
             disable_actions = False
 
+        # When executing a Java JNI application, we need to update the state's
+        # instruction pointer flag every time the ip gets written.
+        # This flag will then toggle between the native and the java view of the
+        # state.
+        if self.state.project and \
+           isinstance(self.state.project.arch, ArchSoot) and \
+           k == 'ip' and \
+           self.state.project.simos.is_javavm_with_jni_support:
+            self.state.ip_is_soot_addr = isinstance(v, SootAddressDescriptor)
+
         try:
             return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
         except KeyError:
-            raise AttributeError(k)
+            # What do we do in case we are dealing with soot? there are no register
+            if isinstance(self.state.arch, ArchSoot):
+                pass
+            else:
+                raise AttributeError(k)
 
     def __dir__(self):
         if self.state.arch.name in ('X86', 'AMD64'):
-            return self.state.arch.registers.keys() + ['st%d' % n for n in xrange(8)] + ['tag%d' % n for n in xrange(8)] + ['flags', 'eflags', 'rflags']
-        elif self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
+            return list(self.state.arch.registers.keys()) + ['st%d' % n for n in range(8)] + ['tag%d' % n for n in range(8)] + ['flags', 'eflags', 'rflags']
+        elif is_arm_arch(self.state.arch):
             return self.state.arch.registers.keys() + ['flags']
         return self.state.arch.registers.keys()
 
@@ -123,8 +142,8 @@ class SimMemView(SimStatePlugin):
         super(SimMemView, self).set_state(state)
 
         # Make sure self._addr is always an AST
-        if isinstance(self._addr, (int, long)):
-            self._addr = self.state.se.BVV(self._addr, self.state.arch.bits)
+        if isinstance(self._addr, int):
+            self._addr = self.state.solver.BVV(self._addr, self.state.arch.bits)
 
     def _deeper(self, **kwargs):
         if 'ty' not in kwargs:
@@ -228,9 +247,8 @@ class SimMemView(SimStatePlugin):
             raise ValueError("Trying to dereference pointer without addr defined")
         ptr = self.state.memory.load(self._addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
         if ptr.symbolic:
-            l.warn("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.se.eval(self._addr))
-            print self._addr
-        ptr = self.state.se.eval(ptr)
+            l.warning("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.solver.eval(self._addr))
+        ptr = self.state.solver.eval(ptr)
 
         return self._deeper(ty=self._type.pts_to if isinstance(self._type, SimTypePointer) else None, addr=ptr)
 

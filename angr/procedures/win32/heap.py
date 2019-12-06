@@ -10,16 +10,7 @@ class HeapCreate(angr.SimProcedure):
 
 class HeapAlloc(angr.SimProcedure):
     def run(self, HeapHandle, Flags, Size):
-        if self.state.se.symbolic(Size):
-            size = self.state.se.max_int(Size)
-            if size > self.state.libc.max_variable_size:
-                size = self.state.libc.max_variable_size
-        else:
-            size = self.state.se.eval(Size)
-
-        addr = self.state.libc.heap_location
-        self.state.libc.heap_location += size
-        return addr
+        return self.state.heap._malloc(Size)
 
 class GlobalAlloc(HeapAlloc):
     def run(self, Flags, Size):

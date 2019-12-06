@@ -1,7 +1,7 @@
 import dpkt
 import socket
 import logging
-l = logging.getLogger("angr.storage.pcap")
+l = logging.getLogger(name=__name__)
 
 
 class PCAP(object):
@@ -18,7 +18,6 @@ class PCAP(object):
             self.initialize(self.path)
 
     def initialize(self,path):
-        #import ipdb;ipdb.set_trace()
         f = open(path)
         pcap = dpkt.pcap.Reader(f)
         for _,buf in pcap:
@@ -33,9 +32,7 @@ class PCAP(object):
         f.close()
 
     def recv(self, length):
-        #import ipdb;ipdb.set_trace()
         temp = 0
-        #import ipdb;ipdb.set_trace()
         #pcap = self.pcap
         initial_packet = self.packet_num
         plength, pdata = self.in_streams[self.packet_num]

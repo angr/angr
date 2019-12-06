@@ -1,9 +1,11 @@
 
-class CodeLocation(object):
+class CodeLocation:
     """
     Stands for a specific program point by specifying basic block address and statement ID (for IRSBs), or SimProcedure
     name (for SimProcedures).
     """
+
+    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'info', )
 
     def __init__(self, block_addr, stmt_idx, sim_procedure=None, ins_addr=None, **kwargs):
         """
@@ -44,7 +46,7 @@ class CodeLocation(object):
 
             ss = [ ]
             if self.info:
-                for k, v in self.info.iteritems():
+                for k, v in self.info.items():
                     ss.append("%s=%s" % (k, v))
                 s += " with %s" % ", ".join(ss)
             s += ">"
@@ -62,8 +64,8 @@ class CodeLocation(object):
         """
         Check if self is the same as other.
         """
-        return self.block_addr == other.block_addr and self.stmt_idx == other.stmt_idx and \
-               self.sim_procedure is other.sim_procedure
+        return type(self) is type(other) and self.block_addr == other.block_addr and \
+               self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure
 
     def __hash__(self):
         """
@@ -72,5 +74,5 @@ class CodeLocation(object):
         return hash((self.block_addr, self.stmt_idx, self.sim_procedure))
 
     def _store_kwargs(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             self.info[k] = v

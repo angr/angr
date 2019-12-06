@@ -1,9 +1,11 @@
 import claripy
 
-import logging
-l = logging.getLogger("angr.engines.successors")
+from archinfo.arch_soot import ArchSoot
 
-class SimSuccessors(object):
+import logging
+l = logging.getLogger(name=__name__)
+
+class SimSuccessors:
     """
     This class serves as a categorization of all the kinds of result states that can come from a
     SimEngine run.
@@ -26,7 +28,8 @@ class SimSuccessors(object):
     :ivar unconstrained_successors:
                             Any state for which during the flattening process we find too many solutions.
 
-    A more detailed description of the successor lists may be found here: https://docs.angr.io/docs/simuvex.html
+    A more detailed description of the successor lists may be found here:
+    https://docs.angr.io/core-concepts/simulation#simsuccessors
     """
 
     def __init__(self, addr, initial_state):
@@ -66,7 +69,8 @@ class SimSuccessors(object):
                 result = ' '.join(successor_strings)
         else:
             result = 'failure'
-
+        if isinstance(self.initial_state.arch, ArchSoot):
+            return '<%s from %s: %s>' % (self.description, self.addr, result)
         return '<%s from %#x: %s>' % (self.description, self.addr, result)
 
     @property
@@ -120,7 +124,8 @@ class SimSuccessors(object):
 
         self._categorize_successor(state)
         state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
-        state.inspect.downsize()
+        if state.supports_inspect:
+            state.inspect.downsize()
 
     #
     # Successor management
@@ -135,11 +140,11 @@ class SimSuccessors(object):
 
         # Next, simplify what needs to be simplified
         if o.SIMPLIFY_EXIT_STATE in state.options:
-            state.se.simplify()
+            state.solver.simplify()
         if o.SIMPLIFY_EXIT_GUARD in state.options:
-            state.scratch.guard = state.se.simplify(state.scratch.guard)
+            state.scratch.guard = state.solver.simplify(state.scratch.guard)
         if o.SIMPLIFY_EXIT_TARGET in state.options:
-            state.scratch.target = state.se.simplify(state.scratch.target)
+            state.scratch.target = state.solver.simplify(state.scratch.target)
 
         # unwrap stuff from SimActionObjects
         state.scratch.target = _raw_ast(state.scratch.target)
@@ -153,7 +158,7 @@ class SimSuccessors(object):
 
         # For architectures with no stack pointer, we can't manage a callstack. This has the side effect of breaking
         # SimProcedures that call out to binary code self.call.
-        if self.initial_state.arch.sp_offset is not None:
+        if self.initial_state.arch.sp_offset is not None and not isinstance(state.arch, ArchSoot):
             self._manage_callstack(state)
 
         if len(self.successors) != 0:
@@ -178,10 +183,10 @@ class SimSuccessors(object):
                 if state.arch.call_pushes_ret:
                     ret_addr = state.mem[state.regs._sp].long.concrete
                 else:
-                    ret_addr = state.se.eval(state.regs._lr)
+                    ret_addr = state.solver.eval(state.regs._lr)
             except SimSolverModeError:
-                # Use the address for UnresolvableTarget instead.
-                ret_addr = state.project.simos.unresolvable_target
+                # Use the address for UnresolvableCallTarget instead.
+                ret_addr = state.project.simos.unresolvable_call_target
 
             try:
                 state_addr = state.addr
@@ -189,7 +194,7 @@ class SimSuccessors(object):
                 state_addr = None
 
             try:
-                stack_ptr = state.se.eval(state.regs._sp)
+                stack_ptr = state.solver.eval(state.regs._sp)
             except SimSolverModeError:
                 stack_ptr = 0
 
@@ -203,7 +208,10 @@ class SimSuccessors(object):
 
             state._inspect('call', BP_AFTER)
         else:
-            while state.se.is_true(state.regs._sp > state.callstack.top.stack_ptr):
+            while True:
+                cur_sp = state.solver.max(state.regs._sp) if state.has_plugin('symbolizer') else state.regs._sp
+                if not state.solver.is_true(cur_sp > state.callstack.top.stack_ptr):
+                    break
                 state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
                 state.callstack.pop()
                 state._inspect('return', BP_AFTER)
@@ -234,23 +242,23 @@ class SimSuccessors(object):
         target = state.scratch.target
 
         # categorize the state
-        if o.APPROXIMATE_GUARDS in state.options and state.se.is_false(state.scratch.guard, exact=False):
+        if o.APPROXIMATE_GUARDS in state.options and state.solver.is_false(state.scratch.guard, exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options:
                 if state.satisfiable():
                     raise Exception('WTF')
             self.unsat_successors.append(state)
-        elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.se.satisfiable(exact=False):
+        elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.solver.satisfiable(exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options:
-                if state.se.satisfiable():
+                if state.solver.satisfiable():
                     raise Exception('WTF')
             self.unsat_successors.append(state)
-        elif not state.scratch.guard.symbolic and state.se.is_false(state.scratch.guard):
+        elif not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
-        elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(target):
+        elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):
             self.unconstrained_successors.append(state)
-        elif not state.se.symbolic(target) and not state.history.jumpkind.startswith("Ijk_Sys"):
+        elif not state.solver.symbolic(target) and not state.history.jumpkind.startswith("Ijk_Sys"):
             # a successor with a concrete IP, and it's not a syscall
             self.successors.append(state)
             self.flat_successors.append(state)
@@ -266,10 +274,11 @@ class SimSuccessors(object):
             try:
                 symbolic_syscall_num, concrete_syscall_nums = self._resolve_syscall(state)
                 if concrete_syscall_nums is not None:
-                    for n in concrete_syscall_nums:
-                        split_state = state.copy()
+                    for i, n in enumerate(concrete_syscall_nums):
+                        split_state = state if i == len(concrete_syscall_nums) - 1 else state.copy()
                         split_state.add_constraints(symbolic_syscall_num == n)
-                        split_state.inspect.downsize()
+                        if split_state.supports_inspect:
+                            split_state.inspect.downsize()
                         self._fix_syscall_ip(split_state)
 
                         self.flat_successors.append(split_state)
@@ -279,7 +288,7 @@ class SimSuccessors(object):
                     # up, and create a "unknown syscall" stub for it.
                     self._fix_syscall_ip(state)
                     self.flat_successors.append(state)
-            except AngrUnsupportedSyscallError:
+            except (AngrUnsupportedSyscallError, AngrSyscallError):
                 self.unsat_successors.append(state)
 
         else:
@@ -287,13 +296,17 @@ class SimSuccessors(object):
             _max_targets = state.options.symbolic_ip_max_targets
             _max_jumptable_targets = state.options.jumptable_symbolic_ip_max_targets
             try:
-                if o.KEEP_IP_SYMBOLIC in state.options:
+                if o.NO_IP_CONCRETIZATION in state.options:
+                    # Don't try to concretize the IP
+                    cond_and_targets = [ (claripy.true, target) ]
+                    max_targets = 0
+                elif o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
                     addrs = s.eval(target, _max_targets + 1, extra_constraints=tuple(state.ip_constraints))
                     if len(addrs) > _max_targets:
                         # It is not a library
                         l.debug("It is not a Library")
-                        addrs = state.se.eval_upto(target, _max_targets + 1)
+                        addrs = state.solver.eval_upto(target, _max_targets + 1)
                         l.debug("addrs :%s", addrs)
                     cond_and_targets = [ (target == addr, addr) for addr in addrs ]
                     max_targets = _max_targets
@@ -321,7 +334,8 @@ class SimSuccessors(object):
                         else:
                             split_state.add_constraints(cond, action=True)
                             split_state.regs.ip = a
-                        split_state.inspect.downsize()
+                        if split_state.supports_inspect:
+                            split_state.inspect.downsize()
                         self.flat_successors.append(split_state)
                     self.successors.append(state)
             except SimSolverModeError:
@@ -345,7 +359,7 @@ class SimSuccessors(object):
             l.debug("Not resolving symbolic syscall number")
             return syscall_num, None
         maximum = state.posix.maximum_symbolic_syscalls
-        possible = state.se.eval_upto(syscall_num, maximum + 1)
+        possible = state.solver.eval_upto(syscall_num, maximum + 1)
 
         if len(possible) == 0:
             raise AngrUnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")
@@ -494,13 +508,13 @@ class SimSuccessors(object):
         :rtype:         list
         """
 
-        addrs = state.se.eval_upto(ip, limit)
+        addrs = state.solver.eval_upto(ip, limit)
 
         return [ (ip == addr, addr) for addr in addrs ]
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
+from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
