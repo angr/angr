@@ -143,7 +143,7 @@ class SimOS:
             state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
 
         if state.arch.sp_offset is not None:
-            state.regs.sp = actual_stack_end + state.arch.stack_change
+            state.regs.sp = actual_stack_end + (state.arch.stack_change if state.arch.stack_change is not None else 0)
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -169,7 +169,7 @@ class SimOS:
                     raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
 
             # special case for stack pointer override
-            if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
+           if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
                 continue
 
             if o.ABSTRACT_MEMORY in state.options and is_addr:
