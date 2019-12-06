@@ -55,7 +55,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         return self._check_errored_op(op, args)
 
     def _check_errored_stmt(self, stmt):
-        if o.BYPASS_ERRORED_STMT not in self.state.options:
+        if o.BYPASS_ERRORED_IRSTMT not in self.state.options:
             return super()._check_errored_stmt(stmt)
         self.state.history.add_event(
                 'resilience',
