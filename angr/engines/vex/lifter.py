@@ -6,6 +6,7 @@ from cachetools import LRUCache
 import logging
 
 from ..engine import SimEngineBase
+from ...state_plugins.inspect import BP_AFTER, BP_BEFORE 
 from ...misc.ux import once
 from ...errors import SimEngineError, SimTranslationError, SimError
 from ... import sim_options as o
@@ -195,6 +196,9 @@ class VEXLifter(SimEngineBase):
                 except KeyError:
                     self._block_cache_misses += 1
 
+        # vex_lift breakpoints only triggered when the cache isn't used
+        state._inspect('vex_lift', BP_BEFORE, mem_read_address=addr, mem_read_length=size)
+
         # phase 4: get bytes
         if insn_bytes is not None:
             buff, size = insn_bytes, len(insn_bytes)
@@ -229,6 +233,7 @@ class VEXLifter(SimEngineBase):
 
                 if use_cache:
                     self._block_cache[cache_key] = irsb
+                state._inspect('vex_lift', BP_AFTER, mem_read_address=addr, mem_read_length=size)
                 return irsb
 
         # phase x: error handling

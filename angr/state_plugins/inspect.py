@@ -4,6 +4,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 event_types = {
+    'vex_lift',
     'mem_read',
     'mem_write',
     'address_concretization',
