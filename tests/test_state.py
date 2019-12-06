@@ -295,7 +295,7 @@ def test_bypass_errored_irstmt():
     simgr.step()
 
     nose.tools.assert_equal(len(simgr.errored), 0)
-    nose.tools.assert_equal(len(simgr.deadended), 1)
+    nose.tools.assert_equal(len(simgr.active), 1)
 
 
 if __name__ == '__main__':
