@@ -398,6 +398,17 @@ class SimPackets(SimFileBase):
             if any(x is None for x in self.content):
                 raise TypeError("Bad type in initial SimPacket content")
 
+    def set_state(self, state):
+        super().set_state(state)
+        # sanitize the lengths in self.content now that we know the wordsize
+        for i, (data, length) in enumerate(self.content):
+            if type(length) is int:
+                self.content[i] = (data, claripy.BVV(length, state.arch.bits))
+            elif len(length) < state.arch.bits:
+                self.content[i] = (data, length.zero_extend(state.arch.bits - len(length)))
+            elif len(length) != state.arch.bits:
+                raise TypeError('Bad bitvector size for length in SimPackets.content')
+
     @property
     def size(self):
         return sum(x[1] for x in self.content)
@@ -436,9 +447,9 @@ class SimPackets(SimFileBase):
             raise SimFileError("SimPacket.read(%d): Packet number is past frontier of %d?" % (pos, len(self.content)))
         elif pos != len(self.content):
             _, realsize = self.content[pos]
-            self.state.solver.add(size <= realsize)
+            self.state.solver.add(realsize <= size)  # assert that the packet fits within the read request
             if not self.state.solver.satisfiable():
-                raise SimFileError("Packet read size constraint made state unsatisfiable???")
+                raise SimFileError("SimPackets could not fit the current packet into the read request of %s bytes: %s" % (size, self.content[pos]))
             return self.content[pos] + (pos+1,)
 
         # typecheck

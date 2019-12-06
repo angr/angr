@@ -126,7 +126,7 @@ class FormatString:
         :param simfd:       A file descriptor to use for reading data from
         :return:            The number of arguments parsed
         """
-        if simfd is not None and isinstance(simfd.read_storage, SimPackets):
+        if simfd is not None and isinstance(simfd.read_storage, SimPackets) and simfd.read_pos == len(simfd.read_storage.content):
             argnum = startpos
             for component in self.components:
                 if type(component) is bytes:
