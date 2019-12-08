@@ -408,7 +408,7 @@ public:
 				if (rit->clean) {
 					// should untaint some bits
 					taint_t *bitmap = page_lookup(rit->address);
-					uint64_t start = rit->address & 0xFFF;
+					uint64_t start = rit->address & 0xFFFULL;
 					int size = rit->size;
 					int clean = rit->clean;
 					for (int i = 0; i < size; i++)
@@ -882,23 +882,23 @@ public:
 	{
 		taint_t *bitmap = page_lookup(address);
 
-		int start = address & 0xFFF;
-		int end = (address + size - 1) & 0xFFF;
+		int start = address & 0xFFFULL;
+		int end = (address + size - 1) & 0xFFFULL;
 
 		if (end >= start) {
 			if (bitmap) {
 				for (int i = start; i <= end; i++) {
 					if (bitmap[i] & TAINT_SYMBOLIC) {
-						return (address & ~0xFFF) + i;
+						return (address & ~0xFFFULL) + i;
 					}
 				}
 			}
 		} else {
 			// cross page boundary
 			if (bitmap) {
-				for (int i = start; i <= 0xFFF; i++) {
+				for (int i = start; i <= 0xFFFULL; i++) {
 					if (bitmap[i] & TAINT_SYMBOLIC) {
-						return (address & ~0xFFF) + i;
+						return (address & ~0xFFFULL) + i;
 					}
 				}
 			}
@@ -907,7 +907,7 @@ public:
 			if (bitmap) {
 				for (int i = 0; i <= end; i++) {
 					if (bitmap[i] & TAINT_SYMBOLIC) {
-						return ((address + size - 1) & ~0xFFF) + i;
+						return ((address + size - 1) & ~0xFFFULL) + i;
 					}
 				}
 			}
@@ -919,8 +919,8 @@ public:
 	void handle_write(uint64_t address, int size)
 	{
 		taint_t *bitmap = page_lookup(address);
-		int start = address & 0xFFF;
-		int end = (address + size - 1) & 0xFFF;
+		int start = address & 0xFFFULL;
+		int end = (address + size - 1) & 0xFFFULL;
 		int clean;
 
 		if (end >= start) {
@@ -939,7 +939,7 @@ public:
 		} else {
 			if (bitmap) {
 				clean = 0;
-				for (int i = start; i <= 0xFFF; i++) {
+				for (int i = start; i <= 0xFFFULL; i++) {
 					if (bitmap[i] == TAINT_DIRTY) {
 						clean |= (1 << i);
 						bitmap[i] = TAINT_DIRTY;
