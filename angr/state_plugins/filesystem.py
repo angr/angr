@@ -24,7 +24,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
                         shallow-copied from successor to successor, so don't mutate anything in it without copying.
     """
     def __init__(self, files=None, pathsep=None, cwd=None, mountpoints=None):
-        super(SimFilesystem, self).__init__()
+        super().__init__()
 
         if files is None: files = {}
         if pathsep is None: pathsep = b'/'
@@ -49,7 +49,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         return self._unlinks
 
     def set_state(self, state):
-        super(SimFilesystem, self).set_state(state)
+        super().set_state(state)
         for fname in self._files:
             self._files[fname].set_state(state)
         for fname in self._mountpoints:
@@ -236,7 +236,7 @@ class SimMount(SimStatePlugin):
     give it to the filesystem to intercept all file creations and opens below the mountpoint.
     Since this a SimStatePlugin you may also want to implement set_state, copy, merge, etc.
     """
-    def get(self, _path_elements):
+    def get(self, path_elements):
         """
         Implement this function to instrument file lookups.
 
@@ -245,7 +245,7 @@ class SimMount(SimStatePlugin):
         """
         raise NotImplementedError
 
-    def insert(self, _path_elements, simfile):
+    def insert(self, path_elements, simfile):
         """
         Implement this function to instrument file creation.
 
@@ -255,7 +255,7 @@ class SimMount(SimStatePlugin):
         """
         raise NotImplementedError
 
-    def delete(self, _path_elements):
+    def delete(self, path_elements):
         """
         Implement this function to instrument file deletion.
 
@@ -264,16 +264,14 @@ class SimMount(SimStatePlugin):
         """
         raise NotImplementedError
 
-class SimHostFilesystem(SimMount):
+class SimConcreteFilesystem(SimMount):
     """
-    Simulated mount that makes some piece from the host filesystem available to the guest.
+    Abstract SimMount allowing the user to import files from some external source into the guest
 
-    :param str host_path:       The path on the host to mount
     :param str pathsep:         The host path separator character, default os.path.sep
     """
-    def __init__(self, host_path, pathsep=os.path.sep):
-        super(SimHostFilesystem, self).__init__()
-        self.host_path = host_path
+    def __init__(self, pathsep=os.path.sep):
+        super().__init__()
         self.pathsep = pathsep
         self.cache = {}
         self.deleted_list = set()
@@ -284,23 +282,15 @@ class SimHostFilesystem(SimMount):
             return None
 
         if path not in self.cache:
-            host_path = os.path.join(self.host_path, path)
-            simfile = self._load_file(host_path)
+            simfile = self._load_file(path)
             if simfile is None:
                 return None
             self.insert(path_elements, simfile)
 
         return self.cache[path]
 
-    @staticmethod
-    def _load_file(path):
-        try:
-            with open(path, 'rb') as fp:
-                content = fp.read()
-        except OSError:
-            return None
-        else:
-            return SimFile(name='file://' + path, content=content, size=len(content))
+    def _load_file(self, guest_path):
+        raise NotImplementedError
 
     def insert(self, path_elements, simfile):
         path = self.pathsep.join(x.decode() for x in path_elements)
@@ -316,13 +306,13 @@ class SimHostFilesystem(SimMount):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        x = SimHostFilesystem(self.host_path, pathsep=self.pathsep)
+        x = type(self)(pathsep=self.pathsep)
         x.cache = {fname: self.cache[fname].copy(memo) for fname in self.cache}
         x.deleted_list = set(self.deleted_list)
         return x
 
     def set_state(self, state):
-        super(SimHostFilesystem, self).set_state(state)
+        super().set_state(state)
         for fname in self.cache:
             self.cache[fname].set_state(state)
 
@@ -330,12 +320,10 @@ class SimHostFilesystem(SimMount):
         merging_occured = False
 
         for o in others:
-            if o.host_path != self.host_path:
-                raise SimMergeError("Can't merge SimHostFilesystems with disparate host paths")
             if o.pathsep != self.pathsep:
-                raise SimMergeError("Can't merge SimHostFilesystems with disparate pathseps")
+                raise SimMergeError("Can't merge concrete filesystems with disparate pathseps")
             if o.deleted_list != self.deleted_list:
-                raise SimMergeError("Can't merge SimHostFilesystems with disparate deleted files")
+                raise SimMergeError("Can't merge concrete filesystems with disparate deleted files")
 
         deck = [self] + others
         all_files = set.union(*(set(o._files.keys()) for o in deck))
@@ -347,7 +335,7 @@ class SimHostFilesystem(SimMount):
                     subdeck.append(o.cache[fname])
                 except KeyError:
                     if basecase is None:
-                        basecase = self._load_file(os.path.join(self.host_path, fname))
+                        basecase = self._load_file(fname)
                     subdeck.append(basecase)
 
             if common_ancestor is not None and fname in common_ancestor.cache:
@@ -360,7 +348,35 @@ class SimHostFilesystem(SimMount):
 
     def widen(self, others): # pylint: disable=unused-argument
         if once('host_fs_widen_warning'):
-            l.warn("The host filesystem mount can't be widened yet - beware unsoundness")
+            l.warning("The host filesystem mount can't be widened yet - beware unsoundness")
+
+class SimHostFilesystem(SimConcreteFilesystem):
+    """
+    Simulated mount that makes some piece from the host filesystem available to the guest.
+
+    :param str host_path:       The path on the host to mount
+    :param str pathsep:         The host path separator character, default os.path.sep
+    """
+    def __init__(self, host_path=None, **kwargs):
+        super().__init__(**kwargs)
+        self.host_path = host_path if host_path is not None else self.pathsep
+
+    @SimStatePlugin.memo
+    def copy(self, memo):
+        o = super().copy(memo)
+        o.host_path = self.host_path
+        return o
+
+    def _load_file(self, guest_path):
+        path = os.path.join(self.host_path, guest_path)
+        try:
+            with open(path, 'rb') as fp:
+                content = fp.read()
+        except OSError:
+            return None
+        else:
+            return SimFile(name='file://' + path, content=content, size=len(content))
+
 
 #class SimDirectory(SimStatePlugin):
 #    """
