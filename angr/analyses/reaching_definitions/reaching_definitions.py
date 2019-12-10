@@ -6,17 +6,17 @@ import ailment
 import pyvex
 
 from ...block import Block
-from ...knowledge_plugins.functions.function_manager import Function
 from ...codenode import CodeNode
 from ...misc.ux import deprecated
 from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from ..forward_analysis import ForwardAnalysis
 from ..code_location import CodeLocation
 from .atoms import Register
 from .constants import OP_BEFORE, OP_AFTER
-from .live_definitions import LiveDefinitions
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
+from .live_definitions import LiveDefinitions
+from .subject import Subject, SubjectType
 
 
 l = logging.getLogger(name=__name__)
@@ -62,20 +62,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                                                 A list of previously visited blocks.
         """
 
-        def _init_subject(subject):
-            """
-            :param ailment.Block|angr.Block|Function subject:
-            :return Tuple[ailment.Block|angr.Block, SimCC, Function, GraphVisitor, Boolean]:
-                 Return the values for `_block`, `_cc`, `_function`, `_graph_visitor`, `_init_func`.
-            """
-            if isinstance(subject, Function):
-                return (None, cc, subject, FunctionGraphVisitor(subject, func_graph), init_func)
-            elif isinstance(subject, (ailment.Block, Block)):
-                return (subject, None, None, SingleNodeGraphVisitor(subject), False)
-            else:
-                raise ValueError('Unsupported analysis target.')
-
-        self._block, self._cc, self._function, self._graph_visitor, self._init_func = _init_subject(subject)
+        self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc, init_func)
+        self._graph_visitor = self._subject.visitor
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=self._graph_visitor)
@@ -207,9 +195,15 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         if self._init_state is not None:
             return self._init_state
         else:
-            func_addr = self._function.addr if self._function else None
+            def _function_data(subject):
+                if subject.type == SubjectType.Function:
+                    return subject.content.addr, subject.cc, subject.init_func
+                else:
+                    return None, None, None
+            func_addr, cc, init_func = _function_data(self._subject)
+
             return LiveDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
-                                   init_func=self._init_func, cc=self._cc, func_addr=func_addr)
+                                   init_func=init_func, cc=cc, func_addr=func_addr)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])

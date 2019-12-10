@@ -15,7 +15,6 @@ import archinfo
 from angr.analyses.reaching_definitions.live_definitions import LiveDefinitions
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register
-
 from angr.block import Block
 
 LOGGER = logging.getLogger('test_reachingdefinitions')
@@ -190,7 +189,7 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             InsnAndNodeObserveTestingUtils.setup(observation_points)
 
         code_block = main_function._addr_to_block_node[main_function.addr] # pylint: disable=W0212
-        block = angr.block.Block(addr=0x43, byte_string=code_block.bytestr, project=project)
+        block = Block(addr=0x43, byte_string=code_block.bytestr, project=project)
         statement = block.vex.statements[0]
 
         reaching_definition.insn_observe(0x43, statement, block, state, OP_BEFORE)
@@ -216,7 +215,7 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             InsnAndNodeObserveTestingUtils.setup(observation_points)
 
         code_block = main_function._addr_to_block_node[main_function.addr] # pylint: disable=W0212
-        block = angr.block.Block(addr=0x43, byte_string=code_block.bytestr, project=project)
+        block = Block(addr=0x43, byte_string=code_block.bytestr, project=project)
         # When observing OP_AFTER an instruction, the statement has to be the last of a block
         # (or preceding an IMark)
         statement = block.vex.statements[-1]
@@ -234,54 +233,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             lambda x: InsnAndNodeObserveTestingUtils.assert_equals_for_live_definitions(x[0], x[1]),
             zip(results, expected_results)
         ))
-
-
-    def test_reaching_definition_analysis_returns_an_error_without_suject(self):
-        binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
-        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-
-        with nose.tools.assert_raises(ValueError) as reaching_definitions:
-            project.analyses.ReachingDefinitions()
-
-        nose.tools.assert_equal("%s" % reaching_definitions.exception, 'Unsupported analysis target.')
-
-
-    def test_reaching_definition_analysis_with_a_function_as_suject(self):
-        binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
-        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-        cfg = project.analyses.CFGFast()
-
-        main_function = cfg.kb.functions['main']
-        # Valuable to test that `init_func` and `cc` are assigned correctly.
-        # However, set `init_func` to False so `cc` content does not get checked (which would fail here because it is
-        # not supposed to be a string).
-        init_func = False
-        cc = "cc_mock"
-
-        reaching_definitions = project.analyses.ReachingDefinitions(
-            subject=main_function, init_func=init_func, cc=cc
-        )
-
-        nose.tools.assert_equal(reaching_definitions._function, main_function)
-        nose.tools.assert_equal(reaching_definitions._block, None)
-        nose.tools.assert_equal(reaching_definitions._init_func, init_func)
-        nose.tools.assert_equal(reaching_definitions._cc, cc)
-
-
-    def test_reaching_definition_analysis_with_a_block_as_subject(self):
-        binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
-        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-        cfg = project.analyses.CFGFast()
-
-        main_function = cfg.kb.functions['main']
-        main_block = Block(addr=main_function.addr, project=project)
-
-        reaching_definitions = project.analyses.ReachingDefinitions(subject=main_block)
-
-        nose.tools.assert_equal(reaching_definitions._function, None)
-        nose.tools.assert_equal(reaching_definitions._block, main_block)
-        nose.tools.assert_equal(reaching_definitions._init_func, False)
-        nose.tools.assert_equal(reaching_definitions._cc, None)
 
 
 class LiveDefinitionsTest(TestCase):
