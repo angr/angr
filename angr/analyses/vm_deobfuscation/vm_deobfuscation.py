@@ -6,7 +6,8 @@ import copy
 from collections import defaultdict
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 import networkx as nx
-from angr.analyses.cfg.cfg_job_base import BlockID
+from angr.analyses.variable_recovery import VariableRecovery
+
 
 filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
@@ -76,7 +77,7 @@ def data_sensitive_graph(filename,start_addr):
                                     resolve_indirect_jumps=False, ##### Need to resolve the issue that arises when this is set to True
                                     keep_state=True,
                                     state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
-                                    iropt_level=0)
+                                    iropt_level=0,)
 
     return cfg, proj
 
@@ -199,24 +200,25 @@ def draw_graph(cfg, filename):
 #start_addr = 0x4006d1
 start_addr = None
 cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
-draw_graph(cfg,"input.svg")
+
+
+proj.analyses._init_plugin(VariableRecovery)
+for cur_func in proj.kb.functions._function_map.values():
+    proj.analyses.VariableRecovery(cur_func)
+    dec = proj.analyses.Decompiler(cur_func, cfg=cfg)
+    if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile")
+
+draw_graph(cfg, "input.svg")
 
 new_cfg = constant_propagation(cfg, proj, start_addr=start_addr)
 
-draw_graph(new_cfg,"cp_result.svg")
+draw_graph(new_cfg, "cp_result.svg")
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 # DCE second time
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-draw_graph(new_cfg,"final_result.svg")
-
-for test_node in new_cfg.graph.nodes:
-    test_func = proj.kb.functions.function(test_node.addr, create=True, syscall=test_node.irsb.jumpkind.startswith("Ijk_Sys"))
-    try:
-        dec = proj.analyses.Decompiler(test_func, cfg=new_cfg)
-        if dec.codegen is not None:
-            print(dec.codegen.text)
-
-    except:
-        print("Failed to decompile function %s." % repr(test_func))
+draw_graph(new_cfg, "final_result.svg")
