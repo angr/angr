@@ -197,7 +197,8 @@ class VEXLifter(SimEngineBase):
                     self._block_cache_misses += 1
 
         # vex_lift breakpoints only triggered when the cache isn't used
-        state._inspect('vex_lift', BP_BEFORE, mem_read_address=addr, mem_read_length=size)
+        if state:
+            state._inspect('vex_lift', BP_BEFORE, mem_read_address=addr, mem_read_length=size)
 
         # phase 4: get bytes
         if insn_bytes is not None:
@@ -233,7 +234,8 @@ class VEXLifter(SimEngineBase):
 
                 if use_cache:
                     self._block_cache[cache_key] = irsb
-                state._inspect('vex_lift', BP_AFTER, mem_read_address=addr, mem_read_length=size)
+                if state:
+                    state._inspect('vex_lift', BP_AFTER, mem_read_address=addr, mem_read_length=size)
                 return irsb
 
         # phase x: error handling
