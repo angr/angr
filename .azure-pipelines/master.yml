@@ -1,7 +1,4 @@
 name: $(BuildDefinitionName)-$(SourceBranchName)-$(Rev:.rr)-$(BuildID)
-trigger:
- - master
-pr: none
 
 jobs:
 - job: Build
