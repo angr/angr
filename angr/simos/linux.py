@@ -317,6 +317,8 @@ class SimLinux(SimUserland):
                 elif val == 'toc':
                     if self.project.loader.main_object.is_ppc64_abiv1:
                         state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
+                elif val == 'entry':
+                    state.registers.store(reg, state.registers.load('pc'))
                 elif val == 'thread_pointer':
                     state.registers.store(reg, self.project.loader.tls_object.user_thread_pointer)
                 else:
