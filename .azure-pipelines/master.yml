@@ -1,4 +1,4 @@
-name: $(BuildDefinitionName)-$(SourceBranchName)-$(Rev:.rr)-$(BuildID)
+name: $(BuildDefinitionName)-$(SourceBranchName)-$(BuildID)
 
 jobs:
 - job: Build
