@@ -11,7 +11,7 @@ TEST_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 class TestFunctionManager:
     @classmethod
-    def setup_class(cls):
+    def setUpClass(cls):
         cls.project = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"))
 
 
