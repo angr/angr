@@ -6,7 +6,7 @@ from cachetools import LRUCache
 import logging
 
 from ..engine import SimEngineBase
-from ...state_plugins.inspect import BP_AFTER, BP_BEFORE 
+from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...misc.ux import once
 from ...errors import SimEngineError, SimTranslationError, SimError
 from ... import sim_options as o
@@ -370,4 +370,3 @@ class VEXLifter(SimEngineBase):
         # rebuild block cache
         self._initialize_block_cache()
         super().__setstate__(ostate)
-
