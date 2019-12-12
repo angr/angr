@@ -94,6 +94,7 @@ def run_manyfloatsum(arch):
         result_concrete = result.args[0]
         nose.tools.assert_equal(answer, result_concrete)
 
+@slow_test
 def run_manyfloatsum_symbolic(arch):
     global type_cache
     if type_cache is None:
@@ -133,7 +134,6 @@ def test_manyfloatsum():
     for arch in ('i386', 'x86_64'):
         yield run_manyfloatsum, arch
 
-@slow_test
 def test_manyfloatsum_symbolic():
     # doesn't have to be slow but it might be
     # https://github.com/Z3Prover/z3/issues/2584
