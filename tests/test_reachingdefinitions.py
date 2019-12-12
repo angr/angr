@@ -6,7 +6,7 @@ import os
 import pickle
 import random
 
-from unittest import mock, TestCase
+from unittest import TestCase
 import nose
 
 import ailment
@@ -247,8 +247,7 @@ class ReachingDefinitionsAnalysisTest(TestCase):
         nose.tools.assert_equal("%s" % reaching_definitions.exception, 'Unsupported analysis target.')
 
 
-    @mock.patch.object(ReachingDefinitionsAnalysis, '_analyze')
-    def test_reaching_definition_analysis_with_a_function_as_suject(self, _):
+    def test_reaching_definition_analysis_with_a_function_as_suject(self):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
         cfg = project.analyses.CFGFast()
