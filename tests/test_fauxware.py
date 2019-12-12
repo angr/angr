@@ -131,6 +131,7 @@ def test_pickling():
     for arch in corrupt_addrs:
         yield run_pickling, arch
 
+@attr(speed='slow')
 def test_fastmem():
     #for arch in target_addrs:
     #   yield run_fastmem, arch
