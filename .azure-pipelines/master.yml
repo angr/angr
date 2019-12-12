@@ -24,7 +24,7 @@ jobs:
     vmImage: ubuntu-16.04
   container:
     image: angr/ci:2
-    options: --cap-add=SYS_PTRACE
+    options: --cap-add=SYS_PTRACE --security-opt seccomp:unconfined
   dependsOn: Build
   condition: succeeded()
   variables:
