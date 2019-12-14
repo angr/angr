@@ -1,5 +1,6 @@
 import nose
 import os
+import unittest
 
 from archinfo import ArchAMD64
 
@@ -9,9 +10,9 @@ from angr.utils.constants import DEFAULT_STATEMENT
 TEST_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
-class TestFunctionManager:
+class TestFunctionManager(unittest.TestCase):
     @classmethod
-    def setup_class(cls):
+    def setUpClass(cls):
         cls.project = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"))
 
 

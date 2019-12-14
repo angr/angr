@@ -94,6 +94,7 @@ def run_manyfloatsum(arch):
         result_concrete = result.args[0]
         nose.tools.assert_equal(answer, result_concrete)
 
+@slow_test
 def run_manyfloatsum_symbolic(arch):
     global type_cache
     if type_cache is None:

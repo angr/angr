@@ -1,0 +1,27 @@
+parameters:
+  nightly: false
+
+steps:
+- task: DownloadPipelineArtifact@0
+  inputs:
+    artifactName: "build_archive"
+    targetPath: .
+
+- script: /root/scripts/azure-test.sh nightly
+  condition: eq('${{ parameters.nightly }}', 'true')
+- script: /root/scripts/azure-test.sh
+  condition: eq('${{ parameters.nightly }}', 'false')
+
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testRunner: "JUnit"
+    testResultsFiles: "build/results/*.tests.xml"
+    mergeTestResults: true
+
+- task: PublishCodeCoverageResults@1
+  condition: eq(${{ parameters.nightly }}, 'true')
+  inputs:
+    codeCoverageTool: "cobertura"
+    summaryFileLocation: "build/results/*.coverage.xml"
+    additionalCodeCoverageFiles: "build/results/*.coverage.xml"
