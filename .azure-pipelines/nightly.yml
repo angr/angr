@@ -8,52 +8,12 @@ schedules:
     include:
     - master
 
-jobs:
-- job: Build
-  pool:
-    vmImage: ubuntu-16.04
-  container:
-    image: angr/ci:2
-  steps:
-  - template: ./steps/linux-build.yml
-    parameters:
-      nightly: True
+resources:
+  repositories:
+  - repository: ci-settings
+    type: github
+    name: angr/ci-settings
+    endpoint: angr
 
-- job: Test
-  pool:
-    vmImage: ubuntu-16.04
-  container:
-    image: angr/ci:2
-    options: --cap-add=SYS_PTRACE --security-opt seccomp:unconfined
-  dependsOn: Build
-  condition: succeeded()
-  variables:
-    NUM_WORKERS: 10
-  strategy:
-    maxParallel: 10
-    matrix:
-      worker_0:
-        WORKER: 0
-      worker_1:
-        WORKER: 1
-      worker_2:
-        WORKER: 2
-      worker_3:
-        WORKER: 3
-      worker_4:
-        WORKER: 4
-      worker_5:
-        WORKER: 5
-      worker_6:
-        WORKER: 6
-      worker_7:
-        WORKER: 7
-      worker_8:
-        WORKER: 8
-      worker_9:
-        WORKER: 9
-  steps:
-  - template: ./steps/linux-test.yml
-    parameters:
-      nightly: True
-
+stages:
+- template: resources/nightly.yml@ci-settings
