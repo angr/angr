@@ -98,7 +98,8 @@ class SimEngineUnicorn(SuccessorsMixin):
             extra_stop_points = set(extra_stop_points)
             extra_stop_points.update(self.project._sim_procedures)
         if successors.addr in extra_stop_points:
-            return  # trying to start unicorn execution on a stop point
+            # trying to start unicorn execution on a stop point, fallback to next engine
+            return super().process_successors(successors, **kwargs)
 
         successors.sort = 'Unicorn'
 
