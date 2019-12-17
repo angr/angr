@@ -159,6 +159,9 @@ class JumpTableProcessor(
             r = [(self.block.addr, self.stmt_idx), data]
         self.state._registers[offset] = r
 
+    def _handle_LoadG(self, stmt):
+        import ipdb; ipdb.set_trace()
+
     def _handle_Store(self, stmt):
         self._tsrc = set()
         addr = self._expr(stmt.addr)
@@ -193,10 +196,10 @@ class JumpTableProcessor(
             self.state._registers[expr.offset] = ([src], v)
             return v
 
-    def _handle_Load(self, expr):
-        addr = self._expr(expr.addr)
-        size = expr.result_size(self.tyenv) // 8
+    def _handle_function(self, expr):
+        return None  # This analysis is not interprocedural
 
+    def _do_load(self, addr, size):
         src = (self.block.addr, self.stmt_idx)
         self._tsrc = { src }
         if addr is None:
@@ -233,6 +236,22 @@ class JumpTableProcessor(
             return None
 
         return None
+
+    def _handle_Load(self, expr):
+        addr = self._expr(expr.addr)
+        size = expr.result_size(self.tyenv) // 8
+        self._do_load(addr, size)
+        return None
+
+    def _handle_LoadG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard is True:
+
+            return self._do_load(stmt.addr, stmt.addr.result_size(self.tyenv))
+        elif guard is False:
+            return self._do_load(stmt.alt, stmt.alt.result_size(self.tyenv))
+        else:
+            return None
 
     def _handle_Const(self, expr):
         v = super()._handle_Const(expr)

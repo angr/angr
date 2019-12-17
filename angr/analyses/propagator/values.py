@@ -44,6 +44,12 @@ class Top:
     def __rshift__(self, other):
         return self
 
+    def __rlshift__(self, other):
+        return self
+
+    def __rrshift__(self, other):
+        return self
+
     def __lshift__(self, other):
         return self
 
