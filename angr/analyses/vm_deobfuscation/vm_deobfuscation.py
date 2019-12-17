@@ -6,11 +6,12 @@ import copy
 from collections import defaultdict
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 import networkx as nx
-from angr.analyses.variable_recovery import VariableRecovery
 
-
-filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
+#filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
+#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
+filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
+#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 
@@ -58,7 +59,7 @@ def new_model_graph(old_graph, proj, identifier):
 
 ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
 def data_sensitive_graph(filename,start_addr):
-    #logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
+    logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
     proj = angr.Project(filename)
 
     if start_addr == None:
@@ -73,7 +74,7 @@ def data_sensitive_graph(filename,start_addr):
                                     data_sensitive=True ,
                                     starts=[start_addr],
                                     initial_state=start_state,
-                                    max_iterations=50,
+                                    max_iterations=1,
                                     resolve_indirect_jumps=False, ##### Need to resolve the issue that arises when this is set to True
                                     keep_state=True,
                                     state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
@@ -99,7 +100,7 @@ def constant_propagation(cfg, proj, start_addr):
 
     new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
     ## find the replacements
-    prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=start_addr)
+    prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=start_addr, max_iterations=1)
 
     ## do the actual replacements
     for key, value in prop.replacements.items():
@@ -117,7 +118,7 @@ def constant_propagation(cfg, proj, start_addr):
     new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
 
     #Run the emulation on the new graph to update the state attributes
-    new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True)
+    new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
 
     ### Returning a new CFGEmulated object with the updated graph
     return new_cfg
@@ -176,14 +177,13 @@ def dead_code_elimination(cfg, proj, start_addr):
                                                    add_options=angr.sim_options.refs | {
                                                    angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
     dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-    new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True)
+    new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
     return new_cfg
 
 def draw_graph(cfg, filename):
     A = nx.nx_agraph.to_agraph(cfg.graph)
     for node in cfg.graph.nodes():
         stmt_str = str(node)
-
         if node.irsb != None:
             for ind, stmt in enumerate(node.irsb.statements):
                 if stmt.tag == "Ist_IMark" and node.irsb.statements[ind+1].tag == "Ist_IMark":
@@ -201,15 +201,15 @@ def draw_graph(cfg, filename):
 start_addr = None
 cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
 
-
-proj.analyses._init_plugin(VariableRecovery)
-for cur_func in proj.kb.functions._function_map.values():
-    proj.analyses.VariableRecovery(cur_func)
-    dec = proj.analyses.Decompiler(cur_func, cfg=cfg)
-    if dec.codegen is not None:
-        print(dec.codegen.text)
-    else:
-        print("Failed to decompile")
+### Might be a problem with Angr's decompiler
+# proj.analyses._init_plugin(VariableRecovery)
+# for cur_func in proj.kb.functions._function_map.values():
+#     proj.analyses.VariableRecovery(cur_func)
+#     dec = proj.analyses.Decompiler(cur_func, cfg=cfg)
+#     if dec.codegen is not None:
+#         print(dec.codegen.text)
+#     else:
+#         print("Failed to decompile")
 
 draw_graph(cfg, "input.svg")
 

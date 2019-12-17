@@ -274,7 +274,6 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
-        print(node)
         concrete_state = abstract_state.get_concrete_state(node.addr)
         node.input_state = concrete_state
         if concrete_state is None:
@@ -320,7 +319,10 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._states[block_key] = abstract_state
         self.replacements[block_key] = abstract_state._replacements
 
-        return None, abstract_state
+        if self._node_iterations[block_key] < self._max_iterations:
+            return True, abstract_state
+        else:
+            return False, abstract_state
 
     def _intra_analysis(self):
         pass
