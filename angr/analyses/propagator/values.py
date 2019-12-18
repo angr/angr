@@ -56,6 +56,9 @@ class Top:
     def __xor__(self, other):
         return self
 
+    def __rxor__(self, other):
+        return self
+
     def __or__(self, other):
         return self
 
@@ -63,6 +66,12 @@ class Top:
         return "TOP"
 
     def __eq__(self, other):
+        return type(other) is Top
+
+    def __le__(self, other):
+        return type(other) is Top
+
+    def __lt__(self, other):
         return type(other) is Top
 
     def __neg__(self):
