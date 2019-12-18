@@ -1,5 +1,4 @@
 import logging
-import networkx
 from collections import defaultdict
 
 import ailment
@@ -13,6 +12,7 @@ from ..forward_analysis import ForwardAnalysis
 from ..code_location import CodeLocation
 from .atoms import Register
 from .constants import OP_BEFORE, OP_AFTER
+from .def_use_graph import DefUseGraph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .live_definitions import LiveDefinitions
@@ -38,7 +38,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state=None, init_func=False, cc=None, function_handler=None,
-                 current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None):
+                 current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
+                 def_use_graph=None):
         """
         :param Block|Function subject: The subject of the analysis: a function, or a single basic block.
         :param func_graph:                      Alternative graph for function.graph.
@@ -60,6 +61,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param Boolean observe_all:             Observe every statement, both before and after.
         :param List<ailment.Block|Block|CodeNode|CFGNode> visited_blocks:
                                                 A list of previously visited blocks.
+        :param angr.analyses.reaching_definitions.def_use_graph.DefUseGraph def_use_graph:
+                                                An initial definition-use graph to add the result of the analysis to.
         """
 
         self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc, init_func)
@@ -76,7 +79,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
 
-        self.def_use_graph = networkx.DiGraph()
+        self._def_use_graph = def_use_graph or DefUseGraph()
         self.current_codeloc = None
         self.codeloc_uses = set()
 
@@ -117,6 +120,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             raise ValueError("More than one results are available.")
 
         return next(iter(self.observed_results.values()))
+
+    @property
+    def def_use_graph(self):
+        return self._def_use_graph
 
     @property
     def visited_blocks(self):
