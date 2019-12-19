@@ -1663,9 +1663,10 @@ class CFGBase(Analysis):
         :return:    True if it is a tail-call optimization. False otherwise.
         :rtype:     bool
         """
-
         def _has_more_than_one_exit(node_):
-            return len(g.out_edges(node_)) > 1
+            # Do not consider FakeRets as counting as multiple exits here.
+            out_edges = list(filter(lambda x: g.get_edge_data(*x)['jumpkind'] != 'Ijk_FakeRet', g.out_edges(node_)))
+            return len(out_edges) > 1
 
         if len(all_edges) == 1 and dst_addr != src_addr:
             the_edge = next(iter(all_edges))
