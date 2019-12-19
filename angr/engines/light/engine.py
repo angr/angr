@@ -172,7 +172,6 @@ class SimEngineLightVEXMixin:
         else:
             return None
 
-
     def _handle_Unop(self, expr):
         handler = None
 

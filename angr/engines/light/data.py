@@ -262,7 +262,6 @@ class RegisterOffset:
         else:
             return RegisterOffset(self._bits, self.reg, ~self.offset)
 
-
     def _to_signed(self, n):
         if n >= 2 ** (self._bits - 1):
             return n - 2 ** self._bits
