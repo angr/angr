@@ -6,6 +6,7 @@ import pyvex
 from ..knowledge_plugins.xrefs import XRef, XRefType
 from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
 from .propagator.vex_vars import VEXTmp
+from .propagator.values import Top
 from . import register_analysis
 from .analysis import Analysis
 from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
@@ -43,7 +44,7 @@ class SimEngineXRefsVEX(
         # TODO: Handle constant stores
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
             addr_tmp = VEXTmp(stmt.addr.tmp)
-            if addr_tmp in self.replacements[blockloc]:
+            if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Write, self._codeloc(), addr)
 
@@ -51,7 +52,7 @@ class SimEngineXRefsVEX(
         blockloc = self._codeloc(block_only=True)
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
             addr_tmp = VEXTmp(stmt.addr.tmp)
-            if addr_tmp in self.replacements[blockloc]:
+            if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Write, self._codeloc(), addr)
 
@@ -60,7 +61,7 @@ class SimEngineXRefsVEX(
         blockloc = self._codeloc(block_only=True)
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
             addr_tmp = VEXTmp(stmt.addr.tmp)
-            if addr_tmp in self.replacements[blockloc]:
+            if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Read, self._codeloc(), addr)
 
@@ -76,7 +77,7 @@ class SimEngineXRefsVEX(
         # TODO: Handle constant reads
         if type(expr.addr) is pyvex.IRExpr.RdTmp:
             addr_tmp = VEXTmp(expr.addr.tmp)
-            if addr_tmp in self.replacements[blockloc]:
+            if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Read, self._codeloc(), addr)
 

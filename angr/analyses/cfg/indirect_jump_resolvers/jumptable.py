@@ -193,46 +193,22 @@ class JumpTableProcessor(
             self.state._registers[expr.offset] = ([src], v)
             return v
 
+    def _handle_function(self, expr):  # pylint:disable=unused-argument,no-self-use
+        return None  # This analysis is not interprocedural
+
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
         size = expr.result_size(self.tyenv) // 8
+        return self._do_load(addr, size)
 
-        src = (self.block.addr, self.stmt_idx)
-        self._tsrc = { src }
-        if addr is None:
+    def _handle_LoadG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard is True:
+            return self._do_load(stmt.addr, stmt.addr.result_size(self.tyenv) // 8)
+        elif guard is False:
+            return self._do_load(stmt.alt, stmt.alt.result_size(self.tyenv) // 8)
+        else:
             return None
-
-        if isinstance(addr, SpOffset):
-            if addr.offset in self.state._stack:
-                self._tsrc = { self.state._stack[addr.offset][0] }
-                return self.state._stack[addr.offset][1]
-        elif isinstance(addr, int):
-            # Load data from memory if it is mapped
-            try:
-                v = self.project.loader.memory.unpack_word(addr, size=size)
-                return v
-            except KeyError:
-                return None
-        elif isinstance(addr, RegisterOffset):
-            # Load data from a register, but this register hasn't been initialized at this point
-            # We will need to initialize this register during slice execution later
-
-            # Try to get where this register is first accessed
-            try:
-                source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
-                assert isinstance(source, tuple)
-                self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
-            except StopIteration:
-                # we don't need to initialize this register
-                # it might be caused by an incorrect analysis result
-                # e.g.  PN-337140.bin 11e918  r0 comes from r4, r4 comes from r0@11e8c0, and r0@11e8c0 comes from
-                # function call sub_375c04. Since we do not analyze sub_375c04, we treat r0@11e918 as a constant 0.
-                pass
-
-
-            return None
-
-        return None
 
     def _handle_Const(self, expr):
         v = super()._handle_Const(expr)
@@ -346,6 +322,43 @@ class JumpTableProcessor(
                 #     mov   rax, qword [rax*8+0x2231ae]
                 #
                 self.state.stmts_to_instrument.append(('reg_write', ) + arg1_src)
+
+    def _do_load(self, addr, size):
+        src = (self.block.addr, self.stmt_idx)
+        self._tsrc = { src }
+        if addr is None:
+            return None
+
+        if isinstance(addr, SpOffset):
+            if addr.offset in self.state._stack:
+                self._tsrc = { self.state._stack[addr.offset][0] }
+                return self.state._stack[addr.offset][1]
+        elif isinstance(addr, int):
+            # Load data from memory if it is mapped
+            try:
+                v = self.project.loader.memory.unpack_word(addr, size=size)
+                return v
+            except KeyError:
+                return None
+        elif isinstance(addr, RegisterOffset):
+            # Load data from a register, but this register hasn't been initialized at this point
+            # We will need to initialize this register during slice execution later
+
+            # Try to get where this register is first accessed
+            try:
+                source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
+                assert isinstance(source, tuple)
+                self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
+            except StopIteration:
+                # we don't need to initialize this register
+                # it might be caused by an incorrect analysis result
+                # e.g.  PN-337140.bin 11e918  r0 comes from r4, r4 comes from r0@11e8c0, and r0@11e8c0 comes from
+                # function call sub_375c04. Since we do not analyze sub_375c04, we treat r0@11e918 as a constant 0.
+                pass
+
+            return None
+
+        return None
 
 
 #
@@ -833,6 +846,8 @@ class JumpTableResolver(IndirectJumpResolver):
         :rtype:     tuple of lists
         """
 
+        # pylint:disable=no-else-continue
+
         engine = JumpTableProcessor(self.project)
 
         sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
@@ -845,7 +860,7 @@ class JumpTableResolver(IndirectJumpResolver):
             traced = { src[0] }
             while src is not None:
                 state._tmpvar_source.clear()
-                block_addr, stmt_idx = src
+                block_addr, _ = src
 
                 block = self.project.factory.block(block_addr, backup_state=self.base_state)
                 stmt_whitelist = annotatedcfg.get_whitelisted_statements(block_addr)
