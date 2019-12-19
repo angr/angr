@@ -193,7 +193,7 @@ class JumpTableProcessor(
             self.state._registers[expr.offset] = ([src], v)
             return v
 
-    def _handle_function(self, expr):
+    def _handle_function(self, expr):  # pylint:disable=unused-argument,no-self-use
         return None  # This analysis is not interprocedural
 
     def _handle_Load(self, expr):
@@ -846,6 +846,8 @@ class JumpTableResolver(IndirectJumpResolver):
         :rtype:     tuple of lists
         """
 
+        # pylint:disable=no-else-continue
+
         engine = JumpTableProcessor(self.project)
 
         sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
@@ -858,7 +860,7 @@ class JumpTableResolver(IndirectJumpResolver):
             traced = { src[0] }
             while src is not None:
                 state._tmpvar_source.clear()
-                block_addr, stmt_idx = src
+                block_addr, _ = src
 
                 block = self.project.factory.block(block_addr, backup_state=self.base_state)
                 stmt_whitelist = annotatedcfg.get_whitelisted_statements(block_addr)
