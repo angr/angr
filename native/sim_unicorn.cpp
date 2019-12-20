@@ -1,3 +1,4 @@
+#define __STDC_FORMAT_MACROS 1
 #include <unicorn/unicorn.h>
 
 #include <cinttypes>
@@ -235,8 +236,10 @@ public:
 		executed_pages.clear();
 
 		// error if pc is 0
+		// TODO: why is this check here and not elsewhere
 		if (pc == 0) {
 			stop_reason = STOP_ZEROPAGE;
+			cur_steps = 0;
 			return UC_ERR_MAP;
 		}
 
@@ -246,6 +249,10 @@ public:
 		if (out == UC_ERR_INSN_INVALID) {
 			stop_reason = STOP_NODECODE;
 		}
+
+		// if we errored out right away, fix the step count to 0
+		if (cur_steps == -1) cur_steps = 0;
+
 		return out;
 	}
 
@@ -296,9 +303,6 @@ public:
 		stop_reason = reason;
 		//LOG_D("stop: %s", msg);
 		uc_emu_stop(uc);
-
-		// if we errored out right away, fix the step count to 0
-		if (cur_steps == -1) cur_steps = 0;
 	}
 
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {

@@ -7,7 +7,7 @@ import ailment
 import pyvex
 
 from ..engine import SimEngine
-from ..vex.irop import operations as vex_operations
+from angr.engines.vex.claripy.irop import operations as vex_operations
 from ...analyses.code_location import CodeLocation
 
 
@@ -53,7 +53,7 @@ class SimEngineLight(SimEngine):
 
 class SimEngineLightVEXMixin:
 
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
+    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
         assert block is not None
 
@@ -61,6 +61,7 @@ class SimEngineLightVEXMixin:
         self.tmps = {}
         self.block = block
         self.state = state
+
         if state is not None:
             self.arch = state.arch
 
@@ -92,7 +93,11 @@ class SimEngineLightVEXMixin:
         if self.block.vex.jumpkind == 'Ijk_Call':
             handler = '_handle_function'
             if hasattr(self, handler):
-                getattr(self, handler)(self._expr(self.block.vex.next))
+                func_addr = self._expr(self.block.vex.next)
+                if func_addr is not None:
+                    getattr(self, handler)(func_addr)
+                else:
+                    self.l.debug('Cannot determine the callee address at %#x.', self.block.addr)
             else:
                 self.l.warning('Function handler not implemented.')
 
@@ -153,9 +158,9 @@ class SimEngineLightVEXMixin:
     def _handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
 
-    def _handle_Exit(self, expr):
-        self._expr(expr.guard)
-        self._expr(expr.dst)
+    def _handle_Exit(self, stmt):
+        self._expr(stmt.guard)
+        self._expr(stmt.dst)
 
     def _handle_ITE(self, expr):
         # EDG says: Not sure how generic this is.
@@ -520,7 +525,7 @@ class SimEngineLightVEXMixin:
 
 class SimEngineLightAILMixin:
 
-    def _process(self, state, successors, block=None, whitelist=None):  # pylint:disable=arguments-differ,unused-argument
+    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
         self.tmps = {}
         self.block = block
@@ -668,6 +673,46 @@ class SimEngineLightAILMixin:
             return expr_0 - expr_1
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], **expr.tags)
+
+    def _ail_handle_Div(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 // expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Div', [expr_0, expr_1], **expr.tags)
+
+    def _ail_handle_DivMod(self, expr):
+        return self._ail_handle_Div(expr)
+
+    def _ail_handle_Mul(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 * expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], **expr.tags)
+
+    def _ail_handle_Mull(self, expr):
+        return self._ail_handle_Mul(expr)
 
     def _ail_handle_And(self, expr):
 

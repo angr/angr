@@ -177,13 +177,13 @@ class PTChunk(Chunk):
         :returns: If possible, the forward chunk; otherwise, raises an error
         """
         if self.is_free():
-            base = self.state.memory.load(self.base + 2 * self._chunk_size_t_size, self._chunk_size_t_size)
+            base = self.state.memory.load(self.base + 2 * self._chunk_size_t_size, self._chunk_size_t_size, endness=self.state.arch.memory_endness)
             return PTChunk(base, self.state)
         else:
             raise SimHeapError("Attempted to access the forward chunk of an allocated chunk")
 
     def set_fwd_chunk(self, fwd):
-        self.state.memory.store(self.base + 2 * self._chunk_size_t_size, fwd.base)
+        self.state.memory.store(self.base + 2 * self._chunk_size_t_size, fwd.base, endness=self.state.arch.memory_endness)
 
     def bck_chunk(self):
         """
@@ -193,13 +193,13 @@ class PTChunk(Chunk):
         :returns: If possible, the backward chunk; otherwise, raises an error
         """
         if self.is_free():
-            base = self.state.memory.load(self.base + 3 * self._chunk_size_t_size, self._chunk_size_t_size)
+            base = self.state.memory.load(self.base + 3 * self._chunk_size_t_size, self._chunk_size_t_size, endness=self.state.arch.memory_endness)
             return PTChunk(base, self.state)
         else:
             raise SimHeapError("Attempted to access the backward chunk of an allocated chunk")
 
     def set_bck_chunk(self, bck):
-        self.state.memory.store(self.base + 3 * self._chunk_size_t_size, bck.base)
+        self.state.memory.store(self.base + 3 * self._chunk_size_t_size, bck.base, endness=self.state.arch.memory_endness)
 
 class PTChunkIterator:
     def __init__(self, chunk, cond=lambda chunk: True):
@@ -233,6 +233,8 @@ class SimHeapPTMalloc(SimHeapFreelist):
     addition to user data. While the real-world ptmalloc is implemented using multiple lists of free chunks
     (corresponding to their different sizes), this more basic model uses a single list of chunks and searches for free
     chunks using a first-fit algorithm.
+
+    **NOTE:** The plugin must be registered using ``register_plugin`` with name ``heap`` in order to function properly.
 
     :ivar heap_base: the address of the base of the heap in memory
     :ivar heap_size: the total size of the main memory region managed by the heap in memory

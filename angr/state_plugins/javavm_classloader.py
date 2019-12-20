@@ -4,6 +4,7 @@ from archinfo.arch_soot import (SootAddressDescriptor, SootAddressTerminator,
                                 SootClassDescriptor)
 
 from ..engines.soot.method_dispatcher import resolve_method
+from ..engines import UberEngine
 from ..sim_state import SimState
 from .plugin import SimStatePlugin
 
@@ -89,13 +90,15 @@ class SimJavaVmClassloader(SimStatePlugin):
         clinit_method = resolve_method(self.state, '<clinit>', class_.name,
                                        include_superclasses=False, init_class=False)
         if clinit_method.is_loaded:
+            engine = UberEngine(self.state.project)
+            # use a fresh engine, as the default engine instance may be in use at this time
             javavm_simos = self.state.project.simos
             clinit_state = javavm_simos.state_call(addr=SootAddressDescriptor(clinit_method, 0, 0),
                                                    base_state=self.state,
                                                    ret_addr=SootAddressTerminator())
             simgr = self.state.project.factory.simgr(clinit_state)
             l.info(">"*15 + " Run class initializer %r ... " + ">"*15, clinit_method)
-            simgr.run(step_func=step_func)
+            simgr.run(step_func=step_func, engine=engine)
             l.debug("<"*15 + " Run class initializer %r ... done " + "<"*15, clinit_method)
             # The only thing that can be updated during initialization are
             # static or rather global information, which are either stored on

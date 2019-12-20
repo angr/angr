@@ -4,8 +4,9 @@ import logging
 import pyvex
 import claripy
 
-from angr import SimState, SimEngineVEX
-import angr.engines.vex.ccall as s_ccall
+from angr import SimState
+from angr.engines import HeavyVEXMixin
+import angr.engines.vex.claripy.ccall as s_ccall
 
 l = logging.getLogger('angr.tests.test_vex')
 
@@ -136,19 +137,21 @@ def test_aarch64_32bit_ccalls():
 
     x = s.solver.BVS("x", 32)
     # A normal operation
-    flag_z, _ = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0)
+    flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0)
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 0,)))
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 1,)))
     # What VEX does
-    flag_z, _ = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0)
+    flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0)
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 0,)))
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 1,)))
 
 
 def test_some_vector_ops():
-    from angr.engines.vex.irop import translate
-
+    engine = HeavyVEXMixin(None)
     s = SimState(arch='AMD64')
+
+    def translate(state, op, args):
+        return engine._perform_vex_expr_Op(op, args)
 
     a =              s.solver.BVV(0xffff0000000100020003000400050006, 128)
     b =              s.solver.BVV(0x00020002000200020002000200020002, 128)
@@ -230,7 +233,7 @@ def test_store_simplification():
     state.regs.eax = state.solver.BVS('base_eax', 32)
 
     irsb = pyvex.IRSB(b'PT]\xc2\x10\x00', 0x4000, state.arch)
-    sim_successors = SimEngineVEX().process(state.copy(), irsb)
+    sim_successors = HeavyVEXMixin(None).process(state.copy(), irsb=irsb)
     exit_state = sim_successors.all_successors[0]
 
     nose.tools.assert_true(claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4))
@@ -239,9 +242,7 @@ def test_store_simplification():
 def test_loadg_no_constraint_creation():
 
     state = SimState(arch='armel', mode='symbolic')
-    engine = SimEngineVEX()
-
-    from angr.engines.vex.statements.loadg import SimIRStmt_LoadG
+    engine = HeavyVEXMixin(None)
 
     stmt = pyvex.IRStmt.LoadG('Iend_LE', 'ILGop_16Uto32',
                               0, # dst
@@ -253,7 +254,8 @@ def test_loadg_no_constraint_creation():
     tyenv.types = [ 'Ity_I32', 'Ity_I32' ]
     state.scratch.set_tyenv(tyenv)
     state.scratch.temps[1] = state.solver.BVS('tmp_1', 32)
-    SimIRStmt_LoadG(engine, state, stmt)
+    engine.state = state
+    engine._handle_vex_stmt(stmt)
 
     # LOADG should not create new constraints - it is a simple conditional memory read. The conditions should only be
     # used inside the value AST to guard the memory read.

@@ -1,20 +1,7 @@
 class Undefined:
-
-    __slots__ = ('bits', '_type', '_meta')
-
-    def __init__(self, bits, type_=None, meta=None):
-        self.bits = bits
-        self._type = type_
-        self._meta = meta
-
-    @property
-    def type_(self):
-        return self._type
-
-    @property
-    def meta(self):
-        return self._meta
-
+    """
+    A TOP-like value indicating an unknown data source. Should live next to raw integers in DataSets.
+    """
     def __add__(self, other):
         return self
 
@@ -61,18 +48,18 @@ class Undefined:
         return self
 
     def __eq__(self, other):
-        return type(other) is Undefined and \
-               self.bits == other.bits and \
-               self._type == other.type_ and \
-               self._meta == other.meta
+        return type(other) is Undefined
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __hash__(self):
-        return hash(('undefined', self.bits, self._type, self._meta))
+        return hash('undefined')
 
     def __str__(self):
-        type_ = (', type=%s' % self._type) if self._type is not None else ''
-        meta = ', meta=%s' % self._meta if self._meta is not None else ''
-        return '<Undef%s%s>' % (type_, meta)
+        return '<Undefined>'
 
     def __repr__(self):
         return "<Undefined>"
+
+undefined = Undefined()

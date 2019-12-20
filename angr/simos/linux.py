@@ -143,12 +143,16 @@ class SimLinux(SimUserland):
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':
             return None
-        if state.history.jumpkind == 'Ijk_Sys_int128':
+        jk = state.history.jumpkind
+        if jk is None:
+            # we are being invoked in the middle of a step
+            jk = state.history.parent.jumpkind
+        if jk == 'Ijk_Sys_int128':
             return 'i386'
-        elif state.history.jumpkind == 'Ijk_Sys_syscall':
+        elif jk == 'Ijk_Sys_syscall':
             return 'amd64'
         else:
-            raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
+            raise AngrSyscallError("Unknown syscall jumpkind %s" % jk)
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
@@ -188,7 +192,7 @@ class SimLinux(SimUserland):
 
         state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
-        if self.project.loader.main_object.is_ppc64_abiv1:
+        if isinstance(self.project.loader.main_object, MetaELF) and self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
 
         return state
@@ -313,6 +317,8 @@ class SimLinux(SimUserland):
                 elif val == 'toc':
                     if self.project.loader.main_object.is_ppc64_abiv1:
                         state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
+                elif val == 'entry':
+                    state.registers.store(reg, state.registers.load('pc'))
                 elif val == 'thread_pointer':
                     state.registers.store(reg, self.project.loader.tls_object.user_thread_pointer)
                 else:

@@ -754,6 +754,19 @@ def test_unresolvable_targets():
     endpoint_addrs = {node.addr for node in func.endpoints}
     nose.tools.assert_equal(len(endpoint_addrs.symmetric_difference(true_endpoint_addrs)), 0)
 
+
+def test_indirect_jump_to_outside():
+
+    # an indirect jump might be jumping to outside as well
+    path = os.path.join(test_location, "mipsel", "libndpi.so.4.0.0")
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+
+    nose.tools.assert_equal(len(list(cfg.functions[0x404ee4].blocks)), 3)
+    nose.tools.assert_equal(set(ep.addr for ep in cfg.functions[0x404ee4].endpoints), { 0x404f00, 0x404f08 })
+
+
 def run_all():
 
     g = globals()
@@ -793,6 +806,7 @@ def run_all():
     test_data_references()
     test_function_leading_blocks_merging()
     test_cfg_with_patches()
+    test_indirect_jump_to_outside()
 
 
 def main():

@@ -110,21 +110,35 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None, ins_addr=None,
                      return_to_outside=False):
+        """
+        Add a call to a function.
+
+        :param int function_addr:   Address of the current function where this call happens.
+        :param from_node:           The source node.
+        :param to_addr:             Address of the target function, or None if unknown.
+        :param retn_node:           The node where the target function will return to if it returns.
+        :param bool syscall:        If this is a call to a syscall or not.
+        :param int stmt_idx:        ID of the statement where this call happens.
+        :param int ins_addr:        Address of the instruction where this call happens.
+        :param bool return_to_outside:  True if the return of the call is considered going to outside of the current
+                                        function.
+        :return:                    None
+        """
 
         if isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(retn_node, self.address_types):
             retn_node = self._kb._project.factory.snippet(retn_node)
-        dest_func = self._function_map[to_addr]
-        if syscall in (True, False):
-            dest_func.is_syscall = syscall
-
         func = self._function_map[function_addr]
-
-        func._call_to(from_node, dest_func, retn_node, stmt_idx=stmt_idx, ins_addr=ins_addr,
-                      return_to_outside=return_to_outside
-                      )
         func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
+
+        if to_addr is not None:
+            dest_func = self._function_map[to_addr]
+            if syscall in (True, False):
+                dest_func.is_syscall = syscall
+            func._call_to(from_node, dest_func, retn_node, stmt_idx=stmt_idx, ins_addr=ins_addr,
+                          return_to_outside=return_to_outside
+                          )
 
         if return_to_outside:
             func.add_retout_site(from_node)

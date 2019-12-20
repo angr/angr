@@ -8,7 +8,10 @@ class ArithmeticExpression:
 
     Add = 0
     Sub = 1
+    Or = 2
     And = 4
+    RShift = 8
+    LShift = 16
 
     CONST_TYPES = (int, ailment.expression.Const)
 
@@ -25,6 +28,12 @@ class ArithmeticExpression:
             return "%s - %s" % self.operands
         elif self.op == ArithmeticExpression.And:
             return "%s & %s" % self.operands
+        elif self.op == ArithmeticExpression.Or:
+            return "%s | %s" % self.operands
+        elif self.op == ArithmeticExpression.RShift:
+            return "%s >> %s" % self.operands
+        elif self.op == ArithmeticExpression.LShift:
+            return "%s << %s" % self.operands
         else:
             return "Unsupported op %s" % self.op
 
@@ -45,6 +54,61 @@ class ArithmeticExpression:
             elif type(self.operands[1]) is int:
                 return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] - other,))
         return ArithmeticExpression(self.op, (self, other, ))
+
+    def __and__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0] & other, self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] & other,))
+        return ArithmeticExpression(self.op, (self, other, ))
+
+    def __or__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0] | other, self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] | other,))
+        return ArithmeticExpression(self.op, (self, other, ))
+
+    def __lshift__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) in ArithmeticExpression.CONST_TYPES:
+                return ArithmeticExpression(self.op, (self.operands[0] << other, self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] << other,))
+        return ArithmeticExpression(self.op, (self, other, ))
+
+    def __rlshift__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) in ArithmeticExpression.CONST_TYPES:
+                return ArithmeticExpression(self.op, (other << self.operands[0], self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], other << self.operands[1],))
+        return ArithmeticExpression(self.op, ( other, self, ))
+
+    def __rrshift__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) in ArithmeticExpression.CONST_TYPES:
+                return ArithmeticExpression(self.op, (other >> self.operands[0], self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], other >> self.operands[1],))
+        return ArithmeticExpression(self.op, ( other, self, ))
+
+    def __rshift__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) in ArithmeticExpression.CONST_TYPES:
+                return ArithmeticExpression(self.op, (self.operands[0] >> other, self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] >> other,))
+        return ArithmeticExpression(self.op, (self, other, ))
+
 
     @staticmethod
     def _unpack_const(expr):
@@ -110,6 +174,93 @@ class RegisterOffset:
             else:
                 return RegisterOffset(self._bits, self.reg,
                                       ArithmeticExpression(ArithmeticExpression.Sub, (self.offset, other,)))
+
+    def __rsub__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(other - self.offset))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, other - self.offset)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.Sub, (other, self.offset, )))
+
+    def __and__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset & other))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset & other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.And, (self.offset, other,)))
+
+    def __rand__(self, other):
+        return self.__and__(other)
+
+    def __or__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset | other))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset | other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.Or, (self.offset, other,)))
+
+    def __ror__(self, other):
+        return self.__or__(other)
+
+    def __rshift__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset >> other))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset >> other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.RShift, (self.offset, other,)))
+
+    def __rrshift__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(other >> self.offset))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, other >> self.offset)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.RShift, (other, self.offset,)))
+
+    def __lshift__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset << other))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset << other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.LShift, (self.offset, other,)))
+    def __rlshift__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(other << self.offset))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, other << self.offset)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.LShift, (other, self.offset,)))
+
+    def __neg__(self):
+        if not self.symbolic:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(-self.offset))
+        else:
+            return RegisterOffset(self._bits, self.reg, -self.offset)
+
+    def __invert__(self):
+        if not self.symbolic:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(~self.offset))
+        else:
+            return RegisterOffset(self._bits, self.reg, ~self.offset)
 
     def _to_signed(self, n):
         if n >= 2 ** (self._bits - 1):

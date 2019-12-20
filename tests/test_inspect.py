@@ -7,7 +7,10 @@ import logging
 
 import os
 from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
-from angr.engines import SimEngineProcedure, SimEngineVEX
+from angr.engines import ProcedureEngine, HeavyVEXMixin, SimInspectMixin
+
+class InspectEngine(SimInspectMixin, HeavyVEXMixin):
+    pass
 
 def test_inspect():
     class counts: #pylint:disable=no-init
@@ -85,7 +88,7 @@ def test_inspect():
     s.inspect.b('instruction', when=BP_AFTER, action=act_instruction, instruction=1000)
     irsb = pyvex.IRSB(b"\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64(), opt_level=0)
     irsb.pp()
-    SimEngineVEX().process(s, irsb)
+    InspectEngine(None).process(s, irsb=irsb)
     nose.tools.assert_equal(counts.reg_write, 7)
     nose.tools.assert_equal(counts.reg_read, 2)
     nose.tools.assert_equal(counts.tmp_write, 1)
@@ -128,7 +131,7 @@ def test_inspect_exit():
     s.inspect.b('exit', BP_AFTER, action=handle_exit_after)
 
     # step it
-    succ = SimEngineVEX().process(s, irsb).flat_successors
+    succ = HeavyVEXMixin(None).process(s, irsb=irsb).flat_successors
 
     # check
     nose.tools.assert_equal( succ[0].solver.eval(succ[0].ip), 0x41414141)
@@ -162,7 +165,7 @@ def test_inspect_syscall():
 
     # step it
     proc = SIM_PROCEDURES['posix']['close'](is_syscall=True)
-    SimEngineProcedure().process(s, proc, ret_to=s.ip)
+    ProcedureEngine(None).process(s, procedure=proc, ret_to=s.ip)
 
     # check counts
     nose.tools.assert_equal(counts.exit_before, 1)
@@ -262,11 +265,12 @@ def test_inspect_engine_process():
 
     def first_symbolic_fork(state):
         return hex(state.addr) == '0x40068eL' \
-           and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
+           and isinstance(state.inspect.sim_engine, HeavyVEXMixin)
+        # TODO: I think this latter check is meaningless with the eleventh hour refactor
 
     def second_symbolic_fork(state):
         return hex(state.addr) == '0x4006dbL' \
-           and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
+           and isinstance(state.inspect.sim_engine, HeavyVEXMixin)
 
     def check_state(state):
         nose.tools.assert_in(hex(state.inspect.sim_successors.addr), ('0x40068eL', '0x4006dbL'))

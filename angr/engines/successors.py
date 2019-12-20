@@ -5,7 +5,7 @@ from archinfo.arch_soot import ArchSoot
 import logging
 l = logging.getLogger(name=__name__)
 
-class SimSuccessors(object):
+class SimSuccessors:
     """
     This class serves as a categorization of all the kinds of result states that can come from a
     SimEngine run.
@@ -208,7 +208,10 @@ class SimSuccessors(object):
 
             state._inspect('call', BP_AFTER)
         else:
-            while state.solver.is_true(state.regs._sp > state.callstack.top.stack_ptr):
+            while True:
+                cur_sp = state.solver.max(state.regs._sp) if state.has_plugin('symbolizer') else state.regs._sp
+                if not state.solver.is_true(cur_sp > state.callstack.top.stack_ptr):
+                    break
                 state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
                 state.callstack.pop()
                 state._inspect('return', BP_AFTER)
@@ -285,7 +288,7 @@ class SimSuccessors(object):
                     # up, and create a "unknown syscall" stub for it.
                     self._fix_syscall_ip(state)
                     self.flat_successors.append(state)
-            except AngrUnsupportedSyscallError:
+            except (AngrUnsupportedSyscallError, AngrSyscallError):
                 self.unsat_successors.append(state)
 
         else:
@@ -511,7 +514,7 @@ class SimSuccessors(object):
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
+from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack

@@ -5,10 +5,10 @@ import angr
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 def _ultra_oppologist(p, s):
-    old_ops = dict(angr.engines.vex.irop.operations)
+    old_ops = dict(angr.engines.vex.claripy.irop.operations)
     try:
-        angr.engines.vex.irop.operations.clear()
-        angr.engines.vex.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
+        angr.engines.vex.claripy.irop.operations.clear()
+        angr.engines.vex.claripy.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
 
         pg = p.factory.simulation_manager(s)
         pg.use_technique(angr.exploration_techniques.Oppologist())
@@ -16,7 +16,7 @@ def _ultra_oppologist(p, s):
 
         return pg
     finally:
-        angr.engines.vex.irop.operations.update(old_ops)
+        angr.engines.vex.claripy.irop.operations.update(old_ops)
 
 def test_fauxware_oppologist():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'))

@@ -12,7 +12,7 @@ from archinfo import ArchARM
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
-from ...engines import SimEngineProcedure
+from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
 from ...exploration_techniques.explorer import Explorer
@@ -344,10 +344,16 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
+        self._should_abort = False
+
         self._starts = starts
         self._max_steps = max_steps
 
-        self._sanitize_starts()
+        if self._starts is None:
+            self._starts = [ ]
+
+        if self._starts:
+            self._sanitize_starts()
 
         self._analyze()
 
@@ -1456,11 +1462,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         if sim_successors.sort == 'IRSB' and input_state.thumb:
-            successors = self._arm_thumb_filter_jump_successors(sim_successors.addr,
-                                                                sim_successors.artifacts['irsb'].size,
+            successors = self._arm_thumb_filter_jump_successors(sim_successors.artifacts['irsb'],
                                                                 successors,
                                                                 lambda state: state.scratch.ins_addr,
-                                                                lambda state: state.scratch.exit_stmt_idx
+                                                                lambda state: state.scratch.exit_stmt_idx,
+                                                                lambda state: state.history.jumpkind,
                                                                 )
 
         # If there is a call exit, we shouldn't put the default exit (which
@@ -1978,10 +1984,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Update transition graphs of functions in function manager based on information passed in.
 
-        :param str jumpkind: Jumpkind.
-        :param CFGNode src_node: Source CFGNode
-        :param CFGNode dst_node: Destionation CFGNode
-        :param int ret_addr: The theoretical return address for calls
+        :param src_node_key:    Node key of the source CFGNode. Might be None.
+        :param dst_node:        Node key of the destination CFGNode. Might be None.
+        :param str jumpkind:    Jump kind of this transition.
+        :param int ret_addr:    The theoretical return address for calls.
+        :param int or None ins_addr:    Address of the instruction where this transition is made.
+        :param int or None stmt_idx:    ID of the statement where this transition is made.
+        :param bool or None confirmed:  Whether this call transition has been confirmed or not.
         :return: None
         """
 
@@ -2440,7 +2449,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         next_node = next_nodes[0]
 
         # Get the weakly-connected subgraph that contains `next_node`
-        all_subgraphs = networkx.weakly_connected_component_subgraphs(taint_graph)
+        all_subgraphs = ( networkx.induced_subgraph(taint_graph, nodes) for nodes in networkx.weakly_connected_components(taint_graph))
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
@@ -2832,9 +2841,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # instantiate the stub
                     new_stub_inst = new_stub(display_name=old_name)
 
-                    sim_successors = self.project.engines.procedure_engine.process(
+                    sim_successors = self.project.factory.procedure_engine.process(
                         state,
-                        new_stub_inst,
+                        procedure=new_stub_inst,
                         force_addr=addr,
                         ret_to=ret_to,
                     )
@@ -2881,7 +2890,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
                 inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-                sim_successors = SimEngineProcedure().process(state, inst)
+                sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimIRSBError:
             exception_info = sys.exc_info()
@@ -2889,28 +2898,28 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except claripy.ClaripyError:
             exception_info = sys.exc_info()
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimError:
             exception_info = sys.exc_info()
             l.debug("Caught a SimError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrExitError as ex:
             exception_info = sys.exc_info()
             l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrError:
             exception_info = sys.exc_info()
@@ -3059,7 +3068,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if is_simprocedure:
             simproc_name = sa['name'].split('.')[-1]
-            if simproc_name == "ReturnUnconstrained" and sa['resolves'] is not None:
+            if simproc_name == "ReturnUnconstrained" and 'resolves' in sa and sa['resolves'] is not None:
                 simproc_name = sa['resolves']
 
             no_ret = False

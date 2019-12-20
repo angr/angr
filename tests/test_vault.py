@@ -4,7 +4,8 @@ import angr
 class A:
 	n = 0
 
-def do_vault_identity(v):
+def do_vault_identity(v_factory):
+	v = v_factory()
 	v.uuid_dedup.add(A)
 	assert len(v.keys()) == 0
 
@@ -37,7 +38,8 @@ def do_vault_identity(v):
 	bbb = v.load(bid)
 	assert bbb.n == 1
 
-def do_vault_noidentity(v):
+def do_vault_noidentity(v_factory):
+	v = v_factory()
 	assert len(v.keys()) == 0
 
 	a = A()
@@ -68,7 +70,8 @@ def do_vault_noidentity(v):
 	v.store(cc)
 	assert len(v.keys()) == 6
 
-def do_ast_vault(v):
+def do_ast_vault(v_factory):
+	v = v_factory()
 	x = claripy.BVS("x", 32)
 	y = claripy.BVS("y", 32)
 	z = x + y
@@ -85,17 +88,17 @@ def do_ast_vault(v):
 	assert zzz is z
 
 def test_vault():
-	yield do_vault_noidentity, angr.vaults.VaultDir()
-	yield do_vault_noidentity, angr.vaults.VaultShelf()
-	yield do_vault_noidentity, angr.vaults.VaultDict()
-	yield do_vault_identity, angr.vaults.VaultDir()
-	yield do_vault_identity, angr.vaults.VaultShelf()
-	yield do_vault_identity, angr.vaults.VaultDict()
+	yield do_vault_noidentity, angr.vaults.VaultDir
+	yield do_vault_noidentity, angr.vaults.VaultShelf
+	yield do_vault_noidentity, angr.vaults.VaultDict
+	yield do_vault_identity, angr.vaults.VaultDir
+	yield do_vault_identity, angr.vaults.VaultShelf
+	yield do_vault_identity, angr.vaults.VaultDict
 
 def test_ast_vault():
-	yield do_ast_vault, angr.vaults.VaultDir()
-	yield do_ast_vault, angr.vaults.VaultShelf()
-	yield do_ast_vault, angr.vaults.VaultDict()
+	yield do_ast_vault, angr.vaults.VaultDir
+	yield do_ast_vault, angr.vaults.VaultShelf
+	yield do_ast_vault, angr.vaults.VaultDict
 
 def test_project():
 	v = angr.vaults.VaultDir()

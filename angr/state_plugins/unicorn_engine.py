@@ -1075,7 +1075,8 @@ class Unicorn(SimStatePlugin):
             bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
             #bbl_addr_count = _UC_NATIVE.bbl_addr_count(self._uc_state)
             # why is bbl_addr_count unused?
-            self.state.history.recent_bbl_addrs = bbl_addrs[:self.steps]
+            if self.steps:
+                self.state.history.recent_bbl_addrs = bbl_addrs[:self.steps]
         # get the stack pointers
         if options.UNICORN_TRACK_STACK_POINTERS in self.state.options:
             stack_pointers = _UC_NATIVE.stack_pointers(self._uc_state)
@@ -1359,7 +1360,7 @@ class Unicorn(SimStatePlugin):
                 return False
 
         if self.state.arch.vex_conditional_helpers:
-            flags = ccall._get_flags(self.state)[0]
+            flags = ccall._get_flags(self.state)
             processed_flags = self._process_value(flags, 'reg')
             if processed_flags is None or processed_flags.symbolic:
                 #l.info("detected symbolic rflags/eflags")
@@ -1371,8 +1372,7 @@ class Unicorn(SimStatePlugin):
         return True
 
 
-
-from ..engines.vex import ccall
+from angr.engines.vex.claripy import ccall
 from .. import sim_options as options
 
 from angr.sim_state import SimState

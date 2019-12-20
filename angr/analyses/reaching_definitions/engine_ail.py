@@ -6,7 +6,7 @@ from .atoms import Register, Tmp, MemoryLocation
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
-from .undefined import Undefined
+from .undefined import Undefined, undefined
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
 from ...errors import SimEngineError
 
@@ -23,16 +23,23 @@ class SimEngineRDAIL(
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
+        self._visited_blocks = None
 
     def process(self, state, *args, **kwargs):
+        self._visited_blocks = kwargs.pop('visited_blocks', None)
+
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
-            self._process(state, None, block=kwargs.pop('block', None))
+            self._process(
+                state,
+                None,
+                block=kwargs.pop('block', None),
+            )
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
-        return self.state
+        return self.state, self._visited_blocks
 
     #
     # Private methods
@@ -73,7 +80,7 @@ class SimEngineRDAIL(
         dst = stmt.dst
 
         if src is None:
-            src = DataSet(Undefined(dst.bits), dst.bits)
+            src = DataSet(undefined, dst.bits)
 
         if type(dst) is ailment.Tmp:
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), src)
@@ -100,7 +107,9 @@ class SimEngineRDAIL(
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             else:
                 if any(type(d) is Undefined for d in data):
-                    l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
+                    l.info('Data to write at address %s undefined, ins_addr = %#x.',
+                           hex(a) if type(a) is int else a, self.ins_addr
+                           )
 
                 if type(a) is SpOffset:
                     # Writing to stack
@@ -147,9 +156,9 @@ class SimEngineRDAIL(
         # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
         # to using all caller-saved registers.
         if stmt.args is not None:
-            used_vars = stmt.args
+            used_exprs = stmt.args
         else:
-            used_vars = None
+            used_exprs = None
 
         # All caller-saved registers will always be killed.
         if stmt.calling_convention is not None:
@@ -163,10 +172,10 @@ class SimEngineRDAIL(
         return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
 
         # Add uses
-        if used_vars is None:
-            used_vars = [ var for var in killed_vars if var.reg_offset != return_reg_offset ]
-        for var in used_vars:
-            self.state.add_use(var, self._codeloc())
+        if used_exprs is None:
+            used_exprs = [ var for var in killed_vars if var.reg_offset != return_reg_offset ]
+        for expr in used_exprs:
+            self._expr(expr)
 
         # Return value is redefined here, so it is not a dummy value
         self.state.kill_definitions(Register(return_reg_offset, return_reg_size), self._codeloc(), dummy=False)
@@ -190,17 +199,17 @@ class SimEngineRDAIL(
 
     def _ail_handle_Tmp(self, expr):
 
-        if self.state._track_tmps:
-            self.state.add_use(Tmp(expr.tmp_idx), self._codeloc())
+        self.state.add_use(Tmp(expr.tmp_idx), self._codeloc())
 
         return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
 
     def _ail_handle_Register(self, expr):
 
         reg_offset = expr.reg_offset
-        bits = expr.bits
+        size = expr.size
+        bits = size * 8
 
-        self.state.add_use(Register(reg_offset, bits // 8), self._codeloc())
+        self.state.add_use(Register(reg_offset, size), self._codeloc())
 
         if reg_offset == self.arch.sp_offset:
             return DataSet(SpOffset(bits, 0), bits)
@@ -212,7 +221,7 @@ class SimEngineRDAIL(
             defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
             if not defs:
                 # define it right away as an external dependency
-                self.state.kill_and_add_definition(Register(reg_offset, bits // 8), self._external_codeloc(),
+                self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
                                                    data=expr
                                                    )
                 defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
@@ -259,14 +268,14 @@ class SimEngineRDAIL(
                     if any(type(d) is Undefined for d in data):
                         l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
                 else:
-                    data.add(Undefined(bits))
+                    data.add(undefined)
 
                 self.state.add_use(addr, self._codeloc())
             else:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(Undefined(bits))
+            data.add(undefined)
 
         return DataSet(data, bits)
 

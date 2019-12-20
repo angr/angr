@@ -1,7 +1,6 @@
 
 from ...engines.light import SpOffset
 from .atoms import MemoryLocation, Register
-from .undefined import Undefined
 from .dataset import DataSet
 
 
@@ -27,7 +26,7 @@ class Definition:
         self.dummy = dummy
 
         # convert everything into a DataSet
-        if not isinstance(self.data, (DataSet, Undefined)):
+        if not isinstance(self.data, DataSet):
             self.data = DataSet(self.data, self.data.bits)
 
     def __eq__(self, other):

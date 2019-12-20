@@ -19,8 +19,8 @@ class AnnotatedCFG:
         Constructor.
 
         :param project: The angr Project instance
-        :param cfg: Control flow graph. Only used when path prioritizer is used.
-        :param detect_loops: Only used when path prioritizer is used.
+        :param cfg: Control flow graph.
+        :param detect_loops:
         """
         self._project = project
 
@@ -33,14 +33,12 @@ class AnnotatedCFG:
         self._addr_to_last_stmt_id = {}
         self._loops = []
         self._path_merge_points = [ ]
-        self._path_prioritizer = None
-
 
         if cfg is not None:
             self._cfg = cfg
 
         if self._cfg is not None:
-            for run in self._cfg.nodes():
+            for run in self._cfg.model.nodes():
                 self._addr_to_run[self.get_addr(run)] = run
 
     #
@@ -112,9 +110,6 @@ class AnnotatedCFG:
         it always starts with the first IRSB that we meet during the execution.
         """
         self._loops.append(loop_tuple)
-
-    def set_path_merge_points(self, points):
-        self._path_merge_points = points.copy()
 
     def should_take_exit(self, addr_from, addr_to):
         if addr_from in self._exit_taken:
@@ -222,9 +217,8 @@ class AnnotatedCFG:
         if project is None:
             raise Exception("Dict addr_to_run is empty. " + \
                             "Give me a project, and I'll recreate the IRSBs for you.")
-        else:
-            vex_block = project.factory.block(irsb_addr).vex
 
+        vex_block = project.factory.block(irsb_addr).vex
         statements = vex_block.statements
         whitelist = self.get_whitelisted_statements(irsb_addr)
         for i in range(0, len(statements)):
@@ -250,28 +244,12 @@ class AnnotatedCFG:
 
         return self.should_take_exit(path.addr_trace[-2], path.addr_trace[-1])
 
-    def filter_path(self, path):
-        """
-        Used for debugging.
-
-        :param path: A Path instance
-        :return: True/False
-        """
-
-        return True
-
     def merge_points(self, path):
         addr = path.addr
         if addr in self._path_merge_points:
             return {self._path_merge_points[addr]}
         else:
             return set()
-
-    def path_priority(self, path):
-        """
-        Given a path, returns the path priority. A lower number means a higher priority.
-        """
-        return self._path_prioritizer.get_priority(path)
 
     def successor_func(self, path):
         """
@@ -317,7 +295,6 @@ class AnnotatedCFG:
         state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
         state['_loops'] = self._loops
         state['_path_merge_points'] = self._path_merge_points
-        state['_path_prioritizer'] = self._path_prioritizer
         state['_cfg'] = None
         state['_project'] = None
         state['_addr_to_run'] = None

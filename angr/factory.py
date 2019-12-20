@@ -1,10 +1,11 @@
 import logging
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 from .errors import AngrAssemblyError
-from archinfo import ArchSoot
+from .engines import UberEngine, ProcedureEngine
 
 
 l = logging.getLogger(name=__name__)
@@ -14,17 +15,14 @@ class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project):
+    def __init__(self, project, default_engine=None):
+        if default_engine is None:
+            default_engine = UberEngine
+
         self.project = project
         self._default_cc = DEFAULT_CC[project.arch.name]
-
-    @property
-    def default_engine(self):
-        return self.project.engines.default_engine
-
-    @property
-    def procedure_engine(self):
-        return self.project.engines.procedure_engine
+        self.default_engine = default_engine(project)
+        self.procedure_engine = ProcedureEngine(project)
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
@@ -38,12 +36,12 @@ class AngrObjectFactory(object):
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def successors(self, *args, **kwargs):
+    def successors(self, *args, engine=None, **kwargs):
         """
-        Perform execution using any applicable engine. Enumerate the current engines and use the
-        first one that works. Return a SimSuccessors object classifying the results of the run.
+        Perform execution using an engine. Generally, return a SimSuccessors object classifying the results of the run.
 
         :param state:           The state to analyze
+        :param engine:          The engine to use. If not provided, will use the project default.
         :param addr:            optional, an address to execute at instead of the state's ip
         :param jumpkind:        optional, the jumpkind of the previous exit
         :param inline:          This is an inline execution. Do not bother copying the state.
@@ -51,7 +49,9 @@ class AngrObjectFactory(object):
         Additional keyword arguments will be passed directly into each engine's process method.
         """
 
-        return self.project.engines.successors(*args, **kwargs)
+        if engine is not None:
+            return engine.process(*args, **kwargs)
+        return self.default_engine.process(*args, **kwargs)
 
     def blank_state(self, **kwargs):
         """
@@ -276,7 +276,7 @@ class AngrObjectFactory(object):
               strict_block_end=None, collect_data_refs=False,
               ):
 
-        if isinstance(self.project.arch, ArchSoot):
+        if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
 
         if insn_bytes is not None and insn_text is not None:

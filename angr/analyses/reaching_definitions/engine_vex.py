@@ -2,13 +2,13 @@ import logging
 
 import pyvex
 
-from .atoms import Register, MemoryLocation, Parameter
+from .atoms import Register, MemoryLocation, Parameter, Tmp
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
-from .undefined import Undefined
+from .undefined import Undefined, undefined
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
-from ...engines.vex.irop import operations as vex_operations
+from angr.engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 
 l = logging.getLogger(name=__name__)
@@ -24,17 +24,26 @@ class SimEngineRDVEX(
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
+        self._visited_blocks = None
+        self._def_use_graph = None
 
     def process(self, state, *args, **kwargs):
+        self._def_use_graph = kwargs.pop('def_use_graph', None)
+        self._visited_blocks = kwargs.pop('visited_blocks', None)
+
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
-            self._process(state, None, block=kwargs.pop('block', None))
+            self._process(
+                state,
+                None,
+                block=kwargs.pop('block', None),
+            )
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
             l.error(e)
-        return self.state
+        return self.state, self._visited_blocks
 
     #
     # Private methods
@@ -57,6 +66,14 @@ class SimEngineRDVEX(
 
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+
+    def _handle_WrTmp(self, stmt):
+        super()._handle_WrTmp(stmt)
+        self.state.kill_and_add_definition(Tmp(stmt.tmp), self._codeloc(), self.tmps[stmt.tmp])
+
+    def _handle_WrTmpData(self, tmp, data):
+        super()._handle_WrTmpData(tmp, data)
+        self.state.kill_and_add_definition(Tmp(tmp), self._codeloc(), self.tmps[tmp])
 
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
@@ -150,7 +167,9 @@ class SimEngineRDVEX(
             self._handle_WrTmpData(stmt.dst, DataSet(data, load_expr.result_size(self.tyenv)))
 
     def _handle_Exit(self, stmt):
-        pass
+        guard = self._expr(stmt.guard)
+        target = stmt.dst.value
+        self.state.mark_guard(self._codeloc(), guard, target)
 
     def _handle_IMark(self, stmt):
         pass
@@ -162,13 +181,21 @@ class SimEngineRDVEX(
     # VEX expression handlers
     #
 
+    def _expr(self, expr):
+        data = super()._expr(expr)
+        if data is None:
+            bits = expr.result_size(self.tyenv)
+            data = DataSet(undefined, bits)
+        return data
+
     def _handle_RdTmp(self, expr):
         tmp = expr.tmp
 
+        self.state.add_use(Tmp(tmp), self._codeloc())
+
         if tmp in self.tmps:
             return self.tmps[tmp]
-        bits = expr.result_size(self.tyenv)
-        return DataSet(Undefined(bits), bits)
+        return None
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_Get(self, expr):
@@ -183,7 +210,9 @@ class SimEngineRDVEX(
         for current_def in current_defs:
             data.update(current_def.data)
         if len(data) == 0:
-            data.add(Undefined(bits))
+            # no defs can be found. add a fake definition
+            data.add(undefined)
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), DataSet(data, bits))
         if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
@@ -220,7 +249,7 @@ class SimEngineRDVEX(
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(Undefined(bits))
+            data.add(undefined)
 
         return DataSet(data, bits)
 
@@ -317,7 +346,7 @@ class SimEngineRDVEX(
                         head = ((1 << e1) - 1) << (bits - e1)
                     data.add(head | (e0 >> e1))
                 except (ValueError, TypeError) as e:
-                    data.add(Undefined(bits))
+                    data.add(undefined)
                     l.warning(e)
 
         return DataSet(data, expr.result_size(self.tyenv))
@@ -386,7 +415,9 @@ class SimEngineRDVEX(
 
     def _handle_CCall(self, expr):
         bits = expr.result_size(self.tyenv)
-        return DataSet(Undefined(bits), bits)
+        for arg_expr in expr.args:
+            self._expr(arg_expr)
+        return DataSet(undefined, bits)
 
     #
     # User defined high level statement handlers
@@ -409,7 +440,7 @@ class SimEngineRDVEX(
                 _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                 self.state = state
             else:
-                l.warning('Please implement the inderect function handler with your own logic.')
+                l.warning('Please implement the indirect function handler with your own logic.')
             return None
 
         ip_addr = ip_data.get_first_element()
@@ -423,16 +454,14 @@ class SimEngineRDVEX(
                 l.warning('Please implement the unknown function handler with your own logic.')
             return None
 
-        is_internal = False
         ext_func_name = None
-        if self.project.loader.main_object.contains_addr(ip_addr) is True:
+        if self.project.loader.main_object.contains_addr(ip_addr):
             ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
-            if ext_func_name is None:
-                is_internal = True
         else:
             symbol = self.project.loader.find_symbol(ip_addr)
             if symbol is not None:
                 ext_func_name = symbol.name
+        is_internal = ext_func_name is None
 
         executed_rda = False
         if ext_func_name is not None:
@@ -483,11 +512,14 @@ class SimEngineRDVEX(
                 raise ValueError('Invalid number of values for stack pointer.')
 
             sp_addr = next(iter(sp_data))
-            if not isinstance(sp_addr, int):
+            if isinstance(sp_addr, int):
+                sp_addr -= self.arch.stack_change
+            elif isinstance(sp_addr, Undefined):
+                pass
+            else:
                 raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)
-            sp_addr -= self.arch.stack_change
             self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
 
         return None

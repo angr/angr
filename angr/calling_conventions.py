@@ -14,11 +14,12 @@ from .sim_type import SimTypeDouble
 from .sim_type import SimTypeReg
 from .sim_type import SimStruct
 from .sim_type import parse_file
+from .sim_type import SimTypeTop
 
 from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
-from .engines.soot.engine import SimEngineSoot
+from .engines.soot.engine import SootMixin
 
 # TODO: This file contains explicit and implicit byte size assumptions all over. A good attempt to fix them was made.
 # If your architecture hails from the astral plane, and you're reading this, start fixing here.
@@ -565,7 +566,7 @@ class SimCC:
         # STEP 0: clerical work
 
         if isinstance(self, SimCCSoot):
-            SimEngineSoot.setup_callsite(state, args, ret_addr)
+            SootMixin.setup_callsite(state, args, ret_addr)
             return
 
         allocator = AllocHelper(self.arch.bits, self.arch.memory_endness == 'Iend_LE')
@@ -947,10 +948,16 @@ class SimCC:
         :param angr.SimState state: The state to evaluate and extract the values from
         :return:    A list of tuples, where the nth tuple is (type, name, location, value) of the nth argument
         """
-        argument_types = self.func_ty.args
-        argument_names = self.func_ty.arg_names if self.func_ty.arg_names else ['unknown'] * len(self.func_ty.args)
+
         argument_locations = self.arg_locs(is_fp=is_fp, sizes=sizes)
         argument_values = self.get_args(state, is_fp=is_fp, sizes=sizes)
+
+        if self.func_ty:
+            argument_types = self.func_ty.args
+            argument_names = self.func_ty.arg_names if self.func_ty.arg_names else ['unknown'] * len(self.func_ty.args)
+        else:
+            argument_types = [SimTypeTop] * len(argument_locations)
+            argument_names = ['unknown'] * len(argument_locations)
         return list(zip(argument_types, argument_names, argument_locations, argument_values))
 
 class SimLyingRegArg(SimRegArg):

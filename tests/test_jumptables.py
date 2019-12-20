@@ -166,6 +166,21 @@ def test_armel_cfgswitches_gcc():
     compare(cfg.jump_tables, all_jumptables)
 
 
+def test_armel_lwip_tcpecho_bm():
+    p = angr.Project(os.path.join(test_location, "armel", "lwip_tcpecho_bm.elf"), auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+
+    all_jumptables = {
+        J(0x14fb, 0x14fe, [0x1519, 0x1519, 0x152f, 0x1541, 0x1553, 0x159d, 0x1565, 0x156d, 0x1575, 0x159d, 0x159d, 0x157d, 0x1585, 0x158d, 0x1595, 0x159d, 0x159d, 0x159d, 0x15a1, 0x1513]),
+        J(0x2d45, 0x2d48, [0x2d8d, 0x2d4f, 0x2d91, 0x2d7f, 0x2d7f]),
+        J(0x2e8d, 0x2e90, [0x2eb3, 0x2e97, 0x2eb7, 0x2ea7, 0x2ea7]),
+        J(0x2e9f, 0x2ea2, [0x2f93, 0x2fc9, 0x2fc9, 0x2ebb]),
+        J(0x4b63, 0x4b66, [0x4b91, 0x4c81, 0x4d53, 0x4d5b, 0x4ded, 0x4d53, 0x4e21, 0x4e5f]),
+    }
+
+    compare(cfg.jump_tables, all_jumptables)
+
+
 def test_s390x_cfgswitches():
     p = angr.Project(os.path.join(test_location, "s390x", "cfg_switches"), auto_load_libs=False)
     cfg = p.analyses.CFGFast()
@@ -180,6 +195,32 @@ def test_s390x_cfgswitches():
     compare(cfg.jump_tables, all_jumptables)
 
 
+#
+# The jump table should be occupied and marked as data
+#
+
+def test_jumptable_occupied_as_data():
+
+    # GitHub issue #1671
+
+    p = angr.Project(os.path.join(test_location, "i386", "windows", "printenv.exe"), auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+
+    # it has a jump table at 0x402e4d with 10 entries
+    nose.tools.assert_in(0x402e4d, cfg.indirect_jumps)
+    nose.tools.assert_true(cfg.indirect_jumps[0x402e4d].jumptable)
+    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_addr, 0x402e54)
+    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_size, 4 * 10)
+    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_entry_size, 4)
+
+    # 40 bytes starting at 0x402e4d should be marked as "data"
+    for addr in range(0x402e54, 0x402e54 + 40, 4):
+        nose.tools.assert_equal(cfg._seg_list.occupied_by_sort(addr), "data")
+
+    # node 0x402e4d should have 10 successors
+    nose.tools.assert_equal(len(cfg.model.get_any_node(0x402e4d).successors), 10)
+
+
 if __name__ == "__main__":
     test_amd64_dir_gcc_O0()
     test_amd64_cfgswitches_gcc()
@@ -188,4 +229,6 @@ if __name__ == "__main__":
     test_i386_cfgswitches_gcc_O2()
     test_kprca_00009()
     test_armel_cfgswitches_gcc()
+    test_armel_lwip_tcpecho_bm()
     test_s390x_cfgswitches()
+    test_jumptable_occupied_as_data()

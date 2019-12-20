@@ -6,9 +6,9 @@ from archinfo import ArchARM
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
-from .engines import SimEngineVEX
+from .engines.vex import VEXLifter
 
-DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
+DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not initialized with a project
 
 
 class Block(Serializable):
@@ -52,7 +52,7 @@ class Block(Serializable):
             elif vex is not None:
                 size = vex.size
             else:
-                vex = self._vex_engine.lift(
+                vex = self._vex_engine.lift_vex(
                         clemory=project.loader.memory,
                         state=backup_state,
                         insn_bytes=byte_string,
@@ -143,7 +143,7 @@ class Block(Serializable):
     @property
     def vex(self):
         if not self._vex:
-            self._vex = self._vex_engine.lift(
+            self._vex = self._vex_engine.lift_vex(
                     clemory=self._project.loader.memory if self._project is not None else None,
                     insn_bytes=self._bytes,
                     addr=self.addr,
@@ -166,7 +166,7 @@ class Block(Serializable):
         if self._vex:
             return self._vex
 
-        self._vex_nostmt = self._vex_engine.lift(
+        self._vex_nostmt = self._vex_engine.lift_vex(
             clemory=self._project.loader.memory if self._project is not None else None,
             insn_bytes=self._bytes,
             addr=self.addr,
@@ -262,7 +262,7 @@ class SootBlock:
 
     @property
     def soot(self):
-        return self._soot_engine.lift(self.addr, the_binary=self._the_binary)
+        return self._soot_engine.lift_soot(self.addr, the_binary=self._the_binary)
 
     @property
     def size(self):

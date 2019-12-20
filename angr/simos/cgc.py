@@ -1,10 +1,8 @@
-
 import logging
 
 import claripy
 from cle import BackedCGC
 
-from ..misc import IRange
 from ..procedures import SIM_LIBRARIES as L
 from ..state_plugins import SimActionData
 from .. import sim_options as o
@@ -30,14 +28,16 @@ class SimCGC(SimUserland):
         """
         :param flag_page:   Flag page content, either a string or a list of BV8s
         """
+        # default stack as specified in the cgc abi
+        if kwargs.get('stack_end', None) is None:
+            kwargs['stack_end'] = 0xbaaab000
+        if kwargs.get('stack_size', None) is None:
+            kwargs['stack_size'] = 1024*1024*8
+
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
-        # Special stack base for CGC binaries to work with Shellphish CRS
-        s.regs.sp = 0xbaaaaffc
-
-        # Map the special cgc memory
+        # Map the flag page
         if o.ABSTRACT_MEMORY not in s.options:
-            s.memory.mem._preapproved_stack = IRange(0xbaaab000 - 1024 * 1024 * 8, 0xbaaab000)
             s.memory.map_region(0x4347c000, 4096, 1)
 
         # Create the CGC plugin
@@ -77,27 +77,6 @@ class SimCGC(SimUserland):
         state = super(SimCGC, self).state_entry(add_options=add_options, **kwargs)
 
         if isinstance(self.project.loader.main_object, BackedCGC):
-            for reg, val in self.project.loader.main_object.initial_register_values():
-                if reg in state.arch.registers:
-                    setattr(state.regs, reg, val)
-                elif reg == 'eflags':
-                    pass
-                elif reg == 'fctrl':
-                    state.regs.fpround = (val & 0xC00) >> 10
-                elif reg == 'fstat':
-                    state.regs.fc3210 = (val & 0x4700)
-                elif reg == 'ftag':
-                    empty_bools = [((val >> (x * 2)) & 3) == 3 for x in range(8)]
-                    tag_chars = [claripy.BVV(0 if x else 1, 8) for x in empty_bools]
-                    for i, tag in enumerate(tag_chars):
-                        setattr(state.regs, 'fpu_t%d' % i, tag)
-                elif reg in ('fiseg', 'fioff', 'foseg', 'fooff', 'fop'):
-                    pass
-                elif reg == 'mxcsr':
-                    state.regs.sseround = (val & 0x600) >> 9
-                else:
-                    _l.error("What is this register %s I have to translate?", reg)
-
             # Update allocation base
             state.cgc.allocation_base = self.project.loader.main_object.current_allocation_base
 

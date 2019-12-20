@@ -72,6 +72,8 @@ def run_pickling(arch):
     stdin = pg.found[0].posix.dumps(0)
     nose.tools.assert_equal(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
+
+@attr(speed='slow')
 def run_fastmem(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
     p.analyses.CongruencyCheck(throw=True).set_state_options(right_add_options={"FAST_REGISTERS"}).run()

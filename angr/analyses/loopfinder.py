@@ -137,9 +137,10 @@ class LoopFinder(Analysis):
                     else:
                         subg.add_edge(subloop, exit_edge[1])
                         removed_exits[exit_edge] = subloop
-                subg = next(filter(lambda g: entry_node in g.nodes(),
-                        networkx.weakly_connected_component_subgraphs(subg)))
-
+                _subgraphs = (networkx.induced_subgraph(subg, nodes).copy() for nodes in
+                             networkx.weakly_connected_components(subg))
+                subg = next(filter( lambda g: entry_node in g.nodes(),
+                                    _subgraphs))
         me = Loop(entry_node,
              entry_edges,
              break_edges,
@@ -159,7 +160,7 @@ class LoopFinder(Analysis):
         """
         outtop = []
         outall = []
-        for subg in networkx.strongly_connected_component_subgraphs(graph):
+        for subg in ( networkx.induced_subgraph(graph, nodes).copy() for nodes in networkx.strongly_connected_components(graph)):
             if len(subg.nodes()) == 1:
                 if len(list(subg.successors(list(subg.nodes())[0]))) == 0:
                     continue

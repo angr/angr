@@ -74,7 +74,11 @@ def _compare_register_variable(variable, variable_info):  # pylint:disable=unuse
     return True
 
 
-def run_variable_recovery_analysis(project, func, groundtruth, is_fast):
+def run_variable_recovery_analysis(func_name, groundtruth, is_fast):
+    binary_path = os.path.join(test_location, 'x86_64', 'fauxware')
+    project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    cfg = project.analyses.CFG(normalize=True)
+    func = cfg.kb.functions[func_name]
 
     # Create a temporary KnowledgeBase instance
     tmp_kb = angr.KnowledgeBase(project)
@@ -128,11 +132,6 @@ def run_variable_recovery_analysis(project, func, groundtruth, is_fast):
 
 
 def test_variable_recovery_fauxware():
-
-    binary_path = os.path.join(test_location, 'x86_64', 'fauxware')
-    project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-    cfg = project.analyses.CFG(normalize=True)
-
     groundtruth = {
         'authenticate': {
             'variables_by_instruction': {
@@ -198,8 +197,8 @@ def test_variable_recovery_fauxware():
     }
 
     for func_name, truth in groundtruth.items():
-        yield run_variable_recovery_analysis, project, cfg.kb.functions[func_name], truth, True
-        yield run_variable_recovery_analysis, project, cfg.kb.functions[func_name], truth, False
+        yield run_variable_recovery_analysis, func_name, truth, True
+        yield run_variable_recovery_analysis, func_name, truth, False
 
 
 def main():

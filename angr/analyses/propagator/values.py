@@ -44,10 +44,19 @@ class Top:
     def __rshift__(self, other):
         return self
 
+    def __rlshift__(self, other):
+        return self
+
+    def __rrshift__(self, other):
+        return self
+
     def __lshift__(self, other):
         return self
 
     def __xor__(self, other):
+        return self
+
+    def __rxor__(self, other):
         return self
 
     def __or__(self, other):
@@ -57,6 +66,12 @@ class Top:
         return "TOP"
 
     def __eq__(self, other):
+        return type(other) is Top
+
+    def __le__(self, other):
+        return type(other) is Top
+
+    def __lt__(self, other):
         return type(other) is Top
 
     def __neg__(self):
