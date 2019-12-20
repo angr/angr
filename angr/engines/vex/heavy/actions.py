@@ -18,16 +18,16 @@ class TrackActionsMixin(HeavyVEXMixin):
         super().handle_vex_block(irsb)
 
     def _handle_vex_const(self, const):
-        return super()._handle_vex_const(const), ()
+        return super()._handle_vex_const(const), frozenset()
 
     def _handle_vex_expr_GSPTR(self, expr):
-        return super()._handle_vex_expr_GSPTR(expr), ()
+        return super()._handle_vex_expr_GSPTR(expr), frozenset()
 
     def _handle_vex_expr_VECRET(self, expr):
-        return super()._handle_vex_expr_VECRET(expr), ()
+        return super()._handle_vex_expr_VECRET(expr), frozenset()
 
     def _handle_vex_expr_Binder(self, expr):
-        return super()._handle_vex_expr_Binder(expr), ()
+        return super()._handle_vex_expr_Binder(expr), frozenset()
 
     def _instrument_vex_expr(self, result):
         return super()._instrument_vex_expr(result[0]), result[1]
@@ -40,27 +40,27 @@ class TrackActionsMixin(HeavyVEXMixin):
             action_objects = [SimActionObject(arg, deps=dep, state=self.state) for arg, dep in args]
             r = SimActionOperation(self.state, op, action_objects, result)
             self.state.history.add_action(r)
-            result_deps = (r,)
+            result_deps = frozenset((r,))
         else:
-            result_deps = sum(deps, ())
+            result_deps = frozenset().union(*deps)
         return result, result_deps
 
     def _perform_vex_expr_ITE(self, *args):
         exprs, deps = zip(*args)
-        combined_deps = sum(deps, ())
+        combined_deps = frozenset().union(*deps)
         result = super()._perform_vex_expr_ITE(*exprs)
         return result, combined_deps
 
     # TODO for this and below: what if we made AUTO_DEPS work here?
     def _perform_vex_expr_CCall(self, func_name, ty, args, func=None):
         exprs, deps = zip(*args)
-        combined_deps = sum(deps, ())
+        combined_deps = frozenset().union(*deps)
         result = super()._perform_vex_expr_CCall(func_name, ty, exprs, func=None)
         return result, combined_deps
 
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
         exprs, deps = zip(*args) if args else ((), ())
-        combined_deps = sum(deps, ())
+        combined_deps = frozenset().union(*deps)
         result = super()._perform_vex_stmt_Dirty_call(func_name, ty, exprs, func=None)
         return result, combined_deps
 
@@ -71,9 +71,9 @@ class TrackActionsMixin(HeavyVEXMixin):
         if o.TRACK_TMP_ACTIONS in self.state.options:
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.READ, tmp=tmp, size=self.irsb.tyenv.sizeof(tmp), data=result)
             self.state.history.add_action(r)
-            a = (r,)
+            a = frozenset((r,))
         else:
-            a = self.__tmp_deps.get(tmp, ())
+            a = self.__tmp_deps.get(tmp, frozenset())
         return result, a
 
     def _perform_vex_expr_Get(self, offset_bundle, ty, **kwargs):
@@ -86,9 +86,9 @@ class TrackActionsMixin(HeavyVEXMixin):
                               size=pyvex.get_type_size(ty), data=result
                               )
             self.state.history.add_action(r)
-            a = (r,)
+            a = frozenset((r,))
         else:
-            a = ()
+            a = frozenset()
         return result, a
 
     def _perform_vex_expr_Load(self, addr_bundle, ty, end, **kwargs):
@@ -99,9 +99,9 @@ class TrackActionsMixin(HeavyVEXMixin):
             addr_ao = SimActionObject(addr, deps=addr_deps, state=self.state)
             r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=pyvex.get_type_size(ty), data=result)
             self.state.history.add_action(r)
-            a = (r,)
+            a = frozenset((r,))
         else:
-            a = ()
+            a = frozenset()
         return result, a
 
     # statements
