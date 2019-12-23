@@ -8,7 +8,7 @@ from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from .atoms import Register, Tmp, MemoryLocation
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
-from .external_codeloc import ExternalCodeLocation
+from .external_code_location import ExternalCodeLocation
 from .undefined import Undefined, undefined
 
 l = logging.getLogger(name=__name__)

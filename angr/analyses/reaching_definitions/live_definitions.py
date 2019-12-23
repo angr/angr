@@ -10,7 +10,7 @@ from ...keyed_region import KeyedRegion
 from .atoms import GuardUse, Register, MemoryLocation, Tmp, Parameter
 from .dataset import DataSet
 from .definition import Definition
-from .external_codeloc import ExternalCodeLocation
+from .external_code_location import ExternalCodeLocation
 from .subject import SubjectType
 from .undefined import undefined
 from .uses import Uses

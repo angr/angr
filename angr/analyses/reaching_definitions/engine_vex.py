@@ -5,7 +5,7 @@ import pyvex
 from .atoms import Register, MemoryLocation, Parameter, Tmp
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
-from .external_codeloc import ExternalCodeLocation
+from .external_code_location import ExternalCodeLocation
 from .undefined import Undefined, undefined
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from angr.engines.vex.claripy.irop import operations as vex_operations
