@@ -100,9 +100,9 @@ class ReachingDefinitionsAnalysisTest(TestCase):
         def _result_extractor(rda):
             unsorted_result = map(
                 lambda x: {'key': x[0],\
-                           'register_definitions': x[1].register_definitions,\
-                           'stack_definitions': x[1].stack_definitions,\
-                           'memory_definitions': x[1].memory_definitions},
+                           'register_definitions': x[1].register_definitions._storage,\
+                           'stack_definitions': x[1].stack_definitions._storage,\
+                           'memory_definitions': x[1].memory_definitions._storage},
                 rda.observed_results.items()
             )
             return list(sorted(
