@@ -58,7 +58,9 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
     def get_xrefs_by_dst_region(self, start, end):
         f = lambda x: isinstance(x, int) and start <= x <= end
         addrs = filter(f, self.xrefs_by_dst.keys())
-        refs = [self.xrefs_by_dst[addr] for addr in addrs]
+        refs = set()
+        for addr in addrs:
+            refs = refs.union(self.xrefs_by_dst[addr])
         return refs
 
     @classmethod
