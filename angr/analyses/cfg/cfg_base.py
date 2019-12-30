@@ -604,7 +604,7 @@ class CFGBase(Analysis):
             elif isinstance(b, Blob):
                 # a blob is entirely executable
                 tpl = (b.min_addr, b.max_addr)
-                memory_regions.append(l)
+                memory_regions.append(tpl)
             elif isinstance(b, NamedRegion):
                 # NamedRegions have no content! Ignore
                 pass
