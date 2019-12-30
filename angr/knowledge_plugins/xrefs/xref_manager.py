@@ -55,6 +55,12 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
     def get_xrefs_by_dst(self, dst):
         return self.xrefs_by_dst.get(dst, set())
 
+    def get_xrefs_by_dst_region(self, start, end):
+        f = lambda x: isinstance(x, int) and start <= x <= end
+        addrs = filter(f, self.xrefs_by_dst.keys())
+        refs = [self.xrefs_by_dst[addr] for addr in addrs]
+        return refs
+
     @classmethod
     def _get_cmsg(cls):
         return xrefs_pb2.XRefs()
