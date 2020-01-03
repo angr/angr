@@ -12,9 +12,10 @@ import nose
 import ailment
 import angr
 import archinfo
-from angr.analyses.reaching_definitions.live_definitions import LiveDefinitions
-from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register
+from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.analyses.reaching_definitions.live_definitions import LiveDefinitions
+from angr.analyses.reaching_definitions.subject import Subject, SubjectType
 from angr.block import Block
 
 LOGGER = logging.getLogger('test_reachingdefinitions')
@@ -55,20 +56,22 @@ class InsnAndNodeObserveTestingUtils():
         cfg = project.analyses.CFGFast()
 
         main_function = cfg.kb.functions['main']
-        reaching_definition = project.analyses.ReachingDefinitions(
-            subject=main_function, init_func=True, observation_points=observation_points
+        reaching_definitions = project.analyses.ReachingDefinitions(
+            subject=main_function, observation_points=observation_points
         )
 
-        state = LiveDefinitions(project.arch, project.loader)
+        state = LiveDefinitions(
+           project.arch, reaching_definitions.subject, project.loader
+        )
 
-        return (project, main_function, reaching_definition, state)
+        return (project, main_function, reaching_definitions, state)
 
 
 class ReachingDefinitionsAnalysisTest(TestCase):
     def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses.ReachingDefinitions(
-            subject=function, init_func=True, kb=tmp_kb, observe_all=True
+            subject=function, kb=tmp_kb, observe_all=True
         )
 
         result = _extract_result(reaching_definition)
@@ -97,9 +100,9 @@ class ReachingDefinitionsAnalysisTest(TestCase):
         def _result_extractor(rda):
             unsorted_result = map(
                 lambda x: {'key': x[0],\
-                           'register_definitions': x[1].register_definitions,\
-                           'stack_definitions': x[1].stack_definitions,\
-                           'memory_definitions': x[1].memory_definitions},
+                           'register_definitions': x[1].register_definitions._storage,\
+                           'stack_definitions': x[1].stack_definitions._storage,\
+                           'memory_definitions': x[1].memory_definitions._storage},
                 rda.observed_results.items()
             )
             return list(sorted(
@@ -235,16 +238,45 @@ class ReachingDefinitionsAnalysisTest(TestCase):
         ))
 
 
+    def test_reaching_definition_analysis_exposes_its_subject(self):
+        binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
+        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+        cfg = project.analyses.CFGFast()
+
+        main_function = cfg.kb.functions['main']
+        reaching_definitions = project.analyses.ReachingDefinitions(
+            subject=main_function
+        )
+
+        nose.tools.assert_equals(reaching_definitions.subject.__class__ is Subject, True)
+
+
 class LiveDefinitionsTest(TestCase):
+    class _MockFunctionSubject:
+        class _MockFunction:
+            def __init__(self):
+                self.addr = 0x42
+
+        def __init__(self):
+            self.type = SubjectType.Function
+            self.cc = None
+            self.content = self._MockFunction()
+
     def test_initializing_live_definitions_for_ppc_without_rtoc_value_should_raise_an_error(self):
         arch = archinfo.arch_ppc64.ArchPPC64()
-        nose.tools.assert_raises(ValueError, LiveDefinitions, arch=arch, init_func=True)
+        nose.tools.assert_raises(
+           ValueError,
+           LiveDefinitions, arch=arch, subject=self._MockFunctionSubject()
+        )
 
 
     def test_initializing_live_definitions_for_ppc_with_rtoc_value(self):
         arch = archinfo.arch_ppc64.ArchPPC64()
         rtoc_value = random.randint(0, 0xffffffffffffffff)
-        live_definition = LiveDefinitions(arch=arch, init_func=True, rtoc_value=rtoc_value)
+
+        live_definition = LiveDefinitions(
+           arch=arch, subject=self._MockFunctionSubject(), rtoc_value=rtoc_value
+        )
 
         rtoc_offset = arch.registers['rtoc'][0]
         rtoc_definition = next(iter(
@@ -263,7 +295,7 @@ class LiveDefinitionsTest(TestCase):
         tmp_kb = angr.KnowledgeBase(project)
         main_func = cfg.kb.functions['main']
         rda = project.analyses.ReachingDefinitions(
-            subject=main_func, init_func=True, kb=tmp_kb, observe_all=True
+            subject=main_func, kb=tmp_kb, observe_all=True
         )
 
         def _is_right_before_main_node(definition):
