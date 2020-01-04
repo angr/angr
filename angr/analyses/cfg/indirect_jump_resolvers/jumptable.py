@@ -646,6 +646,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 break
             block_addr, stmt_idx = stmt_loc = preds[0]
             block = project.factory.block(block_addr, backup_state=self.base_state).vex
+            if stmt_idx == DEFAULT_STATEMENT:
+                # it's the default exit. continue
+                continue
             stmt = block.statements[stmt_idx]
             if isinstance(stmt, (pyvex.IRStmt.WrTmp, pyvex.IRStmt.Put)):
                 if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
