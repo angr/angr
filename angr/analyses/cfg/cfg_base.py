@@ -1297,7 +1297,7 @@ class CFGBase(Analysis):
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
 
             if self._low_priority:
-                self._release_gil(i, 20)
+                self._release_gil(i, 2)
 
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
@@ -2196,7 +2196,7 @@ class CFGBase(Analysis):
         all_targets = set()
         for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type:int,IndirectJump
             if self._low_priority:
-                self._release_gil(idx, 20, 0.0001)
+                self._release_gil(idx, 2, sleep_time=0.0001)
             all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()

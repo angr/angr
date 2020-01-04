@@ -1012,7 +1012,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         if self._low_priority:
-            self._release_gil(len(self._nodes), 20, 0.0001)
+            self._release_gil(len(self._nodes), 2, sleep_time=0.0001)
 
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)
