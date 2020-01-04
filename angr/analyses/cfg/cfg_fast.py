@@ -859,8 +859,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # no string is found
         return 0
 
-    def _scan_for_repeating_bytes(self, start_addr, repeating_byte):
-        assert len(repeating_byte) == 1
+    def _scan_for_repeating_bytes(self, start_addr, repeating_byte, threshold=2):
+        """
+        Scan from a given address and determine the occurrences of a given byte.
+
+        :param int start_addr:      The address in memory to start scanning.
+        :param int repeating_byte:  The repeating byte to scan for.
+        :param int threshold:  The minimum occurrences.
+        :return:                    The occurrences of a given byte.
+        :rtype:                     int
+        """
+
         addr = start_addr
 
         repeating_length = 0
@@ -875,7 +884,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 break
             addr += 1
 
-        if repeating_length > self.project.arch.bytes:  # this is pretty random
+        if repeating_length >= threshold:
             return repeating_length
         else:
             return 0
@@ -899,14 +908,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 start_addr += string_length
 
             if self.project.arch.name in ('X86', 'AMD64'):
-                cc_length = self._scan_for_repeating_bytes(start_addr, '\xcc')
+                cc_length = self._scan_for_repeating_bytes(start_addr, 0xcc, threshold=1)
                 if cc_length:
                     self._seg_list.occupy(start_addr, cc_length, "alignment")
                     start_addr += cc_length
             else:
                 cc_length = 0
 
-            zeros_length = self._scan_for_repeating_bytes(start_addr, '\x00')
+            zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
                 self._seg_list.occupy(start_addr, zeros_length, "alignment")
                 start_addr += zeros_length
