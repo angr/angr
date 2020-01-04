@@ -3341,6 +3341,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 return addr, current_function_addr, cfg_node, irsb
 
+            # is this address in the middle of another block?
+            if self._seg_list.is_occupied(addr):
+                # if the other block does not belong to the current function, we consider the preceding jump a wrong
+                # jump
+                node = self.model.get_any_node(addr, anyaddr=True)
+                if node is not None and node.function_address != current_function_addr:
+                    return None, None, None, None
+
             is_x86_x64_arch = self.project.arch.name in ('X86', 'AMD64')
 
             if is_arm_arch(self.project.arch):
