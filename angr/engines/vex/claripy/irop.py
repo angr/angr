@@ -294,7 +294,7 @@ class SimIROp:
             if f is None:
                 raise SimOperationError("no implementation found for operation {}".format(self._generic_name))
 
-            self._calculate = partial(self._vectorize_or_dont, f)
+            self._calculate = partial(self._auto_vectorize, f)
 
         # other conversions
         elif self._conversion and self._generic_name not in {'Round', 'Reinterp'}:
@@ -329,8 +329,9 @@ class SimIROp:
             calculate = getattr(self, '_op_fgeneric_%s' % self._generic_name)
             if self._vector_size is not None and \
                not hasattr(calculate, 'supports_vector'):
-                # unsupported vector ops
-                vector_operations.append(name)
+                # NOTE: originally this branch just marked the op as unsupported but I think we can do better
+                # "marking unsupported" seems to include adding the op to the vector_operations list? why
+                self._calculate = partial(self._auto_vectorize, calculate)
             else:
                 self._calculate = calculate
 
@@ -338,8 +339,8 @@ class SimIROp:
             calculate = getattr(self, '_op_generic_%s' % self._generic_name)
             if self._vector_size is not None and \
                not hasattr(calculate, 'supports_vector'):
-                # unsupported vector ops
-                vector_operations.append(name)
+                # NOTE: same as above
+                self._calculate = partial(self._auto_vectorize, calculate)
             else:
                 self._calculate = calculate
 
@@ -370,7 +371,10 @@ class SimIROp:
             args = tuple(arg.raw_to_bv() for arg in args)
 
         try:
-            return self.extend_size(self._calculate(args))
+            if self._vector_size is None:
+                return self.extend_size(self._calculate(args))
+            else:
+                return self._calculate(args)
         except (ZeroDivisionError, claripy.ClaripyZeroDivisionError) as e:
             raise SimZeroDivisionException("divide by zero!") from e
         except (TypeError, ValueError, SimValueError, claripy.ClaripyError) as e:
@@ -378,18 +382,21 @@ class SimIROp:
 
     def extend_size(self, o):
         cur_size = o.size()
-        if cur_size == self._output_size_bits:
+        target_size = self._output_size_bits
+        if self._vector_count is not None:
+            # phrased this awkward way to account for vectorized widening multiply
+            target_size //= self._vector_count
+        if cur_size == target_size:
             return o
-        if cur_size < self._output_size_bits:
-            ext_size = self._output_size_bits - cur_size
-            if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed is None):
+        if cur_size < target_size:
+            ext_size = target_size - cur_size
+            if self._to_signed == 'S' or (self._to_signed is None and self._from_signed == 'S') or (self._to_signed is None and self._vector_signed == 'S'):
                 return claripy.SignExt(ext_size, o)
             else:
                 return claripy.ZeroExt(ext_size, o)
 
-        # if cur_size > self._output_size_bits:
-        # breakpoint here. it should never happen!
-        __import__('ipdb').set_trace()
+        # if cur_size > target_size:
+        # it should never happen!
         raise SimOperationError('output of %s is too big' % self.name)
 
     @property
@@ -484,7 +491,10 @@ class SimIROp:
         for i in reversed(range(self._vector_count)):
             pieces = []
             for vec in args:
-                pieces.append(vec[(i+1) * self._vector_size - 1 : i * self._vector_size])
+                piece = vec[(i+1) * self._vector_size - 1 : i * self._vector_size]
+                if self._float:
+                    piece = piece.raw_to_fp()
+                pieces.append(piece)
             yield pieces
 
     def _op_generic_Mull(self, args):
@@ -495,18 +505,20 @@ class SimIROp:
 
     def _op_generic_Clz(self, args):
         """Count the leading zeroes"""
-        wtf_expr = claripy.BVV(self._from_size, self._from_size)
-        for a in range(self._from_size):
+        piece_size = len(args[0])
+        wtf_expr = claripy.BVV(piece_size, piece_size)
+        for a in range(piece_size):
             bit = claripy.Extract(a, a, args[0])
-            wtf_expr = claripy.If(bit==1, claripy.BVV(self._from_size-a-1, self._from_size), wtf_expr)
+            wtf_expr = claripy.If(bit==1, claripy.BVV(piece_size-a-1, piece_size), wtf_expr)
         return wtf_expr
 
     def _op_generic_Ctz(self, args):
         """Count the trailing zeroes"""
-        wtf_expr = claripy.BVV(self._from_size, self._from_size)
-        for a in reversed(range(self._from_size)):
+        piece_size = len(args[0])
+        wtf_expr = claripy.BVV(piece_size, piece_size)
+        for a in reversed(range(piece_size)):
             bit = claripy.Extract(a, a, args[0])
-            wtf_expr = claripy.If(bit == 1, claripy.BVV(a, self._from_size), wtf_expr)
+            wtf_expr = claripy.If(bit == 1, claripy.BVV(a, piece_size), wtf_expr)
         return wtf_expr
 
     def generic_minmax(self, args, cmp_op):
@@ -770,13 +782,15 @@ class SimIROp:
             (claripy.fpEQ(a, b), claripy.BVV(0x40, 32)),
             ), claripy.BVV(0x45, 32))
 
-    def _vectorize_or_dont(self, f, args, rm=None, rm_passed=False):
+    def _op_fgeneric_CmpEQ(self, a0, a1): # pylint: disable=no-self-use
+        # for cmpps_eq stuff, i.e. Iop_CmpEQ32Fx4
+        return claripy.If(claripy.fpEQ(a0, a1), claripy.BVV(-1, len(a0)), claripy.BVV(0, len(a0)))
+
+    def _auto_vectorize(self, f, args, rm=None, rm_passed=False):
         if rm is not None:
             rm = self._translate_rm(rm)
             if rm_passed:
                 f = partial(f, rm)
-
-        #import ipdb; ipdb.set_trace()
 
         if self._vector_size is None:
             return f(args)
@@ -786,14 +800,16 @@ class SimIROp:
             result = f(*chopped).raw_to_bv()
             return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
         else:
+            # I'm changing this behavior because I think this branch was never used otherwise
+            # before it only chopped the first argument but I'm going to make it chop all of them
             result = []
-            for i in reversed(range(self._vector_count)):
-                # pylint:disable=no-member
-                left = claripy.Extract(
-                    (i + 1) * self._vector_size - 1, i * self._vector_size, args[0]
-                ).raw_to_fp()
-
-                result.append(f(left, *args[1:]))
+            for lane_args in self.vector_args(args):
+                if self._float:
+                    # HACK HACK HACK
+                    # this is such a weird divergence. why do the fp generics take several args and the int generics take a list?
+                    result.append(f(*lane_args))
+                else:
+                    result.append(f(lane_args))
             return claripy.Concat(*result)
 
     @staticmethod

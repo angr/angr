@@ -226,6 +226,28 @@ def test_some_vector_ops():
     correct_result = s.solver.BVV(0x0000ffffff020202, 64)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
+    g = claripy.BVV(0x111111112222222233333333ffffffff, 128)
+    h = claripy.BVV(0x1111111100000000ffffffffffffffff, 128)
+
+    calc_result = translate(s, 'Iop_CmpEQ32Fx4', (g, h))
+    correct_result = claripy.BVV(0xffffffff000000000000000000000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Clz32x4', (g,))
+    correct_result = claripy.BVV(0x00000003000000020000000200000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    i = claripy.BVV(0x1001000000001000, 64)
+    j = claripy.BVV(0x100000000000f000, 64)
+
+    calc_result = translate(s, 'Iop_Mull16Sx4', (i, j))
+    correct_result = claripy.BVV(0x10010000000000000000000ff000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Mull16Ux4', (i, j))
+    correct_result = claripy.BVV(0x100100000000000000000000f000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
 def test_store_simplification():
     state = SimState(arch='X86')
     state.regs.esp = state.solver.BVS('stack_pointer', 32)
