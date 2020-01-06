@@ -298,6 +298,9 @@ CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 # Sacrafice performance for more fine tune memory read size
 MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 
+# This option causes states to have all pointers tagged symbolically, to make them trackable.
+INITIALIZE_SYMBOLIC_POINTERS = "INITIALIZE_SYMBOLIC_POINTERS"
+
 #
 # Register those variables as Boolean state options
 #

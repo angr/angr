@@ -1,3 +1,4 @@
+import itertools
 import logging
 import struct
 
@@ -209,6 +210,16 @@ class SimOS:
         state.scratch.bbl_addr = addr
         state.scratch.stmt_idx = 0
         state.history.jumpkind = 'Ijk_Boring'
+
+        # symbolize pointers if desired
+        if state.options.INITIALIZE_SYMBOLIC_POINTERS:
+            for obj in self.project.loader.all_objects:
+                for ptrobj in itertools.chain(obj.relocs, obj.imports.values()):
+                    if hasattr(ptrobj, 'rebased_addr'):
+                        concrete_value = self.project.loader.memory.unpack_word(ptrobj.rebased_addr)
+                        symbolic_value = state.solver.BVS("pointer", state.arch.bits)
+                        state.solver.add(symbolic_value == concrete_value)
+                        state.memory.store(ptrobj.rebased_addr, symbolic_value)
 
         return state
 
