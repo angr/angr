@@ -15,7 +15,7 @@ class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
-                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs'
+                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
@@ -72,6 +72,7 @@ class Block(Serializable):
         self._capstone = None
         self.size = size
         self._collect_data_refs = collect_data_refs
+        self._strict_block_end = strict_block_end
 
         self._instructions = num_inst
         self._instruction_addrs = []
@@ -153,6 +154,7 @@ class Block(Serializable):
                     opt_level=self._opt_level,
                     arch=self.arch,
                     collect_data_refs=self._collect_data_refs,
+                    strict_block_end=self._strict_block_end,
             )
             self._parse_vex_info()
 
@@ -177,6 +179,7 @@ class Block(Serializable):
             arch=self.arch,
             skip_stmts=True,
             collect_data_refs=self._collect_data_refs,
+            strict_block_end=self._strict_block_end,
         )
         return self._vex_nostmt
 
