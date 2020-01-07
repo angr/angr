@@ -3397,7 +3397,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb = None
             irsb_string = None
             try:
-                lifted_block = self._lift(addr, size=distance, opt_level=self._iropt_level, collect_data_refs=True)
+                lifted_block = self._lift(addr, size=distance, opt_level=self._iropt_level, collect_data_refs=True,
+                                          strict_block_end=True)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
@@ -3421,7 +3422,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 try:
                     lifted_block = self._lift(addr_0, size=distance, opt_level=self._iropt_level,
-                                              collect_data_refs=True)
+                                              collect_data_refs=True, strict_block_end=True)
                     irsb = lifted_block.vex_nostmt
                     irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:
