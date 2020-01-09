@@ -54,7 +54,9 @@ class MipsElfFastResolver(IndirectJumpResolver):
         annotated_cfg.from_digraph(b.slice)
 
         state = project.factory.blank_state(addr=source_addr, mode="fastpath",
-                                            remove_options=options.refs
+                                            remove_options=options.refs,
+                                            # suppress unconstrained stack reads for `gp`
+                                            add_options={options.SYMBOL_FILL_UNCONSTRAINED_MEMORY},
                                             )
         func = cfg.kb.functions.function(addr=func_addr)
 
