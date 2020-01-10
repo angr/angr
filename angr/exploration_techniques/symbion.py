@@ -2,6 +2,7 @@
 import logging
 from .common import condition_to_lambda
 
+from ..engines import SimEngineConcrete
 from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")
@@ -49,11 +50,13 @@ class Symbion(ExplorationTechnique):
 
         return simgr.step(stash=stash, **kwargs)
 
-    def step_state(self, simgr, state, **kwargs):
-        ss = self.project.factory.successors(state, engines=['concrete'],
-                                             extra_stop_points=self.breakpoints,
-                                             concretize=self.concretize,
-                                             timeout=self.timeout)
+    def step_state(self, simgr, *args, **kwargs):
+        state = args[0]
+
+        ss = self.successors(state=state, simgr=simgr, engine=self.project.factory.concrete_engine,
+                                          extra_stop_points=self.breakpoints,
+                                          concretize=self.concretize,
+                                          timeout=self.timeout)
 
         new_state = ss.successors
 

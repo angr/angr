@@ -341,6 +341,9 @@ class SimulationManager:
                 continue
 
             pre_errored = len(self._errored)
+
+
+            
             successors = self.step_state(state, successor_func=successor_func, **run_args)
 
             # handle degenerate stepping cases here. desired behavior:

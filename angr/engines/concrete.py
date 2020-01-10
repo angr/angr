@@ -2,11 +2,11 @@ import logging
 import threading
 
 from angr.errors import AngrError
-from .engine import SimEngine
+from .engine import SimEngine, SuccessorsMixin
 from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
-# l.setLevel(logging.DEBUG)
+l.setLevel(logging.DEBUG)
 
 try:
     from angr_targets.concrete import ConcreteTarget
@@ -14,7 +14,7 @@ except ImportError:
     ConcreteTarget = None
 
 
-class SimEngineConcrete(SimEngine):
+class SimEngineConcrete(SuccessorsMixin):
     """
     Concrete execution using a concrete target provided by the user.
     """
@@ -37,16 +37,18 @@ class SimEngineConcrete(SimEngine):
 
         self.segment_registers_already_init = False
 
-    def _check(self, state, *args, **kwargs):
+    def __check(self, state, *args, **kwargs):
         return True
 
-    def _process(self, new_state, successors, *args, ** kwargs):
+    def process_successors(self, successors, *args, ** kwargs):
+        new_state = self.state
         # setup the concrete process and resume the execution
         self.to_engine(new_state, kwargs['extra_stop_points'], kwargs['concretize'], kwargs['timeout'])
 
         # sync angr with the current state of the concrete process using
         # the state plugin
         new_state.concrete.sync()
+
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
         successors.add_successor(new_state, new_state.ip, new_state.solver.true, new_state.unicorn.jumpkind)
@@ -89,7 +91,7 @@ class SimEngineConcrete(SimEngine):
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
             l.debug("Setting breakpoints at %#x", stop_point)
-            self.target.set_breakpoint(stop_point, temporary=True)
+            self.target.set_breakpoint(stop_point, hardware=True, temporary=True)
 
         if timeout > 0:
             l.debug("Found timeout as option, setting it up!")
