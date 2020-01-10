@@ -7,12 +7,12 @@ class GetProcessHeap(angr.SimProcedure):
 
 
 class HeapCreate(angr.SimProcedure):
-    def run(self, flOptions, dwInitialSize, dwMaximumSize):
+    def run(self, flOptions, dwInitialSize, dwMaximumSize): #pylint:disable=arguments-differ, unused-argument
         return 1  # still a fake heap handle
 
 
 class HeapAlloc(angr.SimProcedure):
-    def run(self, HeapHandle, Flags, Size):
+    def run(self, HeapHandle, Flags, Size): #pylint:disable=arguments-differ, unused-argument
         return self.state.heap._malloc(Size)
 
 
@@ -22,5 +22,5 @@ class GlobalAlloc(HeapAlloc):
 
 
 class HeapFree(angr.SimProcedure):
-    def run(self, HeapHandle, Flags, lpMem): #pylint:disable=arguments-differ
+    def run(self, HeapHandle, Flags, lpMem): #pylint:disable=arguments-differ, unused-argument
         return 1

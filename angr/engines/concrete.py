@@ -2,11 +2,11 @@ import logging
 import threading
 
 from angr.errors import AngrError
-from .engine import SimEngine, SuccessorsMixin
+from .engine import SuccessorsMixin
 from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 try:
     from angr_targets.concrete import ConcreteTarget
@@ -37,14 +37,15 @@ class SimEngineConcrete(SuccessorsMixin):
 
         self.segment_registers_already_init = False
 
-    def __check(self, state, *args, **kwargs):
+    def __check(self, _, *args, **kwargs):  #pylint:disable=unused-argument
         return True
 
-    def process_successors(self, successors, *args, ** kwargs):
+    def process_successors(self, successors, extra_stop_points=None, memory_concretize=None,
+                           register_concretize=None, timeout=0, *args, **kwargs):
+
         new_state = self.state
         # setup the concrete process and resume the execution
-        self.to_engine(new_state, kwargs['extra_stop_points'], kwargs['memory_concretize'],
-                       kwargs['register_concretize'], kwargs['timeout'])
+        self.to_engine(new_state, extra_stop_points, memory_concretize, register_concretize, timeout)
 
         # sync angr with the current state of the concrete process using
         # the state plugin

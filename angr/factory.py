@@ -26,6 +26,8 @@ class AngrObjectFactory(object):
 
         if project.concrete_target:
             self.concrete_engine = SimEngineConcrete(project)
+        else:
+            self.concrete_engine = None
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
