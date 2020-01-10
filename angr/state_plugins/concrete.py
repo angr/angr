@@ -9,7 +9,6 @@ import struct
 from .plugin import SimStatePlugin
 from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
-from .. import sim_options as options
 
 l = logging.getLogger("state_plugin.concrete")
 #l.setLevel(logging.DEBUG)
@@ -30,7 +29,7 @@ class Concrete(SimStatePlugin):
         else:
             self.whitelist = whitelist
 
-        self.sync_cle = False
+        self.synchronize_cle = False
         self.stubs_on_sync = False
 
         self.fs_register_bp = fs_register_bp
@@ -93,7 +92,7 @@ class Concrete(SimStatePlugin):
 
         # Configure plugin with state options
         if options.SYMBION_SYNC_CLE in self.state.options:
-            self.sync_cle = True
+            self.synchronize_cle = True
         if options.SYMBION_KEEP_STUBS_ON_SYNC in self.state.options:
             self.stubs_on_sync = True
 
@@ -119,7 +118,7 @@ class Concrete(SimStatePlugin):
             # finally let's synchronize the whole register
             self._sync_registers([register.name], target)
 
-        if self.sync_cle:
+        if self.synchronize_cle:
             self._sync_cle(target)
 
         # Synchronize the imported functions addresses (.got, IAT) in the
@@ -271,4 +270,5 @@ class Concrete(SimStatePlugin):
 
 
 from ..sim_state import SimState
+from .. import sim_options as options
 SimState.register_default('concrete', Concrete)
