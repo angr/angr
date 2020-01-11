@@ -51,7 +51,7 @@ class Symbion(ExplorationTechnique):
 
         return simgr.step(stash=stash, **kwargs)
 
-    def step_state(self, simgr, *args, **kwargs):
+    def step_state(self, simgr, *args, **kwargs): #pylint:disable=arguments-differ
         state = args[0]
         ss = self.successors(state=state, simgr=simgr, engine=self.project.factory.concrete_engine,
                                           extra_stop_points=self.breakpoints,
