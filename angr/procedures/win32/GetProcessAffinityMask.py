@@ -4,13 +4,13 @@ import logging
 l = logging.getLogger(name=__name__)
 #l.setLevel("DEBUG")
 
+""" BOOL GetProcessAffinityMask(
+  HANDLE     hProcess,
+  PDWORD_PTR lpProcessAffinityMask,
+  PDWORD_PTR lpSystemAffinityMask
+);
+"""
 class GetProcessAffinityMask(angr.SimProcedure):
-    """ BOOL GetProcessAffinityMask(
-      HANDLE     hProcess,
-      PDWORD_PTR lpProcessAffinityMask,
-      PDWORD_PTR lpSystemAffinityMask
-    );
-    """
     paffinity_mask = None
     saffinity_mask = None
 

@@ -37,9 +37,6 @@ class SimEngineConcrete(SuccessorsMixin):
 
         self.segment_registers_already_init = False
 
-    def __check(self, _, *args, **kwargs):  #pylint:disable=unused-argument
-        return True
-
     def process_successors(self, successors, extra_stop_points=None, memory_concretize=None,
                            register_concretize=None, timeout=0, *args, **kwargs):
 
