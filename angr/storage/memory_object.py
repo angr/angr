@@ -8,13 +8,14 @@ def obj_bit_size(o):
     return o.size()
 
 
+# TODO: get rid of is_bytes and have the bytes-backed objects be a separate class
+
 class SimMemoryObject(object):
     """
     A MemoryObjectRef instance is a reference to a byte or several bytes in
-    a specific object in SimSymbolicMemory. It is only used inside
-    SimSymbolicMemory class.
+    a specific object in memory. It should be used only by the bottom layer of memory.
     """
-    def __init__(self, obj, base, length=None, byte_width=8):
+    def __init__(self, obj, base, endness, length=None, byte_width=8):
         if type(obj) is bytes:
             assert byte_width == 8
 
@@ -22,10 +23,13 @@ class SimMemoryObject(object):
             raise SimMemoryError('memory can only store claripy Expression')
 
         self.is_bytes = type(obj) == bytes
+        if self.is_bytes and endness != 'Iend_BE':
+            raise SimMemoryError('bytes can only be stored big-endian')
         self._byte_width = byte_width
         self.base = base
         self.object = obj
         self.length = obj_bit_size(obj) // self._byte_width if length is None else length
+        self.endness = endness
 
     def size(self):
         return self.length * self._byte_width
@@ -40,19 +44,27 @@ class SimMemoryObject(object):
     def includes(self, x):
         return 0 <= x - self.base < self.length
 
-    def bytes_at(self, addr, length, allow_concrete=False):
-        if addr == self.base and length == self.length:
-            return claripy.BVV(self.object) if not allow_concrete and self.is_bytes else self.object
+    def bytes_at(self, addr, length, allow_concrete=False, endness='Iend_BE'):
+        rev = endness != self.endness
+        if allow_concrete and rev:
+            raise Exception("allow_concrete must be used with the stored endness")
 
         if self.is_bytes:
-            start = addr - self.base
-            end = start + length
-            o = self.object[start:end]
+            if addr == self.base and length == self.length:
+                o = self.object
+            else:
+                start = addr - self.base
+                end = start + length
+                o = self.object[start:end]
+
             return o if allow_concrete else claripy.BVV(o)
-        obj_size = self.size()
-        left = obj_size - (addr-self.base)*self._byte_width - 1
-        right = left - length*self._byte_width + 1
-        return self.object[left:right]
+
+        else:
+            offset = addr - self.base
+            thing = bv_slice(self.object, offset, length, self.endness == 'Iend_LE', self._byte_width)
+            if self.endness != endness:
+                thing = thing.reversed
+            return thing
 
     def _object_equals(self, other):
         if self.is_bytes != other.is_bytes:
@@ -89,3 +101,33 @@ class SimMemoryObject(object):
 
     def __repr__(self):
         return "MO(%s)" % self.object
+
+def bv_slice(value, offset, size, rev, bw):
+    """
+    Extremely cute utility to pretend you've serialized a value to stored bytes, sliced it a la python slicing, and then
+    deserialized those bytes to an integer again.
+
+    :param value:   The bitvector to slice
+    :param offset:  The byte offset from the first stored byte to slice from, or a negative offset from the end.
+    :param size:    The number of bytes to return. If None, return all bytes from the offset to the end. If larger than
+                    the number of bytes from the offset to the end, return all bytes from the offset to the end.
+    :param rev:     Whether the pretend-serialization should be little-endian
+    :param bw:      The byte width
+    :return:        The new bitvector
+    """
+
+    vsize = len(value) // bw
+
+    if offset < 0:
+        offset = vsize + offset
+
+    if size is None or offset + size > vsize:
+        size = vsize - offset
+    if rev:
+        offset = vsize - (offset + size)
+
+    if offset == 0 and size == vsize:
+        return value
+
+    bitstart = len(value) - offset * bw
+    return value[bitstart - 1:bitstart - size * bw]

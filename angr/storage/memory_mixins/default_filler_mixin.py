@@ -1,0 +1,70 @@
+import logging
+
+from . import MemoryMixin
+from ... import sim_options as options
+from ...misc.ux import once
+
+l = logging.getLogger(__name__)
+
+class DefaultFillerMixin(MemoryMixin):
+    def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
+        bits = size * self.state.arch.byte_width
+
+        if type(addr) is int:
+            if self.category == 'mem' and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
+                return self.state.solver.BVV(0, bits)
+            elif self.category == 'reg' and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
+                return self.state.solver.BVV(0, bits)
+
+        r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events)
+
+        is_mem = self.category == 'mem' and \
+                 options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and \
+                 options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+        is_reg = self.category == 'reg' and \
+                 options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options and \
+                 options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
+        if type(addr) is int and (is_mem or is_reg):
+            if once('mem_fill_warning'):
+                l.warning("The program is accessing memory or registers with an unspecified value. "
+                          "This could indicate unwanted behavior.")
+                l.warning("angr will cope with this by generating an unconstrained symbolic variable and continuing. "
+                          "You can resolve this by:")
+                l.warning("1) setting a value to the initial state")
+                l.warning("2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
+                          "to make unknown regions hold null")
+                l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
+                          "to suppress these messages.")
+
+            if is_mem:
+                refplace_int = self.state.solver.eval(self.state._ip)
+                if self.state.project:
+                    refplace_str = self.state.project.loader.describe_addr(refplace_int)
+                else:
+                    refplace_str = "unknown"
+                l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)", addr, size, refplace_int, refplace_str)
+            else:
+                if addr == self.state.arch.ip_offset:
+                    refplace_int = 0
+                    refplace_str = "symbolic"
+                else:
+                    refplace_int = self.state.solver.eval(self.state._ip)
+                    if self.state.project:
+                        refplace_str = self.state.project.loader.describe_addr(refplace_int)
+                    else:
+                        refplace_str = "unknown"
+                reg_str = self.state.arch.translate_register_name(addr, size=size)
+                l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, size, refplace_int, refplace_str)
+
+            return r
+
+
+class SpecialFillerMixin(MemoryMixin):
+    def __init__(self, special_memory_filler=None, **kwargs):
+        super().__init__(**kwargs)
+        self._special_memory_filler = special_memory_filler
+
+    def _default_value(self, addr, size, name=None, **kwargs):
+        if options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None and self.category == 'mem' and type(addr) is int:
+            return self.state._special_memory_filler(name, size*self.state.arch.byte_width, self.state)
+        return super()._default_value(addr, size, name=name, **kwargs)
