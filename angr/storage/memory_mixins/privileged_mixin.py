@@ -1,37 +1,21 @@
-class PrivilegedMixin:
-    def __init__(self):
-        self._priv_stack = [ False ]
+from .paged_memory_mixin import PagedMemoryMixin
 
-    @property
-    def priv(self):
-        return self._priv_stack[-1]
+class PrivilegedPagingMixin(PagedMemoryMixin):
+    def _get_page(self, pageno: int, writing: bool, priv: bool=False, **kwargs):
+        page = super()._get_page(pageno, writing)
+        if not priv and o.STRICT_PAGE_ACCESS in self.state.options:
+            if writing and not page.perm_write:
+                raise SimSegfaultException(pageno * self.page_size, 'non-writable')
+            if not writing and not page.perm_read:
+                raise SimSegfaultException(pageno * self.page_size, 'non-readable')
 
-    def push_priv(self, priv):
-        self._priv_stack.append(priv)
+        return page
 
-    def pop_priv(self):
-        self._priv_stack.pop()
-        if len(self._priv_stack) == 0:
-            raise SimValueError("Priv stack is empty")
+    def _initialize_page(self, pageno: int, priv: bool=False, **kwargs):
+        if not priv and o.STRICT_PAGE_ACCESS in self.state.options:
+            raise SimSegfaultException(pageno * self.page_size, 'unmapped')
 
-    def store(self, *args, priv=None, **kwargs):
-        if priv is not None:
-            self.push_priv(priv)
+        return super()._initialize_page(pageno, **kwargs)
 
-        try:
-            return super().store(*args, **kwargs)
-        finally:
-            if priv is not None:
-                self.pop_priv()
-
-    def load(self, *args, priv=None, **kwargs):
-        if priv is not None:
-            self.push_priv(priv)
-
-        try:
-            return super().load(*args, **kwargs)
-        finally:
-            if priv is not None:
-                self.pop_priv()
-
-from ...errors import SimValueError
+from ...errors import SimSegfaultException
+from ... import sim_options as o

@@ -14,25 +14,6 @@ class SimMemory(SimStatePlugin):
         self.id = None
         self.endness = "Iend_BE" if endness is None else endness
 
-    @property
-    def category(self):
-        """
-        Return the category of this SimMemory instance. It can be one of the three following categories: reg, mem,
-        or file.
-        """
-
-        if self.id in ('reg', 'mem'):
-            return self.id
-
-        elif self._abstract_backer:
-            return 'mem'
-
-        elif self.id.startswith('file'):
-            return 'file'
-
-        else:
-            raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
-
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True, priv=None):
         """
         Stores content into memory.
@@ -52,8 +33,6 @@ class SimMemory(SimStatePlugin):
                                      state options are respected.
         """
 
-        add_constraints = True if add_constraints is None else add_constraints
-
         if endness is None:
             endness = self.endness
 
@@ -69,33 +48,8 @@ class SimMemory(SimStatePlugin):
             e.original_addr = addr_e
             raise
 
-        if inspect and self.state.supports_inspect:
-            # tracer uses address_concretization_add_constraints
-            add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
-
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
-
-        if not disable_actions:
-            if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
-                ref_size = size * self.state.arch.byte_width if size is not None else data_e.size()
-                region_type = self.category
-                if region_type == 'file':
-                    # Special handling for files to keep compatibility
-                    # We may use some refactoring later
-                    region_type = self.id
-                action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=data_e, size=ref_size,
-                                       condition=condition
-                                       )
-                self.state.history.add_action(action)
-
-            if request.completed and action is not None:
-                action.actual_addrs = request.actual_addresses
-                action.actual_value = action._make_object(request.stored_values[0]) # TODO
-                if len(request.constraints) > 0:
-                    action.added_constraints = action._make_object(self.state.solver.And(*request.constraints))
-                else:
-                    action.added_constraints = action._make_object(self.state.solver.true)
 
     def _store(self, _request):
         raise NotImplementedError()
@@ -255,26 +209,6 @@ class SimMemory(SimStatePlugin):
         # the endianess
         if endness == "Iend_LE":
             r = r.reversed
-
-        if not disable_actions:
-            if o.AST_DEPS in self.state.options and self.category == 'reg':
-                r = SimActionObject(r, reg_deps=frozenset((addr,)))
-
-            if o.AUTO_REFS in self.state.options and action is None:
-                ref_size = size * self.state.arch.byte_width if size is not None else r.size()
-                region_type = self.category
-                if region_type == 'file':
-                    # Special handling for files to keep compatibility
-                    # We may use some refactoring later
-                    region_type = self.id
-                action = SimActionData(self.state, region_type, 'read', addr=addr, data=r, size=ref_size,
-                                       condition=condition, fallback=fallback)
-                self.state.history.add_action(action)
-
-            if action is not None:
-                action.actual_addrs = a
-                action.added_constraints = action._make_object(self.state.solver.And(*c)
-                                                               if len(c) > 0 else self.state.solver.true)
 
         return r
 
