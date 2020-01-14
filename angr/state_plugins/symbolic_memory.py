@@ -241,57 +241,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if self.write_strategies is None:
                 self._create_default_write_strategies()
 
-    def _create_default_read_strategies(self):
-        self.read_strategies = [ ]
-        if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
-            # first, we try to resolve the read address by approximation
-            self.read_strategies.append(
-                concretization_strategies.SimConcretizationStrategyRange(1024, exact=False),
-            )
-
-        # then, we try symbolic reads, with a maximum width of a kilobyte
-        self.read_strategies.append(
-            concretization_strategies.SimConcretizationStrategyRange(1024)
-        )
-
-        if options.CONSERVATIVE_READ_STRATEGY not in self.state.options:
-            # finally, we concretize to any one solution
-            self.read_strategies.append(
-                concretization_strategies.SimConcretizationStrategyAny(),
-            )
-
-    def _create_default_write_strategies(self):
-        self.write_strategies = [ ]
-        if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
-            if options.SYMBOLIC_WRITE_ADDRESSES not in self.state.options:
-                # we try to resolve a unique solution by approximation
-                self.write_strategies.append(
-                    concretization_strategies.SimConcretizationStrategySingle(exact=False),
-                )
-            else:
-                # we try a solution range by approximation
-                self.write_strategies.append(
-                    concretization_strategies.SimConcretizationStrategyRange(128, exact=False)
-                )
-
-        if options.SYMBOLIC_WRITE_ADDRESSES in self.state.options:
-            # we try to find a range of values
-            self.write_strategies.append(
-                concretization_strategies.SimConcretizationStrategyRange(128)
-            )
-        else:
-            # we try to find a range of values, but only for ASTs annotated with the multiwrite annotation
-            self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(
-                128,
-                filter=_multiwrite_filter
-            ))
-
-        # finally, we just grab the maximum solution
-        if options.CONSERVATIVE_WRITE_STRATEGY not in self.state.options:
-            self.write_strategies.append(
-                concretization_strategies.SimConcretizationStrategyMax()
-            )
-
     #
     # Symbolicizing!
     #
@@ -467,7 +416,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     l.warning("1) setting a value to the initial state")
                     l.warning("2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
                         "to make unknown regions hold null")
-                    l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
+                    l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
                         "to suppress these messages.")
 
                 if is_mem:
