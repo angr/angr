@@ -90,6 +90,16 @@ EXPECTED_COND_TYPES = {
         ccall.ARMCondGT,
         ccall.ARMCondLE,
     },
+    'AARCH64': {
+        ccall.ARM64CondCS,
+        ccall.ARM64CondCC,
+        ccall.ARM64CondHI,
+        ccall.ARM64CondLS,
+        ccall.ARM64CondGE,
+        ccall.ARM64CondLT,
+        ccall.ARM64CondGT,
+        ccall.ARM64CondLE,
+    },
 }
 
 
@@ -226,7 +236,7 @@ class JumpTableProcessor(
             return
         cond_type_enum = expr.args[0].con.value
 
-        if self.arch.name in ('X86', 'AMD64'):
+        if self.arch.name in { 'X86', 'AMD64', 'AARCH64' }:
             if cond_type_enum in EXPECTED_COND_TYPES[self.arch.name]:
                 self._handle_Comparison(expr.args[2], expr.args[3])
         elif is_arm_arch(self.arch):
