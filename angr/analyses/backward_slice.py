@@ -181,7 +181,7 @@ class BackwardSlice(Analysis):
         anno_cfg = AnnotatedCFG(self.project, self._cfg)
 
         for simrun, stmt_idx in self._targets:
-            if stmt_idx is not -1:
+            if stmt_idx != -1:
                 anno_cfg.set_last_statement(simrun.addr, stmt_idx)
 
         for n in self._cfg.graph.nodes():
