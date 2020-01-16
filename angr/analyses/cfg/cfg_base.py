@@ -2026,6 +2026,10 @@ class CFGBase(Analysis):
                 if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
                     return True
         elif insn_name == 'mov':
+            if len(insn.operands) > 2:
+                # mov reg_a, imm1, shift imm2
+                # This is not a NOP
+                return False
             # mov reg_a, reg_a
             op0, op1 = insn.operands
             if op0.type == 1 and op1.type == 1:

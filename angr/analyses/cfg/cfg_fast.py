@@ -2275,6 +2275,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: a tuple of (data type, size). (None, None) if we fail to determine the type or the size.
         :rtype: tuple
         """
+        if max_size is None:
+            max_size = 0
 
         # quick check: if it's at the beginning of a binary, it might be the ELF header
         elfheader_sort, elfheader_size = self._guess_data_type_elfheader(data_addr, max_size)
@@ -2288,8 +2290,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except StopIteration:
             irsb_addr, stmt_idx = None, None
 
-        if max_size is None:
-            max_size = 0
 
         if self._seg_list.is_occupied(data_addr) and self._seg_list.occupied_by_sort(data_addr) == 'code':
             # it's a code reference
