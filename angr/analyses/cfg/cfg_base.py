@@ -2013,15 +2013,24 @@ class CFGBase(Analysis):
         :return: True if the instruction does no-op, False otherwise.
         """
 
-        if insn.insn_name() == 'nop':
+        insn_name = insn.insn_name()
+
+        if insn_name == 'nop':
             # nops
             return True
-        if insn.insn_name() == 'lea':
+        elif insn_name == 'lea':
             # lea reg, [reg + 0]
             op0, op1 = insn.operands
             if op0.type == 1 and op1.type == 3:
                 # reg and mem
                 if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
+                    return True
+        elif insn_name == 'mov':
+            # mov reg_a, reg_a
+            op0, op1 = insn.operands
+            if op0.type == 1 and op1.type == 1:
+                # reg and reg
+                if op0.reg == op1.reg:
                     return True
 
         # add more types of no-op instructions here :-)

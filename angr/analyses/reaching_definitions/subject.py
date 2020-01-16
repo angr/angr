@@ -13,7 +13,7 @@ class SubjectType(Enum):
 
 
 class Subject:
-    def __init__(self, content, cfg, func_graph=None, cc=None, init_func=None):
+    def __init__(self, content, cfg, func_graph=None, cc=None):
         """
         The thing being analysed, and the way (visitor) to analyse it.
 
@@ -23,7 +23,6 @@ class Subject:
             CFG of the program the thing was found in. Only used when analysing a slice.
         :param networkx.DiGraph func_graph: Alternative graph for function.graph.
         :param SimCC cc: Calling convention of the function.
-        :param Boolean init_func: Whether stack and arguments are initialized or not.
         """
 
         self._content = content
@@ -31,7 +30,6 @@ class Subject:
         if isinstance(content, Function):
             self._cc = cc
             self._func_graph = func_graph
-            self._init_func = init_func
             self._type = SubjectType.Function
             self._visitor = FunctionGraphVisitor(content, func_graph)
         elif isinstance(content, (ailment.Block, Block)):
@@ -55,12 +53,6 @@ class Subject:
         if self.type is not SubjectType.Function:
             raise TypeError('There are no `func_graph` attribute for <%s>.' % self.type)
         return self._func_graph
-
-    @property
-    def init_func(self):
-        if self.type is not SubjectType.Function:
-            raise TypeError('There are no `init_func` attribute for <%s>.' % self.type)
-        return self._init_func
 
     @property
     def type(self):

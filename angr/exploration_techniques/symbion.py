@@ -1,7 +1,6 @@
 
 import logging
 from .common import condition_to_lambda
-
 from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")
@@ -10,22 +9,26 @@ l = logging.getLogger("angr.exploration_techniques.symbion")
 
 class Symbion(ExplorationTechnique):
     """
-     The Symbion exploration technique uses the SimEngineConcrete available to step a SimState.
+    The Symbion exploration technique uses the SimEngineConcrete available to step a SimState.
 
-     :param find: address or list of addresses that we want to reach, these will be translated into breakpoints
-                  inside the concrete process using the ConcreteTarget interface provided by the user
-                  inside the SimEngineConcrete.
-     :param concretize: list of tuples (address, symbolic variable) to concretize and write inside
-                        the concrete process.
+    :param find: address or list of addresses that we want to reach, these will be translated into breakpoints
+        inside the concrete process using the ConcreteTarget interface provided by the user
+        inside the SimEngineConcrete.
+    :param memory_concretize: list of tuples (address, symbolic variable) that are going to be written
+        in the concrete process memory.
+    :param register_concretize: list of tuples (reg_name, symbolic variable) that are going to be written
+    :param timeout: how long we should wait the concrete target to reach the breakpoint
+
     """
 
-    def __init__(self, find=None, concretize=None, timeout=0, find_stash='found'):
+    def __init__(self, find=None, memory_concretize=None, register_concretize=None, timeout=0, find_stash='found'):
         super(Symbion, self).__init__()
 
         # need to keep the raw list of addresses to
         self.breakpoints = find
         self.find = condition_to_lambda(find)
-        self.concretize = concretize
+        self.memory_concretize = memory_concretize
+        self.register_concretize = register_concretize
         self.find_stash = find_stash
         self.timeout = timeout
 
@@ -49,11 +52,13 @@ class Symbion(ExplorationTechnique):
 
         return simgr.step(stash=stash, **kwargs)
 
-    def step_state(self, simgr, state, **kwargs):
-        ss = self.project.factory.successors(state, engines=['concrete'],
-                                             extra_stop_points=self.breakpoints,
-                                             concretize=self.concretize,
-                                             timeout=self.timeout)
+    def step_state(self, simgr, *args, **kwargs): #pylint:disable=arguments-differ
+        state = args[0]
+        ss = self.successors(state=state, simgr=simgr, engine=self.project.factory.concrete_engine,
+                                          extra_stop_points=self.breakpoints,
+                                          memory_concretize=self.memory_concretize,
+                                          register_concretize=self.register_concretize,
+                                          timeout=self.timeout)
 
         new_state = ss.successors
 

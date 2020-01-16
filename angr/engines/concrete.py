@@ -2,11 +2,11 @@ import logging
 import threading
 
 from angr.errors import AngrError
-from .engine import SimEngine
+from .engine import SuccessorsMixin
 from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
-# l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 try:
     from angr_targets.concrete import ConcreteTarget
@@ -14,7 +14,7 @@ except ImportError:
     ConcreteTarget = None
 
 
-class SimEngineConcrete(SimEngine):
+class SimEngineConcrete(SuccessorsMixin):
     """
     Concrete execution using a concrete target provided by the user.
     """
@@ -37,23 +37,24 @@ class SimEngineConcrete(SimEngine):
 
         self.segment_registers_already_init = False
 
-    def _check(self, state, *args, **kwargs):
-        return True
+    def process_successors(self, successors, extra_stop_points=None, memory_concretize=None,
+                           register_concretize=None, timeout=0, *args, **kwargs):
 
-    def _process(self, new_state, successors, *args, ** kwargs):
+        new_state = self.state
         # setup the concrete process and resume the execution
-        self.to_engine(new_state, kwargs['extra_stop_points'], kwargs['concretize'], kwargs['timeout'])
+        self.to_engine(new_state, extra_stop_points, memory_concretize, register_concretize, timeout)
 
         # sync angr with the current state of the concrete process using
         # the state plugin
         new_state.concrete.sync()
+
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
         successors.add_successor(new_state, new_state.ip, new_state.solver.true, new_state.unicorn.jumpkind)
-        successors.description = "Concrete Successors "
+        successors.description = "Concrete Successors"
         successors.processed = True
 
-    def to_engine(self, state, extra_stop_points, concretize, timeout):
+    def to_engine(self, state, extra_stop_points, memory_concretize, register_concretize, timeout):
         """
         Handle the concrete execution of the process
         This method takes care of:
@@ -64,8 +65,9 @@ class SimEngineConcrete(SimEngine):
         :param state:               The state with which to execute
         :param extra_stop_points:   list of a addresses where to stop the concrete execution and return to the
                                     simulated one
-        :param concretize:          list of tuples (address, symbolic variable) that are going to be written
-                                    in the concrete process memory
+        :param memory_concretize:   list of tuples (address, symbolic variable) that are going to be written
+                                    in the concrete process memory.
+        :param register_concretize:  list of tuples (reg_name, symbolic variable) that are going to be written
         :param timeout:             how long we should wait the concrete target to reach the breakpoint
         :return: None
         """
@@ -77,19 +79,27 @@ class SimEngineConcrete(SimEngine):
         l.debug("Entering in SimEngineConcrete: simulated address %#x concrete address %#x stop points %s",
                 state.addr, self.target.read_register("pc"), map(hex, extra_stop_points))
 
-        if concretize:
-            l.debug("SimEngineConcrete is concretizing variables before resuming the concrete process")
+        if memory_concretize:
+            l.debug("SimEngineConcrete is concretizing memory variables before resuming the concrete process")
 
-            for sym_var in concretize:
+            for sym_var in memory_concretize:
                 sym_var_address = state.solver.eval(sym_var[0])
                 sym_var_value = state.solver.eval(sym_var[1], cast_to=bytes)
                 l.debug("Concretize memory at address %#x with value %s", sym_var_address, str(sym_var_value))
                 self.target.write_memory(sym_var_address, sym_var_value, raw=True)
 
+        if register_concretize:
+            l.debug("SimEngineConcrete is concretizing registers variables before resuming the concrete process")
+            for reg in register_concretize:
+                register_name = reg[0]
+                register_value = state.solver.eval(reg[1])
+                l.debug("Concretize register %s with value %s", register_name, str(register_value))
+                self.target.write_register(register_name, register_value)
+
         # Set breakpoint on remote target
         for stop_point in extra_stop_points:
             l.debug("Setting breakpoints at %#x", stop_point)
-            self.target.set_breakpoint(stop_point, temporary=True)
+            self.target.set_breakpoint(stop_point, hardware=True, temporary=True)
 
         if timeout > 0:
             l.debug("Found timeout as option, setting it up!")

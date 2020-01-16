@@ -368,7 +368,7 @@ class DDGViewInstruction(object):
             reg_offset, size = arch.registers[key]
 
             # obtain the CFGNode
-            cfg_node = self._cfg.get_any_node(self._insn_addr, anyaddr=True)
+            cfg_node = self._cfg.model.get_any_node(self._insn_addr, anyaddr=True)
             if cfg_node is None:
                 # not found
                 raise KeyError('CFGNode for instruction %#x is not found.' % self._insn_addr)
@@ -691,7 +691,7 @@ class DDG(Analysis):
                     job = DDGJob(n, 0)
                     self._worklist_append(job, worklist, worklist_set)
         else:
-            for n in self._cfg.get_all_nodes(self._start):
+            for n in self._cfg.model.get_all_nodes(self._start):
                 job = DDGJob(n, 0)
                 self._worklist_append(job, worklist, worklist_set)
 

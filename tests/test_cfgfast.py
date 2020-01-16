@@ -523,6 +523,22 @@ def test_cfg_copy():
     nose.tools.assert_not_equal(id(cfg._seg_list), id(cfg_copy._seg_list))
 
 #
+# Alignment bytes
+#
+
+def test_cfg_0_pe_msvc_debug_nocc():
+    filename = os.path.join('windows', 'msvc_cfg_0_debug.exe')
+    proj = angr.Project(os.path.join(test_location, 'x86_64', filename), auto_load_libs=False)
+    cfg = proj.analyses.CFGFast()
+
+    # make sure 0x140015683 is marked as alignments
+    sort = cfg._seg_list.occupied_by_sort(0x140016583)
+    nose.tools.assert_equal(sort, "alignment", "Address 0x140016583 is not marked as alignment. The CC detection is "
+                                               "probably failing.")
+
+    nose.tools.assert_not_in(0x140015683, cfg.kb.functions)
+
+#
 # Indirect jump resolvers
 #
 

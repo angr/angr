@@ -14,15 +14,23 @@ from .misc.ux import deprecated
 
 l = logging.getLogger(name=__name__)
 
-def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
+def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False):
     """
-    Load a new project based on a string of raw bytecode.
+    Load a new project based on a snippet of assembly or bytecode.
 
-    :param shellcode:       The data to load
+    :param shellcode:       The data to load, as either a bytestring of instructions or a string of assembly text
     :param arch:            The name of the arch to use, or an archinfo class
     :param start_offset:    The offset into the data to start analysis (default 0)
     :param load_address:    The address to place the data in memory (default 0)
+    :param thumb:           Whether this is ARM Thumb shellcode
     """
+    if not isinstance(arch, archinfo.Arch):
+        arch = archinfo.arch_from_id(arch)
+    if type(shellcode) is str:
+        shellcode = arch.asm(shellcode, load_address, thumb=thumb)
+    if thumb:
+        start_offset |= 1
+
     return Project(
             BytesIO(shellcode),
             main_opts={
@@ -546,7 +554,7 @@ class Project:
         self.unhook(hook_addr)
         return True
 
-    def rehook_symbol(self, new_address, symbol_name):
+    def rehook_symbol(self, new_address, symbol_name, stubs_on_sync):
         """
         Move the hook for a symbol to a specific address
         :param new_address: the new address that will trigger the SimProc execution
@@ -555,6 +563,11 @@ class Project:
         """
         new_sim_procedures = {}
         for key_address, simproc_obj in self._sim_procedures.items():
+
+            # if we don't want stubs during the sync let's skip those, we will execute the real function.
+            if not stubs_on_sync and simproc_obj.is_stub:
+                continue
+
             if simproc_obj.display_name == symbol_name:
                 new_sim_procedures[new_address] = simproc_obj
             else:

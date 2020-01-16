@@ -51,13 +51,11 @@ def test_when_instanciated_with_a_function_need_other_attributes(_, __):
     function = _a_mock_function(0x42, 'function_name')
     func_graph = 'mock_func_graph'
     cc = 'mock_cc'
-    init_func = 'mock_init_func'
 
-    subject = Subject(function, None, func_graph, cc, init_func)
+    subject = Subject(function, None, func_graph, cc)
 
     nose.tools.assert_equals(subject.func_graph, func_graph)
     nose.tools.assert_equals(subject.cc, cc)
-    nose.tools.assert_equals(subject.init_func, init_func)
 
 
 def test_cc_attribute_should_raise_error_when_subject_is_a_block():
@@ -76,12 +74,3 @@ def test_func_graph_attribute_should_raise_error_when_subject_is_a_block():
 
     with nose.tools.assert_raises(TypeError):
         _ = subject.func_graph
-
-
-def test_init_func_attribute_should_raise_error_when_subject_is_a_block():
-    arch = ArchX86()
-    block = Block(0x42, byte_string=b'', arch=arch)
-    subject = Subject(block, None)
-
-    with nose.tools.assert_raises(TypeError):
-        _ = subject.init_func
