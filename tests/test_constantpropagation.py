@@ -32,7 +32,7 @@ def test_libc_x86():
 
 def test_lwip_udpecho_bm():
     bin_path = os.path.join(test_location, "armel", "lwip_udpecho_bm.elf")
-    p = angr.Project(bin_path, auto_load_libs=False)
+    p = angr.Project(bin_path, auto_load_libs=False, page_size=1)
     cfg = p.analyses.CFG(data_references=True)
 
     func = cfg.functions[0x23c9]

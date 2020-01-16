@@ -11,7 +11,7 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 def test_lwip_udpecho_bm():
     bin_path = os.path.join(test_location, "armel", "lwip_udpecho_bm.elf")
-    p = angr.Project(bin_path, auto_load_libs=False)
+    p = angr.Project(bin_path, auto_load_libs=False, page_size=1)
     cfg = p.analyses.CFG(data_references=True)
 
     func = cfg.functions[0x23c9]
@@ -32,7 +32,7 @@ def test_lwip_udpecho_bm():
 
 def test_lwip_udpecho_bm_the_better_way():
     bin_path = os.path.join(test_location, "armel", "lwip_udpecho_bm.elf")
-    p = angr.Project(bin_path, auto_load_libs=False)
+    p = angr.Project(bin_path, auto_load_libs=False, page_size=1)
     cfg = p.analyses.CFG(cross_references=True)  # pylint:disable=unused-variable
 
     timenow_cp_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x23d4)  # the constant in the constant pool

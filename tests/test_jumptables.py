@@ -167,7 +167,7 @@ def test_armel_cfgswitches_gcc():
 
 
 def test_armel_lwip_tcpecho_bm():
-    p = angr.Project(os.path.join(test_location, "armel", "lwip_tcpecho_bm.elf"), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "armel", "lwip_tcpecho_bm.elf"), auto_load_libs=False, page_size=1)
     cfg = p.analyses.CFGFast()
 
     all_jumptables = {

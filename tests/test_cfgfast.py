@@ -620,7 +620,7 @@ def test_tail_call_optimization_detection_armel():
     # GitHub issue #1286
 
     path = os.path.join(test_location, 'armel', 'Nucleo_read_hyperterminal-stripped.elf')
-    proj = angr.Project(path, auto_load_libs=False)
+    proj = angr.Project(path, auto_load_libs=False, page_size=1)
 
     cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True,
                                 force_complete_scan=False,
@@ -650,7 +650,7 @@ def test_function_leading_blocks_merging():
     # GitHub issue #1312
 
     path = os.path.join(test_location, 'armel', 'Nucleo_read_hyperterminal-stripped.elf')
-    proj = angr.Project(path, arch=archinfo.ArchARMCortexM(), auto_load_libs=False)
+    proj = angr.Project(path, arch=archinfo.ArchARMCortexM(), auto_load_libs=False, page_size=1)
 
     cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True,
                                 force_complete_scan=True,
