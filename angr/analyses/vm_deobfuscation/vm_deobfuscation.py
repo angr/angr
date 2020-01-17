@@ -6,14 +6,18 @@ import copy
 from collections import defaultdict
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 import networkx as nx
+from ailment.converter import IRSBConverter
+from ailment.manager import Manager
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
-#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
-filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
+filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
+#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
+
+folder_name = "/".join(filename.split("/")[0:-1])
 
 ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
 ## and keeps certain attributes
@@ -28,6 +32,7 @@ def new_model_graph(old_graph, proj, identifier):
     new_model.graph = new_cfg_graph
 
     for node in old_graph.nodes():
+        print(node)
         new_node = CFGENode(irsb=copy.deepcopy(node.irsb),
                             block_id=copy.deepcopy(node.block_id),
                             size=copy.deepcopy(node.size),
@@ -80,6 +85,7 @@ def data_sensitive_graph(filename,start_addr):
                                     state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                     iropt_level=0,)
 
+
     return cfg, proj
 
 
@@ -109,7 +115,11 @@ def constant_propagation(cfg, proj, start_addr):
             new_stmts = node.irsb.statements
             for stmt, repl_pair in value.items():
                 for old, new in repl_pair.items():
-                    new_stmts[stmt.stmt_idx].replace_expression(old, new)
+                    ## This is for the next expression
+                    if stmt.stmt_idx == None:
+                        node.irsb.next = new
+                    else:
+                        new_stmts[stmt.stmt_idx].replace_expression(old, new)
 
     ### Clearing the states for the newly created graph (or should I create a new copy again)
     new_model = new_model_graph(new_cfg_graph, proj, "temporary2")
@@ -124,21 +134,16 @@ def constant_propagation(cfg, proj, start_addr):
     return new_cfg
 
 
-####### Dead Cod Elimination
-def dead_code_elimination(cfg, proj, start_addr):
+#### This method removes stuff like empty blocks, empty instructions(Imark, AbiHints etc)
+def remove_junk(cfg, proj, start_addr):
     if start_addr == None:
         main = proj.loader.main_object.get_symbol("main")
         start_addr = main.rebased_addr
-    ddg = proj.analyses.DDG(cfg, start_addr)
 
-    ## Doing the replacements
     for node in list(cfg.graph.nodes()):
         if not node.is_simprocedure:
-            print(node.simprocedure_name)
             old_stmts = node.irsb.statements
             new_stmts = []
-            print(node.irsb.pp())
-            print(node.block_id)
             for ind, stmt in enumerate(old_stmts):
                 if isinstance(stmt, pyvex.stmt.IMark) or isinstance(stmt, pyvex.stmt.AbiHint)\
                          or isinstance(stmt, pyvex.stmt.Exit):
@@ -147,7 +152,7 @@ def dead_code_elimination(cfg, proj, start_addr):
 
                 location = CodeLocation(node.irsb.addr , ind, node.block_id)
                 if len(ddg._stmt_graph.out_edges([location])) != 0:
-                    print(stmt)
+                    print(stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
                     print(ddg._stmt_graph.out_edges([location]))
                     new_stmts.append(stmt)
                 ## check if there's a Store from a symbolic memory address
@@ -180,22 +185,167 @@ def dead_code_elimination(cfg, proj, start_addr):
     new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
     return new_cfg
 
+#def simplify_conditional_jumps(cfg, proj, start_addr):
+
+
+
+def simplifications(cfg, proj, start_addr):
+    if start_addr == None:
+        main = proj.loader.main_object.get_symbol("main")
+        start_addr = main.rebased_addr
+
+    nodes_to_remove = []
+
+    for node in list(cfg.graph.nodes()):
+        if not node.is_simprocedure:
+            old_stmts = node.irsb.statements
+            manager = Manager("manager",node.irsb.arch)
+            print(IRSBConverter.convert(node.irsb, manager))
+            if len(old_stmts) == 3 and isinstance(old_stmts[0], pyvex.stmt.IMark) and isinstance(old_stmts[1], pyvex.expr.ITE) and type(old_stmts[1].cond) == pyvex.expr.Const:
+                nodes_to_remove.append(node)
+
+
+
+
+    ### Returning a new CFGEmulated object with the updated graph
+    simplified_new_model = new_model_graph(cfg.graph, proj, 'simplify1')
+    initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                   mode='fastpath',
+                                                   add_options=angr.sim_options.refs | {
+                                                       angr.sim_options.REPLACEMENT_SOLVER,
+                                                   angr.sim_options.DO_CCALLS})
+
+    simplified_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
+    new_cfg = proj.analyses.CFGEmulated(model=simplified_new_model, keep_state=True, iropt_level=0,
+                                        resolve_indirect_jumps=True, max_iterations=1)
+    return new_cfg
+
+
+####### Dead Cod Elimination
+def dead_code_elimination(cfg, proj, start_addr):
+    if start_addr == None:
+        main = proj.loader.main_object.get_symbol("main")
+        start_addr = main.rebased_addr
+    ddg = proj.analyses.DDG(cfg, start_addr)
+
+    for node in list(cfg.graph.nodes()):
+        if not node.is_simprocedure:
+            print(node.simprocedure_name)
+            old_stmts = node.irsb.statements
+            new_stmts = []
+            print(node.irsb.pp)
+            print(node.block_id)
+            for ind, stmt in enumerate(old_stmts):
+
+                if isinstance(stmt, pyvex.stmt.IMark) and ind == len(old_stmts)-1:
+                    continue
+                elif isinstance(stmt, pyvex.stmt.AbiHint) and ind == len(old_stmts)-1:
+                    continue
+                elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(old_stmts[ind+1], pyvex.stmt.IMark):
+                    continue
+                elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(old_stmts[ind+1], pyvex.stmt.AbiHint):
+                    continue
+                elif isinstance(stmt, pyvex.stmt.Exit) and type(stmt.guard) == pyvex.expr.Const:
+
+                    ### Removing conditional statements that depend on a constant
+                    if stmt.guard.con.value == 0:
+                        continue
+                    elif stmt.guard.con.value == 1:
+                        node.irsb.next =pyvex.expr.Const(stmt.dst)
+                        continue
+
+                elif isinstance(stmt, pyvex.stmt.IMark) or isinstance(stmt, pyvex.stmt.AbiHint):
+                    new_stmts.append(stmt)
+                    continue
+
+                location = CodeLocation(node.irsb.addr , ind, node.block_id)
+                #### Check for stmts with no outgoing edges for deadcode
+                if len(ddg._stmt_graph.out_edges([location])) != 0:
+                    print(stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
+                    print(ddg._stmt_graph.out_edges([location]))
+                    new_stmts.append(stmt)
+                ## check if there's a Store from a symbolic memory address
+                elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
+                    new_stmts.append(stmt)
+
+            ### Dealing with empty blocks i.e. removing them
+            if len(new_stmts) == 0:
+                succ = cfg.graph.successors(node)
+                succ = next(succ)
+                preds = cfg.graph.predecessors(node)
+                for pred in preds:
+                    pred_edge_data = cfg.graph.get_edge_data(pred, node)
+                    cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
+                    ### Rassigning the next expression of the previous
+                    pred.irsb.next = node.irsb.next
+                cfg.graph.remove_node(node)
+
+
+            else:
+                node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                   node.irsb.addr,
+                                                   statements=new_stmts,
+                                                   tyenv=node.irsb.tyenv,
+                                                   nxt=node.irsb.next,
+                                                   direct_next=node.irsb.direct_next,
+                                                   jumpkind=node.irsb.jumpkind)
+                print("DCE version")
+                print(node.irsb.pp())
+                print("\n")
+        else:
+            print("This is a SimProcedure")
+            print(node)
+            print("\n")
+
+    ### Returning a new CFGEmulated object with the updated graph
+    dce_new_model = new_model_graph(cfg.graph, proj, 'dce')
+    initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                   mode='fastpath',
+                                                   add_options=angr.sim_options.refs | {
+                                                   angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+    dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
+    new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
+    return new_cfg
+
 def draw_graph(cfg, filename):
     A = nx.nx_agraph.to_agraph(cfg.graph)
     for node in cfg.graph.nodes():
         stmt_str = str(node)
         if node.irsb != None:
             for ind, stmt in enumerate(node.irsb.statements):
-                if stmt.tag == "Ist_IMark" and node.irsb.statements[ind+1].tag == "Ist_IMark":
-                    continue
-                else:
-                    stmt_str = stmt_str + "\l" + str(stmt)
+                stmt_str = stmt_str + "\l" + stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
+
         graphviz_node = A.get_node(str(node))
         graphviz_node.attr["label"] = stmt_str
         graphviz_node.attr["shape"] = "box"
     A.layout(prog="dot")
     A.draw(path=filename, format="svg")
 
+def draw_original_graph(cfg, filename, proj):
+    A = nx.nx_agraph.to_agraph(cfg.graph)
+    for node in cfg.graph.nodes():
+        original_addresses = proj.factory.block(node.addr).instruction_addrs
+        original_instructions = proj.factory.block(node.addr).capstone.insns
+        stmt_str = "<" + str(node).strip("<>")
+        if node.irsb != None:
+            addresses_left_in_simplified = []
+            for ind, stmt in enumerate(node.irsb.statements):
+                if stmt.tag == "Ist_IMark":
+                    addresses_left_in_simplified.append(stmt.addr)
+
+            for addr in original_addresses:
+                if addr in addresses_left_in_simplified:
+                    ## statements that have been kept
+                    stmt_str = stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='blue'>" + str(original_instructions[original_addresses.index(addr)]).replace("\t", " ") + "</FONT>"
+                else:
+                    ## statements that have been removed
+                    stmt_str = stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='red'>" + str(original_instructions[original_addresses.index(addr)]).replace("\t", " ") + "</FONT>"
+
+        graphviz_node = A.get_node(str(node))
+        graphviz_node.attr["label"] = stmt_str+">"
+        graphviz_node.attr["shape"] = "box"
+    A.layout(prog="dot")
+    A.draw(path=filename, format="svg")
 
 #start_addr = 0x4006d1
 start_addr = None
@@ -211,14 +361,21 @@ cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
 #     else:
 #         print("Failed to decompile")
 
-draw_graph(cfg, "input.svg")
+
+draw_graph(cfg, folder_name+"/input.svg")
 
 new_cfg = constant_propagation(cfg, proj, start_addr=start_addr)
 
-draw_graph(new_cfg, "cp_result.svg")
+draw_graph(new_cfg, folder_name+"/cp_result.svg")
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+draw_graph(new_cfg, folder_name+"/first_dce_result.svg")
 # DCE second time
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-draw_graph(new_cfg, "final_result.svg")
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+draw_graph(new_cfg, folder_name+"/before_simplification.svg")
+new_cfg = simplifications(new_cfg, proj, start_addr=start_addr)
+draw_graph(new_cfg, folder_name+"/final_result.svg")
+draw_original_graph(new_cfg, folder_name+"/comparision_graph.svg", proj)
+

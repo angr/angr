@@ -265,7 +265,7 @@ class SimEngineVEX(SimEngine):
         state.scratch.bbl_addr = irsb.addr
 
         for stmt_idx, stmt in enumerate(ss):
-            code_loc = CodeLocation(irsb.addr , stmt_idx, block_key)
+            code_loc = CodeLocation(irsb.addr , stmt_idx, block_id=block_key)
             if isinstance(stmt, pyvex.IRStmt.IMark):
                 insn_addrs.append(stmt.addr + stmt.delta)
 
@@ -314,7 +314,7 @@ class SimEngineVEX(SimEngine):
             try:
                 with state.history.subscribe_actions() as next_deps:
                     # Not sure what the code_loc should be here, so set it to the last stmt_idx
-                    code_loc = CodeLocation(irsb.addr , len(ss)-1, block_key)
+                    code_loc = CodeLocation(irsb.addr , None, block_id=block_key, isnext=True)
                     next_expr = self.handle_expression(state, abstract_state, code_loc, irsb.next)
 
                 if o.TRACK_JMP_ACTIONS in state.options:
