@@ -5,11 +5,10 @@ class CodeLocation:
     name (for SimProcedures).
     """
 
-    __slots__ = ('block_addr', 'stmt_idx', 'block_id', 'sim_procedure', 'ins_addr', 'info', )
+    __slots__ = ('block_addr', 'stmt_idx', 'block_id', 'sim_procedure', 'ins_addr', 'isnext', 'info', )
 
-    def __init__(self, block_addr, stmt_idx, block_id=None, sim_procedure=None, ins_addr=None, **kwargs):
+    def __init__(self, block_addr, stmt_idx, block_id=None, sim_procedure=None, ins_addr=None, isnext=False,**kwargs):
         ## Added block_id to test in ddg.py
-        ## Added left, right & args
         """
         Constructor.
 
@@ -18,6 +17,7 @@ class CodeLocation:
         :param str block_id:        The block_id of the corresponding CFG block
         :param class sim_procedure: The corresponding SimProcedure class.
         :param int ins_addr:        The instruction address. Optional.
+        :param bool isnext:           If it is the next expression i.e. after the last statement
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """
 
@@ -26,6 +26,7 @@ class CodeLocation:
         self.sim_procedure = sim_procedure
         self.ins_addr = ins_addr
         self.block_id = block_id
+        self.isnext = isnext
 
         self.info = { }
 
@@ -81,3 +82,4 @@ class CodeLocation:
     def _store_kwargs(self, **kwargs):
         for k, v in kwargs.items():
             self.info[k] = v
+
