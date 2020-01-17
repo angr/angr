@@ -90,4 +90,3 @@ if __name__ == '__main__':
     test_controllogix_cfg()
     test_econet_cfg()
     test_omnipod_cfg()
-    
