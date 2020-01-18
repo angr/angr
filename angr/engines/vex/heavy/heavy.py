@@ -199,13 +199,14 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         super()._handle_vex_stmt(stmt)
 
     def _handle_vex_stmt_IMark(self, stmt):
+        ins_addr = stmt.addr + stmt.delta
+        self.state.scratch.ins_addr = ins_addr
+
         # Raise an exception if we're suddenly in self-modifying code
         for subaddr in range(stmt.len):
             if subaddr + stmt.addr in self.state.scratch.dirty_addrs:
                 raise errors.SimReliftException(self.state)
 
-        ins_addr = stmt.addr + stmt.delta
-        self.state.scratch.ins_addr = ins_addr
         self.state.scratch.num_insns += 1
         self.successors.artifacts['insn_addrs'].append(ins_addr)
 

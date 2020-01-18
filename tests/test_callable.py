@@ -109,7 +109,7 @@ def run_manyfloatsum_symbolic(arch):
     result = my_callable(*args)
     nose.tools.assert_true(result.symbolic)
 
-    s = claripy.Solver()
+    s = claripy.Solver(timeout=15*60*1000)
     for arg in args:
         s.add(arg > claripy.FPV(1.0, claripy.FSORT_DOUBLE))
     s.add(result == claripy.FPV(27.7, claripy.FSORT_DOUBLE))

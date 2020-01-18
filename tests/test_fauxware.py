@@ -146,6 +146,7 @@ def test_nodecode():
         yield run_nodecode, arch
 
 if __name__ == "__main__":
+    #logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
 
     if len(sys.argv) > 1:
         func_name = "test_%s" % sys.argv[1]

@@ -316,6 +316,7 @@ if __name__ == '__main__':
     #logging.getLogger('angr.engines.unicorn_engine').setLevel('INFO')
     #logging.getLogger('angr.factory').setLevel('DEBUG')
     #logging.getLogger('angr.project').setLevel('DEBUG')
+    #logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
 
     import sys
     if len(sys.argv) > 1:
