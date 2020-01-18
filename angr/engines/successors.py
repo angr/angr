@@ -296,10 +296,12 @@ class SimSuccessors:
             _max_targets = state.options.symbolic_ip_max_targets
             _max_jumptable_targets = state.options.jumptable_symbolic_ip_max_targets
             try:
+                skip_max_targets_warning = False
                 if o.NO_IP_CONCRETIZATION in state.options:
                     # Don't try to concretize the IP
                     cond_and_targets = [ (claripy.true, target) ]
                     max_targets = 0
+                    skip_max_targets_warning = True  # don't warn
                 elif o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
                     addrs = s.eval(target, _max_targets + 1, extra_constraints=tuple(state.ip_constraints))
@@ -320,11 +322,12 @@ class SimSuccessors:
                         max_targets = _max_jumptable_targets
 
                 if len(cond_and_targets) > max_targets:
-                    l.warning(
-                        "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
-                        max_targets,
-                        target.shallow_repr()
-                    )
+                    if not skip_max_targets_warning:
+                        l.warning(
+                            "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
+                            max_targets,
+                            target.shallow_repr()
+                        )
                     self.unconstrained_successors.append(state)
                 else:
                     for cond, a in cond_and_targets:
