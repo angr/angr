@@ -4,7 +4,7 @@ import io
 import logging
 import os
 import re
-
+import struct
 
 from .plugin import SimStatePlugin
 from ..errors import SimConcreteRegisterError
@@ -16,10 +16,10 @@ l = logging.getLogger("state_plugin.concrete")
 
 class Concrete(SimStatePlugin):
     def __init__(self, segment_registers_initialized=False, segment_registers_callback_initialized=False,
-                 whitelist=None, fs_register_bp=None, synchronize_cle=True, already_sync_objects_addresses=None,
+                 whitelist=None, fs_register_bp=None, already_sync_objects_addresses=None,
                  ):
 
-        SimStatePlugin.__init__(self)
+        super().__init__()
 
         self.segment_registers_initialized = segment_registers_initialized
         self.segment_registers_callback_initialized = segment_registers_callback_initialized
@@ -29,8 +29,10 @@ class Concrete(SimStatePlugin):
         else:
             self.whitelist = whitelist
 
+        self.synchronize_cle = False
+        self.stubs_on_sync = False
+
         self.fs_register_bp = fs_register_bp
-        self.synchronize_cle = synchronize_cle  # synchronize_cle
 
         if not already_sync_objects_addresses:
             self.already_sync_objects_addresses = []
@@ -40,10 +42,9 @@ class Concrete(SimStatePlugin):
     def copy(self, _memo):
         conc = Concrete(segment_registers_initialized=self.segment_registers_initialized,
                         segment_registers_callback_initialized=self.segment_registers_callback_initialized,
-                        whitelist=self.whitelist,
+                        whitelist=list(self.whitelist),
                         fs_register_bp=self.fs_register_bp,
-                        synchronize_cle=self.synchronize_cle,
-                        already_sync_objects_addresses=self.already_sync_objects_addresses
+                        already_sync_objects_addresses=list(self.already_sync_objects_addresses)
                         )
         return conc
 
@@ -88,6 +89,12 @@ class Concrete(SimStatePlugin):
             state.concrete.fs_register_bp = None
 
         l.debug("Sync the state with the concrete memory inside the Concrete plugin")
+
+        # Configure plugin with state options
+        if options.SYMBION_SYNC_CLE in self.state.options:
+            self.synchronize_cle = True
+        if options.SYMBION_KEEP_STUBS_ON_SYNC in self.state.options:
+            self.stubs_on_sync = True
 
         target = self.state.project.concrete_target
 
@@ -198,21 +205,21 @@ class Concrete(SimStatePlugin):
                             self.already_sync_objects_addresses.append(mmap.name)
 
                             break  # object has been synchronized, move to the next one!
-                        else:
-                            # rebase the object if the CLE address doesn't match the real one,
-                            # this can happen with PIE binaries and libraries.
-                            l.debug("Remapping object %s mapped at address 0x%x at address 0x%x", binary_name,
-                                    mapped_object.mapped_base, mmap.start_address)
 
-                            old_mapped_base = mapped_object.mapped_base
-                            mapped_object.mapped_base = mmap.start_address  # Rebase now!
+                        # rebase the object if the CLE address doesn't match the real one,
+                        # this can happen with PIE binaries and libraries.
+                        l.debug("Remapping object %s mapped at address 0x%x at address 0x%x", binary_name,
+                                mapped_object.mapped_base, mmap.start_address)
 
-                            # TODO re-write this horrible thing
-                            mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
-                            mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
+                        old_mapped_base = mapped_object.mapped_base
+                        mapped_object.mapped_base = mmap.start_address  # Rebase now!
 
-                            self.already_sync_objects_addresses.append(mmap.name)
-                            break  # object has been synchronized, move to the next one!
+                        # TODO re-write this horrible thing
+                        mapped_object.sections._rebase(abs(mmap.start_address - old_mapped_base))  # fix sections
+                        mapped_object.segments._rebase(abs(mmap.start_address - old_mapped_base))  # fix segments
+
+                        self.already_sync_objects_addresses.append(mmap.name)
+                        break  # object has been synchronized, move to the next one!
 
     def _sync_simproc(self):
 
@@ -223,15 +230,21 @@ class Concrete(SimStatePlugin):
                 l.debug("Trying to re-hook SimProc %s", reloc.symbol.name)
                 # l.debug("reloc.rebased_addr: %#x " % reloc.rebased_addr)
 
-                #if self.state.project.arch.name is not 'ARMHF':
-                #    func_address = self.state.project.concrete_target.read_memory(reloc.rebased_addr, self.state.project.arch.bits / 8)
-                #    func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
-                #else:
-
-                func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+                if self.state.project.simos.name == 'Win32':
+                    func_address = self.state.project.concrete_target.read_memory(reloc.rebased_addr, self.state.arch.bytes)
+                    func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
+                elif self.state.project.simos.name == 'Linux':
+                    try:
+                        import ipdb; ipdb.set_trace()
+                        func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
+                    except KeyError:
+                        continue
+                else:
+                    l.info("Can't synchronize simproc, binary format not supported.")
+                    return
 
                 l.debug("Function address hook is now: %#x ", func_address)
-                self.state.project.rehook_symbol(func_address, reloc.symbol.name)
+                self.state.project.rehook_symbol(func_address, reloc.symbol.name, self.stubs_on_sync)
 
                 if self.synchronize_cle and not self.state.project.loader.main_object.contains_addr(func_address):
                     old_func_symbol = self.state.project.loader.find_symbol(reloc.symbol.name)
@@ -258,4 +271,5 @@ class Concrete(SimStatePlugin):
 
 
 from ..sim_state import SimState
+from .. import sim_options as options
 SimState.register_default('concrete', Concrete)

@@ -16,7 +16,7 @@ from .def_use_graph import DefUseGraph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .live_definitions import LiveDefinitions
-from .subject import Subject, SubjectType
+from .subject import Subject
 
 
 l = logging.getLogger(name=__name__)
@@ -37,7 +37,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     """
 
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
-                 observation_points=None, init_state=None, init_func=False, cc=None, function_handler=None,
+                 observation_points=None, init_state=None, cc=None, function_handler=None,
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
                  def_use_graph=None):
         """
@@ -52,7 +52,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param angr.analyses.reaching_definitions.LiveDefinitions init_state:
                                                 An optional initialization state. The analysis creates and works on a
                                                 copy.
-        :param Boolean init_func:               Whether stack and arguments are initialized or not.
+                                                Default to None: the analysis then initialise its own abstract state,
+                                                based on the given <Subject>.
         :param SimCC cc:                        Calling convention of the function.
         :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
                                                 <ReachingDefinitions>, <Codeloc>, <IP address>).
@@ -65,7 +66,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                                                 An initial definition-use graph to add the result of the analysis to.
         """
 
-        self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc, init_func)
+        self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc)
         self._graph_visitor = self._subject.visitor
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
@@ -191,6 +192,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                 # it's an AIL block
                 self.observed_results[key] = state.copy()
 
+    @property
+    def subject(self):
+        return self._subject
+
     #
     # Main analysis routines
     #
@@ -202,15 +207,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         if self._init_state is not None:
             return self._init_state
         else:
-            def _function_data(subject):
-                if subject.type == SubjectType.Function:
-                    return subject.content.addr, subject.cc, subject.init_func
-                else:
-                    return None, None, None
-            func_addr, cc, init_func = _function_data(self._subject)
-
-            return LiveDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
-                                   init_func=init_func, cc=cc, func_addr=func_addr)
+            return LiveDefinitions(
+                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self
+            )
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])

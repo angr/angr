@@ -103,7 +103,16 @@ class CFBlanket(Analysis):
                             mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
                             self._regions.append(mr)
                 else:
-                    raise NotImplementedError()
+                    raise NotImplementedError("Currently ELFs without sections are not supported. Please implement or "
+                                              "complain on GitHub.")
+            elif isinstance(obj, cle.PE):
+                if obj.sections:
+                    for section in obj.sections:
+                        mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
+                        self._regions.append(mr)
+                else:
+                    raise NotImplementedError("Currently PEs without sections are not supported. Please report to "
+                                              "GitHub and provide an example binary.")
             else:
                 if hasattr(obj, "size"):
                     size = obj.size

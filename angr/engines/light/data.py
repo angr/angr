@@ -12,6 +12,7 @@ class ArithmeticExpression:
     And = 4
     RShift = 8
     LShift = 16
+    Mul = 32
 
     CONST_TYPES = (int, ailment.expression.Const)
 
@@ -34,6 +35,8 @@ class ArithmeticExpression:
             return "%s >> %s" % self.operands
         elif self.op == ArithmeticExpression.LShift:
             return "%s << %s" % self.operands
+        elif self.op == ArithmeticExpression.Mul:
+            return "%s * %s" % self.operands
         else:
             return "Unsupported op %s" % self.op
 
@@ -184,6 +187,26 @@ class RegisterOffset:
             else:
                 return RegisterOffset(self._bits, self.reg,
                                       ArithmeticExpression(ArithmeticExpression.Sub, (other, self.offset, )))
+
+    def __mul__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset * other))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset * other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.Mul, (self.offset, other, )))
+
+    def __rmul__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(other * self.offset))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset * other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.Mul, (other, self.offset, )))
 
     def __and__(self, other):
         if not self.symbolic and type(other) is int:

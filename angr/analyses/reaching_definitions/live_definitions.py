@@ -10,6 +10,8 @@ from ...keyed_region import KeyedRegion
 from .atoms import GuardUse, Register, MemoryLocation, Tmp, Parameter
 from .dataset import DataSet
 from .definition import Definition
+from .external_codeloc import ExternalCodeLocation
+from .subject import SubjectType
 from .undefined import undefined
 from .uses import Uses
 
@@ -23,37 +25,29 @@ class LiveDefinitions:
 
     It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
 
+    :param angr.analyses.reaching_definitions.Subject: The subject being analysed.
     :param archinfo.Arch arch: The architecture targeted by the program.
     :param Boolean track_tmps: Only tells whether or not temporary variables should be taken into consideration when
                               representing the state of the analysis.
                               Should be set to true when the analysis has counted uses and definitions for temporary
                               variables, false otherwise.
     :param angr.analyses.analysis.Analysis analysis: The analysis that generated the state represented by this object.
-    :param Boolean init_func: Whether or not the internal state of the analysis should be initialized.
-    :param angr.calling_conventions.SimCC cc: The calling convention the analyzed function respects.
-    :param int func_addr: The address of the analyzed function.
     :param int rtoc_value: When the targeted architecture is ppc64, the initial function needs to know the `rtoc_value`.
     """
-    def __init__(self, arch, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None,
-                 rtoc_value=None):
+    def __init__(self, arch, subject, track_tmps=False, analysis=None, rtoc_value=None):
 
         # handy short-hands
         self.arch = arch
+        self._subject = subject
         self._track_tmps = track_tmps
         self.analysis = analysis
-        self.rtoc_value = rtoc_value
 
         self.register_definitions = KeyedRegion()
         self.stack_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
         self.tmp_definitions = {}
 
-        # sanity check
-        if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not self.rtoc_value:
-            raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
-
-        if init_func:
-            self._init_func(cc, func_addr)
+        self._set_initialisation_values(subject, rtoc_value)
 
         self.register_uses = Uses()
         self.stack_uses = Uses()
@@ -65,24 +59,39 @@ class LiveDefinitions:
 
     def __repr__(self):
         ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d memdefs" % (
-            len(self.register_definitions),
-            len(self.stack_definitions),
-            len(self.memory_definitions),
-        )
+                len(self.register_definitions),
+                len(self.stack_definitions),
+                len(self.memory_definitions),
+                )
         if self._track_tmps:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
 
-    def _init_func(self, cc, func_addr):
+    def _set_initialisation_values(self, subject, rtoc_value=None):
+        if subject.type is SubjectType.Function:
+            if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
+                raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
+
+            self._initialise_function(
+                subject.cc,
+                subject.content.addr,
+                rtoc_value,
+            )
+        elif subject.type is SubjectType.Block:
+            pass
+
+        return self
+
+    def _initialise_function(self, cc, func_addr, rtoc_value=None):
         # initialize stack pointer
         sp = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp, None, DataSet(self.arch.initial_sp, self.arch.bits))
+        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(self.arch.initial_sp, self.arch.bits))
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
         if self.arch.name.startswith('MIPS'):
             if func_addr is None:
                 l.warning("func_addr must not be None to initialize a function in mips")
             t9 = Register(self.arch.registers['t9'][0],self.arch.bytes)
-            t9_def = Definition(t9, None, DataSet(func_addr,self.arch.bits))
+            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr,self.arch.bits))
             self.register_definitions.set_object(t9_def.offset,t9_def,t9_def.size)
 
         if cc is not None:
@@ -92,13 +101,13 @@ class LiveDefinitions:
                     # FIXME: implement reg_offset handling in SimRegArg
                     reg_offset = self.arch.registers[arg.reg_name][0]
                     reg = Register(reg_offset, self.arch.bytes)
-                    reg_def = Definition(reg, None, DataSet(Parameter(reg), self.arch.bits))
+                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(Parameter(reg), self.arch.bits))
                     self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
                 # initialize stack parameters
                 elif type(arg) is SimStackArg:
                     ml = MemoryLocation(self.arch.initial_sp + arg.stack_offset, self.arch.bytes)
                     sp_offset = SpOffset(arg.size * 8, arg.stack_offset)
-                    ml_def = Definition(ml, None, DataSet(Parameter(sp_offset), self.arch.bits))
+                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(Parameter(sp_offset), self.arch.bits))
                     self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
@@ -107,20 +116,20 @@ class LiveDefinitions:
         if self.arch.name.lower().find('ppc64') > -1:
             offset, size = self.arch.registers['rtoc']
             rtoc = Register(offset, size)
-            rtoc_def = Definition(rtoc, None, DataSet(self.rtoc_value, self.arch.bits))
+            rtoc_def = Definition(rtoc, ExternalCodeLocation(), DataSet(rtoc_value, self.arch.bits))
             self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
         elif self.arch.name.lower().find('mips64') > -1:
             offset, size = self.arch.registers['t9']
             t9 = Register(offset, size)
-            t9_def = Definition(t9, None, DataSet(func_addr, self.arch.bits))
+            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits))
             self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
 
     def copy(self):
         rd = type(self)(
             self.arch,
+            self._subject,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
-            init_func=False,
         )
 
         rd.register_definitions = self.register_definitions.copy()

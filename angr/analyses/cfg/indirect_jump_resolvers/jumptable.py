@@ -90,6 +90,16 @@ EXPECTED_COND_TYPES = {
         ccall.ARMCondGT,
         ccall.ARMCondLE,
     },
+    'AARCH64': {
+        ccall.ARM64CondCS,
+        ccall.ARM64CondCC,
+        ccall.ARM64CondHI,
+        ccall.ARM64CondLS,
+        ccall.ARM64CondGE,
+        ccall.ARM64CondLT,
+        ccall.ARM64CondGT,
+        ccall.ARM64CondLE,
+    },
 }
 
 
@@ -226,7 +236,7 @@ class JumpTableProcessor(
             return
         cond_type_enum = expr.args[0].con.value
 
-        if self.arch.name in ('X86', 'AMD64'):
+        if self.arch.name in { 'X86', 'AMD64', 'AARCH64' }:
             if cond_type_enum in EXPECTED_COND_TYPES[self.arch.name]:
                 self._handle_Comparison(expr.args[2], expr.args[3])
         elif is_arm_arch(self.arch):
@@ -646,6 +656,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 break
             block_addr, stmt_idx = stmt_loc = preds[0]
             block = project.factory.block(block_addr, backup_state=self.base_state).vex
+            if stmt_idx == DEFAULT_STATEMENT:
+                # it's the default exit. continue
+                continue
             stmt = block.statements[stmt_idx]
             if isinstance(stmt, (pyvex.IRStmt.WrTmp, pyvex.IRStmt.Put)):
                 if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):

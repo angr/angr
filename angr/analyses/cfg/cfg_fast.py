@@ -859,8 +859,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # no string is found
         return 0
 
-    def _scan_for_repeating_bytes(self, start_addr, repeating_byte):
-        assert len(repeating_byte) == 1
+    def _scan_for_repeating_bytes(self, start_addr, repeating_byte, threshold=2):
+        """
+        Scan from a given address and determine the occurrences of a given byte.
+
+        :param int start_addr:      The address in memory to start scanning.
+        :param int repeating_byte:  The repeating byte to scan for.
+        :param int threshold:  The minimum occurrences.
+        :return:                    The occurrences of a given byte.
+        :rtype:                     int
+        """
+
         addr = start_addr
 
         repeating_length = 0
@@ -875,7 +884,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 break
             addr += 1
 
-        if repeating_length > self.project.arch.bytes:  # this is pretty random
+        if repeating_length >= threshold:
             return repeating_length
         else:
             return 0
@@ -899,14 +908,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 start_addr += string_length
 
             if self.project.arch.name in ('X86', 'AMD64'):
-                cc_length = self._scan_for_repeating_bytes(start_addr, '\xcc')
+                cc_length = self._scan_for_repeating_bytes(start_addr, 0xcc, threshold=1)
                 if cc_length:
                     self._seg_list.occupy(start_addr, cc_length, "alignment")
                     start_addr += cc_length
             else:
                 cc_length = 0
 
-            zeros_length = self._scan_for_repeating_bytes(start_addr, '\x00')
+            zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
                 self._seg_list.occupy(start_addr, zeros_length, "alignment")
                 start_addr += zeros_length
@@ -2266,6 +2275,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: a tuple of (data type, size). (None, None) if we fail to determine the type or the size.
         :rtype: tuple
         """
+        if max_size is None:
+            max_size = 0
 
         # quick check: if it's at the beginning of a binary, it might be the ELF header
         elfheader_sort, elfheader_size = self._guess_data_type_elfheader(data_addr, max_size)
@@ -2279,8 +2290,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except StopIteration:
             irsb_addr, stmt_idx = None, None
 
-        if max_size is None:
-            max_size = 0
 
         if self._seg_list.is_occupied(data_addr) and self._seg_list.occupied_by_sort(data_addr) == 'code':
             # it's a code reference
@@ -3388,7 +3397,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb = None
             irsb_string = None
             try:
-                lifted_block = self._lift(addr, size=distance, opt_level=self._iropt_level, collect_data_refs=True)
+                lifted_block = self._lift(addr, size=distance, opt_level=self._iropt_level, collect_data_refs=True,
+                                          strict_block_end=True)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
@@ -3412,7 +3422,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 try:
                     lifted_block = self._lift(addr_0, size=distance, opt_level=self._iropt_level,
-                                              collect_data_refs=True)
+                                              collect_data_refs=True, strict_block_end=True)
                     irsb = lifted_block.vex_nostmt
                     irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:

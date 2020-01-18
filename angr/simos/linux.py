@@ -380,7 +380,7 @@ class SimLinux(SimUserland):
         # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
         _vsyscall_address = concrete_target.read_memory(gs + 0x10, state.project.arch.bits / 8)
         _vsyscall_address = struct.unpack(state.project.arch.struct_fmt(), _vsyscall_address)[0]
-        state.project.rehook_symbol(_vsyscall_address, '_vsyscall')
+        state.project.rehook_symbol(_vsyscall_address, '_vsyscall', True)
 
         return gdt
 
