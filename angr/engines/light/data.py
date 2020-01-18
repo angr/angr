@@ -59,6 +59,16 @@ class ArithmeticExpression:
                 return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] - other,))
         return ArithmeticExpression(self.op, (self, other, ))
 
+    def __rsub__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) is int:
+                return ArithmeticExpression(self.op, other - (self.operands[0], self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], other - self.operands[1],))
+        return ArithmeticExpression(self.op, (self, other, ))
+
+
     def __and__(self, other):
         if type(other) in ArithmeticExpression.CONST_TYPES:
             other = self._unpack_const(other)
