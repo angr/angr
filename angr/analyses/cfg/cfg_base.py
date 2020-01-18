@@ -7,6 +7,7 @@ import networkx
 import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
+from cle.backends import NamedRegion
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
@@ -604,7 +605,9 @@ class CFGBase(Analysis):
                 # a blob is entirely executable
                 tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
-
+            elif isinstance(b, NamedRegion):
+                # NamedRegions have no content! Ignore
+                pass
             elif isinstance(b, self._cle_pseudo_objects):
                 pass
 
