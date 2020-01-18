@@ -13,6 +13,7 @@ class ArithmeticExpression:
     RShift = 8
     LShift = 16
     Mul = 32
+    Xor = 64
 
     CONST_TYPES = (int, ailment.expression.Const)
 
@@ -58,6 +59,16 @@ class ArithmeticExpression:
                 return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] - other,))
         return ArithmeticExpression(self.op, (self, other, ))
 
+    def __rsub__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) is int:
+                return ArithmeticExpression(self.op, other - (self.operands[0], self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], other - self.operands[1],))
+        return ArithmeticExpression(self.op, (self, other, ))
+
+
     def __and__(self, other):
         if type(other) in ArithmeticExpression.CONST_TYPES:
             other = self._unpack_const(other)
@@ -75,6 +86,16 @@ class ArithmeticExpression:
             elif type(self.operands[1]) is int:
                 return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] | other,))
         return ArithmeticExpression(self.op, (self, other, ))
+
+    def __xor__(self, other):
+        if type(other) in ArithmeticExpression.CONST_TYPES:
+            other = self._unpack_const(other)
+            if type(self.operands[0]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0] ^ other, self.operands[1], ))
+            elif type(self.operands[1]) is int:
+                return ArithmeticExpression(self.op, (self.operands[0], self.operands[1] ^ other,))
+        return ArithmeticExpression(self.op, (self, other, ))
+
 
     def __lshift__(self, other):
         if type(other) in ArithmeticExpression.CONST_TYPES:
@@ -233,6 +254,20 @@ class RegisterOffset:
 
     def __ror__(self, other):
         return self.__or__(other)
+
+    def __xor__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset | other))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset ^ other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.Xor, (self.offset, other,)))
+
+    def __rxor__(self, other):
+        return self.__xor__(other)
+
 
     def __rshift__(self, other):
         if not self.symbolic and type(other) is int:
