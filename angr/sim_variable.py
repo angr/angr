@@ -1,4 +1,4 @@
-import collections
+import collections.abc
 import claripy
 
 class SimVariable:
@@ -229,7 +229,7 @@ class SimStackVariable(SimMemoryVariable):
         return hash((self.ident, self.base, self.offset, self.size))
 
 
-class SimVariableSet(collections.MutableSet):
+class SimVariableSet(collections.abc.MutableSet):
     """
     A collection of SimVariables.
     """

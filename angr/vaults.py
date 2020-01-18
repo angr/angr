@@ -1,4 +1,4 @@
-import collections
+import collections.abc
 import contextlib
 import tempfile
 import weakref
@@ -42,7 +42,7 @@ class VaultUnpickler(pickle.Unpickler):
     def persistent_load(self, pid):
         return self.vault.load(pid)
 
-class Vault(collections.MutableMapping):
+class Vault(collections.abc.MutableMapping):
     """
     The vault is a serializer for angr.
     """
