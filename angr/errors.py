@@ -312,6 +312,9 @@ class SimProcedureError(SimEngineError):
 class SimProcedureArgumentError(SimProcedureError):
     pass
 
+class SimShadowStackError(SimProcedureError):
+    pass
+
 class SimFastPathError(SimEngineError):
     pass
 

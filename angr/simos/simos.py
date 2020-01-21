@@ -143,7 +143,7 @@ class SimOS:
             state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
 
         if state.arch.sp_offset is not None:
-            state.regs.sp = actual_stack_end
+            state.regs.sp = actual_stack_end + (state.arch.stack_change if state.arch.stack_change is not None else 0)
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -178,8 +178,31 @@ class SimOS:
             else:
                 state.registers.store(reg, val)
 
-        if addr is None: addr = self.project.entry
-        state.regs.ip = addr
+        if addr is None:
+            state.regs.ip = self.project.entry
+
+        for reg, val in self.project.loader.main_object.thread_registers().items():
+            if reg in state.arch.registers or reg in ('flags', 'eflags', 'rflags'):
+                setattr(state.regs, reg, val)
+            elif reg == 'fctrl':
+                state.regs.fpround = (val & 0xC00) >> 10
+            elif reg == 'fstat':
+                state.regs.fc3210 = (val & 0x4700)
+            elif reg == 'ftag':
+                empty_bools = [((val >> (x * 2)) & 3) == 3 for x in range(8)]
+                tag_chars = [claripy.BVV(0 if x else 1, 8) for x in empty_bools]
+                for i, tag in enumerate(tag_chars):
+                    setattr(state.regs, 'fpu_t%d' % i, tag)
+            elif reg in ('fiseg', 'fioff', 'foseg', 'fooff', 'fop'):
+                pass
+            elif reg == 'mxcsr':
+                state.regs.sseround = (val & 0x600) >> 9
+            else:
+                _l.error("What is this register %s I have to translate?", reg)
+
+
+        if addr is not None:
+            state.regs.ip = addr
 
         # set up the "root history" node
         state.scratch.ins_addr = addr

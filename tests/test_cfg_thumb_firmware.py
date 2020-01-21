@@ -4,18 +4,17 @@ import os
 import angr
 from nose.tools import assert_true
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
 def test_thumb_firmware_cfg():
-    """
-    Test an ARM firmware sample.
 
-    This tests CFG, but also the Gym (the ThumbSpotter, etc)
-    Also requires proper relocs support, or You're Gonna Have a Bad Time(tm)
-    In short, a very comprehensive high level test
-    :return:
-    """
+    # Test an ARM firmware sample.
+    #
+    # This tests CFG, but also the Gym (the ThumbSpotter, etc)
+    # Also requires proper relocs support, or You're Gonna Have a Bad Time(tm)
+    # In short, a very comprehensive high level test
+
     path = os.path.join(test_location, "armel", "i2c_master_read-nucleol152re.elf")
     p = angr.Project(path, auto_load_libs=False)
 

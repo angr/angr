@@ -350,19 +350,19 @@ class SymbolManager(object):
                     symbol_name = symbol_name[ : symbol_name.index('@') ]
 
                 # check the type...
-                if symbol.type == cle.Symbol.TYPE_FUNCTION:
+                if symbol.type == cle.SymbolType.TYPE_FUNCTION:
                     # it's a function!
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = FunctionLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_OBJECT:
+                elif symbol.type == cle.SymbolType.TYPE_OBJECT:
                     # it's an object
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = ObjectLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_NONE:
+                elif symbol.type == cle.SymbolType.TYPE_NONE:
                     # notype
                     unique_symbol_name = self.get_unique_symbol_name(symbol_name)
                     label = NotypeLabel(self.binary, unique_symbol_name, addr)
-                elif symbol.type == cle.Symbol.TYPE_SECTION:
+                elif symbol.type == cle.SymbolType.TYPE_SECTION:
                     # section label
                     # use a normal label instead
                     if not name:
@@ -371,6 +371,12 @@ class SymbolManager(object):
                     label = Label.new_label(self.binary, name=name, original_addr=addr)
                 else:
                     raise Exception('Unsupported symbol type %s. Bug Fish about it!' % symbol.type)
+
+            else:
+                raise Exception("the symbol %s is not owned by the main object. Try reload the project with"
+                                "\"auto_load_libs=False\". If that does not solve the issue, please report to GitHub."
+                                % symbol.name
+                                )
 
         elif (addr is not None and addr in self.cfg.functions) or is_function:
             # It's a function identified by angr's CFG recovery
@@ -410,7 +416,7 @@ class SymbolManager(object):
 
 
 class Operand(object):
-    def __init__(self, binary, insn_addr, insn_size, capstone_operand, operand_str, mnemonic, syntax=None):
+    def __init__(self, binary, insn_addr, insn_size, capstone_operand, operand_str, mnemonic, operand_offset, syntax=None):
         """
         Constructor.
 
@@ -419,6 +425,7 @@ class Operand(object):
         :param capstone_operand:
         :param str operand_str: the string representation of this operand
         :param str mnemonic: Mnemonic of the instruction that this operand belongs to.
+        :param int operand_offset: offset of the operand into the instruction.
         :param str syntax: Provide a way to override the default syntax coming from `binary`.
         :return: None
         """
@@ -429,8 +436,8 @@ class Operand(object):
         self.insn_size = insn_size
         self.operand_str = operand_str
         self.mnemonic = mnemonic
+        self.operand_offset = operand_offset
         self.syntax = self.binary.syntax if syntax is None else syntax
-
         self.type = None
         self.size = capstone_operand.size
 
@@ -509,7 +516,8 @@ class Operand(object):
                     s.append(base)
 
                 if self.index and self.scale:
-                    s.append('+')
+                    if s:
+                        s.append('+')
                     s.append("(%s * %d)" % (CAPSTONE_REG_MAP[self.project.arch.name][self.index], self.scale))
 
                 if disp:
@@ -524,11 +532,15 @@ class Operand(object):
                 asm = " ".join(s)
 
                 # we need to specify the size here
-                if 'dword' in self.operand_str.lower():
+                if self.size == 16:
+                    asm = 'xmmword ptr [%s]' % asm
+                elif self.size == 8:
+                    asm = 'qword ptr [%s]' % asm
+                elif self.size == 4:
                     asm = 'dword ptr [%s]' % asm
-                elif 'word' in self.operand_str.lower():
+                elif self.size == 2:
                     asm = 'word ptr [%s]' % asm
-                elif 'byte' in self.operand_str.lower():
+                elif self.size == 1:
                     asm = 'byte ptr [%s]' % asm
                 else:
                     raise BinaryError('Unsupported memory operand size for operand "%s"' % self.operand_str)
@@ -600,7 +612,7 @@ class Operand(object):
                     sort = 'call'
                 else:
                     sort = 'absolute'
-                self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.insn_size)
+                self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.operand_offset)
 
         elif self.type == OP_TYPE_MEM:
 
@@ -620,7 +632,7 @@ class Operand(object):
                 self.disp_label = self.binary.symbol_manager.new_label(addr=baseaddr)
                 self.disp_label_offset = self.disp - baseaddr
 
-                self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size)
+                self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.operand_offset)
 
     def _imm_to_ptr(self, imm, operand_type, mnemonic):  # pylint:disable=no-self-use,unused-argument
         """
@@ -696,8 +708,17 @@ class Instruction(object):
 
         self.labels = [ ]
 
+        operand_offsets = [ ]
+        for operand in capstone_instr.operands:
+            if operand.type == capstone.CS_OP_IMM:
+                operand_offsets.append(capstone_instr.imm_offset)
+            elif operand.type == capstone.CS_OP_MEM:
+                operand_offsets.append(capstone_instr.disp_offset)
+            else:
+                operand_offsets.append(None)
+
         if self.addr is not None:
-            self._initialize(capstone_instr.operands)
+            self._initialize(capstone_instr.operands, operand_offsets)
 
     #
     # Overridden predefined instructions
@@ -783,13 +804,10 @@ class Instruction(object):
             for i, op in enumerate(self.operands):
                 op_asm = op.assembly()
                 if op_asm is not None:
-                    if op.type == OP_TYPE_IMM:
+                    if op.type in (OP_TYPE_IMM, OP_TYPE_MEM):
                         all_operands[i] = op_asm
-                    elif op.type == OP_TYPE_MEM:
-                        if self.binary.syntax == 'intel':
-                            all_operands[i] = all_operands[i][ : all_operands[i].index('ptr') + 3] + " [" + op_asm + "]"
-                        elif self.binary.syntax == 'at&t':
-                            all_operands[i] = op_asm
+                    else:
+                        raise BinaryError("Unsupported operand type %d." % op.type)
 
                     if self.capstone_operand_types[i] == capstone.CS_OP_IMM:
                         if mnemonic.startswith('j') or mnemonic.startswith('call') or mnemonic.startswith('loop'):
@@ -817,7 +835,7 @@ class Instruction(object):
     # Private methods
     #
 
-    def _initialize(self, capstone_operands):
+    def _initialize(self, capstone_operands, operand_offsets):
         """
         Initialize this object
 
@@ -827,9 +845,9 @@ class Instruction(object):
         if self.addr is None:
             raise InstructionError('self.addr must be specified')
 
-        self._initialize_operands(capstone_operands)
+        self._initialize_operands(capstone_operands, operand_offsets)
 
-    def _initialize_operands(self, capstone_operands):
+    def _initialize_operands(self, capstone_operands, operand_offsets):
         """
 
         :return:
@@ -837,9 +855,10 @@ class Instruction(object):
 
         all_operands = split_operands(self.op_str)
         capstone_operands = capstone_operands[ - len(all_operands) : ] # sometimes there are more operands than expected...
+        operand_offsets = operand_offsets[ - len(all_operands) : ]
 
-        for operand, operand_str in zip(capstone_operands, all_operands):
-            self.operands.append(Operand(self.binary, self.addr, self.size, operand, operand_str, self.mnemonic))
+        for operand, operand_str, offset in zip(capstone_operands, all_operands, operand_offsets):
+            self.operands.append(Operand(self.binary, self.addr, self.size, operand, operand_str, self.mnemonic, offset))
 
 class BasicBlock(object):
     """
@@ -1886,54 +1905,12 @@ class Reassembler(Analysis):
             return closest_region
         return False, None
 
-    def register_instruction_reference(self, insn_addr, ref_addr, sort, insn_size):
+    def register_instruction_reference(self, insn_addr, ref_addr, sort, operand_offset):
 
         if not self.log_relocations:
             return
 
-        addr = insn_addr
-        if sort == 'jump':
-            addr += 1
-        elif sort == 'call':
-            addr += 1
-        elif sort == 'absolute':
-            # detect it...
-            ptr_size = self.project.arch.bytes
-            for i in range(0, insn_size):
-                # an absolute address is used
-                if insn_size - i >= ptr_size:
-                    ptr = self.fast_memory_load(insn_addr + i, ptr_size, int, endness='Iend_LE')
-                    if ptr == ref_addr:
-                        addr += i
-                        break
-
-                # an absolute address of 4 bytes is used
-                # e.g. AMD64:
-                #      mov r8, offset 0x400070
-                #      49 c7 c0 xx xx xx xx
-                if ptr_size == 8 and insn_size - i >= 4:
-                    ptr = self.fast_memory_load(insn_addr + i, 4, int, endness='Iend_LE')
-                    if ptr == ref_addr:
-                        addr += i
-                        break
-
-                # an relative offset is used, and size of the offset is 4
-                # e.g. AMD64:
-                #      mov rax, 0x600100
-                #      48 8b 05 xx xx xx
-                if insn_size - i >= 4:
-                    ptr = self.fast_memory_load(insn_addr + i, 4, int, endness='Iend_LE')
-                    if (ptr + insn_addr + insn_size) == ref_addr:
-                        addr += i
-                        break
-            else:
-                l.warning('Cannot find the absolute address inside instruction at %#x. Use the default address.',
-                          insn_addr
-                          )
-
-        else:
-            raise BinaryError('Unsupported sort "%s" in register_instruction_reference().' % sort)
-
+        addr = insn_addr + operand_offset
         r = Relocation(addr, ref_addr, sort)
 
         self._relocations.append(r)
@@ -2161,22 +2138,22 @@ class Reassembler(Analysis):
         # there is a single function referencing them
         cgcpl_memory_data = self.cfg.memory_data.get(cgc_package_list.addr, None)
         cgcea_memory_data = self.cfg.memory_data.get(cgc_extended_application.addr, None)
-        refs = self.cfg.model.references
+        refs = self.cfg.kb.xrefs
 
         if cgcpl_memory_data is None or cgcea_memory_data is None:
             return False
 
-        if len(refs.data_addr_to_ref[cgcpl_memory_data.addr]) != 1:
+        if len(refs.get_xrefs_by_dst(cgcpl_memory_data.addr)) != 1:
             return False
-        if len(refs.data_addr_to_ref[cgcea_memory_data.addr]) != 1:
+        if len(refs.get_xrefs_by_dst(cgcea_memory_data.addr)) != 1:
             return False
 
         # check if the irsb addresses are the same
-        if next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).block_addr != \
-                next(iter(refs.data_addr_to_ref[cgcea_memory_data.addr])).block_addr:
+        if next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).block_addr != \
+                next(iter(refs.get_xrefs_by_dst(cgcea_memory_data.addr))).block_addr:
             return False
 
-        insn_addr = next(iter(refs.data_addr_to_ref[cgcpl_memory_data.addr])).insn_addr
+        insn_addr = next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).ins_addr
         # get the basic block
         cfg_node = self.cfg.get_any_node(insn_addr, anyaddr=True)
         if not cfg_node:
@@ -2345,7 +2322,7 @@ class Reassembler(Analysis):
             self._section_alignments[section.name] = alignment
 
         l.debug('Generating CFG...')
-        cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, collect_data_references=True,
+        cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, data_references=True,
                                         extra_memory_regions=[(0x4347c000, 0x4347c000 + 0x1000)],
                                         data_type_guessing_handlers=[
                                             self._sequence_handler,

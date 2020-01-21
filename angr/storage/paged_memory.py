@@ -1,7 +1,7 @@
-import cooldict
 import claripy
 import cle
 from sortedcontainers import SortedDict
+from collections import ChainMap
 import logging
 
 
@@ -342,9 +342,34 @@ class SimPagedMemory:
         self._check_perms = check_permissions
 
         # reverse mapping
-        self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
-        self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
+        self._name_mapping = ChainMap() if name_mapping is None else name_mapping
+        self._hash_mapping = ChainMap() if hash_mapping is None else hash_mapping
         self._updated_mappings = set()
+
+    def _page_align_down(self, x):
+        return x - (x % self._page_size)
+
+    def _page_align_up(self, x):
+        return self._page_align_down(x + self._page_size - 1)
+
+    def _is_page_aligned(self, x):
+        return x % self._page_size == 0
+
+    def _num_pages(self, start, end):
+        return self._page_align_up(end - self._page_align_down(start)) // self._page_size
+
+    def _page_id(self, addr):
+        return addr // self._page_size
+
+    def _page_addr(self, page_id):
+        return page_id * self._page_size
+
+    def _page_base_addrs(self, addr, length):
+        addr = self._page_align_down(addr)
+        return range(addr, length, self._page_size)
+
+    #def _page_ids(self, addr, length):
+    #    return (a // self._page_size for a in range(start, start + num))
 
     def __getstate__(self):
         return {
@@ -368,8 +393,8 @@ class SimPagedMemory:
         self.__dict__.update(s)
 
     def branch(self):
-        new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
-        new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
+        new_name_mapping = self._name_mapping.new_child() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
+        new_hash_mapping = self._hash_mapping.new_child() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
         new_pages = dict(self._pages)
         self._cowed = set()
@@ -448,8 +473,7 @@ class SimPagedMemory:
                     if ret_on_segv:
                         break
                     raise SimSegfaultError(addr, 'read-miss')
-                else:
-                    continue
+                continue
 
             if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
                 #print "... SEGV"
@@ -465,10 +489,18 @@ class SimPagedMemory:
     #
 
     def _create_page(self, page_num, permissions=None):
-        return Page(
+        if self.state is not None:
+            self.state._inspect('memory_page_map', BP_BEFORE, mapped_address=page_num*self._page_size)
+
+        pg = Page(
             page_num*self._page_size, self._page_size,
             executable=self._executable_pages, permissions=permissions
         )
+
+        if self.state is not None:
+            self.state._inspect('memory_page_map', BP_AFTER, mapped_page=pg)
+            self.state._inspect_getattr('mapped_page', pg)
+        return pg
 
     def _initialize_page(self, n, new_page):
         if n in self._initialized:
@@ -487,7 +519,10 @@ class SimPagedMemory:
         elif isinstance(self._memory_backer, cle.Clemory) and self._memory_backer.is_concrete_target_set():
             try:
                 concrete_memory = self._memory_backer.load(new_page_addr, self._page_size)
-                backer = claripy.BVV(concrete_memory)
+                if self.byte_width == 8:
+                    backer = concrete_memory
+                else:
+                    backer = claripy.BVV(concrete_memory)
                 mo = SimMemoryObject(backer, new_page_addr, byte_width=self.byte_width)
                 self._apply_object_to_page(n * self._page_size, mo, page=new_page)
                 initialized = True
@@ -520,7 +555,7 @@ class SimPagedMemory:
                 if self.byte_width == 8:
                     relevant_data = bytes(memoryview(backer)[slice_start:slice_end])
                     mo = SimMemoryObject(
-                            claripy.BVV(relevant_data),
+                            relevant_data,
                             relevant_region_start,
                             byte_width=self.byte_width)
                     self._apply_object_to_page(new_page_addr, mo, page=new_page)
@@ -539,7 +574,9 @@ class SimPagedMemory:
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
                         backer = self._memory_backer[i]
                     elif isinstance(self._memory_backer[i], bytes):
-                        backer = claripy.BVV(self._memory_backer[i])
+                        backer = self._memory_backer[i]
+                        if self.byte_width != 8: # if we have direct bytes we can store it directly
+                            backer = claripy.BVV(backer)
                     else:
                         backer = claripy.BVV(self._memory_backer[i], self.byte_width)
                     mo = SimMemoryObject(backer, i, byte_width=self.byte_width)
@@ -549,12 +586,14 @@ class SimPagedMemory:
         elif len(self._memory_backer) > self._page_size:
             for i in range(self._page_size):
                 try:
-                    if isinstance(self._memory_backer[i], claripy.ast.Base):
-                        backer = self._memory_backer[i]
-                    elif isinstance(self._memory_backer[i], bytes):
-                        backer = claripy.BVV(self._memory_backer[i])
-                    else:
+                    backer = self._memory_backer[i]
+
+                    if not isinstance(self._memory_backer[i], (claripy.ast.Base, bytes)):
                         backer = claripy.BVV(self._memory_backer[i], self.byte_width)
+
+                    if type(backer) is bytes and self.byte_width != 8:
+                        backer = claripy.BVV(backer)
+
                     mo = SimMemoryObject(backer, new_page_addr+i, byte_width=self.byte_width)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
@@ -717,8 +756,7 @@ class SimPagedMemory:
         except KeyError:
             if self.allow_segv:
                 raise SimSegfaultError(mo.base, 'write-miss')
-            else:
-                raise
+            raise
         if self.allow_segv and not page.concrete_permissions & Page.PROT_WRITE:
             raise SimSegfaultError(mo.base, 'non-writable')
 
@@ -726,9 +764,7 @@ class SimPagedMemory:
         return True
 
     def _containing_pages(self, mo_start, mo_end):
-        page_start = mo_start - mo_start%self._page_size
-        page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
-        return [ b for b in range(page_start, page_end, self._page_size) ]
+        return [a for a in self._page_base_addrs(mo_start, mo_end)]
 
     def _containing_pages_mo(self, mo):
         mo_start = mo.base
@@ -740,7 +776,7 @@ class SimPagedMemory:
         This function optimizes a large store by storing a single reference to the :class:`SimMemoryObject` instead of
         one for each byte.
 
-        :param memory_object: the memory object to store
+        :param mo: the memory object to store
         """
 
         for p in self._containing_pages_mo(mo):
@@ -758,7 +794,7 @@ class SimPagedMemory:
         :returns: the new memory object
         """
 
-        if old.object.size() != new_content.size():
+        if (old.object.size() if not old.is_bytes else len(old.object)*self.state.arch.byte_width) != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base, byte_width=self.byte_width)
@@ -1018,18 +1054,14 @@ class SimPagedMemory:
         if isinstance(addr, claripy.ast.bv.BV):
             addr = self.state.solver.max_int(addr)
 
-        base_page_num = addr // self._page_size
-
-        # round length
-        pages = length // self._page_size
-        if length % self._page_size > 0:
-            pages += 1
+        base_page_num = self._page_id(addr)
+        pages = self._num_pages(addr, addr + length)
 
         # this check should not be performed when constructing a CFG
         if self.state.mode != 'fastpath':
-            for page in range(pages):
-                page_id = base_page_num + page
-                if page_id * self._page_size in self:
+            for p_num in range(pages):
+                page_id = base_page_num + p_num
+                if self._page_addr(page_id) in self:
                     err = "map_page received address and length combination which contained mapped page"
                     l.warning(err)
                     raise SimMemoryError(err)
@@ -1044,8 +1076,15 @@ class SimPagedMemory:
             if init_zero:
                 if self.state is not None:
                     self.state.scratch.push_priv(True)
-                mo = SimMemoryObject(claripy.BVV(0, self._page_size * self.byte_width), page_id*self._page_size, byte_width=self.byte_width)
-                self._apply_object_to_page(page_id*self._page_size, mo, page=self._pages[page_id])
+                page_addr = self._page_addr(page_id)
+
+                if self.byte_width == 8:
+                    content = b'\0' * self._page_size
+                else:
+                    content = claripy.BVV(0, self._page_size * self.byte_width)
+
+                mo = SimMemoryObject(content, page_addr, byte_width=self.byte_width)
+                self._apply_object_to_page(page_addr, mo, page=self._pages[page_id])
                 if self.state is not None:
                     self.state.scratch.pop_priv()
 
@@ -1059,43 +1098,53 @@ class SimPagedMemory:
         if isinstance(addr, claripy.ast.bv.BV):
             addr = self.state.solver.max_int(addr)
 
-        base_page_num = addr // self._page_size
-
-        pages = length // self._page_size
-        if length % self._page_size > 0:
-            pages += 1
+        base_page_num = self._page_id(addr)
+        pages = self._num_pages(addr, addr + length)
 
         # this check should not be performed when constructing a CFG
         if self.state.mode != 'fastpath':
             for page in range(pages):
+                # TODO: Why is this different from the check in map_region? what if we unmap _backer backed pages?
                 if base_page_num + page not in self._pages:
-                    l.warning("unmap_region received address and length combination is not mapped")
+                    l.warning("unmap_region received address (%#x) and length (%#x) combination is not mapped", addr, length)
                     return
 
-        for page in range(pages):
-            del self._pages[base_page_num + page]
-            del self._symbolic_addrs[base_page_num + page]
+        for page_id in range(base_page_num, base_page_num + pages):
+            del self._pages[page_id]
+            del self._symbolic_addrs[page_id]
 
     def flush_pages(self, white_list):
         """
-            :param white_list: white list of page number to exclude from the flush
+        Flush all pages not included in the `white_list` by removing their pages. Note, this will not wipe them
+        from memory if they were backed by a memory_backer, it will simply reset them to their initial state.
+        Returns the list of pages that were cleared consisting of `(addr, length)` tuples.
+
+        :param white_list: white list of regions in the form of (start, end) to exclude from the flush
+        :return: a list of memory page ranges that were flushed
+        :rtype: list
         """
         white_list_page_number = []
 
         for addr in white_list:
             for page_addr in range(addr[0], addr[1], self._page_size):
-                white_list_page_number.append(page_addr // self._page_size)
+                white_list_page_number.append(self._page_id(page_addr))
 
         new_page_dict = {}
 
+        flushed = []
         # cycle over all the keys ( the page number )
         for page in self._pages:
             if page in white_list_page_number:
                 # l.debug("Page " + str(page) + " not flushed!")
                 new_page_dict[page] = self._pages[page]
+            else:
+                p = self._pages[page]
+                flushed.append((p._page_addr, p._page_size))
 
         self._pages = new_page_dict
         self._initialized = set()
+        return flushed
 
 
 from .. import sim_options as o
+from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

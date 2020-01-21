@@ -6,7 +6,7 @@ import time
 import angr
 from angr import options as so
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 def perf_unicorn_0():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'x86_64', 'perf_unicorn_0'))

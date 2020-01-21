@@ -5,10 +5,10 @@ import nose
 
 import angr
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def run_tracker(track_mem, use_bp):
-    p = angr.Project(test_location + '/x86_64/fauxware', auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
     p.analyses.CFGFast()
     main = p.kb.functions['main']
     sp = p.arch.sp_offset

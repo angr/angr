@@ -9,10 +9,10 @@ import psutil
 from common import bin_location
 
 def test_memory_watcher():
-    binary = os.path.join(bin_location, "tests/x86_64/veritesting_a")
+    binary = os.path.join(bin_location, 'tests', 'x86_64', 'veritesting_a')
     proj = angr.Project(binary)
     simgr = proj.factory.simulation_manager()
-    
+
     memory_watcher = angr.exploration_techniques.MemoryWatcher()
     simgr.use_technique(memory_watcher)
 

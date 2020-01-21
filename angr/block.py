@@ -6,16 +6,16 @@ from archinfo import ArchARM
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
-from .engines import SimEngineVEX
+from .engines.vex import VEXLifter
 
-DEFAULT_VEX_ENGINE = SimEngineVEX(None)  # this is only used when Block is not initialized with a project
+DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not initialized with a project
 
 
 class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
-                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs'
+                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
@@ -52,7 +52,7 @@ class Block(Serializable):
             elif vex is not None:
                 size = vex.size
             else:
-                vex = self._vex_engine.lift(
+                vex = self._vex_engine.lift_vex(
                         clemory=project.loader.memory,
                         state=backup_state,
                         insn_bytes=byte_string,
@@ -72,6 +72,7 @@ class Block(Serializable):
         self._capstone = None
         self.size = size
         self._collect_data_refs = collect_data_refs
+        self._strict_block_end = strict_block_end
 
         self._instructions = num_inst
         self._instruction_addrs = []
@@ -143,7 +144,7 @@ class Block(Serializable):
     @property
     def vex(self):
         if not self._vex:
-            self._vex = self._vex_engine.lift(
+            self._vex = self._vex_engine.lift_vex(
                     clemory=self._project.loader.memory if self._project is not None else None,
                     insn_bytes=self._bytes,
                     addr=self.addr,
@@ -153,6 +154,7 @@ class Block(Serializable):
                     opt_level=self._opt_level,
                     arch=self.arch,
                     collect_data_refs=self._collect_data_refs,
+                    strict_block_end=self._strict_block_end,
             )
             self._parse_vex_info()
 
@@ -166,7 +168,7 @@ class Block(Serializable):
         if self._vex:
             return self._vex
 
-        self._vex_nostmt = self._vex_engine.lift(
+        self._vex_nostmt = self._vex_engine.lift_vex(
             clemory=self._project.loader.memory if self._project is not None else None,
             insn_bytes=self._bytes,
             addr=self.addr,
@@ -177,6 +179,7 @@ class Block(Serializable):
             arch=self.arch,
             skip_stmts=True,
             collect_data_refs=self._collect_data_refs,
+            strict_block_end=self._strict_block_end,
         )
         return self._vex_nostmt
 
@@ -262,7 +265,7 @@ class SootBlock:
 
     @property
     def soot(self):
-        return self._soot_engine.lift(self.addr, the_binary=self._the_binary)
+        return self._soot_engine.lift_soot(self.addr, the_binary=self._the_binary)
 
     @property
     def size(self):

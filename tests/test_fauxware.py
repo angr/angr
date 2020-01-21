@@ -10,7 +10,7 @@ from nose.plugins.attrib import attr
 from angr.state_plugins.history import HistoryIter
 
 l = logging.getLogger("angr.tests")
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 target_addrs = {
     'i386': [ 0x080485C9 ],
@@ -72,6 +72,8 @@ def run_pickling(arch):
     stdin = pg.found[0].posix.dumps(0)
     nose.tools.assert_equal(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
+
+@attr(speed='slow')
 def run_fastmem(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
     p.analyses.CongruencyCheck(throw=True).set_state_options(right_add_options={"FAST_REGISTERS"}).run()
@@ -144,6 +146,7 @@ def test_nodecode():
         yield run_nodecode, arch
 
 if __name__ == "__main__":
+    #logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
 
     if len(sys.argv) > 1:
         func_name = "test_%s" % sys.argv[1]

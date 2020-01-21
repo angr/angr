@@ -30,7 +30,7 @@ class JNISimProcedure(SimProcedure):
         # Setup a SimCC using the correct type for the return value
         if not self.return_ty:
             raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
-        elif self.return_ty is not 'void':
+        elif self.return_ty != 'void':
             func_ty = SimTypeFunction(args=[],
                                       returnty=state.project.simos.get_native_type(self.return_ty))
             self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)

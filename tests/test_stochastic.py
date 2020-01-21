@@ -2,7 +2,7 @@ import os
 import nose
 import angr
 
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 find = {
     'veritesting_a': {
@@ -15,7 +15,7 @@ criteria = {
 }
 
 def run_stochastic(binary, arch):
-    proj = angr.Project(os.path.join(os.path.join(location, arch), binary),
+    proj = angr.Project(os.path.join(location, arch, binary),
                         auto_load_libs=False)
     simgr = proj.factory.simulation_manager()
     start_state = simgr.active[0]

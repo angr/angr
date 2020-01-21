@@ -9,7 +9,7 @@ l = logging.getLogger(name=__name__)
 import angr # type annotations; pylint:disable=unused-import
 import claripy
 import archinfo
-from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+from archinfo.arch_soot import SootAddressDescriptor
 
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
@@ -34,8 +34,8 @@ class SimState(PluginHub):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
-    :param angr.Project project:
-    :param archinfo.Arch arch:
+    :param angr.Project project:    The project instance.
+    :param archinfo.Arch|str arch:  The architecture of the state.
 
     :ivar regs:         A convenient view of the state's registers, where each register is a property
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
@@ -60,6 +60,10 @@ class SimState(PluginHub):
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
         self.project = project
+
+        # Java & Java JNI
+        self._is_java_project = self.project and self.project.is_java_project
+        self._is_java_jni_project = self.project and self.project.is_java_jni_project
 
         # Arch
         if self._is_java_jni_project:
@@ -89,7 +93,7 @@ class SimState(PluginHub):
             options |= add_options
         if remove_options is not None:
             options -= remove_options
-        self._options = options
+        self.options = options
         self.mode = mode
         self.supports_inspect = False
 
@@ -228,6 +232,22 @@ class SimState(PluginHub):
 
         return "<SimState @ %s>" % ip_str
 
+    def __setattr__(self, key, value):
+        if key == 'options':
+            # set options
+            # this is done to both keep compatibility and make access to .options fast.
+            self._set_options(value)
+            return
+        super().__setattr__(key, value)
+
+    def _set_options(self, v):
+        if isinstance(v, (set, list)):
+            super().__setattr__("options", SimStateOptions(v))
+        elif isinstance(v, SimStateOptions):
+            super().__setattr__("options", v)
+        else:
+            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
+
     #
     # Easier access to some properties
     #
@@ -297,19 +317,6 @@ class SimState(PluginHub):
         return self.solver.eval_one(self.regs._ip)
 
     @property
-    def options(self):
-        return self._options
-
-    @options.setter
-    def options(self, v):
-        if isinstance(v, (set, list)):
-            self._options = SimStateOptions(v)
-        elif isinstance(v, SimStateOptions):
-            self._options = v
-        else:
-            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
-
-    @property
     def arch(self):
         if self._is_java_jni_project:
             return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
@@ -373,21 +380,6 @@ class SimState(PluginHub):
     #
     # Java support
     #
-
-    @property
-    def _is_java_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive.
-        """
-        return self.project and self.project.is_java_project
-
-    @property
-    def _is_java_jni_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive, which
-        interacts during its execution with native libraries (via JNI).
-        """
-        return self.project and self.project.is_java_jni_project
 
     @property
     def javavm_memory(self):

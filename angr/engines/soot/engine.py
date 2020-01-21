@@ -9,7 +9,8 @@ from ... import sim_options as o
 from ...errors import SimEngineError, SimTranslationError
 from cle import CLEError
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ..engine import SimEngine
+from ..engine import SuccessorsMixin
+from ..procedure import ProcedureMixin
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
 from .statements import (SimSootStmt_Return, SimSootStmt_ReturnVoid,
                          translate_stmt)
@@ -19,16 +20,12 @@ l = logging.getLogger('angr.engines.soot.engine')
 
 # pylint: disable=arguments-differ
 
-class SimEngineSoot(SimEngine):
+class SootMixin(SuccessorsMixin, ProcedureMixin):
     """
     Execution engine based on Soot.
     """
 
-    def __init__(self, project=None, **kwargs):
-        super(SimEngineSoot, self).__init__(**kwargs)
-        self.project = project
-
-    def lift(self, addr=None, the_binary=None, **kwargs): # pylint: disable=unused-argument, no-self-use
+    def lift_soot(self, addr=None, the_binary=None, **kwargs): # pylint: disable=unused-argument, no-self-use
         assert isinstance(addr, SootAddressDescriptor)
 
         method, stmt_idx = addr.method, addr.stmt_idx
@@ -61,10 +58,10 @@ class SimEngineSoot(SimEngine):
                     return block
             return None
 
-    def _check(self, state, *args, **kwargs):
-        return isinstance(state._ip, SootAddressDescriptor)
-
-    def _process(self, state, successors, *args, **kwargs):
+    def process_successors(self, successors, **kwargs):
+        state = self.state
+        if not isinstance(state._ip, SootAddressDescriptor):
+            return super().process_successors(successors, **kwargs)
         addr = state._ip
 
         if isinstance(addr, SootAddressTerminator):
@@ -74,7 +71,7 @@ class SimEngineSoot(SimEngine):
         if self.project.use_sim_procedures:
             procedure = self._get_sim_procedure(addr)
             if procedure is not None:
-                self.project.factory.procedure_engine._process(state, successors, procedure)
+                self.process_procedure(state, successors, procedure)
                 return
 
         binary = state.regs._ip_binary
@@ -101,7 +98,7 @@ class SimEngineSoot(SimEngine):
             # store all function arguments in memory, starting from the last param index
             state.memory.store(SimSootValue_ParamRef(param_idx, None), addr.method)
             # STEP 4: Execute unconstrained procedure
-            self.project.factory.procedure_engine._process(state, successors, procedure)
+            self.process_procedure(state, successors, procedure)
             # self._add_return_exit(state, successors)
             return
 
@@ -112,15 +109,16 @@ class SimEngineSoot(SimEngine):
         else:
             # l.debug("Continue executing block %s", addr)
             l.debug("Continue executing block %s \n\n%s\n", addr, block)
-        self._handle_block(state, successors, block, starting_stmt_idx, method)
+        self._handle_soot_block(state, successors, block, starting_stmt_idx, method)
 
         successors.processed = True
 
-    def _handle_block(self, state, successors, block, starting_stmt_idx, method=None):
+    def _handle_soot_block(self, state, successors, block, starting_stmt_idx, method=None):
+        stmt = stmt_idx = None
         for tindex, stmt in enumerate(block.statements[starting_stmt_idx:]):
             stmt_idx = starting_stmt_idx + tindex
             state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-            terminate = self._handle_statement(state, successors, stmt_idx, stmt)
+            terminate = self._handle_soot_stmt(state, successors, stmt_idx, stmt)
             state._inspect('statement', BP_AFTER)
             if terminate:
                 break
@@ -134,7 +132,7 @@ class SimEngineSoot(SimEngine):
                 if next_addr is not None:
                     successors.add_successor(state.copy(), next_addr, state.solver.true, 'Ijk_Boring')
 
-    def _handle_statement(self, state, successors, stmt_idx, stmt):
+    def _handle_soot_stmt(self, state, successors, stmt_idx, stmt):
         # execute statement
         try:
             l.debug("Executing statement: %s", stmt)
@@ -370,7 +368,7 @@ class SimEngineSoot(SimEngine):
             ret_value = None
 
         # teardown return state
-        SimEngineSoot.prepare_return_state(ret_state, ret_value)
+        SootMixin.prepare_return_state(ret_state, ret_value)
 
         # finally, delete all local references
         ret_state.jni_references.clear_local_references()

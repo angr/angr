@@ -12,7 +12,7 @@ from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     """
@@ -29,7 +29,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     proj = angr.Project(path, load_options={'auto_load_libs': False})
 
     cfg = proj.analyses.CFGFast()
-    nose.tools.assert_true(set([ k for k in cfg.kb.functions.keys() ]).issuperset(func_addrs))
+    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -38,7 +38,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     # Segment only
     cfg = proj.analyses.CFGFast(force_segment=True)
-    nose.tools.assert_true(set([ k for k in cfg.kb.functions.keys() ]).issuperset(func_addrs))
+    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -47,7 +47,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     # with normalization enabled
     cfg = proj.analyses.CFGFast(force_segment=True, normalize=True)
-    nose.tools.assert_true(set([k for k in cfg.kb.functions.keys()]).issuperset(func_addrs))
+    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -484,14 +484,24 @@ def test_serialization_cfgnode():
 
 def test_serialization_cfgfast():
     path = os.path.join(test_location, "x86_64", "fauxware")
-    proj = angr.Project(path, auto_load_libs=False)
+    proj1 = angr.Project(path, auto_load_libs=False)
+    proj2 = angr.Project(path, auto_load_libs=False)
 
-    cfg = proj.analyses.CFGFast()
+    cfg = proj1.analyses.CFGFast()
     # parse the entire graph
     b = cfg.model.serialize()
     nose.tools.assert_greater(len(b), 0)
-    cfg_model = CFGModel.parse(b)
-    nose.tools.assert_equal(len(cfg_model.graph), len(cfg.graph))
+
+    # simulate importing a cfg from another tool
+    cfg_model = CFGModel.parse(b, cfg_manager=proj2.kb.cfgs)
+
+    nose.tools.assert_equal(len(cfg_model.graph.nodes), len(cfg.graph.nodes))
+    nose.tools.assert_equal(len(cfg_model.graph.edges), len(cfg.graph.edges))
+
+    n1 = cfg.model.get_any_node(proj1.entry)
+    n2 = cfg_model.get_any_node(proj1.entry)
+    nose.tools.assert_equal(n1, n2)
+
 
 #
 # CFG instance copy
@@ -513,8 +523,26 @@ def test_cfg_copy():
     nose.tools.assert_not_equal(id(cfg._seg_list), id(cfg_copy._seg_list))
 
 #
+# Alignment bytes
+#
+
+def test_cfg_0_pe_msvc_debug_nocc():
+    filename = os.path.join('windows', 'msvc_cfg_0_debug.exe')
+    proj = angr.Project(os.path.join(test_location, 'x86_64', filename), auto_load_libs=False)
+    cfg = proj.analyses.CFGFast()
+
+    # make sure 0x140015683 is marked as alignments
+    sort = cfg._seg_list.occupied_by_sort(0x140016583)
+    nose.tools.assert_equal(sort, "alignment", "Address 0x140016583 is not marked as alignment. The CC detection is "
+                                               "probably failing.")
+
+    nose.tools.assert_not_in(0x140015683, cfg.kb.functions)
+
+#
 # Indirect jump resolvers
 #
+
+# For test cases for jump table resolver, please refer to test_jumptables.py
 
 def test_resolve_x86_elf_pic_plt():
     path = os.path.join(test_location, 'i386', 'fauxware_pie')
@@ -665,12 +693,12 @@ def test_blanket_fauxware():
 # Data references
 #
 
-def test_collect_data_references():
+def test_data_references():
 
     path = os.path.join(test_location, 'x86_64', 'fauxware')
     proj = angr.Project(path, auto_load_libs=False)
 
-    cfg = proj.analyses.CFGFast(collect_data_references=True)
+    cfg = proj.analyses.CFGFast(data_references=True)
 
     memory_data = cfg.memory_data
     # There is no code reference
@@ -687,6 +715,49 @@ def test_collect_data_references():
     nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
 
 
+#
+# CFG with patches
+#
+
+def test_cfg_with_patches():
+
+    path = os.path.join(test_location, 'x86_64', 'fauxware')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+    auth_func = cfg.functions['authenticate']
+    auth_func_addr = auth_func.addr
+
+    # Take the authenticate function and add a retn patch for its very first block
+    kb = angr.KnowledgeBase(proj)
+    kb.patches.add_patch(auth_func_addr, b"\xc3")
+
+    # with this patch, there should only be one block with one instruction in authenticate()
+    _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
+    patched_func = kb.functions['authenticate']
+    nose.tools.assert_equal(len(patched_func.block_addrs_set), 1)
+    block = patched_func._get_block(auth_func_addr)
+    nose.tools.assert_equal(len(block.instruction_addrs), 1)
+
+    # let's try to patch the second instruction of that function to ret
+    kb = angr.KnowledgeBase(proj)
+    kb.patches.add_patch(auth_func._get_block(auth_func_addr).instruction_addrs[1], b"\xc3")
+
+    # with this patch, there should only be one block with two instructions in authenticate()
+    _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
+    patched_func = kb.functions['authenticate']
+    nose.tools.assert_equal(len(patched_func.block_addrs_set), 1)
+    block = patched_func._get_block(auth_func_addr)
+    nose.tools.assert_equal(len(block.instruction_addrs), 2)
+
+    # finally, if we generate a new CFG on a KB without any patch, we should still see the normal function (with 10
+    # blocks)
+    kb = angr.KnowledgeBase(proj)
+    _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
+    not_patched_func = kb.functions['authenticate']
+    nose.tools.assert_equal(len(not_patched_func.block_addrs_set), 10)
+
+
 def test_unresolvable_targets():
 
     path = os.path.join(test_location, 'cgc', 'CADET_00002')
@@ -698,6 +769,19 @@ def test_unresolvable_targets():
     true_endpoint_addrs = {0x8048bbc, 0x8048af5, 0x8048b5c, 0x8048a41, 0x8048aa8}
     endpoint_addrs = {node.addr for node in func.endpoints}
     nose.tools.assert_equal(len(endpoint_addrs.symmetric_difference(true_endpoint_addrs)), 0)
+
+
+def test_indirect_jump_to_outside():
+
+    # an indirect jump might be jumping to outside as well
+    path = os.path.join(test_location, "mipsel", "libndpi.so.4.0.0")
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+
+    nose.tools.assert_equal(len(list(cfg.functions[0x404ee4].blocks)), 3)
+    nose.tools.assert_equal(set(ep.addr for ep in cfg.functions[0x404ee4].endpoints), { 0x404f00, 0x404f08 })
+
 
 def run_all():
 
@@ -735,8 +819,10 @@ def run_all():
     test_block_instruction_addresses_armhf()
     test_tail_call_optimization_detection_armel()
     test_blanket_fauxware()
-    test_collect_data_references()
+    test_data_references()
     test_function_leading_blocks_merging()
+    test_cfg_with_patches()
+    test_indirect_jump_to_outside()
 
 
 def main():

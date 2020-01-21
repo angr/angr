@@ -1,18 +1,100 @@
 import sys
 import logging
+import threading
+from typing import Optional
+import angr
 
 from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
+class SimEngineBase:
+    """
+    Even more basey of a base class for SimEngine. Used as a base by mixins which want access to the project but for
+    which process doesn't make sense.
+    """
+    def __init__(self, project=None, **kwargs):
+        if kwargs:
+            raise TypeError("Unused initializer args: " + ", ".join(kwargs.keys()))
+        self.project = project  # type: Optional[angr.Project]
+        self.state = None
 
-class SimEngine(object):
+    __tls = ('state',)
+
+    def __getstate__(self):
+        return self.project,
+
+    def __setstate__(self, state):
+        self.project = state[0]
+        self.state = None
+
+class SimEngine(SimEngineBase):
     """
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.
     """
+    def process(self, state, **kwargs):
+        """
+        The main entry point for an engine. Should take a state and return a result.
 
-    def __init__(self, project=None):
-        self.project = project
+        :param state:   The state to proceed from
+        :return:        The result. Whatever you want ;)
+        """
+        raise NotImplementedError
+
+class TLSMixin:
+    """
+    Mix this class into any class that defines __tls to make all of the attributes named in that list into
+    thread-local properties.
+
+    MAGIC MAGIC MAGIC
+    """
+    def __new__(cls, *args, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        obj.__local = threading.local()
+        return obj
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        for subcls in cls.mro():
+            for attr in subcls.__dict__.get('_%s__tls' % subcls.__name__, ()):
+                if attr.startswith('__'):
+                    attr = '_%s%s' % (subcls.__name__, attr)
+
+                if hasattr(cls, attr):
+                    if type(getattr(cls, attr, None)) is not TLSProperty:
+                        raise Exception("Programming error: %s is both in __tls and __class__" % attr)
+                else:
+                    setattr(cls, attr, TLSProperty(attr))
+
+class TLSProperty:
+    def __init__(self, name):
+        self.name = name
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return getattr(instance._TLSMixin__local, self.name)
+
+    def __set__(self, instance, value):
+        setattr(instance._TLSMixin__local, self.name, value)
+
+    def __delete__(self, instance):
+        delattr(instance._TLSMixin__local, self.name)
+
+
+class SuccessorsMixin(SimEngine):
+    """
+    A mixin for SimEngine which implements ``process`` to perform common operations related to symbolic execution
+    and dispatches to a ``process_successors`` method to fill a SimSuccessors object with the results.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.successors = None
+
+    __tls = ('successors',)
 
     def process(self, state, *args, **kwargs):
         """
@@ -42,6 +124,7 @@ class SimEngine(object):
         # enforce this distinction
         old_state = state
         del state
+        self.state = new_state
 
         # we have now officially begun the stepping process! now is where we "cycle" a state's
         # data - move the "present" into the "past" by pushing an entry on the history stack.
@@ -52,19 +135,19 @@ class SimEngine(object):
         if new_state.arch.unicorn_support:
             new_state.scratch.executed_pages_set = {addr & ~0xFFF}
 
-        successors = SimSuccessors(addr, old_state)
+        self.successors = SimSuccessors(addr, old_state)
 
-        new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=successors, address=addr)
-        successors = new_state._inspect_getattr('sim_successors', successors)
+        new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=self.successors, address=addr)
+        self.successors = new_state._inspect_getattr('sim_successors', self.successors)
         try:
-            self._process(new_state, successors, *args, **kwargs)
+            self.process_successors(self.successors, **kwargs)
         except SimException:
             if o.EXCEPTION_HANDLING not in old_state.options:
                 raise
-            old_state.project.simos.handle_exception(successors, self, *sys.exc_info())
+            old_state.project.simos.handle_exception(self, *sys.exc_info())
 
-        new_state._inspect('engine_process', when=BP_AFTER, sim_successors=successors, address=addr)
-        successors = new_state._inspect_getattr('sim_successors', successors)
+        new_state._inspect('engine_process', when=BP_AFTER, sim_successors=self.successors, address=addr)
+        self.successors = new_state._inspect_getattr('sim_successors', self.successors)
 
         # downsizing
         if new_state.supports_inspect:
@@ -74,36 +157,34 @@ class SimEngine(object):
         #    old_state.history.recent_events = []
 
         # fix up the descriptions...
-        description = str(successors)
+        description = str(self.successors)
         l.info("Ticked state: %s", description)
-        for succ in successors.all_successors:
+        for succ in self.successors.all_successors:
             succ.history.recent_description = description
-        for succ in successors.flat_successors:
+        for succ in self.successors.flat_successors:
             succ.history.recent_description = description
 
-        return successors
+        return self.successors
 
-    def check(self, state, *args, **kwargs):
+    def process_successors(self, successors, **kwargs):
         """
-        Check if this engine can be used for execution on the current state. A callback `check_failure` is called upon
-        failed checks. Note that the execution can still fail even if check() returns True.
+        Implement this function to fill out the SimSuccessors object with the results of stepping state.
 
-        You should only override this method in a subclass in order to provide the correct method signature and
-        docstring. You should override the ``_check`` method to do your actual execution.
+        In order to implement a model where multiple mixins can potentially handle a request, a mixin may implement
+        this method and then perform a super() call if it wants to pass on handling to the next mixin.
 
-        :param SimState state: The state with which to execute.
-        :param args:                   Positional arguments that will be passed to process().
-        :param kwargs:                 Keyword arguments that will be passed to process().
-        :return:                       True if the state can be handled by the current engine, False otherwise.
+        Keep in mind python's method resolution order when composing multiple classes implementing this method.
+        In short: left-to-right, depth-first, but deferring any base classes which are shared by multiple subclasses
+        (the merge point of a diamond pattern in the inheritance graph) until the last point where they would be
+        encountered in this depth-first search. For example, if you have classes A, B(A), C(B), D(A), E(C, D), then the
+        method resolution order will be E, C, B, D, A.
+
+        :param state:           The state to manipulate
+        :param successors:      The successors object to fill out
+        :param kwargs:          Any extra arguments. Do not fail if you are passed unexpected arguments.
         """
+        successors.processed = False        # mark failure
 
-        return self._check(state, *args, **kwargs)
-
-    def _check(self, state, *args, **kwargs):
-        raise NotImplementedError()
-
-    def _process(self, new_state, successors, *args, **kwargs):
-        raise NotImplementedError
 
 from .. import sim_options as o
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

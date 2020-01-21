@@ -4,6 +4,7 @@ import struct
 
 import claripy
 from cle import MetaELF
+from cle.backends.elf.symbol import ELFSymbol, ELFSymbolType
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
@@ -95,9 +96,9 @@ class SimLinux(SimUserland):
                         if reloc.symbol is None or reloc.resolvedby is None:
                             continue
                         try:
-                            if reloc.resolvedby.elftype != 'STT_GNU_IFUNC':
+                            if reloc.resolvedby.subtype != ELFSymbolType.STT_GNU_IFUNC:
                                 continue
-                        except AttributeError:
+                        except ValueError:  # base class Symbol throws this, meaning we don't have an ELFSymbol, etc
                             continue
                         gotaddr = reloc.rebased_addr
                         gotvalue = self.project.loader.memory.unpack_word(gotaddr)
@@ -142,12 +143,16 @@ class SimLinux(SimUserland):
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':
             return None
-        if state.history.jumpkind == 'Ijk_Sys_int128':
+        jk = state.history.jumpkind
+        if jk is None:
+            # we are being invoked in the middle of a step
+            jk = state.history.parent.jumpkind
+        if jk == 'Ijk_Sys_int128':
             return 'i386'
-        elif state.history.jumpkind == 'Ijk_Sys_syscall':
+        elif jk == 'Ijk_Sys_syscall':
             return 'amd64'
         else:
-            raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
+            raise AngrSyscallError("Unknown syscall jumpkind %s" % jk)
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
@@ -187,7 +192,7 @@ class SimLinux(SimUserland):
 
         state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
-        if self.project.loader.main_object.is_ppc64_abiv1:
+        if isinstance(self.project.loader.main_object, MetaELF) and self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
 
         return state
@@ -312,6 +317,8 @@ class SimLinux(SimUserland):
                 elif val == 'toc':
                     if self.project.loader.main_object.is_ppc64_abiv1:
                         state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
+                elif val == 'entry':
+                    state.registers.store(reg, state.registers.load('pc'))
                 elif val == 'thread_pointer':
                     state.registers.store(reg, self.project.loader.tls_object.user_thread_pointer)
                 else:
@@ -373,7 +380,7 @@ class SimLinux(SimUserland):
         # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
         _vsyscall_address = concrete_target.read_memory(gs + 0x10, state.project.arch.bits / 8)
         _vsyscall_address = struct.unpack(state.project.arch.struct_fmt(), _vsyscall_address)[0]
-        state.project.rehook_symbol(_vsyscall_address, '_vsyscall')
+        state.project.rehook_symbol(_vsyscall_address, '_vsyscall', True)
 
         return gdt
 

@@ -65,7 +65,11 @@ class CallStack(SimStatePlugin):
         super(CallStack, self).set_state(state)
         # make the stack pointer as large as possible as soon as we know how large that actually is
         if self.stack_ptr == 0:
-            self.stack_ptr = 2**(state.arch.bits) - 1
+            try:
+                bits = state.arch.registers['sp'][1] * state.arch.byte_width
+            except KeyError:
+                bits = state.arch.bits
+            self.stack_ptr = 2**bits - 1
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:

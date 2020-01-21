@@ -3,8 +3,8 @@ import nose
 import os
 import gc
 
-def _bin(s):
-    return os.path.join(os.path.dirname(__file__), '../../binaries', s)
+def _bin(*s):
+    return os.path.join(os.path.dirname(__file__), '..', '..', 'binaries', *s)
 
 def setup():
 
@@ -26,7 +26,7 @@ def priority_key(state):
 
 @nose.with_setup(setup, teardown)
 def test_basic():
-    project = angr.Project(_bin('tests/cgc/sc2_0b32aa01_01'))
+    project = angr.Project(_bin('tests', 'cgc', 'sc2_0b32aa01_01'))
     state = project.factory.entry_state()
     spiller = angr.exploration_techniques.Spiller(pickle_callback=pickle_callback, unpickle_callback=unpickle_callback)
     spiller._pickle([state])
@@ -40,7 +40,7 @@ def test_basic():
 
 @nose.with_setup(setup, teardown)
 def test_palindrome2():
-    project = angr.Project(_bin('tests/cgc/sc2_0b32aa01_01'))
+    project = angr.Project(_bin('tests', 'cgc', 'sc2_0b32aa01_01'))
     pg = project.factory.simulation_manager()
     limiter = angr.exploration_techniques.LengthLimiter(max_length=250)
     pg.use_technique(limiter)

@@ -21,7 +21,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         super(MipsElfFastResolver, self).__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(self.project.arch, archinfo.ArchMIPS32):
+        if not isinstance(self.project.arch, (archinfo.ArchMIPS32, archinfo.ArchMIPS64, )):
             return False
         return True
 
@@ -54,7 +54,9 @@ class MipsElfFastResolver(IndirectJumpResolver):
         annotated_cfg.from_digraph(b.slice)
 
         state = project.factory.blank_state(addr=source_addr, mode="fastpath",
-                                            remove_options=options.refs
+                                            remove_options=options.refs,
+                                            # suppress unconstrained stack reads for `gp`
+                                            add_options={options.SYMBOL_FILL_UNCONSTRAINED_MEMORY},
                                             )
         func = cfg.kb.functions.function(addr=func_addr)
 
@@ -97,7 +99,13 @@ class MipsElfFastResolver(IndirectJumpResolver):
         simgr.run()
 
         if simgr.cut:
-            target = simgr.cut[0].addr
+            # pick the successor that is cut right after executing `addr`
+            try:
+                target_state = next(iter(cut for cut in simgr.cut if cut.history.addr == addr))
+            except StopIteration:
+                l.debug("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
+                return False, [ ]
+            target = target_state.addr
 
             if self._is_target_valid(cfg, target):
                 l.debug("Indirect jump at %#x is resolved to target %#x.", addr, target)

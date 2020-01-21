@@ -14,15 +14,23 @@ from .misc.ux import deprecated
 
 l = logging.getLogger(name=__name__)
 
-def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
+def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False):
     """
-    Load a new project based on a string of raw bytecode.
+    Load a new project based on a snippet of assembly or bytecode.
 
-    :param shellcode:       The data to load
+    :param shellcode:       The data to load, as either a bytestring of instructions or a string of assembly text
     :param arch:            The name of the arch to use, or an archinfo class
     :param start_offset:    The offset into the data to start analysis (default 0)
     :param load_address:    The address to place the data in memory (default 0)
+    :param thumb:           Whether this is ARM Thumb shellcode
     """
+    if not isinstance(arch, archinfo.Arch):
+        arch = archinfo.arch_from_id(arch)
+    if type(shellcode) is str:
+        shellcode = arch.asm(shellcode, load_address, thumb=thumb)
+    if thumb:
+        start_offset |= 1
+
     return Project(
             BytesIO(shellcode),
             main_opts={
@@ -53,6 +61,7 @@ class Project:
     :param exclude_sim_procedures_list: A list of functions to *not* wrap with simprocedures.
     :param arch:                        The target architecture (auto-detected otherwise).
     :param simos:                       a SimOS class to use for this project.
+    :param engine:                      The SimEngine class to use for this project.
     :param bool translation_cache:      If True, cache translated basic blocks rather than re-translating them.
     :param support_selfmodifying_code:  Whether we aggressively support self-modifying code. When enabled, emulation
                                         will try to read code from the current state instead of the original memory,
@@ -62,8 +71,6 @@ class Project:
     :param load_function:               A function that defines how the Project should be loaded. Default to unpickling.
     :param analyses_preset:             The plugin preset for the analyses provider (i.e. Analyses instance).
     :type analyses_preset:              angr.misc.PluginPreset
-    :param engines_preset:              The plugin preset for the engines provider (i.e. EngineHub instance).
-    :type engines_preset:               angr.misc.PluginPreset
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -86,6 +93,7 @@ class Project:
                  exclude_sim_procedures_func=None,
                  exclude_sim_procedures_list=(),
                  arch=None, simos=None,
+                 engine=None,
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
@@ -93,7 +101,6 @@ class Project:
                  load_function=None,
                  analyses_preset=None,
                  concrete_target=None,
-                 engines_preset=None,
                  **kwargs):
 
         # Step 1: Load the binary
@@ -159,13 +166,11 @@ class Project:
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
-        self._should_use_sim_procedures = use_sim_procedures
+        self.use_sim_procedures = use_sim_procedures
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
-        self._is_java_project = None
-        self._is_java_jni_project = None
 
         if self._support_selfmodifying_code:
             if self._translation_cache is True:
@@ -177,25 +182,9 @@ class Project:
         self.store_function = store_function or self._store
         self.load_function = load_function or self._load
 
-        # Step 4: Set up the project's plugin hubs
-        # Step 4.1: Engines. Get the preset from the loader, from the arch, or use the default.
-        engines = EngineHub(self)
-        if engines_preset is not None:
-            engines.use_plugin_preset(engines_preset)
-        elif self.loader.main_object.engine_preset is not None:
-            try:
-                engines.use_plugin_preset(self.loader.main_object.engine_preset)
-            except AngrNoPluginError:
-                raise ValueError("The CLE loader asked to use a engine preset: %s" % \
-                        self.loader.main_object.engine_preset)
-        else:
-            try:
-                engines.use_plugin_preset(self.arch.name)
-            except AngrNoPluginError:
-                engines.use_plugin_preset('default')
-
-        self.engines = engines
-        self.factory = AngrObjectFactory(self)
+        # Step 4: Set up the project's hubs
+        # Step 4.1 Factory
+        self.factory = AngrObjectFactory(self, default_engine=engine)
 
         # Step 4.2: Analyses
         self.analyses = AnalysesHub(self)
@@ -213,6 +202,9 @@ class Project:
             self.simos = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        self.is_java_project = isinstance(self.arch, ArchSoot)
+        self.is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
 
         # Step 6: Register simprocedures as appropriate for library functions
         if isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support:
@@ -257,7 +249,14 @@ class Project:
             func = reloc.symbol
             if func is None:
                 continue
-            if not func.is_function and func.type != cle.backends.symbol.Symbol.TYPE_NONE:
+            if not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
+                continue
+            if func.resolvedby is None:
+                # I don't understand the binary which made me add this case. If you are debugging and see this comment,
+                # good luck.
+                # ref: https://github.com/angr/angr/issues/1782
+                # (I also don't know why the TYPE_NONE check in the previous clause is there but I can't find a ref for
+                # that. they are probably related.)
                 continue
             if not reloc.resolved:
                 # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency
@@ -365,7 +364,7 @@ class Project:
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return not self._should_use_sim_procedures or \
+        return not self.use_sim_procedures or \
             f in self._exclude_sim_procedures_list or \
             f in self._ignore_functions or \
             (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
@@ -555,7 +554,7 @@ class Project:
         self.unhook(hook_addr)
         return True
 
-    def rehook_symbol(self, new_address, symbol_name):
+    def rehook_symbol(self, new_address, symbol_name, stubs_on_sync):
         """
         Move the hook for a symbol to a specific address
         :param new_address: the new address that will trigger the SimProc execution
@@ -564,6 +563,11 @@ class Project:
         """
         new_sim_procedures = {}
         for key_address, simproc_obj in self._sim_procedures.items():
+
+            # if we don't want stubs during the sync let's skip those, we will execute the real function.
+            if not stubs_on_sync and simproc_obj.is_stub:
+                continue
+
             if simproc_obj.display_name == symbol_name:
                 new_sim_procedures[new_address] = simproc_obj
             else:
@@ -690,33 +694,6 @@ class Project:
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
 
     #
-    # Properties
-    #
-
-    @property
-    def use_sim_procedures(self):
-        return self._should_use_sim_procedures
-
-    @property
-    def is_java_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive.
-        """
-        if self._is_java_project is None:
-            self._is_java_project = isinstance(self.arch, ArchSoot)
-        return self._is_java_project
-
-    @property
-    def is_java_jni_project(self):
-        """
-        Indicates if the project's main binary is a Java Archive, which
-        interacts during its execution with native libraries (via JNI).
-        """
-        if self._is_java_jni_project is None:
-            self._is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
-        return self._is_java_jni_project
-
-    #
     # Compatibility
     #
 
@@ -726,10 +703,8 @@ class Project:
         return self.simos
 
 
-from .errors import AngrNoPluginError
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub
 from .knowledge_base import KnowledgeBase
-from .engines import EngineHub
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

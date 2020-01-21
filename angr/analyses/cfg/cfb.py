@@ -99,12 +99,26 @@ class CFBlanket(Analysis):
                 if obj.sections:
                     # Enumerate sections in an ELF file
                     for section in obj.sections:
+                        if section.occupies_memory:
+                            mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
+                            self._regions.append(mr)
+                else:
+                    raise NotImplementedError("Currently ELFs without sections are not supported. Please implement or "
+                                              "complain on GitHub.")
+            elif isinstance(obj, cle.PE):
+                if obj.sections:
+                    for section in obj.sections:
                         mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
                         self._regions.append(mr)
                 else:
-                    raise NotImplementedError()
+                    raise NotImplementedError("Currently PEs without sections are not supported. Please report to "
+                                              "GitHub and provide an example binary.")
             else:
-                mr = MemoryRegion(obj.min_addr, obj.size if hasattr(obj, 'size') else 80, 'TODO', obj, None)
+                if hasattr(obj, "size"):
+                    size = obj.size
+                else:
+                    size = obj.max_addr - obj.min_addr
+                mr = MemoryRegion(obj.min_addr, size, 'TODO', obj, None)
                 self._regions.append(mr)
 
         # Sort them just in case

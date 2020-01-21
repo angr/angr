@@ -1,7 +1,7 @@
 import itertools
 import logging
 import sys
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from functools import reduce
 
 import claripy
@@ -12,7 +12,7 @@ from archinfo import ArchARM
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
-from ...engines import SimEngineProcedure
+from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
 from ...exploration_techniques.explorer import Explorer
@@ -285,8 +285,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # imprecision of the concrete execution. So we save those simulated
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
-        # Tuple --> (Initial state, call_stack)
-        self._pending_jobs = OrderedDict()
+        self._pending_jobs = defaultdict(list) # Dict[BlockID, List[PendingJob]]
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
@@ -345,10 +344,16 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
+        self._should_abort = False
+
         self._starts = starts
         self._max_steps = max_steps
 
-        self._sanitize_starts()
+        if self._starts is None:
+            self._starts = [ ]
+
+        if self._starts:
+            self._sanitize_starts()
 
         self._analyze()
 
@@ -979,7 +984,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: A CFGJob instance or None
         """
 
-        pending_job_key, pending_job = self._pending_jobs.popitem()
+        pending_job_key = next(iter(self._pending_jobs.keys()))
+        pending_job = self._pending_jobs[pending_job_key].pop()
+        if len(self._pending_jobs[pending_job_key]) == 0:
+            del self._pending_jobs[pending_job_key]
+
         pending_job_state = pending_job.state
         pending_job_call_stack = pending_job.call_stack
         pending_job_src_block_id = pending_job.src_block_id
@@ -1175,29 +1184,32 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
-        # in the CFG or function transiton graphs.
+        # in the CFG or function transition graphs.
         if job.jumpkind == 'Ijk_FakeRet' or \
                 (job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs):
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
+            the_jobs = [ ]
             if block_id in self._pending_jobs:
-                the_job = self._pending_jobs.pop(block_id)  # type: PendingJob
-                self._deregister_analysis_job(the_job.caller_func_addr, the_job)
+                the_jobs = self._pending_jobs.pop(block_id)
+                for the_job in the_jobs:  # type: Pendingjob
+                    self._deregister_analysis_job(the_job.caller_func_addr, the_job)
             else:
-                the_job = job
+                the_jobs = [job]
 
-            self._graph_add_edge(the_job.src_block_id, block_id,
-                                 jumpkind='Ijk_FakeRet',
-                                 stmt_idx=the_job.src_exit_stmt_idx,
-                                 ins_addr=src_ins_addr
-                                 )
-            self._update_function_transition_graph(the_job.src_block_id, block_id,
-                                                   jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr,
-                                                   stmt_idx=the_job.src_exit_stmt_idx,
-                                                   confirmed=True
-                                                   )
+            for the_job in the_jobs:
+                self._graph_add_edge(the_job.src_block_id, block_id,
+                                     jumpkind='Ijk_FakeRet',
+                                     stmt_idx=the_job.src_exit_stmt_idx,
+                                     ins_addr=src_ins_addr
+                                     )
+                self._update_function_transition_graph(the_job.src_block_id, block_id,
+                                                       jumpkind='Ijk_FakeRet',
+                                                       ins_addr=src_ins_addr,
+                                                       stmt_idx=the_job.src_exit_stmt_idx,
+                                                       confirmed=True
+                                                       )
 
         if sim_successors is None or should_skip:
             # We cannot retrieve the block, or we should skip the analysis of this node
@@ -1450,11 +1462,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         if sim_successors.sort == 'IRSB' and input_state.thumb:
-            successors = self._arm_thumb_filter_jump_successors(sim_successors.addr,
-                                                                sim_successors.artifacts['irsb'].size,
+            successors = self._arm_thumb_filter_jump_successors(sim_successors.artifacts['irsb'],
                                                                 successors,
                                                                 lambda state: state.scratch.ins_addr,
-                                                                lambda state: state.scratch.exit_stmt_idx
+                                                                lambda state: state.scratch.exit_stmt_idx,
+                                                                lambda state: state.history.jumpkind,
                                                                 )
 
         # If there is a call exit, we shouldn't put the default exit (which
@@ -1569,43 +1581,44 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         pending_exits_to_remove = [ ]
 
-        for block_id, pe in self._pending_jobs.items():
-            if pe.returning_source is None:
-                # The original call failed. This pending exit must be followed.
-                continue
+        for block_id, jobs in self._pending_jobs.items():
+            for pe in jobs:
+                if pe.returning_source is None:
+                    # The original call failed. This pending exit must be followed.
+                    continue
 
-            func = self.kb.functions.function(pe.returning_source)
-            if func is None:
-                # Why does it happen?
-                l.warning("An expected function at %s is not found. Please report it to Fish.",
-                          hex(pe.returning_source) if pe.returning_source is not None else 'None')
-                continue
+                func = self.kb.functions.function(pe.returning_source)
+                if func is None:
+                    # Why does it happen?
+                    l.warning("An expected function at %s is not found. Please report it to Fish.",
+                              hex(pe.returning_source) if pe.returning_source is not None else 'None')
+                    continue
 
-            if func.returning is False:
-                # Oops, it's not returning
-                # Remove this pending exit
-                pending_exits_to_remove.append(block_id)
+                if func.returning is False:
+                    # Oops, it's not returning
+                    # Remove this pending exit
+                    pending_exits_to_remove.append(block_id)
 
-                # We want to mark that call as not returning in the current function
-                current_function_addr = self._block_id_current_func_addr(block_id)
-                if current_function_addr is not None:
-                    current_function = self.kb.functions.function(current_function_addr)
-                    if current_function is not None:
-                        call_site_addr = self._block_id_addr(pe.src_block_id)
-                        current_function._call_sites[call_site_addr] = (func.addr, None)
-                    else:
-                        l.warning('An expected function at %#x is not found. Please report it to Fish.',
-                                  current_function_addr
-                                  )
+                    # We want to mark that call as not returning in the current function
+                    current_function_addr = self._block_id_current_func_addr(block_id)
+                    if current_function_addr is not None:
+                        current_function = self.kb.functions.function(current_function_addr)
+                        if current_function is not None:
+                            call_site_addr = self._block_id_addr(pe.src_block_id)
+                            current_function._call_sites[call_site_addr] = (func.addr, None)
+                        else:
+                            l.warning('An expected function at %#x is not found. Please report it to Fish.',
+                                      current_function_addr
+                                      )
 
         for block_id in pending_exits_to_remove:
-            l.debug('Removing a pending exit to %#x since the target function %#x does not return',
+            l.debug('Removing all pending exits to %#x since the target function %#x does not return',
                     self._block_id_addr(block_id),
-                    self._pending_jobs[block_id].returning_source,
+                    next(iter(self._pending_jobs[block_id])).returning_source,
                     )
 
-            to_remove = self._pending_jobs[block_id]
-            self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
+            for to_remove in self._pending_jobs[block_id]:
+                self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
 
             del self._pending_jobs[block_id]
 
@@ -1786,7 +1799,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             suc_exit_ins_addr,
                             new_call_stack
                             )
-            self._pending_jobs[new_tpl] = pe
+            self._pending_jobs[new_tpl].append(pe)
             self._register_analysis_job(pe.caller_func_addr, pe)
             job.successor_status[state] = "Pended"
 
@@ -1971,10 +1984,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Update transition graphs of functions in function manager based on information passed in.
 
-        :param str jumpkind: Jumpkind.
-        :param CFGNode src_node: Source CFGNode
-        :param CFGNode dst_node: Destionation CFGNode
-        :param int ret_addr: The theoretical return address for calls
+        :param src_node_key:    Node key of the source CFGNode. Might be None.
+        :param dst_node:        Node key of the destination CFGNode. Might be None.
+        :param str jumpkind:    Jump kind of this transition.
+        :param int ret_addr:    The theoretical return address for calls.
+        :param int or None ins_addr:    Address of the instruction where this transition is made.
+        :param int or None stmt_idx:    ID of the statement where this transition is made.
+        :param bool or None confirmed:  Whether this call transition has been confirmed or not.
         :return: None
         """
 
@@ -2213,7 +2229,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     @staticmethod
     def _convert_indirect_jump_targets_to_states(job, indirect_jump_targets):
         """
-        Convert each concrete indirect jump target into a SimState.
+        Convert each concrete indirect jump target into a SimState. If there are non-zero successors and the original
+        jumpkind is a call, we also generate a fake-ret successor.
 
         :param job:                     The CFGJob instance.
         :param indirect_jump_targets:   A collection of concrete jump targets resolved from a indirect jump.
@@ -2221,11 +2238,18 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :rtype:                         list
         """
 
+        first_successor = job.sim_successors.all_successors[0]
         successors = [ ]
         for t in indirect_jump_targets:
             # Insert new successors
-            a = job.sim_successors.all_successors[0].copy()
+            a = first_successor.copy()
             a.ip = t
+            successors.append(a)
+        # special case: if the indirect jump is in fact an indirect call, we should create a FakeRet successor
+        if successors and first_successor.history.jumpkind == 'Ijk_Call':
+            a = first_successor.copy()
+            a.ip = job.cfg_node.addr + job.cfg_node.size
+            a.history.jumpkind = 'Ijk_FakeRet'
             successors.append(a)
         return successors
 
@@ -2425,7 +2449,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         next_node = next_nodes[0]
 
         # Get the weakly-connected subgraph that contains `next_node`
-        all_subgraphs = networkx.weakly_connected_component_subgraphs(taint_graph)
+        all_subgraphs = ( networkx.induced_subgraph(taint_graph, nodes) for nodes in networkx.weakly_connected_components(taint_graph))
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
@@ -2817,9 +2841,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # instantiate the stub
                     new_stub_inst = new_stub(display_name=old_name)
 
-                    sim_successors = self.project.engines.procedure_engine.process(
+                    sim_successors = self.project.factory.procedure_engine.process(
                         state,
-                        new_stub_inst,
+                        procedure=new_stub_inst,
                         force_addr=addr,
                         ret_to=ret_to,
                     )
@@ -2866,7 +2890,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
                 inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-                sim_successors = SimEngineProcedure().process(state, inst)
+                sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimIRSBError:
             exception_info = sys.exc_info()
@@ -2874,28 +2898,28 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except claripy.ClaripyError:
             exception_info = sys.exc_info()
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimError:
             exception_info = sys.exc_info()
             l.debug("Caught a SimError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrExitError as ex:
             exception_info = sys.exc_info()
             l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrError:
             exception_info = sys.exc_info()
@@ -3044,7 +3068,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if is_simprocedure:
             simproc_name = sa['name'].split('.')[-1]
-            if simproc_name == "ReturnUnconstrained" and sa['resolves'] is not None:
+            if simproc_name == "ReturnUnconstrained" and 'resolves' in sa and sa['resolves'] is not None:
                 simproc_name = sa['resolves']
 
             no_ret = False

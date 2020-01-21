@@ -128,7 +128,6 @@ class SimSystemPosix(SimStatePlugin):
             environ=None,
             auxv=None,
             tls_modules=None,
-            queued_syscall_returns=None,
             sigmask=None,
             pid=None,
             ppid=None,
@@ -147,7 +146,6 @@ class SimSystemPosix(SimStatePlugin):
         self.environ = environ
         self.auxv = auxv
         self.tls_modules = tls_modules if tls_modules is not None else {}
-        self.queued_syscall_returns = [ ] if queued_syscall_returns is None else queued_syscall_returns
         self.brk = brk if brk is not None else 0x1b00000
         self._sigmask = sigmask
         self.pid = 1337 if pid is None else pid
@@ -478,7 +476,6 @@ class SimSystemPosix(SimStatePlugin):
                 environ=self.environ,
                 auxv=self.auxv,
                 tls_modules=self.tls_modules,
-                queued_syscall_returns=list(self.queued_syscall_returns),
                 sigmask=self._sigmask,
                 pid=self.pid,
                 ppid=self.ppid,

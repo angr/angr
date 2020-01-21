@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='angr.protos',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"H\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\"\xb3\x01\n\x03\x43\x46G\x12\r\n\x05ident\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edge\x12,\n\x0bmemory_data\x18\x04 \x03(\x0b\x32\x17.angr.protos.MemoryData\x12(\n\x04refs\x18\x05 \x03(\x0b\x32\x1a.angr.protos.CodeReference\"\x8c\x02\n\nMemoryData\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x34\n\x04type\x18\x03 \x01(\x0e\x32&.angr.protos.MemoryData.MemoryDataType\"\xad\x01\n\x0eMemoryDataType\x12\x13\n\x0fUnknownDataType\x10\x00\x12\x0f\n\x0bUnspecified\x10\x01\x12\x0b\n\x07Integer\x10\x02\x12\x10\n\x0cPointerArray\x10\x03\x12\n\n\x06String\x10\x04\x12\x11\n\rUnicodeString\x10\x05\x12\x13\n\x0fSegmentBoundary\x10\x06\x12\x11\n\rCodeReference\x10\x07\x12\x0f\n\x0bGOTPLTEntry\x10\x08\x62\x06proto3')
+  serialized_pb=_b('\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"H\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\"\x89\x01\n\x03\x43\x46G\x12\r\n\x05ident\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edge\x12,\n\x0bmemory_data\x18\x04 \x03(\x0b\x32\x17.angr.protos.MemoryData\"\x9b\x02\n\nMemoryData\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x34\n\x04type\x18\x03 \x01(\x0e\x32&.angr.protos.MemoryData.MemoryDataType\"\xbc\x01\n\x0eMemoryDataType\x12\x13\n\x0fUnknownDataType\x10\x00\x12\x0f\n\x0bUnspecified\x10\x01\x12\x0b\n\x07Integer\x10\x02\x12\x10\n\x0cPointerArray\x10\x03\x12\n\n\x06String\x10\x04\x12\x11\n\rUnicodeString\x10\x05\x12\x13\n\x0fSegmentBoundary\x10\x06\x12\x11\n\rCodeReference\x10\x07\x12\x0f\n\x0bGOTPLTEntry\x10\x08\x12\r\n\tELFHeader\x10\tb\x06proto3')
   ,
   dependencies=[protos_dot_primitives__pb2.DESCRIPTOR,])
 
@@ -69,11 +69,15 @@ _MEMORYDATA_MEMORYDATATYPE = _descriptor.EnumDescriptor(
       name='GOTPLTEntry', index=8, number=8,
       serialized_options=None,
       type=None),
+    _descriptor.EnumValueDescriptor(
+      name='ELFHeader', index=9, number=9,
+      serialized_options=None,
+      type=None),
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=410,
-  serialized_end=583,
+  serialized_start=368,
+  serialized_end=556,
 )
 _sym_db.RegisterEnumDescriptor(_MEMORYDATA_MEMORYDATATYPE)
 
@@ -165,13 +169,6 @@ _CFG = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='refs', full_name='angr.protos.CFG.refs', index=4,
-      number=5, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -185,7 +182,7 @@ _CFG = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=133,
-  serialized_end=312,
+  serialized_end=270,
 )
 
 
@@ -230,14 +227,13 @@ _MEMORYDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=315,
-  serialized_end=583,
+  serialized_start=273,
+  serialized_end=556,
 )
 
 _CFG.fields_by_name['nodes'].message_type = _CFGNODE
 _CFG.fields_by_name['edges'].message_type = protos_dot_primitives__pb2._EDGE
 _CFG.fields_by_name['memory_data'].message_type = _MEMORYDATA
-_CFG.fields_by_name['refs'].message_type = protos_dot_primitives__pb2._CODEREFERENCE
 _MEMORYDATA.fields_by_name['type'].enum_type = _MEMORYDATA_MEMORYDATATYPE
 _MEMORYDATA_MEMORYDATATYPE.containing_type = _MEMORYDATA
 DESCRIPTOR.message_types_by_name['CFGNode'] = _CFGNODE

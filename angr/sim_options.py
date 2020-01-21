@@ -4,29 +4,6 @@
 import string
 from .sim_state_options import SimStateOptions
 
-# DEBUG options: these options cause angr to set breakpoints in various
-# places or raise exceptions when checks fail.
-BREAK_SIRSB_START = "BREAK_SIRSB_START"
-BREAK_SIRSB_END = "BREAK_SIRSB_END"
-BREAK_SIRSTMT_START = "BREAK_SIRSTMT_START"
-BREAK_SIRSTMT_END = "BREAK_SIRSTMT_END"
-
-# This option controls whether register puts are carried out by the analysis.
-# Without this, put statements are still analyzed, but the state is not updated.
-DO_PUTS = "DO_PUTS"
-
-# This option controls whether register puts are carried out by the analysis.
-# Without this, put statements are still analyzed, but the state is not updated.
-DO_GETS = "DO_GETS"
-
-# This option controls whether memory stores are carried out by the analysis
-# Without this, store statements are still analyzed, but the state is not updated.
-DO_STORES = "DO_STORES"
-
-# This option controls whether memory loads are carried out by the analysis
-# Without this, load statements are still analyzed, but the state is not updated.
-DO_LOADS = "DO_LOADS"
-
 # This option controls whether or not constraints are tracked in the analysis.
 TRACK_CONSTRAINTS = "TRACK_CONSTRAINTS"
 
@@ -45,10 +22,6 @@ SIMPLIFY_EXIT_STATE = "SIMPLIFY_EXIT_STATE"
 SIMPLIFY_EXIT_TARGET = "SIMPLIFY_EXIT_TARGET"
 SIMPLIFY_EXIT_GUARD = "SIMPLIFY_EXIT_GUARD"
 SIMPLIFY_CONSTRAINTS = "SIMPLIFY_CONSTRAINTS"
-
-# This option controls whether Unop, BinOp, TriOp, and QOp expressions are executed by the analysis.
-# Without this, the statements are still analyzed, but the result remains a purely symbolic value.
-DO_OPS = "DO_OPS"
 
 # This option controls whether the helper functions are actually executed for CCALL expressions.
 # Without this, the arguments are parsed, but the calls aren't executed, and an unconstrained symbolic
@@ -214,6 +187,7 @@ BYPASS_UNSUPPORTED_IRDIRTY = "BYPASS_UNSUPPORTED_IRDIRTY"
 BYPASS_UNSUPPORTED_IRCCALL = "BYPASS_UNSUPPORTED_IRCCALL"
 BYPASS_ERRORED_IRCCALL = "BYPASS_ERRORED_IRCCALL"
 BYPASS_UNSUPPORTED_SYSCALL = "BYPASS_UNSUPPORTED_SYSCALL"
+BYPASS_ERRORED_IRSTMT = "BYPASS_ERRORED_IRSTMT"
 UNSUPPORTED_BYPASS_ZERO_DEFAULT = "UNSUPPORTED_BYPASS_ZERO_DEFAULT"
 
 UNINITIALIZED_ACCESS_AWARENESS = 'UNINITIALIZED_ACCESS_AWARENESS'
@@ -324,6 +298,12 @@ CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 # Sacrafice performance for more fine tune memory read size
 MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 
+# Synchronize memory mapping reported by angr with the concrete process.
+SYMBION_SYNC_CLE = "SYMBION_SYNC_CLE"
+# Removes stubs SimProc on synchronization with concrete process.
+# We will execute SimProc for functions for which we have one, and the real function for the one we have not.
+SYMBION_KEEP_STUBS_ON_SYNC = "SYMBION_KEEP_STUBS_ON_SYNC"
+
 #
 # Register those variables as Boolean state options
 #
@@ -340,13 +320,13 @@ for k, v in _g.items():
 
 
 # useful sets of options
-resilience = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP, BYPASS_VERITESTING_EXCEPTIONS }
+resilience = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP, BYPASS_VERITESTING_EXCEPTIONS, BYPASS_ERRORED_IRSTMT }
 resilience_options = resilience # alternate name?
 refs = { TRACK_REGISTER_ACTIONS, TRACK_MEMORY_ACTIONS, TRACK_TMP_ACTIONS, TRACK_JMP_ACTIONS, ACTION_DEPS, TRACK_CONSTRAINT_ACTIONS }
 approximation = { APPROXIMATE_SATISFIABILITY, APPROXIMATE_MEMORY_SIZES, APPROXIMATE_MEMORY_INDICES }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, SYMBOLIC_INITIAL_VALUES, COMPOSITE_SOLVER }
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_REGISTER_WRITES }
-common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT, EXTENDED_IROP_SUPPORT, ALL_FILES_EXIST, FILES_HAVE_EOF } | simplification
+common_options = { COW_STATES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT, EXTENDED_IROP_SUPPORT, ALL_FILES_EXIST, FILES_HAVE_EOF } | simplification
 unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, ZERO_FILL_UNCONSTRAINED_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL, UNICORN_TRACK_BBL_ADDRS, UNICORN_TRACK_STACK_POINTERS }
 concrete = { SYNC_CLE_BACKEND_CONCRETE }
 

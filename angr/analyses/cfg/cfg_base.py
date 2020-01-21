@@ -7,6 +7,7 @@ import networkx
 import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
+from cle.backends import NamedRegion
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
@@ -152,6 +153,8 @@ class CFGBase(Analysis):
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
 
+        self._function_addresses_from_symbols = self._func_addrs_from_symbols()
+
         if model is not None:
             self._model = model
         else:
@@ -268,12 +271,12 @@ class CFGBase(Analysis):
         return self._model.get_successors_and_jumpkind(node, excluding_fakeret=excluding_fakeret)
 
     @deprecated(replacement="self.model.get_all_predecessors()")
-    def get_all_predecessors(self, cfgnode):
-        return self._model.get_all_predecessors(cfgnode)
+    def get_all_predecessors(self, cfgnode, depth_limit=None):
+        return self._model.get_all_predecessors(cfgnode, depth_limit)
 
     @deprecated(replacement="self.model.get_all_successors()")
-    def get_all_successors(self, cfgnode):
-        return self._model.get_all_successors(cfgnode)
+    def get_all_successors(self, cfgnode, depth_limit=None):
+        return self._model.get_all_successors(cfgnode, depth_limit)
 
     @deprecated(replacement="self.model.get_node()")
     def get_node(self, block_id):
@@ -403,15 +406,15 @@ class CFGBase(Analysis):
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
 
-    def _arm_thumb_filter_jump_successors(self, addr, size, successors, get_ins_addr, get_exit_stmt_idx):
+    def _arm_thumb_filter_jump_successors(self, irsb, successors, get_ins_addr, get_exit_stmt_idx, get_jumpkind):
         """
         Filter successors for THUMB mode basic blocks, and remove those successors that won't be taken normally.
 
-        :param int addr: Address of the basic block / SimIRSB.
-        :param int size: Size of the basic block.
+        :param irsb:            The IRSB object.
         :param list successors: A list of successors.
         :param func get_ins_addr: A callable that returns the source instruction address for a successor.
         :param func get_exit_stmt_idx: A callable that returns the source statement ID for a successor.
+        :param func get_jumpkind:      A callable that returns the jumpkind of a successor.
         :return: A new list of successors after filtering.
         :rtype: list
         """
@@ -419,10 +422,38 @@ class CFGBase(Analysis):
         if not successors:
             return [ ]
 
+        if len(successors) == 1 and get_exit_stmt_idx(successors[0]) == DEFAULT_STATEMENT:
+            # only have a default exit. no need to filter
+            return successors
+
+        if irsb.instruction_addresses and \
+                all(get_ins_addr(suc) == irsb.instruction_addresses[-1] for suc in successors):
+            # check if all exits are produced by the last instruction
+            # only takes the following jump kinds: Boring, FakeRet, Call, Syscall, Ret
+            allowed_jumpkinds = {'Ijk_Boring', 'Ijk_FakeRet', 'Ijk_Call', 'Ijk_Ret'}
+            successors = [ suc for suc in successors if get_jumpkind(suc) in allowed_jumpkinds
+                           or get_jumpkind(suc).startswith("Ijk_Sys") ]
+            if len(successors) == 1:
+                return successors
+
+        can_produce_exits = set()  # addresses of instructions that can produce exits
+        bb = self._lift(irsb.addr, size=irsb.size, thumb=True, opt_level=0)
+
+        # step A: filter exits using capstone (since it's faster than re-lifting the entire block to VEX)
+        THUMB_BRANCH_INSTRUCTIONS = {'beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
+                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz'}
+        for cs_insn in bb.capstone.insns:
+            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
+                can_produce_exits.add(cs_insn.address)
+
+        if all(get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT
+               for suc in successors):
+            # nothing will be filtered.
+            return successors
+
+        # step B: consider VEX statements
         it_counter = 0
         conc_temps = {}
-        can_produce_exits = set()
-        bb = self._lift(addr, size=size, thumb=True, opt_level=0)
 
         for stmt in bb.vex.statements:
             if stmt.tag == 'Ist_IMark':
@@ -447,13 +478,7 @@ class CFGBase(Analysis):
                                 itstate >>= 8
 
         if it_counter != 0:
-            l.debug('Basic block ends before calculated IT block (%#x)', addr)
-
-        THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
-                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
-        for cs_insn in bb.capstone.insns:
-            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
-                can_produce_exits.add(cs_insn.address)
+            l.debug('Basic block ends before calculated IT block (%#x)', irsb.addr)
 
         successors_filtered = [suc for suc in successors
                                if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT]
@@ -580,7 +605,9 @@ class CFGBase(Analysis):
                 # a blob is entirely executable
                 tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
-
+            elif isinstance(b, NamedRegion):
+                # NamedRegions have no content! Ignore
+                pass
             elif isinstance(b, self._cle_pseudo_objects):
                 pass
 
@@ -695,6 +722,16 @@ class CFGBase(Analysis):
             return self.project.loader.memory.unpack_word(addr, size=size)
         except KeyError:
             return None
+
+    def _func_addrs_from_symbols(self):
+        """
+        Get all possible function addresses that are specified by the symbols in the binary
+
+        :return: A set of addresses that are probably functions
+        :rtype:  set
+        """
+
+        return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
 
     #
     # Analyze function features
@@ -1158,9 +1195,15 @@ class CFGBase(Analysis):
     # Function identification and such
     #
 
-    def remove_function_alignments(self):
+    def mark_function_alignments(self):
         """
-        Remove all function alignments.
+        Find all potential function alignments and mark them.
+
+        Note that it is not always correct to simply remove them, because these functions may not be actual alignments
+        but part of an actual function, and is incorrectly marked as an individual function because of failures in
+        resolving indirect jumps. An example is in the test binary ``x86_64/dir_gcc_-O0`` 0x40541d (indirect jump at
+        0x4051b0). If the indirect jump cannot be correctly resolved, removing function 0x40541d will cause a missing
+        label failure in reassembler.
 
         :return: None
         """
@@ -1178,9 +1221,9 @@ class CFGBase(Analysis):
                 if block is None:
                     continue
                 if all(self._is_noop_insn(insn) for insn in block.capstone.insns):
-                    # remove this function
-                    l.debug('Function chunk %#x is used as function alignments. Removing it.', func_addr)
-                    del self.kb.functions[func_addr]
+                    # mark this function as a function alignment
+                    l.debug('Function chunk %#x is probably used as a function alignment.', func_addr)
+                    self.kb.functions[func_addr].alignment = True
 
     def make_functions(self):
         """
@@ -1228,13 +1271,15 @@ class CFGBase(Analysis):
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
         called_function_addrs = { n.addr for n in function_nodes }
+        # Any function addresses that appear as symbols won't be removed
+        predetermined_function_addrs = called_function_addrs | self._function_addresses_from_symbols
 
         removed_functions_a = self._process_irrational_functions(tmp_functions,
-                                                                 called_function_addrs,
+                                                                 predetermined_function_addrs,
                                                                  blockaddr_to_function
                                                                  )
         removed_functions_b, adjusted_cfgnodes = self._process_irrational_function_starts(tmp_functions,
-                                                                                          called_function_addrs,
+                                                                                          predetermined_function_addrs,
                                                                                           blockaddr_to_function
                                                                                           )
         removed_functions = removed_functions_a | removed_functions_b
@@ -1321,8 +1366,8 @@ class CFGBase(Analysis):
 
     def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
         """
-        For unresolveable indirect jumps, angr marks those jump targets as individual functions. For example, usually
-        the following pattern is seen:
+        When force_complete_scan is enabled, for unresolveable indirect jumps, angr will find jump targets and mark
+        them as individual functions. For example, usually the following pattern is seen:
 
         sub_0x400010:
             push ebp
@@ -1353,9 +1398,9 @@ class CFGBase(Analysis):
 
         functions_to_remove = { }
 
-        functions_can_be_removed = set(functions.keys()) - set(predetermined_function_addrs)
+        all_func_addrs = sorted(set(functions.keys()))
 
-        for func_addr, function in functions.items():
+        for func_pos, (func_addr, function) in enumerate(functions.items()):
 
             if func_addr in functions_to_remove:
                 continue
@@ -1412,6 +1457,10 @@ class CFGBase(Analysis):
             tmp_state = self.project.factory.blank_state(mode='fastpath')
             while True:
                 try:
+                    # do not follow hooked addresses (such as SimProcedures)
+                    if self.project.is_hooked(last_addr):
+                        break
+
                     # using successors is slow, but acceptable since we won't be creating millions of blocks here...
                     tmp_state.ip = last_addr
                     b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
@@ -1437,7 +1486,10 @@ class CFGBase(Analysis):
 
             should_merge = True
             functions_to_merge = set()
-            for f_addr in functions_can_be_removed:
+            i = func_pos + 1
+            while i < len(all_func_addrs):
+                f_addr = all_func_addrs[i]
+                i += 1
                 f = functions[f_addr]
                 if f_addr == func_addr:
                     continue
@@ -1530,6 +1582,9 @@ class CFGBase(Analysis):
                 cfgnode_0 = self.model.get_any_node(addr_0)
                 cfgnode_1 = self.model.get_any_node(addr_1)
 
+                if cfgnode_0 is None or cfgnode_1 is None:
+                    continue
+
                 # Are func_0 adjacent to func_1?
                 if cfgnode_0.addr + cfgnode_0.size != addr_1:
                     continue
@@ -1614,9 +1669,10 @@ class CFGBase(Analysis):
         :return:    True if it is a tail-call optimization. False otherwise.
         :rtype:     bool
         """
-
         def _has_more_than_one_exit(node_):
-            return len(g.out_edges(node_)) > 1
+            # Do not consider FakeRets as counting as multiple exits here.
+            out_edges = list(filter(lambda x: g.get_edge_data(*x)['jumpkind'] != 'Ijk_FakeRet', g.out_edges(node_)))
+            return len(out_edges) > 1
 
         if len(all_edges) == 1 and dst_addr != src_addr:
             the_edge = next(iter(all_edges))
@@ -1960,15 +2016,28 @@ class CFGBase(Analysis):
         :return: True if the instruction does no-op, False otherwise.
         """
 
-        if insn.insn_name() == 'nop':
+        insn_name = insn.insn_name()
+
+        if insn_name == 'nop':
             # nops
             return True
-        if insn.insn_name() == 'lea':
+        elif insn_name == 'lea':
             # lea reg, [reg + 0]
             op0, op1 = insn.operands
             if op0.type == 1 and op1.type == 3:
                 # reg and mem
                 if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
+                    return True
+        elif insn_name == 'mov':
+            if len(insn.operands) > 2:
+                # mov reg_a, imm1, shift imm2
+                # This is not a NOP
+                return False
+            # mov reg_a, reg_a
+            op0, op1 = insn.operands
+            if op0.type == 1 and op1.type == 1:
+                # reg and reg
+                if op0.reg == op1.reg:
                     return True
 
         # add more types of no-op instructions here :-)
@@ -2109,6 +2178,10 @@ class CFGBase(Analysis):
         # Create an IndirectJump instance
         if addr not in self.indirect_jumps:
             if self.project.arch.branch_delay_slot:
+                if len(cfg_node.instruction_addrs) < 2:
+                    # sanity check
+                    # decoding failed when decoding the second instruction (or even the first instruction)
+                    return False, [ ], None
                 ins_addr = cfg_node.instruction_addrs[-2]
             else:
                 ins_addr = cfg_node.instruction_addrs[-1]

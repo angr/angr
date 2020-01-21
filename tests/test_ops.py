@@ -11,8 +11,7 @@ import archinfo
 # then single stepped and the result read out
 
 def test_irop_perm():
-    arch = archinfo.ArchAMD64()
-    p = angr.load_shellcode(arch.asm('vpshufb xmm0,xmm1,xmm2'), arch)
+    p = angr.load_shellcode('vpshufb xmm0,xmm1,xmm2', 'amd64')
 
     # concrete test
     s1 = p.factory.blank_state()
@@ -31,8 +30,7 @@ def test_irop_perm():
     assert s4.solver.solution(s4.regs.xmm1, 0x3c899a56814ee9b84c7b5d8394c85881)
 
 def test_irop_mulhi():
-    arch = archinfo.ArchAMD64()
-    p = angr.load_shellcode(arch.asm('vpmulhw xmm0,xmm1,xmm2'), arch)
+    p = angr.load_shellcode('vpmulhw xmm0,xmm1,xmm2', 'amd64')
 
     # concrete test
     s1 = p.factory.blank_state()
@@ -42,8 +40,7 @@ def test_irop_mulhi():
     assert (s2.regs.xmm0 == 0x62e16a304ca05f60348d0c9dfa5fee1).is_true()
 
 def test_irop_catevenlanes():
-    arch = archinfo.ArchAMD64()
-    p = angr.load_shellcode(arch.asm('pmulhrsw xmm0, xmm1'), arch)
+    p = angr.load_shellcode('pmulhrsw xmm0, xmm1', 'amd64')
 
     # concrete test
     s1 = p.factory.blank_state()

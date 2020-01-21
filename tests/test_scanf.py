@@ -5,7 +5,7 @@ import angr
 import logging
 
 l = logging.getLogger('angr.tests.scanf')
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 
 class Checker(object):
     def __init__(self, check_func, length=None, base=10, dummy=False):
@@ -60,7 +60,7 @@ class Checker(object):
         return check_passes
 
 def test_scanf():
-    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/scanf_test")
+    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_test")
     b = angr.Project(test_bin)
 
     pg = b.factory.simulation_manager()

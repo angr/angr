@@ -287,8 +287,13 @@ class CongruencyCheck(Analysis):
         # make sure the canonicalized constraints are the same
         n_map, n_counter, n_canon_constraint = claripy.And(*sr.solver.constraints).canonicalize() #pylint:disable=no-member
         u_map, u_counter, u_canon_constraint = claripy.And(*sl.solver.constraints).canonicalize() #pylint:disable=no-member
-        n_canoner_constraint = sr.solver.simplify(n_canon_constraint)
-        u_canoner_constraint = sl.solver.simplify(u_canon_constraint)
+        if n_canon_constraint is not u_canon_constraint:
+            # https://github.com/Z3Prover/z3/issues/2359
+            # don't try to simplify unless we really need to, as it can introduce serious nondeterminism
+            n_canoner_constraint = sr.solver.simplify(n_canon_constraint)
+            u_canoner_constraint = sl.solver.simplify(u_canon_constraint)
+        else:
+            n_canoner_constraint = u_canoner_constraint = n_canon_constraint
         joint_solver.add((n_canoner_constraint, u_canoner_constraint))
         if n_canoner_constraint is not u_canoner_constraint:
             self._report_incongruency("Different constraints!")

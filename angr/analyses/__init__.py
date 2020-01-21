@@ -23,10 +23,12 @@ from .disassembly import Disassembly
 from .variable_recovery import VariableRecovery, VariableRecoveryFast
 from .identifier import Identifier
 from .callee_cleanup_finder import CalleeCleanupFinder
-from .reaching_definitions import ReachingDefinitionAnalysis
+from .reaching_definitions import ReachingDefinitionsAnalysis
 from .calling_convention import CallingConventionAnalysis
 from .code_tagging import CodeTagging
 from .stack_pointer_tracker import StackPointerTracker
 from .dominance_frontier import DominanceFrontier
 from .decompiler import Decompiler
 from .soot_class_hierarchy import SootClassHierarchy
+from .propagator import PropagatorAnalysis
+from .xrefs import XRefsAnalysis

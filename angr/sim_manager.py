@@ -98,6 +98,7 @@ class SimulationManager:
 
         if kwargs.pop('veritesting', False):
             self.use_technique(Veritesting(**kwargs.get('veritesting_options', {})))
+        kwargs.pop('veritesting_options', {})
 
         threads = kwargs.pop('threads', None)
         if threads is not None:
@@ -340,8 +341,8 @@ class SimulationManager:
                 continue
 
             pre_errored = len(self._errored)
-            successors = self.step_state(state, successor_func=successor_func, **run_args)
 
+            successors = self.step_state(state, successor_func=successor_func, **run_args)
             # handle degenerate stepping cases here. desired behavior:
             # if a step produced only unsat states, always add them to the unsat stash since this usually indicates a bug
             # if a step produced sat states and save_unsat is False, drop the unsats

@@ -11,7 +11,7 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootMethodDescr
                                 SootArgument, SootAddressTerminator)
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
-test_location = str(os.path.join(file_dir, "..", "..", "binaries", "tests", "java"))
+test_location = os.path.join(file_dir, "..", "..", "binaries", "tests", "java")
 
 
 
@@ -411,8 +411,8 @@ def test_array_operations():
     winning_path.solver.add(val_symbol != 0)  # exclude trivial solution
     idx = winning_path.solver.eval(idx_symbol)
     val = winning_path.solver.eval(val_symbol)
-    assert idx == 41
-    assert val == 200
+    assert idx == 73
+    assert val == 53
 
     # test_symbolic_array_length
     winning_path = get_winning_path(project=project,
@@ -615,7 +615,7 @@ def get_entry_state_of_method(project, method_fullname):
     method = SootMethodDescriptor.from_soot_method(soot_method)
     addr = SootAddressDescriptor(method, 0, 0)
     # create call state
-    return project.factory.blank_state(addr=addr)
+    return project.factory.blank_state(addr=addr, add_options={angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY})
 
 
 def get_last_state_of_method(project, method_fullname):
@@ -659,11 +659,9 @@ def get_winning_path(project, method_fullname):
 
 
 def main():
-    test_jni_object_operations()
-    test_fauxware()
-    test_cmd_line_args()
-    test_apk_loading()
-    test_method_calls()
+    for k, v in list(globals().items()):
+        if k.startswith('test_') and callable(v):
+            v()
 
 if __name__ == "__main__":
     # import logging

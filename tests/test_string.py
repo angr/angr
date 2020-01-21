@@ -728,8 +728,6 @@ def test_strchr():
     nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x12, 1), 300)), [ 0x43, 0x44 ])
     nose.tools.assert_sequence_equal(sorted(s_match.solver.eval_upto(s_match.memory.load(0x13, 1), 300)), [ 0x00, 0x44 ])
 
-    return
-
     #l.info("symbolic haystack, symbolic needle")
     #s = SimState(arch="AMD64", mode="symbolic")
     #s.libc.buf_symbolic_bytes = 5
@@ -929,6 +927,13 @@ def test_strcmp():
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.solver.eval_upto(r, 2), [0])
 
+def test_string_without_null():
+    s = SimState(arch="AMD64", mode="symbolic")
+    str_ = b"abcd"
+    str_addr = s.solver.BVV(0x10, 64)
+    s.memory.store(str_addr, str_)
+    nose.tools.assert_equal(s.solver.eval(s.mem[str_addr].string.resolved, cast_to=bytes), b"abcd")
+
 
 if __name__ == '__main__':
     test_getc()
@@ -945,3 +950,4 @@ if __name__ == '__main__':
     test_strcpy()
     test_strncpy()
     test_strstr_inconsistency()
+    test_string_without_null()

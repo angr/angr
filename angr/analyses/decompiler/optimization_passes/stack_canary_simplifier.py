@@ -164,6 +164,8 @@ class StackCanarySimplifier(OptimizationPass):
                     continue
 
                 expr = condition.operands[0]
+                if not isinstance(expr, ailment.Expr.UnaryOp):
+                    continue
                 if expr.op != "Xor":
                     continue
                 op0, op1 = expr.operands

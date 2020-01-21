@@ -99,7 +99,7 @@ class GraphRegion:
 
         s = self.dbg_get_repr(self.head, ident=ident) + "\n"
 
-        successors = self.graph.successors(self.head)
+        successors = list(self.graph.successors(self.head))
         if len(successors) == 2:
             left_kid, right_kid = successors
             s += " " * ident + "if (...) {\n" + \

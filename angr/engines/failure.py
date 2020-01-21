@@ -1,32 +1,23 @@
-from .engine import SimEngine
+from .engine import SuccessorsMixin
+from .procedure import ProcedureMixin
 
 import logging
 l = logging.getLogger(name=__name__)
 
-class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
-    def _check(self, state, *args, **kwargs):
-        jumpkind = state.history.jumpkind
+class SimEngineFailure(SuccessorsMixin, ProcedureMixin):
+    def process_successors(self, successors, **kwargs):
+        state = self.state
+        jumpkind = state.history.parent.jumpkind if state.history and state.history.parent else None
 
         if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or (jumpkind is not None and jumpkind.startswith('Ijk_Sig')):
-            return True
+            raise AngrExitError("Cannot execute following jumpkind %s" % jumpkind)
+
         if jumpkind == 'Ijk_Exit':
-            return True
-        return False
-
-    def process(self, state, *args, **kwargs):
-
-        from ..procedures import SIM_PROCEDURES
-
-        if state.history.jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in state.history.jumpkind:
-            raise AngrExitError("Cannot execute following jumpkind %s" % state.history.jumpkind)
-
-        elif state.history.jumpkind == 'Ijk_Exit':
+            from ..procedures import SIM_PROCEDURES
             l.debug('Execution terminated at %#x', state.addr)
             terminator = SIM_PROCEDURES['stubs']['PathTerminator'](project=self.project)
-            return self.project.factory.procedure_engine.process(state, terminator, force_addr=state.addr)
+            return self.process_procedure(state, successors, terminator, **kwargs)
 
-        else:
-            return SimSuccessors.failure()
+        return super().process_successors(successors, **kwargs)
 
 from ..errors import AngrExitError
-from .successors import SimSuccessors

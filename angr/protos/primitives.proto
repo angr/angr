@@ -4,6 +4,7 @@ syntax = "proto3";
 package angr.protos;
 
 // Derived from McSema's CFG.proto
+// Corresponds to the XRef class in angr
 message CodeReference {
     enum TargetType {
         CodeTarget = 0;
@@ -23,6 +24,12 @@ message CodeReference {
         External = 1;
     }
 
+    enum ReferenceType {
+        offset = 0;
+        read = 1;
+        write = 2;
+    }
+
     TargetType  target_type = 1;
     OperandType operand_type = 2;
     Location    location = 3;
@@ -33,6 +40,7 @@ message CodeReference {
     int64       block_ea = 8; // Address of the basic block
     int32       stmt_idx = 9; // Index of the statement where this reference is.
     int32       operand_idx = 10; // The index of the operand in the instruction. -1 if unknown
+    ReferenceType ref_type = 11; // Type of this cross reference.
 }
 
 // Derived from McSema's CFG.proto

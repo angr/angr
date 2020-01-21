@@ -103,7 +103,7 @@ class LiveDefinitions(object):
 
         # byte-to-byte mappings
         # TODO: make it copy-on-write in order to save memory.
-        # TODO: options are either cooldict.COWDict or a modified version of simuvex.SimPagedMemory
+        # TODO: options are either collections.ChainMap or a modified version of simuvex.SimPagedMemory
         self._memory_map = defaultdict(set)
         self._register_map = defaultdict(set)
         self._defs = defaultdict(set)
@@ -368,7 +368,7 @@ class DDGViewInstruction(object):
             reg_offset, size = arch.registers[key]
 
             # obtain the CFGNode
-            cfg_node = self._cfg.get_any_node(self._insn_addr, anyaddr=True)
+            cfg_node = self._cfg.model.get_any_node(self._insn_addr, anyaddr=True)
             if cfg_node is None:
                 # not found
                 raise KeyError('CFGNode for instruction %#x is not found.' % self._insn_addr)
@@ -691,7 +691,7 @@ class DDG(Analysis):
                     job = DDGJob(n, 0)
                     self._worklist_append(job, worklist, worklist_set)
         else:
-            for n in self._cfg.get_all_nodes(self._start):
+            for n in self._cfg.model.get_all_nodes(self._start):
                 job = DDGJob(n, 0)
                 self._worklist_append(job, worklist, worklist_set)
 
@@ -741,7 +741,7 @@ class DDG(Analysis):
             matches = len(match_suc) == len(successing_nodes) and len(match_state) == len(final_states)
 
             for state in final_states:
-                if not matches and state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
@@ -970,7 +970,10 @@ class DDG(Analysis):
             if addr_tmp in self._temp_register_symbols:
                 # it must be a stack variable
                 sort, offset = self._temp_register_symbols[addr_tmp]
-                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=addr - offset)
+                base_addr = addr - offset
+                if base_addr < 0:
+                    base_addr += (1 << self.project.arch.bits)
+                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=base_addr)
 
         if variable is None:
             variable = SimMemoryVariable(addr, action.size.ast // 8)
@@ -1237,6 +1240,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset -= const_value
+                    if offset < 0:
+                        offset += (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
         elif action.op.endswith('Add32') or action.op.endswith('Add64'):
@@ -1252,6 +1257,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset += const_value
+                    if offset >= (1 << self.project.arch.bits):
+                        offset -= (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
     def _process_operation(self, action, location, state, statement):  # pylint:disable=unused-argument

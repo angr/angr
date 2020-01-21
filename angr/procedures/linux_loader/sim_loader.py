@@ -24,18 +24,20 @@ class LinuxLoader(angr.SimProcedure):
 
 class IFuncResolver(angr.SimProcedure):
     NO_RET = True
+    local_vars = ('saved_regs',)
 
     # pylint: disable=arguments-differ,unused-argument
     def run(self, funcaddr=None, gotaddr=None, funcname=None):
-        resolve = self.project.factory.callable(funcaddr, concrete_only=True)
-        try:
-            value = resolve()
-        except angr.errors.AngrCallableError:
-            l.critical("Ifunc \"%s\" failed to resolve!", funcname)
-            #import IPython; IPython.embed()
-            raise
+        self.saved_regs = {reg.name: self.state.registers.load(reg.name) for reg in self.arch.register_list if reg.argument}
+        self.call(funcaddr, (), continue_at='after_call')
+
+    def after_call(self, funcaddr=None, gotaddr=None, funcname=None):
+        value = self.cc.return_val.get_value(self.state)
+        for name, val in self.saved_regs.items():
+            self.state.registers.store(name, val)
+
         self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
-        self.successors.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
+        self.jump(value)
 
     def __repr__(self):
         return '<IFuncResolver %s>' % self.kwargs.get('funcname', None)

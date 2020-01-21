@@ -89,16 +89,16 @@ def test_structs():
     s = SimState(arch='AMD64')
 
     register_types(parse_types("""
-struct abcd {
+struct test_structs {
   int a;
   long b;
 };
 """))
 
     s.memory.store(0x8000, bytes(16))
-    s.mem[0x8000].struct.abcd = {'a': 10, 'b': 20}
-    assert s.mem[0x8000].struct.abcd.a.concrete == 10
-    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes) == bytes.fromhex('0a000000000000001400000000000000')
+    s.mem[0x8000].struct.test_structs = {'a': 10, 'b': 20}
+    nose.tools.assert_equal(s.mem[0x8000].struct.test_structs.a.concrete, 10)
+    nose.tools.assert_equal(s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes), bytes.fromhex('0a000000000000001400000000000000'))
 
 
 if __name__ == '__main__':
@@ -106,3 +106,4 @@ if __name__ == '__main__':
     test_string_concrete()
     test_array_concrete()
     test_pointer_concrete()
+    test_struct()

@@ -3,7 +3,6 @@ import logging
 import networkx
 import string
 import itertools
-import pickle
 from collections import defaultdict
 from typing import Union
 
@@ -13,11 +12,12 @@ from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
-from ...protos import function_pb2, primitives_pb2
+from ...codenode import BlockNode, HookNode, SyscallNode
 from ...serializable import Serializable
-from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
-from ...errors import SimEngineError, SimMemoryError
+from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
+from ...protos import function_pb2
+from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
 
@@ -34,11 +34,11 @@ class Function(Serializable):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags',
+                 '_local_block_addrs', 'info', 'tags', 'alignment',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
-                 is_plt=None, returning=None):
+                 is_plt=None, returning=None, alignment=False):
         """
         Function constructor. If the optional parameters are not provided, they will be automatically determined upon
         the creation of a Function object.
@@ -53,6 +53,7 @@ class Function(Serializable):
         :param str binary_name: Name of the binary where this function is.
         :param bool is_plt:     If this function is a PLT entry.
         :param bool returning:  If this function returns.
+        :param bool alignment:  If this function acts as an alignment filler. Such functions usually only contain nops.
         """
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
@@ -78,6 +79,7 @@ class Function(Serializable):
         self.is_syscall = None
         self.is_plt = None
         self.is_simprocedure = False
+        self.alignment = alignment
 
         # These properties are set by VariableManager
         self.bp_on_stack = False
@@ -94,7 +96,9 @@ class Function(Serializable):
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
 
-        self._addr_to_block_node = {}  # map addresses to nodes
+        self._addr_to_block_node = {}  # map addresses to nodes. it's a cache of blocks. if a block is removed from the
+                                       # function, it may not be removed from _addr_to_block_node. if you want to list
+                                       # all blocks of a function, access .blocks.
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
         self._local_blocks = {}  # a dict of all blocks inside the function
@@ -302,136 +306,17 @@ class Function(Serializable):
         return function_pb2.Function()
 
     def serialize_to_cmessage(self):
-        obj = self._get_cmsg()
-        obj.ea = self.addr
-        obj.is_entrypoint = False  # TODO: Set this up accordingly
-        obj.name = self.name
-        obj.is_plt = self.is_plt
-        obj.is_syscall = self.is_syscall
-        obj.is_simprocedure = self.is_simprocedure
-        obj.returning = self.returning
-        obj.binary_name = self.binary_name
-
-        # blocks
-        blocks_list = [ b.serialize_to_cmessage() for b in self.blocks ]
-        obj.blocks.extend(blocks_list)  # pylint:disable=no-member
-        # graph
-        edges = [ ]
-        external_functions = set()
-        TRANSITION_JK = func_edge_type_to_pb('transition')  # default edge type
-        for src, dst, data in self.transition_graph.edges(data=True):
-            edge = primitives_pb2.Edge()
-            edge.src_ea = src.addr
-            edge.dst_ea = dst.addr
-            if isinstance(src, Function):
-                external_functions.add(src.addr)
-            if isinstance(dst, Function):
-                external_functions.add(dst.addr)
-            edge.jumpkind = TRANSITION_JK
-            for k, v in data.items():
-                if k == "type":
-                    edge.jumpkind = func_edge_type_to_pb(v)
-                elif k == "ins_addr":
-                    edge.ins_addr = v
-                elif k == "stmt_idx":
-                    edge.stmt_idx = v
-                elif k == "outside":
-                    edge.is_outside = v
-                else:
-                    edge.data[k] = pickle.dumps(v)  # pylint:disable=no-member
-            edges.append(edge)
-        obj.graph.edges.extend(edges)  # pylint:disable=no-member
-        # referenced functions
-        obj.external_functions.extend(external_functions)  # pylint:disable=no-member
-
-        return obj
+        return FunctionParser.serialize(self)
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, function_manager=None):  # pylint:disable=arguments-differ
+        """
+        :param cmsg:
 
-        def _get_block_or_func(addr, blocks, external_functions):
-            try:
-                o = blocks[addr]
-            except KeyError:
-                if addr in external_functions:
-                    if function_manager is not None:
-                        o = function_manager.function(addr=addr, create=True)
-                    else:
-                        # TODO:
-                        o = None
-                else:
-                    raise
-            return o
+        :return Function: The function instantiated out of the cmsg data.
+        """
+        return FunctionParser.parse_from_cmsg(cmsg, function_manager)
 
-        obj = cls(function_manager,
-                  cmsg.ea,
-                  name=cmsg.name,
-                  is_plt=cmsg.is_plt,
-                  syscall=cmsg.is_syscall,
-                  is_simprocedure=cmsg.is_simprocedure,
-                  returning=cmsg.returning,
-                  binary_name=cmsg.binary_name,
-                  )
-
-        # blocks
-        blocks = { }
-        for block_cmsg in cmsg.blocks:
-            b = BlockNode(block_cmsg.ea,
-                          block_cmsg.size,
-                          bytestr=block_cmsg.bytes
-                          )
-            blocks[b.addr] = b
-        external_functions = set(cmsg.external_functions)
-        # edges
-        edges = { }
-        fake_return_edges = defaultdict(list)
-        for edge_cmsg in cmsg.graph.edges:
-            try:
-                src = _get_block_or_func(edge_cmsg.src_ea, blocks, external_functions)
-            except KeyError:
-                raise KeyError("Address of the edge source %#x is not found." % edge_cmsg.src_ea)
-            try:
-                dst = _get_block_or_func(edge_cmsg.dst_ea, blocks, external_functions)
-            except KeyError:
-                raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
-            edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
-            assert edge_type is not None
-            data = dict((k, pickle.loads(v)) for k, v in edge_cmsg.data.items())
-            data['outside'] = edge_cmsg.is_outside
-            data['ins_addr'] = edge_cmsg.ins_addr
-            data['stmt_idx'] = edge_cmsg.stmt_idx
-            if edge_type == 'fake_return':
-                fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
-            else:
-                edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
-
-        for k, v in edges.items():
-            _, dst_addr, edge_type = k
-            src, dst, data = v
-
-            outside = data.get('outside', False)
-            ins_addr = data.get('ins_addr', None)
-            stmt_idx = data.get('stmt_idx', None)
-            if edge_type == 'transition':
-                obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx)
-            elif edge_type == 'call':
-                # find the corresponding fake_ret edge
-                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[dst_addr]
-                                          if edge_[1].addr == src.addr + src.size), None)
-                if dst is None:
-                    l.warning("The destination function %#x does not exist, and it cannot be created since function "
-                              "manager is not provided. Please consider passing in a function manager to rebuild this "
-                              "graph.", dst_addr)
-                else:
-                    obj._call_to(src, dst, None if fake_ret_edge is None else fake_ret_edge[1],
-                                 stmt_idx=stmt_idx,
-                                 ins_addr=ins_addr,
-                                 return_to_outside=fake_ret_edge is None,
-                                 )
-            elif edge_type == 'fake_return':
-                pass
-
-        return obj
 
     def string_references(self, minimum_length=2, vex_only=False):
         """
@@ -604,6 +489,7 @@ class Function(Serializable):
         s += '  SP difference: %d\n' % self.sp_delta
         s += '  Has return: %s\n' % self.has_return
         s += '  Returning: %s\n' % ('Unknown' if self.returning is None else self.returning)
+        s += '  Alignment: %s\n' % (self.alignment)
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
@@ -1041,7 +927,7 @@ class Function(Serializable):
     @property
     def graph(self):
         """
-        Return a local transition graph that only contain nodes in current function.
+        :return networkx.DiGraph: A local transition graph that only contain nodes in current function.
         """
 
         if self._local_transition_graph is not None:
@@ -1069,8 +955,7 @@ class Function(Serializable):
         Generate a sub control flow graph of instruction addresses based on self.graph
 
         :param iterable ins_addrs: A collection of instruction addresses that should be included in the subgraph.
-        :return: A subgraph.
-        :rtype: networkx.DiGraph
+        :return networkx.DiGraph: A subgraph.
         """
 
         # find all basic blocks that include those instructions
@@ -1113,8 +998,7 @@ class Function(Serializable):
         Get the size of the instruction specified by `insn_addr`.
 
         :param int insn_addr: Address of the instruction
-        :return: Size of the instruction in bytes, or None if the instruction is not found.
-        :rtype: int
+        :return int: Size of the instruction in bytes, or None if the instruction is not found.
         """
 
         for b in self.blocks:
@@ -1128,6 +1012,29 @@ class Function(Serializable):
                     size = block.instruction_addrs[index + 1] - insn_addr
                 return size
 
+        return None
+
+    def addr_to_instruction_addr(self, addr):
+        """
+        Obtain the address of the instruction that covers @addr.
+
+        :param int addr:    An address.
+        :return:            Address of the instruction that covers @addr, or None if this addr is not covered by any
+                            instruction of this function.
+        :rtype:             int or None
+        """
+
+        # TODO: Replace the linear search with binary search
+        for b in self.blocks:
+            if b.addr <= addr < b.addr + b.size:
+                # found it
+                for i, instr_addr in enumerate(b.instruction_addrs):
+                    if i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i+1]:
+                        return instr_addr
+                    elif i == len(b.instruction_addrs) - 1 and instr_addr <= addr:
+                        return instr_addr
+                # Not covered by any instruction... why?
+                return None
         return None
 
     def dbg_print(self):
@@ -1327,6 +1234,7 @@ class Function(Serializable):
             # PLT entries must have the same declaration as their jump targets
             # Try to determine which library this PLT entry will jump to
             edges = self.transition_graph.edges()
+            if len(edges) == 0: return
             node = next(iter(edges))[1]
             if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
                 target = node.addr
@@ -1361,7 +1269,6 @@ class Function(Serializable):
         else:  # int, long
             return addr
 
-
     @property
     def demangled_name(self):
 
@@ -1390,6 +1297,7 @@ class Function(Serializable):
         func.calling_convention = self.calling_convention
         func.prototype = self.prototype
         func._returning = self._returning
+        func.alignment = self.alignment
         func.startpoint = self.startpoint
         func._addr_to_block_node = self._addr_to_block_node.copy()
         func._block_sizes = self._block_sizes.copy()
@@ -1400,7 +1308,3 @@ class Function(Serializable):
         func.tags = self.tags
 
         return func
-
-
-from ...codenode import BlockNode, HookNode, SyscallNode
-from ...errors import AngrValueError

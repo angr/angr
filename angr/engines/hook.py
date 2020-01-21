@@ -1,55 +1,61 @@
 import logging
 
-from .engine import SimEngine
-from .successors import SimSuccessors
+from .engine import SuccessorsMixin
+from .procedure import ProcedureMixin
 from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ
-class SimEngineHook(SimEngine):
-    def _check(self, state, procedure=None, **kwargs):
-        # we have not yet entered the next step - we should check the "current" jumpkind
-        if state.history.jumpkind == 'Ijk_NoHook':
-            return False
+class HooksMixin(SuccessorsMixin, ProcedureMixin):
+    """
+    A SimEngine mixin which adds a SimSuccessors handler which will look into the project's hooks and run the hook at
+    the current address.
+
+    Will respond to the following parameters provided to the step stack:
+
+    - procedure:        A SimProcedure instance to force-run instead of consulting the current hooks
+    - ret_to:           An address to force-return-to at the end of the procedure
+    """
+    def _lookup_hook(self, state, procedure):
+        # TODO this is moderately controversial. If the jumpkind was NoHook and the user provided the procedure argument, which takes precedence?
+        # tentative guess: passed argument takes priority
+        if procedure is not None:
+            return procedure
+
+        # we have at this point entered the next step - we should check the "previous" jumpkind
+        if state.history and state.history.parent and state.history.parent.jumpkind == 'Ijk_NoHook':
+            return None
 
         if not type(state._ip) is int and state._ip.symbolic:
             # symbolic IP is not supported
-            return False
+            return None
 
+        addr = state.addr
+        procedure = self.project._sim_procedures.get(addr, None)
+        if procedure is not None:
+            return procedure
+
+        if not state.arch.name.startswith('ARM') or addr & 1 != 1:
+            return None
+
+        procedure = self.project._sim_procedures.get(addr - 1, None)
+        if procedure is not None:
+            return procedure
+
+        return None
+
+    def process_successors(self, successors, procedure=None, **kwargs):
+        state = self.state
         if procedure is None:
-            if state.addr not in self.project._sim_procedures:
-                if state.arch.name.startswith('ARM') and state.addr & 1 == 1 and state.addr - 1 in self.project._sim_procedures:
-                    return True
-                return False
-
-        return True
-
-    def process(self, state, procedure=None, force_addr=None, **kwargs):
-        """
-        Perform execution with a state.
-
-        :param state:       The state with which to execute
-        :param procedure:   An instance of a SimProcedure to run, optional
-        :param ret_to:      The address to return to when this procedure is finished
-        :param inline:      This is an inline execution. Do not bother copying the state.
-        :param force_addr:  Force execution to pretend that we're working at this concrete address
-        :returns:           A SimSuccessors object categorizing the execution's successor states
-        """
-        addr = state.addr if force_addr is None else force_addr
-
+            procedure = self._lookup_hook(state, procedure)
         if procedure is None:
-            if addr not in self.project._sim_procedures:
-                if state.arch.name.startswith('ARM') and addr & 1 == 1 and addr - 1 in self.project._sim_procedures:
-                    procedure = self.project._sim_procedures[addr - 1]
-                else:
-                    return SimSuccessors.failure()
-            else:
-                procedure = self.project._sim_procedures[addr]
+            return super().process_successors(successors, procedure=procedure, **kwargs)
 
-        if isinstance(addr, SootAddressDescriptor):
-            l.debug("Running %s (originally at %r)", repr(procedure), addr)
+        if isinstance(procedure.addr, SootAddressDescriptor):
+            l.debug("Running %s (originally at %r)", repr(procedure), procedure.addr)
         else:
-            l.debug("Running %s (originally at %#x)", repr(procedure), addr)
-        return self.project.factory.procedure_engine.process(state, procedure, force_addr=force_addr, **kwargs)
+            l.debug("Running %s (originally at %s)", repr(procedure), procedure.addr if procedure.addr is None else hex(procedure.addr))
+
+        return self.process_procedure(state, successors, procedure, **kwargs)
