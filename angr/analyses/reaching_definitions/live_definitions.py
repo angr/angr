@@ -41,13 +41,14 @@ class LiveDefinitions:
         self._subject = subject
         self._track_tmps = track_tmps
         self.analysis = analysis
+        self.rtoc_value = rtoc_value
 
         self.register_definitions = KeyedRegion()
         self.stack_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
         self.tmp_definitions = {}
 
-        self._set_initialisation_values(subject, rtoc_value)
+        self._set_initialisation_values(subject, self.rtoc_value)
 
         self.register_uses = Uses()
         self.stack_uses = Uses()
@@ -130,6 +131,7 @@ class LiveDefinitions:
             self._subject,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
+            rtoc_value=self.rtoc_value
         )
 
         rd.register_definitions = self.register_definitions.copy()
