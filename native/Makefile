@@ -16,7 +16,11 @@ ifneq ($(DEBUG), )
 endif
 
 OBJS := log.o
-LDLIBS := -lunicorn -lpyvex
+ifeq ($(UNAME), Darwin)
+	LDFLAGS := -Wl,-weak-lunicorn,-weak-lpyvex
+else
+	LDLIBS := -lunicorn -lpyvex
+endif
 
 all: ${LIB_ANGR_NATIVE}
 
@@ -24,7 +28,7 @@ log.o: log.c log.h
 	${CC} -fPIC -c -O3 -o $@ $<
 
 ${LIB_ANGR_NATIVE}: ${OBJS} sim_unicorn.cpp
-	${CXX} ${CXXFLAGS} -shared -o $@ $^ ${LDLIBS}
+	${CXX} ${CXXFLAGS} -shared -o $@ $^ ${LDLIBS} ${LDFLAGS}
 
 clean:
 	rm -f "${LIB_ANGR_NATIVE}" *.o arch/*.o
