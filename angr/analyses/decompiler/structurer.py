@@ -672,6 +672,10 @@ class Structurer(Analysis):
                     new_node = ConditionNode(node.addr, None, node.reaching_condition, node,
                                              None)
                 seq.nodes[i] = new_node
+            elif isinstance(node, CodeNode) and isinstance(node.node, ConditionalBreakNode):
+                cond = self._bool_variable_from_ail_condition(node.node.condition)
+                new_node = CodeNode(ConditionalBreakNode(node.node.addr, cond, node.node.target), None)
+                seq.nodes[i] = new_node
 
     def _make_ite(self, seq, node_0, node_1):
 
