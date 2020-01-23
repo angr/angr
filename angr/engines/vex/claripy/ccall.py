@@ -333,16 +333,16 @@ def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ADCX(state, nbits, cc_dep1, cc_dep2, cc_ndep, is_adc, platform=None):
-    pf = claripy.If(cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_P'] != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
-    af = claripy.If(cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_A'] != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
-    zf = claripy.If(cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_Z'] != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
-    sf = claripy.If(cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_S'] != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
+    pf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_P'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_P']]
+    af = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_A'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
+    zf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_Z'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_Z']]
+    sf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_S'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_S']]
     if is_adc:
-        carry = cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C']
-        of = claripy.If(cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_O'] != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
+        carry = claripy.LShR(cc_ndep, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1
+        of = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_O'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_O']]
     else:
-        carry = cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_O']
-        cf = claripy.If(cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C'] != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
+        carry = claripy.LShR(cc_ndep, data[platform]['CondBitOffsets']['G_CC_SHIFT_O']) & 1
+        cf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
     arg_l = cc_dep1
     arg_r = cc_dep2 ^ carry
     res = (arg_l + arg_r) + carry
