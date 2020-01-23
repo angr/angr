@@ -49,7 +49,8 @@ def timed_function(f):
                 location = "unknown"
             lt.log(int((end-start)*10), '%s took %s seconds at %s', f.__name__, round(duration, 2), location)
 
-            if break_time >= 0 and duration > break_time:
+            if 0 <= break_time < duration:
+                #pylint: disable = import-outside-toplevel
                 import ipdb; ipdb.set_trace()
 
             return r
@@ -690,9 +691,11 @@ class SimSolver(SimStatePlugin):
 
 
     @overload
+    # pylint: disable=no-self-use
     def eval_upto(self, e, n: int, cast_to: None = ..., **kwargs) -> Any: ...
     CastTarget = TypeVar("CastTarget")
     @overload
+    # pylint: disable=no-self-use, undefined-variable
     def eval_upto(self, e, n: int, cast_to: CastTarget = ..., **kwargs) -> CastTarget: ...
 
     def eval_upto(self, e, n, cast_to = None, **kwargs):
@@ -718,8 +721,10 @@ class SimSolver(SimStatePlugin):
         return cast_vals
 
     @overload
+    # pylint: disable=no-self-use
     def eval(self, e, cast_to: None = ..., **kwargs) -> Any: ...
 
+    # pylint: disable=no-self-use,undefined-variable
     @overload
     def eval(self, e, cast_to: CastTarget = ..., **kwargs) -> CastTarget: ...
 
