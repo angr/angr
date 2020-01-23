@@ -1,9 +1,7 @@
 import logging
-from typing import overload, Any, Union, List, Optional
+from typing import List, Optional, Union, overload
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
-from typing import overload, Any, Union
 
-from archinfo.arch_soot import SootAddressDescriptor
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
@@ -15,7 +13,7 @@ from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 l = logging.getLogger(name=__name__)
 
 
-class AngrObjectFactory(object):
+class AngrObjectFactory():
     """
     This factory provides access to important analysis elements.
     """
@@ -278,7 +276,7 @@ class AngrObjectFactory(object):
                 sp_delta=sp_delta,
                 func_ty=func_ty)
 
-
+    #pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
     def block(self, addr: int, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
@@ -286,6 +284,7 @@ class AngrObjectFactory(object):
               strict_block_end=None, collect_data_refs=False,
               ) -> 'Block': ...
 
+    #pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
     def block(self, addr: SootAddressDescriptor, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,

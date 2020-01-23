@@ -2,7 +2,7 @@ import sys
 import itertools
 import types
 from collections import defaultdict
-from typing import Dict, List, Tuple, DefaultDict
+from typing import List, Tuple, DefaultDict
 
 import claripy
 import mulpyplexer

@@ -6,7 +6,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-class PluginHub(object):
+class PluginHub():
     """
     A plugin hub is an object which contains many plugins, as well as the notion of a "preset", or a
     backer that can provide default implementations of plugins which cater to a certain
@@ -202,7 +202,7 @@ class PluginHub(object):
         delattr(self, name)
 
 
-class PluginPreset(object):
+class PluginPreset():
     """
     A plugin preset object contains a mapping from name to a plugin class.
     A preset can be active on a hub, which will cause it to handle requests for plugins which are not already present on the hub.
@@ -282,7 +282,6 @@ class VendorPreset(PluginPreset):
     """
     A specialized preset class for use with the PluginVendor.
     """
-
-    pass
+    ...
 
 from ..state_plugins import SimStatePlugin
