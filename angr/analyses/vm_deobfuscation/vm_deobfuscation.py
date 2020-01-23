@@ -6,6 +6,7 @@ import copy
 from collections import defaultdict
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 import networkx as nx
+import re
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 
@@ -194,18 +195,34 @@ def simplifications(cfg, proj, start_addr):
         main = proj.loader.main_object.get_symbol("main")
         start_addr = main.rebased_addr
 
-    nodes_to_remove = []
-
     for node in list(cfg.graph.nodes()):
         if not node.is_simprocedure:
             old_stmts = node.irsb.statements
-            manager = Manager("manager",node.irsb.arch)
-            print(IRSBConverter.convert(node.irsb, manager))
-            if len(old_stmts) == 3 and isinstance(old_stmts[0], pyvex.stmt.IMark) and isinstance(old_stmts[1], pyvex.expr.ITE) and type(old_stmts[1].cond) == pyvex.expr.Const:
-                nodes_to_remove.append(node)
-
-
-
+            new_stmts = []
+            # manager = Manager("manager",node.irsb.arch)
+            # print(IRSBConverter.convert(node.irsb, manager))
+            # if len(old_stmts) == 3 and isinstance(old_stmts[0], pyvex.stmt.IMark) and isinstance(old_stmts[1], pyvex.expr.ITE) and type(old_stmts[1].cond) == pyvex.expr.Const:
+            #     nodes_to_remove.append(node)
+            ind = 0
+            while ind < len(old_stmts):
+                ###### This looks for a particular pattern of moving a constant into the stack, and removes that(THIS IS A HACK SINCE DDG DOES NOT TRACK SYMBOLIC MEMORY ACCESSES)
+                # if isinstance(old_stmts[ind], pyvex.stmt.IMark):
+                #     if isinstance(old_stmts[ind+1], pyvex.stmt.WrTmp):
+                #         if isinstance(old_stmts[ind+2], pyvex.stmt.WrTmp):
+                #             if isinstance(old_stmts[ind + 3], pyvex.stmt.WrTmp):
+                #                 if isinstance(old_stmts[ind + 4], pyvex.stmt.Store) and type(old_stmts[ind + 4].data) == pyvex.expr.Const:
+                #                     if ind+4 == len(old_stmts)-1 or isinstance(old_stmts[ind + 5], pyvex.stmt.IMark):
+                #                         ind = ind+5
+                #                         continue
+                new_stmts.append(old_stmts[ind])
+                ind = ind+1
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_stmts,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind)
 
     ### Returning a new CFGEmulated object with the updated graph
     simplified_new_model = new_model_graph(cfg.graph, proj, 'simplify1')
@@ -219,7 +236,6 @@ def simplifications(cfg, proj, start_addr):
     new_cfg = proj.analyses.CFGEmulated(model=simplified_new_model, keep_state=True, iropt_level=0,
                                         resolve_indirect_jumps=True, max_iterations=1)
     return new_cfg
-
 
 ####### Dead Cod Elimination
 def dead_code_elimination(cfg, proj, start_addr):
@@ -236,7 +252,6 @@ def dead_code_elimination(cfg, proj, start_addr):
             print(node.irsb.pp)
             print(node.block_id)
             for ind, stmt in enumerate(old_stmts):
-
                 if isinstance(stmt, pyvex.stmt.IMark) and ind == len(old_stmts)-1:
                     continue
                 elif isinstance(stmt, pyvex.stmt.AbiHint) and ind == len(old_stmts)-1:
@@ -246,14 +261,12 @@ def dead_code_elimination(cfg, proj, start_addr):
                 elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(old_stmts[ind+1], pyvex.stmt.AbiHint):
                     continue
                 elif isinstance(stmt, pyvex.stmt.Exit) and type(stmt.guard) == pyvex.expr.Const:
-
                     ### Removing conditional statements that depend on a constant
                     if stmt.guard.con.value == 0:
                         continue
                     elif stmt.guard.con.value == 1:
                         node.irsb.next =pyvex.expr.Const(stmt.dst)
                         continue
-
                 elif isinstance(stmt, pyvex.stmt.IMark) or isinstance(stmt, pyvex.stmt.AbiHint):
                     new_stmts.append(stmt)
                     continue
@@ -289,6 +302,7 @@ def dead_code_elimination(cfg, proj, start_addr):
                                                    nxt=node.irsb.next,
                                                    direct_next=node.irsb.direct_next,
                                                    jumpkind=node.irsb.jumpkind)
+
                 print("DCE version")
                 print(node.irsb.pp())
                 print("\n")
@@ -307,6 +321,7 @@ def dead_code_elimination(cfg, proj, start_addr):
     new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
     return new_cfg
 
+### Draw the graph with vex statements
 def draw_graph(cfg, filename):
     A = nx.nx_agraph.to_agraph(cfg.graph)
     for node in cfg.graph.nodes():
@@ -321,6 +336,7 @@ def draw_graph(cfg, filename):
     A.layout(prog="dot")
     A.draw(path=filename, format="svg")
 
+### Drawing a graph comparing the removed x86 instructions vs the instructions that were kept(or a part of their statemnts was left beind after simplifications)
 def draw_original_graph(cfg, filename, proj):
     A = nx.nx_agraph.to_agraph(cfg.graph)
     for node in cfg.graph.nodes():
@@ -347,6 +363,196 @@ def draw_original_graph(cfg, filename, proj):
     A.layout(prog="dot")
     A.draw(path=filename, format="svg")
 
+############### !!!! This only works under the assumption that no new statements are added to the final graph, i.e. statements are only removed from the final graph ################
+def compare_vex(initial_cfg, final_cfg):
+
+    A = nx.nx_agraph.to_agraph(initial_cfg.graph)
+    B = nx.nx_agraph.to_agraph(final_cfg.graph)
+
+    initial_cfg_node_map = {}
+    for node in initial_cfg.graph.nodes():
+        initial_cfg_node_map[node.block_id] = node
+
+    final_cfg_node_map = {}
+    for node in final_cfg.graph.nodes():
+        final_cfg_node_map[node.block_id] = node
+
+    #### Iterating over nodes of the initial graph
+    for initial_cfg_node in initial_cfg.graph.nodes():
+        if initial_cfg_node.block_id in final_cfg_node_map:
+            final_cfg_node = final_cfg_node_map[initial_cfg_node.block_id]
+        else:
+            continue
+        initial_cfg_node_stmt_str = "<" + str(initial_cfg_node).strip("<>")
+        final_cfg_node_stmt_str = "<" + str(final_cfg_node).strip("<>")
+
+        initial_cfg_index = 0
+        final_cfg_index = 0
+
+        if initial_cfg_node.irsb != None and final_cfg_node.irsb != None:
+            initial_cfg_node_stmts = initial_cfg_node.irsb.statements
+            final_cfg_node_stmts = final_cfg_node.irsb.statements
+
+            while True:
+
+                ### End loop if end of statements is reached for one of the nodes
+                if final_cfg_index == len(final_cfg_node_stmts) or initial_cfg_index == len(initial_cfg_node_stmts):
+                    break
+
+                ### if the next instruction(IMark) is reached on the final graph then run through the statements of the initial graph till we find the coresponding instruction(IMark)
+                if isinstance(final_cfg_node_stmts[final_cfg_index], pyvex.stmt.IMark) and not isinstance(initial_cfg_node_stmts[final_cfg_index], pyvex.stmt.IMark):
+                    while True:
+                        if isinstance(initial_cfg_node_stmts[initial_cfg_index], pyvex.stmt.IMark) and initial_cfg_node_stmts[initial_cfg_index].addr == final_cfg_node_stmts[final_cfg_index].addr:
+                            break
+                        initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='red'>" + \
+                                                  initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                      arch=initial_cfg_node.irsb.arch,
+                                                      tyenv=initial_cfg_node.irsb.tyenv).replace("\t", " ") + "</FONT>"
+                        initial_cfg_index += 1
+                ### If both the statments are the same then make then blue
+                if str(initial_cfg_node_stmts[initial_cfg_index]) == str(final_cfg_node_stmts[final_cfg_index]):
+                    initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='blue'>" + initial_cfg_node_stmts[initial_cfg_index].__str__(arch=initial_cfg_node.irsb.arch, tyenv=initial_cfg_node.irsb.tyenv).replace("\t", " ") + "</FONT>"
+                    final_cfg_node_stmt_str = final_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='blue'>" + final_cfg_node_stmts[final_cfg_index].__str__(arch=final_cfg_node.irsb.arch, tyenv=final_cfg_node.irsb.tyenv).replace("\t", " ") + "</FONT>"
+                    initial_cfg_index += 1
+                    final_cfg_index += 1
+                ### If both statemnts are WrTmp to the same variable but different value then make it orange, otherwise red
+                elif isinstance(initial_cfg_node_stmts[initial_cfg_index], pyvex.stmt.WrTmp) and isinstance(final_cfg_node_stmts[final_cfg_index], pyvex.stmt.WrTmp):
+                    if initial_cfg_node_stmts[initial_cfg_index].tmp == final_cfg_node_stmts[final_cfg_index].tmp:
+                        initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + \
+                                                    initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                        arch=initial_cfg_node.irsb.arch,
+                                                        tyenv=initial_cfg_node.irsb.tyenv).replace("\t",
+                                                                                                   " ") + "</FONT>"
+                        final_cfg_node_stmt_str = final_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + \
+                                                  final_cfg_node_stmts[final_cfg_index].__str__(
+                                                      arch=final_cfg_node.irsb.arch,
+                                                      tyenv=final_cfg_node.irsb.tyenv).replace("\t", " ") + "</FONT>"
+                        initial_cfg_index += 1
+                        final_cfg_index += 1
+                    else:
+                        initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='red'>" + \
+                                                    initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                        arch=initial_cfg_node.irsb.arch,
+                                                        tyenv=initial_cfg_node.irsb.tyenv).replace("\t",
+                                                                                                   " ") + "</FONT>"
+                        initial_cfg_index += 1
+                ### If both statements are Put to the same variable but different value then make it orange, otherwise red
+                elif isinstance(initial_cfg_node_stmts[initial_cfg_index], pyvex.stmt.Put) and isinstance(final_cfg_node_stmts[final_cfg_index], pyvex.stmt.Put):
+                    if initial_cfg_node_stmts[initial_cfg_index].offset == final_cfg_node_stmts[final_cfg_index].offset:
+                        initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + \
+                                                    initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                        arch=initial_cfg_node.irsb.arch,
+                                                        tyenv=initial_cfg_node.irsb.tyenv).replace("\t",
+                                                                                                   " ") + "</FONT>"
+                        final_cfg_node_stmt_str = final_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + \
+                                                  final_cfg_node_stmts[final_cfg_index].__str__(
+                                                      arch=final_cfg_node.irsb.arch,
+                                                      tyenv=final_cfg_node.irsb.tyenv).replace("\t", " ") + "</FONT>"
+                        initial_cfg_index += 1
+                        final_cfg_index += 1
+                    else:
+                        initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='red'>" + \
+                                                    initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                        arch=initial_cfg_node.irsb.arch,
+                                                        tyenv=initial_cfg_node.irsb.tyenv).replace("\t",
+                                                                                                   " ") + "</FONT>"
+                        initial_cfg_index += 1
+                ### If both statements are Store to the same variable but different value then make it orange, otherwise red
+                elif isinstance(initial_cfg_node_stmts[initial_cfg_index], pyvex.stmt.Store) and isinstance(final_cfg_node_stmts[final_cfg_index], pyvex.stmt.Store):
+                    if str(initial_cfg_node_stmts[initial_cfg_index].addr) == str(final_cfg_node_stmts[final_cfg_index].addr):
+                        initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + \
+                                                    initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                        arch=initial_cfg_node.irsb.arch,
+                                                        tyenv=initial_cfg_node.irsb.tyenv).replace("\t",
+                                                                                                   " ") + "</FONT>"
+                        final_cfg_node_stmt_str = final_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + \
+                                                  final_cfg_node_stmts[final_cfg_index].__str__(
+                                                      arch=final_cfg_node.irsb.arch,
+                                                      tyenv=final_cfg_node.irsb.tyenv).replace("\t", " ") + "</FONT>"
+                        initial_cfg_index += 1
+                        final_cfg_index += 1
+                    else:
+                        initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='red'>" + \
+                                                    initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                        arch=initial_cfg_node.irsb.arch,
+                                                        tyenv=initial_cfg_node.irsb.tyenv).replace("\t",
+                                                                                                   " ") + "</FONT>"
+                        initial_cfg_index += 1
+                ### If none of the above conditions are true then just go to the next statement on the initial graph
+                else:
+                    initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='red'>" + \
+                                                initial_cfg_node_stmts[initial_cfg_index].__str__(
+                                                    arch=initial_cfg_node.irsb.arch,
+                                                    tyenv=initial_cfg_node.irsb.tyenv).replace("\t",
+                                                                                               " ") + "</FONT>"
+                    initial_cfg_index += 1
+
+
+
+        graphviz_node = A.get_node(str(initial_cfg_node))
+        graphviz_node.attr["label"] = initial_cfg_node_stmt_str+">"
+        graphviz_node.attr["shape"] = "box"
+
+        graphviz_node = B.get_node(str(final_cfg_node))
+        graphviz_node.attr["label"] = final_cfg_node_stmt_str + ">"
+        graphviz_node.attr["shape"] = "box"
+
+    A.layout(prog="dot")
+    A.draw(path=folder_name+"/vex_comparision_initial_cfg.svg", format="svg")
+    B.layout(prog="dot")
+    B.draw(path=folder_name+"/vex_comparision_final_cfg.svg", format="svg")
+
+def pattern_match_to_x86_instructions(final_cfg, proj):
+    A = nx.nx_agraph.to_agraph(final_cfg.graph)
+
+    #### Iterating over nodes of the initial graph
+    for final_cfg_node in final_cfg.graph.nodes():
+        original_addresses = proj.factory.block(final_cfg_node.addr).instruction_addrs
+        original_instructions = proj.factory.block(final_cfg_node.addr).capstone.insns
+        x86_stmt_str = "<" + str(final_cfg_node).strip("<>")
+        if final_cfg_node.irsb != None:
+            cur_ins_str = ""
+            for ind, stmt in enumerate(final_cfg_node.irsb.statements):
+                if isinstance(stmt, pyvex.stmt.IMark):
+                    curr_ins_addr = stmt.addr
+                    cur_ins_str = ""
+                else:
+                    cur_ins_str = cur_ins_str + "\n" + stmt.__str__(arch=final_cfg_node.irsb.arch, tyenv=final_cfg_node.irsb.tyenv)
+
+                if ind == len(final_cfg_node.irsb.statements)-1 or isinstance(final_cfg_node.irsb.statements[ind+1], pyvex.stmt.IMark):
+                    ###### This is a regex for converting
+                    ###### t5 = GET:I64(rbp)
+                    ###### t4 = Add64(t5,0xfffffffffffffffc)
+                    ###### t0 = t4
+                    ###### STle(t0) = 0x00001064
+                    ###### to
+                    ###### mov dword ptr[reg -constant], constant
+                    match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\sAdd64\(t\d+,(0xff+\w+)\)\nt\d+\s=\st\d+\nSTle\(t\d+\)\s=\s(\w+)",cur_ins_str)
+                    if match_result:
+                        x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr))+": mov dword ptr [" + match_result.group(1) + " - "+str((int(match_result.group(2), 16)^0xffffffffffffffff)+1) +"], "+match_result.group(3) +"</FONT>"
+                        continue
+
+                    match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\s64to32\(t\d+\)\nt\d+\s=\st\d+\nt\d+\s=\sAdd32\((\w+),t\d+\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+",cur_ins_str)
+                    if match_result:
+                        x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr)) + ": lea " + match_result.group(3) + ", " + "[" + match_result.group(1) + " + " + match_result.group(2)+"]" +"</FONT>"
+                        continue
+
+                    match_result = re.match("\nPUT\((\w+)\)\s=\s(0x\w+)",cur_ins_str)
+                    if match_result:
+                        x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                            hex(curr_ins_addr)) + ": lea " + match_result.group(1) + ", " + "[" + match_result.group(2)+ "]" + "</FONT>"
+                        continue
+
+                    x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='blue'>" + str(original_instructions[original_addresses.index(curr_ins_addr)]).replace("\t", " ") + "</FONT>"
+
+        graphviz_node = A.get_node(str(final_cfg_node))
+        graphviz_node.attr["label"] = x86_stmt_str+">"
+        graphviz_node.attr["shape"] = "box"
+
+    A.layout(prog="dot")
+    A.draw(path=folder_name+"/x86_regexd_cfg.svg", format="svg")
+
+
 #start_addr = 0x4006d1
 start_addr = None
 cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
@@ -362,6 +568,7 @@ cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
 #         print("Failed to decompile")
 
 
+initial_cfg = cfg
 draw_graph(cfg, folder_name+"/input.svg")
 
 new_cfg = constant_propagation(cfg, proj, start_addr=start_addr)
@@ -374,8 +581,13 @@ new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-draw_graph(new_cfg, folder_name+"/before_simplification.svg")
 new_cfg = simplifications(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 draw_graph(new_cfg, folder_name+"/final_result.svg")
 draw_original_graph(new_cfg, folder_name+"/comparision_graph.svg", proj)
-
+compare_vex(initial_cfg, new_cfg)
+pattern_match_to_x86_instructions(new_cfg, proj)
