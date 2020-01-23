@@ -931,8 +931,10 @@ class SimState(PluginHub):
 default_state_plugin_preset = PluginPreset()
 SimState.register_preset('default', default_state_plugin_preset)
 
+from .state_plugins.history import SimStateHistory
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
+
 from . import sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
 
@@ -944,5 +946,4 @@ if TYPE_CHECKING:
     from .state_plugins.symbolic_memory import SimSymbolicMemory
     from .state_plugins.view import SimRegNameView, SimMemView
     from .state_plugins.callstack import CallStack
-    from .state_plugins.history import SimStateHistory
     from .state_plugins.inspect import SimInspector

@@ -1,4 +1,4 @@
-from typing import Type, Dict, Optional, List
+from typing import Type, Dict, Optional, List, TYPE_CHECKING
 
 from angr.errors import AngrNoPluginError
 
@@ -284,4 +284,5 @@ class VendorPreset(PluginPreset):
     """
     ...
 
-from ..state_plugins import SimStatePlugin
+if TYPE_CHECKING:
+    from ..state_plugins import SimStatePlugin
