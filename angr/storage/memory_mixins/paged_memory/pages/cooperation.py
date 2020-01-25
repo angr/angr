@@ -1,7 +1,7 @@
 import claripy
 import typing
 
-from ...memory_object import SimMemoryObject
+from angr.storage.memory_object import SimMemoryObject
 
 class CooperationBase:
     """
@@ -40,7 +40,7 @@ class MemoryObjectMixin(CooperationBase):
 
         return claripy.Concat(*(o.bytes_at(
                 a,
-                objects[i+1][0] - a if i != len(objects)-1 else size - a,
+                objects[i+1][0] - a if i != len(objects)-1 else objects[0][0] + size - a,
                 endness=endness)
             for i, (a, o) in enumerate(objects)))
 
@@ -48,6 +48,6 @@ class MemoryObjectMixin(CooperationBase):
     def _decompose_objects(cls, addr, data, endness, memory=None, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
         memory_object = SimMemoryObject(data, addr, endness, byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        size = yield
         while True:
-            yield
-            yield memory_object
+            size = yield memory_object

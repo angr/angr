@@ -1,26 +1,7 @@
 import typing
 
-from . import MemoryMixin
-from .pages.refcount_mixin import RefcountMixin
-from .pages.ispo_mixin import ISPOMixin
-from .pages.cooperation import CooperationBase
-
-class PageBase(RefcountMixin, CooperationBase, ISPOMixin, MemoryMixin):
-    """
-    This is a fairly succinct definition of the contract between PagedMemoryMixin and its constituent pages:
-
-    - Pages must implement the MemoryMixin model for loads, stores, copying, merging, etc
-    - However, loading/storing may not necessarily use the same data domain as PagedMemoryMixin. In order to do more
-      efficient loads/stores across pages, we use the CooperationBase interface which allows the page class to
-      determine how to generate and unwrap the objects which are actually stored.
-    - To support COW, we use the RefcountMixin and the ISPOMixin (which adds the contract element that ``memory=self``
-      be passed to every method call)
-
-    Read the docstrings for each of the constituent classes to understand the nuances of their functionalities
-    """
-    pass
-
-PageType = typing.TypeVar('PageType', bound=PageBase)
+from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.paged_memory.pages import PageType, ListStorageMixin
 
 class PagedMemoryMixin(MemoryMixin):
     PAGE_TYPE: typing.Type[PageType] = None  # must be provided in subclass
@@ -54,18 +35,15 @@ class PagedMemoryMixin(MemoryMixin):
             page = self._pages[pageno]
         except KeyError:
             page = self._initialize_page(pageno)
-            if page is None:
-                raise TypeError("Programming error: memory._initialize_page returned None")
             self._pages[pageno] = page
-            return page
-        else:
-            if writing:
-                page = page.acquire_unique()
-                self._pages[pageno] = page
-            return page
+
+        if writing:
+            page = page.acquire_unique()
+            self._pages[pageno] = page
+        return page
 
     def _initialize_page(self, pageno: int, **kwargs) -> PageType:
-        pass
+        return self.PAGE_TYPE(memory=self, memory_id='%s_%d' % (self.id, pageno))
 
     def _divide_addr(self, addr: int) -> typing.Tuple[int, int]:
         return divmod(addr, self.page_size)
@@ -88,7 +66,7 @@ class PagedMemoryMixin(MemoryMixin):
             vals.append(self._get_page(pageno, False, **kwargs).load(pageoff, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, **kwargs))
 
         else:
-            max_pageno = (1 >> self.state.arch.bits) // self.page_size
+            max_pageno = (1 << self.state.arch.bits) // self.page_size
             bytes_done = 0
             while bytes_done < size:
                 page = self._get_page(pageno, False, **kwargs)
@@ -104,7 +82,6 @@ class PagedMemoryMixin(MemoryMixin):
     def store(self, addr: int, data, size: int=None, endness=None, **kwargs):
         if endness is None:
             endness = self.endness
-        big = endness == 'Iend_BE'
 
         if type(size) is not int:
             raise TypeError("Need size to be resolved to an int by this point")
@@ -114,15 +91,16 @@ class PagedMemoryMixin(MemoryMixin):
 
         pageno, pageoff = self._divide_addr(addr)
         sub_gen = self.PAGE_TYPE._decompose_objects(addr, data, endness, memory=self, **kwargs)
+        next(sub_gen)
 
         # fasttrack basic case
         if pageoff + size <= self.page_size:
-            sub_gen.send(size)
-            sub_data = next(sub_gen)
+            sub_data = sub_gen.send(size)
             self._get_page(pageno, True, **kwargs).store(pageoff, sub_data, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, **kwargs)
+            sub_gen.close()
             return
 
-        max_pageno = (1 >> self.state.arch.bits) // self.page_size
+        max_pageno = (1 << self.state.arch.bits) // self.page_size
         bytes_done = 0
         while bytes_done < size:
             # if we really want we could add an optimization where writing an entire page creates a new page object
@@ -130,8 +108,7 @@ class PagedMemoryMixin(MemoryMixin):
             page = self._get_page(pageno, True, **kwargs)
             sub_size = min(self.page_size-pageoff, size-bytes_done)
 
-            sub_gen.send(sub_size)
-            sub_data = next(sub_gen)
+            sub_data = sub_gen.send(sub_size)
 
             page.store(pageoff, sub_data, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self, **kwargs)
 
@@ -139,3 +116,17 @@ class PagedMemoryMixin(MemoryMixin):
             pageno = (pageno + 1) % max_pageno
             pageoff = 0
 
+        sub_gen.close()
+
+    def _simple_store(self, page, addr, data, size, endness, **kwargs):
+        page_addr = addr - (addr % self.page_size)
+        sub_gen = self.PAGE_TYPE._decompose_objects(addr, data, endness, memory=self, **kwargs)
+        next(sub_gen)
+
+        sub_data = sub_gen.send(size)
+        page.store(0, sub_data, size=size, endness=endness, page_addr=page_addr, memory=self, **kwargs)
+        sub_gen.close()
+
+
+class ListPagesMixin(PagedMemoryMixin):
+    PAGE_TYPE = ListStorageMixin

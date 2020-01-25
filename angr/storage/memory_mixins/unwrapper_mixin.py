@@ -1,6 +1,9 @@
 from . import MemoryMixin
 
 class UnwrapperMixin(MemoryMixin):
+    """
+    This mixin processes SimActionObjects by passing on their .ast field.
+    """
     def store(self, addr, data, size=None, condition=None, **kwargs):
         return super().store(_raw_ast(addr), _raw_ast(data),
             size=_raw_ast(size),

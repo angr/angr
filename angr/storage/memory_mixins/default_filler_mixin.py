@@ -7,7 +7,7 @@ from ...misc.ux import once
 l = logging.getLogger(__name__)
 
 class DefaultFillerMixin(MemoryMixin):
-    def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
+    def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs):
         bits = size * self.state.arch.byte_width
 
         if type(addr) is int:
@@ -16,7 +16,9 @@ class DefaultFillerMixin(MemoryMixin):
             elif self.category == 'reg' and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
                 return self.state.solver.BVV(0, bits)
 
-        r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events)
+        if self.category == 'reg' and type(addr) is int and addr == self.state.arch.ip_offset:
+            # short-circuit this pathological case
+            return self.state.solver.BVV(0, self.state.arch.bits)
 
         is_mem = self.category == 'mem' and \
                  options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and \
@@ -55,8 +57,18 @@ class DefaultFillerMixin(MemoryMixin):
                         refplace_str = "unknown"
                 reg_str = self.state.arch.translate_register_name(addr, size=size)
                 l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, size, refplace_int, refplace_str)
+                if name is None and not reg_str.isdigit():
+                    name = reg_str
 
-            return r
+        if name is None:
+            if type(addr) is int:
+                name = '%s_%x' % (self.category, addr)
+            else:
+                name = self.category
+
+        r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events)
+
+        return r
 
 
 class SpecialFillerMixin(MemoryMixin):

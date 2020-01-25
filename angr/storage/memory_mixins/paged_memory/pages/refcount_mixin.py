@@ -1,7 +1,10 @@
 import threading
-from .. import MemoryMixin
+from angr.storage.memory_mixins import MemoryMixin
 
 class RefcountMixin(MemoryMixin):
+    """
+    This mixin adds a locked reference counter and methods to manipulate it, to facilitate copy-on-write optimizations.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.refcount = 1
