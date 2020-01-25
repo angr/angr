@@ -1,4 +1,4 @@
-from .. import MemoryMixin
+from angr.storage.memory_mixins import MemoryMixin
 
 class ISPOMixin(MemoryMixin):
     """

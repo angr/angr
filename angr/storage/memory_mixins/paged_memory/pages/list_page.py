@@ -1,7 +1,7 @@
 import typing
 
-from ..paged_memory_mixin import PageBase
-from ...memory_object import SimMemoryObject
+from . import PageBase
+from angr.storage.memory_object import SimMemoryObject
 from .cooperation import MemoryObjectMixin
 
 class ListStorageMixin(MemoryObjectMixin, PageBase):
@@ -33,7 +33,7 @@ class ListStorageMixin(MemoryObjectMixin, PageBase):
                     self._fill(result, addr, page_addr, endness, memory, **kwargs)
                 if item is None and self.sinkhole is not None:
                     item = self.sinkhole
-                result.append((addr + page_addr, item))
+                result.append((subaddr + page_addr, item))
                 last_seen = item
 
         if last_seen is None:
@@ -44,13 +44,17 @@ class ListStorageMixin(MemoryObjectMixin, PageBase):
         """
         Small utility function for behavior which is duplicated in load
 
-        mutates result to generate a new memory object and replace the last entry in it, which is None
+        mutates result to generate a new memory object and replace the last entry in it, which is None. Then, it will
+        insert the new memory object into self.content.
         """
-        global_addr = addr + page_addr
-        size = global_addr - result[-1]
-        new_ast = self._default_value(global_addr, size, key=('mem', global_addr), memory=memory, **kwargs)
-        new_item = SimMemoryObject(new_ast, global_addr, endness=endness, byte_width=memory.state.arch.byte_width if memory is not None else 8)
-        result[-1] = (result[-1][0], new_item)
+        global_end_addr = addr + page_addr
+        global_start_addr = result[-1][0]
+        size = global_end_addr - global_start_addr
+        new_ast = self._default_value(global_start_addr, size, key=(self.category, global_start_addr), memory=memory, **kwargs)
+        new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness, byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        for subaddr in range(global_start_addr - page_addr, addr):
+            self.content[subaddr] = new_item
+        result[-1] = (global_start_addr, new_item)
 
     def store(self, addr, data, size=None, endness=None, memory=None, **kwargs):
         if size == len(self.content) and addr == 0:
