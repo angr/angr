@@ -1320,7 +1320,7 @@ SimStateOptions.register_option("jumptable_symbolic_ip_max_targets", int,
 
 
 from angr.sim_state import SimState
-SimState.register_default('sym_memory', SimSymbolicMemory)
+#SimState.register_default('sym_memory', SimSymbolicMemory)
 
 from ..errors import SimUnsatError, SimMemoryError, SimMemoryLimitError, SimMemoryAddressError, SimMergeError
 from .. import sim_options as options

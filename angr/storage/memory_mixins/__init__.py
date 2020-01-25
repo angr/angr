@@ -26,9 +26,9 @@ Mixin list:
 """
 
 class MemoryMixin(SimStatePlugin):
-    def __init__(self, ident=None, endness='Iend_BE'):
+    def __init__(self, memory_id=None, endness='Iend_BE'):
         super().__init__()
-        self.id = ident
+        self.id = memory_id
         self.endness = endness
 
     @property
@@ -43,6 +43,9 @@ class MemoryMixin(SimStatePlugin):
 
         elif self.id.startswith('file'):
             return 'file'
+
+        elif '_' in self.id:
+            return self.id.split('_')[0]
 
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
@@ -79,3 +82,40 @@ class MemoryMixin(SimStatePlugin):
         pass
 
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
+from .address_concretization_mixin import AddressConcretizationMixin
+from .bvv_conversion_mixin import DataNormalizationMixin
+from .clouseau_mixin import InspectMixinHigh
+from .default_filler_mixin import DefaultFillerMixin
+from .name_resolution_mixin import NameResolutionMixin
+from angr.storage.memory_mixins.paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
+from angr.storage.memory_mixins.paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin
+from .simplification_mixin import SimplificationMixin
+from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
+from .underconstrained_mixin import UnderconstrainedMixin
+from .unwrapper_mixin import UnwrapperMixin
+from angr.storage.memory_mixins.paged_memory.pages import *
+
+class DefaultMemory(
+        UnwrapperMixin,
+        NameResolutionMixin,
+        DataNormalizationMixin,
+        SimplificationMixin,
+        InspectMixinHigh,
+        ActionsMixinHigh,
+        UnderconstrainedMixin,
+        AddressConcretizationMixin,
+        SizeConcretizationMixin,
+        SizeNormalizationMixin,
+        #InspectMixinLow,
+        ActionsMixinLow,
+        # -----
+        ClemoryBackerMixin,
+        DictBackerMixin,
+        ListPagesMixin,
+        DefaultFillerMixin,
+        PagedMemoryMixin,
+        ):
+    pass
+
+from angr.sim_state import SimState
+SimState.register_default('sym_memory', DefaultMemory)
