@@ -3,6 +3,7 @@ from typing import Optional, Any
 
 import claripy
 import archinfo
+from archinfo import RegisterName
 from typing import Union, Optional, List
 
 from .sim_type import SimType
