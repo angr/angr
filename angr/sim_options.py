@@ -289,7 +289,7 @@ CGC_ZERO_FILL_UNCONSTRAINED_MEMORY = ZERO_FILL_UNCONSTRAINED_MEMORY
 # Make sure the receive syscall always read as many bytes as the program wants
 CGC_NO_SYMBOLIC_RECEIVE_LENGTH = 'CGC_NO_SYMBOLIC_RECEIVE_LENGTH'
 BYPASS_VERITESTING_EXCEPTIONS = 'BYPASS_VERITESTING_EXCEPTIONS'
-# Make sure filedescriptors on transmit and recieve are always 1 and 0
+# Make sure filedescriptors on transmit and receive are always 1 and 0
 CGC_ENFORCE_FD = 'CGC_ENFORCE_FD'
 # FDWAIT will always return FDs as non blocking
 CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'

@@ -594,7 +594,7 @@ class SimState(PluginHub):
                                  a SimStateHistory instance that represents the common history between the states being
                                  merged. This is to allow optimal state merging when EFFICIENT_STATE_MERGING is
                                  disabled.
-        :return: (merged state, merge flag, a bool indicating if any merging occured)
+        :return: (merged state, merge flag, a bool indicating if any merging occurred)
         """
 
         merge_conditions = kwargs.pop('merge_conditions', None)
@@ -692,7 +692,7 @@ class SimState(PluginHub):
                 continue
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
             if plugin_state_widened:
-                l.debug('Widening occured in %s', p)
+                l.debug('Widening occurred in %s', p)
                 widening_occurred = True
 
         return widened, widening_occurred

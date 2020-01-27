@@ -46,7 +46,7 @@ def print_versions():
             print("Python could not find " + m)
             continue
         except Exception as e:
-            print("An error occured importing %s: %s" % (m, e))
+            print("An error occurred importing %s: %s" % (m, e))
         print("Python found it in %s" % (python_filename))
         try:
             pip_package = python_packages.get(m, m)

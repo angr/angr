@@ -251,7 +251,7 @@ class SimMount(SimStatePlugin):
 
         :param path_elements:   A list of path elements traversing from the mountpoint to the file
         :param simfile:         The file to insert
-        :return:                A bool indicating whether the insert occured
+        :return:                A bool indicating whether the insert occurred
         """
         raise NotImplementedError
 
@@ -260,7 +260,7 @@ class SimMount(SimStatePlugin):
         Implement this function to instrument file deletion.
 
         :param path_elements:   A list of path elements traversing from the mountpoint to the file
-        :return:                A bool indicating whether the delete occured
+        :return:                A bool indicating whether the delete occurred
         """
         raise NotImplementedError
 
