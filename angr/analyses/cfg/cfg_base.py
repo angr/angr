@@ -6,7 +6,7 @@ import networkx
 
 import pyvex
 from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
+from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource
 from cle.backends import NamedRegion
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
@@ -744,8 +744,9 @@ class CFGBase(Analysis):
 
         addrs = set()
         if isinstance(self._binary, ELF) and self._binary.has_dwarf_info:
-            for fde in self._binary.fdes:
-                addrs.add(fde.pc_begin)
+            for function_hint in self._binary.function_hints:
+                if function_hint.source == FunctionHintSource.EH_FRAME:
+                    addrs.add(function_hint.addr)
         return addrs
 
     #
