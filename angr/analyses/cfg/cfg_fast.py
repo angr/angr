@@ -445,6 +445,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  cfb=None,
                  model=None,
                  use_patches=False,
+                 elf_eh_frame=True,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  collect_data_references=None, # deprecated
@@ -488,6 +489,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                              types will be loaded.
         :param base_state:              A state to use as a backer for all memory loads
         :param bool detect_tail_calls:  Enable aggressive tail-call optimization detection.
+        :param bool elf_eh_frame:       Retrieve function starts (and maybe sizes later) from the .eh_frame of ELF
+                                        binaries.
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -580,6 +583,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
         self._force_complete_scan = force_complete_scan
+        self._use_elf_eh_frame = elf_eh_frame
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
@@ -983,6 +987,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self._use_symbols:
             starting_points |= self._function_addresses_from_symbols
+
+        if self._use_elf_eh_frame:
+            starting_points |= self._function_addresses_from_eh_frame
 
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
