@@ -670,7 +670,7 @@ class Structurer(Analysis):
             if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
                 if isinstance(node.node, ConditionalBreakNode):
                     # Put conditions together and simplify them
-                    cond = claripy.And(node.reaching_condition, self._bool_variable_from_ail_condition(node.node.condition))
+                    cond = claripy.And(node.reaching_condition, node.node.condition)
                     new_node = CodeNode(ConditionalBreakNode(node.node.addr, cond, node.node.target), None)
                 else:
                     new_node = ConditionNode(node.addr, None, node.reaching_condition, node,
