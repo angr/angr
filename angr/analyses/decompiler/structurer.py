@@ -478,7 +478,11 @@ class Structurer(Analysis):
                         raise Exception()
                     # remove the last statement from the node
                     self._remove_last_statement(node)
-                    new_node = ConditionalBreakNode(last_stmt.ins_addr, cond, target)
+                    new_node = ConditionalBreakNode(
+                        last_stmt.ins_addr,
+                        self._bool_variable_from_ail_condition(cond),
+                        target
+                    )
 
                 if new_node is not None:
                     # special checks if node goes empty
