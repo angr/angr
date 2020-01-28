@@ -24,7 +24,7 @@ def test_baseptr_save_simplifier_amd64():
     bin_path = os.path.join(test_location, "x86_64", "all")
     proj = angr.Project(bin_path, auto_load_libs=False)
 
-    cfg = proj.analyses.CFG(data_references=True)
+    cfg = proj.analyses.CFG(data_references=True, normalize=True)
 
     optimization_passes = [ BasePointerSaveSimplifier ]
     main_func = cfg.functions['main']
@@ -50,7 +50,7 @@ def test_baseptr_save_simplifier_amd64():
 
 def check_bp_save_fauxware(arch):
     p = angr.Project(os.path.join(test_location, arch, 'fauxware'), auto_load_libs=False)
-    cfg = p.analyses.CFGFast()
+    cfg = p.analyses.CFGFast(normalize=True)
     main = p.kb.functions['main']
     optimization_passes = [ BasePointerSaveSimplifier ]
     dra = p.analyses.Decompiler(main, cfg=cfg, optimization_passes=optimization_passes)
