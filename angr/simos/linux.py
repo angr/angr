@@ -156,7 +156,7 @@ class SimLinux(SimUserland):
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
-            cwd=b'/home/user', pathsep=b'/', **kwargs):
+            cwd=None, pathsep=b'/', **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs)
 
         if self.project.loader.tls_object is not None:
@@ -188,7 +188,26 @@ class SimLinux(SimUserland):
 
         mounts = {}
         if concrete_fs:
-            mounts[pathsep] = SimHostFilesystem(chroot if chroot is not None else os.path.sep)
+            if fs:
+                raise TypeError("Providing both fs and concrete_fs doesn't make sense")
+            if chroot is not None:
+                chroot = os.path.abspath(chroot)
+            else:
+                chroot = os.path.sep
+            mounts[pathsep] = SimHostFilesystem(chroot)
+            if cwd is None:
+                cwd = os.getcwd()
+
+                if chroot != os.path.sep:
+                    # try to translate the cwd into the chroot
+                    if cwd.startswith(chroot):
+                        cwd = cwd[len(chroot):]
+                    else:
+                        cwd = os.path.sep
+                cwd = cwd.encode()
+        else:
+            if cwd is None:
+                cwd = b'/home/user'
 
         state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
