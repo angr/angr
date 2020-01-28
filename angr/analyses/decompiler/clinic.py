@@ -24,6 +24,9 @@ class Clinic(Analysis):
         # Delayed import
         import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
 
+        if not func.normalized:
+            raise ValueError("Decompilation must work on normalized function graphs.")
+
         self.function = func
 
         self.graph = None
