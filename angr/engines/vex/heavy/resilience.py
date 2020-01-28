@@ -24,8 +24,10 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         return self.__make_default(retty, True, 'errored_' + func_name)
 
     def _check_unsupported_dirty(self, func_name, retty, args, **kwargs):
-        if o.BYPASS_UNSUPPORTED_IRDIRTY in self.state.options:
+        if o.BYPASS_UNSUPPORTED_IRDIRTY not in self.state.options:
             return super()._check_unsupported_dirty(func_name, retty, args, **kwargs)
+        if retty is None:
+            return None
         return self.__make_default(retty, o.UNSUPPORTED_BYPASS_ZERO_DEFAULT not in self.state.options, 'unsupported_' + func_name)
 
     def _check_unsupported_op(self, op, args):
