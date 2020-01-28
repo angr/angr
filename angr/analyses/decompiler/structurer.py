@@ -911,7 +911,10 @@ class Structurer(Analysis):
             return var
         elif isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
-            var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits)
+            if condition.bits == 1:
+                var = claripy.BoolV('ailtmp_%d' % condition.tmp_idx)
+            else:
+                var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits)
             self._condition_mapping[var] = condition
             return var
 
