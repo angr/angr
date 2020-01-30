@@ -22,7 +22,7 @@ class ListStorageMixin(MemoryObjectMixin, PageBase):
 
     def load(self, addr, size=None, endness=None, page_addr=None, memory=None, **kwargs):
         result = []
-        last_seen = ...
+        last_seen = ...  # ;)
 
         # loop over the loading range. accumulate a result for each byte, but collapse results from adjacent bytes
         # using the same memory object

@@ -53,8 +53,11 @@ class SizeConcretizationMixin(MemoryMixin):
         if getattr(size, 'op', 'BVV') != 'BVV':
             return super().load(addr, size=size, **kwargs)
 
-        l.warning("Loading symbolic size via max. be careful.")
-        out_size = self.state.solver.max(size)
+        if getattr(size, 'op', 'BVV') != 'BVV':
+            l.warning("Loading symbolic size via max. be careful.")
+            out_size = self.state.solver.max(size)
+        else:
+            out_size = size
         return super().load(addr, size=out_size, **kwargs)
 
     def store(self, addr, data, size=None, condition=None, **kwargs):
