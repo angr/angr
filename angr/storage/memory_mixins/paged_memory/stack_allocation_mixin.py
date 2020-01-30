@@ -7,33 +7,32 @@ class StackAllocationMixin(PagedMemoryMixin):
     """
     # TODO: multiple stacks. this scheme should scale p well
     # TODO tbh this should be handled by an actual fault handler in simos or something
-    def __init__(self, stack_end=None, stack_size=None, stack_perms=3, **kwargs):
+    def __init__(self, stack_end=None, stack_size=None, stack_perms=None, **kwargs):
         super().__init__(**kwargs)
-        self._red_page = (stack_end - 1) // self.page_size if stack_end is not None else None
-        self._remaining_stack = stack_size // self.page_size if stack_size is not None else None
+        self._red_pageno = (stack_end - 1) // self.page_size if stack_end is not None else None
+        self._remaining_stack = stack_size
         self._stack_perms = stack_perms
 
     def copy(self, memo):
         o = super().copy(memo)
-        o._red_page = self._red_page
+        o._red_pageno = self._red_pageno
         o._remaining_stack = self._remaining_stack
         o._stack_perms = self._stack_perms
         return o
 
     def _initialize_page(self, pageno: int, **kwargs):
-        if pageno != self._red_page:
+        if pageno != self._red_pageno:
             return super()._initialize_page(pageno, **kwargs)
 
-        new_red_page = ((pageno - 1) % ((1 << self.state.arch.bits) // self.page_size) - 1)
-        if new_red_page in self._pages:
+        new_red_pageno = ((pageno - 1) % ((1 << self.state.arch.bits) // self.page_size) - 1)
+        if new_red_pageno in self._pages:
             raise SimSegfaultException(pageno * self.page_size, "stack collided with heap")
 
-        if self._remaining_stack == 0:
+        if self._remaining_stack < self.page_size:
             raise SimSegfaultException(pageno * self.page_size, "exhausted stack quota")
 
-        self._red_page = new_red_page
-        self._remaining_stack -= 1
+        self._red_pageno = new_red_pageno
+        self._remaining_stack -= self.page_size
 
-        new_page = PagedMemoryMixin._initialize_page(self, pageno, **kwargs)
-        new_page.permissions = self._stack_perms
+        new_page = PagedMemoryMixin._initialize_page(self, pageno, permissions=self._stack_perms, **kwargs)
         return new_page

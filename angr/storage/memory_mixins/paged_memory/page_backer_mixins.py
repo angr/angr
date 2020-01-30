@@ -9,17 +9,23 @@ l = logging.getLogger(__name__)
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):
-    def __init__(self, memory_backer=None, **kwargs):
-        if memory_backer is None or type(memory_backer) is cle.Clemory:
-            super().__init__(**kwargs)
-            self._clemory_backer = memory_backer
+    def __init__(self, cle_memory_backer=None, **kwargs):
+        super().__init__(**kwargs)
+
+        if isinstance(cle_memory_backer, cle.Loader):
+            self._cle_loader = cle_memory_backer
+            self._clemory_backer = cle_memory_backer.memory
+        elif isinstance(cle_memory_backer, cle.Clemory):
+            self._cle_loader = None
+            self._clemory_backer = cle_memory_backer
         else:
-            super().__init__(memory_backer=memory_backer, **kwargs)
+            self._cle_loader = None
             self._clemory_backer = None
 
     def copy(self, memo):
         o = super().copy(memo)
         o._clemory_backer = self._clemory_backer
+        o._cle_loader = self._cle_loader
         return o
 
     def _initialize_page(self, pageno, **kwargs):
@@ -29,7 +35,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         addr = pageno * self.page_size
 
         try:
-            backer_start, backer = next(self._clemory_backer.memory.backers(addr))
+            backer_start, backer = next(self._clemory_backer.backers(addr))
         except StopIteration:
             return super()._initialize_page(pageno, **kwargs)
 
@@ -42,6 +48,8 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         else:
             data = memoryview(backer)[addr-backer_start:addr-backer_start+self.page_size]
 
+        permissions = self._cle_permissions_lookup(addr)
+
         # TODO: if any pages implement new_from_shared it could save us a lot of copying
         if type(data) is memoryview:
             try:
@@ -49,35 +57,48 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             except AttributeError:
                 data = claripy.BVV(bytes(data))
             else:
-                return new_from_shared(data, memory_id='%s_%d' % (self.id, pageno), memory=self)
+                if permissions is None:
+                    permissions = self._default_permissions
+                return new_from_shared(data, memory_id='%s_%d' % (self.id, pageno), memory=self, permissions=permissions)
 
-        new_page = PagedMemoryMixin._initialize_page(self, pageno, **kwargs)
+        new_page = PagedMemoryMixin._initialize_page(self, pageno, permissions=permissions, **kwargs)
         self._simple_store(new_page, addr, data, self.page_size, 'Iend_BE', **kwargs)
         return new_page
 
+    def _cle_permissions_lookup(self, addr):
+        if self._cle_loader is None:
+            return None
+
+        seg = self._cle_loader.find_segment_containing(addr, skip_pseudo_objects=False)
+        if seg is None:
+            return None
+
+        out = 0
+        if seg.is_readable: out |= 1
+        if seg.is_writable: out |= 2
+        if seg.is_executable: out |= 4
+
+        return out
+
 class DictBackerMixin(PagedMemoryMixin):
-    def __init__(self, memory_backer=None, **kwargs):
-        if memory_backer is None or type(memory_backer) is dict:
-            super().__init__(**kwargs)
-            self._dict_backer = memory_backer
-        else:
-            super().__init__(memory_backer=memory_backer, **kwargs)
-            self._dict_backer = None
+    def __init__(self, dict_memory_backer=None, **kwargs):
+        super().__init__(**kwargs)
+        self._dict_memory_backer = dict_memory_backer
 
     def copy(self, memo):
         o = super().copy(memo)
-        o._dict_backer = self._dict_backer
+        o._dict_memory_backer = self._dict_memory_backer
         return o
 
     def _initialize_page(self, pageno: int, **kwargs):
         page_addr = pageno * self.page_size
 
-        if self._dict_backer is None:
+        if self._dict_memory_backer is None:
             return super()._initialize_page(pageno, **kwargs)
 
         new_page = None
 
-        for addr, byte in self._dict_backer.items():
+        for addr, byte in self._dict_memory_backer.items():
             if page_addr <= addr < page_addr + self.page_size:
                 if new_page is None:
                     new_page = PagedMemoryMixin._initialize_page(self, pageno, **kwargs)

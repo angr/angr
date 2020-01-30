@@ -50,12 +50,29 @@ class SimState(PluginHub):
     :ivar libc:         Information about the standard library we are emulating
     :ivar cgc:          Information about the cgc environment
     :ivar uc_manager:   Control of under-constrained symbolic execution
-    :ivar str unicorn:      Control of the Unicorn Engine
+    :ivar unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
-                 options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
-                 plugin_preset='default', **kwargs):
+    def __init__(
+            self,
+            project=None,
+            arch=None,
+            plugins=None,
+            mode=None,
+            options=None,
+            add_options=None,
+            remove_options=None,
+            special_memory_filler=None,
+            os_name=None,
+            plugin_preset='default',
+            cle_memory_backer=None,
+            dict_memory_backer=None,
+            permissions_map=None,
+            default_permissions=None,
+            stack_perms=None,
+            stack_end=None,
+            stack_size=None,
+            **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
@@ -148,8 +165,9 @@ class SimState(PluginHub):
 
             else:
                 sim_memory_cls = self.plugin_preset.request_plugin('sym_memory')
-                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem',
-                                            permissions_backer=permissions_backer)
+                sim_memory = sim_memory_cls(cle_memory_backer=cle_memory_backer, dict_memory_backer=dict_memory_backer, memory_id='mem',
+                                            permissions_map=permissions_map, default_permissions=default_permissions,
+                                            stack_perms=stack_perms, stack_end=stack_end)
 
             # Add memory plugin
             if not self._is_java_jni_project:
@@ -289,7 +307,10 @@ class SimState(PluginHub):
 
         :return: an expression
         """
-        return self.regs._ip
+        try:
+            return self.regs._ip
+        except AttributeError as e:
+            raise TypeError(str(e)) from e
 
     @_ip.setter
     def _ip(self, val):
@@ -299,8 +320,10 @@ class SimState(PluginHub):
         :param val: The new instruction pointer.
         :return:    None
         """
-
-        self.regs._ip = val
+        try:
+            self.regs._ip = val
+        except AttributeError as e:
+            raise TypeError(str(e)) from e
 
     @property
     def addr(self):

@@ -229,7 +229,7 @@ class AddressConcretizationMixin(MemoryMixin):
                 raise
 
         # quick optimization so as to not involve the solver if not necessary
-        trivial = len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true()
+        trivial = type(addr) is int or (len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true())
         if not trivial:
             # apply the concretization results to the state
             constraint_options = [addr == concrete_addr for concrete_addr in concrete_addrs]
@@ -268,7 +268,7 @@ class AddressConcretizationMixin(MemoryMixin):
                 raise
 
         # quick optimization so as to not involve the solver if not necessary
-        trivial = len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true()
+        trivial = type(addr) is int or (len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true())
         if not trivial:
             # apply the concretization results to the state
             constraint_options = [addr == concrete_addr for concrete_addr in concrete_addrs]
