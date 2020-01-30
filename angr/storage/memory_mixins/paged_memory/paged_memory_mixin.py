@@ -6,10 +6,12 @@ from angr.storage.memory_mixins.paged_memory.pages import PageType, ListStorageM
 class PagedMemoryMixin(MemoryMixin):
     PAGE_TYPE: typing.Type[PageType] = None  # must be provided in subclass
 
-    def __init__(self,  page_size=0x1000, **kwargs):
+    def __init__(self,  page_size=0x1000, default_permissions=3, permissions_map=None, **kwargs):
         super().__init__(**kwargs)
         self.page_size = page_size
 
+        self._permissions_map = permissions_map if permissions_map is not None else {}
+        self._default_permissions = default_permissions
         self._pages: typing.Dict[int, PageType] = {}
 
     def __del__(self):
@@ -24,6 +26,8 @@ class PagedMemoryMixin(MemoryMixin):
 
         o.page_size = self.page_size
         o._pages = dict(self._pages)
+        o._permissions_map = self._permissions_map
+        o._default_permissions = self._default_permissions
 
         for page in o._pages.values():
             page.acquire_shared()
@@ -42,8 +46,20 @@ class PagedMemoryMixin(MemoryMixin):
             self._pages[pageno] = page
         return page
 
-    def _initialize_page(self, pageno: int, **kwargs) -> PageType:
-        return self.PAGE_TYPE(memory=self, memory_id='%s_%d' % (self.id, pageno))
+    def _initialize_page(self, pageno: int, permissions=None, **kwargs) -> PageType:
+        # permissions lookup: let permissions kwarg override everything else
+        # then try the permissions map
+        # then fall back to the default permissions
+        if permissions is None:
+            permissions = self._default_permissions
+            addr = pageno * self.page_size
+
+            for (start, end), perms in self._permissions_map.items():
+                if start <= addr <= end:
+                    permissions = perms
+                    break
+
+        return self.PAGE_TYPE(memory=self, memory_id='%s_%d' % (self.id, pageno), permissions=permissions)
 
     def _divide_addr(self, addr: int) -> typing.Tuple[int, int]:
         return divmod(addr, self.page_size)

@@ -50,13 +50,12 @@ class InspectMixinHigh(MemoryMixin):
 
     def load(self, addr, size=None, condition=None, endness=None, inspect=True, **kwargs):
         if not inspect or not self.state.supports_inspect:
-            super().load(addr,
+            return super().load(addr,
                 size=size,
                 condition=condition,
                 endness=endness,
                 inspect=inspect,
                 **kwargs)
-            return
 
         if self.category == 'reg':
             self.state._inspect('reg_read', BP_BEFORE,
