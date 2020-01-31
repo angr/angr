@@ -10,7 +10,7 @@ def setup():
 
     # clean up AST cache in claripy, because a cached AST might believe it has been stored in ana after we clean up the
     # ana storage
-    import claripy
+    import claripy  # pylint:disable=import-outside-toplevel
     claripy.ast.bv._bvv_cache.clear()
     claripy.ast.bv.BV._hash_cache.clear()
 
@@ -19,7 +19,7 @@ def teardown():
 
 def pickle_callback(state):
     state.globals['pickled'] = True
-def unpickle_callback(state):
+def unpickle_callback(sid, state):  # pylint:disable=unused-argument
     state.globals['unpickled'] = True
 def priority_key(state):
     return state.addr * state.history.depth # to help ensure determinism
