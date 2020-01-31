@@ -1,6 +1,8 @@
 import claripy
 import angr
 
+import nose.tools
+
 class A:
 	n = 0
 
@@ -16,7 +18,7 @@ def do_vault_identity(v_factory):
 	c.n = 2
 
 	aid = v.store(a)
-	assert len(v.keys()) == 1
+	nose.tools.assert_equal(len(v.keys()), 1, msg="Current keys: %s" % v.keys())
 	bid = v.store(b)
 	assert len(v.keys()) == 2
 	cid = v.store(c)
