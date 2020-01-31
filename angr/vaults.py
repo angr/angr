@@ -347,7 +347,7 @@ class VaultDirShelf(VaultDict):
         s = [ ]
         for n in os.listdir(self._d):
             if n.endswith(".dat"):
-                s.append(n[:-4])  # remove the prefix
+                s.append(n[:-4])  # remove the suffix
         return s
 
 
