@@ -91,14 +91,19 @@ def test_vault():
 	yield do_vault_noidentity, angr.vaults.VaultDir
 	yield do_vault_noidentity, angr.vaults.VaultShelf
 	yield do_vault_noidentity, angr.vaults.VaultDict
+	yield do_vault_noidentity, angr.vaults.VaultDirShelf
 	yield do_vault_identity, angr.vaults.VaultDir
 	yield do_vault_identity, angr.vaults.VaultShelf
 	yield do_vault_identity, angr.vaults.VaultDict
+	# VaultDirShelf does not guarantee identity equivalence due to the absence of caching
+	# yield do_vault_identity, angr.vaults.VaultDirShelf
 
 def test_ast_vault():
 	yield do_ast_vault, angr.vaults.VaultDir
 	yield do_ast_vault, angr.vaults.VaultShelf
 	yield do_ast_vault, angr.vaults.VaultDict
+	# VaultDirShelf does not guarantee identity equivalence due to the absence of caching
+	# yield do_ast_vault, angr.vaults.VaultDirShelf
 
 def test_project():
 	v = angr.vaults.VaultDir()
