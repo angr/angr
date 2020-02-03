@@ -8,12 +8,13 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 import networkx as nx
 import re
 from ailment.converter import IRSBConverter
+from ailment.analyses.block_simplifier import BlockSimplifier
 from ailment.manager import Manager
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
-filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
-#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
+#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
+filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
@@ -186,10 +187,6 @@ def remove_junk(cfg, proj, start_addr):
     new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
     return new_cfg
 
-#def simplify_conditional_jumps(cfg, proj, start_addr):
-
-
-
 def simplifications(cfg, proj, start_addr):
     if start_addr == None:
         main = proj.loader.main_object.get_symbol("main")
@@ -197,32 +194,14 @@ def simplifications(cfg, proj, start_addr):
 
     for node in list(cfg.graph.nodes()):
         if not node.is_simprocedure:
-            old_stmts = node.irsb.statements
-            new_stmts = []
-            # manager = Manager("manager",node.irsb.arch)
-            # print(IRSBConverter.convert(node.irsb, manager))
-            # if len(old_stmts) == 3 and isinstance(old_stmts[0], pyvex.stmt.IMark) and isinstance(old_stmts[1], pyvex.expr.ITE) and type(old_stmts[1].cond) == pyvex.expr.Const:
-            #     nodes_to_remove.append(node)
-            ind = 0
-            while ind < len(old_stmts):
-                ###### This looks for a particular pattern of moving a constant into the stack, and removes that(THIS IS A HACK SINCE DDG DOES NOT TRACK SYMBOLIC MEMORY ACCESSES)
-                # if isinstance(old_stmts[ind], pyvex.stmt.IMark):
-                #     if isinstance(old_stmts[ind+1], pyvex.stmt.WrTmp):
-                #         if isinstance(old_stmts[ind+2], pyvex.stmt.WrTmp):
-                #             if isinstance(old_stmts[ind + 3], pyvex.stmt.WrTmp):
-                #                 if isinstance(old_stmts[ind + 4], pyvex.stmt.Store) and type(old_stmts[ind + 4].data) == pyvex.expr.Const:
-                #                     if ind+4 == len(old_stmts)-1 or isinstance(old_stmts[ind + 5], pyvex.stmt.IMark):
-                #                         ind = ind+5
-                #                         continue
-                new_stmts.append(old_stmts[ind])
-                ind = ind+1
-            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
-                                               node.irsb.addr,
-                                               statements=new_stmts,
-                                               tyenv=node.irsb.tyenv,
-                                               nxt=node.irsb.next,
-                                               direct_next=node.irsb.direct_next,
-                                               jumpkind=node.irsb.jumpkind)
+            manager = Manager("manager",node.irsb.arch)
+            ail_block = IRSBConverter.convert(node.irsb, manager)
+            print("Original:")
+            print(ail_block)
+            simplified_ail_block = proj.analyses.AILBlockSimplifier(ail_block)
+            print("\nSimplified:")
+            print(simplified_ail_block.result_block)
+            print("\n\n")
 
     ### Returning a new CFGEmulated object with the updated graph
     simplified_new_model = new_model_graph(cfg.graph, proj, 'simplify1')
@@ -249,7 +228,7 @@ def dead_code_elimination(cfg, proj, start_addr):
             print(node.simprocedure_name)
             old_stmts = node.irsb.statements
             new_stmts = []
-            print(node.irsb.pp)
+            print(node.irsb.pp())
             print(node.block_id)
             for ind, stmt in enumerate(old_stmts):
                 if isinstance(stmt, pyvex.stmt.IMark) and ind == len(old_stmts)-1:
@@ -288,10 +267,14 @@ def dead_code_elimination(cfg, proj, start_addr):
                 preds = cfg.graph.predecessors(node)
                 for pred in preds:
                     pred_edge_data = cfg.graph.get_edge_data(pred, node)
-                    cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
                     ### Rassigning the next expression of the previous
-                    pred.irsb.next = node.irsb.next
-                cfg.graph.remove_node(node)
+                    if not pred.is_simprocedure:
+                        cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
+                        pred.irsb.next = node.irsb.next
+                        cfg.graph.remove_node(node)
+                    else:
+                        print("Not removing this block, since there the previous block is a Sim Procedure")
+
 
 
             else:
@@ -459,7 +442,7 @@ def compare_vex(initial_cfg, final_cfg):
                         initial_cfg_index += 1
                 ### If both statements are Store to the same variable but different value then make it orange, otherwise red
                 elif isinstance(initial_cfg_node_stmts[initial_cfg_index], pyvex.stmt.Store) and isinstance(final_cfg_node_stmts[final_cfg_index], pyvex.stmt.Store):
-                    if str(initial_cfg_node_stmts[initial_cfg_index].addr) == str(final_cfg_node_stmts[final_cfg_index].addr):
+                    if (str(initial_cfg_node_stmts[initial_cfg_index].addr) == str(final_cfg_node_stmts[final_cfg_index].addr)) or (str(initial_cfg_node_stmts[initial_cfg_index].data) == str(final_cfg_node_stmts[final_cfg_index].data)):
                         initial_cfg_node_stmt_str = initial_cfg_node_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + \
                                                     initial_cfg_node_stmts[initial_cfg_index].__str__(
                                                         arch=initial_cfg_node.irsb.arch,
@@ -537,10 +520,20 @@ def pattern_match_to_x86_instructions(final_cfg, proj):
                         x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr)) + ": lea " + match_result.group(3) + ", " + "[" + match_result.group(1) + " + " + match_result.group(2)+"]" +"</FONT>"
                         continue
 
-                    match_result = re.match("\nPUT\((\w+)\)\s=\s(0x\w+)",cur_ins_str)
+                    match_result = re.match("\nPUT\((\w+)\)\s=\s(0x\w+)", cur_ins_str)
+                    if match_result:
+                        x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr)) + ": lea " + match_result.group(1) + ", " + "[" + match_result.group(2)+ "]" + "</FONT>"
+                        continue
+
+                    match_result = re.match("\nt\d+\s=\sLDle:I32\((0x\w+)\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+", cur_ins_str)
                     if match_result:
                         x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
-                            hex(curr_ins_addr)) + ": lea " + match_result.group(1) + ", " + "[" + match_result.group(2)+ "]" + "</FONT>"
+                            hex(curr_ins_addr)) + ": mov " + match_result.group(2) + ", dword ptr " + "[" + match_result.group(1) + "]" + "</FONT>"
+                        continue
+
+                    match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\s64to32\(t\d+\)\nSTle\((0x\w+)\)\s=\s(t\d+)", cur_ins_str)
+                    if match_result:
+                        x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr)) + ": mov " + "dword ptr " + "[" + match_result.group(2) + "], " + match_result.group(1)  + "</FONT>"
                         continue
 
                     x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='blue'>" + str(original_instructions[original_addresses.index(curr_ins_addr)]).replace("\t", " ") + "</FONT>"
@@ -581,12 +574,12 @@ new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-new_cfg = simplifications(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+simplifications(new_cfg, proj, start_addr=start_addr)
 draw_graph(new_cfg, folder_name+"/final_result.svg")
 draw_original_graph(new_cfg, folder_name+"/comparision_graph.svg", proj)
 compare_vex(initial_cfg, new_cfg)
