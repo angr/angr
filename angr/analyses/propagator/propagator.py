@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import ailment
 
+from ... import sim_options as o
 from ...engines.light import SpOffset
 from .. import register_analysis
 from ..analysis import Analysis
@@ -10,7 +11,7 @@ from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNode
 from .values import TOP
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
-
+from collections import defaultdict
 
 # The base state
 
@@ -56,6 +57,7 @@ class PropagatorVEXState(PropagatorState):
         super().__init__(arch, replacements=replacements)
         self.registers = {} if registers is None else registers  # offset to values
         self.local_variables = {} if local_variables is None else local_variables  # offset to values
+        self.constant_memory = defaultdict(set)
 
     def __repr__(self):
         return "<PropagatorVEXState>"
@@ -99,6 +101,12 @@ class PropagatorVEXState(PropagatorState):
             return self.local_variables[offset]
         except KeyError:
             return TOP
+
+    def store_memory(self, addr, size, value):
+        self.constant_memory[addr] = value
+
+    def load_memory(self, addr, size):
+        return self.constant_memory[addr]
 
     def store_register(self, offset, size, value):
         if size != self.gpr_size:
@@ -259,6 +267,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             engine = self._engine_vex
 
         state = state.copy()
+        # Suppress spurious output
+        self._base_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+        self._base_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
         state = engine.process(state, block=block, project=self.project, base_state=self._base_state,
                                load_callback=self._load_callback, fail_fast=self._fail_fast)
 

@@ -105,6 +105,9 @@ class SimEnginePropagatorVEX(
         if isinstance(addr, SpOffset):
             # Local variables
             self.state.store_local_variable(addr.offset, size, data)
+        elif isinstance(addr, int):
+            self.state.store_memory(addr, 8, data)
+            self.state.add_replacement(self._codeloc(block_only=True), addr, data)
         # EDG says: This doesn't match Load entirely, this is probably wrong
 
     def _handle_Store(self, stmt):
