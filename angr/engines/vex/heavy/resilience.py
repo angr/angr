@@ -5,7 +5,8 @@ from ..claripy.datalayer import ClaripyDataMixin, symbol, value
 from angr import sim_options as o
 
 class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
-    def __make_default(self, ty, symbolic, name):
+    @staticmethod
+    def __make_default(ty, symbolic, name):
         if symbolic:
             return symbol(ty, name)
         else:
@@ -17,18 +18,18 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         self.state.history.add_event('resilience', resilience_type='ccall', callee=func_name, message='unsupported ccall')
         return self.__make_default(retty, o.UNSUPPORTED_BYPASS_ZERO_DEFAULT not in self.state.options, 'unsupported_' + func_name)
 
-    def _check_errored_ccall(self, func_name, retty, args, **kwargs):
+    def _check_errored_ccall(self, func_name, ty, args, **kwargs):
         if o.BYPASS_ERRORED_IRCCALL not in self.state.options:
-            return super()._check_errored_ccall(func_name, retty, args, **kwargs)
+            return super()._check_errored_ccall(func_name, ty, args, **kwargs)
         self.state.history.add_event('resilience', resilience_type='ccall', callee=func_name, message='ccall raised SimCCallError')
-        return self.__make_default(retty, True, 'errored_' + func_name)
+        return self.__make_default(ty, True, 'errored_' + func_name)
 
-    def _check_unsupported_dirty(self, func_name, retty, args, **kwargs):
+    def _check_unsupported_dirty(self, func_name, ty, args, **kwargs):
         if o.BYPASS_UNSUPPORTED_IRDIRTY not in self.state.options:
-            return super()._check_unsupported_dirty(func_name, retty, args, **kwargs)
-        if retty is None:
+            return super()._check_unsupported_dirty(func_name, ty, args, **kwargs)
+        if ty is None:
             return None
-        return self.__make_default(retty, o.UNSUPPORTED_BYPASS_ZERO_DEFAULT not in self.state.options, 'unsupported_' + func_name)
+        return self.__make_default(ty, o.UNSUPPORTED_BYPASS_ZERO_DEFAULT not in self.state.options, 'unsupported_' + func_name)
 
     def _check_unsupported_op(self, op, args):
         ty = pyvex.get_op_retty(op)
@@ -65,4 +66,3 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
                 stmt=type(stmt).__name__,
                 message='errored IRStmt')
         return None
-
