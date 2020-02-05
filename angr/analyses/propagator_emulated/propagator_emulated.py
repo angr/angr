@@ -15,9 +15,6 @@ from .engines.hook import SimEngineHook
 from ..cfg.cfg_utils import CFGUtils
 from ...engines.successors import SimSuccessors
 
-from ... import SIM_PROCEDURES
-from ...engines import SimEngineProcedure
-
 class EmulatedCFGVisitor(GraphVisitor):
     def __init__(self, graph, start):
         super(EmulatedCFGVisitor, self).__init__()
@@ -235,6 +232,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._engine_vex = SimEngineVEX(project=self.project)
         self._engine_syscall = SimEngineSyscall(project=self.project)
         self._engine_hook = SimEngineHook(project=self.project)
+
         self._engine_ail = None
 
 
@@ -274,6 +272,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
+        print(node)
         concrete_state = abstract_state.get_concrete_state(node.addr)
         node.input_state = concrete_state
         if concrete_state is None:
