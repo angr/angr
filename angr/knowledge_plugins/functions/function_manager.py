@@ -1,5 +1,5 @@
 import logging
-import collections
+import collections.abc
 from sortedcontainers import SortedDict
 import networkx
 
@@ -58,7 +58,7 @@ class FunctionDict(SortedDict):
             raise KeyError(addr)
 
 
-class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
+class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     """
     This is a function boundaries management tool. It takes in intermediate
     results during CFG generation, and manages a function map of the binary.

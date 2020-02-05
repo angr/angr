@@ -130,6 +130,36 @@ def test_ccall():
     nose.tools.assert_true(s.solver.is_true(sf == 0))
     nose.tools.assert_true(s.solver.is_true(of == 0))
 
+    l.debug("Testing amd64_actions_ADCX")
+
+    l.debug("(ADCX, 32-bit) 0xffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffff, 32)
+    arg_r = s.solver.BVV(1, 32)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 32, arg_l, arg_r, s.solver.BVV(0, 32), True, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 1))
+    nose.tools.assert_true(s.solver.is_true(of == 0))
+
+    l.debug("(ADOX, 32-bit) 0xffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffff, 32)
+    arg_r = s.solver.BVV(1, 32)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 32, arg_l, arg_r, s.solver.BVV(0, 32), False, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 0))
+    nose.tools.assert_true(s.solver.is_true(of == 1))
+
+    l.debug("(ADCX, 64-bit) 0xffffffffffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffffffffffff, 64)
+    arg_r = s.solver.BVV(1, 64)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 64, arg_l, arg_r, s.solver.BVV(0, 64), True, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 1))
+    nose.tools.assert_true(s.solver.is_true(of == 0))
+
+    l.debug("(ADOX, 64-bit) 0xffffffffffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffffffffffff, 64)
+    arg_r = s.solver.BVV(1, 64)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 64, arg_l, arg_r, s.solver.BVV(0, 64), False, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 0))
+    nose.tools.assert_true(s.solver.is_true(of == 1))
+
 def test_aarch64_32bit_ccalls():
 
     # GitHub issue #1238

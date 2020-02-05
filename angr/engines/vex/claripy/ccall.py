@@ -146,6 +146,10 @@ data['AMD64']['OpTypes']['G_CC_OP_SMULW'] = 50
 data['AMD64']['OpTypes']['G_CC_OP_SMULL'] = 51
 data['AMD64']['OpTypes']['G_CC_OP_SMULQ'] = 52
 data['AMD64']['OpTypes']['G_CC_OP_NUMBER'] = 53
+data['AMD64']['OpTypes']['G_CC_OP_ADCXL'] = 61
+data['AMD64']['OpTypes']['G_CC_OP_ADCXQ'] = 62
+data['AMD64']['OpTypes']['G_CC_OP_ADOXL'] = 63
+data['AMD64']['OpTypes']['G_CC_OP_ADOXQ'] = 64
 
 data['X86']['CondTypes']['CondO']      = 0
 data['X86']['CondTypes']['CondNO']     = 1
@@ -328,6 +332,33 @@ def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
+def pc_actions_ADCX(state, nbits, cc_dep1, cc_dep2, cc_ndep, is_adc, platform=None):
+    pf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_P'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_P']]
+    af = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_A'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
+    zf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_Z'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_Z']]
+    sf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_S'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_S']]
+    if is_adc:
+        carry = claripy.LShR(cc_ndep, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1
+        of = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_O'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_O']]
+    else:
+        carry = claripy.LShR(cc_ndep, data[platform]['CondBitOffsets']['G_CC_SHIFT_O']) & 1
+        cf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
+    arg_l = cc_dep1
+    arg_r = cc_dep2 ^ carry
+    res = (arg_l + arg_r) + carry
+
+    carry = claripy.If(
+            carry != 0,
+            claripy.If(res <= arg_l, claripy.BVV(1, 1), claripy.BVV(0, 1)),
+            claripy.If(res < arg_l, claripy.BVV(1, 1), claripy.BVV(0, 1))
+    )
+    if is_adc:
+        cf = carry
+    else:
+        of = carry
+
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
 def pc_actions_SBB(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     old_c = cc_ndep[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']].zero_extend(nbits-1)
     arg_l = cc_dep1
@@ -500,6 +531,13 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
     if cc_str == 'G_CC_OP_SMULQ':
         l.debug("cc_str: SMULQ")
         return pc_actions_SMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+
+    if cc_str in [ 'G_CC_OP_ADOXL', 'G_CC_OP_ADOXQ' ]:
+        l.debug("cc_str: ADOX")
+        return pc_actions_ADCX(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, False, platform=platform)
+    if cc_str in [ 'G_CC_OP_ADCXL', 'G_CC_OP_ADCXQ' ]:
+        l.debug("cc_str: ADCX")
+        return pc_actions_ADCX(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, True, platform=platform)
 
     l.error("Unsupported cc_op %d in in pc_calculate_rdata_all_WRK", cc_op)
     raise SimCCallError("Unsupported cc_op in pc_calculate_rdata_all_WRK")

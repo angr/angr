@@ -12,7 +12,7 @@ class Definition:
     :ivar CodeLocation codeloc: Where this definition is created in the original binary code.
     :ivar DataSet data:         A concrete value (or many concrete values) that the atom holds when the definition is
                                 created.
-    :ivar bool dummy:           Tell wether the definition should be considered dummy or not.
+    :ivar bool dummy:           Tell whether the definition should be considered dummy or not.
                                 During simplification by AILment, definitions marked as dummy will not be removed.
     """
 

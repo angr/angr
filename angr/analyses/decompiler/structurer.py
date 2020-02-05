@@ -246,7 +246,7 @@ class Structurer(Analysis):
     """
     Structure a region.
     """
-    def __init__(self, region, parent_map=None):
+    def __init__(self, region, parent_map=None, condition_mapping=None):
 
         self._region = region
         self._parent_map = parent_map
@@ -254,7 +254,7 @@ class Structurer(Analysis):
         self._reaching_conditions = None
         self._predicate_mapping = None
         self._edge_conditions = None
-        self._condition_mapping = {}
+        self._condition_mapping = {} if condition_mapping is None else condition_mapping
 
         self.result = None
 
@@ -478,7 +478,11 @@ class Structurer(Analysis):
                         raise Exception()
                     # remove the last statement from the node
                     self._remove_last_statement(node)
-                    new_node = ConditionalBreakNode(last_stmt.ins_addr, cond, target)
+                    new_node = ConditionalBreakNode(
+                        last_stmt.ins_addr,
+                        self._bool_variable_from_ail_condition(cond),
+                        target
+                    )
 
                 if new_node is not None:
                     # special checks if node goes empty
@@ -507,7 +511,7 @@ class Structurer(Analysis):
 
         # Create a graph region and structure it
         region = GraphRegion(loop_head, loop_region_graph)
-        structurer = self.project.analyses.Structurer(region)
+        structurer = self.project.analyses.Structurer(region, condition_mapping=self._condition_mapping.copy())
         seq = structurer.result
 
         last_stmt = self._get_last_statement(seq)
@@ -666,7 +670,7 @@ class Structurer(Analysis):
             if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
                 if isinstance(node.node, ConditionalBreakNode):
                     # Put conditions together and simplify them
-                    cond = claripy.And(node.reaching_condition, self._bool_variable_from_ail_condition(node.node.condition))
+                    cond = claripy.And(node.reaching_condition, node.node.condition)
                     new_node = CodeNode(ConditionalBreakNode(node.node.addr, cond, node.node.target), None)
                 else:
                     new_node = ConditionNode(node.addr, None, node.reaching_condition, node,
@@ -911,7 +915,10 @@ class Structurer(Analysis):
             return var
         elif isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
-            var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits)
+            if condition.bits == 1:
+                var = claripy.BoolV('ailtmp_%d' % condition.tmp_idx)
+            else:
+                var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits)
             self._condition_mapping[var] = condition
             return var
 

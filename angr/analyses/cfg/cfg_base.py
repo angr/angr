@@ -6,7 +6,7 @@ import networkx
 
 import pyvex
 from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject
+from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource
 from cle.backends import NamedRegion
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
@@ -153,7 +153,8 @@ class CFGBase(Analysis):
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
 
-        self._function_addresses_from_symbols = self._func_addrs_from_symbols()
+        self._function_addresses_from_symbols = self._load_func_addrs_from_symbols()
+        self._function_addresses_from_eh_frame = self._load_func_addrs_from_eh_frame()
 
         if model is not None:
             self._model = model
@@ -723,7 +724,7 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _func_addrs_from_symbols(self):
+    def _load_func_addrs_from_symbols(self):
         """
         Get all possible function addresses that are specified by the symbols in the binary
 
@@ -732,6 +733,21 @@ class CFGBase(Analysis):
         """
 
         return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
+
+    def _load_func_addrs_from_eh_frame(self):
+        """
+        Get possible function addresses from  .eh_frame.
+
+        :return:    A set of addresses that are probably functions.
+        :rtype:     set
+        """
+
+        addrs = set()
+        if isinstance(self._binary, ELF) and self._binary.has_dwarf_info:
+            for function_hint in self._binary.function_hints:
+                if function_hint.source == FunctionHintSource.EH_FRAME:
+                    addrs.add(function_hint.addr)
+        return addrs
 
     #
     # Analyze function features
