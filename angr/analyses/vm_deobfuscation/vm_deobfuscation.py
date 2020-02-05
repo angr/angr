@@ -13,8 +13,8 @@ from ailment.manager import Manager
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
-#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
-filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
+filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
+#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
@@ -34,7 +34,6 @@ def new_model_graph(old_graph, proj, identifier):
     new_model.graph = new_cfg_graph
 
     for node in old_graph.nodes():
-        print(node)
         new_node = CFGENode(irsb=copy.deepcopy(node.irsb),
                             block_id=copy.deepcopy(node.block_id),
                             size=copy.deepcopy(node.size),
@@ -87,7 +86,6 @@ def data_sensitive_graph(filename,start_addr):
                                     state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                     iropt_level=0,)
 
-
     return cfg, proj
 
 
@@ -108,6 +106,7 @@ def constant_propagation(cfg, proj, start_addr):
 
     new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
     ## find the replacements
+
     prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=start_addr, max_iterations=1)
 
     ## do the actual replacements
@@ -218,6 +217,7 @@ def simplifications(cfg, proj, start_addr):
 
 ####### Dead Cod Elimination
 def dead_code_elimination(cfg, proj, start_addr):
+    print("Performing dead code elimination")
     if start_addr == None:
         main = proj.loader.main_object.get_symbol("main")
         start_addr = main.rebased_addr
@@ -563,7 +563,7 @@ cfg, proj = data_sensitive_graph(filename, start_addr=start_addr)
 
 initial_cfg = cfg
 draw_graph(cfg, folder_name+"/input.svg")
-
+print("Doing constant propagation")
 new_cfg = constant_propagation(cfg, proj, start_addr=start_addr)
 
 draw_graph(new_cfg, folder_name+"/cp_result.svg")
