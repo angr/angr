@@ -182,7 +182,7 @@ class SimComboArg(SimFunctionArgument):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
 
     def set_value(self, state, value, endness=None, **kwargs):  # pylint:disable=arguments-differ
-        # TODO: This code needs to be reworked for variable byte with and the Third Endness
+        # TODO: This code needs to be reworked for variable byte width and the Third Endness
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
         if isinstance(value, int):
@@ -342,6 +342,7 @@ class SimCC:
     CALLER_SAVED_REGS = None        # Caller-saved registers
     RETURN_ADDR = None              # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL = None               # The location where the return value is stored, as a SimFunctionArgument
+    OVERFLOW_RETURN_VAL = None      # The second half of the location where a double-length return value is stored
     FP_RETURN_VAL = None            # The location where floating-point argument return values are stored
     ARCH = None                     # The archinfo.Arch class that this CC must be used for, if relevant
     CALLEE_CLEANUP = False          # Whether the callee has to deallocate the stack space for the arguments
