@@ -6,7 +6,7 @@ import pyvex
 from ...engines.light import SimEngineLightVEXMixin, SpOffset
 from .values import TOP, BOTTOM
 from .engine_base import SimEnginePropagatorBase
-from .vex_vars import VEXReg, VEXTmp
+from .vex_vars import VEXReg, VEXTmp, VEXMemVar
 
 
 _l = logging.getLogger(name=__name__)
@@ -106,7 +106,9 @@ class SimEnginePropagatorVEX(
             # Local variables
             self.state.store_local_variable(addr.offset, size, data)
         elif isinstance(addr, int):
-            self.state.add_replacement(self._codeloc(block_only=True), addr, data)
+            # a memory address
+            variable = VEXMemVar(addr, size)
+            self.state.add_replacement(self._codeloc(block_only=True), variable, data)
 
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)

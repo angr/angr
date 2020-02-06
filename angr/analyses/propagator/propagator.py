@@ -11,7 +11,7 @@ from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNode
 from .values import TOP
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
-from collections import defaultdict
+
 
 # The base state
 
@@ -57,7 +57,6 @@ class PropagatorVEXState(PropagatorState):
         super().__init__(arch, replacements=replacements)
         self.registers = {} if registers is None else registers  # offset to values
         self.local_variables = {} if local_variables is None else local_variables  # offset to values
-        self.constant_memory = defaultdict(set)
 
     def __repr__(self):
         return "<PropagatorVEXState>"
