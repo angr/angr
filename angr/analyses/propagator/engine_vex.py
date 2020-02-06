@@ -106,9 +106,7 @@ class SimEnginePropagatorVEX(
             # Local variables
             self.state.store_local_variable(addr.offset, size, data)
         elif isinstance(addr, int):
-            self.state.store_memory(addr, 8, data)
             self.state.add_replacement(self._codeloc(block_only=True), addr, data)
-        # EDG says: This doesn't match Load entirely, this is probably wrong
 
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
@@ -131,14 +129,18 @@ class SimEnginePropagatorVEX(
         else:
             self.tmps[stmt.dst] = None
 
+        if stmt.dst in self.tmps and self.tmps[stmt.dst]:
+            self.state.add_replacement(self._codeloc(block_only=True), VEXTmp(stmt.dst), self.tmps[stmt.dst])
+
     def _handle_StoreG(self, stmt):
+
         guard = self._expr(stmt.guard)
         data = self._expr(stmt.data)
         if guard is True:
             addr = self._expr(stmt.addr)
             if addr is not None:
-                self._store_data(addr, data, stmt.data.result_size(self.tyenv) // 8,
-                                                      self.arch.memory_endness)
+                self._store_data(addr, data, stmt.data.result_size(self.tyenv) // 8, self.arch.memory_endness)
+
         #elif guard is False:
         #    data = self._expr(stmt.alt)
         #    self.tmps[stmt.dst] = data

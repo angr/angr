@@ -102,12 +102,6 @@ class PropagatorVEXState(PropagatorState):
         except KeyError:
             return TOP
 
-    def store_memory(self, addr, size, value):
-        self.constant_memory[addr] = value
-
-    def load_memory(self, addr, size):
-        return self.constant_memory[addr]
-
     def store_register(self, offset, size, value):
         if size != self.gpr_size:
             return
