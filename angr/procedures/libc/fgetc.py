@@ -9,9 +9,6 @@ from angr.sim_type import SimTypeInt, SimTypeFd
 class fgetc(angr.SimProcedure):
     # pylint:disable=arguments-differ
     def run(self, stream, simfd=None):
-        self.argument_types = {0: SimTypeFd()}
-        self.return_type = SimTypeInt(32, True)
-
         if simfd is None:
             fileno = angr.SIM_PROCEDURES['posix']['fileno']
             fd = self.inline_call(fileno, stream).ret_expr

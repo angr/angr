@@ -10,7 +10,5 @@ class fflush(angr.SimProcedure):
     def run(self, fd):
         #pylint:disable=attribute-defined-outside-init
 
-        self.argument_types = {0: SimTypeFd()}
-        self.return_type = SimTypeLength(self.state.arch)
 
         return self.state.solver.BVV(0, self.state.arch.bits)

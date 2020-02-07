@@ -11,8 +11,6 @@ class scanf(FormatParser):
     def run(self, fmt):
         #pylint:disable=attribute-defined-outside-init
 
-        self.argument_types = {0: self.ty_ptr(SimTypeString())}
-        self.return_type = SimTypeInt(self.state.arch.bits, True)
 
         fmt_str = self._parse(0)
 

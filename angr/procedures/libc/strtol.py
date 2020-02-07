@@ -198,13 +198,6 @@ class strtol(angr.SimProcedure):
         return expression, result
 
     def run(self, nptr, endptr, base):
-
-        self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                               1: self.ty_ptr(self.ty_ptr(SimTypeString())),
-                               2: SimTypeInt(self.state.arch, True)}
-
-        self.return_type = SimTypeInt(self.state.arch, True)
-
         if self.state.solver.symbolic(base):
             l.warning("Concretizing symbolic base in strtol")
             base_concrete = self.state.solver.eval(base)

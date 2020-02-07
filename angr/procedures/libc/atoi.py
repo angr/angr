@@ -11,8 +11,6 @@ class atoi(angr.SimProcedure):
     def run(self, s):
         #pylint:disable=attribute-defined-outside-init
 
-        self.argument_types = {0: self.ty_ptr(SimTypeString())}
-        self.return_type = SimTypeInt(self.state.arch, True)
 
         strtol = angr.SIM_PROCEDURES['libc']['strtol']
         return strtol.strtol_inner(s, self.state, self.state.memory, 10, True)[1]

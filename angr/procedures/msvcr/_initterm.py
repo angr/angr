@@ -15,13 +15,8 @@ class _initterm(angr.SimProcedure):
 
     #pylint:disable=arguments-differ
     def run(self, fp_a, fp_z):
-        self.argument_types = {0: self.ty_ptr(SimTypeInt()),
-                               1: self.ty_ptr(SimTypeInt())
-        }
-        self.return_type = SimTypeInt()
-
         if self.state.solver.symbolic(fp_a) or self.state.solver.symbolic(fp_z):
-            l.warn("Symbolic argument to _initterm{_e} is not supported... returning")
+            l.warning("Symbolic argument to _initterm{_e} is not supported... returning")
             return 0 # might as well try to keep going
 
         self.callbacks = self.get_callbacks(fp_a, fp_z)

@@ -12,8 +12,6 @@ class strlen(angr.SimProcedure):
     def run(self, s, wchar=False):
         #pylint:disable=attribute-defined-outside-init
 
-        self.argument_types = {0: self.ty_ptr(SimTypeString())}
-        self.return_type = SimTypeLength(self.state.arch)
 
         if wchar:
             null_seq = self.state.solver.BVV(0, 16)
