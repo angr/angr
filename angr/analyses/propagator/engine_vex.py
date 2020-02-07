@@ -57,7 +57,7 @@ class SimEnginePropagatorVEX(
             # Local variable
             v = self.state.load_local_variable(addr.offset, size)
             return v
-        else:
+        elif isinstance(addr, int):
             # Try loading from the state
             if self.base_state is not None and self._allow_loading(addr, size):
                 _l.debug("Loading %d bytes from %x.", size, addr)
