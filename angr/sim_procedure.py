@@ -104,10 +104,6 @@ class SimProcedure:
         self.abi = None
         self.symbolic_return = symbolic_return
 
-        # types
-        self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
-        self.return_type = None
-
         # set some properties about the type of procedure this is
         self.returns = returns if returns is not None else not self.NO_RET
         self.is_syscall = is_syscall
@@ -491,6 +487,22 @@ class SimProcedure:
 
     def _prepare_ret_state(self):
         pass
+
+    @property
+    def argument_types(self):
+        return None
+
+    @argument_types.setter
+    def argument_types(self, v):
+        l.critical("SimProcedure.argument_types is deprecated. specify the function signature in the cc")
+
+    @property
+    def return_type(self):
+        return None
+
+    @return_type.setter
+    def return_type(self, v):
+        l.critical("SimProcedure.return_type is deprecated. specify the function signature in the cc")
 
 
 from . import sim_options as o

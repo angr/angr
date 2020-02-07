@@ -8,12 +8,6 @@ class memcmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s1_addr, s2_addr, n):
-        # TODO: look into smarter types here
-        self.argument_types = {0: self.ty_ptr(SimTypeTop()),
-                               1: self.ty_ptr(SimTypeTop()),
-                               2: SimTypeLength(self.state.arch)}
-        self.return_type = SimTypeInt(32, True)
-
         max_memcmp_size = self.state.libc.max_buffer_size
 
         definite_size = self.state.solver.min_int(n)

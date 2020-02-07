@@ -16,8 +16,6 @@ class fileno(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, f):
-        self.argument_types = {0: self.ty_ptr(SimTypeTop())}
-        self.return_type = SimTypeFd()
 
         # Get FILE struct
         io_file_data = io_file_data_for_arch(self.state.arch)
