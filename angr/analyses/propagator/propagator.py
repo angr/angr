@@ -261,8 +261,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         state = state.copy()
         # Suppress spurious output
-        self._base_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
-        self._base_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+        if self._base_state is not None:
+            self._base_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+            self._base_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
         state = engine.process(state, block=block, project=self.project, base_state=self._base_state,
                                load_callback=self._load_callback, fail_fast=self._fail_fast)
 
