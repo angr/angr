@@ -27,7 +27,16 @@ def test_lwip_udpecho_bm():
                             XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
                             )
 
-    nose.tools.assert_equal(len(timenow_xrefs), 2)
+    nose.tools.assert_equal(len(timenow_xrefs), 3)
+    nose.tools.assert_equal([x for x in timenow_xrefs if x.type == XRefType.Offset][0],
+                            XRef(ins_addr=0x23c9, dst=0x1fff36f4, xref_type=XRefType.Offset)
+                            )
+    nose.tools.assert_equal([x for x in timenow_xrefs if x.type == XRefType.Read][0],
+                            XRef(ins_addr=0x23cb, dst=0x1fff36f4, xref_type=XRefType.Read)
+                            )
+    nose.tools.assert_equal([x for x in timenow_xrefs if x.type == XRefType.Write][0],
+                            XRef(ins_addr=0x23cf, dst=0x1fff36f4, xref_type=XRefType.Write)
+                            )
 
 
 def test_lwip_udpecho_bm_the_better_way():
@@ -42,8 +51,8 @@ def test_lwip_udpecho_bm_the_better_way():
     nose.tools.assert_equal(next(iter(timenow_cp_xrefs)),
                             XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
                             )
-    # time_init, sys_now, time_isr == 3
-    nose.tools.assert_equal(len(timenow_xrefs), 3)
+    # sys_now (2), time_isr (3) == 5
+    nose.tools.assert_equal(len(timenow_xrefs), 5)
 
 
 if __name__ == "__main__":

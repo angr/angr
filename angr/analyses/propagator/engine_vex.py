@@ -6,7 +6,7 @@ import pyvex
 from ...engines.light import SimEngineLightVEXMixin, SpOffset
 from .values import TOP, BOTTOM
 from .engine_base import SimEnginePropagatorBase
-from .vex_vars import VEXReg, VEXTmp
+from .vex_vars import VEXReg, VEXTmp, VEXMemVar
 
 
 _l = logging.getLogger(name=__name__)
@@ -57,7 +57,7 @@ class SimEnginePropagatorVEX(
             # Local variable
             v = self.state.load_local_variable(addr.offset, size)
             return v
-        else:
+        elif isinstance(addr, int):
             # Try loading from the state
             if self.base_state is not None and self._allow_loading(addr, size):
                 _l.debug("Loading %d bytes from %x.", size, addr)
@@ -105,7 +105,10 @@ class SimEnginePropagatorVEX(
         if isinstance(addr, SpOffset):
             # Local variables
             self.state.store_local_variable(addr.offset, size, data)
-        # EDG says: This doesn't match Load entirely, this is probably wrong
+        elif isinstance(addr, int):
+            # a memory address
+            variable = VEXMemVar(addr, size)
+            self.state.add_replacement(self._codeloc(block_only=True), variable, data)
 
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
@@ -128,14 +131,18 @@ class SimEnginePropagatorVEX(
         else:
             self.tmps[stmt.dst] = None
 
+        if stmt.dst in self.tmps and self.tmps[stmt.dst]:
+            self.state.add_replacement(self._codeloc(block_only=True), VEXTmp(stmt.dst), self.tmps[stmt.dst])
+
     def _handle_StoreG(self, stmt):
+
         guard = self._expr(stmt.guard)
         data = self._expr(stmt.data)
         if guard is True:
             addr = self._expr(stmt.addr)
             if addr is not None:
-                self._store_data(addr, data, stmt.data.result_size(self.tyenv) // 8,
-                                                      self.arch.memory_endness)
+                self._store_data(addr, data, stmt.data.result_size(self.tyenv) // 8, self.arch.memory_endness)
+
         #elif guard is False:
         #    data = self._expr(stmt.alt)
         #    self.tmps[stmt.dst] = data

@@ -12,6 +12,24 @@ class VEXVariable:
         raise NotImplementedError()
 
 
+class VEXMemVar:
+
+    __slots__ = ('addr', 'size', )
+
+    def __init__(self, addr, size):
+        self.addr = addr
+        self.size = size
+
+    def __hash__(self):
+        return hash((VEXMemVar, self.addr, self.size))
+
+    def __eq__(self, other):
+        return type(other) is VEXMemVar and other.addr == self.addr and other.size == self.size
+
+    def __repr__(self):
+        return "<mem %#x[%d bytes]>" % (self.addr, self.size)
+
+
 class VEXReg(VEXVariable):
 
     __slots__ = ('offset', 'size', )

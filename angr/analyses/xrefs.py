@@ -16,9 +16,9 @@ class SimEngineXRefsVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):
-    def __init__(self, xref_manager, replacements=None):
+    def __init__(self, xref_manager, project=None, replacements=None):
         super().__init__()
-
+        self.project = project
         self.xref_manager = xref_manager
         self.replacements = replacements if replacements is not None else { }
 
@@ -57,6 +57,7 @@ class SimEngineXRefsVEX(
                 self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_LoadG(self, stmt):
+
         # What are we reading?
         blockloc = self._codeloc(block_only=True)
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
@@ -64,6 +65,21 @@ class SimEngineXRefsVEX(
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
                 self.add_xref(XRefType.Read, self._codeloc(), addr)
+        self._handle_data_offset_refs(stmt.dst)
+
+    def _handle_data_offset_refs(self, data_tmp):
+        # is this thing a pointer?
+        # If so, produce the ida-style "Offset" XRefs.
+        blockloc = self._codeloc(block_only=True)
+        tmp = VEXTmp(data_tmp)
+        if tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][tmp], Top):
+            data = self.replacements[blockloc][tmp]
+            if self.project.loader.find_object_containing(data) is not None:
+                # HACK: Avoid spamming Xrefs if the binary is loaded at 0
+                # e.g., firmware!
+                # (magic value chosen due to length of CM EVT)
+                if data > 0x200:
+                    self.add_xref(XRefType.Offset, self._codeloc(), data)
 
     #
     # Expression handlers
@@ -138,7 +154,7 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
         self._node_iterations = defaultdict(int)
 
-        self._engine_vex = SimEngineXRefsVEX(self.kb.xrefs, replacements=replacements)
+        self._engine_vex = SimEngineXRefsVEX(self.kb.xrefs, project=self.project, replacements=replacements)
         self._engine_ail = None
 
         self._analyze()
