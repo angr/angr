@@ -446,7 +446,7 @@ class Veritesting(Analysis):
         :returns bool: False if our CFG contains p.addr, True otherwise.
         """
 
-        n = self._cfg.get_any_node(s.addr, is_syscall=s.history.jumpkind.startswith('Ijk_Sys'))
+        n = self._cfg.model.get_any_node(s.addr, is_syscall=s.history.jumpkind.startswith('Ijk_Sys'))
         if n is None:
             return True
 
@@ -463,7 +463,7 @@ class Veritesting(Analysis):
         :param SimState state:          Current state to step on from
         :returns SimSuccessors:         The SimSuccessors object
         """
-        size_of_next_irsb = self._cfg.get_any_node(state.addr).size
+        size_of_next_irsb = self._cfg.model.get_any_node(state.addr).size
         return self.project.factory.successors(state, size=size_of_next_irsb)
 
     def is_overbound(self, state):

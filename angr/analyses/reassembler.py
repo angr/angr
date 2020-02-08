@@ -2155,7 +2155,7 @@ class Reassembler(Analysis):
 
         insn_addr = next(iter(refs.get_xrefs_by_dst(cgcpl_memory_data.addr))).ins_addr
         # get the basic block
-        cfg_node = self.cfg.get_any_node(insn_addr, anyaddr=True)
+        cfg_node = self.cfg.model.get_any_node(insn_addr, anyaddr=True)
         if not cfg_node:
             return False
 
@@ -2732,7 +2732,7 @@ class Reassembler(Analysis):
 
             # execute the single basic block and see how the value is used
             base_graph = networkx.DiGraph()
-            candidate_node = self.cfg.get_any_node(candidate.irsb_addr)  # type: angr.analyses.cfg_node.CFGNode
+            candidate_node = self.cfg.model.get_any_node(candidate.irsb_addr)  # type: angr.analyses.cfg_node.CFGNode
             if candidate_node is None:
                 continue
             base_graph.add_node(candidate_node)

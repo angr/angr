@@ -37,7 +37,7 @@ class CDG(Analysis):
                 self._cfg = self.project.analyses.CFGEmulated()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
-            self._entry = self._cfg.get_any_node(self._start)
+            self._entry = self._cfg.model.get_any_node(self._start)
 
             self._construct()
 

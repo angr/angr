@@ -67,7 +67,7 @@ class BackwardSlice(Analysis):
         if targets is not None:
             for t in targets:
                 if isinstance(t, CodeLocation):
-                    node = self._cfg.get_any_node(t.block_addr)
+                    node = self._cfg.model.get_any_node(t.block_addr)
                     self._targets.append((node, t.stmt_idx))
                 elif type(t) is tuple:
                     self._targets.append(t)

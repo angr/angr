@@ -169,7 +169,7 @@ class Blade:
         :rtype: CFGNode
         """
 
-        return self._cfg.get_any_node(self._get_addr(thing))
+        return self._cfg.model.get_any_node(self._get_addr(thing))
 
     @staticmethod
     def _get_addr(v):
