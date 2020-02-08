@@ -3,6 +3,7 @@ from .misc.ux import deprecated
 import copy
 import re
 import logging
+from typing import Optional
 
 import claripy
 
@@ -627,7 +628,7 @@ class SimTypeFunction(SimType):
         """
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
-        self.returnty = returnty
+        self.returnty: Optional[SimType] = returnty
         self.arg_names = arg_names if arg_names else []
 
     def __repr__(self):

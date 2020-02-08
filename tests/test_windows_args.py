@@ -16,8 +16,8 @@ def test_i386():
     else_paths = [0x401062, 0x401009]
 
     p = angr.Project(os.path.join(test_location, 'i386', 'simple_windows.exe'), auto_load_libs=False)
-    p.hook_symbol("GetTickCount64", StdcallStub1Arg(cc=angr.calling_conventions.SimCCStdcall(ArchX86()),
-        display_name="GetTickCount64"), replace=True) # stubbed until 64 bit return works
+    #p.hook_symbol("GetTickCount64", StdcallStub1Arg(cc=angr.calling_conventions.SimCCStdcall(ArchX86()),
+    #    display_name="GetTickCount64"), replace=True) # stubbed until 64 bit return works
 
     s = p.factory.entry_state(args=("simple_windows.exe", "angr_can_windows?", "1497715489"))
     simgr = p.factory.simulation_manager(s)
@@ -29,4 +29,6 @@ def test_i386():
         nose.tools.assert_in(b"ok", f.posix.dumps(1))
 
 if __name__ == "__main__":
+    import logging
+    logging.getLogger('angr.engines').setLevel('INFO')
     test_i386()
