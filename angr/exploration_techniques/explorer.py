@@ -61,7 +61,7 @@ class Explorer(ExplorationTechnique):
             # not a queue but a stack... it's just a worklist!
             queue = []
             for f in static_find:
-                nodes = cfg.get_all_nodes(f)
+                nodes = cfg.model.get_all_nodes(f)
                 if len(nodes) == 0:
                     l.warning("'Find' address %#x not present in CFG...", f)
                 else:
