@@ -1,6 +1,5 @@
 import angr
 from angr.state_plugins.symbolic_memory import MultiwriteAnnotation
-from angr.sim_type import SimTypeString, SimTypeInt, SimTypeChar
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging

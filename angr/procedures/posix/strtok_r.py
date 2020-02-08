@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString
 
 import logging
 l = logging.getLogger(name=__name__)

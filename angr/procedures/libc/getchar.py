@@ -1,10 +1,8 @@
 import angr
-from angr.sim_type import SimTypeInt
 
 ######################################
 # getchar
 ######################################
-
 
 class getchar(angr.SimProcedure):
     # pylint: disable=arguments-differ

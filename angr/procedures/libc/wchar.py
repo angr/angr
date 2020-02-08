@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString, SimTypeInt
 
 class wcscmp(angr.SimProcedure):
     #pylint:disable=arguments-differ

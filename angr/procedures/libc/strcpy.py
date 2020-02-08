@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString
 
 class strcpy(angr.SimProcedure):
     #pylint:disable=arguments-differ
@@ -11,4 +10,3 @@ class strcpy(angr.SimProcedure):
 
         ret_expr = self.inline_call(strncpy, dst, src, src_len.ret_expr+1, src_len=src_len.ret_expr).ret_expr
         return ret_expr
-

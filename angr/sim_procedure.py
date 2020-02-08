@@ -282,9 +282,9 @@ class SimProcedure:
 
         if self.ADDS_EXITS:
             raise SimProcedureError("static_exits() is not implemented for %s" % self)
-        else:
-            # This SimProcedure does not add any new exit
-            return [ ]
+
+        # This SimProcedure does not add any new exit
+        return []
 
     #
     # misc properties
@@ -489,19 +489,19 @@ class SimProcedure:
         pass
 
     @property
-    def argument_types(self):
+    def argument_types(self):  # pylint: disable=no-self-use
         return None
 
     @argument_types.setter
-    def argument_types(self, v):
+    def argument_types(self, v):  # pylint: disable=unused-argument,no-self-use
         l.critical("SimProcedure.argument_types is deprecated. specify the function signature in the cc")
 
     @property
-    def return_type(self):
+    def return_type(self):  # pylint: disable=no-self-use
         return None
 
     @return_type.setter
-    def return_type(self, v):
+    def return_type(self, v):  # pylint: disable=unused-argument,no-self-use
         l.critical("SimProcedure.return_type is deprecated. specify the function signature in the cc")
 
 

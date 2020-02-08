@@ -1,22 +1,16 @@
 import angr
-from angr.sim_type import SimTypeFd, SimTypeTop
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
-
-import logging
-l = logging.getLogger(name=__name__)
 
 
 ######################################
 # fileno
 ######################################
 
-
 class fileno(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, f):
-
         # Get FILE struct
         io_file_data = io_file_data_for_arch(self.state.arch)
 

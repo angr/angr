@@ -1,14 +1,13 @@
 import angr
-from angr.sim_type import SimTypeString, SimTypeInt, SimTypeFd
 
 ######################################
 # open
 ######################################
 
 class open(angr.SimProcedure): #pylint:disable=W0622
-    #pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ,unused-argument
 
-    def run(self, p_addr, flags, mode):  # pylint:disable=unused-argument
+    def run(self, p_addr, flags, mode):
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         p_strlen = self.inline_call(strlen, p_addr)
