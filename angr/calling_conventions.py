@@ -2,6 +2,7 @@ import logging
 
 import claripy
 import archinfo
+from typing import Union, Optional, List
 
 from .sim_type import SimTypeChar
 from .sim_type import SimTypePointer
@@ -192,6 +193,7 @@ class SimComboArg(SimFunctionArgument):
                 raise ValueError("What do I do with a float %d bytes long" % self.size)
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
         cur = 0
+        # TODO: I have no idea if this reversed is only supposed to be applied in LE situations
         for loc in reversed(self.locations):
             loc.set_value(state, value[cur*state.arch.byte_width + loc.size*state.arch.byte_width - 1:cur*state.arch.byte_width], endness=endness, **kwargs)
             cur += loc.size
@@ -199,9 +201,9 @@ class SimComboArg(SimFunctionArgument):
     def get_value(self, state, endness=None, **kwargs):  # pylint:disable=arguments-differ
         if endness is None: endness = state.arch.memory_endness
         vals = []
-        for loc in self.locations:
+        for loc in reversed(self.locations):
             vals.append(loc.get_value(state, endness, **kwargs))
-        return claripy.Concat(*vals)
+        return state.solver.Concat(*vals)
 
 
 class ArgSession:
@@ -276,7 +278,12 @@ class SimCC:
 
     An instance of this class allows it to be tweaked to the way a specific function should be called.
     """
-    def __init__(self, arch, args=None, ret_val=None, sp_delta=None, func_ty=None):
+    def __init__(self,
+            arch: archinfo.Arch,
+            args: Optional[List[SimFunctionArgument]]=None,
+            ret_val: Optional[SimFunctionArgument]=None,
+            sp_delta: Optional[int]=None,
+            func_ty: Optional[Union[SimTypeFunction, str]]=None):
         """
         :param arch:        The Archinfo arch for this CC
         :param args:        A list of SimFunctionArguments describing where the arguments go
@@ -309,7 +316,7 @@ class SimCC:
         self.args = args
         self.ret_val = ret_val
         self.sp_delta = sp_delta
-        self.func_ty = func_ty if func_ty is None else func_ty.with_arch(arch)
+        self.func_ty: Optional[SimTypeFunction] = func_ty if func_ty is None else func_ty.with_arch(arch)
 
     @classmethod
     def from_arg_kinds(cls, arch, fp_args, ret_fp=False, sizes=None, sp_delta=None, func_ty=None):
@@ -334,18 +341,18 @@ class SimCC:
     # Here are all the things a subclass needs to specify!
     #
 
-    ARG_REGS = None                 # A list of all the registers used for integral args, in order (names or offsets)
-    FP_ARG_REGS = None              # A list of all the registers used for floating point args, in order
-    STACKARG_SP_BUFF = 0            # The amount of stack space reserved between the saved return address
-                                    # (if applicable) and the arguments. Probably zero.
-    STACKARG_SP_DIFF = 0            # The amount of stack space reserved for the return address
-    CALLER_SAVED_REGS = None        # Caller-saved registers
-    RETURN_ADDR = None              # The location where the return address is stored, as a SimFunctionArgument
-    RETURN_VAL = None               # The location where the return value is stored, as a SimFunctionArgument
-    OVERFLOW_RETURN_VAL = None      # The second half of the location where a double-length return value is stored
-    FP_RETURN_VAL = None            # The location where floating-point argument return values are stored
-    ARCH = None                     # The archinfo.Arch class that this CC must be used for, if relevant
-    CALLEE_CLEANUP = False          # Whether the callee has to deallocate the stack space for the arguments
+    ARG_REGS: List[SimFunctionArgument] = None                  # A list of all the registers used for integral args, in order (names or offsets)
+    FP_ARG_REGS: List[SimFunctionArgument] = None               # A list of all the registers used for floating point args, in order
+    STACKARG_SP_BUFF = 0                                        # The amount of stack space reserved between the saved return address
+                                                                # (if applicable) and the arguments. Probably zero.
+    STACKARG_SP_DIFF = 0                                        # The amount of stack space reserved for the return address
+    CALLER_SAVED_REGS: List[SimFunctionArgument] = None         # Caller-saved registers
+    RETURN_ADDR: SimFunctionArgument = None                     # The location where the return address is stored, as a SimFunctionArgument
+    RETURN_VAL: SimFunctionArgument = None                      # The location where the return value is stored, as a SimFunctionArgument
+    OVERFLOW_RETURN_VAL: Optional[SimFunctionArgument] = None   # The second half of the location where a double-length return value is stored
+    FP_RETURN_VAL: Optional[SimFunctionArgument] = None         # The location where floating-point argument return values are stored
+    ARCH = None                                                 # The archinfo.Arch class that this CC must be used for, if relevant
+    CALLEE_CLEANUP = False                                      # Whether the callee has to deallocate the stack space for the arguments
 
     STACK_ALIGNMENT = 1             # the alignment requirement of the stack pointer at function start BEFORE call
 
@@ -441,7 +448,15 @@ class SimCC:
         The location the return value is stored.
         """
         # pylint: disable=unsubscriptable-object
-        return self.RETURN_VAL if self.ret_val is None else self.ret_val
+        if self.ret_val is not None:
+            return self.ret_val
+
+        if self.func_ty is not None and \
+                self.func_ty.returnty is not None and \
+                self.OVERFLOW_RETURN_VAL is not None and \
+                self.func_ty.returnty.size > self.RETURN_VAL.size * self.arch.byte_width:
+            return SimComboArg([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
+        return self.RETURN_VAL
 
     @property
     def fp_return_val(self):
@@ -718,11 +733,11 @@ class SimCC:
         if self.ret_val is not None:
             loc = self.ret_val
         elif is_fp is not None:
-            loc = self.FP_RETURN_VAL if is_fp else self.RETURN_VAL
+            loc = self.fp_return_val if is_fp else self.return_val
         elif ty is not None:
-            loc = self.FP_RETURN_VAL if isinstance(ty, SimTypeFloat) else self.RETURN_VAL
+            loc = self.fp_return_val if isinstance(ty, SimTypeFloat) else self.return_val
         else:
-            loc = self.FP_RETURN_VAL if self.is_fp_value(val) else self.RETURN_VAL
+            loc = self.fp_return_val if self.is_fp_value(val) else self.return_val
 
         if loc is None:
             raise NotImplementedError("This SimCC doesn't know how to store this value - should be implemented")
@@ -996,6 +1011,7 @@ class SimCCCdecl(SimCC):
     STACKARG_SP_DIFF = 4 # Return address is pushed on to stack by call
     CALLER_SAVED_REGS = ['eax', 'ecx', 'edx']
     RETURN_VAL = SimRegArg('eax', 4)
+    OVERFLOW_RETURN_VAL = SimRegArg('edx', 4)
     FP_RETURN_VAL = SimLyingRegArg('st0')
     RETURN_ADDR = SimStackArg(0, 4)
     ARCH = archinfo.ArchX86
@@ -1009,6 +1025,7 @@ class SimCCMicrosoftAMD64(SimCC):
     STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
     STACKARG_SP_BUFF = 32 # 32 bytes of shadow stack space
     RETURN_VAL = SimRegArg('rax', 8)
+    OVERFLOW_RETURN_VAL = SimRegArg('rdx', 8)
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
     RETURN_ADDR = SimStackArg(0, 8)
     ARCH = archinfo.ArchAMD64
@@ -1053,6 +1070,7 @@ class SimCCSystemVAMD64(SimCC):
     CALLER_SAVED_REGS = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9', 'r10', 'r11', 'rax', ]
     RETURN_ADDR = SimStackArg(0, 8)
     RETURN_VAL = SimRegArg('rax', 8)
+    OVERFLOW_RETURN_VAL = SimRegArg('rdx', 8)
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
     ARCH = archinfo.ArchAMD64
     STACK_ALIGNMENT = 16
