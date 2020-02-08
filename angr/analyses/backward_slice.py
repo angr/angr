@@ -478,7 +478,7 @@ class BackwardSlice(Analysis):
             # Get the first two nodes
             a, b = simple_path[0], simple_path[1]
             # Get the exit statement ID from CFG
-            exit_stmt_id = self._cfg.get_exit_stmt_idx(a, b)
+            exit_stmt_id = self._cfg.model.get_exit_stmt_idx(a, b)
             if exit_stmt_id is None:
                 continue
 
