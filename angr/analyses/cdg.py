@@ -164,7 +164,7 @@ class CDG(Analysis):
             successors = graph.graph.successors(node)
         else:
             # Real CFGNode!
-            successors = graph.get_successors(node)
+            successors = graph.model.get_successors(node)
 
         return successors
 
