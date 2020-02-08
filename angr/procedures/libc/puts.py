@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString, SimTypeInt
 
 ######################################
 # puts

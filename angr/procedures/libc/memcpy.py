@@ -1,7 +1,6 @@
 import angr
-from angr.sim_type import SimTypeTop, SimTypeLength
-
 import logging
+
 l = logging.getLogger(name=__name__)
 
 class memcpy(angr.SimProcedure):

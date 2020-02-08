@@ -1,10 +1,8 @@
 import angr
-from angr.sim_type import SimTypeInt
 
 ######################################
 # geteuid
 ######################################
-
 
 class geteuid(angr.SimProcedure):
     # pylint: disable=arguments-differ

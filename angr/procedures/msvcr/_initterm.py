@@ -1,7 +1,5 @@
 import logging
-
 import angr
-from angr.sim_type import SimTypeInt
 
 l = logging.getLogger(name=__name__)
 
@@ -17,7 +15,7 @@ class _initterm(angr.SimProcedure):
     def run(self, fp_a, fp_z):
         if self.state.solver.symbolic(fp_a) or self.state.solver.symbolic(fp_z):
             l.warning("Symbolic argument to _initterm{_e} is not supported... returning")
-            return 0 # might as well try to keep going
+            self.ret(0) # might as well try to keep going
 
         self.callbacks = self.get_callbacks(fp_a, fp_z)
         self.do_callbacks(fp_a, fp_z)
@@ -33,7 +31,7 @@ class _initterm(angr.SimProcedure):
 
     def do_callbacks(self, fp_a, fp_z): # pylint:disable=unused-argument
         if len(self.callbacks) == 0:
-            return 0 # probably best to assume each callback returned 0
+            self.ret(0)  # probably best to assume each callback returned 0
         else:
             callback_addr = self.callbacks.pop(0)
             l.debug("Calling %#x", callback_addr)

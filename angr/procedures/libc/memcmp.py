@@ -1,7 +1,6 @@
 import angr
-from angr.sim_type import SimTypeTop, SimTypeLength, SimTypeInt
-
 import logging
+
 l = logging.getLogger(name=__name__)
 
 class memcmp(angr.SimProcedure):
@@ -50,7 +49,7 @@ class memcmp(angr.SimProcedure):
                 self.state.add_constraints(self.state.solver.Or(*[c for c,_ in cases]))
 
             ret_expr = self.state.solver.If(definite_answer == 0, self.state.solver.ite_dict(n - definite_size, conditional_rets, 2), definite_answer)
-            self.state.add_constraints(self.state.solver.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
+            self.state.add_constraints(self.state.solver.Or(*[n-definite_size == c for c in conditional_rets]))
             return ret_expr
         else:
             return definite_answer

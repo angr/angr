@@ -1,7 +1,7 @@
 import angr
-from angr.sim_type import SimTypeString
 
 class strcat(angr.SimProcedure):
+    # pylint: disable=arguments-differ
     def run(self, dst, src):
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
         strncpy = angr.SIM_PROCEDURES['libc']['strncpy']

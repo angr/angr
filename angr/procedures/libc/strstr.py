@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging

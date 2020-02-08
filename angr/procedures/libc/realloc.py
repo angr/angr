@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeLength, SimTypeTop
 
 ######################################
 # realloc
