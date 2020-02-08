@@ -67,7 +67,7 @@ class BackwardSlice(Analysis):
         if targets is not None:
             for t in targets:
                 if isinstance(t, CodeLocation):
-                    node = self._cfg.get_any_node(t.block_addr)
+                    node = self._cfg.model.get_any_node(t.block_addr)
                     self._targets.append((node, t.stmt_idx))
                 elif type(t) is tuple:
                     self._targets.append(t)
@@ -406,7 +406,7 @@ class BackwardSlice(Analysis):
                     self.taint_graph.add_edge(p, tainted_cl)
 
             # Handle the control dependence
-            for n in self._cfg.get_all_nodes(tainted_cl.block_addr):
+            for n in self._cfg.model.get_all_nodes(tainted_cl.block_addr):
                 new_taints = self._handle_control_dependence(n)
 
                 l.debug("Returned %d taints for %s from control dependence graph", len(new_taints), n)
@@ -478,7 +478,7 @@ class BackwardSlice(Analysis):
             # Get the first two nodes
             a, b = simple_path[0], simple_path[1]
             # Get the exit statement ID from CFG
-            exit_stmt_id = self._cfg.get_exit_stmt_idx(a, b)
+            exit_stmt_id = self._cfg.model.get_exit_stmt_idx(a, b)
             if exit_stmt_id is None:
                 continue
 

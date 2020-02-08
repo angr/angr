@@ -55,13 +55,13 @@ class Explorer(ExplorationTechnique):
                 return
 
             for a in avoid:
-                if cfg.get_any_node(a) is None:
+                if cfg.model.get_any_node(a) is None:
                     l.warning("'Avoid' address %#x not present in CFG...", a)
 
             # not a queue but a stack... it's just a worklist!
             queue = []
             for f in static_find:
-                nodes = cfg.get_all_nodes(f)
+                nodes = cfg.model.get_all_nodes(f)
                 if len(nodes) == 0:
                     l.warning("'Find' address %#x not present in CFG...", f)
                 else:
@@ -125,7 +125,7 @@ class Explorer(ExplorationTechnique):
         avoidable = self.avoid(state)
 
         if not findable and not avoidable:
-            if self.cfg is not None and self.cfg.get_any_node(state.addr) is not None:
+            if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
                 if state.addr not in self.ok_blocks:
                     return self.avoid_stash
             return None

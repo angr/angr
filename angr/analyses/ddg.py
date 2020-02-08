@@ -793,7 +793,7 @@ class DDG(Analysis):
                     if (self._call_depth is None) or \
                             (self._call_depth is not None and 0 <= new_call_depth <= self._call_depth):
                         # Put all reachable successors back to our work-list again
-                        for successor in self._cfg.get_all_successors(node):
+                        for successor in self._cfg.model.get_all_successors(node):
                             nw = DDGJob(successor, new_call_depth)
                             self._worklist_append(nw, worklist, worklist_set)
 

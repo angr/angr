@@ -1334,7 +1334,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             jumpkind = state.history.jumpkind
 
         try:
-            node = self._cfg.get_any_node(addr)
+            node = self._cfg.model.get_any_node(addr)
             num_inst = None if node is None else len(node.instruction_addrs)
             sim_successors = self.project.factory.successors(state, jumpkind=jumpkind, num_inst=num_inst)
         except SimIRSBError as ex:

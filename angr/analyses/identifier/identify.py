@@ -596,7 +596,7 @@ class Identifier(Analysis):
 
         all_addrs = set()
         for bl_addr in func.block_addrs:
-            all_addrs.update(set(self._cfg.get_any_node(bl_addr).instruction_addrs))
+            all_addrs.update(set(self._cfg.model.get_any_node(bl_addr).instruction_addrs))
 
         sp = main_state.solver.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
         main_state.regs.sp = sp

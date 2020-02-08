@@ -125,7 +125,7 @@ class LoopSeer(ExplorationTechnique):
         return simgr
 
     def successors(self, simgr, state, **kwargs):
-        node = self.cfg.get_any_node(state.addr)
+        node = self.cfg.model.get_any_node(state.addr)
         if node is not None:
             kwargs['num_inst'] = min(kwargs.get('num_inst', float('inf')), len(node.instruction_addrs))
         return simgr.successors(state, **kwargs)
