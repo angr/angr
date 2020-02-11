@@ -13,9 +13,9 @@ from ailment.manager import Manager
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
-filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
+#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_two_input/samplevm_with_two_input"
-#filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
+filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 
@@ -265,18 +265,18 @@ def dead_code_elimination(cfg, proj, start_addr):
                 succ = cfg.graph.successors(node)
                 succ = next(succ)
                 preds = cfg.graph.predecessors(node)
+                to_remove = False
                 for pred in preds:
                     pred_edge_data = cfg.graph.get_edge_data(pred, node)
                     ### Rassigning the next expression of the previous
                     if not pred.is_simprocedure:
                         cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
                         pred.irsb.next = node.irsb.next
-                        cfg.graph.remove_node(node)
+                        to_remove = True
                     else:
                         print("Not removing this block, since there the previous block is a Sim Procedure")
-
-
-
+                if to_remove:
+                    cfg.graph.remove_node(node)
             else:
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
