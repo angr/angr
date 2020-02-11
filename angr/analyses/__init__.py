@@ -32,3 +32,4 @@ from .decompiler import Decompiler
 from .soot_class_hierarchy import SootClassHierarchy
 from .propagator import PropagatorAnalysis
 from .xrefs import XRefsAnalysis
+from .init_finder import InitializationsFinder

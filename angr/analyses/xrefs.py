@@ -159,9 +159,9 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
         self._analyze()
 
-        #
-        # Main analysis routines
-        #
+    #
+    # Main analysis routines
+    #
 
     def _pre_analysis(self):
         pass
