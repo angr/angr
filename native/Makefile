@@ -16,10 +16,9 @@ ifneq ($(DEBUG), )
 endif
 
 OBJS := log.o
+LDLIBS := -lunicorn -lpyvex
 ifeq ($(UNAME), Darwin)
-	LDFLAGS := -Wl,-weak-lunicorn,-weak-lpyvex
-else
-	LDLIBS := -lunicorn -lpyvex
+	LDFLAGS := -Wl,-rpath,"${UNICORN_LIB_PATH}",-rpath,"${PYVEX_LIB_PATH}"
 endif
 
 all: ${LIB_ANGR_NATIVE}
