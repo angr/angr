@@ -15,6 +15,17 @@ from .engines.hook import SimEngineHook
 from ..cfg.cfg_utils import CFGUtils
 from ...engines.successors import SimSuccessors
 
+from .new_engines.engine_vex import PropagatorEmulatedHeavyVEXMixin
+from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
+from ...engines.unicorn import SimEngineUnicorn
+from ...engines.failure import SimEngineFailure
+from ...engines.syscall import SimEngineSyscall
+from ...engines.hook import HooksMixin
+from ...engines.soot import SootMixin
+
+class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, PropagatorEmulatedHeavyVEXMixin):
+    pass
+
 class EmulatedCFGVisitor(GraphVisitor):
     def __init__(self, graph, start):
         super(EmulatedCFGVisitor, self).__init__()
@@ -198,7 +209,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     - Writing values to a stack variable
     """
 
-    def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
+    def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=1,
                  load_callback=None, stack_pointer_tracker=None, start=None, graph=None, iropt_level=None):
 
         # if func is not None:
@@ -237,6 +248,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
 
         self._engines = [ self._engine_hook, self._engine_syscall, self._engine_vex]
+        self._engine= PropagatorEmulatedEngine(project=self.project)
 
         self._analyze()
 
@@ -288,13 +300,16 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             abstract_state = PropagatorVEXState(arch=self.project.arch)
 
         sim_successors=None
-        for engine in self._engines:
-            if engine.check(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb):
-                sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
-                if sim_successors.processed:
-                    break
+        # for engine in self._engines:
+        #     if engine.check(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb):
+        #         sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
+        #         if sim_successors.processed:
+        #             break
 
-        #sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
+        node.input_state.globals['abstract_state'] = abstract_state
+        node.input_state.globals['block_id'] = block_key
+        engine = self._engine
+        sim_successors = engine.process(node.input_state, opt_level=self._iropt_level, irsb=node.irsb)
 
         symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
         symbolic_sim_successors.artifacts = sim_successors.artifacts
