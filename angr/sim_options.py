@@ -154,6 +154,9 @@ FAST_MEMORY = "FAST_MEMORY"
 # use FastMemory for registers
 FAST_REGISTERS = "FAST_REGISTERS"
 
+# use FullySymbolicMemory for memory
+FULLY_SYMBOLIC_MEMORY = "FULLY_SYMBOLIC_MEMORY"
+
 # Under-constrained symbolic execution
 UNDER_CONSTRAINED_SYMEXEC = "UNDER_CONSTRAINED_SYMEXEC"
 

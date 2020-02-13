@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import logging
-import itertools
 
 l = logging.getLogger(name=__name__)
 
@@ -12,8 +11,7 @@ from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 from ..sim_state_options import SimStateOptions
 from ..misc.ux import once
-
-DEFAULT_MAX_SEARCH = 8
+from .utils import resolve_size_range, get_unconstrained_bytes
 
 class MultiwriteAnnotation(claripy.Annotation):
     @property
@@ -210,7 +208,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 # size and merge them
                 extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
                 created = [
-                    (self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * self.state.arch.byte_width), fv) for
+                    (get_unconstrained_bytes(
+                        self.category,
+                        self.state,
+                        "merge_uc_%s_%x" % (uc.id, b),
+                        min_size * self.state.arch.byte_width
+                        ), fv) for
                     uc, fv in unconstrained_in
                 ]
                 to_merge = extracted + created
@@ -309,41 +312,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         r = self.load(addr, length)
 
-        v = self.get_unconstrained_bytes(name, r.size())
+        v = get_unconstrained_bytes(self.category, self.state, name, r.size())
         self.store(addr, v)
         self.state.add_constraints(r == v)
         l.debug("... eq constraints: %s", r == v)
         return v
 
-    #
-    # Address concretization
-    #
-
-    def _resolve_size_range(self, size):
-        if not self.state.solver.symbolic(size):
-            i = self.state.solver.eval(size)
-            if i > self._maximum_concrete_size:
-                raise SimMemoryLimitError("Concrete size %d outside of allowable limits" % i)
-            return i, i
-
-        if options.APPROXIMATE_MEMORY_SIZES in self.state.options:
-            max_size_approx = self.state.solver.max_int(size, exact=True)
-            min_size_approx = self.state.solver.min_int(size, exact=True)
-
-            if max_size_approx < self._maximum_symbolic_size_approx:
-                return min_size_approx, max_size_approx
-
-        max_size = self.state.solver.max_int(size)
-        min_size = self.state.solver.min_int(size)
-
-        if min_size > self._maximum_symbolic_size:
-            self.state.history.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
-            if options.BEST_EFFORT_MEMORY_STORING not in self.state.options:
-                raise SimMemoryLimitError("Symbolic size %d outside of allowable limits" % min_size)
-            else:
-                min_size = self._maximum_symbolic_size
-
-        return min_size, min(max_size, self._maximum_symbolic_size)
 
     #
     # Concretization strategies
@@ -439,7 +413,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             name = "%s_%x" % (self.id, addr)
         all_missing = [
-            self.get_unconstrained_bytes(
+            get_unconstrained_bytes(
+                self.category,
+                self.state,
                 name,
                 min(self.mem._page_size, num_bytes)*self.state.arch.byte_width,
                 source=i,
@@ -560,7 +536,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
         # for now, we always load the maximum size
-        _,max_size = self._resolve_size_range(size)
+        _,max_size = resolve_size_range(self, size)
         if options.ABSTRACT_MEMORY not in self.state.options and self.state.solver.symbolic(size):
             self.state.add_constraints(size == max_size, action=True)
 
@@ -569,15 +545,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         size = max_size
         if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*self.state.arch.byte_width), [ ]
+            return [ ], get_unconstrained_bytes(
+                self.category, self.state, "symbolic_read_unconstrained", size*self.state.arch.byte_width
+            ), [ ]
 
         # get a concrete set of read addresses
         try:
             addrs = self.concretize_read_addr(dst)
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
-                return [ ], self.get_unconstrained_bytes(
-                    "symbolic_read_unconstrained", size*self.state.arch.byte_width
+                return [ ], get_unconstrained_bytes(
+                    self.category, self.state, "symbolic_read_unconstrained", size*self.state.arch.byte_width
                 ), [ ]
             else:
                 raise
@@ -608,114 +586,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             load_constraint = [ self.state.solver.Or(self.state.solver.And(condition, *load_constraint), self.state.solver.Not(condition)) ]
 
         return addrs, read_value, load_constraint
-
-    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
-              disable_actions=False, inspect=True, chunk_size=None):
-        if max_search is None:
-            max_search = DEFAULT_MAX_SEARCH
-
-        if isinstance(start, int):
-            start = self.state.solver.BVV(start, self.state.arch.bits)
-
-        constraints = [ ]
-        remaining_symbolic = max_symbolic_bytes
-        seek_size = len(what)//self.state.arch.byte_width
-        symbolic_what = self.state.solver.symbolic(what)
-
-        l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
-
-        chunk_start = 0
-        if chunk_size is None:
-            chunk_size = max(0x100, seek_size + 0x80)
-
-        chunk = self.load(start, chunk_size, endness="Iend_BE",
-                          disable_actions=disable_actions, inspect=inspect)
-
-        cases = [ ]
-        match_indices = [ ]
-        offsets_matched = [ ] # Only used in static mode
-        byte_width = self.state.arch.byte_width
-        no_singlevalue_opt = options.SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS in self.state.options
-        cond_prefix = [ ]
-
-        if options.MEMORY_FIND_STRICT_SIZE_LIMIT in self.state.options:
-            cond_falseness_test = self.state.solver.is_false
-        else:
-            cond_falseness_test = lambda cond: cond.is_false()
-
-        for i in itertools.count(step=step):
-            l.debug("... checking offset %d", i)
-            if i > max_search - seek_size:
-                l.debug("... hit max size")
-                break
-            if remaining_symbolic is not None and remaining_symbolic == 0:
-                l.debug("... hit max symbolic")
-                break
-            if i - chunk_start > chunk_size - seek_size:
-                l.debug("loading new chunk")
-                chunk_start += chunk_size - seek_size + 1
-                chunk = self.load(start+chunk_start, chunk_size,
-                                  endness="Iend_BE", ret_on_segv=True,
-                                  disable_actions=disable_actions, inspect=inspect)
-
-            chunk_off = i-chunk_start
-            b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
-            condition = b == what
-            if not cond_falseness_test(condition):
-                if no_singlevalue_opt and cond_prefix:
-                    condition = claripy.And(*(cond_prefix + [condition]))
-                cases.append([condition, claripy.BVV(i, len(start))])
-                match_indices.append(i)
-
-            if b.symbolic and no_singlevalue_opt:
-                # in tracing mode, we need to make sure that all previous bytes are not equal to what
-                cond_prefix.append(b != what)
-
-            if self.state.mode == 'static':
-                si = b._model_vsa
-                what_si = what._model_vsa
-
-                if isinstance(si, claripy.vsa.StridedInterval):
-                    if not si.intersection(what_si).is_empty:
-                        offsets_matched.append(start + i)
-
-                    if si.identical(what_si):
-                        break
-
-                    if si.cardinality != 1:
-                        if remaining_symbolic is not None:
-                            remaining_symbolic -= 1
-                else:
-                    # Comparison with other types (like IfProxy or ValueSet) is not supported
-                    if remaining_symbolic is not None:
-                        remaining_symbolic -= 1
-
-            else:
-                # other modes (e.g. symbolic mode)
-                if not b.symbolic and not symbolic_what and self.state.solver.eval(b) == self.state.solver.eval(what):
-                    l.debug("... found concrete")
-                    break
-                else:
-                    if b.symbolic and remaining_symbolic is not None:
-                        remaining_symbolic -= 1
-
-        if self.state.mode == 'static':
-            r = self.state.solver.ESI(self.state.arch.bits)
-            for off in offsets_matched:
-                r = r.union(off)
-
-            constraints = [ ]
-            return r, constraints, match_indices
-
-        else:
-            if default is None:
-                l.debug("... no default specified")
-                default = 0
-                constraints += [ self.state.solver.Or(*[ c for c,_ in cases]) ]
-
-            #l.debug("running ite_cases %s, %s", cases, default)
-            r = self.state.solver.ite_cases(cases, default - start) + start
-            return r, constraints, match_indices
 
     def __contains__(self, dst):
         if isinstance(dst, int):
@@ -1068,35 +938,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return req
 
-    def get_unconstrained_bytes(self, name, bits, source=None, key=None, inspect=True, events=True, **kwargs):
-        """
-        Get some consecutive unconstrained bytes.
-
-        :param name: Name of the unconstrained variable
-        :param bits: Size of the unconstrained variable
-        :param source: Where those bytes are read from. Currently it is only used in under-constrained symbolic
-                    execution so that we can track the allocation depth.
-        :return: The generated variable
-        """
-
-        if self.category == 'mem' and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
-            return self.state.solver.BVV(0, bits)
-        elif self.category == 'reg' and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
-            return self.state.solver.BVV(0, bits)
-        elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
-            return self.state._special_memory_filler(name, bits, self.state)
-        else:
-            if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                if source is not None and type(source) is int:
-                    alloc_depth = self.state.uc_manager.get_alloc_depth(source)
-                    kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
-            r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events, **kwargs)
-            return r
-
     # Unconstrain a byte
     def unconstrain_byte(self, addr, inspect=True, events=True):
-        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_%#x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
-                                                          events=events, key=('manual_unconstrain', addr))
+        unconstrained_byte = get_unconstrained_bytes(self.category, self.state, "%s_unconstrain_%#x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
+                                                     events=events, key=('manual_unconstrain', addr))
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.
@@ -1172,7 +1017,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         src_memory = self if src_memory is None else src_memory
         dst_memory = self if dst_memory is None else dst_memory
 
-        _,max_size = self._resolve_size_range(size)
+        _,max_size = resolve_size_range(self, size)
         if max_size == 0:
             return None, [ ]
 

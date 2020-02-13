@@ -157,6 +157,7 @@ setup(
         'pycparser>=2.18',
         'itanium_demangler',
         'protobuf',
+        'pympler',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,

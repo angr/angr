@@ -5,6 +5,7 @@ from .posix import *
 from .inspect import *
 from .solver import *
 from .symbolic_memory import SimSymbolicMemory
+from .fully_symbolic_memory import FullySymbolicMemory
 from .abstract_memory import *
 from .keyvalue_memory import *
 from .javavm_memory import *
