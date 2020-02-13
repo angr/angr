@@ -80,7 +80,7 @@ def data_sensitive_graph(filename,start_addr):
                                     data_sensitive=True ,
                                     starts=[start_addr],
                                     initial_state=start_state,
-                                    max_iterations=1,
+                                    max_iterations=5,
                                     resolve_indirect_jumps=False, ##### Need to resolve the issue that arises when this is set to True
                                     keep_state=True,
                                     state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
@@ -107,7 +107,7 @@ def constant_propagation(cfg, proj, start_addr):
     new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
     ## find the replacements
 
-    prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=start_addr, max_iterations=1)
+    prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=start_addr, max_iterations=5)
 
     ## do the actual replacements
     for key, value in prop.replacements.items():
@@ -570,6 +570,8 @@ draw_graph(new_cfg, folder_name+"/cp_result.svg")
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 draw_graph(new_cfg, folder_name+"/first_dce_result.svg")
 # DCE second time
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
 new_cfg = dead_code_elimination(new_cfg, proj, start_addr=start_addr)
