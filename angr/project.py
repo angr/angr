@@ -14,7 +14,7 @@ from .misc.ux import deprecated
 
 l = logging.getLogger(name=__name__)
 
-def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False):
+def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False, **kwargs):
     """
     Load a new project based on a snippet of assembly or bytecode.
 
@@ -38,7 +38,8 @@ def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False)
                 'arch': arch,
                 'entry_point': start_offset,
                 'base_addr': load_address,
-            }
+            },
+        **kwargs
         )
 
 

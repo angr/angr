@@ -1,8 +1,7 @@
-import logging
+import cle
 import pickle
 import nose
 import gc
-import tempfile
 import os
 
 import claripy
@@ -255,7 +254,9 @@ def test_successors_catch_arbitrary_interrupts():
     block_bytes = b"\xcd\xd2"
 
     proj = angr.load_shellcode(block_bytes, "amd64")
+    proj.loader.tls = cle.backends.tls.ELFThreadManager(proj.loader, proj.arch)
     proj.simos = angr.simos.SimLinux(proj)
+    proj.simos.configure_project()
     state = proj.factory.blank_state(addr=0)
     simgr = proj.factory.simgr(state)
 
