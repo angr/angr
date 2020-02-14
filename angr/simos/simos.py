@@ -1,5 +1,6 @@
 import logging
 import struct
+import angr # for types
 
 import claripy
 from archinfo import ArchMIPS32, ArchS390X
@@ -26,7 +27,7 @@ class SimOS:
     A class describing OS/arch-level configuration.
     """
 
-    def __init__(self, project, name=None):
+    def __init__(self, project: 'angr.Project', name=None):
         self.arch = project.arch
         self.project = project
         self.name = name

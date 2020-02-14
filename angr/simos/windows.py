@@ -70,6 +70,8 @@ class SimWindows(SimOS):
         self.acmdln_ptr = self._find_or_make('_acmdln')
         self.wcmdln_ptr = self._find_or_make('_wcmdln')
 
+        self.project.loader.tls.new_thread()
+
     def _find_or_make(self, name):
         sym = self.project.loader.find_symbol(name)
         if sym is None:
@@ -195,8 +197,7 @@ class SimWindows(SimOS):
             state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000  # stack limit (low addr)
             state.mem[TIB_addr + 0x18].dword = TIB_addr  # myself!
             state.mem[TIB_addr + 0x24].dword = 0xbad76ead  # thread id
-            if self.project.loader.tls_object is not None:
-                state.mem[TIB_addr + 0x2c].dword = self.project.loader.tls_object.user_thread_pointer  # tls array pointer
+            state.mem[TIB_addr + 0x2c].dword = self.project.loader.tls.threads[0].user_thread_pointer  # tls array pointer
             state.mem[TIB_addr + 0x30].dword = PEB_addr  # PEB addr, of course
 
             state.regs.fs = TIB_addr >> 16
