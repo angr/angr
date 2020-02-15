@@ -1266,7 +1266,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # If they asked for it, give it to them.  All of it.
         if self._cross_references:
-            self._do_full_xrefs()
+            self.do_full_xrefs()
 
         r = True
         while r:
@@ -1276,10 +1276,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._finish_progress()
 
-    def _do_full_xrefs(self):
+    def do_full_xrefs(self, overlay_state=None):
+        """
+        Perform xref recovery on all functions.
+
+        :param SimState overlay:    An overlay state for loading constant data.
+        :return:                    None
+        """
+
         l.info("Building cross-references...")
         # Time to make our CPU hurt
-        state = self.project.factory.blank_state()
+        state = self.project.factory.blank_state() if overlay_state is None else overlay_state
         for f_addr in self.functions:
             f = None
             try:
