@@ -22,6 +22,23 @@ class SimEngineInitFinderVEX(
         self.overlay = overlay
 
     #
+    # Utils
+    #
+
+    def _is_addr_uninitialized(self, addr):
+        # is it writing to a global, uninitialized region?
+
+        obj = self.project.loader.find_object_containing(addr)
+        if obj is not None:
+            section = obj.find_section_containing(addr)
+            if section is not None:
+                return section.name in {'.bss', }
+            else:
+                segment = obj.find_segment_containing(addr)
+                # TODO: which segments are uninitialized?
+        return False
+
+    #
     # Statement handlers
     #
 
@@ -40,27 +57,42 @@ class SimEngineInitFinderVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr_v = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr_v, int):
-                    # is it writing to a global, uninitialized region?
-                    uninit = False
-                    obj = self.project.loader.find_object_containing(addr_v)
-                    if obj is not None:
-                        section = obj.find_section_containing(addr_v)
-                        if section is not None:
-                            uninit = section.name in {'.bss', }
-                        else:
-                            segment = obj.find_segment_containing(addr_v)
-                            # TODO: which segments are uninitialized?
-                    if uninit:
-                        # do we know what it is writing?
-                        if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                            data_v = self._expr(stmt.data)
-                            if isinstance(data_v, int):
-                                print(hex(addr_v), hex(data_v))
-                                data_size = self.tyenv.sizeof(stmt.data.tmp)
-                                self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
-                                                   endness=self.project.arch.memory_endness
-                                                   )
+                if isinstance(addr_v, int) and self._is_addr_uninitialized(addr_v):
+                    # do we know what it is writing?
+                    if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                        data_v = self._expr(stmt.data)
+                        if isinstance(data_v, int):
+                            data_size = self.tyenv.sizeof(stmt.data.tmp)
+                            self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
+                                               endness=self.project.arch.memory_endness
+                                               )
+
+    def _handle_StoreG(self, stmt):
+        blockloc = self._codeloc(block_only=True)
+        repl = self.replacements[blockloc]
+
+        if type(stmt.guard) is pyvex.IRExpr.RdTmp:
+            # check if guard is true
+            if repl[VEXTmp(stmt.guard.tmp)] is not True:
+                return
+        if type(stmt.addr) is pyvex.IRExpr.RdTmp:
+            addr_v = repl[VEXTmp(stmt.addr.tmp)]
+        else:
+            return
+
+        if not (isinstance(addr_v, int) and self._is_addr_uninitialized(addr_v)):
+            return
+
+        if type(stmt.data) is pyvex.IRExpr.RdTmp:
+            data_v = self._expr(stmt.data)
+        else:
+            return
+
+        if isinstance(data_v, int):
+            data_size = self.tyenv.sizeof(stmt.data.tmp)
+            self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
+                               endness=self.project.arch.memory_endness
+                               )
 
     #
     # Expression handlers
@@ -70,6 +102,9 @@ class SimEngineInitFinderVEX(
         return None
 
     def _handle_Load(self, expr):
+        return None
+
+    def _handle_LoadG(self, expr):
         return None
 
     def _handle_RdTmp(self, expr):
@@ -114,12 +149,12 @@ class InitializationsFinder(ForwardAnalysis, Analysis):
 
         self._node_iterations = defaultdict(int)
 
-        self._overlay_state = None
+        self.overlay_state = None
         if overlay is not None:
             self.overlay = overlay
         else:
-            self._overlay_state = self.project.factory.blank_state()
-            self.overlay = self._overlay_state.memory
+            self.overlay_state = self.project.factory.blank_state()
+            self.overlay = self.overlay_state.memory
 
         self._engine_vex = SimEngineInitFinderVEX(self.project, replacements, self.overlay)
         self._engine_ail = None

@@ -57,7 +57,6 @@ class SimEngineXRefsVEX(
                 self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_LoadG(self, stmt):
-
         # What are we reading?
         blockloc = self._codeloc(block_only=True)
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:

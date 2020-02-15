@@ -19,8 +19,14 @@ def test_p2im_drone():
     prop = proj.analyses.Propagator(func=func, base_state=state)
 
     init_finder = proj.analyses.InitializationsFinder(func=func, replacements=prop.replacements)
+    overlay = init_finder.overlay
 
-    # import ipdb; ipdb.set_trace()
+    # h12c1.Instance
+    nose.tools.assert_equal(state.solver.eval_one(overlay.load(0x20001500, 4, endness='Iend_LE')), 0x40005400)
+    # hi2c1.Init.AddressingMode
+    nose.tools.assert_equal(state.solver.eval_one(overlay.load(0x20001500+4+0xc, 4, endness='Iend_LE')), 0x4000)
+    # h12c1.Init.NoStretchMode
+    nose.tools.assert_equal(state.solver.eval_one(overlay.load(0x20001500+4+0x1c, 4, endness='Iend_LE')), 0)
 
 
 if __name__ == "__main__":
