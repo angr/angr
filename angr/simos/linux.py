@@ -52,29 +52,23 @@ class SimLinux(SimUserland):
                           )
         self.project.hook(self.vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
-        ld_obj = self.project.loader.linux_loader_object
-        if ld_obj is not None:
-            # there are some functions we MUST use the simprocedures for, regardless of what the user wants
-            self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch), ld_obj)
-            self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch), ld_obj)
+        # there are some functions we MUST use the simprocedures for, regardless of what the user wants
+        self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch))    # ld
+        self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch))  # ld
+        self._weak_hook_symbol('_dl_vdso_vsym', L['libc.so.6'].get('_dl_vdso_vsym', self.arch))  # libc
 
-            # set up some static data in the loader object...
-            # TODO it should be legal to get these from the externs now
-            _rtld_global = ld_obj.get_symbol('_rtld_global')
-            if _rtld_global is not None:
-                if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
+        # set up some static data in the loader object...
+        _rtld_global = self.project.loader.find_symbol('_rtld_global')
+        if _rtld_global is not None:
+            if isinstance(self.project.arch, ArchAMD64):
+                self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
+                self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
 
-            # TODO: what the hell is this
-            _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
-            if _rtld_global_ro is not None:
-                pass
-
-        libc_obj = self.project.loader.find_object('libc.so.6')
-        if libc_obj:
-            self._weak_hook_symbol('_dl_vdso_vsym', L['libc.so.6'].get('_dl_vdso_vsym', self.arch), libc_obj)
+        # TODO: what the hell is this
+        _rtld_global_ro = self.project.loader.find_symbol('_rtld_global_ro')
+        if _rtld_global_ro is not None:
+            pass
 
         tls_obj = self.project.loader.tls.new_thread()
         if isinstance(self.project.arch, ArchAMD64):
