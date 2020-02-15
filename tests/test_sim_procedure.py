@@ -36,7 +36,7 @@ def test_syscall_and_simprocedure():
     cfg = proj.analyses.CFGFast(normalize=True)
 
     # check syscall
-    node = cfg.get_any_node(0xa000001)
+    node = cfg.get_any_node(proj.loader.kernel_object.mapped_base + 1)
     func = proj.kb.functions[node.addr]
 
     nose.tools.assert_true(node.is_simprocedure)
