@@ -1,2 +1,1 @@
-
 from .propagator_emulated import PropagatorEmulatedAnalysis
