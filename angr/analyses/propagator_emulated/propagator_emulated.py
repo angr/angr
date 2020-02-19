@@ -24,30 +24,26 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
 
 class EmulatedCFGVisitor(GraphVisitor):
+
     def __init__(self, graph, start):
         super(EmulatedCFGVisitor, self).__init__()
         self._start = start
         self.graph=graph
         self.reset()
-    def startpoints(self):
 
+    def startpoints(self):
         return [self._start]
 
     def successors(self, node):
-
         return list(self.graph.successors(node))
 
     def predecessors(self, node):
-
         return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-
         sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
-
         if nodes is not None:
             sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
-
         return sorted_nodes
 
 # The base state
@@ -57,7 +53,6 @@ class PropagatorState:
     def __init__(self, arch, replacements=None, concrete_states=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
-
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._concrete_states = concrete_states
 
@@ -69,7 +64,6 @@ class PropagatorState:
 
     def merge(self, *others):
         state = self.copy()
-
         for o in others:
             for loc, vars_ in o._replacements.items():
                 if loc not in state._replacements:
@@ -110,6 +104,7 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
+
     def __init__(self, arch, replacements=None, concrete_states=None):
         super().__init__(arch, replacements=replacements, concrete_states=concrete_states)
 
@@ -123,6 +118,7 @@ class PropagatorVEXState(PropagatorState):
             concrete_states=self._concrete_states
         )
         return cp
+
     def add_replacement(self, codeloc, old, new):
         if old not in self._replacements[codeloc]:
             self._replacements[codeloc][old] = new
@@ -137,7 +133,6 @@ class PropagatorAILState(PropagatorState):
 
     def __init__(self, arch, replacements=None):
         super().__init__(arch, replacements=replacements)
-
         self._variables = { }  # variable to values
 
     def __repr__(self):
@@ -148,9 +143,7 @@ class PropagatorAILState(PropagatorState):
             self.arch,
             replacements=self._replacements.copy(),
         )
-
         rd._variables = self._variables.copy()
-
         return rd
 
     def merge(self, *others):
@@ -164,7 +157,6 @@ class PropagatorAILState(PropagatorState):
                     if state._variables[k] != o._variables[k]:
                         # Go to TOP
                         state._variables[k] = TOP
-
         return state
 
     def store_variable(self, old, new):
@@ -207,35 +199,18 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=1,
                  load_callback=None, stack_pointer_tracker=None, start=None, graph=None, iropt_level=None):
-
-        # if func is not None:
-        #     if block is not None:
-        #         raise ValueError('You cannot specify both "func" and "block".')
-        #     # traversing a function
-        #     graph_visitor = FunctionGraphVisitor(func, func_graph)
-        # elif block is not None:
-        #     # traversing a block
-        #     graph_visitor = SingleNodeGraphVisitor(block)
-        # else:
-        #     raise ValueError('Unsupported analysis target.')
-
-
         graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
-
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_widening=False,
                                  graph_visitor=graph_visitor)
-
         self._base_state = base_state
         self._function = func
         self._max_iterations = max_iterations
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
         self._iropt_level = iropt_level
-
         self._node_iterations = defaultdict(int)
         self._states = { }
         self.replacements = {}
-
         self._engine_ail = None
         self._engine= PropagatorEmulatedEngine(project=self.project)
         self._analyze()
@@ -287,13 +262,6 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         else:
             abstract_state = PropagatorVEXState(arch=self.project.arch)
 
-        sim_successors=None
-        # for engine in self._engines:
-        #     if engine.check(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb):
-        #         sim_successors = engine.process(node.input_state, abstract_state=abstract_state, block_key=block_key, opt_level=self._iropt_level, irsb=node.irsb)
-        #         if sim_successors.processed:
-        #             break
-
         node.input_state.globals['abstract_state'] = abstract_state
         node.input_state.globals['block_id'] = block_key
         engine = self._engine
@@ -313,7 +281,6 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                       successor.history.jumpkind, True,
                                                       successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
                                                       successor.scratch.source)
-
 
         node.final_states = symbolic_sim_successors
         abstract_state.concrete_states = symbolic_sim_successors
