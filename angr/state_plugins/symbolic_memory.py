@@ -37,7 +37,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         endness=None, abstract_backer=False, check_permissions=None,
         read_strategies=None, write_strategies=None, stack_region_map=None, generic_region_map=None
     ):
-
         SimMemory.__init__(self,
                            endness=endness,
                            abstract_backer=abstract_backer,
@@ -569,7 +568,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self.state.history.add_event('memory_limit', message="0-length read")
 
         size = max_size
-
         if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
             if options.REPLACEMENT_SOLVER in self.state.options:
                 new = dst.replace_dict(self.state.solver._solver._replacement_cache)
@@ -618,7 +616,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
               disable_actions=False, inspect=True, chunk_size=None):
-
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
