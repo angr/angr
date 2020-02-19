@@ -146,7 +146,7 @@ setup(
         'progressbar2',
         'rpyc',
         'cffi>=1.7.0',
-        'unicorn',
+        'unicorn>=1.0.2rc2',
         'archinfo==8.20.1.7',
         'claripy==8.20.1.7',
         'cle==8.20.1.7',
