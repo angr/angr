@@ -215,7 +215,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self._node_iterations = defaultdict(int)
         self._states = { }
-        self.replacements = None
+        self.replacements = None  # type: None|defaultdict
 
         self._engine_vex = SimEnginePropagatorVEX(project=self.project)
         self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
@@ -269,7 +269,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self._node_iterations[block_key] += 1
         self._states[block_key] = state
-        self.replacements = state._replacements
+
+        if self.replacements is None:
+            self.replacements = state._replacements
+        else:
+            self.replacements.update(state._replacements)
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state
