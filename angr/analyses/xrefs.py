@@ -74,7 +74,7 @@ class SimEngineXRefsVEX(
         tmp = VEXTmp(data_tmp)
         if tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][tmp], Top):
             data = self.replacements[blockloc][tmp]
-            if self.project.loader.find_object_containing(data) is not None:
+            if data is not None and self.project.loader.find_object_containing(data) is not None:
                 # HACK: Avoid spamming Xrefs if the binary is loaded at 0
                 # e.g., firmware!
                 # (magic value chosen due to length of CM EVT)
