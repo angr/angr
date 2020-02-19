@@ -9,9 +9,6 @@ from ..analysis import Analysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
-from .engines.vex.engine import SimEngineVEX
-from .engines.syscall import SimEngineSyscall
-from .engines.hook import SimEngineHook
 from ..cfg.cfg_utils import CFGUtils
 from ...engines.successors import SimSuccessors
 
@@ -240,16 +237,8 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._states = { }
         self.replacements = {}
 
-        self._engine_vex = SimEngineVEX(project=self.project)
-        self._engine_syscall = SimEngineSyscall(project=self.project)
-        self._engine_hook = SimEngineHook(project=self.project)
-
         self._engine_ail = None
-
-
-        self._engines = [ self._engine_hook, self._engine_syscall, self._engine_vex]
         self._engine= PropagatorEmulatedEngine(project=self.project)
-
         self._analyze()
 
     #
