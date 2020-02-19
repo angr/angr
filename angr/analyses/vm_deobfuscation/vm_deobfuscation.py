@@ -37,7 +37,7 @@ def new_model_graph(old_graph, proj, identifier):
         new_node = CFGENode(irsb=copy.deepcopy(node.irsb),
                             block_id=copy.deepcopy(node.block_id),
                             size=copy.deepcopy(node.size),
-                            data_offset=copy.deepcopy(node.data_offset),
+                            vm_vpc=copy.deepcopy(node.vm_vpc),
                             looping_times=copy.deepcopy(node.looping_times),
                             callstack_key=copy.deepcopy(node.callstack_key),
                             simprocedure_name=copy.deepcopy(node.simprocedure_name),

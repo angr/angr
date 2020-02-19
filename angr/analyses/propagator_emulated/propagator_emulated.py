@@ -2,26 +2,26 @@
 from collections import defaultdict
 
 import ailment
-import claripy
 
-from .. import register_analysis
-from ..analysis import Analysis
-from ..forward_analysis.visitors.graph import GraphVisitor
-from ..forward_analysis import ForwardAnalysis
-from .values import TOP
-from ..cfg.cfg_utils import CFGUtils
 from ...engines.successors import SimSuccessors
-
-from .new_engines.engine_vex import PropagatorEmulatedHeavyVEXMixin
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from ...engines.unicorn import SimEngineUnicorn
 from ...engines.failure import SimEngineFailure
 from ...engines.syscall import SimEngineSyscall
 from ...engines.hook import HooksMixin
 from ...engines.soot import SootMixin
+from ..cfg.cfg_utils import CFGUtils
+from .. import register_analysis
+from ..analysis import Analysis
+from ..forward_analysis.visitors.graph import GraphVisitor
+from ..forward_analysis import ForwardAnalysis
+from .values import TOP
+from .new_engines.engine_vex import PropagatorEmulatedHeavyVEXMixin
+
 
 class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, PropagatorEmulatedHeavyVEXMixin):
     pass
+
 
 class EmulatedCFGVisitor(GraphVisitor):
     def __init__(self, graph, start):
@@ -50,11 +50,10 @@ class EmulatedCFGVisitor(GraphVisitor):
 
         return sorted_nodes
 
-
-
 # The base state
 
 class PropagatorState:
+
     def __init__(self, arch, replacements=None, concrete_states=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
@@ -69,7 +68,6 @@ class PropagatorState:
         raise NotImplementedError()
 
     def merge(self, *others):
-
         state = self.copy()
 
         for o in others:
@@ -136,6 +134,7 @@ class PropagatorVEXState(PropagatorState):
 # AIL state
 
 class PropagatorAILState(PropagatorState):
+
     def __init__(self, arch, replacements=None):
         super().__init__(arch, replacements=replacements)
 
