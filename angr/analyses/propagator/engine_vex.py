@@ -47,7 +47,7 @@ class SimEnginePropagatorVEX(
             # Record the replacement
             if type(expr) is pyvex.IRExpr.Get:
                 if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
-                    self.state.add_replacement(self._codeloc(),
+                    self.state.add_replacement(self._codeloc(block_only=True),
                                                VEXReg(expr.offset, expr.result_size(self.tyenv) // 8),
                                                v)
         return v
@@ -131,6 +131,7 @@ class SimEnginePropagatorVEX(
         else:
             self.tmps[stmt.dst] = None
 
+        # add replacement
         if stmt.dst in self.tmps and self.tmps[stmt.dst]:
             self.state.add_replacement(self._codeloc(block_only=True), VEXTmp(stmt.dst), self.tmps[stmt.dst])
 
