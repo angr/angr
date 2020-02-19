@@ -8,7 +8,6 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 import networkx as nx
 import re
 from ailment.converter import IRSBConverter
-from ailment.analyses.block_simplifier import BlockSimplifier
 from ailment.manager import Manager
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
