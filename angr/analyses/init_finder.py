@@ -133,13 +133,15 @@ class InitializationsFinder(ForwardAnalysis, Analysis):
             # traversing a function
             graph_visitor = FunctionGraphVisitor(func, func_graph)
             if replacements is None:
-                prop = self.project.analyses.Propagator(func=func, func_graph=func_graph)
+                prop = self.project.analyses.Propagator(func=func, func_graph=func_graph,
+                                                        base_state=self.project.factory.blank_state())
                 replacements = prop.replacements
         elif block is not None:
             # traversing a block
             graph_visitor = SingleNodeGraphVisitor(block)
             if replacements is None:
-                prop = self.project.analyses.Propagator(block=block)
+                prop = self.project.analyses.Propagator(block=block,
+                                                        base_state=self.project.factory.blank_state())
                 replacements = prop.replacements
         else:
             raise ValueError('Unsupported analysis target.')
