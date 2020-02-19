@@ -16,7 +16,7 @@ from ..analysis import Analysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
-from .new_engines.engine_vex import PropagatorEmulatedHeavyVEXMixin
+from .engines.engine_vex import PropagatorEmulatedHeavyVEXMixin
 
 
 class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, PropagatorEmulatedHeavyVEXMixin):
