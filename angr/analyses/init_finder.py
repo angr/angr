@@ -73,10 +73,14 @@ class SimEngineInitFinderVEX(
 
         if type(stmt.guard) is pyvex.IRExpr.RdTmp:
             # check if guard is true
-            if repl[VEXTmp(stmt.guard.tmp)] is not True:
+            tmp = VEXTmp(stmt.guard.tmp)
+            if tmp not in repl or repl[tmp] is not True:
                 return
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
-            addr_v = repl[VEXTmp(stmt.addr.tmp)]
+            tmp = VEXTmp(stmt.addr.tmp)
+            if tmp not in repl:
+                return
+            addr_v = repl[tmp]
         else:
             return
 
