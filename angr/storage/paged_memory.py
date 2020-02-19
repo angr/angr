@@ -314,7 +314,6 @@ class ListPage(BasePage):
                 mo = self._sinkhole
             if mo is not None and (not items or items[-1][1] is not mo):
                 items.append((addr, mo))
-
         return items
 
     def _copy_args(self):
