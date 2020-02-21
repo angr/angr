@@ -7,6 +7,7 @@ import nose.tools
 import archinfo
 import angr
 from angr.calling_conventions import SimStackArg, SimRegArg, SimCCCdecl, SimCCSystemVAMD64
+from angr.analyses.calling_convention import CallingConventionAnalysis
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..',
@@ -77,6 +78,17 @@ def disabled_cgc():
 
     for binary in binaries:
         yield run_cgc, binary
+
+
+def test_dir_gcc_O0():
+
+    binary_path = os.path.join(test_location, 'tests', 'x86_64', 'dir_gcc_-O0')
+    proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+
+    cfg = proj.analyses.CFG()  # fill in the default kb
+
+    CallingConventionAnalysis.recover_calling_conventions(proj)
+
 
 
 def run_all():

@@ -1,9 +1,11 @@
 import logging
 
+from archinfo.arch_arm import is_arm_arch
+
+from ..analyses.cfg import CFGUtils
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from . import Analysis, register_analysis
-from archinfo.arch_arm import is_arm_arch
 
 l = logging.getLogger(name=__name__)
 
@@ -166,21 +168,23 @@ class CallingConventionAnalysis(Analysis):
     @staticmethod
     def recover_calling_conventions(project, kb=None):
         """
+        Infer calling conventions for all functions in a project.
 
         :return:
         """
         if kb is None:
             kb = project.kb
 
-        new_cc_found = True
-        while new_cc_found:
-            new_cc_found = False
-            for func in kb.functions.values():
-                if func.calling_convention is None:
-                    # determine the calling convention of each function
-                    cc_analysis = project.analyses.CallingConvention(func)
-                    if cc_analysis.cc is not None:
-                        func.calling_convention = cc_analysis.cc
-                        new_cc_found = True
+        # get an ordering of functions based on the call graph
+        sorted_funcs = CFGUtils.quasi_topological_sort_nodes(kb.functions.callgraph)
+
+        for func_addr in reversed(sorted_funcs):
+            func = kb.functions.get_by_addr(func_addr)
+            if func.calling_convention is None:
+                # determine the calling convention of each function
+                cc_analysis = project.analyses.CallingConvention(func)
+                if cc_analysis.cc is not None:
+                    func.calling_convention = cc_analysis.cc
+
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
