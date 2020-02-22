@@ -344,10 +344,12 @@ class VaultDirShelf(VaultDict):
         return o
 
     def keys(self):
-        s = [ ]
+        s = set()
         for n in os.listdir(self._d):
-            if n.endswith(".dat"):
-                s.append(n[:-4])  # remove the suffix
+            if "." not in n:
+                s.add(n)
+            else:
+                s.add(n[:n.rfind(".")])  # remove the suffix
         return s
 
 
