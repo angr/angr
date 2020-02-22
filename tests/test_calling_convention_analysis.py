@@ -87,13 +87,14 @@ def test_dir_gcc_O0():
 
     cfg = proj.analyses.CFG()  # fill in the default kb
 
-    CallingConventionAnalysis.recover_calling_conventions(proj)
+    CallingConventionAnalysis.recover_calling_conventions(proj, variable_recovery=True)
 
+    funcs = cfg.kb.functions
+    # check args
+    nose.tools.assert_true(funcs['c_ispunct'].calling_convention.args[0].reg_name, 'rdi')
 
 
 def run_all():
-    logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
-
     for args in test_fauxware():
         func, args = args[0], args[1:]
         func(*args)
@@ -104,4 +105,7 @@ def run_all():
 
 
 if __name__ == "__main__":
+    # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.calling_convention").setLevel(logging.INFO)
     run_all()
+    # test_dir_gcc_O0()

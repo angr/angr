@@ -627,8 +627,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self.initialize_dominance_frontiers()
 
-        CallingConventionAnalysis.recover_calling_conventions(self.project)
-
         # initialize node_to_cc map
         function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
         for func_node in function_nodes:

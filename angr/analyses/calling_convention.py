@@ -3,7 +3,7 @@ import logging
 from archinfo.arch_arm import is_arm_arch
 
 from ..analyses.cfg import CFGUtils
-from ..calling_conventions import SimRegArg, SimStackArg, SimCC
+from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from . import Analysis, register_analysis
 
@@ -37,15 +37,49 @@ class CallingConventionAnalysis(Analysis):
         :return:
         """
 
+        if self._function.is_simprocedure:
+            self.cc = self._function.calling_convention
+            if self.cc is None:
+                # fallback to the default calling convention
+                self.cc = DefaultCC[self.project.arch.name](self.project.arch)
+            return
+        if self._function.is_plt:
+            self.cc = self._analyze_plt()
+            return
+
         cc_0 = self._analyze_function()
         callsite_ccs = self._analyze_callsites()
 
         cc = self._merge_cc(cc_0, *callsite_ccs)
 
         if cc is None:
-            l.warning('Cannot determine calling convention.')
+            l.warning('Cannot determine calling convention for %r.', self._function)
 
         self.cc = cc
+
+    def _analyze_plt(self):
+        """
+        Get the calling convention for a PLT stub.
+
+        :return:    A calling convention.
+        """
+
+        if len(self._function.jumpout_sites) != 1:
+            l.warning("%r has more than one jumpout sites. It does not look like a PLT stub. Please report to GitHub.",
+                      self._function)
+            return None
+
+        jo_site = self._function.jumpout_sites[0]
+
+        successors = list(self._function.transition_graph.successors(jo_site))
+        if len(successors) != 1:
+            l.warning("%r has more than one successors. It does not look like a PLT stub. Please report to GitHub.",
+                      self._function)
+            return None
+
+        real_func = self.kb.functions.get_by_addr(successors[0].addr)
+
+        return real_func.calling_convention
 
     def _analyze_function(self):
         """
@@ -55,11 +89,12 @@ class CallingConventionAnalysis(Analysis):
         :return:
         """
 
-        if not self._function.is_simprocedure \
-                and not self._function.is_plt \
-                and not self._variable_manager.has_function_manager(self._function.addr):
-            l.warning("Please run variable recovery on %s before analyzing its calling conventions.",
-                      repr(self._function))
+        if self._function.is_simprocedure or self._function.is_plt:
+            # we do not analyze SimProcedures or PLT stubs
+            return None
+
+        if not self._variable_manager.has_function_manager:
+            l.warning("Please run variable recovery on %r before analyzing its calling convention.", self._function)
             return None
 
         vm = self._variable_manager[self._function.addr]
@@ -166,7 +201,29 @@ class CallingConventionAnalysis(Analysis):
             return True
 
     @staticmethod
-    def recover_calling_conventions(project, kb=None):
+    def function_needs_variable_recovery(func):
+        """
+        Check if running variable recovery on the function is the only way to determine the calling convention of the
+        this function.
+
+        We do not need to run variable recovery to determine the calling convention of a function if:
+        - The function is a SimProcedure.
+        - The function is a PLT stub.
+        - The function is a library function and we already know its prototype.
+
+        :param func:    The function object.
+        :return:        True if we must run VariableRecovery before we can determine what the calling convention of this
+                        function is. False otherwise.
+        :rtype:         bool
+        """
+
+        if func.is_simprocedure or func.is_plt:
+            return False
+        # TODO: Check SimLibraries
+        return True
+
+    @staticmethod
+    def recover_calling_conventions(project, variable_recovery=False, kb=None):
         """
         Infer calling conventions for all functions in a project.
 
@@ -181,10 +238,22 @@ class CallingConventionAnalysis(Analysis):
         for func_addr in reversed(sorted_funcs):
             func = kb.functions.get_by_addr(func_addr)
             if func.calling_convention is None:
+                if func.alignment:
+                    # skil all alignments
+                    continue
+
+                # if it's a normal function, we attempt to perform variable recovery
+                if variable_recovery and CallingConventionAnalysis.function_needs_variable_recovery(func):
+                    l.info("Performing variable recovery on %r...", func)
+                    _ = project.analyses.VariableRecoveryFast(func, kb=kb)
+
                 # determine the calling convention of each function
                 cc_analysis = project.analyses.CallingConvention(func)
                 if cc_analysis.cc is not None:
+                    l.info("Determined calling convention for %r.", func)
                     func.calling_convention = cc_analysis.cc
+                else:
+                    l.info("Cannot determine calling convention for %r.", func)
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
