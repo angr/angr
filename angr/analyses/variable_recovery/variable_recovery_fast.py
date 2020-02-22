@@ -387,6 +387,16 @@ class SimEngineVRVEX(
 
         return self._load(addr, size)
 
+    def _handle_CCall(self, expr):
+        # ccalls don't matter
+        return None
+
+    # Function handlers
+
+    def _handle_function(self, func_addr):
+        # TODO: Adjust the stack pointer
+        return None
+
 
 class SimEngineVRAIL(
     SimEngineLightAILMixin,

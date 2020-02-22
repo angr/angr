@@ -15,6 +15,20 @@ class SimVariable:
         self.region = region if region is not None else ""
         self.category = category
 
+    #
+    # Operations
+    #
+
+    def __add__(self, other):
+        if isinstance(other, int) and other == 0:
+            return self
+        return None
+
+    def __sub__(self, other):
+        if isinstance(other, int) and other == 0:
+            return self
+        return None
+
 
 class SimConstantVariable(SimVariable):
 
