@@ -7,7 +7,6 @@ import nose.tools
 import archinfo
 import angr
 from angr.calling_conventions import SimStackArg, SimRegArg, SimCCCdecl, SimCCSystemVAMD64
-from angr.analyses.calling_convention import CallingConventionAnalysis
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..',
@@ -36,9 +35,9 @@ def run_cgc(binary_name):
 
     categorization = project.analyses.FunctionCategorizationAnalysis()
 
-    tag_manager = categorization.function_tag_manager
-    #print "INPUT:", map(hex, tag_manager.input_functions())
-    #print "OUTPUT:", map(hex, tag_manager.output_functions())
+    # tag_manager = categorization.function_tag_manager
+    # print "INPUT:", map(hex, tag_manager.input_functions())
+    # print "OUTPUT:", map(hex, tag_manager.output_functions())
 
 
 def test_fauxware():

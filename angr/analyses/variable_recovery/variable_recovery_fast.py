@@ -8,7 +8,6 @@ from ...engines.light import SpOffset, ArithmeticExpression, SimEngineLight, Sim
 from ...errors import SimEngineError, AngrVariableRecoveryError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
-from ..calling_convention import CallingConventionAnalysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
@@ -393,7 +392,7 @@ class SimEngineVRVEX(
 
     # Function handlers
 
-    def _handle_function(self, func_addr):
+    def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use
         # TODO: Adjust the stack pointer
         return None
 
