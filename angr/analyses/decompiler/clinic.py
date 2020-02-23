@@ -85,7 +85,8 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
-        CallingConventionAnalysis.recover_calling_conventions(self.project)
+        # Make sure calling conventions of all functions have been recovered
+        self.project.analyses.CompleteCallingConventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)

@@ -596,7 +596,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
     """
 
-    def __init__(self, func, max_iterations=1, clinic=None):
+    def __init__(self, func, max_iterations=1, clinic=None, low_priority=False):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -615,6 +615,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                                  graph_visitor=function_graph_visitor)
 
         self._clinic = clinic
+        self._low_priority = low_priority
+        self._job_ctr = 0
 
         self._ail_engine = SimEngineVRAIL(self.project)
         self._vex_engine = SimEngineVRVEX(self.project)
@@ -644,7 +646,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                 self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
     def _pre_job_handling(self, job):
-        pass
+        self._job_ctr += 1
+        if self._low_priority:
+            self._release_gil(self._job_ctr, 5, 0.0001)
 
     def _initial_abstract_state(self, node):
 

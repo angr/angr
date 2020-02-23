@@ -87,7 +87,7 @@ def test_dir_gcc_O0():
 
     cfg = proj.analyses.CFG()  # fill in the default kb
 
-    CallingConventionAnalysis.recover_calling_conventions(proj, variable_recovery=True)
+    proj.analyses.CompleteCallingConventions(recover_variables=True)
 
     funcs = cfg.kb.functions
     # check args

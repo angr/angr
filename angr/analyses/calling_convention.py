@@ -2,7 +2,6 @@ import logging
 
 from archinfo.arch_arm import is_arm_arch
 
-from ..analyses.cfg import CFGUtils
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from . import Analysis, register_analysis
@@ -19,12 +18,15 @@ class CallingConventionAnalysis(Analysis):
     function. In the function itself, we consider all register and stack variables that are read but without
     initialization as parameters. Then we synthesize the information from both locations and make a reasonable
     inference of calling convention of this function.
+
+    :ivar _function:    The function to recover calling convention for.
+    :ivar _variable_manager:    A handy accessor to the variable manager.
+    :ivar cc:           The recovered calling convention for the function.
     """
 
     def __init__(self, func):
 
         self._function = func
-
         self._variable_manager = self.kb.variables
 
         self.cc = None
@@ -199,61 +201,6 @@ class CallingConventionAnalysis(Analysis):
         else:
             l.critical('Unsupported architecture %s.', arch.name)
             return True
-
-    @staticmethod
-    def function_needs_variable_recovery(func):
-        """
-        Check if running variable recovery on the function is the only way to determine the calling convention of the
-        this function.
-
-        We do not need to run variable recovery to determine the calling convention of a function if:
-        - The function is a SimProcedure.
-        - The function is a PLT stub.
-        - The function is a library function and we already know its prototype.
-
-        :param func:    The function object.
-        :return:        True if we must run VariableRecovery before we can determine what the calling convention of this
-                        function is. False otherwise.
-        :rtype:         bool
-        """
-
-        if func.is_simprocedure or func.is_plt:
-            return False
-        # TODO: Check SimLibraries
-        return True
-
-    @staticmethod
-    def recover_calling_conventions(project, variable_recovery=False, kb=None):
-        """
-        Infer calling conventions for all functions in a project.
-
-        :return:
-        """
-        if kb is None:
-            kb = project.kb
-
-        # get an ordering of functions based on the call graph
-        sorted_funcs = CFGUtils.quasi_topological_sort_nodes(kb.functions.callgraph)
-
-        for func_addr in reversed(sorted_funcs):
-            func = kb.functions.get_by_addr(func_addr)
-            if func.calling_convention is None:
-                if func.alignment:
-                    # skil all alignments
-                    continue
-
-                # if it's a normal function, we attempt to perform variable recovery
-                if variable_recovery and CallingConventionAnalysis.function_needs_variable_recovery(func):
-                    l.info("Performing variable recovery on %r...", func)
-                    _ = project.analyses.VariableRecoveryFast(func, kb=kb)
-
-                # determine the calling convention of each function
-                cc_analysis = project.analyses.CallingConvention(func)
-                if cc_analysis.cc is not None:
-                    l.info("Determined calling convention for %r.", func)
-                    func.calling_convention = cc_analysis.cc
-                else:
-                    l.info("Cannot determine calling convention for %r.", func)
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
