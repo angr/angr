@@ -120,10 +120,11 @@ class Register(Atom):
     def __eq__(self, other):
         return type(self) is type(other) and \
                self.reg_offset == other.reg_offset and \
-            self.bits == other.bits
+               self.bits == other.bits and \
+               self.idx == other.idx
 
     def __hash__(self):
-        return hash(('reg', self.reg_offset, self.bits))
+        return hash(('reg', self.reg_offset, self.bits, self.idx))
 
 
 class Op(Expression):
