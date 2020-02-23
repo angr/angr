@@ -13,7 +13,13 @@ class Expression(TaggedObject):
     def __repr__(self):
         raise NotImplementedError()
 
-    def has_atom(self, atom):
+    def has_atom(self, atom, identity=True):
+        if identity:
+            return self is atom
+        else:
+            return self.likes(atom)
+
+    def likes(self, atom):
         return False
 
     def replace(self, old_expr, new_expr):
@@ -106,6 +112,11 @@ class Register(Atom):
     def size(self):
         return self.bits // 8
 
+    def likes(self, atom):
+        return type(self) is type(atom) and \
+                self.reg_offset == atom.reg_offset and \
+                self.bits == atom.bits
+
     def __repr__(self):
         return str(self)
 
@@ -118,10 +129,7 @@ class Register(Atom):
             return "%s" % str(self.variable.name)
 
     def __eq__(self, other):
-        return type(self) is type(other) and \
-               self.reg_offset == other.reg_offset and \
-               self.bits == other.bits and \
-               self.idx == other.idx
+        return self.likes(other) and self.idx == other.idx
 
     def __hash__(self):
         return hash(('reg', self.reg_offset, self.bits, self.idx))
@@ -242,9 +250,13 @@ class BinaryOp(Op):
     def __hash__(self):
         return hash((self.op, tuple(self.operands), self.bits))
 
-    def has_atom(self, atom):
+    def has_atom(self, atom, identity=True):
         for op in self.operands:
-            if op == atom or op.has_atom(atom):
+            if identity and op == atom:
+                return True
+            if not identity and op.likes(atom):
+                return True
+            if op.has_atom(atom, identity=identity):
                 return True
         return False
 
@@ -276,10 +288,10 @@ class Load(Expression):
     def __str__(self):
         return "Load(addr=%s, size=%d, endness=%s)" % (self.addr, self.size, self.endness)
 
-    def has_atom(self, atom):
+    def has_atom(self, atom, identity=True):
         if type(self.addr) is int:
             return False
-        return self.addr.has_atom(atom)
+        return self.addr.has_atom(atom, identity=identity)
 
     def replace(self, old_expr, new_expr):
         r, replaced_addr = self.addr.replace(old_expr, new_expr)
@@ -314,8 +326,10 @@ class ITE(Expression):
     def __str__(self):
         return "((%s) ? (%s) : (%s))" % (self.cond, self.iftrue, self.iffalse)
 
-    def has_atom(self, atom):
-        return self.cond.has_atom(atom) or self.iftrue.has_atom(atom) or self.iffalse.has_atom(atom)
+    def has_atom(self, atom, identity=True):
+        return self.cond.has_atom(atom, identity=identity) or \
+               self.iftrue.has_atom(atom, identity=identity) or \
+               self.iffalse.has_atom(atom, identity=identity)
 
     def replace(self, old_expr, new_expr):
         cond_replaced, new_cond = self.cond.replace(old_expr, new_expr)
