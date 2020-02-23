@@ -34,23 +34,13 @@ class SimEnginePropagatorAIL(
             if new_src is not None:
                 l.debug("%s = %s, replace %s with %s.", dst, src, src, new_src)
                 self.state.store_variable(dst, new_src)
+
             else:
                 l.debug("Replacing %s with %s.", dst, src)
                 self.state.store_variable(dst, src)
 
         elif type(dst) is Expr.Register:
-            if type(src) is Expr.Tmp:
-                l.debug("%s = %s, replace %s with %s.", dst, src, src, dst)
-                l.debug("New replacement: %s with %s", src, dst)
-                self.state.filter_variables(src)
-                self.state.store_variable(src, dst)
-            elif type(src) is Expr.Const:
-                l.debug("%s = %s, replace %s with %s.", dst, src, dst, src)
-                l.debug("New replacement: %s with %s", dst, src)
-                self.state.filter_variables(dst)
-                self.state.store_variable(dst, src)
-            else:
-                l.debug("%s = %s", dst, src)
+            self.state.store_variable(dst, src)
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -60,7 +50,7 @@ class SimEnginePropagatorAIL(
 
         if isinstance(addr, Expr.StackBaseOffset):
             # Storing data to a stack variable
-            self.state.store_variable(Expr.Load(None, addr, data.bits // 8, stmt.endness), data)
+            self.state.store_stack_variable(addr, data.bits // 8, data, endness=stmt.endness)
 
     def _ail_handle_Jump(self, stmt):
         _ = self._expr(stmt.target)
@@ -145,6 +135,11 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_Load(self, expr):
         addr = self._expr(expr.addr)
+
+        if isinstance(addr, Expr.StackBaseOffset):
+            var = self.state.get_stack_variable(addr, expr.size, endness=expr.endness)
+            if var is not None:
+                return var
 
         if addr != expr.addr:
             return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)

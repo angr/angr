@@ -1,10 +1,12 @@
 
 from collections import defaultdict
+import logging
 
 import ailment
 
 from ... import sim_options
 from ...engines.light import SpOffset
+from ...keyed_region import KeyedRegion
 from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
@@ -12,6 +14,8 @@ from .values import TOP
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 
+
+_l = logging.getLogger(name=__name__)
 
 # The base state
 
@@ -45,7 +49,6 @@ class PropagatorState:
                                 state._replacements[loc][var] = TOP
 
         return state
-
 
     def add_replacement(self, codeloc, old, new):
         self._replacements[codeloc][old] = new
@@ -124,7 +127,9 @@ class PropagatorAILState(PropagatorState):
     def __init__(self, arch, replacements=None):
         super().__init__(arch, replacements=replacements)
 
-        self._variables = { }  # variable to values
+        self._stack_variables = KeyedRegion()
+        self._registers = KeyedRegion()
+        self._tmps = { }
 
     def __repr__(self):
         return "<PropagatorAILState>"
@@ -135,43 +140,58 @@ class PropagatorAILState(PropagatorState):
             replacements=self._replacements.copy(),
         )
 
-        rd._variables = self._variables.copy()
+        rd._stack_variables = self._stack_variables.copy()
+        rd._registers = self._registers.copy()
+        # drop tmps
 
         return rd
 
     def merge(self, *others):
+        # TODO:
         state = super().merge(*others)
 
         for o in others:
-            for k, v in o._variables.items():
-                if k not in state._variables:
-                    state._variables[k] = v
-                else:
-                    if state._variables[k] != o._variables[k]:
-                        # Go to TOP
-                        state._variables[k] = TOP
+            state._stack_variables.merge_to_top(o._stack_variables, top=TOP)
+            state._registers.merge_to_top(o._registers, top=TOP)
 
         return state
 
     def store_variable(self, old, new):
-        if new is not None:
-            self._variables[old] = new
+        if old is None or new is None:
+            return
+        if new.has_atom(old, identity=False):
+            return
+
+        if isinstance(old, ailment.Expr.Tmp):
+            self._tmps[old.tmp_idx] = new
+        elif isinstance(old, ailment.Expr.Register):
+            self._registers.set_object(old.reg_offset, new, old.size)
+        else:
+            _l.warning("Unsupported old variable type %s.", type(old))
+
+    def store_stack_variable(self, addr, size, new, endness=None):
+        if isinstance(addr, ailment.Expr.StackBaseOffset):
+            self._stack_variables.set_object(addr.offset, new, size)
+        else:
+            _l.warning("Unsupported addr type %s.", type(addr))
 
     def get_variable(self, old):
-        return self._variables.get(old, None)
+        if isinstance(old, ailment.Expr.Tmp):
+            return self._tmps.get(old.tmp_idx, None)
+        elif isinstance(old, ailment.Expr.Register):
+            objs = self._registers.get_objects_by_offset(old.reg_offset)
+            if not objs:
+                return None
+            return next(iter(objs))
+        return None
 
-    def remove_variable(self, old):
-        self._variables.pop(old, None)
-
-    def filter_variables(self, atom):
-        keys_to_remove = set()
-
-        for k, v in self._variables.items():
-            if isinstance(v, ailment.Expr.Expression) and (v == atom or v.has_atom(atom)):
-                keys_to_remove.add(k)
-
-        for k in keys_to_remove:
-            self._variables.pop(k)
+    def get_stack_variable(self, addr, size, endness=None):
+        if isinstance(addr, ailment.Expr.StackBaseOffset):
+            objs = self._stack_variables.get_objects_by_offset(addr.offset)
+            if not objs:
+                return None
+            return next(iter(objs))
+        return None
 
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method

@@ -187,6 +187,24 @@ class KeyedRegion:
 
         return self
 
+    def merge_to_top(self, other, replacements=None, top=None):
+        """
+        Merge another KeyedRegion into this KeyedRegion, but mark all variables with different values as TOP.
+
+        :param other:   The other instance to merge with.
+        :param replacements:
+        :return:        self
+        """
+
+        for _, item in other._storage.items():  # type: RegionObject
+            for so in item.stored_objects:  # type: StoredObject
+                if replacements and so.obj in replacements:
+                    so = StoredObject(so.start, replacements[so.obj], so.size)
+                self._object_mapping[so.obj_id] = so
+                self.__store(so, overwrite=False, merge_to_top=True, top=top)
+
+        return self
+
     def replace(self, replacements):
         """
         Replace variables with other variables.
@@ -337,7 +355,7 @@ class KeyedRegion:
         self._object_mapping[stored_object.obj_id] = stored_object
         self.__store(stored_object, overwrite=overwrite)
 
-    def __store(self, stored_object, overwrite=False):
+    def __store(self, stored_object, overwrite=False, merge_to_top=False, top=None):
         """
         Store a variable into the storage.
 
@@ -372,7 +390,7 @@ class KeyedRegion:
                 if overwrite:
                     b.set_object(stored_object)
                 else:
-                    self._add_object_with_check(b, stored_object)
+                    self._add_object_with_check(b, stored_object, merge_to_top=merge_to_top, top=top)
                 to_update[a.start] = a
                 to_update[b.start] = b
                 last_end = b.end
@@ -388,7 +406,7 @@ class KeyedRegion:
                 if overwrite:
                     a.set_object(stored_object)
                 else:
-                    self._add_object_with_check(a, stored_object)
+                    self._add_object_with_check(a, stored_object, merge_to_top=merge_to_top, top=top)
                 to_update[a.start] = a
                 to_update[b.start] = b
                 last_end = b.end
@@ -396,7 +414,7 @@ class KeyedRegion:
                 if overwrite:
                     item.set_object(stored_object)
                 else:
-                    self._add_object_with_check(item, stored_object)
+                    self._add_object_with_check(item, stored_object, merge_to_top=merge_to_top, top=top)
                 to_update[item.start] = item
 
         self._storage.update(to_update)
@@ -432,8 +450,12 @@ class KeyedRegion:
 
         return False
 
-    def _add_object_with_check(self, item, stored_object):
+    def _add_object_with_check(self, item, stored_object, merge_to_top=False, top=None):
         if len({stored_object.obj} | item.internal_objects) > 1:
+            if merge_to_top:
+                item.set_object(StoredObject(stored_object.start, top, stored_object.size))
+                return
+
             if self._phi_node_contains is not None:
                 # check if `item` is a phi node that contains stored_object.obj
                 for so in item.internal_objects:

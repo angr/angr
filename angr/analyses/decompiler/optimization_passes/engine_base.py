@@ -150,8 +150,14 @@ class SimplifierAILEngine(
 
         handler = "_ail_handle_%s" % type(expr).__name__
         if hasattr(self, handler):
-            return getattr(self, handler)(expr)
+            v = getattr(self, handler)(expr)
+            if v is None:
+                return expr
+            return v
         _l.warning('Unsupported expression type %s.', type(expr).__name__)
+        return expr
+
+    def _ail_handle_StackBaseOffset(self, expr):
         return expr
 
     def _ail_handle_Register(self, expr):
