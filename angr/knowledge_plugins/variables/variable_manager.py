@@ -330,6 +330,9 @@ class VariableManagerInternal:
         input_variables = [ ]
 
         for variable, accesses in self._variable_accesses.items():
+            if variable in self._phi_variables:
+                # a phi variable is definitely not an input variable
+                continue
             if not has_write_access(accesses) and has_read_access(accesses):
                 if not exclude_specials or not variable.category:
                     input_variables.append(variable)

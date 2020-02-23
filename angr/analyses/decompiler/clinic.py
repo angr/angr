@@ -7,7 +7,6 @@ import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
-from ..calling_convention import CallingConventionAnalysis
 from .. import Analysis, register_analysis
 from .optimization_passes import get_optimization_passes
 
@@ -22,7 +21,7 @@ class Clinic(Analysis):
     def __init__(self, func, optimization_passes=None, sp_tracker_track_memory=True):
 
         # Delayed import
-        import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
+        import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import,import-outside-toplevel
 
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -85,7 +84,8 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
-        CallingConventionAnalysis.recover_calling_conventions(self.project)
+        # Make sure calling conventions of all functions have been recovered
+        self.project.analyses.CompleteCallingConventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)

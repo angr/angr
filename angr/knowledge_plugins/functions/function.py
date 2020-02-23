@@ -499,8 +499,9 @@ class Function(Serializable):
 
     def __repr__(self):
         if self.is_syscall:
-            return '<Syscall function %s (%s)>' % (self.name, self.addr)
-        return '<Function %s (%s)>' % (self.name, self.addr)
+            return '<Syscall function %s (%s)>' % (self.name,
+                                                   hex(self.addr) if isinstance(self.addr, int) else self.addr)
+        return '<Function %s (%s)>' % (self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr)
 
     @property
     def endpoints(self):
