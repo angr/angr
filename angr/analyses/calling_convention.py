@@ -221,7 +221,7 @@ class CallingConventionAnalysis(Analysis):
                 arg = next(iter(a for a in args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
             except StopIteration:
                 # have we reached the end of the args list?
-                if [ a for a in args if not isinstance(a, SimRegArg) ]:
+                if [ a for a in args if isinstance(a, SimRegArg) ]:
                     # nope
                     arg = SimRegArg(reg_name, self.project.arch.bytes)
                 else:
