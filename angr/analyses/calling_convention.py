@@ -113,6 +113,9 @@ class CallingConventionAnalysis(Analysis):
         if cc is None:
             l.warning('_analyze_function(): Cannot find a calling convention that fits the given arguments.')
 
+        args = self._reorder_args(input_args, cc)
+        cc.args = args
+
         return cc
 
     def _analyze_callsites(self):  # pylint:disable=no-self-use
@@ -201,6 +204,35 @@ class CallingConventionAnalysis(Analysis):
         else:
             l.critical('Unsupported architecture %s.', arch.name)
             return True
+
+    def _reorder_args(self, args, cc):
+        """
+        Reorder arguments according to the calling convention identified.
+
+        :param set args:   A list of arguments that haven't been ordered.
+        :param SimCC cc:    The identified calling convention.
+        :return:            A reordered list of args.
+        """
+
+        new_args = [ ]
+
+        for reg_name in cc.ARG_REGS:
+            try:
+                arg = next(iter(a for a in args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
+            except StopIteration:
+                # have we reached the end of the args list?
+                if [ a for a in args if not isinstance(a, SimRegArg) ]:
+                    # nope
+                    arg = SimRegArg(reg_name, self.project.arch.bytes)
+                else:
+                    break
+            new_args.append(arg)
+            if arg in args:
+                args.remove(arg)
+
+        new_args += args
+
+        return new_args
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")

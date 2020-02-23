@@ -79,6 +79,33 @@ def disabled_cgc():
         yield run_cgc, binary
 
 
+def check_arg(arg, expected_str):
+
+    if isinstance(arg, SimRegArg):
+        arg_str = "r_%s" % (arg.reg_name)
+    else:
+        raise TypeError("Unsupported argument type %s." % type(arg))
+    return arg_str == expected_str
+
+
+def check_args(func_name, args, expected_arg_strs):
+
+    nose.tools.assert_equal(len(args), len(expected_arg_strs), msg="Wrong number of arguments for function %s. "
+                                                                   "Got %d, expect %d." % (
+        func_name, len(args), len(expected_arg_strs)
+    ))
+
+    for idx, (arg, expected_arg_str) in enumerate(zip(args, expected_arg_strs)):
+        r = check_arg(arg, expected_arg_str)
+        nose.tools.assert_true(r, msg="Incorrect argument %d for function %s. Got %s, expect %s." % (
+            idx, func_name, arg, expected_arg_str
+        ))
+
+
+def _a(funcs, func_name):
+    return funcs[func_name].calling_convention.args
+
+
 def test_dir_gcc_O0():
 
     binary_path = os.path.join(test_location, 'tests', 'x86_64', 'dir_gcc_-O0')
@@ -89,8 +116,24 @@ def test_dir_gcc_O0():
     proj.analyses.CompleteCallingConventions(recover_variables=True)
 
     funcs = cfg.kb.functions
+
     # check args
-    nose.tools.assert_true(funcs['c_ispunct'].calling_convention.args[0].reg_name, 'rdi')
+    expected_args = {
+        'c_ispunct': ['r_rdi'],
+        'file_failure': ['r_rdi', 'r_rsi', 'r_rdx'],
+        'to_uchar': ['r_rdi'],
+        'dot_or_dotdot': ['r_rdi'],
+        'emit_mandatory_arg_note': [ ],
+        'emit_size_note': [ ],
+        'emit_ancillary_info': ['r_rdi'],
+        'emit_try_help': [ ],
+        'dev_ino_push': ['r_rdi', 'r_rsi'],
+        'main': ['r_rdi', 'r_rsi', 'r_rdx'],
+        'queue_directory': ['r_rdi', 'r_rsi', 'r_rdx'],
+    }
+
+    for func_name, args in expected_args.items():
+        check_args(func_name, _a(funcs, func_name), args)
 
 
 def run_all():
