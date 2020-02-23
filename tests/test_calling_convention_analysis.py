@@ -131,7 +131,7 @@ def test_x8664_dir_gcc_O0():
         'emit_ancillary_info': ['r_rdi'],
         'emit_try_help': [ ],
         'dev_ino_push': ['r_rdi', 'r_rsi'],
-        'main': ['r_rdi', 'r_rsi', 'r_rdx'],
+        'main': ['r_rdi', 'r_rsi'],
         'queue_directory': ['r_rdi', 'r_rsi', 'r_rdx'],
     }
 
