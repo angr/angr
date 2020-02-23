@@ -78,6 +78,9 @@ def disabled_cgc():
     for binary in binaries:
         yield run_cgc, binary
 
+#
+# Full-binary calling convention analysis
+#
 
 def check_arg(arg, expected_str):
 
@@ -106,7 +109,7 @@ def _a(funcs, func_name):
     return funcs[func_name].calling_convention.args
 
 
-def test_dir_gcc_O0():
+def test_x8664_dir_gcc_O0():
 
     binary_path = os.path.join(test_location, 'tests', 'x86_64', 'dir_gcc_-O0')
     proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
@@ -130,6 +133,28 @@ def test_dir_gcc_O0():
         'dev_ino_push': ['r_rdi', 'r_rsi'],
         'main': ['r_rdi', 'r_rsi', 'r_rdx'],
         'queue_directory': ['r_rdi', 'r_rsi', 'r_rdx'],
+    }
+
+    for func_name, args in expected_args.items():
+        check_args(func_name, _a(funcs, func_name), args)
+
+
+def test_armel_fauxware():
+    binary_path = os.path.join(test_location, 'tests', 'armel', 'fauxware')
+    proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+
+    cfg = proj.analyses.CFG()  # fill in the default kb
+
+    proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+    funcs = cfg.kb.functions
+
+    # check args
+    expected_args = {
+        'main': ['r_r0', 'r_r1'],
+        'accepted': ['r_r0', 'r_r1', 'r_r2', 'r_r3'],
+        'rejected': [ ],
+        'authenticate': ['r_r0', 'r_r1'],
     }
 
     for func_name, args in expected_args.items():
