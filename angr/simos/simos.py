@@ -87,7 +87,7 @@ class SimOS:
                     return
             self.project.hook(sym.rebased_addr, hook)
 
-    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, thread_idx=None, **kwargs):
         """
         Initialize a blank state.
 
@@ -156,7 +156,6 @@ class SimOS:
                     eternal=True))
 
         for reg, val, is_addr, mem_region in state.arch.default_register_values:
-
             region_base = None  # so pycharm does not complain
 
             if is_addr:
@@ -182,7 +181,8 @@ class SimOS:
         if addr is None:
             state.regs.ip = self.project.entry
 
-        for reg, val in self.project.loader.main_object.thread_registers().items():
+        thread_name = self.project.loader.main_object.threads[thread_idx] if thread_idx is not None else None
+        for reg, val in self.project.loader.main_object.thread_registers(thread_name).items():
             if reg in state.arch.registers or reg in ('flags', 'eflags', 'rflags'):
                 setattr(state.regs, reg, val)
             elif reg == 'fctrl':
