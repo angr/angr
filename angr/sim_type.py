@@ -262,10 +262,10 @@ class SimTypeInt(SimTypeReg):
         return n
 
     def _init_str(self):
-        return "%s(signed=%s, label=%s)" % (
+        return "%s(signed=%s%s)" % (
             self.__class__.__name__,
             self.signed,
-            '"%s"' % self.label if self.label is not None else "None",
+            (', label="%s"' % self.label) if self.label is not None else "",
         )
 
     def _refine_dir(self):
@@ -334,9 +334,9 @@ class SimTypeChar(SimTypeReg):
         return out
 
     def _init_str(self):
-        return "%s(label=%s)" % (
+        return "%s(%s)" % (
             self.__class__.__name__,
-            '"%s"' if self.label is not None else "None",
+            ('label="%s"' % self.label) if self.label is not None else "",
         )
 
 
@@ -413,10 +413,10 @@ class SimTypePointer(SimTypeReg):
         return out
 
     def _init_str(self):
-        return "%s(%s, label=%s, offset=%d)" % (
+        return "%s(%s%s, offset=%d)" % (
             self.__class__.__name__,
             self.pts_to._init_str(),
-            '"%s"' % self.label if self.label is not None else "None",
+            (', label="%s"' % self.label) if self.label is not None else "",
             self.offset
         )
 
@@ -639,16 +639,23 @@ class SimTypeFunction(SimType):
         return 4096     # ???????????
 
     def _with_arch(self, arch):
-        out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch), self.label)
+        out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch),
+                              label=self.label,
+                              arg_names=self.arg_names
+                              )
         out._arch = arch
         return out
 
+    def _arg_names_str(self):
+        return ", ".join('"%s"' % arg_name for arg_name in self.arg_names)
+
     def _init_str(self):
-        return "%s([%s], %s, label=%s)" % (
+        return "%s([%s], %s%s%s)" % (
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
-            self.label
+            (", label=%s" % self.label) if self.label else "",
+            (", arg_names=[%s]" % self._arg_names_str()) if self.arg_names else "",
         )
 
 
@@ -711,6 +718,12 @@ class SimTypeFloat(SimTypeReg):
 
     def __repr__(self):
         return 'float'
+
+    def _init_str(self):
+        return "%s(size=%d)" % (
+            self.__class__.__name__,
+            self.size
+        )
 
 
 class SimTypeDouble(SimTypeFloat):
@@ -826,11 +839,13 @@ class SimStruct(SimType):
             ty = self.fields[field]
             ty.store(state, addr + offset, value[field])
 
+    def _field_str(self, field_name, field_type):
+        return "\"%s\": %s" % (self.field_name, field_type._init_str())
 
     def _init_str(self):
-        return "%s([%s], name=\"%s\", pack=%s, align=%s)" % (
+        return "%s({%s}, name=\"%s\", pack=%s, align=%s)" % (
             self.__class__.__name__,
-            ", ".join([f._init_str() for f in self.fields]),
+            ", ".join([self._field_str(f, ty) for f, ty in self.fields.items()]),
             self._name,
             self._pack,
             self._align,
@@ -968,7 +983,26 @@ ALL_TYPES.update(BASIC_TYPES)
 
 # this is a hack, pending https://github.com/eliben/pycparser/issues/187
 def make_preamble():
-    out = ['typedef int TOP;']
+    out = ['typedef int TOP;',
+           'typedef struct FILE_t FILE;',
+           'typedef int pid_t;',
+           'typedef int sigset_t;',
+           'typedef int intmax_t;',
+           'typedef unsigned int uintmax_t;',
+           'typedef unsigned int uid_t;',
+           'typedef unsigned int gid_t;',
+           'typedef unsigned int sem_t;',
+           'typedef unsigned short wchar_t;',
+           'typedef unsigned short wctrans_t;',
+           'typedef unsigned short wctype_t;',
+           'typedef unsigned int wint_t;',
+           'typedef unsigned int pthread_key_t;',
+           'typedef long clock_t;',
+           'typedef unsigned int speed_t;',
+           'typedef int socklen_t;',
+           'typedef unsigned short mode_t;',
+           'typedef unsigned long off_t;',
+           ]
     types_out = []
     for ty in ALL_TYPES:
         if ty in BASIC_TYPES:
@@ -1163,7 +1197,11 @@ def _decl_to_type(decl, extra_types=None):
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
         argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) for x in decl.args.params]
+        # special handling: func(void) is func()
         arg_names = [ arg.name for arg in decl.args.params] if decl.args else None
+        if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom):
+            argtyps = ()
+            arg_names = None
         return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types), arg_names=arg_names)
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
