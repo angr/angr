@@ -547,7 +547,7 @@ class SimSystemPosix(SimStatePlugin):
             return None
         return file.concretize(**kwargs)
 
-    def dumps(self, fd, **kwargs):
+    def dumps(self, fd, fmt=None, **kwargs):
         """
         Returns the concrete content for a file descriptor.
 
@@ -555,16 +555,42 @@ class SimSystemPosix(SimStatePlugin):
         or stderr as a flat string.
 
         :param fd:  A file descriptor.
+        :param fmt: An optional struct-like string formatter.
         :return:    The concrete content.
         :rtype:     str
         """
+
+        # Special Handling of typical file descriptors
         if 0 <= fd <= 2:
             data = [self.stdin, self.stdout, self.stderr][fd].concretize(**kwargs)
+            # If there is multiple "lines"
             if type(data) is list:
+                # Check for formatted output (must have same size than the args list)
+                if fmt is not None and len(data) == len(fmt):
+                    # Formatted Argument List
+                    fmt_list = []
+                    # For each formatter
+                    for idx, _fmt in enumerate(fmt):
+                        # Strings
+                        if 's' in _fmt:
+                            fmt_arg = str(data[idx][:data[idx].find(0)].decode('utf8'))
+                        # Integers
+                        elif 'i' in _fmt:
+                            fmt_arg = int(data[idx])
+                        # Other types not supported yet
+                        else:
+                            raise NotImplementedError()
+                        # Append to the list
+                        fmt_list.append(fmt_arg)
+                    # Return the formatted list
+                    return fmt_list
+                # If not formatted output
+                # Merge them into a stream
                 data = b''.join(data)
+            # Return the merged stream
             return data
+        # Any other file descriptor, concretize directly
         return self.get_fd(fd).concretize(**kwargs)
-
 
 from angr.sim_state import SimState
 SimState.register_default('posix', SimSystemPosix)
