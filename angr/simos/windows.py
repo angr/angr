@@ -211,13 +211,7 @@ class SimWindows(SimOS):
             thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
             string_alloc_size = 0
             for obj in self.project.loader.all_pe_objects:
-                bin_name = ""
-                # PE loaded from stream has the binary field = None
-                if obj.binary is None:
-                    if hasattr(obj.binary_stream, "name"):
-                        bin_name = obj.binary_stream.name
-                else:
-                    bin_name = obj.binary
+                bin_name = obj.binary_basename if obj.binary is None else obj.binary
                 string_alloc_size += len(bin_name)*2 + 2
             total_alloc_size = thunk_alloc_size + string_alloc_size
             if total_alloc_size & 0xfff != 0:
@@ -234,11 +228,7 @@ class SimWindows(SimOS):
                 state.mem[addr+0x1C].dword = obj.entry
 
                 # Allocate some space from the same region to store the paths
-                path = ""
-                if obj.binary is not None:
-                    path = obj.binary  # we're in trouble if this is None
-                elif hasattr(obj.binary_stream, "name"):
-                    path = obj.binary_stream.name # should work when using regular python file streams
+                path = obj.binary_basename if obj.binary is None else obj.binary
                 string_size = len(path) * 2
                 tail_size = len(os.path.basename(path)) * 2
                 state.mem[addr+0x24].short = string_size
@@ -529,14 +519,8 @@ class SimWindows(SimOS):
         sc_init = state_kwargs.pop('security_cookie_init', SecurityCookieInit.STATIC)
         if sc_init is SecurityCookieInit.NONE or sc_init is None:
             return
-        pe = getattr(pe_object, '_pe', None)
-        if pe is None:
-            # this is a code compatibility issue because we're using the private member
-            raise errors.AngrSimOSError('cle backend object has no _pe attribute')
-        if not hasattr(pe, 'DIRECTORY_ENTRY_LOAD_CONFIG'):
-            return
-        config = pe.DIRECTORY_ENTRY_LOAD_CONFIG.struct
-        if not config.SecurityCookie:
+        cookie = pe_object.load_config.get('SecurityCookie', None)
+        if not cookie:
             return
         vs_cookie = VS_SECURITY_COOKIES.get(self.project.arch.name)
         if vs_cookie is None:
@@ -552,4 +536,4 @@ class SimWindows(SimOS):
             sc_value = claripy.BVS('_security_cookie', state.arch.bits)
         else:
             raise TypeError("security_cookie_init must SecurityCookieInit, not {0}".format(type(sc_init).__name__))
-        setattr(state.mem[config.SecurityCookie], "uint{0}_t".format(state.arch.bits), sc_value)
+        setattr(state.mem[cookie], "uint{0}_t".format(state.arch.bits), sc_value)
