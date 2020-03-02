@@ -157,7 +157,7 @@ class SimplifierAILEngine(
         _l.warning('Unsupported expression type %s.', type(expr).__name__)
         return expr
 
-    def _ail_handle_StackBaseOffset(self, expr):
+    def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
         return expr
 
     def _ail_handle_Register(self, expr):
