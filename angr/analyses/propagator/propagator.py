@@ -169,7 +169,7 @@ class PropagatorAILState(PropagatorState):
         else:
             _l.warning("Unsupported old variable type %s.", type(old))
 
-    def store_stack_variable(self, addr, size, new, endness=None):  # pylit:disable=unused-argument
+    def store_stack_variable(self, addr, size, new, endness=None):  # pylint:disable=unused-argument
         if isinstance(addr, ailment.Expr.StackBaseOffset):
             if addr.offset is None:
                 offset = 0
