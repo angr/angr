@@ -840,7 +840,7 @@ class SimStruct(SimType):
             ty.store(state, addr + offset, value[field])
 
     def _field_str(self, field_name, field_type):
-        return "\"%s\": %s" % (self.field_name, field_type._init_str())
+        return "\"%s\": %s" % (field_name, field_type._init_str())
 
     def _init_str(self):
         return "%s({%s}, name=\"%s\", pack=%s, align=%s)" % (
@@ -1090,7 +1090,7 @@ def do_preprocess(defn):
     """
     Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
     """
-    from pycparser.ply import lex, cpp
+    from pycparser.ply import lex, cpp  # pylint:disable=import-outside-toplevel
     lexer = lex.lex(cpp)
     p = cpp.Preprocessor(lexer)
     # p.add_path(dir) will add dir to the include search path
@@ -1148,7 +1148,7 @@ def parse_file(defn, preprocess=True):
     return out, extra_types
 
 
-def parse_type(defn, preprocess=True):
+def parse_type(defn, preprocess=True):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType
 
@@ -1230,12 +1230,9 @@ def _decl_to_type(decl, extra_types=None):
 
         if decl.name is not None:
             key = 'struct ' + decl.name
-            if key in extra_types:
-                struct = extra_types[key]
-            elif key in ALL_TYPES:
-                struct = ALL_TYPES[key]
-            else:
-                struct = None
+            struct = extra_types.get(key, None)
+            if struct is None:
+                struct = ALL_TYPES.get(key, None)
 
             if struct is None:
                 struct = SimStruct(fields, decl.name)
