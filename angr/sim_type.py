@@ -107,11 +107,14 @@ class SimTypeBottom(SimType):
     SimTypeBottom basically represents a type error.
     """
 
-    def __repr__(self):
+    def __repr__(self, label=None):
         return 'BOT'
 
     def _init_str(self):
-        return "%s()" % self.__class__.__name__
+        return "%s(%s)" % (
+            self.__class__.__name__,
+            ("label=\"%s\"" % self.label) if self.label else ""
+        )
 
 
 class SimTypeTop(SimType):
@@ -301,13 +304,13 @@ class SimTypeChar(SimTypeReg):
     this could be represented by a byte, but this is meant to be interpreted as a character.
     """
 
-    def __init__(self, label=None):
+    def __init__(self, signed=True, label=None):
         """
         :param label: the type label.
         """
         # FIXME: Now the size of a char is state-dependent.
         SimTypeReg.__init__(self, 8, label=label)
-        self.signed = False
+        self.signed = signed
 
     def __repr__(self):
         return 'char'
@@ -903,7 +906,7 @@ class SimUnion(SimType):
 BASIC_TYPES = {
     'char': SimTypeChar(),
     'signed char': SimTypeChar(),
-    'unsigned char': SimTypeChar(),
+    'unsigned char': SimTypeChar(signed=False),
 
     'short': SimTypeShort(True),
     'signed short': SimTypeShort(True),
@@ -932,7 +935,7 @@ BASIC_TYPES = {
 
     'float': SimTypeFloat(),
     'double': SimTypeDouble(),
-    'void': SimTypeBottom(),
+    'void': SimTypeBottom(label="void"),
 }
 
 ALL_TYPES = {
