@@ -171,7 +171,11 @@ class PropagatorAILState(PropagatorState):
 
     def store_stack_variable(self, addr, size, new, endness=None):
         if isinstance(addr, ailment.Expr.StackBaseOffset):
-            self._stack_variables.set_object(addr.offset, new, size)
+            if addr.offset is None:
+                offset = 0
+            else:
+                offset = addr.offset
+            self._stack_variables.set_object(offset, new, size)
         else:
             _l.warning("Unsupported addr type %s.", type(addr))
 
