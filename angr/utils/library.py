@@ -88,6 +88,6 @@ def cprotos2py(cprotos):
     """
     s = ""
     for decl in cprotos:
-        func_name, proto_, str = convert_cproto_to_py(decl)
-        s += " " * 8 + str.replace("\n", "\n" + " " * 8) + "\n"
+        func_name, proto_, str_ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
+        s += " " * 8 + str_.replace("\n", "\n" + " " * 8) + "\n"
     return s
