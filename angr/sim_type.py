@@ -1106,7 +1106,8 @@ def parse_file(defn, preprocess=True):
             if piece.name is not None:
                 out[piece.name] = ty
         elif isinstance(piece, pycparser.c_ast.Typedef):
-            extra_types[piece.name] = _decl_to_type(piece.type, extra_types)
+            extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types))
+            extra_types[piece.name].label = piece.name
 
     for ty in ignoreme:
         del extra_types[ty]
