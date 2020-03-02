@@ -1,4 +1,7 @@
+import binascii
+
 import angr
+
 
 def test_strict_block_ends_cbz():
     # ldr     r3, [sp, #4]
@@ -64,6 +67,18 @@ def test_strict_block_ends_with_size_amd64():
     assert p.factory.block(0x4010d0, strict_block_end=False).instructions == 4
     assert p.factory.block(0x4010d0, strict_block_end=True).instructions == 2
     assert p.factory.block(0x4010d0, size=7, strict_block_end=True).instructions == 2
+
+
+def test_no_cross_insn_boundary_opt_amd64():
+    b = binascii.unhexlify("4883ec08488b05f51e22004885c07405")
+    p = angr.load_shellcode(b, 'amd64', load_address=0x4020f8)
+
+    block = p.factory.block(0x4020f8, size=len(b), opt_level=0, cross_insn_opt=False)
+    print(block.vex.pp())
+    block = p.factory.block(0x4020f8, size=len(b), opt_level=1, cross_insn_opt=False)
+    print(block.vex.pp())
+    block = p.factory.block(0x4020f8, size=len(b), opt_level=1, cross_insn_opt=True)
+    print(block.vex.pp())
 
 
 if __name__ == '__main__':
