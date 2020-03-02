@@ -111,10 +111,12 @@ class CallingConventionAnalysis(Analysis):
         cc = SimCC.find_cc(self.project.arch, list(input_args), sp_delta)
 
         if cc is None:
-            l.warning('_analyze_function(): Cannot find a calling convention that fits the given arguments.')
-
-        args = self._reorder_args(input_args, cc)
-        cc.args = args
+            l.warning('_analyze_function(): Cannot find a calling convention for %r that fits the given arguments.',
+                      self._function)
+        else:
+            # reorder args
+            args = self._reorder_args(input_args, cc)
+            cc.args = args
 
         return cc
 
