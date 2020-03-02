@@ -14,7 +14,8 @@ from ..stubs.syscall_stub import syscall as stub_syscall
 l = logging.getLogger(name=__name__)
 SIM_LIBRARIES = {}
 
-class SimLibrary(object):
+
+class SimLibrary:
     """
     A SimLibrary is the mechanism for describing a dynamic library's API, its functions and metadata.
 

@@ -33,7 +33,7 @@ def test_cproto_conversion():
 
     # Directly comparing the strings... how bad can I be?
     nose.tools.assert_equal(the_str,
-                            '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True, label=None), SimTypePointer(SimTypePointer(SimTypeChar(label=None), label=None, offset=0), label=None, offset=0)], SimTypeInt(signed=True, label=None), label=None),')
+                            '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),')
 
     # A bad function declaration
     cproto_1 = "int bad(xxxxxxx);"
@@ -163,7 +163,6 @@ def test_arg_names():
     fdef = angr.types.parse_defns("int f(int param_1, int param_2);") # type: Dict[str, SimTypeFunction]
     sig = fdef['f']
     nose.tools.assert_equal(sig.arg_names, ['param_1', 'param_2'])
-
 
     # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
     fdef = angr.types.parse_defns("int f(int param1, int);") # type: Dict[str, SimTypeFunction]
