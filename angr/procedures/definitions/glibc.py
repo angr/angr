@@ -129,8 +129,6 @@ _libc_decls = \
         "obstack_blank_fast": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "size"]),
         # void * obstack_base (struct obstack *OBSTACK_PTR);
         "obstack_base": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr"]),
-        # int obstack_object_size (struct obstack *OBSTACK_PTR);
-        "obstack_object_size": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["obstack_ptr"]),
         # void * alloca (size_t SIZE);
         "alloca": SimTypeFunction([SimTypeLong(signed=False, label="size_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["size"]),
         # int brk (void *ADDR);
@@ -363,8 +361,6 @@ _libc_decls = \
         "strtok_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["newstring", "delimiters", "save_ptr"]),
         # char * strsep (char **STRING_PTR, const char *DELIMITER);
         "strsep": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["string_ptr", "delimiter"]),
-        # char * basename (const char *FILENAME);
-        "basename": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["filename"]),
         # char * basename (char *PATH);
         "basename": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["path"]),
         # char * dirname (char *PATH);
@@ -3131,7 +3127,6 @@ _libc_c_decls = \
         "void obstack_int_grow_fast (struct obstack *OBSTACK_PTR, int DATA);",
         "void obstack_blank_fast (struct obstack *OBSTACK_PTR, int SIZE);",
         "void * obstack_base (struct obstack *OBSTACK_PTR);",
-        "int obstack_object_size (struct obstack *OBSTACK_PTR);",
         "void * alloca (size_t SIZE);",
         "int brk (void *ADDR);",
         "void *sbrk (ptrdiff_t DELTA);",
@@ -3248,8 +3243,7 @@ _libc_c_decls = \
         "wchar_t * wcstok (wchar_t *NEWSTRING, const wchar_t *DELIMITERS, wchar_t **SAVE_PTR);",
         "char * strtok_r (char *NEWSTRING, const char *DELIMITERS, char **SAVE_PTR);",
         "char * strsep (char **STRING_PTR, const char *DELIMITER);",
-        "char * basename (const char *FILENAME);",
-        "char * basename (char *PATH);",
+        "char * basename (const char *PATH);",
         "char * dirname (char *PATH);",
         "void explicit_bzero (void *BLOCK, size_t LEN);",
         "char * strfry (char *STRING);",
