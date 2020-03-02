@@ -97,6 +97,22 @@ def test_decompiling_mips_allcmps():
     else:
         print("Failed to decompile function %s." % repr(f))
 
+
+def test_decompiling_dir_gcc_O0_free_ent():
+    bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True)
+
+    f = cfg.functions['free_ent']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):

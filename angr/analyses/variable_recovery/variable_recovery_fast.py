@@ -379,7 +379,6 @@ class SimEngineVRVEX(
 
         return self._read_from_register(reg_offset, reg_size, expr=expr)
 
-
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
         size = expr.result_size(self.tyenv) // 8
@@ -720,7 +719,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         pass
 
     def _post_analysis(self):
-        self.variable_manager.initialize_variable_names()
+        self.variable_manager[self.function.addr].assign_variable_names()
 
         for addr, state in self._outstates.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,
