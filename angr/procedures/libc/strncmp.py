@@ -6,7 +6,8 @@ l = logging.getLogger(name=__name__)
 class strncmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False): #pylint:disable=arguments-differ
+    def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False, nested_call = False): #pylint:disable=arguments-differ
+        self.state.history.add_call(('strncmp', nested_call, a_addr, b_addr, a_len, b_len))
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr, wchar=wchar)

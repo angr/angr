@@ -65,5 +65,8 @@ from .state_plugins.heap import SimHeapBrk, SimHeapPTMalloc, PTChunk
 # for compatibility reasons
 from . import sim_manager as manager
 
+# Importing Pretty Printers
+from . import pretty_printers
+
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()

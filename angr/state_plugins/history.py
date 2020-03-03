@@ -41,6 +41,7 @@ class SimStateHistory(SimStatePlugin):
         self.jumpkind = None if clone is None else clone.jumpkind
 
         # the execution log for this history
+        self.proc_calls = [] if clone is None else list(clone.proc_calls)
         self.recent_events = [ ] if clone is None else list(clone.recent_events)
         self.recent_bbl_addrs = [ ] if clone is None else list(clone.recent_bbl_addrs)
         self.recent_ins_addrs = [ ] if clone is None else list(clone.recent_ins_addrs)
@@ -138,6 +139,8 @@ class SimStateHistory(SimStatePlugin):
         self.recent_events = [e.recent_events for e in itertools.chain([self], others)
                               if not isinstance(e, SimActionConstraint)
                               ]
+
+        self.proc_calls = [e.proc_calls for e in itertools.chain([self], others)]
 
         # rebuild recent constraints
         recent_constraints = [ h.constraints_since(common_ancestor) for h in itertools.chain([self], others) ]
@@ -327,6 +330,9 @@ class SimStateHistory(SimStatePlugin):
         new_event = SimEvent(self.state, event_type, **kwargs)
         self.recent_events.append(new_event)
 
+    def add_call(self, call):
+        self.proc_calls.append(call)
+
     def add_action(self, action):
         self.recent_events.append(action)
 
@@ -367,6 +373,9 @@ class SimStateHistory(SimStatePlugin):
     @property
     def events(self):
         return LambdaIterIter(self, operator.attrgetter('recent_events'))
+    @property
+    def calls(self):
+        return LambdaIterIter(self, operator.attrgetter('proc_calls'))
     @property
     def actions(self):
         return LambdaIterIter(self, operator.attrgetter('recent_actions'))

@@ -592,6 +592,7 @@ class SimSystemPosix(SimStatePlugin):
         # Any other file descriptor, concretize directly
         return self.get_fd(fd).concretize(**kwargs)
 
+
 from angr.sim_state import SimState
 SimState.register_default('posix', SimSystemPosix)
 
