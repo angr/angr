@@ -1,54 +1,71 @@
-angr
+(My)angr
 ====
-
-[![Latest Release](https://img.shields.io/pypi/v/angr.svg)](https://pypi.python.org/pypi/angr/)
-[![PyPI Statistics](https://img.shields.io/pypi/dm/angr.svg)](https://pypistats.org/packages/angr)
-[![Build Status](https://dev.azure.com/angr/angr/_apis/build/status/angr?branchName=master)](https://dev.azure.com/angr/angr/_build/latest?definitionId=18&branchName=master)
-[![License](https://img.shields.io/github/license/angr/angr.svg)](https://github.com/angr/angr/blob/master/LICENSE)
-[![Gitbook](https://img.shields.io/badge/docs-gitbook-green.svg)](http://docs.angr.io)
-[![API Docs](https://img.shields.io/badge/docs-api-green.svg)](http://angr.io/api-doc)
-
-angr is a platform-agnostic binary analysis framework.
-It is brought to you by [the Computer Security Lab at UC Santa Barbara](https://seclab.cs.ucsb.edu), [SEFCOM at Arizona State University](http://sefcom.asu.edu),  their associated CTF team, [Shellphish](http://shellphish.net), the open source community, and **[@rhelmot](https://github.com/rhelmot)**.
 
 # What?
 
-angr is a suite of Python 3 libraries that let you load a binary and do a lot of cool things to it:
+This is my version of the angr framework. I have made some updates to the framework to use in my research that are unlikely to be merged in the mainstream repository buy I'd like to share with anyone interested. 
 
-- Disassembly and intermediate-representation lifting
-- Program instrumentation
-- Symbolic execution
-- Control-flow analysis
-- Data-dependency analysis
-- Value-set analysis (VSA)
-- Decompilation
+# What's New?
 
-The most common angr operation is loading a binary: `p = angr.Project('/bin/bash')` If you do this in an enhanced REPL like IPython, you can use tab-autocomplete to browse the [top-level-accessible methods](http://docs.angr.io/docs/toplevel.html) and their docstrings.
+Implemented features so-far:
 
-The short version of "how to install angr" is `mkvirtualenv --python=$(which python3) angr && python -m pip install angr`.
+## String Formatters 
 
-# Example
+The original posix.dumps function returns a stream that looks like:
 
-angr does a lot of binary analysis stuff.
-To get you started, here's a simple example of using symbolic execution to get a flag in a CTF challenge.
+```Python
+b'foo\x00\x01\x00\x02\x02\x02\x02\x89\x02\x02\x02\x02\x00\x02\x02\x00\x00\x01m\x08)J\x08\x02\x08\x00\x00)\x19)\x08\x19\x00\x19I\x19\x19J\x06\x00\x8a)\x00\x1a\x00\x00\x02\x02\x00\x04\x89\x89\x89\x89\x89\x89\x89bar\x00\x01\x00\x00\x08\x0e\x19\x89\x08\x08\x02\x00\x00\x89\x0e*\x00I\x89\x89\x89\x89\x89\x89\x19\x89\x08\x08\x89\x89\x02\x89\x89\x89*\x01F\x08\x00\x89\x02\x89\xd2\x89\x01\x00\x00\x00)\x02\x02\x00\x00\x00\x19\x00\x00xpto\x00\x08\x01\x08\x00\x00\x00\x02\x01\x00\x02\x00_\x00\x01\x00\x01\x08\x02\x02\x00\x00\x00\x02\x00\x01\x02\x02"\x01J\x02\x02\x01\x02\x02\x02\x01\x08\x10\x00\x19\x02\x89\x1d\x12\x02\xfd\x00\x10\x02\x02\x00\x02\x00\x00'
+'''
 
-```python
-import angr
+Now you can get formatted values if you now the expected output types:
 
-project = angr.Project("angr-doc/examples/defcamp_r100/r100", auto_load_libs=False)
+```Python
+['foo', 'bar', 'xpto']
+'''
 
-@project.hook(0x400844)
-def print_flag(state):
-    print("FLAG SHOULD BE:", state.posix.dumps(0))
-    project.terminate_execution()
+Just Type:
 
-project.execute()
-```
+```Python
+found.posix.dumps(0, fmt='sss')
+'''
 
-# Quick Start
+## Invoked Function Calls
 
-- [Install Instructions](http://docs.angr.io/INSTALL.html)
-- Documentation as [HTML](http://docs.angr.io/) and as a [Github repository](https://github.com/angr/angr-doc)
-- Dive right in: [top-level-accessible methods](http://docs.angr.io/docs/toplevel.html)
-- [Examples using angr to solve CTF challenges](http://docs.angr.io/docs/examples.html).
-- [API Reference](http://angr.io/api-doc/)
+The original events history displays information about unfiltered events:
+
+```Python
+found.history.events.hardcopy                                                                                
+[<SimActionData __libc_start_main() reg/read>,
+ <SimActionData __libc_start_main() reg/read>,
+ <SimActionData __libc_start_main() reg/write>,
+'''
+
+Now you can get information about specific function call invocations without digging into multiple states details:
+
+```Python
+found.history.calls.hardcopy                                                                                 
+[('strcmp', False, <SAO <BV64 0x7fffffffffeff3a>>, <SAO <BV64 0x4008c7>>),
+ ('strlen', True, <SAO <BV64 0x7fffffffffeff3a>>),
+ ('strlen', True, <SAO <BV64 0x4008c7>>),
+ ('strncmp', True, <SAO <BV64 0x7fffffffffeff3a>>, <SAO <BV64 0x4008c7>>, <SimProcedure strlen (inline)>, <SimProcedure strlen (inline)>)]
+'''
+
+## Pretty Printers
+
+You can format the previous list to get a better visualization:
+
+```Python
+angr.pretty_printers.calls.pretty_print_calls(found.history.calls.hardcopy)                                  
+[+] strcmp (<SAO <BV64 0x7fffffffffeff3a>>, <SAO <BV64 0x4008c7>>)
+	[+] strlen (<SAO <BV64 0x7fffffffffeff3a>>)
+	[+] strlen (<SAO <BV64 0x4008c7>>)
+	[+] strncmp (<SAO <BV64 0x7fffffffffeff3a>>, <SAO <BV64 0x4008c7>>, <SimProcedure strlen (inline)>, <SimProcedure strlen (inline)>)
+[+] strcmp (<SAO <BV64 0x7fffffffffeff44>>, <SAO <BV64 0x4008cb>>)
+	[+] strlen (<SAO <BV64 0x7fffffffffeff44>>)
+	[+] strlen (<SAO <BV64 0x4008cb>>)
+	[+] strncmp (<SAO <BV64 0x7fffffffffeff44>>, <SAO <BV64 0x4008cb>>, <SimProcedure strlen (inline)>, <SimProcedure strlen (inline)>)
+[+] strcmp (<SAO <BV64 0x7fffffffffeff4e>>, <SAO <BV64 0x4008cf>>)
+	[+] strlen (<SAO <BV64 0x7fffffffffeff4e>>)
+	[+] strlen (<SAO <BV64 0x4008cf>>)
+	[+] strncmp (<SAO <BV64 0x7fffffffffeff4e>>, <SAO <BV64 0x4008cf>>, <SimProcedure strlen (inline)>, <SimProcedure strlen (inline)>)
+'''
