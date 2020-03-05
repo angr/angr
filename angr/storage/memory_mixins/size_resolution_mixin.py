@@ -50,18 +50,15 @@ class SizeConcretizationMixin(MemoryMixin):
     - symbolic store sizes will be dispatched as several conditional stores with concrete sizes
     """
     def load(self, addr, size=None, **kwargs):
-        if getattr(size, 'op', 'BVV') != 'BVV':
+        if getattr(size, 'op', 'BVV') == 'BVV':
             return super().load(addr, size=size, **kwargs)
 
-        if getattr(size, 'op', 'BVV') != 'BVV':
-            l.warning("Loading symbolic size via max. be careful.")
-            out_size = self.state.solver.max(size)
-        else:
-            out_size = size
+        l.warning("Loading symbolic size via max. be careful.")
+        out_size = self.state.solver.max(size)
         return super().load(addr, size=out_size, **kwargs)
 
     def store(self, addr, data, size=None, condition=None, **kwargs):
-        if getattr(size, 'op', 'BVV') != 'BVV':
+        if getattr(size, 'op', 'BVV') == 'BVV':
             super().store(addr, data, size=size, **kwargs)
             return
 

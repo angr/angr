@@ -68,7 +68,7 @@ class SimState(PluginHub):
             cle_memory_backer=None,
             dict_memory_backer=None,
             permissions_map=None,
-            default_permissions=None,
+            default_permissions=3,
             stack_perms=None,
             stack_end=None,
             stack_size=None,
@@ -167,7 +167,7 @@ class SimState(PluginHub):
                 sim_memory_cls = self.plugin_preset.request_plugin('sym_memory')
                 sim_memory = sim_memory_cls(cle_memory_backer=cle_memory_backer, dict_memory_backer=dict_memory_backer, memory_id='mem',
                                             permissions_map=permissions_map, default_permissions=default_permissions,
-                                            stack_perms=stack_perms, stack_end=stack_end)
+                                            stack_perms=stack_perms, stack_end=stack_end, stack_size=stack_size)
 
             # Add memory plugin
             if not self._is_java_jni_project:

@@ -45,7 +45,7 @@ class DataNormalizationMixin(MemoryMixin):
 
         if isinstance(thing, str):
             l.warning("Encoding unicode string for memory as utf-8. Did you mean to use a bytestring?")
-            thing = thing.encode()
+            thing = thing.encode('utf-8')
         if type(thing) is bytes:
             return claripy.BVV(thing)
         elif type(thing) is int:

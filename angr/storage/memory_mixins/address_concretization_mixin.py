@@ -285,3 +285,30 @@ class AddressConcretizationMixin(MemoryMixin):
                 if condition is not None:
                     sub_condition = condition & sub_condition
             super().store(concrete_addr, data, size=size, condition=sub_condition, **kwargs)
+
+    def permissions(self, addr, permissions=None, **kwargs):
+        if type(addr) is int:
+            pass
+        elif getattr(addr, 'op', None) == 'BVV':
+            addr = addr.args[0]
+        else:
+            raise SimMemoryAddressError("Cannot get/set permissions for a symbolic address")
+        return super().permissions(addr, permissions=permissions, **kwargs)
+
+    def map_region(self, addr, length, permissions, **kwargs):
+        if type(addr) is int:
+            pass
+        elif getattr(addr, 'op', None) == 'BVV':
+            addr = addr.args[0]
+        else:
+            raise SimMemoryAddressError("Cannot map a region for a symbolic address")
+        return super().map_region(addr, length, permissions, **kwargs)
+
+    def unmap_region(self, addr, length, **kwargs):
+        if type(addr) is int:
+            pass
+        elif getattr(addr, 'op', None) == 'BVV':
+            addr = addr.args[0]
+        else:
+            raise SimMemoryAddressError("Cannot unmap a region for a symbolic address")
+        return super().unmap_region(addr, length, **kwargs)
