@@ -577,6 +577,20 @@ class SimSystemPosix(SimStatePlugin):
                         # Integers
                         elif 'i' in _fmt:
                             fmt_arg = int(data[idx])
+                        # Guessing Formatter (when you do not know what to expect)
+                        elif '?' in _fmt:
+                            # try to convert to int
+                            try:
+                                fmt_arg = int(data[idx])
+                            # failed to convert to int
+                            except:
+                                # try to interpret as a simple string
+                                try:
+                                    fmt_arg = str(data[idx][:data[idx].find(0)].decode('utf8'))
+                                # failed to interpret as a simple string
+                                except:
+                                    # return non-formatted data
+                                    fmt_arg = data[idx]
                         # Other types not supported yet
                         else:
                             raise NotImplementedError()
@@ -609,6 +623,15 @@ class SimSystemPosix(SimStatePlugin):
                     formatted_list.append(int(val))
                 # Return formatted Values
                 return formatted_list
+            # Guessing
+            elif '?' == fmt:
+                # Interpret as a single int
+                try:
+                    formatted = int(data)
+                    return formatted
+                # Otherwise, return the original data (not enough information to guess)
+                except:
+                    return data
             # Others
             else:
                 raise NotImplementedError()
