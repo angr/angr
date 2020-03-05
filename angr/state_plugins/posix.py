@@ -583,12 +583,12 @@ class SimSystemPosix(SimStatePlugin):
                             try:
                                 fmt_arg = int(data[idx])
                             # failed to convert to int
-                            except:
+                            except ValueError:
                                 # try to interpret as a simple string
                                 try:
                                     fmt_arg = str(data[idx][:data[idx].find(0)].decode('utf8'))
                                 # failed to interpret as a simple string
-                                except:
+                                except ValueError:
                                     # return non-formatted data
                                     fmt_arg = data[idx]
                         # Other types not supported yet
@@ -610,13 +610,13 @@ class SimSystemPosix(SimStatePlugin):
         data = self.get_fd(fd).concretize(**kwargs)
         # If formatter specified (in this case, concretize returns no list)
         # Single String Formatter
-        if 's' == fmt:
+        if fmt == 's':
             return str(data[:data.find(0)].decode('utf8'))
         # Single Int Formatter
-        elif 'i' == fmt:
+        elif fmt == 'i':
             return int(data)
         # Multiple Int Formatter
-        elif 'i'*len(fmt) == fmt:
+        elif fmt == 'i'*len(fmt):
             # Formatted Values
             formatted_list = []
             # split values
@@ -626,13 +626,13 @@ class SimSystemPosix(SimStatePlugin):
             # Return formatted Values
             return formatted_list
         # Guessing
-        elif '?' == fmt:
+        elif fmt == '?':
             # Interpret as a single int
             try:
                 formatted = int(data)
                 return formatted
             # Otherwise, return the original data (not enough information to guess)
-            except:
+            except ValueError:
                 return data
         # Others
         else:
