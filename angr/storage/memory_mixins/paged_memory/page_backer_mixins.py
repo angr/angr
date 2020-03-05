@@ -28,8 +28,8 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         o._cle_loader = self._cle_loader
         return o
 
-    def _initialize_page(self, pageno, **kwargs):
-        if self._clemory_backer is None:
+    def _initialize_page(self, pageno, force_default=False, **kwargs):
+        if self._clemory_backer is None or force_default:
             return super()._initialize_page(pageno, **kwargs)
 
         addr = pageno * self.page_size
@@ -61,7 +61,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
                     permissions = self._default_permissions
                 return new_from_shared(data, memory_id='%s_%d' % (self.id, pageno), memory=self, permissions=permissions)
 
-        new_page = PagedMemoryMixin._initialize_page(self, pageno, permissions=permissions, **kwargs)
+        new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=permissions, **kwargs)
         self._simple_store(new_page, addr, data, self.page_size, 'Iend_BE', **kwargs)
         return new_page
 
@@ -90,10 +90,10 @@ class DictBackerMixin(PagedMemoryMixin):
         o._dict_memory_backer = self._dict_memory_backer
         return o
 
-    def _initialize_page(self, pageno: int, **kwargs):
+    def _initialize_page(self, pageno: int, force_default=False, **kwargs):
         page_addr = pageno * self.page_size
 
-        if self._dict_memory_backer is None:
+        if self._dict_memory_backer is None or force_default:
             return super()._initialize_page(pageno, **kwargs)
 
         new_page = None
@@ -101,7 +101,8 @@ class DictBackerMixin(PagedMemoryMixin):
         for addr, byte in self._dict_memory_backer.items():
             if page_addr <= addr < page_addr + self.page_size:
                 if new_page is None:
-                    new_page = PagedMemoryMixin._initialize_page(self, pageno, **kwargs)
+                    kwargs['allow_default'] = True
+                    new_page = PagedMemoryMixin._initialize_default_page(self, pageno, **kwargs)
                 self._simple_store(new_page, addr, claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width), 1, 'Iend_BE', **kwargs)
 
         if new_page is None:
