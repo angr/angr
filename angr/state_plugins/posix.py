@@ -590,7 +590,30 @@ class SimSystemPosix(SimStatePlugin):
             # Return the merged stream
             return data
         # Any other file descriptor, concretize directly
-        return self.get_fd(fd).concretize(**kwargs)
+        data = self.get_fd(fd).concretize(**kwargs)
+        # If formatter specified (in this case, concretize returns no list)
+        if fmt is not None:
+            # Single String Formatter
+            if 's' == fmt:
+                return str(data[:data.find(0)].decode('utf8'))
+            # Single Int Formatter
+            elif 'i' == fmt:
+                return int(data)
+            # Multiple Int Formatter
+            elif 'i'*len(fmt) == fmt:
+                # Formatted Values
+                formatted_list = []
+                # split values
+                for val in str(data.decode('utf8')).split('+'):
+                    # Parse Each Value
+                    formatted_list.append(int(val))
+                # Return formatted Values
+                return formatted_list
+            # Others
+            else:
+                raise NotImplementedError()
+        # If no formatter specified, just return
+        return data
 
 from angr.sim_state import SimState
 SimState.register_default('posix', SimSystemPosix)
