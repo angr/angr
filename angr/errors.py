@@ -280,6 +280,9 @@ class SimUninitializedAccessError(SimExpressionError):
     def __repr__(self):
         return "SimUninitializedAccessError (expr %s is used as %s)" % (self.expr, self.expr_type)
 
+    def __reduce__(self):
+        return (SimUninitializedAccessError, (self.expr_type, self.expr))
+
 #
 # SimIRStmt errors
 #
@@ -410,6 +413,9 @@ class SimSegfaultException(SimException, SimMemoryError):
             self.reason,
             (', original %s' % self.original_addr.__repr__(max_depth=3)) if self.original_addr is not None else ''
         )
+
+    def __reduce__(self):
+        return (SimSegfaultException, (self.addr, self.reason, self.original_addr))
 
 SimSegfaultError = SimSegfaultException
 
