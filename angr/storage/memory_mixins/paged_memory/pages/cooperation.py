@@ -23,6 +23,13 @@ class CooperationBase:
         """
         pass
 
+    @classmethod
+    def _zero_objects(self, cls, addr, size, **kwargs):
+        """
+        Like decompose objects, but with a size to zero-fill instead of explicit data
+        """
+        pass
+
 class MemoryObjectMixin(CooperationBase):
     """
     Uses SimMemoryObjects in region storage.
@@ -51,3 +58,8 @@ class MemoryObjectMixin(CooperationBase):
         size = yield
         while True:
             size = yield memory_object
+
+    @classmethod
+    def _zero_objects(cls, addr, size, memory=None, **kwargs):
+        data = claripy.BVV(0, size*memory.state.arch.byte_width if memory is not None else 8)
+        return cls._decompose_objects(addr, data, 'Iend_BE', memory=memory, **kwargs)

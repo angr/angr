@@ -31,6 +31,12 @@ class MemoryMixin(SimStatePlugin):
         self.id = memory_id
         self.endness = endness
 
+    def copy(self, memo):
+        o = type(self)()
+        o.id = self.id
+        o.endness = self.endness
+        return o
+
     @property
     def category(self):
         """
@@ -58,6 +64,15 @@ class MemoryMixin(SimStatePlugin):
         pass
 
     def find(self, addr, data, **kwargs):
+        pass
+
+    def permissions(self, addr, permissions=None, **kwargs):
+        pass
+
+    def map_region(self, addr, length, permissions, init_zero=False, **kwargs):
+        pass
+
+    def unmap_region(self, addr, length, **kwargs):
         pass
 
     def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):

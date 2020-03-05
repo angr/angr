@@ -28,11 +28,12 @@ class StackAllocationMixin(PagedMemoryMixin):
         if new_red_pageno in self._pages:
             raise SimSegfaultException(pageno * self.page_size, "stack collided with heap")
 
-        if self._remaining_stack < self.page_size:
+        if self._remaining_stack is not None and self._remaining_stack < self.page_size:
             raise SimSegfaultException(pageno * self.page_size, "exhausted stack quota")
 
         self._red_pageno = new_red_pageno
-        self._remaining_stack -= self.page_size
+        if self._remaining_stack is not None:
+            self._remaining_stack -= self.page_size
 
-        new_page = PagedMemoryMixin._initialize_page(self, pageno, permissions=self._stack_perms, **kwargs)
+        new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=self._stack_perms, **kwargs)
         return new_page
