@@ -41,13 +41,17 @@ class PagedMemoryMixin(MemoryMixin):
         return o
 
     def _get_page(self, pageno: int, writing: bool, **kwargs) -> PageType:
+        force_default = True
+        # force_default means don't consult any "backers"
+        # if None is stored explicitly in _pages, it means it was unmapped explicitly, so don't consult backers
         try:
             page = self._pages[pageno]
-            if page is None:
-                page = self._initialize_page(pageno, force_default=True, **kwargs)
-                self._pages[pageno] = page
         except KeyError:
-            page = self._initialize_page(pageno, **kwargs)
+            page = None
+            force_default = False
+
+        if page is None:
+            page = self._initialize_page(pageno, force_default=force_default, **kwargs)
             self._pages[pageno] = page
 
         if writing:
@@ -227,6 +231,60 @@ class PagedMemoryMixin(MemoryMixin):
             self._pages[pageno] = None
         except KeyError:
             pass
+
+    def __contains__(self, addr):
+        pageno, _ = self._divide_addr(addr)
+        try:
+            self._get_page(pageno, False, allow_default=False)
+        except SimMemoryError:
+            return False
+        else:
+            return True
+
+    def concrete_load(self, addr, size, writing=False, **kwargs):
+        pageno, offset = self._divide_addr(addr)
+        remaining = self.page_size - offset
+        try:
+            page = self._get_page(pageno, writing, **kwargs)
+        except SimMemoryError:
+            return memoryview(b''), memoryview(b'')
+
+        try:
+            concrete_load = page.concrete_load
+        except AttributeError:
+            result = self.load(addr, size)
+            if result.op == 'BVV':
+                return memoryview(result.args[0].to_bytes(size, 'big')), memoryview(bytes(size))
+            elif result.op == 'Concat':
+                bytes_out = bytearray(size)
+                bitmap_out = bytearray(size)
+                bit_idx = 0
+                for element in result.args:
+                    byte_idx = bit_idx // 8
+                    byte_size = len(element) // 8
+                    if bit_idx % 8 != 0:
+                        chop = 8 - bit_idx
+                        bit_idx += chop
+                        byte_idx += 1
+                    else:
+                        chop = 0
+
+                    if element.op == 'BVV':
+                        if chop:
+                            element = element[len(element)-1-chop:0]
+
+                        bytes_out[byte_idx:byte_idx+byte_size] = element.args[0].to_bytes(byte_size, 'big')
+                    else:
+                        for byte_i in range(byte_idx, byte_idx+byte_size):
+                            bitmap_out[byte_i] = 1
+
+                    bit_idx += len(element)
+                    if bit_idx % 8 != 0:
+                        bitmap_out[bit_idx // 8] = 1
+                return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
+
+        else:
+            return concrete_load(offset, remaining, **kwargs)
 
 
 

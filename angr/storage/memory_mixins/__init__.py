@@ -75,6 +75,9 @@ class MemoryMixin(SimStatePlugin):
     def unmap_region(self, addr, length, **kwargs):
         pass
 
+    def concrete_load(self, addr, size, writing=False, **kwargs):
+        pass
+
     def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):
         if add_constraints:
             if condition is not None:

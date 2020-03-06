@@ -35,18 +35,42 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         addr = pageno * self.page_size
 
         try:
-            backer_start, backer = next(self._clemory_backer.backers(addr))
+            backer_iter = self._clemory_backer.backers(addr)
+            backer_start, backer = next(backer_iter)
         except StopIteration:
             return super()._initialize_page(pageno, **kwargs)
 
-        if backer_start > addr:
+        if backer_start >= addr + self.page_size:
             return super()._initialize_page(pageno, **kwargs)
 
-        if backer_start + len(backer) < addr + self.page_size:
-            l.info("Clemory backer somehow doesn't provide a full page? padding with null bytes")
-            data = claripy.BVV(bytes(backer[addr - backer_start:].ljust(self.page_size, b'\0')))
-        else:
+        if backer_start <= addr and backer_start + len(backer) > addr + self.page_size:
+            # fast case
             data = memoryview(backer)[addr-backer_start:addr-backer_start+self.page_size]
+        else:
+            page_data = bytearray(self.page_size)
+            while backer_start < addr + self.page_size:
+                # lord help me. why do I keep having to write code that looks like this
+                # why have I found myself entangled in a briar patch of address spaces embedded in other address spaces
+                if addr >= backer_start:
+                    backer_first_relevant_byte = addr - backer_start
+                    page_first_relevant_byte = 0
+                else:
+                    backer_first_relevant_byte = 0
+                    page_first_relevant_byte = backer_start - addr
+
+                transfer_size = len(backer) - backer_first_relevant_byte
+                if page_first_relevant_byte + transfer_size > self.page_size:
+                    transfer_size = self.page_size - page_first_relevant_byte
+
+                backer_relevant_data = memoryview(backer)[backer_first_relevant_byte:backer_first_relevant_byte+transfer_size]
+                page_data[page_first_relevant_byte:page_first_relevant_byte+transfer_size] = backer_relevant_data
+
+                try:
+                    backer_start, backer = next(backer_iter)
+                except StopIteration:
+                    break
+
+            data = claripy.BVV(bytes(page_data))
 
         permissions = self._cle_permissions_lookup(addr)
 
