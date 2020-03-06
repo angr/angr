@@ -256,7 +256,7 @@ class VEXLifter(SimEngineBase):
                 clemory = state.memory.regions['global'].memory.mem._memory_backer
             else:
                 # symbolic memory
-                clemory = state.memory.mem._memory_backer
+                clemory = state.memory._clemory_backer
 
         buff, size = b"", 0
 

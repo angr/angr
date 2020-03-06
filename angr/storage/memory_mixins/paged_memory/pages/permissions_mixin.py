@@ -9,6 +9,11 @@ class PermissionsMixin(MemoryMixin):
         super().__init__(**kwargs)
         self.permissions = permissions
 
+    def copy(self, memo):
+        o = super().copy(memo)
+        o.permissions = self.permissions
+        return o
+
     @property
     def perm_read(self):
         return self.permissions & 1

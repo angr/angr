@@ -115,7 +115,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 except errors.SimMemoryError:
                     raise errors.SimSegfaultError(addr, 'exec-miss')
                 else:
-                    if not perms.symbolic:
+                    if not self.state.solver.symbolic(perms):
                         perms = self.state.solver.eval(perms)
                         if not perms & 4 and o.ENABLE_NX in self.state.options:
                             raise errors.SimSegfaultError(addr, 'non-executable')
