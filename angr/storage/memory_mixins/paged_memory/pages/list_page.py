@@ -10,12 +10,16 @@ class ListStorageMixin(MemoryObjectMixin, PageBase):
 
         self.content: typing.List[typing.Optional[SimMemoryObject]] = content
         if content is None:
-            self.content = [None] * memory.page_size  # TODO: this isn't the best
+            if memory is not None:
+                self.content = [None] * memory.page_size  # TODO: this isn't the best
 
         self.sinkhole: typing.Optional[SimMemoryObject] = sinkhole
 
     def copy(self, memo):
-        return type(self)(content=list(self.content), sinkhole=self.sinkhole)
+        o = super().copy(memo)
+        o.content = list(self.content)
+        o.sinkhole = self.sinkhole
+        return o
 
     def merge(self, _others, _merge_conditions, _common_ancestor=None):
         raise NotImplementedError("uh oh sisters!")
