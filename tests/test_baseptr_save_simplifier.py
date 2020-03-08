@@ -22,7 +22,7 @@ def test_baseptr_save_simplifier_amd64():
 
     # decompile all:main and make sure the first and the last blocks do not save or restore to rbp
     bin_path = os.path.join(test_location, "x86_64", "all")
-    proj = angr.Project(bin_path, auto_load_libs=False)
+    proj = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
     cfg = proj.analyses.CFG(data_references=True, normalize=True)
 
