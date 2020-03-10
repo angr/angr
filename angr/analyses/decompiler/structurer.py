@@ -74,7 +74,9 @@ class SequenceNode:
 
         return True
 
-    def _test_empty_node(self, node):
+    @staticmethod
+    def _test_empty_node(node):
+        # pylint:disable=simplifiable-if-statement
         if type(node) is ailment.Block:
             if not node.statements:
                 return True
@@ -239,8 +241,8 @@ class RecursiveStructurer(Analysis):
                     # this is the top-level region. we are done!
                     self.result = st.result
                     break
-                else:
-                    self._replace_region(parent_region, current_region, st.result)
+
+                self._replace_region(parent_region, current_region, st.result)
 
     @staticmethod
     def _replace_region(parent_region, sub_region, node):
@@ -854,11 +856,12 @@ class Structurer(Analysis):
 
         return candidates
 
-    def _create_seq_node_guarded_by_common_subexpr(self, common_subexpr, candidates):
+    @staticmethod
+    def _create_seq_node_guarded_by_common_subexpr(common_subexpr, candidates):
 
         new_nodes = [ ]
 
-        for idx, node, subexprs in candidates:
+        for _, node, subexprs in candidates:
             # :)
             new_subexprs = [ex for ex in subexprs if ex is not common_subexpr]
             new_node = CodeNode(
@@ -1005,7 +1008,8 @@ class Structurer(Analysis):
         else:
             return node
 
-    def _merge_nodes(self, node_0, node_1):
+    @staticmethod
+    def _merge_nodes(node_0, node_1):
 
         if isinstance(node_0, SequenceNode):
             if isinstance(node_1, SequenceNode):
@@ -1145,7 +1149,8 @@ class Structurer(Analysis):
 
         return targets
 
-    def _get_reaching_condition_subexprs(self, claripy_ast):
+    @staticmethod
+    def _get_reaching_condition_subexprs(claripy_ast):
 
         queue = [ claripy_ast ]
         while queue:
@@ -1218,7 +1223,8 @@ class Structurer(Analysis):
         cond = simplified if simplified is not None else cond
         return cond
 
-    def _revert_short_circuit_conditions(self, cond):
+    @staticmethod
+    def _revert_short_circuit_conditions(cond):
 
         # revert short-circuit conditions
         # !A||(A&&!B) ==> !(A&&B)
