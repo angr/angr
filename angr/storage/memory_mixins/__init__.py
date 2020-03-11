@@ -56,14 +56,21 @@ class MemoryMixin(SimStatePlugin):
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
 
+    def find(self, addr, data, max_search, **kwargs):
+        pass
+
+    def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):
+        if add_constraints:
+            if condition is not None:
+                to_add = (c & condition) | ~condition
+            else:
+                to_add = c
+            self.state.add_constraints(to_add)
 
     def load(self, addr, **kwargs):
         pass
 
     def store(self, addr, data, **kwargs):
-        pass
-
-    def find(self, addr, data, **kwargs):
         pass
 
     def permissions(self, addr, permissions=None, **kwargs):
@@ -77,14 +84,6 @@ class MemoryMixin(SimStatePlugin):
 
     def concrete_load(self, addr, size, writing=False, **kwargs):
         pass
-
-    def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):
-        if add_constraints:
-            if condition is not None:
-                to_add = (c & condition) | ~condition
-            else:
-                to_add = c
-            self.state.add_constraints(to_add)
 
     def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
         """
@@ -107,6 +106,7 @@ from .default_filler_mixin import DefaultFillerMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
 from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
+from .smart_find_mixin import SmartFindMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
@@ -116,6 +116,7 @@ from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
 
 class DefaultMemory(
+        SmartFindMixin,
         UnwrapperMixin,
         NameResolutionMixin,
         DataNormalizationMixin,
