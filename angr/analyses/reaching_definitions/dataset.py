@@ -46,6 +46,14 @@ class DataSet:
             while len(self.data) > DataSet.maximum_size:
                 l.warning('Reached maximum size of DataSet, discarded %s.', str(self.data.pop()))
 
+    def truncate(self, bits):
+        if self._bits <= bits:
+            return DataSet(self.data, bits)
+
+        mask = (1 << bits) - 1
+        data = { d & mask if isinstance(d, int) else d for d in self.data }
+        return DataSet(data, bits)
+
     def update(self, data):
         if type(data) is DataSet:
             if self.bits != data.bits:
