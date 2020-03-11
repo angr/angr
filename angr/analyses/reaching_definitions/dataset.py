@@ -8,6 +8,9 @@ l = logging.getLogger(name=__name__)
 
 
 class DataSet:
+
+    __slots__ = ('data', '_bits', '_mask')
+
     """
     This class represents a set of data.
 
