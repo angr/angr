@@ -794,11 +794,14 @@ class Structurer(Analysis):
         # search for a == ^a pairs
 
         while True:
+            break_hard = False
             for node_0 in seq.nodes:
                 if not type(node_0) is CodeNode:
                     continue
                 rcond_0 = node_0.reaching_condition
                 if rcond_0 is None:
+                    continue
+                if claripy.is_true(rcond_0):
                     continue
                 for node_1 in seq.nodes:
                     if not type(node_1) is CodeNode:
@@ -812,7 +815,10 @@ class Structurer(Analysis):
                     if claripy.is_true(cond_):
                         # node_0 and node_1 should be structured using an if-then-else
                         self._make_ite(seq, node_0, node_1)
+                        break_hard = True
                         break
+                if break_hard:
+                    break
             else:
                 break
 
