@@ -365,10 +365,6 @@ class CBreak(CStatement):
     """
     Represents a break statement in C.
     """
-    def __init__(self):
-
-        super(CBreak, self).__init__()
-
     def c_repr(self, indent=0, posmap=None):
 
         indent_str = self.indent_str(indent=indent)
@@ -1014,7 +1010,7 @@ class StructuredCodeGenerator(Analysis):
 
         return CIfBreak(self._handle(node.condition))
 
-    def _handle_Break(self, node):  # pylint:disable=no-self-use
+    def _handle_Break(self, node):  # pylint:disable=no-self-use,unused-argument
 
         return CBreak()
 

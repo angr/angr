@@ -9,7 +9,7 @@ import ailment
 from ...block import Block, BlockNode
 from .. import Analysis, register_analysis
 from ..cfg.cfg_utils import CFGUtils
-from .region_identifier import RegionIdentifier, MultiNode, GraphRegion
+from .region_identifier import MultiNode, GraphRegion
 
 l = logging.getLogger(name=__name__)
 
