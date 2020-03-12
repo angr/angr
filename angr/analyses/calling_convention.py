@@ -79,7 +79,11 @@ class CallingConventionAnalysis(Analysis):
                       self._function)
             return None
 
-        real_func = self.kb.functions.get_by_addr(successors[0].addr)
+        try:
+            real_func = self.kb.functions.get_by_addr(successors[0].addr)
+        except KeyError:
+            # the real function does not exist for some reason
+            return None
 
         return real_func.calling_convention
 
