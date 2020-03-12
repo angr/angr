@@ -209,6 +209,16 @@ class SimEngineRDAIL(
         size = expr.size
         bits = size * 8
 
+        # first check if it is ever defined
+        defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
+        if not defs:
+            # define it right away as an external dependency
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
+                                               data=expr
+                                               )
+            # defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
+            # assert defs
+
         self.state.add_use(Register(reg_offset, size), self._codeloc())
 
         if reg_offset == self.arch.sp_offset:
@@ -218,14 +228,6 @@ class SimEngineRDAIL(
 
         try:
             data = DataSet(set(), bits)
-            defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
-            if not defs:
-                # define it right away as an external dependency
-                self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
-                                                   data=expr
-                                                   )
-                defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
-                assert defs
             for def_ in defs:
                 if def_.data is not None:
                     if def_.data.bits < data.bits:
