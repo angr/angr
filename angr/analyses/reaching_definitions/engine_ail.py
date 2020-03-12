@@ -228,7 +228,15 @@ class SimEngineRDAIL(
                 assert defs
             for def_ in defs:
                 if def_.data is not None:
-                    data.update(def_.data)
+                    if def_.data.bits < data.bits:
+                        # zero-extend
+                        def_data = DataSet(def_.data.data, data.bits)
+                    elif def_.data.bits > data.bits:
+                        # truncate
+                        def_data = def_.data.truncate(data.bits)
+                    else:
+                        def_data = def_.data
+                    data.update(def_data)
                 else:
                     l.warning('Data in register <%s> is undefined at %#x.',
                               self.arch.register_names[reg_offset], self.ins_addr

@@ -20,6 +20,11 @@ l = logging.getLogger(name=__name__)
 
 
 class LiveDefinitions:
+
+    __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'register_definitions', 'stack_definitions',
+                 'memory_definitions', 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses',
+                 'uses_by_codeloc', 'tmp_uses', '_dead_virgin_definitions', )
+
     """
     Represents the internal state of the ReachingDefinitionsAnalysis.
 
