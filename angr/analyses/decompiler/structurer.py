@@ -869,8 +869,6 @@ class Structurer(Analysis):
             if any(subexpr_1 is common_subexpr for subexpr_1 in subexprs_1):
                 # we found one!
                 candidates.append((starting_idx + j, node_1, subexprs_1))
-            else:
-                break
 
         return candidates
 
