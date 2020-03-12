@@ -1174,6 +1174,14 @@ class Structurer(Analysis):
             if ast.op == "And":
                 queue += ast.args[1:]
                 yield ast.args[0]
+            elif ast.op == "Or":
+                # get the common subexpr on both ends
+                subexprs_left = Structurer._get_reaching_condition_subexprs(ast.args[0])
+                subexprs_right = Structurer._get_reaching_condition_subexprs(ast.args[1])
+                left = set(subexprs_left)
+                left.intersection(subexprs_right)
+                for expr in left:
+                    yield expr
             else:
                 yield ast
 
