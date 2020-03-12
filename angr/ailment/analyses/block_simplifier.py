@@ -1,4 +1,4 @@
-
+# pylint:disable=unused-import
 import logging
 
 from angr import Analysis, register_analysis
@@ -35,6 +35,8 @@ class BlockSimplifier(Analysis):
         ctr = 0
         max_ctr = 30
 
+        block = self._eliminate_self_assignments(block)
+
         block = self._eliminate_dead_assignments(block)
 
         while True:
@@ -48,7 +50,7 @@ class BlockSimplifier(Analysis):
             block = new_block
             if ctr >= max_ctr:
                 _l.error("Simplification does not reach a fixed point after %d iterations. "
-                         "Block comparison is probably incorrect." % max_ctr)
+                         "Block comparison is probably incorrect.", max_ctr)
                 break
 
         self.result_block = block
@@ -86,6 +88,20 @@ class BlockSimplifier(Analysis):
         new_block.statements = new_statements
         return new_block
 
+    @staticmethod
+    def _eliminate_self_assignments(block):
+
+        new_statements = [ ]
+
+        for stmt in block.statements:
+            if type(stmt) is Assignment:
+                if stmt.dst.likes(stmt.src):
+                    continue
+            new_statements.append(stmt)
+
+        new_block = block.copy(statements=new_statements)
+        return new_block
+
     def _eliminate_dead_assignments(self, block):
 
         new_statements = [ ]
@@ -94,13 +110,13 @@ class BlockSimplifier(Analysis):
 
         rd = self.project.analyses.ReachingDefinitions(subject=block,
                                                        track_tmps=True,
-                                                       observation_points=[('insn', block.statements[-1].ins_addr, OP_AFTER)]
+                                                       observation_points=[('node', block.addr, OP_AFTER)]
                                                        )
 
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
         dead_virgins = rd.one_result._dead_virgin_definitions
-        dead_virgins_stmt_idx = set([ d.codeloc.stmt_idx for d in dead_virgins
-                                      if not isinstance(d.codeloc, ExternalCodeLocation) and not d.dummy ])
+        dead_virgins_stmt_idx = { d.codeloc.stmt_idx for d in dead_virgins
+                                      if not isinstance(d.codeloc, ExternalCodeLocation) and not d.dummy }
 
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
@@ -121,8 +137,7 @@ class BlockSimplifier(Analysis):
 
             new_statements.append(stmt)
 
-        new_block = block.copy()
-        new_block.statements = new_statements
+        new_block = block.copy(statements=new_statements)
         return new_block
 
 

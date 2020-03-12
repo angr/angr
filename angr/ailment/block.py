@@ -11,11 +11,11 @@ class Block:
         self.original_size = original_size
         self.statements = [] if statements is None else statements
 
-    def copy(self):
+    def copy(self, statements=None):
         return Block(
             addr=self.addr,
             original_size=self.original_size,
-            statements=self.statements[::],
+            statements=self.statements[::] if not statements else statements,
         )
 
     def __repr__(self):
