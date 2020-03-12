@@ -1196,22 +1196,31 @@ class Structurer(Analysis):
             'CmpLE': lambda expr, conv: conv(expr.operands[0]) <= conv(expr.operands[1]),
             'CmpLT': lambda expr, conv: conv(expr.operands[0]) < conv(expr.operands[1]),
             'Add': lambda expr, conv: conv(expr.operands[0]) + conv(expr.operands[1]),
+            'Sub': lambda expr, conv: conv(expr.operands[0]) - conv(expr.operands[1]),
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
-            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1])
+            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1].value)
         }
 
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.DirtyExpression)):
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression)):
             var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
+            self._condition_mapping[var] = condition
+            return var
+        elif isinstance(condition, ailment.Expr.Register):
+            var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
         elif isinstance(condition, ailment.Expr.Convert):
             # convert is special. if it generates a 1-bit variable, it should be treated as a BVS
             if condition.to_bits == 1:
-                var = claripy.BoolS('ailcond_%s' % repr(condition), explicit_name=True)
+                var_ = self._bool_variable_from_ail_condition(condition.operands[0])
+                name = 'ailcond_Conv(%d->%d, %s)' % (condition.from_bits, condition.to_bits, repr(var_))
+                var = claripy.BoolS(name, explicit_name=True)
             else:
-                var = claripy.BVS('ailexpr_%s' % repr(condition), condition.to_bits, explicit_name=True)
+                var_ = self._bool_variable_from_ail_condition(condition.operands[0])
+                name = 'ailexpr_Conv(%d->%d, %s)' % (condition.from_bits, condition.to_bits, repr(var_))
+                var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
@@ -1229,7 +1238,11 @@ class Structurer(Analysis):
         lambda_expr = _mapping.get(condition.op, None)
         if lambda_expr is None:
             raise NotImplementedError("Unsupported AIL expression operation %s. Consider implementing." % condition.op)
-        return lambda_expr(condition, self._bool_variable_from_ail_condition)
+        expr = lambda_expr(condition, self._bool_variable_from_ail_condition)
+        if expr is NotImplemented:
+            expr = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
+            self._condition_mapping[expr] = condition
+        return expr
 
     @staticmethod
     def _negate_cond(cond):
