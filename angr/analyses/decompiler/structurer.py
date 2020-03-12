@@ -341,25 +341,37 @@ class Structurer(Analysis):
         graph = self._region.graph
         head = self._region.head
 
-        # find latching nodes
+        # find initial loop nodes
+        loop_nodes = None
+        components = networkx.strongly_connected_components(graph)
+        for component in components:
+            if head in component:
+                loop_nodes = component
+                break
+        if loop_nodes is None:
+            # this should never happen - loop head always forms a cycle
+            raise TypeError("A bug (impossible case) in the algorithm is triggered.")
 
-        latching_nodes = set()
-
-        queue = [ head ]
-        traversed = set()
-        while queue:
-            node = queue.pop()
-            successors = graph.successors(node)
-            traversed.add(node)
-
-            for dst in successors:
-                if dst in traversed:
-                    latching_nodes.add(node)
-                else:
-                    queue.append(dst)
+        # extend loop nodes
+        while True:
+            loop_nodes_updated = False
+            for loop_node in loop_nodes:
+                for succ in graph.successors(loop_node):
+                    if succ not in loop_nodes:
+                        # determine if this successor's all predecessors are in the loop
+                        predecessors = graph.predecessors(succ)
+                        if all(pred in loop_nodes for pred in predecessors):
+                            # yes!
+                            loop_nodes.add(succ)
+                            loop_nodes_updated = True
+                            break
+                if loop_nodes_updated:
+                    break
+            if not loop_nodes_updated:
+                break
 
         # find loop nodes and successors
-        loop_subgraph = RegionIdentifier.slice_graph(graph, head, latching_nodes, include_frontier=True)
+        loop_subgraph = networkx.subgraph(graph, loop_nodes)
         loop_node_addrs = set( node.addr for node in loop_subgraph )
 
         # Case A: The loop successor is inside the current region (does it happen at all?)
