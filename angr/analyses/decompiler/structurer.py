@@ -9,7 +9,7 @@ import ailment
 from ...block import Block, BlockNode
 from .. import Analysis, register_analysis
 from ..cfg.cfg_utils import CFGUtils
-from .region_identifier import RegionIdentifier, MultiNode, GraphRegion
+from .region_identifier import MultiNode, GraphRegion
 
 l = logging.getLogger(name=__name__)
 
@@ -341,25 +341,37 @@ class Structurer(Analysis):
         graph = self._region.graph
         head = self._region.head
 
-        # find latching nodes
+        # find initial loop nodes
+        loop_nodes = None
+        components = networkx.strongly_connected_components(graph)
+        for component in components:
+            if head in component:
+                loop_nodes = component
+                break
+        if loop_nodes is None:
+            # this should never happen - loop head always forms a cycle
+            raise TypeError("A bug (impossible case) in the algorithm is triggered.")
 
-        latching_nodes = set()
-
-        queue = [ head ]
-        traversed = set()
-        while queue:
-            node = queue.pop()
-            successors = graph.successors(node)
-            traversed.add(node)
-
-            for dst in successors:
-                if dst in traversed:
-                    latching_nodes.add(node)
-                else:
-                    queue.append(dst)
+        # extend loop nodes
+        while True:
+            loop_nodes_updated = False
+            for loop_node in loop_nodes:
+                for succ in graph.successors(loop_node):
+                    if succ not in loop_nodes:
+                        # determine if this successor's all predecessors are in the loop
+                        predecessors = graph.predecessors(succ)
+                        if all(pred in loop_nodes for pred in predecessors):
+                            # yes!
+                            loop_nodes.add(succ)
+                            loop_nodes_updated = True
+                            break
+                if loop_nodes_updated:
+                    break
+            if not loop_nodes_updated:
+                break
 
         # find loop nodes and successors
-        loop_subgraph = RegionIdentifier.slice_graph(graph, head, latching_nodes, include_frontier=True)
+        loop_subgraph = networkx.subgraph(graph, loop_nodes)
         loop_node_addrs = set( node.addr for node in loop_subgraph )
 
         # Case A: The loop successor is inside the current region (does it happen at all?)
@@ -714,6 +726,9 @@ class Structurer(Analysis):
             '__add__': lambda cond_: ailment.Expr.BinaryOp(None, 'Add',
                                                            tuple(map(self._convert_claripy_bool_ast, cond_.args)),
                                                            ),
+            '__sub__': lambda cond_: ailment.Expr.BinaryOp(None, 'Sub',
+                                                           tuple(map(self._convert_claripy_bool_ast, cond_.args)),
+                                                           ),
             '__xor__': lambda cond_: ailment.Expr.BinaryOp(None, 'Xor',
                                                           tuple(map(self._convert_claripy_bool_ast, cond_.args)),
                                                           ),
@@ -782,11 +797,14 @@ class Structurer(Analysis):
         # search for a == ^a pairs
 
         while True:
+            break_hard = False
             for node_0 in seq.nodes:
                 if not type(node_0) is CodeNode:
                     continue
                 rcond_0 = node_0.reaching_condition
                 if rcond_0 is None:
+                    continue
+                if claripy.is_true(rcond_0):
                     continue
                 for node_1 in seq.nodes:
                     if not type(node_1) is CodeNode:
@@ -800,7 +818,10 @@ class Structurer(Analysis):
                     if claripy.is_true(cond_):
                         # node_0 and node_1 should be structured using an if-then-else
                         self._make_ite(seq, node_0, node_1)
+                        break_hard = True
                         break
+                if break_hard:
+                    break
             else:
                 break
 
@@ -851,8 +872,6 @@ class Structurer(Analysis):
             if any(subexpr_1 is common_subexpr for subexpr_1 in subexprs_1):
                 # we found one!
                 candidates.append((starting_idx + j, node_1, subexprs_1))
-            else:
-                break
 
         return candidates
 
@@ -1158,6 +1177,14 @@ class Structurer(Analysis):
             if ast.op == "And":
                 queue += ast.args[1:]
                 yield ast.args[0]
+            elif ast.op == "Or":
+                # get the common subexpr on both ends
+                subexprs_left = Structurer._get_reaching_condition_subexprs(ast.args[0])
+                subexprs_right = Structurer._get_reaching_condition_subexprs(ast.args[1])
+                left = set(subexprs_left)
+                left.intersection(subexprs_right)
+                for expr in left:
+                    yield expr
             else:
                 yield ast
 
@@ -1172,22 +1199,31 @@ class Structurer(Analysis):
             'CmpLE': lambda expr, conv: conv(expr.operands[0]) <= conv(expr.operands[1]),
             'CmpLT': lambda expr, conv: conv(expr.operands[0]) < conv(expr.operands[1]),
             'Add': lambda expr, conv: conv(expr.operands[0]) + conv(expr.operands[1]),
+            'Sub': lambda expr, conv: conv(expr.operands[0]) - conv(expr.operands[1]),
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
-            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1])
+            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1].value)
         }
 
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.DirtyExpression)):
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression)):
             var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
+            self._condition_mapping[var] = condition
+            return var
+        elif isinstance(condition, ailment.Expr.Register):
+            var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
         elif isinstance(condition, ailment.Expr.Convert):
             # convert is special. if it generates a 1-bit variable, it should be treated as a BVS
             if condition.to_bits == 1:
-                var = claripy.BoolS('ailcond_%s' % repr(condition), explicit_name=True)
+                var_ = self._bool_variable_from_ail_condition(condition.operands[0])
+                name = 'ailcond_Conv(%d->%d, %s)' % (condition.from_bits, condition.to_bits, repr(var_))
+                var = claripy.BoolS(name, explicit_name=True)
             else:
-                var = claripy.BVS('ailexpr_%s' % repr(condition), condition.to_bits, explicit_name=True)
+                var_ = self._bool_variable_from_ail_condition(condition.operands[0])
+                name = 'ailexpr_Conv(%d->%d, %s)' % (condition.from_bits, condition.to_bits, repr(var_))
+                var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
@@ -1205,7 +1241,11 @@ class Structurer(Analysis):
         lambda_expr = _mapping.get(condition.op, None)
         if lambda_expr is None:
             raise NotImplementedError("Unsupported AIL expression operation %s. Consider implementing." % condition.op)
-        return lambda_expr(condition, self._bool_variable_from_ail_condition)
+        expr = lambda_expr(condition, self._bool_variable_from_ail_condition)
+        if expr is NotImplemented:
+            expr = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
+            self._condition_mapping[expr] = condition
+        return expr
 
     @staticmethod
     def _negate_cond(cond):

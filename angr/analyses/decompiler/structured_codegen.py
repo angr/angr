@@ -11,7 +11,7 @@ from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable,
 from ...utils.constants import is_alignment_mask
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
-from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode
+from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode
 
 
 l = logging.getLogger(name=__name__)
@@ -361,6 +361,17 @@ class CIfBreak(CStatement):
         return "\n".join(lines)
 
 
+class CBreak(CStatement):
+    """
+    Represents a break statement in C.
+    """
+    def c_repr(self, indent=0, posmap=None):
+
+        indent_str = self.indent_str(indent=indent)
+
+        return indent_str + "break;"
+
+
 class CAssignment(CStatement):
     """
     a = b
@@ -470,6 +481,26 @@ class CReturn(CStatement):
             return indent_str + "return;"
         else:
             return indent_str + "return %s;" % (self.retval.c_repr(posmap=posmap))
+
+
+class CGoto(CStatement):
+    def __init__(self, target):
+        super().__init__()
+
+        self.target = target
+
+    def c_repr(self, indent=0, posmap=None):
+
+        indent_str = self.indent_str(indent=indent)
+
+        s = indent_str
+        if posmap: posmap.tick_pos(len(indent_str))
+        s1 = "goto "
+        if posmap: posmap.tick_pos(len(s1))
+        s2 = self.target.c_repr(posmap=posmap)
+        s3 = ";"
+        if posmap: posmap.tick_pos(len(s3))
+        return s + s1 + s2 + s3
 
 
 class CUnsupportedStatement(CStatement):
@@ -837,10 +868,12 @@ class StructuredCodeGenerator(Analysis):
             ConditionalBreakNode: self._handle_ConditionalBreak,
             MultiNode: self._handle_MultiNode,
             Block: self._handle_AILBlock,
+            BreakNode: self._handle_Break,
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
             Stmt.Call: self._handle_Stmt_Call,
+            Stmt.Jump: self._handle_Stmt_Jump,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -977,6 +1010,10 @@ class StructuredCodeGenerator(Analysis):
 
         return CIfBreak(self._handle(node.condition))
 
+    def _handle_Break(self, node):  # pylint:disable=no-self-use,unused-argument
+
+        return CBreak()
+
     def _handle_MultiNode(self, node):  # pylint:disable=no-self-use
 
         lines = [ ]
@@ -1072,6 +1109,9 @@ class StructuredCodeGenerator(Analysis):
                              returning=target_func.returning if target_func is not None else True,
                              ret_expr=ret_expr,
                              )
+
+    def _handle_Stmt_Jump(self, stmt):
+        return CGoto(self._handle(stmt.target))
 
     #
     # AIL expression handlers
