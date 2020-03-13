@@ -830,6 +830,8 @@ class SimEngineLightAILMixin:
     def _ail_handle_Not(self, expr):
 
         data = self._expr(expr.operand)
+        if data is None:
+            return None
 
         try:
             return ~data  # pylint:disable=invalid-unary-operand-type

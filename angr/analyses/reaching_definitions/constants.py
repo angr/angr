@@ -1,4 +1,4 @@
-DEBUG = True
+DEBUG = False
 
 #
 # Observation point types
