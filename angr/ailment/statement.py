@@ -163,8 +163,14 @@ class ConditionalJump(Statement):
 
     def replace(self, old_expr, new_expr):
         r_cond, replaced_cond = self.condition.replace(old_expr, new_expr)
-        r_true, replaced_true = self.true_target.replace(old_expr, new_expr)
-        r_false, replaced_false = self.false_target.replace(old_expr, new_expr)
+        if self.true_target is not None:
+            r_true, replaced_true = self.true_target.replace(old_expr, new_expr)
+        else:
+            r_true, replaced_true = False, self.true_target
+        if self.false_target is not None:
+            r_false, replaced_false = self.false_target.replace(old_expr, new_expr)
+        else:
+            r_false, replaced_false = False, self.false_target
 
         r = r_cond or r_true or r_false
 
