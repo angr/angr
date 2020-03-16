@@ -53,9 +53,9 @@ class SequenceNode:
         for node in self.nodes:
             if type(node) is ConditionNode and self._test_empty_condition_node(node):
                 continue
-            if type(node) is CodeNode and self._test_empty_node(node.node):
+            if type(node) is CodeNode and self.test_empty_node(node.node):
                 continue
-            if self._test_empty_node(node):
+            if self.test_empty_node(node):
                 continue
             new_nodes.append(node)
 
@@ -66,16 +66,16 @@ class SequenceNode:
         for node in [ cond_node.true_node, cond_node.false_node ]:
             if node is None:
                 continue
-            if type(node) is CodeNode and self._test_empty_node(node.node):
+            if type(node) is CodeNode and self.test_empty_node(node.node):
                 continue
-            if self._test_empty_node(node):
+            if self.test_empty_node(node):
                 continue
             return False
 
         return True
 
     @staticmethod
-    def _test_empty_node(node):
+    def test_empty_node(node):
         # pylint:disable=simplifiable-if-statement
         if type(node) is ailment.Block:
             if not node.statements:
@@ -87,7 +87,7 @@ class SequenceNode:
                 # not empty
                 return False
         elif type(node) is CodeNode:
-            return SequenceNode._test_empty_node(node.node)
+            return SequenceNode.test_empty_node(node.node)
         # unsupported node type. probably not empty?
         return False
 
@@ -824,6 +824,10 @@ class Structurer(Analysis):
                 continue
             i += 1
 
+    #
+    # Dealing with switch-case structures
+    #
+
     def _make_switch_cases(self, seq):
         """
         Search for nodes that look like switch-cases and convert them to switch cases.
@@ -839,8 +843,8 @@ class Structurer(Analysis):
 
         B:     (the default case)
 
-        :param seq:
-        :return:
+        :param seq:     The Sequence node.
+        :return:        None
         """
 
         jump_tables = self.kb.cfgs['CFGFast'].jump_tables
@@ -862,123 +866,33 @@ class Structurer(Analysis):
 
                 for target in successor_addrs:
                     if target in addr2nodes and target in jump_tables:
-                        # candidate!
+                        # this is a candidate!
                         break
                 else:
                     continue
 
-                # check the last statement
-                if not isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                # extract the comparison expression, lower-, and upper-bounds from the last statement
+                cmp = self._switch_extract_cmp_bounds(last_stmt)
+                if not cmp:
                     continue
-                # TODO: Add more operations
-                if last_stmt.condition.op == 'CmpLE':
-                    if not isinstance(last_stmt.condition.operands[1], ailment.Expr.Const):
-                        continue
-                    cmp_ub = last_stmt.condition.operands[1].value
-                    cmp_lb = 0
-                    cmp = last_stmt.condition.operands[0]
-                    if isinstance(cmp, ailment.Expr.BinaryOp) and \
-                            cmp.op == 'Sub' and \
-                            isinstance(cmp.operands[1], ailment.Expr.Const):
-                        cmp_ub += cmp.operands[1].value
-                        cmp_lb += cmp.operands[1].value
-                        cmp = cmp.operands[0]
-                else:
-                    continue
+                cmp_expr, cmp_lb, cmp_ub = cmp
 
                 jump_table = jump_tables[target]
                 # the real indirect jump
                 node_a = addr2nodes[target]
                 # the default case
-                other_addr = next(iter(t for t in successor_addrs if t != target))
-                node_default = addr2nodes[other_addr]
+                node_b_addr = next(iter(t for t in successor_addrs if t != target))
 
-                # extract the targets
-                entries = jump_table.jumptable_entries
-                cases = { }
-                to_remove = set()
-
-                if isinstance(node_a.node, SequenceNode):
-                    node_a_block_addrs = { n.addr for n in node_a.node.nodes }
-                else:
-                    node_a_block_addrs = set()
-                # there is a chance that we have already structured the actual body of the switch-case structure
-                # if that is the case, we un-structure it here
-                if all( entry_addr in addr2nodes for entry_addr in entries ):
-                    pass
-                elif all( entry_addr in node_a_block_addrs | addr2nodes.keys() for entry_addr in entries ):
-                    # unpack is needed
-                    if node_a_block_addrs.issubset(set(entries) | { node_a.addr }):
-                        quit = False
-                        for n in node_a.node.nodes:
-                            if isinstance(n, ConditionNode):
-                                if n.true_node is not None and n.false_node is None:
-                                    the_node = CodeNode(n.true_node, n.condition)
-                                    addr2nodes[n.addr] = the_node
-                                    seq.add_node(the_node)
-                                elif n.false_node is not None and n.true_node is None:
-                                    the_node = CodeNode(n.false_node, n.condition)
-                                    addr2nodes[n.addr] = the_node
-                                    seq.add_node(the_node)
-                                else:
-                                    quit = True
-                                    break
-                            else:
-                                the_node = CodeNode(n, None)
-                                addr2nodes[n.addr] = the_node
-                                seq.add_node(the_node)
-                        if quit:
-                            # :(
-                            continue
-                        if node_a != addr2nodes[node_a.addr]:
-                            # update node_a
-                            seq.remove_node(node_a)
-                            node_a = addr2nodes[node_a.addr]
-                    else:
-                        continue
-                else:
-                    # not sure what's going on... give up on this case
+                # Node A might have been structured. Un-structure it if that is the case.
+                r, node_a = self._switch_unpack_sequence_node(seq, node_a, jump_table.jumptable_entries, addr2nodes)
+                if not r:
                     continue
 
-                for j, entry_addr in enumerate(entries):
-                    cases_idx = cmp_lb + j
-                    if entry_addr == other_addr:
-                        # jump to default or end of the switch-case structure - ignore this case
-                        continue
+                # build switch-cases
+                cases, node_default, to_remove = self._switch_build_cases(seq, i, cmp_lb, jump_table.jumptable_entries,
+                                                                          node_b_addr, addr2nodes)
 
-                    entry_node = addr2nodes[entry_addr]
-                    case_node = SequenceNode(nodes=[entry_node])
-                    to_remove.add(entry_node)
-
-                    # find nodes that this entry node dominates
-                    cond_subexprs = list(self._get_reaching_condition_subexprs(entry_node.reaching_condition))
-                    guarded_nodes = None
-                    for subexpr in cond_subexprs:
-                        guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, i + 1)
-                        if guarded_nodes is None:
-                            guarded_nodes = set(node_ for _, node_, _ in guarded_node_candidates)
-                        else:
-                            guarded_nodes = guarded_nodes.intersection(set(node_ for _, node_, _ in guarded_node_candidates))
-
-                    if guarded_nodes is not None:
-                        for node_ in guarded_nodes:
-                            if node_ is not entry_node:
-                                case_node.add_node(node_)
-                                to_remove.add(node_)
-
-                    # do we have a default node?
-                    case_last_stmt = self._get_last_statement(case_node)
-                    if isinstance(case_last_stmt, ailment.Stmt.Jump):
-                        targets = self._extract_jump_targets(case_last_stmt)
-                        if len(targets) == 1 and targets[0] == other_addr:
-                            # jump to the default case is rare - it's more likely that there is no default for this
-                            # switch-case struct
-                            node_default = None
-
-                    self._new_sequences.append(case_node)
-                    cases[cases_idx] = case_node
-
-                scnode = SwitchCaseNode(cmp, cases, node_default, addr=last_stmt.ins_addr)
+                scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=last_stmt.ins_addr)
                 scnode = CodeNode(scnode, node.reaching_condition)
 
                 # insert the switch-case node
@@ -991,11 +905,11 @@ class Structurer(Analysis):
                     del addr2nodes[node_.addr]
                 # remove the last statement in node
                 self._remove_last_statement(node)
-                if SequenceNode._test_empty_node(node):
+                if SequenceNode.test_empty_node(node):
                     seq.remove_node(node)
                 # remove the last statement in node_a
                 self._remove_last_statement(node_a)
-                if SequenceNode._test_empty_node(node_a):
+                if SequenceNode.test_empty_node(node_a):
                     seq.remove_node(node_a)
 
                 # we found a node that looks like a switch-case. seq.nodes are changed. resume to find the next such
@@ -1005,6 +919,150 @@ class Structurer(Analysis):
                 # we did not find any node that looks like a switch-case. exit.
                 break
 
+    @staticmethod
+    def _switch_extract_cmp_bounds(last_stmt):
+        """
+        Check the last statement of the switch-case header node, and extract lower+upper bounds for the comparison.
+
+        :param ailment.Stmt last_stmt:  The last statement of the switch-case header node.
+        :return:                        A tuple of (comparison expression, lower bound, upper bound), or None
+        :rtype:                         tuple|None
+        """
+
+        if not isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+            return None
+
+        # TODO: Add more operations
+        if last_stmt.condition.op == 'CmpLE':
+            if not isinstance(last_stmt.condition.operands[1], ailment.Expr.Const):
+                return None
+            cmp_ub = last_stmt.condition.operands[1].value
+            cmp_lb = 0
+            cmp = last_stmt.condition.operands[0]
+            if isinstance(cmp, ailment.Expr.BinaryOp) and \
+                    cmp.op == 'Sub' and \
+                    isinstance(cmp.operands[1], ailment.Expr.Const):
+                cmp_ub += cmp.operands[1].value
+                cmp_lb += cmp.operands[1].value
+                cmp = cmp.operands[0]
+            return cmp, cmp_lb, cmp_ub
+
+        return None
+
+    @staticmethod
+    def _switch_unpack_sequence_node(seq, node_a, jumptable_entries, addr2nodes):
+        """
+        We might have already structured the actual body of the switch-case structure into a single Sequence node (node
+        A). If that is the case, we un-structure the sequence node in this method.
+
+        :param seq:                 The original Sequence node.
+        :param node_a:              Node A.
+        :param jumptable_entries:   Addresses of indirect jump targets in the jump table.
+        :param dict addr2nodes:     A dict of addresses to their corresponding nodes in `seq`.
+        :return:                    A boolean value indicating the result and an updated node_a. The boolean value is
+                                    True if unpacking is not necessary or we successfully unpacked the sequence node,
+                                    False otherwise.
+        :rtype:                     bool
+        """
+
+        if isinstance(node_a.node, SequenceNode):
+            node_a_block_addrs = {n.addr for n in node_a.node.nodes}
+        else:
+            node_a_block_addrs = set()
+        #
+        # if that is the case, we un-structure it here
+        if all(entry_addr in addr2nodes for entry_addr in jumptable_entries):
+            return True, node_a
+        elif all(entry_addr in node_a_block_addrs | addr2nodes.keys() for entry_addr in jumptable_entries):
+            # unpack is needed
+            if node_a_block_addrs.issubset(set(jumptable_entries) | {node_a.addr}):
+                for n in node_a.node.nodes:
+                    if isinstance(n, ConditionNode):
+                        if n.true_node is not None and n.false_node is None:
+                            the_node = CodeNode(n.true_node, n.condition)
+                            addr2nodes[n.addr] = the_node
+                            seq.add_node(the_node)
+                        elif n.false_node is not None and n.true_node is None:
+                            the_node = CodeNode(n.false_node, n.condition)
+                            addr2nodes[n.addr] = the_node
+                            seq.add_node(the_node)
+                        else:
+                            # unsupported. bail
+                            return False, None
+                    else:
+                        the_node = CodeNode(n, None)
+                        addr2nodes[n.addr] = the_node
+                        seq.add_node(the_node)
+                if node_a != addr2nodes[node_a.addr]:
+                    # update node_a
+                    seq.remove_node(node_a)
+                    node_a = addr2nodes[node_a.addr]
+                return True, node_a
+
+        # not sure what's going on... give up on this case
+        return False, None
+
+    def _switch_build_cases(self, seq, header_idx, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
+        """
+        Discover all cases for the switch-case structure and build the switch-cases dict.
+
+        :param seq:                 The original Sequence node.
+        :param int header_idx:      Position of the header node in `seq.nodes`.
+        :param int cmp_lb:          The lower bound of the jump table comparison.
+        :param list jumptable_entries:  Addresses of indirect jump targets in the jump table.
+        :param int node_b_addr:     Address of node B. Potentially, node B is the default node.
+        :param dict addr2nodes:     A dict of addresses to their corresponding nodes in `seq`.
+        :return:
+        """
+
+        cases = { }
+        to_remove = set()
+        node_default = addr2nodes[node_b_addr]
+
+        entry_addrs_set = set(jumptable_entries)
+        for j, entry_addr in enumerate(jumptable_entries):
+            cases_idx = cmp_lb + j
+            if entry_addr == node_b_addr:
+                # jump to default or end of the switch-case structure - ignore this case
+                continue
+
+            entry_node = addr2nodes[entry_addr]
+            case_node = SequenceNode(nodes=[entry_node])
+            to_remove.add(entry_node)
+
+            # find nodes that this entry node dominates
+            cond_subexprs = list(self._get_reaching_condition_subexprs(entry_node.reaching_condition))
+            guarded_nodes = None
+            for subexpr in cond_subexprs:
+                guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, header_idx + 1)
+                if guarded_nodes is None:
+                    guarded_nodes = set(node_ for _, node_, _ in guarded_node_candidates)
+                else:
+                    guarded_nodes = guarded_nodes.intersection(set(node_ for _, node_, _ in guarded_node_candidates))
+
+            if guarded_nodes is not None:
+                for node_ in guarded_nodes:
+                    if node_ is not entry_node and node_.addr not in entry_addrs_set:
+                        case_node.add_node(node_)
+                        to_remove.add(node_)
+
+            # do we have a default node?
+            case_last_stmt = self._get_last_statement(case_node)
+            if isinstance(case_last_stmt, ailment.Stmt.Jump):
+                targets = self._extract_jump_targets(case_last_stmt)
+                if len(targets) == 1 and targets[0] == node_b_addr:
+                    # jump to the default case is rare - it's more likely that there is no default for this
+                    # switch-case struct
+                    node_default = None
+
+            self._new_sequences.append(case_node)
+            cases[cases_idx] = case_node
+
+        return cases, node_default, to_remove
+
+    #
+    # Dealing with If-Then-Else structures
+    #
 
     def _make_ites(self, seq):
 
