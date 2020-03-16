@@ -2,11 +2,14 @@ from collections import defaultdict
 
 import logging
 import itertools
+import string
+import codecs
 
 l = logging.getLogger(name=__name__)
 
 import claripy
 
+from angr.errors import SimValueError
 from ..storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
 from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
@@ -1144,6 +1147,69 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 merged_val = self.state.solver.If(fv, tm, merged_val)
 
         return merged_val
+
+    def hex_dump(self, start, size, grouping=4, groups_per_line=4, endianness="Iend_BE",
+                 symbolic_char='?', unprintable_char='.', solve=False, extra_constraints=None,
+                 inspect=False, disable_actions=True):
+        """
+        Print memory as a hex dump. The solver, if enabled, is called once for every byte
+        potentially making this function very slow. Meant to be used mainly as a
+        "visualization" for debugging.
+
+        :param start: starting address from which to print
+        :param size: number of bytes to display
+        :param grouping: number of bytes to group together as one space-delimited unit
+        :param groups_per_line: number of groups to display per line
+        :param endianness: endianness to use when displaying each group
+        :param symbolic_char: the character to display when a byte is symbolic and has multiple solutions
+        :param unprintable_char: the character to display when a byte is not printable
+        :param solve: whether or not to attempt to solve (warning: can be very slow)
+        :param extra_constraints: extra constraints to pass to the solver is solve is True
+        :param inspect: whether or not to trigger SimInspect breakpoints for the memory load
+        :param disable_actions: whether or not to disable SimActions for the memory load
+        """
+        if endianness == "Iend_BE":
+            end = 1
+        else:
+            end = -1
+        if extra_constraints is None:
+            extra_constraints = []
+
+        # round up size so that chop() works
+        line_size = self.state.arch.byte_width * grouping * groups_per_line
+        size += line_size - (size % line_size)
+        raw_mem = self.load(start, size, inspect=inspect, disable_actions=disable_actions)
+
+        i = start
+        for line in raw_mem.chop(line_size):
+            dump = "%#x" % i
+            group_str = ""
+            for group in line.chop(self.state.arch.byte_width*grouping):
+                group_bytes = ""
+                for b in group.chop(self.state.arch.byte_width)[::end]:
+                    byte_value = None
+                    if not self.state.solver.symbolic(b) or solve:
+                        try:
+                            byte_value = self.state.solver.eval_one(
+                                b,
+                                extra_constraints=extra_constraints
+                            )
+                        except SimValueError:
+                            pass
+
+                    if byte_value is not None:
+                        group_bytes += "%02x" % byte_value
+                        if chr(byte_value) in string.printable[:-5]:
+                            group_str += chr(byte_value)
+                        else:
+                            group_str += unprintable_char
+                    else:
+                        group_bytes += symbolic_char*2
+                        group_str += symbolic_char
+                dump += ' ' + group_bytes
+            dump += ' ' + group_str
+            i += grouping*groups_per_line
+            print(dump)
 
     def dbg_print(self, indent=0):
         """
