@@ -35,6 +35,14 @@ class Chunk:
         raise NotImplementedError("%s not implemented for %s" % (self.get_size.__func__.__name__,
                                                                  self.__class__.__name__))
 
+    def get_data_size(self):
+        """
+        Returns the size of the data portion of a chunk.
+        """
+        raise NotImplementedError("%s not implemented for %s" % (self.get_size.__func__.__name__,
+                                                                 self.__class__.__name__))
+
+
     def set_size(self, size):
         """
         Sets the size of the chunk, preserving any flags.
