@@ -113,6 +113,38 @@ def test_decompiling_dir_gcc_O0_free_ent():
         assert False
 
 
+def test_decompiling_switch0_x86_64():
+
+    bin_path = os.path.join(test_location, "x86_64", "switch_0")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions['main']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
+def test_decompiling_switch1_x86_64():
+
+    bin_path = os.path.join(test_location, "x86_64", "switch_1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions['main']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
 def test_decompiling_1after999_doit():
 
     # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73

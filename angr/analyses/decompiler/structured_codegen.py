@@ -11,7 +11,7 @@ from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable,
 from ...utils.constants import is_alignment_mask
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
-from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode
+from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode, SwitchCaseNode
 
 
 l = logging.getLogger(name=__name__)
@@ -165,6 +165,7 @@ class CStatements(CStatement):
                 posmap.pos = old_pos + len(stmt_str) + 1  # account for the newline
             stmt_strings.append(stmt_str)
 
+        posmap.pos -= 1  # no newline at the end
         return "\n".join(stmt_strings)
 
 
@@ -372,6 +373,64 @@ class CBreak(CStatement):
         return indent_str + "break;"
 
 
+class CSwitchCase(CStatement):
+    """
+    Represents a switch-case statement in C.
+    """
+    def __init__(self, switch, cases, default):
+        super().__init__()
+
+        self.switch = switch
+        self.cases = cases
+        self.default = default
+
+    def c_repr(self, indent=0, posmap=None):
+
+        indent_str = self.indent_str(indent=indent)
+
+        r = ""
+        # switch
+        a = indent_str + "switch ("
+        if posmap: posmap.tick_pos(len(a))
+        b = self.switch.c_repr(posmap=posmap)
+        c = ")\n"
+        if posmap: posmap.tick_pos(len(c))
+        r = a + b + c
+
+        # cases
+        opening = indent_str + "{\n"
+        if posmap: posmap.tick_pos(len(opening))
+        r += opening
+        for idx, case in self.cases:
+            case_str_a = indent_str + "case "
+            if posmap: posmap.tick_pos(len(case_str_a))
+            case_str_b = str(idx)
+            if posmap: posmap.tick_pos(len(case_str_b))
+            case_str_c = ":\n"
+            if posmap: posmap.tick_pos(len(case_str_c))
+
+            # case body
+            case_str_d = case.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
+            case_str_e = "\n"
+            if posmap: posmap.tick_pos(len(case_str_e))
+
+            r += case_str_a + case_str_b + case_str_c + case_str_d + case_str_e
+
+        if self.default is not None:
+            default_str_a = indent_str + "default:\n"
+            if posmap: posmap.tick_pos(len(default_str_a))
+            default_str_b = self.default.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
+            default_str_c = "\n"
+            if posmap: posmap.tick_pos(len(default_str_c))
+            r += default_str_a + default_str_b + default_str_c
+
+        ending = indent_str + "}"
+        r += ending
+        if posmap: posmap.tick_pos(len(ending))
+
+        return r
+
+
 class CAssignment(CStatement):
     """
     a = b
@@ -451,13 +510,13 @@ class CFunctionCall(CStatement):
             posmap.tick_pos(len(s_func))
 
         args_list = [ ]
-        for arg in self.args:
+        for i, arg in enumerate(self.args):
             if isinstance(arg, CExpression):
                 arg_str = arg.c_repr(posmap=posmap)
-                if posmap: posmap.tick_pos(len(", "))
+                if i != len(self.args) - 1 and posmap: posmap.tick_pos(len(", "))
             else:
                 arg_str = str(arg)
-                if posmap: posmap.tick_pos(len(arg_str) + len(", "))
+                if i != len(self.args) - 1 and posmap: posmap.tick_pos(len(arg_str) + len(", "))
             args_list.append(arg_str)
         args_str = ", ".join(args_list)
 
@@ -869,6 +928,7 @@ class StructuredCodeGenerator(Analysis):
             MultiNode: self._handle_MultiNode,
             Block: self._handle_AILBlock,
             BreakNode: self._handle_Break,
+            SwitchCaseNode: self._handle_SwitchCase,
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
@@ -1023,6 +1083,19 @@ class StructuredCodeGenerator(Analysis):
             lines.append(r)
 
         return CStatements(lines) if len(lines) > 1 else lines[0]
+
+    def _handle_SwitchCase(self, node):
+        """
+
+        :param SwitchCaseNode node:
+        :return:
+        """
+
+        switch_expr = self._handle(node.switch_expr)
+        cases = [ (idx, self._handle(case)) for idx, case in node.cases.items() ]
+        default = self._handle(node.default_node) if node.default_node is not None else None
+        switch_case = CSwitchCase(switch_expr, cases, default=default)
+        return switch_case
 
     def _handle_AILBlock(self, node):
         """
