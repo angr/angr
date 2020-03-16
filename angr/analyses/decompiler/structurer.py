@@ -864,9 +864,10 @@ class Structurer(Analysis):
                 if len(successor_addrs) != 2:
                     continue
 
-                for target in successor_addrs:
-                    if target in addr2nodes and target in jump_tables:
+                for t in successor_addrs:
+                    if t in addr2nodes and t in jump_tables:
                         # this is a candidate!
+                        target = t
                         break
                 else:
                     continue
@@ -875,7 +876,7 @@ class Structurer(Analysis):
                 cmp = self._switch_extract_cmp_bounds(last_stmt)
                 if not cmp:
                     continue
-                cmp_expr, cmp_lb, cmp_ub = cmp
+                cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
 
                 jump_table = jump_tables[target]
                 # the real indirect jump
