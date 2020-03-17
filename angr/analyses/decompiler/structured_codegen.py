@@ -162,7 +162,8 @@ class CStatements(CStatement):
                 posmap.pos = old_pos + len(stmt_str) + 1  # account for the newline
             stmt_strings.append(stmt_str)
 
-        posmap.pos -= 1  # no newline at the end
+        if posmap and stmt_strings:
+            posmap.pos -= 1  # no newline at the end
         return "\n".join(stmt_strings)
 
 
@@ -316,7 +317,12 @@ class CIfElse(CStatement):
         if posmap: posmap.tick_pos(len(line_1) + 1)
         lines = [ line_0, line_1 ]
 
+        if posmap:
+            old_pos = posmap.pos
         lines.append(self.true_node.c_repr(indent=indent + INDENT_DELTA, posmap=posmap))
+        if posmap:
+            posmap.pos = old_pos
+            posmap.tick_pos(len(lines[-1]) + 1)  # newline
 
         line_2 = indent_str + "}"
         if posmap: posmap.tick_pos(len(line_2) + 1)
@@ -327,10 +333,11 @@ class CIfElse(CStatement):
             line_4 = indent_str + '{'
             lines.append(line_3)
             lines.append(line_4)
-            posmap.tick_pos(len(line_3) + 1 + len(line_4) + 1)
+            if posmap: posmap.tick_pos(len(line_3) + 1 + len(line_4) + 1)
             lines.append(self.false_node.c_repr(indent=indent + INDENT_DELTA, posmap=posmap))
-            posmap.tick_pos(1)
+            if posmap: posmap.tick_pos(1)
             lines.append(indent_str + "}")
+            if posmap: posmap.tick_pos(len(lines[-1]))
 
         return "\n".join(lines)
 
@@ -366,8 +373,10 @@ class CBreak(CStatement):
     def c_repr(self, indent=0, posmap=None):
 
         indent_str = self.indent_str(indent=indent)
+        s = indent_str + "break;"
+        if posmap: posmap.tick_pos(len(s))
 
-        return indent_str + "break;"
+        return s
 
 
 class CSwitchCase(CStatement):
@@ -737,6 +746,7 @@ class CBinaryOp(CExpression):
         OP_MAP = {
             'Add': self._c_repr_add,
             'Sub': self._c_repr_sub,
+            'Mul': self._c_repr_mul,
             'And': self._c_repr_and,
             'Xor': self._c_repr_xor,
             'Shr': self._c_repr_shr,
@@ -746,6 +756,7 @@ class CBinaryOp(CExpression):
             'CmpULE': self._c_repr_cmple,  # FIXME: use the unsigned version
             'CmpLT': self._c_repr_cmplt,
             'CmpGT': self._c_repr_cmpgt,
+            'CmpGE': self._c_repr_cmpge,
             'CmpUGT': self._c_repr_cmpgt,  # FIXME: use the unsigned version
             'CmpEQ': self._c_repr_cmpeq,
             'CmpNE': self._c_repr_cmpne,
@@ -770,6 +781,13 @@ class CBinaryOp(CExpression):
     def _c_repr_sub(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " - "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_mul(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " * "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
@@ -827,6 +845,13 @@ class CBinaryOp(CExpression):
     def _c_repr_cmpgt(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " > "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_cmpge(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " >= "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
