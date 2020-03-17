@@ -1,3 +1,4 @@
+# pylint:disable=unused-argument,useless-return
 
 from ...errors import UnsupportedNodeTypeError
 from .structurer import CodeNode, SequenceNode, SwitchCaseNode, MultiNode

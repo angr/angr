@@ -1085,7 +1085,7 @@ class Structurer(Analysis):
 
         goto_addrs = defaultdict(int)
 
-        def _find_gotos(block, **kwargs):
+        def _find_gotos(block, **kwargs):  # pylint:disable=unused-argument
             if block.statements:
                 stmt = block.statements[-1]
                 if isinstance(stmt, ailment.Stmt.Jump):
@@ -1100,7 +1100,7 @@ class Structurer(Analysis):
             }
 
             walker = SequenceWalker(handlers=handlers)
-            for case_addr, case_node in cases.items():
+            for case_node in cases.values():
                 walker.walk(case_node)
 
             try:
@@ -1111,7 +1111,7 @@ class Structurer(Analysis):
 
         # rewrite all _goto switch_end_addr_ to _break_
 
-        def _rewrite_gotos(block, parent=None, index=0, label=None):
+        def _rewrite_gotos(block, parent=None, index=0, label=None):  # pylint:disable=unused-argument
             if block.statements and parent is not None:
                 stmt = block.statements[-1]
                 if isinstance(stmt, ailment.Stmt.Jump):
