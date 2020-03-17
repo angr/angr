@@ -9,6 +9,7 @@ from ailment import Block, Expr, Stmt
 from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
 from ...utils.constants import is_alignment_mask
+from ...errors import UnsupportedNodeTypeError
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
 from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode, SwitchCaseNode
@@ -95,10 +96,6 @@ class PositionMapping:
         if pos in element:
             return element
         return None
-
-
-class UnsupportedNodeTypeError(NotImplementedError):
-    pass
 
 
 class CConstruct:
@@ -910,18 +907,10 @@ class CRegister(CExpression):
 
 class StructuredCodeGenerator(Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None):
-        self._func = func
-        self._sequence = sequence
-        self._cfg = cfg
-
-        self.text = None
-        self.posmap = None
-        self.nodemap = None
-        self._indent = indent
 
         self._handlers = {
-            SequenceNode: self._handle_Sequence,
             CodeNode: self._handle_Code,
+            SequenceNode: self._handle_Sequence,
             LoopNode: self._handle_Loop,
             ConditionNode: self._handle_Condition,
             ConditionalBreakNode: self._handle_ConditionalBreak,
@@ -949,11 +938,21 @@ class StructuredCodeGenerator(Analysis):
             SimRegisterVariable: self._handle_Variable_SimRegisterVariable,
         }
 
+        self._func = func
+        self._cfg = cfg
+        self._sequence = sequence
+
+        self.text = None
+        self.posmap = None
+        self.nodemap = None
+        self._indent = indent
+
         self._analyze()
 
     def _analyze(self):
 
         obj = self._handle(self._sequence)
+
         func = CFunction(self._func.name, obj)
 
         self.posmap = PositionMapping()
@@ -1025,15 +1024,14 @@ class StructuredCodeGenerator(Analysis):
     #
 
     def _handle(self, node):
-
         handler = self._handlers.get(node.__class__, None)
         if handler is not None:
             return handler(node)
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
-    def _handle_Code(self, code):
+    def _handle_Code(self, node):
 
-        return self._handle(code.node)
+        return self._handle(node.node)
 
     def _handle_Sequence(self, seq):
 

@@ -1,5 +1,6 @@
 
 import logging
+from collections import defaultdict
 
 import networkx
 
@@ -897,6 +898,12 @@ class Structurer(Analysis):
                 # build switch-cases
                 cases, node_default, to_remove = self._switch_build_cases(seq, i, cmp_lb, jump_table.jumptable_entries,
                                                                           node_b_addr, addr2nodes)
+                if node_default is None:
+                    switch_end_addr = node_b_addr
+                else:
+                    # we don't know what the end address of this switch-case structure is. let's figure it out
+                    switch_end_addr = None
+                self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
                 scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=last_stmt.ins_addr)
                 scnode = CodeNode(scnode, node.reaching_condition)
@@ -1065,6 +1072,74 @@ class Structurer(Analysis):
             cases[cases_idx] = case_node
 
         return cases, node_default, to_remove
+
+    def _switch_handle_gotos(self, cases, default, switch_end_addr):
+        """
+        For each case, convert the goto that goes to
+
+        :param dict cases:              A dict of switch-cases.
+        :param default:                 The default node.
+        :param int|None node_b_addr:    Address of the end of the switch.
+        :return:                        None
+        """
+
+        goto_addrs = defaultdict(int)
+
+        def _find_gotos(block, **kwargs):
+            if block.statements:
+                stmt = block.statements[-1]
+                if isinstance(stmt, ailment.Stmt.Jump):
+                    targets = self._extract_jump_targets(stmt)
+                    for t in targets:
+                        goto_addrs[t] += 1
+
+        if switch_end_addr is None:
+            # we need to figure this out
+            handlers = {
+                ailment.Block: _find_gotos
+            }
+
+            walker = SequenceWalker(handlers=handlers)
+            for case_addr, case_node in cases.items():
+                walker.walk(case_node)
+
+            try:
+                switch_end_addr = sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
+            except StopIteration:
+                # there is no Goto statement - perfect
+                return
+
+        # rewrite all _goto switch_end_addr_ to _break_
+
+        def _rewrite_gotos(block, parent=None, index=0, label=None):
+            if block.statements and parent is not None:
+                stmt = block.statements[-1]
+                if isinstance(stmt, ailment.Stmt.Jump):
+                    targets = self._extract_jump_targets(stmt)
+                    if len(targets) == 1 and next(iter(targets)) == switch_end_addr:
+                        # add a new a break statement to its parent
+                        break_node = BreakNode(stmt.ins_addr, switch_end_addr)
+                        if isinstance(parent, SequenceNode):
+                            parent.insert_node(index + 1, break_node)
+                            self._remove_last_statement(block)
+                        elif isinstance(parent, MultiNode):
+                            parent.nodes.insert(index + 1, break_node)
+                            self._remove_last_statement(block)
+                        else:
+                            # TODO: Figure out what types of node there are and support them
+                            l.error("Cannot insert the break node to the parent node. Unsupported node type %s.",
+                                    type(parent))
+
+        handlers = {
+            ailment.Block: _rewrite_gotos,
+        }
+
+        walker = SequenceWalker(handlers=handlers)
+        for case_node in cases.values():
+            walker.walk(case_node)
+
+        if default is not None:
+            walker.walk(default)
 
     #
     # Dealing with If-Then-Else structures
@@ -1609,3 +1684,6 @@ class Structurer(Analysis):
 
 register_analysis(RecursiveStructurer, 'RecursiveStructurer')
 register_analysis(Structurer, 'Structurer')
+
+# delayed import
+from .sequence_walker import SequenceWalker
