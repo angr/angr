@@ -327,8 +327,10 @@ def test_memcpy():
     s = SimState(arch="AMD64", mode="symbolic", remove_options=angr.options.simplification)
     s.memory._maximum_symbolic_size = 0x2000000
     size = s.solver.BVV(0x1000000, 64)
+    data = s.solver.BVS('giant', 8*0x1000000)
     dst_addr = s.solver.BVV(0x2000000, 64)
     src_addr = s.solver.BVV(0x4000000, 64)
+    s.memory.store(src_addr, data)
 
     memcpy(s, arguments=[dst_addr, src_addr, size])
     nose.tools.assert_is(s.memory.load(dst_addr, size), s.memory.load(src_addr, size))
@@ -936,12 +938,12 @@ def test_string_without_null():
 
 
 if __name__ == '__main__':
-    test_getc()
+    test_inline_strlen()
     test_inline_strcmp()
+    test_getc()
     test_scanf()
     test_getchar()
     test_strcmp()
-    test_inline_strlen()
     test_inline_strncmp()
     test_memcmp()
     test_memcpy()

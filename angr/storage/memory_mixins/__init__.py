@@ -124,9 +124,9 @@ class DefaultMemory(
         InspectMixinHigh,
         ActionsMixinHigh,
         UnderconstrainedMixin,
-        AddressConcretizationMixin,
         SizeConcretizationMixin,
         SizeNormalizationMixin,
+        AddressConcretizationMixin,
         #InspectMixinLow,
         ActionsMixinLow,
         # -----
