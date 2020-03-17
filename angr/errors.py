@@ -441,3 +441,10 @@ class SimConcreteRegisterError(AngrError):
 
 class SimConcreteBreakpointError(AngrError):
     pass
+
+#
+# Decompiler errors
+#
+
+class UnsupportedNodeTypeError(AngrError, NotImplementedError):
+    pass

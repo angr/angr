@@ -122,7 +122,19 @@ def test_decompiling_switch0_x86_64():
 
     f = cfg.functions['main']
     dec = p.analyses.Decompiler(f, cfg=cfg)
+
     if dec.codegen is not None:
+        code = dec.codegen.text
+        assert "switch" in code
+        assert "case 1:" in code
+        assert "case 2:" in code
+        assert "case 3:" in code
+        assert "case 4:" in code
+        assert "case 5:" in code
+        assert "case 6:" in code
+        assert "case 7:" in code
+        assert "default:" in code
+
         print(dec.codegen.text)
     else:
         print("Failed to decompile function %r." % f)
@@ -139,6 +151,18 @@ def test_decompiling_switch1_x86_64():
     f = cfg.functions['main']
     dec = p.analyses.Decompiler(f, cfg=cfg)
     if dec.codegen is not None:
+        code = dec.codegen.text
+        assert "switch" in code
+        assert "case 1:" in code
+        assert "case 2:" in code
+        assert "case 3:" in code
+        assert "case 4:" in code
+        assert "case 5:" in code
+        assert "case 6:" in code
+        assert "case 7:" in code
+        assert "case 8:" in code
+        assert "default:" not in code
+
         print(dec.codegen.text)
     else:
         print("Failed to decompile function %r." % f)
@@ -155,6 +179,20 @@ def test_decompiling_switch2_x86_64():
     f = cfg.functions['main']
     dec = p.analyses.Decompiler(f, cfg=cfg)
     if dec.codegen is not None:
+        code = dec.codegen.text
+        assert "switch" in code
+        assert "case 1:" in code
+        assert "case 2:" in code
+        assert "case 3:" in code
+        assert "case 4:" in code
+        assert "case 5:" in code
+        assert "case 6:" in code
+        assert "case 7:" in code
+        assert "case 8:" not in code
+        assert "default:" in code
+
+        assert code.count("break;") == 4
+
         print(dec.codegen.text)
     else:
         print("Failed to decompile function %r." % f)
