@@ -37,19 +37,17 @@ class MemoryObjectMixin(CooperationBase):
     """
     @classmethod
     def _compose_objects(cls, objects: typing.List[typing.List[typing.Tuple[int, SimMemoryObject]]], size, endness=None, **kwargs):
-        i = 0
-        objects = sum(objects, [])
-        while i < len(objects) - 1:
-            if objects[i][1] is objects[i+1][1]:
-                objects.pop(i+1)
-            else:
-                i += 1
+        c_objects = []
+        for objlist in objects:
+            for element in objlist:
+                if not c_objects or element[1] is not c_objects[-1][1]:
+                    c_objects.append(element)
 
         elements = [o.bytes_at(
                 a,
-                objects[i+1][0] - a if i != len(objects)-1 else objects[0][0] + size - a,
+                c_objects[i+1][0] - a if i != len(c_objects)-1 else c_objects[0][0] + size - a,
                 endness=endness)
-            for i, (a, o) in enumerate(objects)]
+            for i, (a, o) in enumerate(c_objects)]
         if endness == 'Iend_LE':
             elements = reversed(elements)
 
