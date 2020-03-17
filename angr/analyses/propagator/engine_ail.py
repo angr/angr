@@ -53,7 +53,15 @@ class SimEnginePropagatorAIL(
             self.state.store_stack_variable(addr, data.bits // 8, data, endness=stmt.endness)
 
     def _ail_handle_Jump(self, stmt):
-        _ = self._expr(stmt.target)
+        target = self._expr(stmt.target)
+        if target == stmt.target:
+            return
+
+        new_jump_stmt = Stmt.Jump(stmt.idx, target, **stmt.tags)
+        self.state.add_replacement(self._codeloc(),
+                                   stmt,
+                                   new_jump_stmt,
+                                   )
 
     def _ail_handle_Call(self, stmt):
         target = self._expr(stmt.target)
@@ -84,9 +92,9 @@ class SimEnginePropagatorAIL(
         true_target = self._expr(stmt.true_target)
         false_target = self._expr(stmt.false_target)
 
-        if cond is stmt.condition and \
-                true_target is stmt.true_target and \
-                false_target is stmt.false_target:
+        if cond == stmt.condition and \
+                true_target == stmt.true_target and \
+                false_target == stmt.false_target:
             pass
         else:
             new_jump_stmt = Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target, **stmt.tags)
@@ -103,6 +111,11 @@ class SimEnginePropagatorAIL(
         new_expr = self.state.get_variable(expr)
 
         if new_expr is not None:
+            # check if this new_expr uses any expression that has been overwritten
+            new_value = self._expr(new_expr)
+            if new_value != new_expr:
+                return expr
+
             l.debug("Add a replacement: %s with %s", expr, new_expr)
             self.state.add_replacement(self._codeloc(), expr, new_expr)
             if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert, Expr.StackBaseOffset, Expr.BasePointerOffset]:
