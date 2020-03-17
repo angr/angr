@@ -391,7 +391,7 @@ class Structurer(Analysis):
                         loop_successors.add(suc)
 
         # Case B: The loop successor is the successor to this region in the parent graph
-        if not loop_successors:
+        if not loop_successors and self._parent_map is not None:
             current_region = self._region
             parent_region = self._parent_map.get(current_region, None)
             while parent_region and not loop_successors:
@@ -601,7 +601,12 @@ class Structurer(Analysis):
                 if new_node is not None:
                     # special checks if node goes empty
                     if isinstance(node, ailment.Block) and not node.statements:
+                        # new_node will replace node
+                        new_node.addr = node.addr
                         replaced_nodes[node] = new_node
+                        if loop_head is node:
+                            loop_head = new_node
+
                         preds = list(loop_region_graph.predecessors(node))
                         loop_region_graph.remove_node(node)
                         for pred in preds:
@@ -1354,10 +1359,11 @@ class Structurer(Analysis):
             return None
         elif type(block) is SwitchCaseNode:
             return None
-        else:
-            raise NotImplementedError()
+        elif type(block) is GraphRegion:
+            # normally this should not happen. however, we have test cases that trigger this case.
+            return None
 
-        return None
+        raise NotImplementedError()
 
     def _remove_last_statement(self, node):
 
