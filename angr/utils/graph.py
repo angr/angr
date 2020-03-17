@@ -153,11 +153,11 @@ class ContainerNode:
 
     def __eq__(self, other):
         if isinstance(other, ContainerNode):
-            return self._obj == other._obj and self.index == other.index
+            return self._obj is other._obj
         return False
 
     def __hash__(self):
-        return 1  # I have genuinely no idea why defining a normal hash function makes everything break but it does
+        return hash(('CN', self._obj))
 
     def __repr__(self):
         return "CN[%s]" % repr(self._obj)

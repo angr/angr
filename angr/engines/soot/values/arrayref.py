@@ -12,13 +12,14 @@ l = logging.getLogger('angr.engines.soot.values.arrayref')
 
 class SimSootValue_ArrayBaseRef(SimSootValue):
 
-    __slots__ = [ 'id', 'element_type', 'size', '_default_value_generator' ]
+    __slots__ = [ 'id', 'element_type', 'size', '_default_value_generator', 'type' ]
 
     def __init__(self, heap_alloc_id, element_type, size, default_value_generator=None):
         self.id = "%s.array_%s" % (heap_alloc_id, element_type)
         self.element_type = element_type
         self.size = size
         self._default_value_generator = default_value_generator
+        self.type = element_type + '[]'
 
     def __repr__(self):
         return self.id

@@ -39,7 +39,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state=None, cc=None, function_handler=None,
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
-                 def_use_graph=None):
+                 def_use_graph=None, observe_callback=None):
         """
         :param Block|Function subject: The subject of the analysis: a function, or a single basic block.
         :param func_graph:                      Alternative graph for function.graph.
@@ -89,12 +89,16 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             self._init_state.analysis = self
 
         self._observe_all = observe_all
+        self._observe_callback = observe_callback
 
         # sanity check
         if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
             raise ValueError('"observation_points" must be tuples.')
 
-        if type(self) is ReachingDefinitionsAnalysis and not self._observe_all and not self._observation_points:
+        if type(self) is ReachingDefinitionsAnalysis and \
+                not self._observe_all and \
+                not self._observation_points and \
+                not self._observe_callback:
             l.warning('No observation point is specified. '
                       'You cannot get any analysis result from performing the analysis.'
                       )
@@ -159,8 +163,16 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         key = 'node', node_addr, op_type
 
-        if self._observe_all or \
-                self._observation_points is not None and key in self._observation_points:
+        observe = False
+
+        if self._observe_all:
+            observe = True
+        elif self._observation_points is not None and key in self._observation_points:
+            observe = True
+        elif self._observe_callback is not None:
+            observe = self._observe_callback('node', addr=node_addr, state=state, op_type=op_type)
+
+        if observe:
             self.observed_results[key] = state
 
     def insn_observe(self, insn_addr, stmt, block, state, op_type):
@@ -173,24 +185,34 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         """
 
         key = 'insn', insn_addr, op_type
+        observe = False
 
-        if self._observe_all or \
-                self._observation_points is not None and key in self._observation_points:
-            if isinstance(stmt, pyvex.stmt.IRStmt):
-                # it's an angr block
-                vex_block = block.vex
-                # OP_BEFORE: stmt has to be IMark
-                if op_type == OP_BEFORE and type(stmt) is pyvex.stmt.IMark:
-                    self.observed_results[key] = state.copy()
-                # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
-                elif op_type == OP_AFTER:
-                    idx = vex_block.statements.index(stmt)
-                    if idx == len(vex_block.statements) - 1 or type(
-                            vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
-                        self.observed_results[key] = state.copy()
-            elif isinstance(stmt, ailment.Stmt.Statement):
-                # it's an AIL block
+        if self._observe_all:
+            observe = True
+        elif self._observation_points is not None and key in self._observation_points:
+            observe = True
+        elif self._observe_callback is not None:
+            observe = self._observe_callback('insn', addr=insn_addr, stmt=stmt, block=block, state=state,
+                                             op_type=op_type)
+
+        if not observe:
+            return
+
+        if isinstance(stmt, pyvex.stmt.IRStmt):
+            # it's an angr block
+            vex_block = block.vex
+            # OP_BEFORE: stmt has to be IMark
+            if op_type == OP_BEFORE and type(stmt) is pyvex.stmt.IMark:
                 self.observed_results[key] = state.copy()
+            # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
+            elif op_type == OP_AFTER:
+                idx = vex_block.statements.index(stmt)
+                if idx == len(vex_block.statements) - 1 or type(
+                        vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
+                    self.observed_results[key] = state.copy()
+        elif isinstance(stmt, ailment.Stmt.Statement):
+            # it's an AIL block
+            self.observed_results[key] = state.copy()
 
     @property
     def subject(self):

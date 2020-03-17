@@ -454,6 +454,7 @@ class SimCC:
         if self.func_ty is not None and \
                 self.func_ty.returnty is not None and \
                 self.OVERFLOW_RETURN_VAL is not None and \
+                self.func_ty.returnty.size is not None and \
                 self.func_ty.returnty.size > self.RETURN_VAL.size * self.arch.byte_width:
             return SimComboArg([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
         return self.RETURN_VAL
@@ -1138,7 +1139,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
-    CALLER_SAVED_REGS = []   # TODO: ???
+    CALLER_SAVED_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = archinfo.ArchARM

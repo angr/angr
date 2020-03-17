@@ -8,7 +8,6 @@ from ...engines.light import SpOffset, ArithmeticExpression, SimEngineLight, Sim
 from ...errors import SimEngineError, AngrVariableRecoveryError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
-from ..calling_convention import CallingConventionAnalysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
@@ -380,12 +379,21 @@ class SimEngineVRVEX(
 
         return self._read_from_register(reg_offset, reg_size, expr=expr)
 
-
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
         size = expr.result_size(self.tyenv) // 8
 
         return self._load(addr, size)
+
+    def _handle_CCall(self, expr):
+        # ccalls don't matter
+        return None
+
+    # Function handlers
+
+    def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use
+        # TODO: Adjust the stack pointer
+        return None
 
 
 class SimEngineVRAIL(
@@ -586,7 +594,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
     """
 
-    def __init__(self, func, max_iterations=3, clinic=None):
+    def __init__(self, func, max_iterations=1, clinic=None, low_priority=False):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -605,6 +613,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                                  graph_visitor=function_graph_visitor)
 
         self._clinic = clinic
+        self._low_priority = low_priority
+        self._job_ctr = 0
 
         self._ail_engine = SimEngineVRAIL(self.project)
         self._vex_engine = SimEngineVRVEX(self.project)
@@ -627,8 +637,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self.initialize_dominance_frontiers()
 
-        CallingConventionAnalysis.recover_calling_conventions(self.project)
-
         # initialize node_to_cc map
         function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
         for func_node in function_nodes:
@@ -636,7 +644,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                 self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
     def _pre_job_handling(self, job):
-        pass
+        self._job_ctr += 1
+        if self._low_priority:
+            self._release_gil(self._job_ctr, 5, 0.0001)
 
     def _initial_abstract_state(self, node):
 
@@ -709,7 +719,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         pass
 
     def _post_analysis(self):
-        self.variable_manager.initialize_variable_names()
+        self.variable_manager[self.function.addr].assign_variable_names()
 
         for addr, state in self._outstates.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,

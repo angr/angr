@@ -7,8 +7,8 @@ import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
-from ..calling_convention import CallingConventionAnalysis
 from .. import Analysis, register_analysis
+from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from .optimization_passes import get_optimization_passes
 
 
@@ -22,7 +22,7 @@ class Clinic(Analysis):
     def __init__(self, func, optimization_passes=None, sp_tracker_track_memory=True):
 
         # Delayed import
-        import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
+        import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import,import-outside-toplevel
 
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -85,7 +85,8 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
-        CallingConventionAnalysis.recover_calling_conventions(self.project)
+        # Make sure calling conventions of all functions have been recovered
+        self.project.analyses.CompleteCallingConventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
@@ -189,7 +190,8 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph, observe_all=True)
+        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph,
+                                                       observe_callback=self._simplify_function_rd_observe_callback)
 
         simp = self.project.analyses.AILSimplifier(self.function, func_graph=self.graph, reaching_definitions=rd)
 
@@ -221,7 +223,8 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph, observe_all=True)
+        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph,
+                                                       observe_callback=self._make_callsites_rd_observe_callback)
 
         for key in self._blocks:
             block = self._blocks[key]
@@ -357,6 +360,21 @@ class Clinic(Analysis):
 
             if dst is not None:
                 self.graph.add_edge(src, dst, **data)
+
+    @staticmethod
+    def _make_callsites_rd_observe_callback(ob_type, **kwargs):
+        if ob_type != 'insn':
+            return False
+        stmt = kwargs.pop('stmt')
+        op_type = kwargs.pop('op_type')
+        return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
+
+    @staticmethod
+    def _simplify_function_rd_observe_callback(ob_type, **kwargs):
+        if ob_type != 'node':
+            return False
+        op_type = kwargs.pop('op_type')
+        return op_type == OP_AFTER
 
 
 register_analysis(Clinic, 'Clinic')

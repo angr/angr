@@ -1,6 +1,8 @@
 import claripy
 import angr
 
+import nose.tools
+
 class A:
 	n = 0
 
@@ -16,7 +18,7 @@ def do_vault_identity(v_factory):
 	c.n = 2
 
 	aid = v.store(a)
-	assert len(v.keys()) == 1
+	nose.tools.assert_equal(len(v.keys()), 1, msg="Current keys: %s" % v.keys())
 	bid = v.store(b)
 	assert len(v.keys()) == 2
 	cid = v.store(c)
@@ -49,7 +51,7 @@ def do_vault_noidentity(v_factory):
 	c.n = 2
 
 	aid = v.store(a)
-	assert len(v.keys()) == 1
+	nose.tools.assert_equal(len(v.keys()), 1, msg="Current keys: %s" % v.keys())
 	bid = v.store(b)
 	assert len(v.keys()) == 2
 	cid = v.store(c)
@@ -91,14 +93,19 @@ def test_vault():
 	yield do_vault_noidentity, angr.vaults.VaultDir
 	yield do_vault_noidentity, angr.vaults.VaultShelf
 	yield do_vault_noidentity, angr.vaults.VaultDict
+	yield do_vault_noidentity, angr.vaults.VaultDirShelf
 	yield do_vault_identity, angr.vaults.VaultDir
 	yield do_vault_identity, angr.vaults.VaultShelf
 	yield do_vault_identity, angr.vaults.VaultDict
+	# VaultDirShelf does not guarantee identity equivalence due to the absence of caching
+	# yield do_vault_identity, angr.vaults.VaultDirShelf
 
 def test_ast_vault():
 	yield do_ast_vault, angr.vaults.VaultDir
 	yield do_ast_vault, angr.vaults.VaultShelf
 	yield do_ast_vault, angr.vaults.VaultDict
+	# VaultDirShelf does not guarantee identity equivalence due to the absence of caching
+	# yield do_ast_vault, angr.vaults.VaultDirShelf
 
 def test_project():
 	v = angr.vaults.VaultDir()

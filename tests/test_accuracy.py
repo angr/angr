@@ -16,8 +16,8 @@ arch_data = { # (steps, [hit addrs], finished)
 }
 
 def emulate(arch, binary, use_sim_procs, steps, hit_addrs, finished):
-    p = angr.Project(os.path.join(test_location, arch, binary), use_sim_procedures=use_sim_procs, rebase_granularity=0x1000000)
-    state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.ENABLE_NX, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, angr.options.USE_SYSTEM_TIMES})
+    p = angr.Project(os.path.join(test_location, arch, binary), use_sim_procedures=use_sim_procs, rebase_granularity=0x1000000, load_debug_info=False)
+    state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.ENABLE_NX, angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY, angr.options.USE_SYSTEM_TIMES})
 
     pg = p.factory.simulation_manager(state, resilience=True)
     pg2 = pg.run(until=lambda lpg: len(lpg.active) != 1)

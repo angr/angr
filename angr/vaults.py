@@ -1,14 +1,16 @@
 import collections.abc
 import contextlib
+import threading
 import tempfile
 import weakref
 import logging
-import claripy
 import pickle
 import shelve
 import uuid
 import os
 import io
+
+import claripy
 
 l = logging.getLogger("angr.vault")
 
@@ -32,7 +34,7 @@ class VaultPickler(pickle.Pickler):
             return None
 
         l.debug("Persistent store: %s %s", obj, pid)
-        return self.vault.store(obj, id=pid)
+        return self.vault._store(obj, pid)
 
 class VaultUnpickler(pickle.Unpickler):
     def __init__(self, vault, file, *args, **kwargs):
@@ -40,7 +42,7 @@ class VaultUnpickler(pickle.Unpickler):
         self.vault = vault
 
     def persistent_load(self, pid):
-        return self.vault.load(pid)
+        return self.vault._load(pid)
 
 class Vault(collections.abc.MutableMapping):
     """
@@ -134,29 +136,39 @@ class Vault(collections.abc.MutableMapping):
         except (AngrVaultError, EOFError):
             return False
 
-    def load(self, id): #pylint:disable=redefined-builtin
+    def load(self, oid):
+        return self._load(oid)
+
+    def _load(self, oid):
         """
         Retrieves one object from the pickler with the provided id.
 
-        :param id: an ID to use
+        :param oid: an ID to use
         """
-        l.debug("LOAD: %s", id)
+        l.debug("LOAD: %s", oid)
         try:
             l.debug("... trying cached")
-            return self._object_cache[id]
+            return self._object_cache[oid]
         except KeyError:
             l.debug("... cached failed")
-            with self._read_context(id) as u:
+            with self._read_context(oid) as u:
                 return VaultUnpickler(self, u).load()
 
-    def store(self, o, id=None): #pylint:disable=redefined-builtin
+    def store(self, o):
+
+        actual_id = self._get_persistent_id(o) or "TMP-"+str(uuid.uuid4())
+
+        return self._store(o, actual_id)
+
+    def _store(self, o, oid): #pylint:disable=redefined-builtin
         """
         Stores an object and returns its ID.
 
         :param o: the object
-        :param id: an ID to use
+        :param oid: an ID to use
         """
-        actual_id = id or self._get_persistent_id(o) or "TMP-"+str(uuid.uuid4())
+
+        actual_id = oid
 
         l.debug("STORE: %s %s", o, actual_id)
 
@@ -195,6 +207,13 @@ class Vault(collections.abc.MutableMapping):
         f = io.BytesIO(s)
         return VaultUnpickler(self, f).load()
 
+    def _clear_cache(self):
+
+        self._object_cache.clear()
+        self._uuid_cache.clear()
+        self.stored.clear()
+        self.storing.clear()
+
     @staticmethod
     def close():
         pass
@@ -204,7 +223,7 @@ class Vault(collections.abc.MutableMapping):
     #
 
     def __setitem__(self, k, v):
-        self.store(v, id=k)
+        self._store(v, k)
 
     def __getitem__(self, k):
         return self.load(k)
@@ -273,6 +292,7 @@ class VaultDir(Vault):
     def keys(self):
         return os.listdir(self._dir)
 
+
 class VaultShelf(VaultDict):
     """
     A Vault that uses a shelve.Shelf for storage.
@@ -284,6 +304,54 @@ class VaultShelf(VaultDict):
 
     def close(self):
         self._dict.close()
+
+
+class VaultDirShelf(VaultDict):
+    """
+    A Vault that uses a directory for storage, where every object is stored into a single shelve.Shelf instance.
+    VaultDir creates a file for each object. VaultDirShelf creates only one file for a stored object and everything
+    else it references.
+    """
+
+    def __init__(self, d=None):
+        super().__init__()
+        self._d = tempfile.mkdtemp() if d is None else d
+        self._dict = None  # will be initialized at each call to store() or load()
+        self._lock = threading.Lock()  # protecting access to self._dict
+
+    @contextlib.contextmanager
+    def _locked_shelve(self, shelve_path):
+        with self._lock:
+            self._dict = shelve.open(shelve_path, protocol=-1)
+            yield
+            self._dict.close()
+            self._dict = None
+            self._clear_cache()
+
+    def store(self, o):
+        oid = self._get_persistent_id(o) or "TMP-"+str(uuid.uuid4())
+        shelve_path = os.path.join(self._d, oid)
+        with self._locked_shelve(shelve_path):
+            super()._store(o, oid)
+        return oid
+
+    def load(self, oid):
+
+        shelve_path = os.path.join(self._d, oid)
+        with self._locked_shelve(shelve_path):
+            o = super().load(oid)
+
+        return o
+
+    def keys(self):
+        s = set()
+        for n in os.listdir(self._d):
+            if "." not in n:
+                s.add(n)
+            else:
+                s.add(n[:n.rfind(".")])  # remove the suffix
+        return s
+
 
 from .errors import AngrVaultError
 from .project import Project

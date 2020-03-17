@@ -17,6 +17,7 @@ from ...serializable import Serializable
 from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 from ...protos import function_pb2
+from ...calling_conventions import DEFAULT_CC
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
@@ -176,7 +177,20 @@ class Function(Serializable):
         # Determine a calling convention
         # If it is a SimProcedure it might have a CC already defined which can be used
         if self.is_simprocedure and self.project is not None and self.addr in self.project._sim_procedures:
-            self.calling_convention = self.project._sim_procedures[self.addr].cc
+            simproc = self.project._sim_procedures[self.addr]
+            cc = simproc.cc
+            if cc is None:
+                arch = self.project.arch
+                if self.project.arch.name in DEFAULT_CC:
+                    cc = DEFAULT_CC[arch.name](arch)
+
+            # update cc.args according to num_args
+            # TODO: Handle non-traditional arguments like fp
+            if cc is not None and not cc.args and simproc.num_args:
+                args = cc.arg_locs(is_fp=[False] * simproc.num_args)  # arg_locs() uses cc.args
+                cc.args = args
+
+            self.calling_convention = cc
         else:
             self.calling_convention = None
 
@@ -499,8 +513,9 @@ class Function(Serializable):
 
     def __repr__(self):
         if self.is_syscall:
-            return '<Syscall function %s (%s)>' % (self.name, self.addr)
-        return '<Function %s (%s)>' % (self.name, self.addr)
+            return '<Syscall function %s (%s)>' % (self.name,
+                                                   hex(self.addr) if isinstance(self.addr, int) else self.addr)
+        return '<Function %s (%s)>' % (self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr)
 
     @property
     def endpoints(self):

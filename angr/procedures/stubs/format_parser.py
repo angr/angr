@@ -47,7 +47,7 @@ class FormatString:
             # throw away strings which are just the NULL terminator
             max_length = self.parser.state.solver.max_int(strlen)
             if max_length == 0:
-                return None
+                return claripy.BVV(b'')
 
         return self.parser.state.memory.load(str_addr, max_length)
 

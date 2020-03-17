@@ -1,9 +1,10 @@
 import logging
 
-from ..calling_conventions import SimRegArg, SimStackArg, SimCC
+from archinfo.arch_arm import is_arm_arch
+
+from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from . import Analysis, register_analysis
-from archinfo.arch_arm import is_arm_arch
 
 l = logging.getLogger(name=__name__)
 
@@ -17,12 +18,15 @@ class CallingConventionAnalysis(Analysis):
     function. In the function itself, we consider all register and stack variables that are read but without
     initialization as parameters. Then we synthesize the information from both locations and make a reasonable
     inference of calling convention of this function.
+
+    :ivar _function:    The function to recover calling convention for.
+    :ivar _variable_manager:    A handy accessor to the variable manager.
+    :ivar cc:           The recovered calling convention for the function.
     """
 
     def __init__(self, func):
 
         self._function = func
-
         self._variable_manager = self.kb.variables
 
         self.cc = None
@@ -35,15 +39,53 @@ class CallingConventionAnalysis(Analysis):
         :return:
         """
 
+        if self._function.is_simprocedure:
+            self.cc = self._function.calling_convention
+            if self.cc is None:
+                # fallback to the default calling convention
+                self.cc = DefaultCC[self.project.arch.name](self.project.arch)
+            return
+        if self._function.is_plt:
+            self.cc = self._analyze_plt()
+            return
+
         cc_0 = self._analyze_function()
         callsite_ccs = self._analyze_callsites()
 
         cc = self._merge_cc(cc_0, *callsite_ccs)
 
         if cc is None:
-            l.warning('Cannot determine calling convention.')
+            l.warning('Cannot determine calling convention for %r.', self._function)
 
         self.cc = cc
+
+    def _analyze_plt(self):
+        """
+        Get the calling convention for a PLT stub.
+
+        :return:    A calling convention.
+        """
+
+        if len(self._function.jumpout_sites) != 1:
+            l.warning("%r has more than one jumpout sites. It does not look like a PLT stub. Please report to GitHub.",
+                      self._function)
+            return None
+
+        jo_site = self._function.jumpout_sites[0]
+
+        successors = list(self._function.transition_graph.successors(jo_site))
+        if len(successors) != 1:
+            l.warning("%r has more than one successors. It does not look like a PLT stub. Please report to GitHub.",
+                      self._function)
+            return None
+
+        try:
+            real_func = self.kb.functions.get_by_addr(successors[0].addr)
+        except KeyError:
+            # the real function does not exist for some reason
+            return None
+
+        return real_func.calling_convention
 
     def _analyze_function(self):
         """
@@ -53,11 +95,12 @@ class CallingConventionAnalysis(Analysis):
         :return:
         """
 
-        if not self._function.is_simprocedure \
-                and not self._function.is_plt \
-                and not self._variable_manager.has_function_manager(self._function.addr):
-            l.warning("Please run variable recovery on %s before analyzing its calling conventions.",
-                      repr(self._function))
+        if self._function.is_simprocedure or self._function.is_plt:
+            # we do not analyze SimProcedures or PLT stubs
+            return None
+
+        if not self._variable_manager.has_function_manager:
+            l.warning("Please run variable recovery on %r before analyzing its calling convention.", self._function)
             return None
 
         vm = self._variable_manager[self._function.addr]
@@ -72,7 +115,12 @@ class CallingConventionAnalysis(Analysis):
         cc = SimCC.find_cc(self.project.arch, list(input_args), sp_delta)
 
         if cc is None:
-            l.warning('_analyze_function(): Cannot find a calling convention that fits the given arguments.')
+            l.warning('_analyze_function(): Cannot find a calling convention for %r that fits the given arguments.',
+                      self._function)
+        else:
+            # reorder args
+            args = self._reorder_args(input_args, cc)
+            cc.args = args
 
         return cc
 
@@ -81,6 +129,8 @@ class CallingConventionAnalysis(Analysis):
 
         :return:
         """
+
+        # TODO: finish it
 
         return []
 
@@ -163,24 +213,34 @@ class CallingConventionAnalysis(Analysis):
             l.critical('Unsupported architecture %s.', arch.name)
             return True
 
-    @staticmethod
-    def recover_calling_conventions(project, kb=None):
+    def _reorder_args(self, args, cc):
+        """
+        Reorder arguments according to the calling convention identified.
+
+        :param set args:   A list of arguments that haven't been ordered.
+        :param SimCC cc:    The identified calling convention.
+        :return:            A reordered list of args.
         """
 
-        :return:
-        """
-        if kb is None:
-            kb = project.kb
+        new_args = [ ]
 
-        new_cc_found = True
-        while new_cc_found:
-            new_cc_found = False
-            for func in kb.functions.values():
-                if func.calling_convention is None:
-                    # determine the calling convention of each function
-                    cc_analysis = project.analyses.CallingConvention(func)
-                    if cc_analysis.cc is not None:
-                        func.calling_convention = cc_analysis.cc
-                        new_cc_found = True
+        for reg_name in cc.ARG_REGS:
+            try:
+                arg = next(iter(a for a in args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
+            except StopIteration:
+                # have we reached the end of the args list?
+                if [ a for a in args if isinstance(a, SimRegArg) ]:
+                    # nope
+                    arg = SimRegArg(reg_name, self.project.arch.bytes)
+                else:
+                    break
+            new_args.append(arg)
+            if arg in args:
+                args.remove(arg)
+
+        new_args += args
+
+        return new_args
+
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")

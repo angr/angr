@@ -35,9 +35,9 @@ def run_cgc(binary_name):
 
     categorization = project.analyses.FunctionCategorizationAnalysis()
 
-    tag_manager = categorization.function_tag_manager
-    #print "INPUT:", map(hex, tag_manager.input_functions())
-    #print "OUTPUT:", map(hex, tag_manager.output_functions())
+    # tag_manager = categorization.function_tag_manager
+    # print "INPUT:", map(hex, tag_manager.input_functions())
+    # print "OUTPUT:", map(hex, tag_manager.output_functions())
 
 
 def test_fauxware():
@@ -78,10 +78,90 @@ def disabled_cgc():
     for binary in binaries:
         yield run_cgc, binary
 
+#
+# Full-binary calling convention analysis
+#
+
+def check_arg(arg, expected_str):
+
+    if isinstance(arg, SimRegArg):
+        arg_str = "r_%s" % (arg.reg_name)
+    else:
+        raise TypeError("Unsupported argument type %s." % type(arg))
+    return arg_str == expected_str
+
+
+def check_args(func_name, args, expected_arg_strs):
+
+    nose.tools.assert_equal(len(args), len(expected_arg_strs), msg="Wrong number of arguments for function %s. "
+                                                                   "Got %d, expect %d." % (
+        func_name, len(args), len(expected_arg_strs)
+    ))
+
+    for idx, (arg, expected_arg_str) in enumerate(zip(args, expected_arg_strs)):
+        r = check_arg(arg, expected_arg_str)
+        nose.tools.assert_true(r, msg="Incorrect argument %d for function %s. Got %s, expect %s." % (
+            idx, func_name, arg, expected_arg_str
+        ))
+
+
+def _a(funcs, func_name):
+    return funcs[func_name].calling_convention.args
+
+
+def test_x8664_dir_gcc_O0():
+
+    binary_path = os.path.join(test_location, 'tests', 'x86_64', 'dir_gcc_-O0')
+    proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+
+    cfg = proj.analyses.CFG()  # fill in the default kb
+
+    proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+    funcs = cfg.kb.functions
+
+    # check args
+    expected_args = {
+        'c_ispunct': ['r_rdi'],
+        'file_failure': ['r_rdi', 'r_rsi', 'r_rdx'],
+        'to_uchar': ['r_rdi'],
+        'dot_or_dotdot': ['r_rdi'],
+        'emit_mandatory_arg_note': [ ],
+        'emit_size_note': [ ],
+        'emit_ancillary_info': ['r_rdi'],
+        'emit_try_help': [ ],
+        'dev_ino_push': ['r_rdi', 'r_rsi'],
+        'main': ['r_rdi', 'r_rsi'],
+        'queue_directory': ['r_rdi', 'r_rsi', 'r_rdx'],
+    }
+
+    for func_name, args in expected_args.items():
+        check_args(func_name, _a(funcs, func_name), args)
+
+
+def test_armel_fauxware():
+    binary_path = os.path.join(test_location, 'tests', 'armel', 'fauxware')
+    proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+
+    cfg = proj.analyses.CFG()  # fill in the default kb
+
+    proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+    funcs = cfg.kb.functions
+
+    # check args
+    expected_args = {
+        'main': ['r_r0', 'r_r1'],
+        'accepted': ['r_r0', 'r_r1', 'r_r2', 'r_r3'],
+        'rejected': [ ],
+        'authenticate': ['r_r0', 'r_r1'],
+    }
+
+    for func_name, args in expected_args.items():
+        check_args(func_name, _a(funcs, func_name), args)
+
 
 def run_all():
-    logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
-
     for args in test_fauxware():
         func, args = args[0], args[1:]
         func(*args)
@@ -92,4 +172,7 @@ def run_all():
 
 
 if __name__ == "__main__":
+    # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.calling_convention").setLevel(logging.INFO)
     run_all()
+    # test_dir_gcc_O0()
