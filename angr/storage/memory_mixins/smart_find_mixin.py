@@ -59,6 +59,7 @@ class SmartFindMixin(MemoryMixin):
                 chunk_progress = 0
 
             chunk_idx = (chunk_progress if endness == 'Iend_BE' else chunk_size - 1 - chunk_progress)*stride
+            chunk_progress += 1
             b = chunk.get_bytes(chunk_idx, stride)
 
             if b.symbolic and max_symbolic_bytes is not None:
@@ -75,9 +76,18 @@ class SmartFindMixin(MemoryMixin):
 
     def _find_compare(self, element, target, **kwargs):
         comparison = element == target
-        concrete_comparison = self.state.solver.is_true(comparison)
+        if self.state.solver.is_true(comparison):
+            concrete_comparison = True
+        elif self.state.solver.is_false(comparison):
+            concrete_comparison = False
+        else:
+            concrete_comparison = None
         return comparison, concrete_comparison
 
     def _find_process_cases(self, cases, match_indices, constraints, default, **kwargs):
+        if default is None:
+            default = claripy.BVV(0, self.state.arch.bits)
+        if cases and cases[-1][0].is_true():
+            default = cases.pop(-1)[1]
         result = claripy.ite_cases(cases, default)
         return result, constraints, match_indices
