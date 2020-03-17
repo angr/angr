@@ -48,6 +48,13 @@ class PTChunk(Chunk):
     def get_size(self):
         return self.state.memory.load(self.base + self._chunk_size_t_size, self._chunk_size_t_size) & ~CHUNK_FLAGS_MASK
 
+    def get_data_size(self):
+        chunk_size = self.get_size()
+        if self.is_free():
+            return chunk_size - 4 * self._chunk_size_t_size
+        else:
+            return chunk_size - 2 * self._chunk_size_t_size
+
     def _set_leading_size(self, size):
         level = silence_logger()
         chunk_flags = self.state.memory.load(self.base + self._chunk_size_t_size, self._chunk_size_t_size) \
