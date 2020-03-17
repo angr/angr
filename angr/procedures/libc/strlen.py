@@ -52,7 +52,7 @@ class strlen(angr.SimProcedure):
 
             # try doubling the search len and searching again
             s_new = s
-            while all(con.is_false() for con in c):
+            while c and all(con.is_false() for con in c):
                 s_new += search_len
                 search_len *= 2
                 r, c, i = self.state.memory.find(s_new, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, step=step, chunk_size=chunk_size)

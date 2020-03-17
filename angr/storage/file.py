@@ -2,10 +2,9 @@ import claripy
 import logging
 import itertools
 
-from .memory_object import SimMemoryObject
+from .memory_mixins import DefaultMemory
 from ..state_plugins.plugin import SimStatePlugin
 from ..state_plugins.sim_action_object import SimActionObject
-from ..state_plugins.symbolic_memory import SimSymbolicMemory
 from .. import sim_options
 
 l = logging.getLogger(name=__name__)
@@ -137,7 +136,7 @@ class SimFileBase(SimStatePlugin):
         raise NotImplementedError
 
 
-class SimFile(SimFileBase, SimSymbolicMemory):
+class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
     """
     The normal SimFile is meant to model files on disk. It subclasses SimSymbolicMemory so loads and stores to/from
     it are very simple.
@@ -183,8 +182,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         self.concrete = concrete
 
         if content is not None:
-            mo = SimMemoryObject(content, 0, length=len(content)//8)
-            self.mem.store_memory_object(mo)
+            self.__content = content
 
             if self._size is None:
                 self._size = len(content) // 8
@@ -200,6 +198,14 @@ class SimFile(SimFileBase, SimSymbolicMemory):
 
     def set_state(self, state):
         super(SimFile, self).set_state(state)
+        try:
+            content = self.__content
+        except AttributeError:
+            pass
+        else:
+            self.store(0, content)
+            del self.__content
+
         if self.has_end is None:
             self.has_end = sim_options.FILES_HAVE_EOF in state.options
 
