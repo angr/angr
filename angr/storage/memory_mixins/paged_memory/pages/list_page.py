@@ -32,11 +32,11 @@ class ListStorageMixin(MemoryObjectMixin, PageBase):
         # using the same memory object
         for subaddr in range(addr, addr+size):
             item = self.content[subaddr]
+            if item is None:
+                item = self.sinkhole
             if item is not last_seen:
                 if last_seen is None:
                     self._fill(result, addr, page_addr, endness, memory, **kwargs)
-                if item is None and self.sinkhole is not None:
-                    item = self.sinkhole
                 result.append((subaddr + page_addr, item))
                 last_seen = item
 
