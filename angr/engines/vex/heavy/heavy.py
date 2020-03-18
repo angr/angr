@@ -171,6 +171,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 )
                 exit_state.history.jumpkind = "Ijk_Ret"
                 exit_state.regs.ip = exit_state.scratch.target
+                if exit_state.arch.call_pushes_ret:
+                    exit_state.regs.sp = exit_state.regs.sp + exit_state.arch.bytes
 
             elif o.DO_RET_EMULATION in exit_state.options and \
                     (exit_jumpkind == "Ijk_Call" or exit_jumpkind.startswith('Ijk_Sys')):
