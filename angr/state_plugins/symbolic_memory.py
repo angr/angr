@@ -3,7 +3,6 @@ from collections import defaultdict
 import logging
 import itertools
 import string
-import codecs
 
 l = logging.getLogger(name=__name__)
 
