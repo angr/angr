@@ -22,12 +22,7 @@ class HeapAlloc(angr.SimProcedure):
                 self.state.heap.chunk_from_mem(addr).get_data_size()
             )
             data = self.state.solver.BVV(0, data_size * 8)
-            condition = self.state.solver.If(
-                Flags & 8 == 8,
-                self.state.solver.true,
-                self.state.solver.false
-            )
-            self.state.memory.store(addr, data, size=data_size, condition=condition)
+            self.state.memory.store(addr, data, size=data_size, condition=Flags & 8 == 8)
         return addr
 
 
