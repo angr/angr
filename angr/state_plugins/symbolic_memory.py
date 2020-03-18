@@ -1148,25 +1148,29 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return merged_val
 
-    def hex_dump(self, start, size, grouping=4, groups_per_line=4, endianness="Iend_BE",
+    def hex_dump(self, start, size, word_size=4, words_per_row=4, endianness="Iend_BE",
                  symbolic_char='?', unprintable_char='.', solve=False, extra_constraints=None,
                  inspect=False, disable_actions=True):
         """
-        Print memory as a hex dump. The solver, if enabled, is called once for every byte
-        potentially making this function very slow. Meant to be used mainly as a
+        Returns a hex dump as a string. The solver, if enabled, is called once for every byte
+        potentially making this function very slow. It is meant to be used mainly as a
         "visualization" for debugging.
+
+        Warning: May read and display more bytes than `size` due to rounding. Particularly,
+        if size is less than, or not a multiple of word_size*words_per_line.
 
         :param start: starting address from which to print
         :param size: number of bytes to display
-        :param grouping: number of bytes to group together as one space-delimited unit
-        :param groups_per_line: number of groups to display per line
-        :param endianness: endianness to use when displaying each group
+        :param word_size: number of bytes to group together as one space-delimited unit
+        :param words_per_row: number of words to display per row of output
+        :param endianness: endianness to use when displaying each word (ASCII representation is unchanged)
         :param symbolic_char: the character to display when a byte is symbolic and has multiple solutions
         :param unprintable_char: the character to display when a byte is not printable
         :param solve: whether or not to attempt to solve (warning: can be very slow)
         :param extra_constraints: extra constraints to pass to the solver is solve is True
         :param inspect: whether or not to trigger SimInspect breakpoints for the memory load
         :param disable_actions: whether or not to disable SimActions for the memory load
+        :return: hex dump as a string
         """
         if endianness == "Iend_BE":
             end = 1
@@ -1176,40 +1180,44 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             extra_constraints = []
 
         # round up size so that chop() works
-        line_size = self.state.arch.byte_width * grouping * groups_per_line
-        size += line_size - (size % line_size)
+        line_size = word_size * words_per_row
+        size = size if size % line_size == 0 else size + line_size - size % line_size
         raw_mem = self.load(start, size, inspect=inspect, disable_actions=disable_actions)
 
         i = start
-        for line in raw_mem.chop(line_size):
-            dump = "%#x" % i
+        dump_str = ""
+        for line in raw_mem.chop(line_size * self.state.arch.byte_width):
+            dump = "%x:" % i
             group_str = ""
-            for group in line.chop(self.state.arch.byte_width*grouping):
-                group_bytes = ""
-                for b in group.chop(self.state.arch.byte_width)[::end]:
+            for word in line.chop(word_size * self.state.arch.byte_width):
+                word_bytes = ""
+                word_str = ""
+                for byte_ in word.chop(self.state.arch.byte_width)[::end]:
                     byte_value = None
-                    if not self.state.solver.symbolic(b) or solve:
+                    if not self.state.solver.symbolic(byte_) or solve:
                         try:
                             byte_value = self.state.solver.eval_one(
-                                b,
+                                byte_,
                                 extra_constraints=extra_constraints
                             )
                         except SimValueError:
                             pass
 
                     if byte_value is not None:
-                        group_bytes += "%02x" % byte_value
+                        word_bytes += "%02x" % byte_value
                         if chr(byte_value) in string.printable[:-5]:
-                            group_str += chr(byte_value)
+                            word_str += chr(byte_value)
                         else:
-                            group_str += unprintable_char
+                            word_str += unprintable_char
                     else:
-                        group_bytes += symbolic_char*2
-                        group_str += symbolic_char
-                dump += ' ' + group_bytes
+                        word_bytes += symbolic_char*2
+                        word_str += symbolic_char
+                dump += ' ' + word_bytes
+                group_str += word_str[::end]  # always print ASCII representation in little-endian
             dump += ' ' + group_str
-            i += grouping*groups_per_line
-            print(dump)
+            i += line_size
+            dump_str += dump + '\n'
+        return dump_str
 
     def dbg_print(self, indent=0):
         """
