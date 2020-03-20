@@ -60,13 +60,13 @@ class PTChunk(Chunk):
         chunk_flags = self.state.memory.load(self.base + self._chunk_size_t_size, self._chunk_size_t_size) \
                       & CHUNK_FLAGS_MASK
         unsilence_logger(level)
-        self.state.memory.store(self.base + self._chunk_size_t_size, size | chunk_flags)
+        self.state.memory.store(self.base + self._chunk_size_t_size, size | chunk_flags, size=self.state.arch.bytes)
 
     def _set_trailing_size(self, size):
         if self.is_free():
             next_chunk = self.next_chunk()
             if next_chunk is not None:
-                self.state.memory.store(next_chunk.base, size)
+                self.state.memory.store(next_chunk.base, size, self.state.arch.bytes)
 
     def set_size(self, size, is_free=None):  #pylint:disable=arguments-differ
         """
@@ -86,7 +86,7 @@ class PTChunk(Chunk):
                 self.heap._set_final_freeness(is_free)
         if is_free is not None and is_free or self.is_free():
             if next_chunk is not None:
-                self.state.memory.store(next_chunk.base, size)
+                self.state.memory.store(next_chunk.base, size, size=self.state.arch.bytes)
 
     def set_prev_freeness(self, is_free):
         """
@@ -98,9 +98,9 @@ class PTChunk(Chunk):
         size_field = self.state.memory.load(self.base + self._chunk_size_t_size, self._chunk_size_t_size)
         unsilence_logger(level)
         if is_free:
-            self.state.memory.store(self.base + self._chunk_size_t_size, size_field & ~CHUNK_P_MASK)
+            self.state.memory.store(self.base + self._chunk_size_t_size, size_field & ~CHUNK_P_MASK, size=self.state.arch.bytes)
         else:
-            self.state.memory.store(self.base + self._chunk_size_t_size, size_field | CHUNK_P_MASK)
+            self.state.memory.store(self.base + self._chunk_size_t_size, size_field | CHUNK_P_MASK, size=self.state.arch.bytes)
 
     def is_prev_free(self):
         """
@@ -190,7 +190,7 @@ class PTChunk(Chunk):
             raise SimHeapError("Attempted to access the forward chunk of an allocated chunk")
 
     def set_fwd_chunk(self, fwd):
-        self.state.memory.store(self.base + 2 * self._chunk_size_t_size, fwd.base, endness=self.state.arch.memory_endness)
+        self.state.memory.store(self.base + 2 * self._chunk_size_t_size, fwd.base, endness=self.state.arch.memory_endness, size=self.state.arch.bytes)
 
     def bck_chunk(self):
         """
@@ -206,7 +206,7 @@ class PTChunk(Chunk):
             raise SimHeapError("Attempted to access the backward chunk of an allocated chunk")
 
     def set_bck_chunk(self, bck):
-        self.state.memory.store(self.base + 3 * self._chunk_size_t_size, bck.base, endness=self.state.arch.memory_endness)
+        self.state.memory.store(self.base + 3 * self._chunk_size_t_size, bck.base, endness=self.state.arch.memory_endness, size=self.state.arch.bytes)
 
 class PTChunkIterator:
     def __init__(self, chunk, cond=lambda chunk: True):
@@ -316,9 +316,9 @@ class SimHeapPTMalloc(SimHeapFreelist):
         this. Nonetheless, for now it is implemented as if an additional chunk followed the final chunk.
         """
         if flag:
-            self.state.memory.store(self.heap_base + self.heap_size - self._chunk_size_t_size, ~CHUNK_P_MASK)
+            self.state.memory.store(self.heap_base + self.heap_size - self._chunk_size_t_size, ~CHUNK_P_MASK, size=self.state.arch.bytes)
         else:
-            self.state.memory.store(self.heap_base + self.heap_size - self._chunk_size_t_size, CHUNK_P_MASK)
+            self.state.memory.store(self.heap_base + self.heap_size - self._chunk_size_t_size, CHUNK_P_MASK, size=self.state.arch.bytes)
 
     def _make_chunk_size(self, req_size):
         """
@@ -607,7 +607,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
         if not self._initialized:
             self.state.memory.store(self.free_head_chunk.base + self._chunk_size_t_size
                                     , ((self.heap_size - 2 * self._chunk_size_t_size) & ~self._chunk_align_mask)
-                                    | CHUNK_P_MASK)
+                                    | CHUNK_P_MASK, size=self.state.arch.bytes)
             self._set_final_freeness(True)
             self.free_head_chunk.set_fwd_chunk(self.free_head_chunk)
             self.free_head_chunk.set_bck_chunk(self.free_head_chunk)

@@ -96,7 +96,7 @@ def run_malloc_no_space_returns_null(arch):
     s = SimState(arch=arch, plugins={'heap': SimHeapPTMalloc(heap_base=0xd0000000, heap_size=0x1000)})
     sc = s.copy()
     p1 = s.heap.malloc(0x2000)
-    nose.tools.assert_equals(p1, 0)
+    nose.tools.assert_equal(p1, 0)
     nose.tools.assert_true(same_heap_states(s, sc))
 
 def test_malloc_no_space_returns_null():
@@ -108,7 +108,7 @@ def run_calloc_no_space_returns_null(arch):
     s = SimState(arch=arch, plugins={'heap': SimHeapPTMalloc(heap_base=0xd0000000, heap_size=0x1000)})
     sc = s.copy()
     p1 = s.heap.calloc(0x500, 4)
-    nose.tools.assert_equals(p1, 0)
+    nose.tools.assert_equal(p1, 0)
     nose.tools.assert_true(same_heap_states(s, sc))
 
 def test_calloc_no_space_returns_null():
@@ -121,7 +121,7 @@ def run_realloc_no_space_returns_null(arch):
     p1 = s.heap.malloc(20)
     sc = s.copy()
     p2 = s.heap.realloc(p1, 0x2000)
-    nose.tools.assert_equals(p2, 0)
+    nose.tools.assert_equal(p2, 0)
     nose.tools.assert_true(same_heap_states(s, sc))
 
 def test_realloc_no_space_returns_null():
@@ -135,7 +135,7 @@ def run_first_fit_and_free_malloced_makes_available(arch):
     p1 = s.heap.malloc(50)
     s.heap.free(p1)
     p2 = s.heap.malloc(30)
-    nose.tools.assert_equals(p1, p2)
+    nose.tools.assert_equal(p1, p2)
 
 def test_first_fit_and_free_malloced_makes_available():
     for arch in ('X86', 'AMD64'):
@@ -148,7 +148,7 @@ def run_free_calloced_makes_available(arch):
     p1 = s.heap.calloc(30, 4)
     s.heap.free(p1)
     p2 = s.heap.calloc(15, 8)
-    nose.tools.assert_equals(p1, p2)
+    nose.tools.assert_equal(p1, p2)
 
 def test_free_calloced_makes_available():
     for arch in ('X86', 'AMD64'):
@@ -162,7 +162,7 @@ def run_realloc_moves_and_frees(arch):
     s.heap.malloc(200)
     p2 = s.heap.realloc(p1, 300)
     p3 = s.heap.malloc(30)
-    nose.tools.assert_equals(p1, p3)
+    nose.tools.assert_equal(p1, p3)
     nose.tools.assert_less(p1, p2)
 
 def test_realloc_moves_and_frees():
@@ -177,7 +177,7 @@ def run_realloc_near_same_size(arch):
     s.heap.malloc(80)
     sc = s.copy()
     p2 = s.heap.realloc(p1, 62)
-    nose.tools.assert_equals(p1, p2)
+    nose.tools.assert_equal(p1, p2)
     nose.tools.assert_true(same_heap_states(s, sc))
 
 def test_realloc_near_same_size():
@@ -189,7 +189,7 @@ def run_needs_space_for_metadata(arch):
     s = SimState(arch=arch, plugins={'heap': SimHeapPTMalloc(heap_base=0xd0000000, heap_size=0x1000)})
     sc = s.copy()
     p1 = s.heap.malloc(0x1000)
-    nose.tools.assert_equals(p1, 0)
+    nose.tools.assert_equal(p1, 0)
     nose.tools.assert_true(same_heap_states(s, sc))
 
 def test_needs_space_for_metadata():
@@ -202,7 +202,7 @@ def run_unusable_amount_returns_null(arch):
     s.heap.malloc(0x1000 - 4 * s.heap._chunk_size_t_size)
     sc = s.copy()
     p = s.heap.malloc(1)
-    nose.tools.assert_equals(p, 0)
+    nose.tools.assert_equal(p, 0)
     nose.tools.assert_true(same_heap_states(s, sc))
 
 def test_unusable_amount_returns_null():
