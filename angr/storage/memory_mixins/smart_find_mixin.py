@@ -89,5 +89,5 @@ class SmartFindMixin(MemoryMixin):
             default = claripy.BVV(0, self.state.arch.bits)
         if cases and cases[-1][0].is_true():
             default = cases.pop(-1)[1]
-        result = claripy.ite_cases(cases, default)
+        result = self.state.solver.ite_cases(cases, default)
         return result, constraints, match_indices
