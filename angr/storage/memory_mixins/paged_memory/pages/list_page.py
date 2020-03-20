@@ -36,7 +36,7 @@ class ListStorageMixin(MemoryObjectMixin, PageBase):
                 item = self.sinkhole
             if item is not last_seen:
                 if last_seen is None:
-                    self._fill(result, addr, page_addr, endness, memory, **kwargs)
+                    self._fill(result, subaddr, page_addr, endness, memory, **kwargs)
                 result.append((subaddr + page_addr, item))
                 last_seen = item
 
