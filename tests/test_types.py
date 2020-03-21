@@ -173,6 +173,15 @@ def test_arg_names():
     sig = fdef['f']
     nose.tools.assert_equal(sig.arg_names, [])
 
+def test_varargs():
+    fdef = angr.types.parse_defns("int printf(const char *fmt, ...);")
+    sig = fdef['printf']
+
+    nose.tools.assert_true(sig.variadic)
+    nose.tools.assert_in('...', repr(sig))
+    nose.tools.assert_equal(len(sig.args), 1)
+    nose.tools.assert_equal(len(sig.arg_names), 1)
+
 
 if __name__ == '__main__':
     test_type_annotation()
