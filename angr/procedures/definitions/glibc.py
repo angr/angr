@@ -48,19 +48,19 @@ _libc_decls = \
         # void warn (const char *FORMAT, ...);
         "warn": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["format"], variadic=True),
         # void vwarn (const char *FORMAT, va_list AP);
-        "vwarn": None,
+        "vwarn": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
         # void warnx (const char *FORMAT, ...);
         "warnx": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["format"], variadic=True),
         # void vwarnx (const char *FORMAT, va_list AP);
-        "vwarnx": None,
+        "vwarnx": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
         # void err (int STATUS, const char *FORMAT, ...);
         "err": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "format"], variadic=True),
         # void verr (int STATUS, const char *FORMAT, va_list AP);
-        "verr": None,
+        "verr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
         # void errx (int STATUS, const char *FORMAT, ...);
         "errx": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "format"], variadic=True),
         # void verrx (int STATUS, const char *FORMAT, va_list AP);
-        "verrx": None,
+        "verrx": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
         # void * malloc (size_t SIZE);
         "malloc": SimTypeFunction([SimTypeLong(signed=False, label="size_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["size"]),
         # void free (void *PTR);
@@ -668,23 +668,23 @@ _libc_decls = \
         # int obstack_printf (struct obstack *OBSTACK, const char *TEMPLATE, ...);
         "obstack_printf": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["obstack", "template"], variadic=True),
         # int vprintf (const char *TEMPLATE, va_list AP);
-        "vprintf": None,
+        "vprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vwprintf (const wchar_t *TEMPLATE, va_list AP);
-        "vwprintf": None,
+        "vwprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vfprintf (FILE *STREAM, const char *TEMPLATE, va_list AP);
-        "vfprintf": None,
+        "vfprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vfwprintf (FILE *STREAM, const wchar_t *TEMPLATE, va_list AP);
-        "vfwprintf": None,
+        "vfwprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vsprintf (char *S, const char *TEMPLATE, va_list AP);
-        "vsprintf": None,
+        "vsprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int vswprintf (wchar_t *WS, size_t SIZE, const wchar_t *TEMPLATE, va_list AP);
-        "vswprintf": None,
+        "vswprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["ws", "size", "template", "ap"]),
         # int vsnprintf (char *S, size_t SIZE, const char *TEMPLATE, va_list AP);
-        "vsnprintf": None,
+        "vsnprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "size", "template", "ap"]),
         # int vasprintf (char **PTR, const char *TEMPLATE, va_list AP);
-        "vasprintf": None,
+        "vasprintf": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["ptr", "template", "ap"]),
         # int obstack_vprintf (struct obstack *OBSTACK, const char *TEMPLATE, va_list AP);
-        "obstack_vprintf": None,
+        "obstack_vprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["obstack", "template", "ap"]),
         # size_t parse_printf_format (const char *TEMPLATE, size_t N, int *ARGTYPES);
         "parse_printf_format": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["template", "n", "argtypes"]),
         # int register_printf_function (int SPEC, printf_function HANDLER_FUNCTION, printf_arginfo_function ARGINFO_FUNCTION);
@@ -706,17 +706,17 @@ _libc_decls = \
         # int swscanf (const wchar_t *WS, const wchar_t *TEMPLATE, ...);
         "swscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["ws", "template"], variadic=True),
         # int vscanf (const char *TEMPLATE, va_list AP);
-        "vscanf": None,
+        "vscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vwscanf (const wchar_t *TEMPLATE, va_list AP);
-        "vwscanf": None,
+        "vwscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vfscanf (FILE *STREAM, const char *TEMPLATE, va_list AP);
-        "vfscanf": None,
+        "vfscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vfwscanf (FILE *STREAM, const wchar_t *TEMPLATE, va_list AP);
-        "vfwscanf": None,
+        "vfwscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vsscanf (const char *S, const char *TEMPLATE, va_list AP);
-        "vsscanf": None,
+        "vsscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int vswscanf (const wchar_t *S, const wchar_t *TEMPLATE, va_list AP);
-        "vswscanf": None,
+        "vswscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int feof (FILE *STREAM);
         "feof": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int feof_unlocked (FILE *STREAM);
@@ -1208,7 +1208,7 @@ _libc_decls = \
         # void syslog (int FACILITY_PRIORITY, const char *FORMAT, ...);
         "syslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["facility_priority", "format"], variadic=True),
         # void vsyslog (int FACILITY_PRIORITY, const char *FORMAT, va_list ARGLIST);
-        "vsyslog": None,
+        "vsyslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["facility_priority", "format", "arglist"]),
         # void closelog (void);
         "closelog": SimTypeFunction([], SimTypeBottom(label="void")),
         # int setlogmask (int MASK);
