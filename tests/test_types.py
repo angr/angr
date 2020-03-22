@@ -181,6 +181,7 @@ def test_varargs():
     nose.tools.assert_in('...', repr(sig))
     nose.tools.assert_equal(len(sig.args), 1)
     nose.tools.assert_equal(len(sig.arg_names), 1)
+    nose.tools.assert_not_in('...', sig._init_str())
 
 
 if __name__ == '__main__':
