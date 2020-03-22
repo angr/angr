@@ -667,7 +667,7 @@ class SimTypeFunction(SimType):
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
             (", label=%s" % self.label) if self.label else "",
-            (", arg_names=[%s]" % self._arg_names_str()) if self.arg_names else "",
+            (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
         )
 
