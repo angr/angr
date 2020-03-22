@@ -668,8 +668,14 @@ class Structurer(Analysis):
                 # TODO: this region has more than one successors. support this case.
                 return False
 
+            succ = next(iter(self._region.successors))
+            if succ not in self._region.graph_with_successors:
+                # the specific successor is not within the graph with successors
+                # in other words, the successor is not reachable. this region does not have successors.
+                return True
+
             inverted_graph = networkx.reverse(self._region.graph_with_successors)
-            idoms = networkx.immediate_dominators(inverted_graph, next(iter(self._region.successors)))
+            idoms = networkx.immediate_dominators(inverted_graph, succ)
             return idoms[node_b] is node_a
 
         edge_conditions = { }
