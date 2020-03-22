@@ -960,6 +960,7 @@ BASIC_TYPES = {
 
     'float': SimTypeFloat(),
     'double': SimTypeDouble(),
+    'long double': SimTypeDouble(),
     'void': SimTypeBottom(label="void"),
 }
 
