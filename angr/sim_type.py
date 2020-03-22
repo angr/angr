@@ -988,6 +988,8 @@ ALL_TYPES = {
 
     'string': SimTypeString(),
     'wstring': SimTypeWString(),
+
+    'va_list': SimStruct({}, name='va_list')
 }
 
 
@@ -1015,6 +1017,7 @@ def make_preamble():
            'typedef int socklen_t;',
            'typedef unsigned short mode_t;',
            'typedef unsigned long off_t;',
+           'typedef struct va_list {} va_list;',
            ]
     types_out = []
     for ty in ALL_TYPES:
