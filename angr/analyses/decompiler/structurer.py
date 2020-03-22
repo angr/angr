@@ -660,14 +660,12 @@ class Structurer(Analysis):
         def _immediately_postdominates(node_a, node_b):
             """
             Does node A immediately post-dominate node B on the graph?
-
-            :param node_a:
-            :param node_b:
-            :return:
             """
-            if self._region.successors is None:
-                return False
+            if not self._region.successors:
+                # region does not have any successors.
+                return True
             if len(self._region.successors) != 1:
+                # TODO: this region has more than one successors. support this case.
                 return False
 
             inverted_graph = networkx.reverse(self._region.graph_with_successors)
