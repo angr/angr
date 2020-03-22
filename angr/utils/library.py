@@ -80,7 +80,7 @@ def cprotos2py(cprotos):
 
     >>> # parse the list of glibc C prototypes and output to a file
     >>> from angr.procedures.definitions import glibc
-    >>> with open("glibc_protos", "w") as f: f.write(glibc._libc_c_decls)
+    >>> with open("glibc_protos", "w") as f: f.write(cprotos2py(glibc._libc_c_decls))
 
     :param list cprotos:    A list of C prototype strings.
     :return:                A Python string.

@@ -210,6 +210,9 @@ class ArgSession:
     """
     A class to keep track of the state accumulated in laying parameters out into memory
     """
+
+    __slots__ = ('cc', 'real_args', 'fp_iter', 'int_iter', 'both_iter', )
+
     def __init__(self, cc):
         self.cc = cc
         self.real_args = None
@@ -217,16 +220,18 @@ class ArgSession:
         self.int_iter = None
         self.both_iter = None
 
-        if cc.args is None:
-            self.fp_iter = cc.fp_args
-            self.int_iter = cc.int_args
-            self.both_iter = cc.both_args
-        else:
+        # these iters should only be used if real_args are not set or real_args are intentionally ignored (e.g., when
+        # variadic arguments are used).
+        self.fp_iter = cc.fp_args
+        self.int_iter = cc.int_args
+        self.both_iter = cc.both_args
+
+        if cc.args is not None:
             self.real_args = iter(cc.args)
 
     # TODO: use safer errors than TypeError and ValueError
-    def next_arg(self, is_fp, size=None):
-        if self.real_args is not None:
+    def next_arg(self, is_fp, size=None, ignore_real_args=False):
+        if self.real_args is not None and not ignore_real_args:
             try:
                 arg = next(self.real_args)
                 if is_fp and self.cc.is_fp_arg(arg) is False:
@@ -510,8 +515,10 @@ class SimCC:
         you've customized this CC.
         """
         session = self.arg_session
-        if self.args is None:
-            arg_loc = [session.next_arg(False) for _ in range(index + 1)][-1]
+        if self.args is None or index >= len(self.args):
+            # self.args may not be provided, or args is incorrect or includes variadic arguments that we must get the
+            # proper argument according to the default calling convention
+            arg_loc = [session.next_arg(False, ignore_real_args=True) for _ in range(index + 1)][-1]
         else:
             arg_loc = self.args[index]
 
