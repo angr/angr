@@ -555,6 +555,7 @@ class Structurer(Analysis):
         traversed = set()
         loop_successor_addrs = set(succ.addr for succ in loop_successors)
         replaced_nodes = {}
+        outedges = [ ]
 
         while queue:
             node = queue[0]
@@ -620,6 +621,7 @@ class Structurer(Analysis):
             for dst in successors:
                 # sanity check
                 if dst in loop_successors:
+                    outedges.append((node, dst))
                     continue
                 if dst not in loop_subgraph and dst not in loop_successors:
                     # what's this node?
@@ -632,7 +634,11 @@ class Structurer(Analysis):
                 queue.append(dst)
 
         # Create a graph region and structure it
-        region = GraphRegion(loop_head, loop_region_graph)
+        loop_region_graph_with_successors = networkx.DiGraph(loop_region_graph)
+        for src, dst in outedges:
+            loop_region_graph_with_successors.add_edge(src, dst)
+        region = GraphRegion(loop_head, loop_region_graph, successors=loop_successors,
+                             graph_with_successors=loop_region_graph_with_successors)
         structurer = self.project.analyses.Structurer(region, condition_mapping=self._condition_mapping.copy())
         seq = structurer.result
 
@@ -654,13 +660,22 @@ class Structurer(Analysis):
         def _immediately_postdominates(node_a, node_b):
             """
             Does node A immediately post-dominate node B on the graph?
-
-            :param node_a:
-            :param node_b:
-            :return:
             """
-            inverted_graph = networkx.reverse(self._region.graph)
-            idoms = networkx.immediate_dominators(inverted_graph, node_a)
+            if not self._region.successors:
+                # region does not have any successors.
+                return True
+            if len(self._region.successors) != 1:
+                # TODO: this region has more than one successors. support this case.
+                return False
+
+            succ = next(iter(self._region.successors))
+            if succ not in self._region.graph_with_successors:
+                # the specific successor is not within the graph with successors
+                # in other words, the successor is not reachable. this region does not have successors.
+                return True
+
+            inverted_graph = networkx.reverse(self._region.graph_with_successors)
+            idoms = networkx.immediate_dominators(inverted_graph, succ)
             return idoms[node_b] is node_a
 
         edge_conditions = { }
@@ -1452,9 +1467,13 @@ class Structurer(Analysis):
         elif type(node) is MultiNode:
             if node.nodes:
                 stmt = self._remove_last_statement(node.nodes[-1])
+                if SequenceNode.test_empty_node(node.nodes[-1]):
+                    node.nodes = node.nodes[:-1]
         elif type(node) is SequenceNode:
             if node.nodes:
                 stmt = self._remove_last_statement(node.nodes[-1])
+                if SequenceNode.test_empty_node(node.nodes[-1]):
+                    node.nodes = node.nodes[:-1]
         else:
             raise NotImplementedError()
 
