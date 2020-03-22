@@ -1,5 +1,6 @@
 
 import logging
+from typing import Optional
 
 import networkx
 
@@ -41,9 +42,24 @@ class MultiNode:
 
 
 class GraphRegion:
-    def __init__(self, head, graph):
+    """
+    GraphRegion represents a region of nodes.
+
+    :ivar head:             The head of the region.
+    :ivar graph:            The region graph.
+    :ivar successors:       A set of successors of nodes in the graph. These successors do not belong to the current
+                            region.
+    :vartype successors:    Optional[set]
+    :ivar graph_with_successors:    The region graph that includes successor nodes.
+    """
+
+    __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', )
+
+    def __init__(self, head, graph, successors, graph_with_successors):
         self.head = head
         self.graph = graph
+        self.successors = successors
+        self.graph_with_successors = graph_with_successors
 
     def __repr__(self):
 
@@ -62,25 +78,43 @@ class GraphRegion:
 
     def recursive_copy(self):
 
+        nodes_map = { }
+        new_graph = self._recursive_copy(self.graph, nodes_map)
+
+        if self.graph_with_successors is not None:
+            new_graph_with_successors = self._recursive_copy(self.graph_with_successors, nodes_map)
+            successors = set(nodes_map[succ] for succ in self.successors)
+        else:
+            new_graph_with_successors = None
+            successors = None
+
+        return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors)
+
+    @staticmethod
+    def _recursive_copy(old_graph, nodes_map):
         new_graph = networkx.DiGraph()
 
-        nodes_map = { }
-        for node in self.graph.nodes():
-            if type(node) is GraphRegion:
-                new_node = node.recursive_copy()
-                nodes_map[node] = new_node
-            elif type(node) is MultiNode:
-                new_node = node.copy()
-                nodes_map[node] = new_node
+        # make copy of each node and add the mapping from old nodes to new nodes into nodes_map
+        for node in old_graph.nodes():
+            if node not in nodes_map:
+                if type(node) is GraphRegion:
+                    new_node = node.recursive_copy()
+                    nodes_map[node] = new_node
+                elif type(node) is MultiNode:
+                    new_node = node.copy()
+                    nodes_map[node] = new_node
+                else:
+                    new_node = node
+                    nodes_map[node] = new_node
+                new_graph.add_node(new_node)
             else:
-                new_node = node
-                nodes_map[node] = new_node
-            new_graph.add_node(new_node)
+                new_graph.add_node(nodes_map[node])
 
-        for src, dst in self.graph.edges():
+        # add all edges
+        for src, dst in old_graph.edges():
             new_graph.add_edge(nodes_map[src], nodes_map[dst])
 
-        return GraphRegion(nodes_map[self.head], new_graph)
+        return new_graph
 
     @property
     def addr(self):
@@ -123,28 +157,38 @@ class GraphRegion:
         if sub_region is self.head:
             self.head = replace_with
 
-        in_edges = list(self.graph.in_edges(sub_region))
-        out_edges = list(self.graph.out_edges(sub_region))
+        self._replace_node_in_graph(self.graph, sub_region, replace_with)
+        if self.graph_with_successors is not None:
+            self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
-        self.graph.remove_node(sub_region)
-        self.graph.add_node(replace_with)
+    @staticmethod
+    def _replace_node_in_graph(graph, node, replace_with):
+
+        in_edges = list(graph.in_edges(node))
+        out_edges = list(graph.out_edges(node))
+
+        graph.remove_node(node)
+        graph.add_node(replace_with)
 
         for src, _ in in_edges:
-            if src is sub_region:
-                self.graph.add_edge(replace_with, replace_with)
+            if src is node:
+                graph.add_edge(replace_with, replace_with)
             else:
-                self.graph.add_edge(src, replace_with)
+                graph.add_edge(src, replace_with)
 
         for _, dst in out_edges:
-            if dst is sub_region:
-                self.graph.add_edge(replace_with, replace_with)
+            if dst is node:
+                graph.add_edge(replace_with, replace_with)
             else:
-                self.graph.add_edge(replace_with, dst)
+                graph.add_edge(replace_with, dst)
 
-        assert sub_region not in self.graph
+        assert node not in graph
 
 
 class RegionIdentifier(Analysis):
+    """
+    Identifies regions within a function.
+    """
     def __init__(self, func, graph=None):
         self.function = func
         self._graph = graph if graph is not None else self.function.graph
@@ -392,7 +436,7 @@ class RegionIdentifier(Analysis):
                     if graph.in_degree(node) == 0 and not isinstance(node, GraphRegion):
                         subgraph = networkx.DiGraph()
                         subgraph.add_node(node)
-                        self._abstract_acyclic_region(graph, GraphRegion(node, subgraph), [])
+                        self._abstract_acyclic_region(graph, GraphRegion(node, subgraph, None, None), [])
                     continue
 
                 if df is None:
@@ -418,6 +462,7 @@ class RegionIdentifier(Analysis):
     def _compute_region(graph, node, frontier, include_frontier=False):
 
         subgraph = networkx.DiGraph()
+        frontier_edges = [ ]
         queue = [ node ]
         traversed = set()
 
@@ -430,15 +475,19 @@ class RegionIdentifier(Analysis):
 
             for succ in graph.successors(node_):
 
-                if include_frontier and node_ in frontier and succ in traversed:
-                    # if frontier nodes are included, do not keep traversing their successors
-                    # however, if it has an edge to an already traversed node, we should add that edge
-                    subgraph.add_edge(node_, succ)
+                if node_ in frontier and succ in traversed:
+                    if include_frontier:
+                        # if frontier nodes are included, do not keep traversing their successors
+                        # however, if it has an edge to an already traversed node, we should add that edge
+                        subgraph.add_edge(node_, succ)
+                    else:
+                        frontier_edges.append((node_, succ))
                     continue
 
                 if succ in frontier:
                     if not include_frontier:
                         # skip all frontier nodes
+                        frontier_edges.append((node_, succ))
                         continue
                 subgraph.add_edge(node_, succ)
                 if succ in traversed:
@@ -446,7 +495,10 @@ class RegionIdentifier(Analysis):
                 queue.append(succ)
 
         if subgraph.number_of_nodes() > 1:
-            return GraphRegion(node, subgraph)
+            subgraph_with_frontier = networkx.DiGraph(subgraph)
+            for src, dst in frontier_edges:
+                subgraph_with_frontier.add_edge(src, dst)
+            return GraphRegion(node, subgraph, frontier, subgraph_with_frontier)
         else:
             return None
 
@@ -472,10 +524,14 @@ class RegionIdentifier(Analysis):
     @staticmethod
     def _abstract_cyclic_region(graph, loop_nodes, head, normal_entries, abnormal_entries, normal_exit_node,
                                 abnormal_exit_nodes):
-        region = GraphRegion(head, networkx.DiGraph())
+        region = GraphRegion(head, None, None, None)
+
+        subgraph = networkx.DiGraph()
+        region_outedges = [ ]
+
         graph.add_node(region)
         for node in loop_nodes:
-            region.graph.add_node(node)
+            subgraph.add_node(node)
             for src, dst, data in graph.in_edges(node, data=True):
                 if src in normal_entries:
                     graph.add_edge(src, region, **data)
@@ -483,21 +539,30 @@ class RegionIdentifier(Analysis):
                     data['region_dst_node'] = dst
                     graph.add_edge(src, region, **data)
                 elif src in loop_nodes:
-                    region.graph.add_edge(src, dst, **data)
+                    subgraph.add_edge(src, dst, **data)
                 else:
                     assert 0
 
             for src, dst, data in graph.out_edges(node, data=True):
                 if dst in loop_nodes:
-                    region.graph.add_edge(src, dst, **data)
+                    subgraph.add_edge(src, dst, **data)
                 else:
                     if dst is normal_exit_node:
+                        region_outedges.append((node, dst))
                         graph.add_edge(region, dst, **data)
                     elif dst in abnormal_exit_nodes:
+                        region_outedges.append((node, dst))
                         data['region_src_node'] = src
                         graph.add_edge(region, dst, **data)
                     else:
                         assert 0
+
+        subgraph_with_exits = networkx.DiGraph(subgraph)
+        for src, dst in region_outedges:
+            subgraph_with_exits.add_edge(src, dst)
+        region.graph = subgraph
+        region.graph_with_successors = subgraph_with_exits
+        region.successors = [normal_exit_node] + list(abnormal_exit_nodes)
 
         for node in loop_nodes:
             graph.remove_node(node)

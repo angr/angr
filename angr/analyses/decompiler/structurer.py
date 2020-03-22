@@ -555,6 +555,7 @@ class Structurer(Analysis):
         traversed = set()
         loop_successor_addrs = set(succ.addr for succ in loop_successors)
         replaced_nodes = {}
+        outedges = [ ]
 
         while queue:
             node = queue[0]
@@ -620,6 +621,7 @@ class Structurer(Analysis):
             for dst in successors:
                 # sanity check
                 if dst in loop_successors:
+                    outedges.append((node, dst))
                     continue
                 if dst not in loop_subgraph and dst not in loop_successors:
                     # what's this node?
@@ -632,7 +634,11 @@ class Structurer(Analysis):
                 queue.append(dst)
 
         # Create a graph region and structure it
-        region = GraphRegion(loop_head, loop_region_graph)
+        loop_region_graph_with_successors = networkx.DiGraph(loop_region_graph)
+        for src, dst in outedges:
+            loop_region_graph_with_successors.add_edge(src, dst)
+        region = GraphRegion(loop_head, loop_region_graph, successors=loop_successors,
+                             graph_with_successors=loop_region_graph_with_successors)
         structurer = self.project.analyses.Structurer(region, condition_mapping=self._condition_mapping.copy())
         seq = structurer.result
 
@@ -659,8 +665,13 @@ class Structurer(Analysis):
             :param node_b:
             :return:
             """
-            inverted_graph = networkx.reverse(self._region.graph)
-            idoms = networkx.immediate_dominators(inverted_graph, node_a)
+            if self._region.successors is None:
+                return False
+            if len(self._region.successors) != 1:
+                return False
+
+            inverted_graph = networkx.reverse(self._region.graph_with_successors)
+            idoms = networkx.immediate_dominators(inverted_graph, next(iter(self._region.successors)))
             return idoms[node_b] is node_a
 
         edge_conditions = { }
