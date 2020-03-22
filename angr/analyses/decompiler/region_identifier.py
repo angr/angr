@@ -49,13 +49,12 @@ class GraphRegion:
     :ivar graph:            The region graph.
     :ivar successors:       A set of successors of nodes in the graph. These successors do not belong to the current
                             region.
-    :vartype successors:    Optional[set]
     :ivar graph_with_successors:    The region graph that includes successor nodes.
     """
 
     __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', )
 
-    def __init__(self, head, graph, successors, graph_with_successors):
+    def __init__(self, head, graph, successors: Optional[set], graph_with_successors):
         self.head = head
         self.graph = graph
         self.successors = successors
@@ -288,11 +287,11 @@ class RegionIdentifier(Analysis):
                 break
 
     def _find_loop_headers(self, graph):
-        return set([t for _,t in dfs_back_edges(graph, self._start_node)])
+        return { t for _,t in dfs_back_edges(graph, self._start_node) }
 
     def _find_initial_loop_nodes(self, graph, head):
         # TODO optimize
-        latching_nodes = set([s for s,t in dfs_back_edges(graph, self._start_node) if t == head])
+        latching_nodes = { s for s,t in dfs_back_edges(graph, self._start_node) if t == head }
         loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
         nodes = set(loop_subgraph.nodes())
         return nodes
@@ -382,10 +381,10 @@ class RegionIdentifier(Analysis):
                 l.debug("Initial loop nodes %s", self._dbg_block_list(initial_loop_nodes))
 
                 # Make sure there is no other loop contained in the current loop
-                if set([ n for n in initial_loop_nodes if n.addr != node.addr ]).intersection(self._loop_headers):
+                if { n for n in initial_loop_nodes if n.addr != node.addr }.intersection(self._loop_headers):
                     continue
 
-                normal_entries = set([n for n in graph.predecessors(node) if n not in initial_loop_nodes])
+                normal_entries = { n for n in graph.predecessors(node) if n not in initial_loop_nodes }
                 abnormal_entries = set()
                 for n in initial_loop_nodes:
                     if n == node:
@@ -447,9 +446,9 @@ class RegionIdentifier(Analysis):
                     region = self._compute_region(graph, node, frontier)
                     if region is None:
                         continue
-                    else:
-                        self._abstract_acyclic_region(graph, region, frontier)
-                        break
+
+                    self._abstract_acyclic_region(graph, region, frontier)
+                    break
                 else:
                     continue
                     #raise NotImplementedError()
@@ -595,8 +594,8 @@ class RegionIdentifier(Analysis):
 
     def _merge_nodes(self, graph, node_a, node_b, force_multinode=False):  # pylint:disable=no-self-use
 
-        in_edges = [ (src, dst, data) for (src, dst, data) in graph.in_edges(node_a, data=True) ]
-        out_edges = [ (src, dst, data) for (src, dst, data) in graph.out_edges(node_b, data=True) ]
+        in_edges = list(graph.in_edges(node_a, data=True))
+        out_edges = list(graph.out_edges(node_b, data=True))
 
         if not force_multinode and len(in_edges) <= 1 and len(out_edges) <= 1:
             # it forms a region by itself :-)
