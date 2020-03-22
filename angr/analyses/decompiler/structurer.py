@@ -1467,9 +1467,13 @@ class Structurer(Analysis):
         elif type(node) is MultiNode:
             if node.nodes:
                 stmt = self._remove_last_statement(node.nodes[-1])
+                if SequenceNode.test_empty_node(node.nodes[-1]):
+                    node.nodes = node.nodes[:-1]
         elif type(node) is SequenceNode:
             if node.nodes:
                 stmt = self._remove_last_statement(node.nodes[-1])
+                if SequenceNode.test_empty_node(node.nodes[-1]):
+                    node.nodes = node.nodes[:-1]
         else:
             raise NotImplementedError()
 
