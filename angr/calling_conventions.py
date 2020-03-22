@@ -207,12 +207,12 @@ class SimComboArg(SimFunctionArgument):
 
 
 class ArgSession:
-
-    __slots__ = ('cc', 'real_args', 'fp_iter', 'int_iter', 'both_iter', )
-
     """
     A class to keep track of the state accumulated in laying parameters out into memory
     """
+
+    __slots__ = ('cc', 'real_args', 'fp_iter', 'int_iter', 'both_iter', )
+
     def __init__(self, cc):
         self.cc = cc
         self.real_args = None
