@@ -68,6 +68,11 @@ def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
     :rtype:                         networkx.DiGraph
     """
 
+    graph = networkx.DiGraph(graph)  # make a copy
+    for pred in list(graph.predecessors(source)):
+        # make sure we cannot go from any other node to the source node
+        graph.remove_edge(pred, source)
+
     g0 = networkx.DiGraph()
 
     if source not in graph or any(node not in graph for node in frontier):
