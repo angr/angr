@@ -95,7 +95,6 @@ class DefUseGraph:
 
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
 
-
     def top_predecessors(self, definition):
         """
         Recover the "entrypoint definitions" flowing into a given definition.
