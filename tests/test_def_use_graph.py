@@ -14,7 +14,7 @@ _PAST_N = set()
 
 def unique_randrange(range_):
     n = randrange(range_)
-    while n not in _PAST_N:
+    while n in _PAST_N:
         n = randrange(range_)
     _PAST_N.add(n)
     return n
