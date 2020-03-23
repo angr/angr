@@ -360,6 +360,23 @@ def test_cfg_switches():
     for arch in arches:
         yield cfg_fast_edges_check, arch, filename, edges[arch]
 
+
+def test_cfg_about_time():
+
+    # This is to test the correctness of the PLT stub removal in CFGBase
+    proj = angr.Project(os.path.join(test_location, "x86_64", "about_time"), auto_load_libs=False)
+    cfg = proj.analyses.CFG()
+
+    # a PLT stub that should be removed
+    nose.tools.assert_not_in(0x401026, cfg.kb.functions)
+    # a PLT stub that should be removed
+    nose.tools.assert_not_in(0x4010a6, cfg.kb.functions)
+    # a PLT stub that should be removed
+    nose.tools.assert_not_in(0x40115e, cfg.kb.functions)
+    # the start function that should not be removed
+    nose.tools.assert_in(proj.entry, cfg.kb.functions)
+
+
 def test_segment_list_0():
     seg_list = SegmentList()
     seg_list.occupy(0, 1, "code")

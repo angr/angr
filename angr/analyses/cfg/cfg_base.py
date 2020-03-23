@@ -1362,10 +1362,33 @@ class CFGBase(Analysis):
 
         # Remove all stubs after PLT entries
         if not is_arm_arch(self.project.arch):
-            for fn in self.kb.functions.values():
+            # we assume all PLT entries are all located at the same region. the moment we come across the end of it, we
+            # stop looping.
+            met_plts = False
+            non_plt_funcs = 0
+            sorted_func_addrs = sorted(self.kb.functions.keys())
+            for fn_addr in sorted_func_addrs:
+                fn = self.kb.functions.get_by_addr(fn_addr)
                 addr = fn.addr - (fn.addr % 16)
-                if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
+                if (addr != fn.addr and
+                        addr in self.kb.functions and
+                        self.kb.functions[addr].is_plt and
+                        len(fn.block_addrs_set) == 1 and
+                        (self._is_noop_block(self.project.arch, next(fn.blocks)) or  # alignments
+                         (len(next(fn.blocks).vex.instruction_addresses) <= 2 and
+                          next(fn.blocks).vex.jumpkind == 'Ijk_Boring')  # push ordinal; jump _resolve
+                        )
+                ):
                     to_remove.add(fn.addr)
+                    continue
+
+                if fn.is_plt:
+                    met_plts = True
+                    non_plt_funcs = 0
+                if met_plts and not fn.is_plt:
+                    non_plt_funcs += 1
+                if non_plt_funcs >= 2:
+                    break
 
         # remove empty functions
         for func in self.kb.functions.values():
