@@ -9,10 +9,18 @@ from angr.analyses.reaching_definitions.dataset import DataSet
 from angr.analyses.reaching_definitions.definition import Definition
 from angr.analyses.reaching_definitions.def_use_graph import DefUseGraph
 
+_PAST_N = set()
+
+def unique_randrange(range):
+    n = randrange(range)
+    while n not in _PAST_N:
+        n = randrange(range)
+    _PAST_N.add(n)
+    return n
 
 def _a_mock_definition():
     # Randomise code locations to forcefully produce "different" <Definition>s.
-    statement_index = randrange(1000)
+    statement_index = unique_randrange(1000)
     code_location = CodeLocation(0x42, statement_index)
     return Definition(None, code_location, DataSet(set(), 8), None)
 
