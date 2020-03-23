@@ -611,8 +611,10 @@ class Structurer(Analysis):
 
                         preds = list(loop_region_graph.predecessors(node))
                         loop_region_graph.remove_node(node)
-                        for pred in preds:
-                            loop_region_graph.add_edge(pred, new_node)
+                        loop_region_graph.add_node(new_node)
+                        if new_node is not loop_head:
+                            for pred in preds:
+                                loop_region_graph.add_edge(pred, new_node)
                     else:
                         loop_region_graph.add_edge(node, new_node)
                     # update node
@@ -627,7 +629,7 @@ class Structurer(Analysis):
                     # what's this node?
                     l.error("Found a node that belongs to neither loop body nor loop successors. Something is wrong.")
                     # raise Exception()
-                if dst is not loop_head:
+                if replaced_nodes.get(dst, dst) is not loop_head:
                     loop_region_graph.add_edge(node, replaced_nodes.get(dst, dst))
                 if dst in traversed or dst in queue:
                     continue
