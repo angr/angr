@@ -11,12 +11,14 @@ from angr.analyses.reaching_definitions.def_use_graph import DefUseGraph
 
 _PAST_N = set()
 
-def unique_randrange(range):
-    n = randrange(range)
+
+def unique_randrange(range_):
+    n = randrange(range_)
     while n not in _PAST_N:
-        n = randrange(range)
+        n = randrange(range_)
     _PAST_N.add(n)
     return n
+
 
 def _a_mock_definition():
     # Randomise code locations to forcefully produce "different" <Definition>s.
