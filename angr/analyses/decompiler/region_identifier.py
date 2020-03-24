@@ -558,7 +558,11 @@ class RegionIdentifier(Analysis):
             subgraph_with_exits.add_edge(src, dst)
         region.graph = subgraph
         region.graph_with_successors = subgraph_with_exits
-        region.successors = [normal_exit_node] + list(abnormal_exit_nodes)
+        if normal_exit_node is not None:
+            region.successors = [normal_exit_node]
+        else:
+            region.successors = [ ]
+        region.successors += list(abnormal_exit_nodes)
 
         for node in loop_nodes:
             graph.remove_node(node)
