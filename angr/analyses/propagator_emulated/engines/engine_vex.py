@@ -14,4 +14,4 @@ class PropagatorEmulatedHeavyVEXMixin(HeavyVEXMixin):
             const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
             code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['block_id'])
             self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(const_class(self.state.solver.eval(result[0]))))
-        return result
+        return self._instrument_vex_expr(result)
