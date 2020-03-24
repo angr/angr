@@ -37,7 +37,7 @@ class Function(Serializable):
                  '_callout_sites', '_endpoints', '_call_sites', '_retout_sites', 'addr', '_function_manager',
                  'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'binary_name',
                  '_argument_registers', '_argument_stack_variables',
-                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', '_prototype', '_returning',
+                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', '_cc', '_prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
                  '_local_block_addrs', 'info', 'tags', 'alignment',
@@ -92,9 +92,9 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention = None #type: Optional[SimCC]
+        self._cc = None  # type: Optional[SimCC]
         # Function prototype
-        self._prototype = None # type: Optional[SimTypeFunction]
+        self._prototype = None  # type: Optional[SimTypeFunction]
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
         self.prepared_registers = set()
@@ -320,24 +320,63 @@ class Function(Serializable):
         return [const.value for block in self.blocks for const in block.vex.constants]
 
     @property
+    def calling_convention(self):
+        """
+        Get the calling convention of this function.
+
+        :return:    The calling convention of this function.
+        :rtype:     Optional[SimCC]
+        """
+        return self._cc
+
+    @calling_convention.setter
+    def calling_convention(self, v):
+        """
+        Set the calling convention of this function. If the new cc has a function prototype, we will clear
+        self._prototype. Otherwise, if self.prototype is set, we will use it to update the function prototype of the new
+        cc, and then clear self._prototype. A warning message will be generated in either case.
+
+        :param Optional[SimCC] v:   The new calling convention.
+        :return:                    None
+        """
+        self._cc = v
+
+        if self._cc is not None:
+            if self._cc.func_ty is None and self._prototype is not None:
+                l.warning("The new calling convention for %r does not have a prototype associated. Using the existing "
+                          "function prototype to update the new calling convention. The existing function prototype "
+                          "will be removed.", self)
+                self._cc.func_ty = self._prototype
+                self._prototype = None
+            elif self._cc.func_ty is not None and self._prototype is not None:
+                l.warning("The new calling convention for %r already has a prototype associated. The existing function "
+                          "prototype will be removed.", self)
+                self._prototype = None
+
+    @property
     def prototype(self):
         """
-        :return Optional[SimTypeFunction]:
+        Get the prototype of this function. We prioritize the function prototype that is set in self.calling_convention.
+
+        :return:    The function prototype.
+        :rtype:     Optional[SimTypeFunction]
         """
-        if self.calling_convention:
-            return self.calling_convention.func_ty
+        if self._cc:
+            return self._cc.func_ty
         else:
             return self._prototype
 
     @prototype.setter
     def prototype(self, proto):
         """
-        :param Optional[SimTypeFunction] proto:
-        :return:
+        Set a new prototype to this function. If a calling convention is already set to this function, the new prototype
+        will be set to this calling convention instead.
+
+        :param Optional[SimTypeFunction] proto: The new prototype.
+        :return:    None
         """
-        if self.calling_convention:
-            self.calling_convention.func_ty = proto.with_arch(self.project.arch) if proto else None
-            logging.warning("Changing function prototype while calling convention is set, please use .calling_convention.func_ty")
+        if self._cc:
+            self._cc.func_ty = proto.with_arch(self.project.arch) if proto else None
         else:
             self._prototype = proto
 
