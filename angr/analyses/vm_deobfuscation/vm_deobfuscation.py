@@ -32,6 +32,7 @@ class VMDeobfuscation(Analysis):
         # start_addr = 0x4006d1
         start_addr = start_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr)
+        self.vm_instruction_addrs = cfg.vm_instruction_addresses
 
         folder_name = os.path.dirname(self.project.filename)
 
@@ -49,21 +50,21 @@ class VMDeobfuscation(Analysis):
         initial_cfg = cfg
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         print("Doing constant propagation")
-        new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr)
+        new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         self.draw_graph(new_cfg, os.path.join(folder_name, "first_dce_result.svg"))
         # DCE second time
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
 
-        self.simplifications(new_cfg, proj, start_addr=start_addr)
+        self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -137,11 +138,10 @@ class VMDeobfuscation(Analysis):
                                         keep_state=True,
                                         state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                         iropt_level=0,)
-
         return cfg, proj
 
     ####### Constant Propagation
-    def constant_propagation(self, cfg, proj, start_addr):
+    def constant_propagation(self, cfg, proj, start_addr, vm_vpc_addr):
         old_graph = cfg.graph
         new_model = self.new_model_graph(old_graph, proj, "temporary1")
         new_cfg_graph = new_model.graph
@@ -177,10 +177,15 @@ class VMDeobfuscation(Analysis):
         new_model = self.new_model_graph(new_cfg_graph, proj, "temporary2")
 
         ## Setting the input state for the first node(need to automate this)
+        initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                       mode='fastpath',
+                                                       add_options=angr.sim_options.refs | {
+                                                       angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
 
         #Run the emulation on the new graph to update the state attributes
-        new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
+        new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=False, max_iterations=1,
+                                            vm_vpc_addr=vm_vpc_addr)
 
         ### Returning a new CFGEmulated object with the updated graph
         return new_cfg
@@ -236,7 +241,7 @@ class VMDeobfuscation(Analysis):
         new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
         return new_cfg
 
-    def simplifications(self, cfg, proj, start_addr):
+    def simplifications(self, cfg, proj, start_addr, vm_vpc_addr):
         if start_addr == None:
             main = proj.loader.main_object.get_symbol("main")
             start_addr = main.rebased_addr
@@ -262,11 +267,11 @@ class VMDeobfuscation(Analysis):
 
         simplified_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGEmulated(model=simplified_new_model, keep_state=True, iropt_level=0,
-                                            resolve_indirect_jumps=True, max_iterations=1)
+                                            resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         return new_cfg
 
     ####### Dead Cod Elimination
-    def dead_code_elimination(self, cfg, proj, start_addr):
+    def dead_code_elimination(self, cfg, proj, start_addr, vm_vpc_addr):
         print("Performing dead code elimination")
         if start_addr == None:
             main = proj.loader.main_object.get_symbol("main")
@@ -351,7 +356,7 @@ class VMDeobfuscation(Analysis):
                                                        add_options=angr.sim_options.refs | {
                                                        angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
+        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         return new_cfg
 
     ### Draw the graph with vex statements
