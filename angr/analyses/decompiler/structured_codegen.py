@@ -1175,12 +1175,13 @@ class StructuredCodeGenerator(Analysis):
             target_func = None
 
         args = [ ]
-        if target_func is not None and target_func.prototype is not None and stmt.args is not None:
+        if target_func is not None and stmt.args is not None:
             for i, arg in enumerate(stmt.args):
-                if i < len(target_func.prototype.args):
+                if target_func.prototype is not None and i < len(target_func.prototype.args):
                     type_ = target_func.prototype.args[i].with_arch(self.project.arch)
                 else:
                     type_ = None
+
                 reference_values = { }
                 if isinstance(arg, Expr.Const):
                     if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
@@ -1192,6 +1193,15 @@ class StructuredCodeGenerator(Analysis):
                     elif isinstance(type_, SimTypeInt):
                         # int
                         reference_values[type_] = arg.value
+                    elif type_ is None:
+                        # we don't know the type of this argument
+                        # pure guessing: is it possible that it's a string?
+                        if arg.bits == self.project.arch.bits and \
+                                arg.value > 0x10000 and \
+                                arg.value in self._cfg.memory_data and \
+                                self._cfg.memory_data[arg.value].sort == 'string':
+                            type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                            reference_values[type_] = self._cfg.memory_data[arg.value]
                     new_arg = CConstant(arg, type_, reference_values if reference_values else None)
                 else:
                     new_arg = self._handle(arg)
