@@ -119,7 +119,8 @@ class EmptyNodeRemover:
     def _handle_Default(node, **kwargs):
         return node
 
-    def _handle_Block(self, block, **kwargs):
+    @staticmethod
+    def _handle_Block(block, **kwargs):
         if not block.statements:
             return None
         return block
