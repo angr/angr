@@ -1074,6 +1074,8 @@ class Structurer(Analysis):
             subexprs_0 = list(self._get_ast_subexprs(rcond_0))
 
             for common_subexpr in subexprs_0:
+                if claripy.is_true(common_subexpr):
+                    continue
                 candidates = self._nodes_guarded_by_common_subexpr(seq, common_subexpr, i + 1)
                 if candidates:
                     candidates.insert(0,
