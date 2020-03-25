@@ -51,36 +51,43 @@ class CallSiteMaker(Analysis):
             func.find_declaration()
 
         args = [ ]
+        arg_locs = None
 
-        if func.prototype is not None:
-            # Make arguments
-            if func.calling_convention is None:
-                l.warning('%s has an unknown calling convention.', repr(func))
-            else:
+        if func.calling_convention is None:
+            l.warning('%s has an unknown calling convention.', repr(func))
+        else:
+            if func.prototype is not None:
+                # Make arguments
                 arg_locs = func.calling_convention.arg_locs()
-                for arg_loc in arg_locs:
-                    if type(arg_loc) is SimRegArg:
-                        size = arg_loc.size
-                        offset = arg_loc._fix_offset(None, size, arch=self.project.arch)
+            else:
+                # FIXME: We are assuming no floating-point arguments
+                if func.calling_convention.args is not None:
+                    arg_locs = func.calling_convention.arg_locs([False] * len(func.calling_convention.args))
 
-                        the_arg = self._resolve_register_argument(last_stmt, arg_loc)
+        if arg_locs is not None:
+            for arg_loc in arg_locs:
+                if type(arg_loc) is SimRegArg:
+                    size = arg_loc.size
+                    offset = arg_loc._fix_offset(None, size, arch=self.project.arch)
 
-                        if the_arg is not None:
-                            args.append(the_arg)
-                        else:
-                            # Reaching definitions are not available. Create a register expression instead.
-                            args.append(Expr.Register(None, None, offset, size * 8, reg_name=arg_loc.reg_name))
-                    elif type(arg_loc) is SimStackArg:
+                    the_arg = self._resolve_register_argument(last_stmt, arg_loc)
 
-                        the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
-
-                        if the_arg is not None:
-                            args.append(the_arg)
-                        else:
-                            args.append(None)
-
+                    if the_arg is not None:
+                        args.append(the_arg)
                     else:
-                        raise NotImplementedError('Not implemented yet.')
+                        # Reaching definitions are not available. Create a register expression instead.
+                        args.append(Expr.Register(None, None, offset, size * 8, reg_name=arg_loc.reg_name))
+                elif type(arg_loc) is SimStackArg:
+
+                    the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
+
+                    if the_arg is not None:
+                        args.append(the_arg)
+                    else:
+                        args.append(None)
+
+                else:
+                    raise NotImplementedError('Not implemented yet.')
 
         new_stmts = self.block.statements[:-1]
 
