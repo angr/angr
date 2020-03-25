@@ -5,7 +5,7 @@ from typing import Optional
 import networkx
 
 from .. import Analysis, register_analysis
-from ...utils.graph import dfs_back_edges, subgraph_between_nodes
+from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
 
 l = logging.getLogger(name=__name__)
 
@@ -290,18 +290,6 @@ class RegionIdentifier(Analysis):
         nodes = set(loop_subgraph.nodes())
         return nodes
 
-    @staticmethod
-    def _dominates(idom, dominator_node, node):
-        n = node
-        while n:
-            if n == dominator_node:
-                return True
-            if n in idom and n != idom[n]:
-                n = idom[n]
-            else:
-                n = None
-        return False
-
     def _refine_loop(self, graph, head, initial_loop_nodes, initial_exit_nodes):
         refined_loop_nodes = initial_loop_nodes.copy()
         refined_exit_nodes = initial_exit_nodes.copy()
@@ -312,8 +300,7 @@ class RegionIdentifier(Analysis):
         while len(refined_exit_nodes) > 1 and len(new_exit_nodes) != 0:
             new_exit_nodes = set()
             for n in list(refined_exit_nodes):
-                if all(pred in refined_loop_nodes for pred in graph.predecessors(n)) and \
-                        self._dominates(idom, head, n):
+                if all(pred in refined_loop_nodes for pred in graph.predecessors(n)) and dominates(idom, head, n):
                     refined_loop_nodes.add(n)
                     refined_exit_nodes.remove(n)
                     for u in (set(graph.successors(n)) - refined_loop_nodes):

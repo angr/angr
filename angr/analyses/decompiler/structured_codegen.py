@@ -1065,6 +1065,9 @@ class StructuredCodeGenerator(Analysis):
         for node in seq.nodes:
             lines.append(self._handle(node))
 
+        if not lines:
+            return CStatements([])
+
         return CStatements(lines) if len(lines) > 1 else lines[0]
 
     def _handle_Loop(self, loop_node):
