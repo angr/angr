@@ -329,15 +329,15 @@ class Structurer(Analysis):
         # make the sequence node
         seq = self._make_sequence()
 
-        # remove conditional jumps
-        seq = self._remove_conditional_jumps(seq)
-        seq.remove_empty_node()
-
         self._new_sequences.append(seq)
 
         while self._new_sequences:
             seq_ = self._new_sequences.pop(0)
             self._structure_sequence(seq_)
+
+        # remove conditional jumps
+        seq = self._remove_conditional_jumps(seq)
+        seq.remove_empty_node()
 
         self._make_condition_nodes(seq)
 

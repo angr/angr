@@ -39,10 +39,10 @@ class SequenceWalker:
             raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
         return None
 
-    def _handle_Code(self, node, parent=None, index=0):
+    def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, parent=node, index=0)
 
-    def _handle_Sequence(self, node, parent=None, index=0):
+    def _handle_Sequence(self, node, **kwargs):
         i = 0
         while i < len(node.nodes):
             node_ = node.nodes[i]
@@ -50,7 +50,7 @@ class SequenceWalker:
             i += 1
         return None
 
-    def _handle_MultiNode(self, node, parent=None, index=0):
+    def _handle_MultiNode(self, node, **kwargs):
         i = 0
         while i < len(node.nodes):
             node_ = node.nodes[i]
@@ -58,7 +58,7 @@ class SequenceWalker:
             i += 1
         return None
 
-    def _handle_SwitchCase(self, node, parent=None, index=0):
+    def _handle_SwitchCase(self, node, **kwargs):
         self._handle(node.switch_expr, parent=node, label='switch_expr')
         for idx, case in node.cases.items():
             self._handle(case, parent=node, index=idx, label='case')
@@ -66,7 +66,7 @@ class SequenceWalker:
             self._handle(node.default_node, parent=node, label='default')
         return None
 
-    def _handle_Condition(self, node, parent=None, index=0):
+    def _handle_Condition(self, node, **kwargs):
         self._handle(node.true_node, parent=node, index=0)
         self._handle(node.false_node, parent=node, index=1)
         return None
