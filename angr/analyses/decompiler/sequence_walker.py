@@ -1,7 +1,9 @@
 # pylint:disable=unused-argument,useless-return
 
+
 from ...errors import UnsupportedNodeTypeError
-from .structurer import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, MultiNode
+from .region_identifier import MultiNode
+from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode
 
 
 class SequenceWalker:
