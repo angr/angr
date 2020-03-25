@@ -109,6 +109,18 @@ def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
 
     return g0
 
+
+def dominates(idom, dominator_node, node):
+    n = node
+    while n:
+        if n == dominator_node:
+            return True
+        if n in idom and n != idom[n]:
+            n = idom[n]
+        else:
+            n = None
+    return False
+
 #
 # Dominance frontier
 #
