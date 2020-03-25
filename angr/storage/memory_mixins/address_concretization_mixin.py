@@ -313,11 +313,11 @@ class AddressConcretizationMixin(MemoryMixin):
             raise SimMemoryAddressError("Cannot unmap a region for a symbolic address")
         return super().unmap_region(addr, length, **kwargs)
 
-    def concrete_load(self, addr, *args, **kwargs):
+    def concrete_load(self, addr, size, *args, **kwargs):
         if type(addr) is int:
             pass
         elif getattr(addr, 'op', None) == 'BVV':
             addr = addr.args[0]
         else:
             raise SimMemoryAddressError("Cannot unmap a region for a symbolic address")
-        return super().unmap_region(addr, *args, **kwargs)
+        return super().concrete_load(addr, size, *args, **kwargs)

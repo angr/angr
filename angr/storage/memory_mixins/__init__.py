@@ -102,6 +102,7 @@ from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
 from .address_concretization_mixin import AddressConcretizationMixin
 from .bvv_conversion_mixin import DataNormalizationMixin
 from .clouseau_mixin import InspectMixinHigh
+from .conditional_store_mixin import ConditionalStoreMixin
 from .default_filler_mixin import DefaultFillerMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
@@ -110,7 +111,7 @@ from .smart_find_mixin import SmartFindMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
-from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin
+from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
@@ -129,12 +130,13 @@ class DefaultMemory(
         AddressConcretizationMixin,
         #InspectMixinLow,
         ActionsMixinLow,
+        ConditionalStoreMixin,
         # -----
         StackAllocationMixin,
         ClemoryBackerMixin,
         DictBackerMixin,
         PrivilegedPagingMixin,
-        ListPagesMixin,
+        UltraPagesMixin,
         DefaultFillerMixin,
         PagedMemoryMixin,
         ):
