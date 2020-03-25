@@ -1,4 +1,4 @@
-
+# pylint:disable=unused-argument
 import claripy
 import ailment
 
@@ -45,8 +45,8 @@ class EmptyNodeRemover:
     def _handle_Sequence(self, node, **kwargs):
 
         new_nodes = [ ]
-        for node in node.nodes:
-            new_node = self._walker._handle(node)
+        for node_ in node.nodes:
+            new_node = self._walker._handle(node_)
             if new_node is not None:
                 if isinstance(new_node, SequenceNode):
                     new_nodes.extend(new_node.nodes)
@@ -66,7 +66,7 @@ class EmptyNodeRemover:
     def _handle_Condition(self, node, **kwargs):
 
         # delayed import
-        from .structurer import Structurer
+        from .structurer import Structurer  # pylint:disable=import-outside-toplevel
 
         true_node = self._walker._handle(node.true_node)
         false_node = self._walker._handle(node.false_node)
@@ -115,7 +115,8 @@ class EmptyNodeRemover:
                               addr=node.addr
                               )
 
-    def _handle_Default(self, node, **kwargs):
+    @staticmethod
+    def _handle_Default(node, **kwargs):
         return node
 
     def _handle_Block(self, block, **kwargs):
