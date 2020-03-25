@@ -582,58 +582,27 @@ class Structurer(Analysis):
 
             successors = list(graph.successors(node))  # successors are all inside the current region
 
-            last_stmt = self._get_last_statement(node)
-            real_successor_addrs = self._extract_jump_targets(last_stmt)
+            try:
+                last_stmt = self._get_last_statement(node)
+            except EmptyBlockNotice:
+                # this block is empty
+                last_stmt = None
 
-            if any(succ_addr in loop_successor_addrs for succ_addr in real_successor_addrs):
-                # This node has an exit to the outside of the loop
-                # add a break or a conditional break node
-                new_node = None
-                if type(last_stmt) is ailment.Stmt.Jump:
-                    # shrink the block to remove the last statement
-                    self._remove_last_statement(node)
-                    # add a break
-                    new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
-                elif type(last_stmt) is ailment.Stmt.ConditionalJump:
-                    # add a conditional break
-                    if last_stmt.true_target.value in loop_successor_addrs and \
-                                last_stmt.false_target.value in loop_nodes:
-                        cond = last_stmt.condition
-                        target = last_stmt.true_target.value
-                    elif last_stmt.false_target.value in loop_successor_addrs and \
-                                last_stmt.true_target.value in loop_nodes:
-                        cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
-                        target = last_stmt.false_target.value
-                    else:
-                        l.warning("I'm not sure which branch is jumping out of the loop...")
-                        raise Exception()
-                    # remove the last statement from the node
-                    self._remove_last_statement(node)
-                    new_node = ConditionalBreakNode(
-                        last_stmt.ins_addr,
-                        self._claripy_ast_from_ail_condition(cond),
-                        target
-                    )
+            if last_stmt is not None:
+                real_successor_addrs = self._extract_jump_targets(last_stmt)
 
-                if new_node is not None:
-                    # special checks if node goes empty
-                    if isinstance(node, ailment.Block) and not node.statements:
-                        # new_node will replace node
-                        new_node.addr = node.addr
-                        replaced_nodes[node] = new_node
-                        if loop_head is node:
-                            loop_head = new_node
-
-                        preds = list(loop_region_graph.predecessors(node))
-                        loop_region_graph.remove_node(node)
-                        loop_region_graph.add_node(new_node)
-                        if new_node is not loop_head:
-                            for pred in preds:
-                                loop_region_graph.add_edge(pred, new_node)
-                    else:
-                        loop_region_graph.add_edge(node, new_node)
-                    # update node
-                    node = new_node
+                if any(succ_addr in loop_successor_addrs for succ_addr in real_successor_addrs):
+                    # This node has an exit to the outside of the loop
+                    # add a break or a conditional break node
+                    new_node, new_loop_head = self._loop_create_break_node(node, last_stmt, loop_region_graph,
+                                                                           loop_head, loop_nodes,
+                                                                           loop_successor_addrs, replaced_nodes)
+                    if new_node is not None:
+                        # replace node
+                        node = new_node
+                    if new_loop_head is not None:
+                        # replace the loop head
+                        loop_head = new_loop_head
 
             for dst in successors:
                 # sanity check
@@ -673,6 +642,60 @@ class Structurer(Analysis):
         seq.remove_empty_node()
 
         return seq
+
+    def _loop_create_break_node(self, node, last_stmt, loop_region_graph, loop_head, loop_nodes, loop_successor_addrs,
+                                replaced_nodes):
+
+        # This node has an exit to the outside of the loop
+        # add a break or a conditional break node
+        new_node = None
+        new_loop_head = None
+
+        if type(last_stmt) is ailment.Stmt.Jump:
+            # shrink the block to remove the last statement
+            self._remove_last_statement(node)
+            # add a break
+            new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
+        elif type(last_stmt) is ailment.Stmt.ConditionalJump:
+            # add a conditional break
+            if last_stmt.true_target.value in loop_successor_addrs and \
+                    last_stmt.false_target.value in loop_nodes:
+                cond = last_stmt.condition
+                target = last_stmt.true_target.value
+            elif last_stmt.false_target.value in loop_successor_addrs and \
+                    last_stmt.true_target.value in loop_nodes:
+                cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
+                target = last_stmt.false_target.value
+            else:
+                l.warning("I'm not sure which branch is jumping out of the loop...")
+                raise Exception()
+            # remove the last statement from the node
+            self._remove_last_statement(node)
+            new_node = ConditionalBreakNode(
+                last_stmt.ins_addr,
+                self._claripy_ast_from_ail_condition(cond),
+                target
+            )
+
+        if new_node is not None:
+            # special checks if node goes empty
+            if isinstance(node, ailment.Block) and not node.statements:
+                # new_node will replace node
+                new_node.addr = node.addr
+                replaced_nodes[node] = new_node
+                if loop_head is node:
+                    new_loop_head = new_node
+
+                preds = list(loop_region_graph.predecessors(node))
+                loop_region_graph.remove_node(node)
+                loop_region_graph.add_node(new_node)
+                if new_node is not loop_head:
+                    for pred in preds:
+                        loop_region_graph.add_edge(pred, new_node)
+            else:
+                loop_region_graph.add_edge(node, new_node)
+
+        return new_node, new_loop_head
 
     def _recover_reaching_conditions(self):
 
@@ -1336,7 +1359,8 @@ class Structurer(Analysis):
     # Other methods
     #
 
-    def _remove_conditional_jumps(self, seq):
+    @staticmethod
+    def _remove_conditional_jumps(seq):
         """
         Remove all conditional jumps.
 
@@ -1347,7 +1371,6 @@ class Structurer(Analysis):
         def _remove_conditional_jumps(block, parent=None, index=0, label=None):  # pylint:disable=unused-argument
             block.statements = [ stmt for stmt in block.statements
                                  if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
-
 
         handlers = {
             ailment.Block: _remove_conditional_jumps,
