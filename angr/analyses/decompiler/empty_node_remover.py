@@ -10,7 +10,7 @@ from .structurer_nodes import SequenceNode, CodeNode, ConditionNode, SwitchCaseN
 
 class EmptyNodeRemover:
     """
-    *In-place* rewrites a node and its children to remove empty nodes.
+    Rewrites a node and its children to remove empty nodes.
 
     The following optimizations are performed at the same time:
     - Convert if (A) { } else { ... } to if(!A) { ... } else { }
