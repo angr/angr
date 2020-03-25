@@ -1,8 +1,12 @@
 import typing
+import cffi
 
 from angr.storage.memory_mixins import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages import PageType, ListStorageMixin
+from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage
 from ....errors import SimMemoryError
+
+# yeet
+ffi = cffi.FFI()
 
 class PagedMemoryMixin(MemoryMixin):
     """
@@ -241,20 +245,26 @@ class PagedMemoryMixin(MemoryMixin):
         else:
             return True
 
-    def concrete_load(self, addr, size, writing=False, **kwargs):
+    def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):
         pageno, offset = self._divide_addr(addr)
-        remaining = self.page_size - offset
+        subsize = min(size, self.page_size - offset)
         try:
             page = self._get_page(pageno, writing, **kwargs)
         except SimMemoryError:
-            return memoryview(b''), memoryview(b'')
+            if with_bitmap:
+                return memoryview(b''), memoryview(b'')
+            else:
+                return memoryview(b'')
 
         try:
             concrete_load = page.concrete_load
         except AttributeError:
-            result = self.load(addr, size)
+            result = self.load(addr, size, endness='Iend_BE')
             if result.op == 'BVV':
-                return memoryview(result.args[0].to_bytes(size, 'big')), memoryview(bytes(size))
+                if with_bitmap:
+                    return memoryview(result.args[0].to_bytes(size, 'big')), memoryview(bytes(size))
+                else:
+                    return memoryview(result.args[0].to_bytes(size, 'big'))
             elif result.op == 'Concat':
                 bytes_out = bytearray(size)
                 bitmap_out = bytearray(size)
@@ -275,18 +285,76 @@ class PagedMemoryMixin(MemoryMixin):
 
                         bytes_out[byte_idx:byte_idx+byte_size] = element.args[0].to_bytes(byte_size, 'big')
                     else:
+                        if not with_bitmap:
+                            return memoryview(bytes(bytes_out))[:byte_idx]
                         for byte_i in range(byte_idx, byte_idx+byte_size):
                             bitmap_out[byte_i] = 1
 
                     bit_idx += len(element)
                     if bit_idx % 8 != 0:
+                        if not with_bitmap:
+                            return memoryview(bytes(bytes_out))[:bit_idx // 8]
                         bitmap_out[bit_idx // 8] = 1
-                return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
+                if with_bitmap:
+                    return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
+                else:
+                    return memoryview(bytes(bytes_out))
 
         else:
-            return concrete_load(offset, remaining, **kwargs)
+            # do some serious fucking magic
+            data, bitmap = concrete_load(offset, subsize, **kwargs)
+            if with_bitmap:
+                return data, bitmap
 
+            for i, byte in enumerate(bitmap):
+                if byte != 0:
+                    break
+            else:
+                i = len(bitmap)
+
+            if i != subsize:
+                return data[:i]
+
+            size -= subsize
+
+            while size:
+                offset = 0
+                max_pageno = (1 << self.state.arch.bits) // self.page_size
+                pageno = (pageno + 1) % max_pageno
+                subsize = min(size, self.page_size)
+
+                try:
+                    page = self._get_page(pageno, writing, **kwargs)
+                    concrete_load = page.concrete_load
+                except (SimMemoryError, AttributeError):
+                    break
+                else:
+
+                    newdata, bitmap = concrete_load(offset, subsize, **kwargs)
+
+                    if not ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(ffi.BVoidP, ffi.from_buffer(newdata)):
+                        break
+
+                    for i, byte in enumerate(bitmap):
+                        if byte != 0:
+                            break
+                    else:
+                        i = len(bitmap)
+
+                    obj = data.obj
+                    data_offset = ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) - ffi.cast(ffi.BVoidP, ffi.from_buffer(obj))
+                    data = memoryview(obj)[data_offset:data_offset+len(data)+i]
+
+                    if i != subsize:
+                        break
+
+                    size -= subsize
+
+            return data
 
 
 class ListPagesMixin(PagedMemoryMixin):
-    PAGE_TYPE = ListStorageMixin
+    PAGE_TYPE = ListPage
+
+class UltraPagesMixin(PagedMemoryMixin):
+    PAGE_TYPE = UltraPage

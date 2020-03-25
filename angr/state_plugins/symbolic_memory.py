@@ -14,16 +14,9 @@ from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 from ..sim_state_options import SimStateOptions
 from ..misc.ux import once
+from ..storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 
 DEFAULT_MAX_SEARCH = 8
-
-class MultiwriteAnnotation(claripy.Annotation):
-    @property
-    def eliminatable(self):
-        return False
-    @property
-    def relocateable(self):
-        return True
 
 def _multiwrite_filter(mem, ast): #pylint:disable=unused-argument
     # this is a huge hack, but so is the whole multiwrite crap

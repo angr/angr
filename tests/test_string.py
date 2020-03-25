@@ -369,6 +369,7 @@ def test_memcpy():
 
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
+    s.add_constraints(cpylen < 10)
     memcpy(s, arguments=[dst_addr, src_addr, cpylen])
     result = s.memory.load(dst_addr, 4, endness='Iend_BE')
 
@@ -670,6 +671,7 @@ def test_memset():
     s = SimState(arch="PPC32", mode="symbolic")
     s.memory.store(dst_addr, dst)
     length = s.solver.BVS("some_length", 32)
+    s.add_constraints(length < 10)
     memset(s, arguments=[dst_addr, char2, length])
 
     l.debug("Trying 2")
