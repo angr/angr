@@ -1,5 +1,5 @@
-import threading
 from angr.storage.memory_mixins import MemoryMixin
+from angr.misc import PicklableLock
 
 class RefcountMixin(MemoryMixin):
     """
@@ -8,7 +8,7 @@ class RefcountMixin(MemoryMixin):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.refcount = 1
-        self.lock = threading.Lock()
+        self.lock = PicklableLock()
 
     def acquire_unique(self):
         """
