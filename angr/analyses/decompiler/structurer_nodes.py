@@ -63,26 +63,6 @@ class SequenceNode(BaseNode):
     def node_position(self, node):
         return self.nodes.index(node)
 
-    def remove_empty_node(self):
-
-        new_nodes = [ ]
-
-        for node in self.nodes:
-            if type(node) is ConditionNode and self.test_empty_condition_node(node):
-                continue
-            if type(node) is CodeNode and self.test_empty_node(node.node):
-                continue
-            if type(node) is SequenceNode:
-                # expand SequenceNode
-                node.remove_empty_node()
-                new_nodes.extend(node.nodes)
-                continue
-            if self.test_empty_node(node):
-                continue
-            new_nodes.append(node)
-
-        self.nodes = new_nodes
-
     def copy(self):
         return SequenceNode(nodes=self.nodes[::])
 

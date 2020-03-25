@@ -148,15 +148,12 @@ class Structurer(Analysis):
         # remove conditional jumps
         seq = self._remove_conditional_jumps(seq)
         seq = EmptyNodeRemover(seq).result
-        if seq is None:
-            self.result = None
-            return
 
         self._make_condition_nodes(seq)
 
-        seq = self._merge_nesting_conditionals(seq)
-
         seq = self._merge_conditional_breaks(seq)
+
+        seq = self._merge_nesting_conditionals(seq)
 
         seq = EmptyNodeRemover(seq).result
 
@@ -599,16 +596,19 @@ class Structurer(Analysis):
         if cond in self._condition_mapping:
             return self._condition_mapping[cond]
 
+        def _binary_op_reduce(op, args):
+            r = None
+            for arg in args:
+                if r is None:
+                    r = self._convert_claripy_bool_ast(arg)
+                else:
+                    r = ailment.Expr.BinaryOp(None, op, (r, self._convert_claripy_bool_ast(arg)))
+            return r
+
         _mapping = {
             'Not': lambda cond_: ailment.Expr.UnaryOp(None, 'Not', self._convert_claripy_bool_ast(cond_.args[0])),
-            'And': lambda cond_: ailment.Expr.BinaryOp(None, 'LogicalAnd', (
-                self._convert_claripy_bool_ast(cond_.args[0]),
-                self._convert_claripy_bool_ast(cond_.args[1]),
-            )),
-            'Or': lambda cond_: ailment.Expr.BinaryOp(None, 'LogicalOr', (
-                self._convert_claripy_bool_ast(cond_.args[0]),
-                self._convert_claripy_bool_ast(cond_.args[1]),
-            )),
+            'And': lambda cond_: _binary_op_reduce('LogicalAnd', cond_.args),
+            'Or': lambda cond_: _binary_op_reduce('LogicalOr', cond_.args),
             'ULE': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpULE',
                                                           tuple(map(self._convert_claripy_bool_ast, cond_.args)),
                                                           ),
@@ -670,9 +670,17 @@ class Structurer(Analysis):
     def _structure_sequence(self, seq):
 
         self._make_switch_cases(seq)
+
+        # remove conditional jumps of the current level
+        seq = self._remove_conditional_jumps(seq, follow_seq=False)
+        new_seq = EmptyNodeRemover(seq).result
+
+        # this is hackish...
+        seq.nodes = new_seq.nodes
+
         self._merge_same_conditioned_nodes(seq)
-        self._make_ites(seq)
         self._structure_common_subexpression_conditions(seq)
+        self._make_ites(seq)
 
     def _merge_same_conditioned_nodes(self, seq):
 
@@ -917,7 +925,7 @@ class Structurer(Analysis):
             to_remove.add(entry_node)
 
             # find nodes that this entry node dominates
-            cond_subexprs = list(self._get_reaching_condition_subexprs(entry_node.reaching_condition))
+            cond_subexprs = list(self._get_ast_subexprs(entry_node.reaching_condition))
             guarded_nodes = None
             for subexpr in cond_subexprs:
                 guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, header_idx + 1)
@@ -1063,7 +1071,7 @@ class Structurer(Analysis):
             if rcond_0 is None:
                 i += 1
                 continue
-            subexprs_0 = list(self._get_reaching_condition_subexprs(rcond_0))
+            subexprs_0 = list(self._get_ast_subexprs(rcond_0))
 
             for common_subexpr in subexprs_0:
                 candidates = self._nodes_guarded_by_common_subexpr(seq, common_subexpr, i + 1)
@@ -1094,7 +1102,7 @@ class Structurer(Analysis):
             rcond_1 = node_1.reaching_condition
             if rcond_1 is None:
                 continue
-            subexprs_1 = list(self._get_reaching_condition_subexprs(rcond_1))
+            subexprs_1 = list(self._get_ast_subexprs(rcond_1))
             if any(subexpr_1 is common_subexpr for subexpr_1 in subexprs_1):
                 # we found one!
                 candidates.append((starting_idx + j, node_1, subexprs_1))
@@ -1175,7 +1183,12 @@ class Structurer(Analysis):
     #
 
     @staticmethod
-    def _remove_conditional_jumps(seq):
+    def _remove_conditional_jumps_from_block(block, parent=None, index=0, label=None):  # pylint:disable=unused-argument
+        block.statements = [stmt for stmt in block.statements
+                            if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
+
+    @staticmethod
+    def _remove_conditional_jumps(seq, follow_seq=True):
         """
         Remove all conditional jumps.
 
@@ -1183,12 +1196,15 @@ class Structurer(Analysis):
         :return:                    A processed SequenceNode.
         """
 
-        def _remove_conditional_jumps(block, parent=None, index=0, label=None):  # pylint:disable=unused-argument
-            block.statements = [ stmt for stmt in block.statements
-                                 if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
+        def _handle_Sequence(node, **kwargs):
+            if not follow_seq and node is not seq:
+                return None
+            return walker._handle_Sequence(node, **kwargs)
+
 
         handlers = {
-            ailment.Block: _remove_conditional_jumps,
+            SequenceNode: _handle_Sequence,
+            ailment.Block: Structurer._remove_conditional_jumps_from_block,
         }
 
         walker = SequenceWalker(handlers=handlers)
@@ -1512,7 +1528,7 @@ class Structurer(Analysis):
         return targets
 
     @staticmethod
-    def _get_reaching_condition_subexprs(claripy_ast):
+    def _get_ast_subexprs(claripy_ast):
 
         queue = [ claripy_ast ]
         while queue:
@@ -1524,7 +1540,7 @@ class Structurer(Analysis):
                 # get the common subexpr of all operands
                 common = None
                 for arg in ast.args:
-                    subexprs = Structurer._get_reaching_condition_subexprs(arg)
+                    subexprs = Structurer._get_ast_subexprs(arg)
                     if common is None:
                         common = set(subexprs)
                     else:

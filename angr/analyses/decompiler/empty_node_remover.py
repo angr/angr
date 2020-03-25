@@ -32,7 +32,11 @@ class EmptyNodeRemover:
             ailment.Block: self._handle_Block,
         }
         self._walker = SequenceWalker(handlers=handlers)
-        self.result = self._walker.walk(self.root)
+        r = self._walker.walk(self.root)
+        if r is None:
+            self.result = SequenceNode(nodes=[])
+        else:
+            self.result = r
 
     #
     # Handlers
