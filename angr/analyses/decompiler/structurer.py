@@ -76,6 +76,11 @@ class SequenceNode(BaseNode):
                 continue
             if type(node) is CodeNode and self.test_empty_node(node.node):
                 continue
+            if type(node) is SequenceNode:
+                # expand SequenceNode
+                node.remove_empty_node()
+                new_nodes.extend(node.nodes)
+                continue
             if self.test_empty_node(node):
                 continue
             new_nodes.append(node)
@@ -346,6 +351,8 @@ class Structurer(Analysis):
         seq = self._merge_nesting_conditionals(seq)
 
         seq = self._remove_claripy_bool_asts(seq)
+
+        seq.remove_empty_node()
 
         self.result = seq
 
