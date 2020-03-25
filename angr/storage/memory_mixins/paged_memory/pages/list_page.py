@@ -54,7 +54,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         global_end_addr = addr + page_addr
         global_start_addr = result[-1][0]
         size = global_end_addr - global_start_addr
-        new_ast = self._default_value(global_start_addr, size, name='mem_%x' % global_start_addr, key=(self.category, global_start_addr), memory=memory, **kwargs)
+        new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr), key=(self.category, global_start_addr), memory=memory, **kwargs)
         new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness, byte_width=memory.state.arch.byte_width if memory is not None else 8)
         for subaddr in range(global_start_addr - page_addr, addr):
             self.content[subaddr] = new_item
