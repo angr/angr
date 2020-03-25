@@ -4,7 +4,7 @@ from . import PageBase
 from angr.storage.memory_object import SimMemoryObject
 from .cooperation import MemoryObjectMixin
 
-class ListStorageMixin(MemoryObjectMixin, PageBase):
+class ListPage(MemoryObjectMixin, PageBase):
     def __init__(self, memory=None, content=None, sinkhole=None, **kwargs):
         super().__init__(**kwargs)
 
