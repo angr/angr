@@ -47,6 +47,10 @@ def test_decompiling_loop_x86_64():
     f = cfg.functions['loop']
     dec = p.analyses.Decompiler(f, cfg=cfg)
     if dec.codegen is not None:
+
+        # it should be properly structured to a while loop without conditional breaks
+        assert "break" not in dec.codegen.text
+
         print(dec.codegen.text)
     else:
         print("Failed to decompile function %s." % repr(f))
