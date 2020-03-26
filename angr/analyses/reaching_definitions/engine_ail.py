@@ -329,7 +329,7 @@ class SimEngineRDAIL(
         if op0 is None: op0 = expr.operands[0]
         if op1 is None: op1 = expr.operands[1]
 
-        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
+        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], expr.signed, **expr.tags)
 
     def _ail_handle_CmpLE(self, expr):
         op0 = self._expr(expr.operands[0])
@@ -338,7 +338,7 @@ class SimEngineRDAIL(
         if op0 is None: op0 = expr.operands[0]
         if op1 is None: op1 = expr.operands[1]
 
-        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
+        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], expr.signed, **expr.tags)
 
     def _ail_handle_Const(self, expr):
         return DataSet(expr.value, expr.bits)

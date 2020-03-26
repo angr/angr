@@ -753,11 +753,9 @@ class CBinaryOp(CExpression):
             'LogicalAnd': self._c_repr_logicaland,
             'LogicalOr': self._c_repr_logicalor,
             'CmpLE': self._c_repr_cmple,
-            'CmpULE': self._c_repr_cmple,  # FIXME: use the unsigned version
             'CmpLT': self._c_repr_cmplt,
             'CmpGT': self._c_repr_cmpgt,
             'CmpGE': self._c_repr_cmpge,
-            'CmpUGT': self._c_repr_cmpgt,  # FIXME: use the unsigned version
             'CmpEQ': self._c_repr_cmpeq,
             'CmpNE': self._c_repr_cmpne,
         }
