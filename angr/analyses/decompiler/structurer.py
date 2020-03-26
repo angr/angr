@@ -598,13 +598,13 @@ class Structurer(Analysis):
         if cond in self._condition_mapping:
             return self._condition_mapping[cond]
 
-        def _binary_op_reduce(op, args):
+        def _binary_op_reduce(op, args, signed=False):
             r = None
             for arg in args:
                 if r is None:
                     r = self._convert_claripy_bool_ast(arg)
                 else:
-                    r = ailment.Expr.BinaryOp(None, op, (r, self._convert_claripy_bool_ast(arg)))
+                    r = ailment.Expr.BinaryOp(None, op, (r, self._convert_claripy_bool_ast(arg)), signed)
             return r
 
         _mapping = {
