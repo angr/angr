@@ -179,14 +179,26 @@ class PropagatorAILState(PropagatorState):
         else:
             _l.warning("Unsupported addr type %s.", type(addr))
 
-    def get_variable(self, old):
-        if isinstance(old, ailment.Expr.Tmp):
-            return self._tmps.get(old.tmp_idx, None)
-        elif isinstance(old, ailment.Expr.Register):
-            objs = self._registers.get_objects_by_offset(old.reg_offset)
+    def get_variable(self, variable):
+        if isinstance(variable, ailment.Expr.Tmp):
+            return self._tmps.get(variable.tmp_idx, None)
+        elif isinstance(variable, ailment.Expr.Register):
+            objs = self._registers.get_objects_by_offset(variable.reg_offset)
             if not objs:
                 return None
-            return next(iter(objs))
+            # FIXME: Right now we are always getting one item - we should, in fact, work on a multi-value domain
+            first_obj = next(iter(objs))
+            if first_obj.bits != variable.bits:
+                # conversion is needed
+                if isinstance(first_obj, ailment.Expr.Convert):
+                    if variable.bits == first_obj.operand.bits:
+                        first_obj = first_obj.operand
+                    else:
+                        first_obj = ailment.Expr.Convert(first_obj.idx, first_obj.operand.bits, variable.bits,
+                                                         first_obj.is_signed, first_obj.operand)
+                else:
+                    first_obj = ailment.Expr.Convert(first_obj.idx, first_obj.bits, variable.bits, False, first_obj)
+            return first_obj
         return None
 
     def get_stack_variable(self, addr, size, endness=None):  # pylint:disable=unused-argument

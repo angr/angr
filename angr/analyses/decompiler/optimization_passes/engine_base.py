@@ -171,7 +171,7 @@ class SimplifierAILEngine(
         operand_1 = self._expr(expr.operands[1])
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
-            return Expr.BinaryOp(expr.idx, 'Mul', [operand_0, operand_1], **expr.tags)
+            return Expr.BinaryOp(expr.idx, 'Mul', [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
     def _ail_handle_Const(self, expr):
@@ -202,12 +202,14 @@ class SimplifierAILEngine(
                     converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
                                              operand_expr.operands[0])
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
-                                         [converted, operand_expr.operands[1]], **expr.tags)
+                                         [converted, operand_expr.operands[1]], expr.signed, **expr.tags)
                 elif isinstance(operand_expr.operands[0], Expr.Convert) and \
                         expr.from_bits == operand_expr.operands[0].to_bits and \
                         expr.to_bits == operand_expr.operands[0].from_bits:
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
-                        [operand_expr.operands[0].operand, operand_expr.operands[1]], **operand_expr.tags)
+                                         [operand_expr.operands[0].operand, operand_expr.operands[1]],
+                                         operand_expr.signed,
+                                         **operand_expr.tags)
             elif isinstance(operand_expr.operands[0], Expr.Convert) \
                     and isinstance(operand_expr.operands[1], Expr.Convert) \
                     and operand_expr.operands[0].from_bits == operand_expr.operands[1].from_bits:
@@ -215,8 +217,9 @@ class SimplifierAILEngine(
                         and expr.from_bits == operand_expr.operands[0].to_bits \
                         and expr.to_bits == operand_expr.operands[1].from_bits:
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
-                                    [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
-                                     **operand_expr.tags)
+                                         [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
+                                         expr.signed,
+                                         **operand_expr.tags)
 
         converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
                                  operand_expr, **expr.tags)
