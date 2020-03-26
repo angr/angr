@@ -34,9 +34,9 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
                 c_1 = operand_1.operands[0].operand.operands[1]
 
             if x_0 == x_1 and c_0.value == c_1.value:
-                return Expr.BinaryOp(expr.idx, 'Mod', [x_0, c_0], **expr.tags)
+                return Expr.BinaryOp(expr.idx, 'Mod', [x_0, c_0], expr.signed, **expr.tags)
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
-            return Expr.BinaryOp(expr.idx, 'Sub', [operand_0, operand_1], **expr.tags)
+            return Expr.BinaryOp(expr.idx, 'Sub', [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
     def _ail_handle_Mod(self, expr): #pylint: disable=no-self-use

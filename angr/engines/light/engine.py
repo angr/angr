@@ -645,7 +645,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 <= expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'CmpLT', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'CmpLT', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Add(self, expr):
 
@@ -661,7 +661,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 + expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Add', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Add', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Sub(self, expr):
 
@@ -678,7 +678,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 - expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Div(self, expr):
 
@@ -695,7 +695,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 // expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Div', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Div', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_DivMod(self, expr):
         return self._ail_handle_Div(expr)
@@ -715,7 +715,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 * expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Mull(self, expr):
         return self._ail_handle_Mul(expr)
@@ -735,7 +735,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 & expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'And', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'And', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Or(self, expr):
 
@@ -752,7 +752,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 | expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Or', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Or', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Xor(self, expr):
 
@@ -769,7 +769,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 ^ expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Xor', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Xor', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Shr(self, expr):
 
@@ -785,7 +785,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 >> expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Shr', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Shr', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Shl(self, expr):
 
@@ -801,7 +801,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 << expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Shl', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Shl', [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Sal(self, expr):
         return self._ail_handle_Shl(expr)
@@ -820,7 +820,7 @@ class SimEngineLightAILMixin:
         try:
             return expr_0 >> expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Sar', [expr_0, expr_1], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Sar', [expr_0, expr_1], expr.signed, **expr.tags)
 
     #
     # Unary operation handlers
@@ -836,6 +836,8 @@ class SimEngineLightAILMixin:
     def _ail_handle_Not(self, expr):
 
         data = self._expr(expr.operand)
+        if data is None:
+            return None
 
         try:
             return ~data  # pylint:disable=invalid-unary-operand-type

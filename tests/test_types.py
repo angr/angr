@@ -164,6 +164,11 @@ def test_arg_names():
     sig = fdef['f']
     nose.tools.assert_equal(sig.arg_names, ['param_1', 'param_2'])
 
+    # Check that arg_names survive a with_arch call
+    nsig = sig.with_arch(angr.archinfo.ArchAMD64())
+    nose.tools.assert_equal(sig.arg_names, nsig.arg_names,
+                            "Function type generated with .with_arch() doesn't have identical arg_names")
+
     # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
     fdef = angr.types.parse_defns("int f(int param1, int);") # type: Dict[str, SimTypeFunction]
     sig = fdef['f']
@@ -172,6 +177,16 @@ def test_arg_names():
     fdef = angr.types.parse_defns("int f();") # type: Dict[str, SimTypeFunction]
     sig = fdef['f']
     nose.tools.assert_equal(sig.arg_names, [])
+
+def test_varargs():
+    fdef = angr.types.parse_defns("int printf(const char *fmt, ...);")
+    sig = fdef['printf']
+
+    nose.tools.assert_true(sig.variadic)
+    nose.tools.assert_in('...', repr(sig))
+    nose.tools.assert_equal(len(sig.args), 1)
+    nose.tools.assert_equal(len(sig.arg_names), 1)
+    nose.tools.assert_not_in('...', sig._init_str())
 
 
 if __name__ == '__main__':

@@ -183,8 +183,10 @@ class SimOS:
 
         thread_name = self.project.loader.main_object.threads[thread_idx] if thread_idx is not None else None
         for reg, val in self.project.loader.main_object.thread_registers(thread_name).items():
-            if reg in state.arch.registers or reg in ('flags', 'eflags', 'rflags'):
-                setattr(state.regs, reg, val)
+            if reg in ('fs', 'gs', 'cs', 'ds', 'es', 'ss') and state.arch.name == 'X86':
+                state.registers.store(reg, val >> 16)  # oh boy big hack
+            elif reg in state.arch.registers or reg in ('flags', 'eflags', 'rflags'):
+                state.registers.store(reg, val)
             elif reg == 'fctrl':
                 state.regs.fpround = (val & 0xC00) >> 10
             elif reg == 'fstat':

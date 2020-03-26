@@ -488,15 +488,17 @@ class SimEngineVRAIL(
     def _ail_handle_StackBaseOffset(self, expr):
         return SpOffset(self.arch.bits, expr.offset, is_base=False)
 
-    def _ail_handle_CmpEQ(self, expr):  # pylint:disable=useless-return
+    def _ail_handle_Cmp(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
         return None
 
-    def _ail_handle_CmpLE(self, expr):  # pylint:disable=useless-return
-        self._expr(expr.operands[0])
-        self._expr(expr.operands[1])
-        return None
+    _ail_handle_CmpEQ = _ail_handle_Cmp
+    _ail_handle_CmpNE = _ail_handle_Cmp
+    _ail_handle_CmpLT = _ail_handle_Cmp
+    _ail_handle_CmpLE = _ail_handle_Cmp
+    _ail_handle_CmpGT = _ail_handle_Cmp
+    _ail_handle_CmpGE = _ail_handle_Cmp
 
 
 class VariableRecoveryFastState(VariableRecoveryStateBase):

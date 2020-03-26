@@ -298,14 +298,33 @@ class SimEngineRDAIL(
         if expr.from_bits == to_conv.bits and \
                 isinstance(to_conv, DataSet):
             if len(to_conv) == 1 and type(next(iter(to_conv.data))) is Undefined:
+                # handle Undefined
                 r = DataSet(to_conv.data.copy(), expr.to_bits)
             elif all(isinstance(d, (ailment.Expr.Const, int)) for d in to_conv.data):
+                # handle consts
                 converted = set()
                 for d in to_conv.data:
                     if isinstance(d, ailment.Expr.Const):
                         converted.add(ailment.Expr.Const(d.idx, d.variable, d.value, expr.to_bits))
                     else:  # isinstance(d, int)
                         converted.add(d)
+                r = DataSet(converted, expr.to_bits)
+            else:
+                # handle other cases
+                converted = set()
+                for item in to_conv.data:
+                    if isinstance(item, ailment.Expr.Convert):
+                        # unpack it
+                        item_ = ailment.Expr.Convert(expr.idx, item.from_bits, expr.to_bits, expr.is_signed,
+                                                     item.operand)
+                    elif isinstance(item, int):
+                        # TODO: integer conversion
+                        item_ = item
+                    elif isinstance(item, Undefined):
+                        item_ = item
+                    else:
+                        item_ = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, item)
+                    converted.add(item_)
                 r = DataSet(converted, expr.to_bits)
 
         if r is None:
@@ -322,23 +341,21 @@ class SimEngineRDAIL(
             return DataSet({r}, r.bits)
         return r
 
-    def _ail_handle_CmpEQ(self, expr):
+    def _ail_handle_Cmp(self, expr):
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
 
         if op0 is None: op0 = expr.operands[0]
         if op1 is None: op1 = expr.operands[1]
 
-        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
+        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], expr.signed, **expr.tags)
 
-    def _ail_handle_CmpLE(self, expr):
-        op0 = self._expr(expr.operands[0])
-        op1 = self._expr(expr.operands[1])
-
-        if op0 is None: op0 = expr.operands[0]
-        if op1 is None: op1 = expr.operands[1]
-
-        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
+    _ail_handle_CmpEQ = _ail_handle_Cmp
+    _ail_handle_CmpNE = _ail_handle_Cmp
+    _ail_handle_CmpLE = _ail_handle_Cmp
+    _ail_handle_CmpLT = _ail_handle_Cmp
+    _ail_handle_CmpGE = _ail_handle_Cmp
+    _ail_handle_CmpGT = _ail_handle_Cmp
 
     def _ail_handle_Const(self, expr):
         return DataSet(expr.value, expr.bits)

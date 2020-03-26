@@ -45,7 +45,7 @@ def dfs_back_edges(graph, start_node):
         visited.add(node)
         for child in iter(graph[node]):
             if child not in finished:
-                if child in  visited:
+                if child in visited:
                     yield node, child
                 else:
                     for s,t in _dfs_back_edges_core(child):
@@ -55,6 +55,71 @@ def dfs_back_edges(graph, start_node):
     for s,t in _dfs_back_edges_core(start_node):
         yield s,t
 
+
+def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
+    """
+    For a directed graph, return a subgraph that includes all nodes going from a source node to a target node.
+
+    :param networkx.DiGraph graph:  The directed graph.
+    :param source:                  The source node.
+    :param list frontier:           A collection of target nodes.
+    :param bool include_frontier:   Should nodes in frontier be included in the subgraph.
+    :return:                        A subgraph.
+    :rtype:                         networkx.DiGraph
+    """
+
+    graph = networkx.DiGraph(graph)  # make a copy
+    for pred in list(graph.predecessors(source)):
+        # make sure we cannot go from any other node to the source node
+        graph.remove_edge(pred, source)
+
+    g0 = networkx.DiGraph()
+
+    if source not in graph or any(node not in graph for node in frontier):
+        raise KeyError("Source node or frontier nodes are not in the source graph.")
+
+    # BFS on graph and add new nodes to g0
+    queue = [ source ]
+    traversed = set()
+
+    frontier = set(frontier)
+
+    while queue:
+        node = queue.pop(0)
+        traversed.add(node)
+
+        for _, succ, data in graph.out_edges(node, data=True):
+            g0.add_edge(node, succ, **data)
+            if succ in traversed or succ in frontier:
+                continue
+            for frontier_node in frontier:
+                if networkx.has_path(graph, succ, frontier_node):
+                    queue.append(succ)
+                    break
+
+    # recursively remove all nodes that have less than two neighbors
+    to_remove = [ n for n in g0.nodes() if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0) ]
+    while to_remove:
+        g0.remove_nodes_from(to_remove)
+        to_remove = [ n for n in g0.nodes() if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0) ]
+
+    if not include_frontier:
+        # remove the frontier nodes
+        g0.remove_nodes_from(frontier)
+
+    return g0
+
+
+def dominates(idom, dominator_node, node):
+    n = node
+    while n:
+        if n == dominator_node:
+            return True
+        if n in idom and n != idom[n]:
+            n = idom[n]
+        else:
+            n = None
+    return False
 
 #
 # Dominance frontier

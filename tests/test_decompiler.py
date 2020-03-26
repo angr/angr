@@ -47,6 +47,10 @@ def test_decompiling_loop_x86_64():
     f = cfg.functions['loop']
     dec = p.analyses.Decompiler(f, cfg=cfg)
     if dec.codegen is not None:
+
+        # it should be properly structured to a while loop without conditional breaks
+        assert "break" not in dec.codegen.text
+
         print(dec.codegen.text)
     else:
         print("Failed to decompile function %s." % repr(f))
@@ -107,6 +111,124 @@ def test_decompiling_dir_gcc_O0_free_ent():
     f = cfg.functions['free_ent']
     dec = p.analyses.Decompiler(f, cfg=cfg)
     if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
+def test_decompiling_dir_gcc_O0_main():
+
+    # tests loop structuring
+    bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(normalize=True)
+
+    f = cfg.functions['main']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
+def test_decompiling_dir_gcc_O0_emit_ancillary_info():
+    bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(normalize=True)
+
+    f = cfg.functions['emit_ancillary_info']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
+def test_decompiling_switch0_x86_64():
+
+    bin_path = os.path.join(test_location, "x86_64", "switch_0")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions['main']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+
+    if dec.codegen is not None:
+        code = dec.codegen.text
+        assert "switch" in code
+        assert "case 1:" in code
+        assert "case 2:" in code
+        assert "case 3:" in code
+        assert "case 4:" in code
+        assert "case 5:" in code
+        assert "case 6:" in code
+        assert "case 7:" in code
+        assert "default:" in code
+
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
+def test_decompiling_switch1_x86_64():
+
+    bin_path = os.path.join(test_location, "x86_64", "switch_1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions['main']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        code = dec.codegen.text
+        assert "switch" in code
+        assert "case 1:" in code
+        assert "case 2:" in code
+        assert "case 3:" in code
+        assert "case 4:" in code
+        assert "case 5:" in code
+        assert "case 6:" in code
+        assert "case 7:" in code
+        assert "case 8:" in code
+        assert "default:" not in code
+
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
+def test_decompiling_switch2_x86_64():
+
+    bin_path = os.path.join(test_location, "x86_64", "switch_2")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions['main']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        code = dec.codegen.text
+        assert "switch" in code
+        assert "case 1:" in code
+        assert "case 2:" in code
+        assert "case 3:" in code
+        assert "case 4:" in code
+        assert "case 5:" in code
+        assert "case 6:" in code
+        assert "case 7:" in code
+        assert "case 8:" not in code
+        assert "default:" in code
+
+        assert code.count("break;") == 4
+
         print(dec.codegen.text)
     else:
         print("Failed to decompile function %r." % f)

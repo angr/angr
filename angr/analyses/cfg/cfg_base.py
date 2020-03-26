@@ -385,10 +385,6 @@ class CFGBase(Analysis):
             addr = cfg_node.addr
             size = cfg_node.size
             thumb = cfg_node.thumb
-        else:
-            addr = addr
-            size = size
-            thumb = thumb
 
         if addr is None:
             raise ValueError('_to_snippet(): Either cfg_node or addr must be provided.')
@@ -1362,10 +1358,7 @@ class CFGBase(Analysis):
 
         # Remove all stubs after PLT entries
         if not is_arm_arch(self.project.arch):
-            for fn in self.kb.functions.values():
-                addr = fn.addr - (fn.addr % 16)
-                if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
-                    to_remove.add(fn.addr)
+            to_remove |= self._remove_dummy_plt_stubs(self.kb.functions)
 
         # remove empty functions
         for func in self.kb.functions.values():
@@ -1379,6 +1372,47 @@ class CFGBase(Analysis):
         for node in self._nodes.values():
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
+
+    def _remove_dummy_plt_stubs(self, functions):
+
+        def _is_function_a_plt_stub(arch_, func):
+            if len(func.block_addrs_set) != 1:
+                return False
+            block = next(func.blocks)
+            if self._is_noop_block(arch_, block):
+                # alignments
+                return True
+            if len(block.vex.instruction_addresses) <= 2 and block.vex.jumpkind == 'Ijk_Boring':
+                # push ordinal; jump _resolve
+                return True
+            return False
+
+        to_remove = set()
+
+        met_plts = False
+        non_plt_funcs = 0
+        sorted_func_addrs = sorted(functions.keys())
+        arch = self.project.arch
+
+        # we assume all PLT entries are all located at the same region. the moment we come across the end of it, we
+        # stop looping.
+        for fn_addr in sorted_func_addrs:
+            fn = functions.get_by_addr(fn_addr)
+            addr = fn.addr - (fn.addr % 16)
+            if addr != fn.addr:
+                if addr in functions and functions[addr].is_plt and _is_function_a_plt_stub(arch, fn):
+                    to_remove.add(fn.addr)
+                    continue
+
+            if fn.is_plt:
+                met_plts = True
+                non_plt_funcs = 0
+            if met_plts and not fn.is_plt:
+                non_plt_funcs += 1
+            if non_plt_funcs >= 2:
+                break
+
+        return to_remove
 
     def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
         """

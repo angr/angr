@@ -623,19 +623,24 @@ class SimTypeFunction(SimType):
     _fields = ('args', 'returnty')
     base = False
 
-    def __init__(self, args, returnty, label=None, arg_names=None):
+    def __init__(self, args, returnty, label=None, arg_names=None, variadic=False):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
         :param returnty: The return type of the function, or none for void
+        :param variadic: Whether the function accepts varargs
         """
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
         self.returnty: Optional[SimType] = returnty
         self.arg_names = arg_names if arg_names else []
+        self.variadic = variadic
 
     def __repr__(self):
-        return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
+        argstrs = [str(a) for a in self.args]
+        if self.variadic:
+            argstrs.append('...')
+        return '({}) -> {}'.format(', '.join(argstrs), self.returnty)
 
     @property
     def size(self):
@@ -644,21 +649,26 @@ class SimTypeFunction(SimType):
     def _with_arch(self, arch):
         out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch),
                               label=self.label,
-                              arg_names=self.arg_names
+                              arg_names=self.arg_names,
+                              variadic=self.variadic
                               )
         out._arch = arch
         return out
 
-    def _arg_names_str(self):
-        return ", ".join('"%s"' % arg_name for arg_name in self.arg_names)
+    def _arg_names_str(self, show_variadic=True):
+        argnames = list(self.arg_names)
+        if self.variadic and show_variadic:
+            argnames.append('...')
+        return ", ".join('"%s"' % arg_name for arg_name in argnames)
 
     def _init_str(self):
-        return "%s([%s], %s%s%s)" % (
+        return "%s([%s], %s%s%s%s)" % (
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
             (", label=%s" % self.label) if self.label else "",
-            (", arg_names=[%s]" % self._arg_names_str()) if self.arg_names else "",
+            (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
+            ", variadic=True" if self.variadic else "",
         )
 
 
@@ -950,6 +960,7 @@ BASIC_TYPES = {
 
     'float': SimTypeFloat(),
     'double': SimTypeDouble(),
+    'long double': SimTypeDouble(),
     'void': SimTypeBottom(label="void"),
 }
 
@@ -978,6 +989,8 @@ ALL_TYPES = {
 
     'string': SimTypeString(),
     'wstring': SimTypeWString(),
+
+    'va_list': SimStruct({}, name='va_list')
 }
 
 
@@ -1005,6 +1018,7 @@ def make_preamble():
            'typedef int socklen_t;',
            'typedef unsigned short mode_t;',
            'typedef unsigned long off_t;',
+           'typedef struct va_list {} va_list;',
            ]
     types_out = []
     for ty in ALL_TYPES:
@@ -1199,13 +1213,18 @@ def _decl_to_type(decl, extra_types=None):
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
-        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) for x in decl.args.params]
+        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) if type(x) is not pycparser.c_ast.EllipsisParam else ... for x in decl.args.params]
+        arg_names = [ arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam] if decl.args else None
         # special handling: func(void) is func()
-        arg_names = [ arg.name for arg in decl.args.params] if decl.args else None
         if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom):
             argtyps = ()
             arg_names = None
-        return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types), arg_names=arg_names)
+        if argtyps and argtyps[-1] is ...:
+            argtyps.pop()
+            variadic = True
+        else:
+            variadic = False
+        return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types), arg_names=arg_names, variadic=variadic)
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
         if decl.declname == 'TOP':

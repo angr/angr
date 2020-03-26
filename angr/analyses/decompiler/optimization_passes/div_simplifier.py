@@ -35,7 +35,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                     if divisor:
                         X = operand_expr.operands[0].operands[0]
                         new_const = Expr.Const(expr.idx, None, divisor, 64)
-                        return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], **expr.tags)
+                        return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], expr.signed, **expr.tags)
 
         return super()._ail_handle_Convert(expr)
 
@@ -168,22 +168,22 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
 
         if divisor and X:
             new_const = Expr.Const(expr.idx, None, divisor, 64)
-            return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], **expr.tags)
+            return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], expr.signed, **expr.tags)
 
 
         if isinstance(operand_1, Expr.Const):
             if isinstance(operand_0, Expr.Register):
                 new_operand = Expr.Const(operand_1.idx, None, 2**operand_1.value, operand_1.bits)
-                return Expr.BinaryOp(expr.idx, 'DivMod', [operand_0, new_operand])
+                return Expr.BinaryOp(expr.idx, 'DivMod', [operand_0, new_operand], expr.signed)
             elif isinstance(operand_0, Expr.BinaryOp) \
                 and operand_0.op == 'Shr' \
                     and isinstance(operand_0.operands[1], Expr.Const):
                 new_const = Expr.Const(operand_1.idx, None,
                     operand_0.operands[1].value+operand_1.value, operand_1.bits)
-                return Expr.BinaryOp(expr.idx, 'Shr', [operand_0.operands[0], new_const], **expr.tags)
+                return Expr.BinaryOp(expr.idx, 'Shr', [operand_0.operands[0], new_const], expr.signed, **expr.tags)
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
-            return Expr.BinaryOp(expr.idx, 'Shr', [operand_0, operand_1])
+            return Expr.BinaryOp(expr.idx, 'Shr', [operand_0, operand_1], expr.signed)
         return expr
 
     def _ail_handle_Mul(self, expr):
@@ -208,7 +208,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             if self._check_divisor(pow(2, V+Y), C, ndigits) and X:
                 divisor = self._check_divisor(pow(2, Y+V), C, ndigits)
                 new_const = Expr.Const(expr.idx, None, divisor, 64)
-                return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], **expr.tags)
+                return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], expr.signed, **expr.tags)
         if isinstance(operand_1, Expr.Const) \
             and isinstance(operand_0, Expr.Convert) \
                 and isinstance(operand_0.operand, Expr.BinaryOp) \
@@ -225,7 +225,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             if self._check_divisor(pow(2, V+Y), C, ndigits) and X:
                 divisor = self._check_divisor(pow(2, Y+V), C, ndigits)
                 new_const = Expr.Const(expr.idx, None, divisor, 64)
-                return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], **expr.tags)
+                return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], expr.signed, **expr.tags)
         return super()._ail_handle_Mul(expr)
 
     def _ail_handle_Div(self, expr):
@@ -240,10 +240,10 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
 
             new_const_value = operand_1.value * operand_0.operands[1].value
             new_const = Expr.Const(operand_1.idx, None, new_const_value, operand_1.bits)
-            return Expr.BinaryOp(expr.idx, 'Div', [operand_0.operands[0], new_const], **expr.tags)
+            return Expr.BinaryOp(expr.idx, 'Div', [operand_0.operands[0], new_const], expr.signed, **expr.tags)
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
-            return Expr.BinaryOp(expr.idx, 'Div', [operand_0, operand_1], **expr.tags)
+            return Expr.BinaryOp(expr.idx, 'Div', [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
 

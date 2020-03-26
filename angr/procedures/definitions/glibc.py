@@ -42,25 +42,25 @@ _libc_decls = \
         # void perror (const char *MESSAGE);
         "perror": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["message"]),
         # void error (int STATUS, int ERRNUM, const char *FORMAT, ...);
-        "error": None,
+        "error": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "errnum", "format"], variadic=True),
         # void error_at_line (int STATUS, int ERRNUM, const char *FNAME, unsigned int LINENO, const char *FORMAT, ...);
-        "error_at_line": None,
+        "error_at_line": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "errnum", "fname", "lineno", "format"], variadic=True),
         # void warn (const char *FORMAT, ...);
-        "warn": None,
+        "warn": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["format"], variadic=True),
         # void vwarn (const char *FORMAT, va_list AP);
-        "vwarn": None,
+        "vwarn": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
         # void warnx (const char *FORMAT, ...);
-        "warnx": None,
+        "warnx": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["format"], variadic=True),
         # void vwarnx (const char *FORMAT, va_list AP);
-        "vwarnx": None,
+        "vwarnx": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
         # void err (int STATUS, const char *FORMAT, ...);
-        "err": None,
+        "err": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "format"], variadic=True),
         # void verr (int STATUS, const char *FORMAT, va_list AP);
-        "verr": None,
+        "verr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
         # void errx (int STATUS, const char *FORMAT, ...);
-        "errx": None,
+        "errx": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "format"], variadic=True),
         # void verrx (int STATUS, const char *FORMAT, va_list AP);
-        "verrx": None,
+        "verrx": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
         # void * malloc (size_t SIZE);
         "malloc": SimTypeFunction([SimTypeLong(signed=False, label="size_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["size"]),
         # void free (void *PTR);
@@ -361,7 +361,7 @@ _libc_decls = \
         "strtok_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["newstring", "delimiters", "save_ptr"]),
         # char * strsep (char **STRING_PTR, const char *DELIMITER);
         "strsep": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["string_ptr", "delimiter"]),
-        # char * basename (char *PATH);
+        # char * basename (const char *PATH);
         "basename": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["path"]),
         # char * dirname (char *PATH);
         "dirname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["path"]),
@@ -454,7 +454,7 @@ _libc_decls = \
         # char * nl_langinfo (nl_item ITEM);
         "nl_langinfo": None,
         # ssize_t strfmon (char *S, size_t MAXSIZE, const char *FORMAT, ...);
-        "strfmon": None,
+        "strfmon": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["s", "maxsize", "format"], variadic=True),
         # int rpmatch (const char *RESPONSE);
         "rpmatch": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["response"]),
         # nl_catd catopen (const char *CAT_NAME, int FLAG);
@@ -650,41 +650,41 @@ _libc_decls = \
         # size_t fwrite_unlocked (const void *DATA, size_t SIZE, size_t COUNT, FILE *STREAM);
         "fwrite_unlocked": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
         # int printf (const char *TEMPLATE, ...);
-        "printf": None,
+        "printf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int wprintf (const wchar_t *TEMPLATE, ...);
-        "wprintf": None,
+        "wprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int fprintf (FILE *STREAM, const char *TEMPLATE, ...);
-        "fprintf": None,
+        "fprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int fwprintf (FILE *STREAM, const wchar_t *TEMPLATE, ...);
-        "fwprintf": None,
+        "fwprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int sprintf (char *S, const char *TEMPLATE, ...);
-        "sprintf": None,
+        "sprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s", "template"], variadic=True),
         # int swprintf (wchar_t *WS, size_t SIZE, const wchar_t *TEMPLATE, ...);
-        "swprintf": None,
+        "swprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["ws", "size", "template"], variadic=True),
         # int snprintf (char *S, size_t SIZE, const char *TEMPLATE, ...);
-        "snprintf": None,
+        "snprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s", "size", "template"], variadic=True),
         # int asprintf (char **PTR, const char *TEMPLATE, ...);
-        "asprintf": None,
+        "asprintf": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["ptr", "template"], variadic=True),
         # int obstack_printf (struct obstack *OBSTACK, const char *TEMPLATE, ...);
-        "obstack_printf": None,
+        "obstack_printf": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["obstack", "template"], variadic=True),
         # int vprintf (const char *TEMPLATE, va_list AP);
-        "vprintf": None,
+        "vprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vwprintf (const wchar_t *TEMPLATE, va_list AP);
-        "vwprintf": None,
+        "vwprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vfprintf (FILE *STREAM, const char *TEMPLATE, va_list AP);
-        "vfprintf": None,
+        "vfprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vfwprintf (FILE *STREAM, const wchar_t *TEMPLATE, va_list AP);
-        "vfwprintf": None,
+        "vfwprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vsprintf (char *S, const char *TEMPLATE, va_list AP);
-        "vsprintf": None,
+        "vsprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int vswprintf (wchar_t *WS, size_t SIZE, const wchar_t *TEMPLATE, va_list AP);
-        "vswprintf": None,
+        "vswprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["ws", "size", "template", "ap"]),
         # int vsnprintf (char *S, size_t SIZE, const char *TEMPLATE, va_list AP);
-        "vsnprintf": None,
+        "vsnprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "size", "template", "ap"]),
         # int vasprintf (char **PTR, const char *TEMPLATE, va_list AP);
-        "vasprintf": None,
+        "vasprintf": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["ptr", "template", "ap"]),
         # int obstack_vprintf (struct obstack *OBSTACK, const char *TEMPLATE, va_list AP);
-        "obstack_vprintf": None,
+        "obstack_vprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["obstack", "template", "ap"]),
         # size_t parse_printf_format (const char *TEMPLATE, size_t N, int *ARGTYPES);
         "parse_printf_format": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["template", "n", "argtypes"]),
         # int register_printf_function (int SPEC, printf_function HANDLER_FUNCTION, printf_arginfo_function ARGINFO_FUNCTION);
@@ -694,29 +694,29 @@ _libc_decls = \
         # int printf_size_info (const struct printf_info *INFO, size_t N, int *ARGTYPES);
         "printf_size_info": SimTypeFunction([SimTypePointer(SimStruct({}, name="printf_info", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["info", "n", "argtypes"]),
         # int scanf (const char *TEMPLATE, ...);
-        "scanf": None,
+        "scanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int wscanf (const wchar_t *TEMPLATE, ...);
-        "wscanf": None,
+        "wscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int fscanf (FILE *STREAM, const char *TEMPLATE, ...);
-        "fscanf": None,
+        "fscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int fwscanf (FILE *STREAM, const wchar_t *TEMPLATE, ...);
-        "fwscanf": None,
+        "fwscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int sscanf (const char *S, const char *TEMPLATE, ...);
-        "sscanf": None,
+        "sscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s", "template"], variadic=True),
         # int swscanf (const wchar_t *WS, const wchar_t *TEMPLATE, ...);
-        "swscanf": None,
+        "swscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["ws", "template"], variadic=True),
         # int vscanf (const char *TEMPLATE, va_list AP);
-        "vscanf": None,
+        "vscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vwscanf (const wchar_t *TEMPLATE, va_list AP);
-        "vwscanf": None,
+        "vwscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vfscanf (FILE *STREAM, const char *TEMPLATE, va_list AP);
-        "vfscanf": None,
+        "vfscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vfwscanf (FILE *STREAM, const wchar_t *TEMPLATE, va_list AP);
-        "vfwscanf": None,
+        "vfwscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vsscanf (const char *S, const char *TEMPLATE, va_list AP);
-        "vsscanf": None,
+        "vsscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int vswscanf (const wchar_t *S, const wchar_t *TEMPLATE, va_list AP);
-        "vswscanf": None,
+        "vswscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int feof (FILE *STREAM);
         "feof": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int feof_unlocked (FILE *STREAM);
@@ -802,19 +802,19 @@ _libc_decls = \
         # ssize_t pwrite64 (int FILEDES, const void *BUFFER, size_t SIZE, off64_t OFFSET);
         "pwrite64": None,
         # ssize_t preadv (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET);
-        "preadv": None,
+        "preadv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset"]),
         # ssize_t preadv64 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET);
         "preadv64": None,
         # ssize_t pwritev (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET);
-        "pwritev": None,
+        "pwritev": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset"]),
         # ssize_t pwritev64 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET);
         "pwritev64": None,
         # ssize_t preadv2 (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET, int FLAGS);
-        "preadv2": None,
+        "preadv2": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset", "flags"]),
         # ssize_t preadv64v2 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET, int FLAGS);
         "preadv64v2": None,
         # ssize_t pwritev2 (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET, int FLAGS);
-        "pwritev2": None,
+        "pwritev2": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset", "flags"]),
         # ssize_t pwritev64v2 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET, int FLAGS);
         "pwritev64v2": None,
         # off_t lseek (int FILEDES, off_t OFFSET, int WHENCE);
@@ -828,9 +828,9 @@ _libc_decls = \
         # int fileno_unlocked (FILE *STREAM);
         "fileno_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # ssize_t readv (int FILEDES, const struct iovec *VECTOR, int COUNT);
-        "readv": None,
+        "readv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["filedes", "vector", "count"]),
         # ssize_t writev (int FILEDES, const struct iovec *VECTOR, int COUNT);
-        "writev": None,
+        "writev": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["filedes", "vector", "count"]),
         # void * mmap (void *ADDRESS, size_t LENGTH, int PROTECT, int FLAGS, int FILEDES, off_t OFFSET);
         "mmap": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["address", "length", "protect", "flags", "filedes", "offset"]),
         # void * mmap64 (void *ADDRESS, size_t LENGTH, int PROTECT, int FLAGS, int FILEDES, off64_t OFFSET);
@@ -880,9 +880,9 @@ _libc_decls = \
         # int aio_fsync64 (int OP, struct aiocb64 *AIOCBP);
         "aio_fsync64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["op", "aiocbp"]),
         # int aio_suspend (const struct aiocb *const LIST[], int NENT, const struct timespec *TIMEOUT);
-        "aio_suspend": None,
+        "aio_suspend": SimTypeFunction([SimTypeFixedSizeArray(SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0), 0), SimTypeInt(signed=True), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["list", "nent", "timeout"]),
         # int aio_suspend64 (const struct aiocb64 *const LIST[], int NENT, const struct timespec *TIMEOUT);
-        "aio_suspend64": None,
+        "aio_suspend64": SimTypeFunction([SimTypeFixedSizeArray(SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0), 0), SimTypeInt(signed=True), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["list", "nent", "timeout"]),
         # int aio_cancel (int FILDES, struct aiocb *AIOCBP);
         "aio_cancel": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["fildes", "aiocbp"]),
         # int aio_cancel64 (int FILDES, struct aiocb64 *AIOCBP);
@@ -890,13 +890,13 @@ _libc_decls = \
         # void aio_init (const struct aioinit *INIT);
         "aio_init": SimTypeFunction([SimTypePointer(SimStruct({}, name="aioinit", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["init"]),
         # int fcntl (int FILEDES, int COMMAND, ...);
-        "fcntl": None,
+        "fcntl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["filedes", "command"], variadic=True),
         # int dup (int OLD);
         "dup": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["old"]),
         # int dup2 (int OLD, int NEW);
         "dup2": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["old", "new"]),
         # int ioctl (int FILEDES, int COMMAND, ...);
-        "ioctl": None,
+        "ioctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["filedes", "command"], variadic=True),
         # char * getcwd (char *BUFFER, size_t SIZE);
         "getcwd": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypePointer(SimTypeChar(), offset=0), arg_names=["buffer", "size"]),
         # char * get_current_dir_name (void);
@@ -1000,11 +1000,11 @@ _libc_decls = \
         # int utime (const char *FILENAME, const struct utimbuf *TIMES);
         "utime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="utimbuf", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "times"]),
         # int utimes (const char *FILENAME, const struct timeval TVP[2]);
-        "utimes": None,
+        "utimes": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), 2)], SimTypeInt(signed=True), arg_names=["filename", "tvp"]),
         # int lutimes (const char *FILENAME, const struct timeval TVP[2]);
-        "lutimes": None,
+        "lutimes": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), 2)], SimTypeInt(signed=True), arg_names=["filename", "tvp"]),
         # int futimes (int FD, const struct timeval TVP[2]);
-        "futimes": None,
+        "futimes": SimTypeFunction([SimTypeInt(signed=True), SimTypeFixedSizeArray(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), 2)], SimTypeInt(signed=True), arg_names=["fd", "tvp"]),
         # int truncate (const char *FILENAME, off_t LENGTH);
         "truncate": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="off_t")], SimTypeInt(signed=True), arg_names=["filename", "length"]),
         # int truncate64 (const char *NAME, off64_t LENGTH);
@@ -1206,9 +1206,9 @@ _libc_decls = \
         # void openlog (const char *IDENT, int OPTION, int FACILITY);
         "openlog": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["ident", "option", "facility"]),
         # void syslog (int FACILITY_PRIORITY, const char *FORMAT, ...);
-        "syslog": None,
+        "syslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["facility_priority", "format"], variadic=True),
         # void vsyslog (int FACILITY_PRIORITY, const char *FORMAT, va_list ARGLIST);
-        "vsyslog": None,
+        "vsyslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["facility_priority", "format", "arglist"]),
         # void closelog (void);
         "closelog": SimTypeFunction([], SimTypeBottom(label="void")),
         # int setlogmask (int MASK);
@@ -1218,7 +1218,7 @@ _libc_decls = \
         # float sinf (float X);
         "sinf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double sinl (long double X);
-        "sinl": None,
+        "sinl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN sinfN (_FloatN X);
         "sinfN": None,
         # _FloatNx sinfNx (_FloatNx X);
@@ -1228,7 +1228,7 @@ _libc_decls = \
         # float cosf (float X);
         "cosf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double cosl (long double X);
-        "cosl": None,
+        "cosl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN cosfN (_FloatN X);
         "cosfN": None,
         # _FloatNx cosfNx (_FloatNx X);
@@ -1238,7 +1238,7 @@ _libc_decls = \
         # float tanf (float X);
         "tanf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double tanl (long double X);
-        "tanl": None,
+        "tanl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN tanfN (_FloatN X);
         "tanfN": None,
         # _FloatNx tanfNx (_FloatNx X);
@@ -1248,7 +1248,7 @@ _libc_decls = \
         # void sincosf (float X, float *SINX, float *COSX);
         "sincosf": SimTypeFunction([SimTypeFloat(size=32), SimTypePointer(SimTypeFloat(size=32), offset=0), SimTypePointer(SimTypeFloat(size=32), offset=0)], SimTypeBottom(label="void"), arg_names=["x", "sinx", "cosx"]),
         # void sincosl (long double X, long double *SINX, long double *COSX);
-        "sincosl": None,
+        "sincosl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypePointer(SimTypeDouble(align_double=True), offset=0), SimTypePointer(SimTypeDouble(align_double=True), offset=0)], SimTypeBottom(label="void"), arg_names=["x", "sinx", "cosx"]),
         # _FloatN sincosfN (_FloatN X, _FloatN *SINX, _FloatN *COSX);
         "sincosfN": None,
         # _FloatNx sincosfNx (_FloatNx X, _FloatNx *SINX, _FloatNx *COSX);
@@ -1288,7 +1288,7 @@ _libc_decls = \
         # float asinf (float X);
         "asinf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double asinl (long double X);
-        "asinl": None,
+        "asinl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN asinfN (_FloatN X);
         "asinfN": None,
         # _FloatNx asinfNx (_FloatNx X);
@@ -1298,7 +1298,7 @@ _libc_decls = \
         # float acosf (float X);
         "acosf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double acosl (long double X);
-        "acosl": None,
+        "acosl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN acosfN (_FloatN X);
         "acosfN": None,
         # _FloatNx acosfNx (_FloatNx X);
@@ -1308,7 +1308,7 @@ _libc_decls = \
         # float atanf (float X);
         "atanf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double atanl (long double X);
-        "atanl": None,
+        "atanl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN atanfN (_FloatN X);
         "atanfN": None,
         # _FloatNx atanfNx (_FloatNx X);
@@ -1318,7 +1318,7 @@ _libc_decls = \
         # float atan2f (float Y, float X);
         "atan2f": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["y", "x"]),
         # long double atan2l (long double Y, long double X);
-        "atan2l": None,
+        "atan2l": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["y", "x"]),
         # _FloatN atan2fN (_FloatN Y, _FloatN X);
         "atan2fN": None,
         # _FloatNx atan2fNx (_FloatNx Y, _FloatNx X);
@@ -1358,7 +1358,7 @@ _libc_decls = \
         # float expf (float X);
         "expf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double expl (long double X);
-        "expl": None,
+        "expl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN expfN (_FloatN X);
         "expfN": None,
         # _FloatNx expfNx (_FloatNx X);
@@ -1368,7 +1368,7 @@ _libc_decls = \
         # float exp2f (float X);
         "exp2f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double exp2l (long double X);
-        "exp2l": None,
+        "exp2l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN exp2fN (_FloatN X);
         "exp2fN": None,
         # _FloatNx exp2fNx (_FloatNx X);
@@ -1378,7 +1378,7 @@ _libc_decls = \
         # float exp10f (float X);
         "exp10f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double exp10l (long double X);
-        "exp10l": None,
+        "exp10l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN exp10fN (_FloatN X);
         "exp10fN": None,
         # _FloatNx exp10fNx (_FloatNx X);
@@ -1388,13 +1388,13 @@ _libc_decls = \
         # float pow10f (float X);
         "pow10f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double pow10l (long double X);
-        "pow10l": None,
+        "pow10l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # double log (double X);
         "log": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # float logf (float X);
         "logf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double logl (long double X);
-        "logl": None,
+        "logl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN logfN (_FloatN X);
         "logfN": None,
         # _FloatNx logfNx (_FloatNx X);
@@ -1404,7 +1404,7 @@ _libc_decls = \
         # float log10f (float X);
         "log10f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double log10l (long double X);
-        "log10l": None,
+        "log10l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN log10fN (_FloatN X);
         "log10fN": None,
         # _FloatNx log10fNx (_FloatNx X);
@@ -1414,7 +1414,7 @@ _libc_decls = \
         # float log2f (float X);
         "log2f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double log2l (long double X);
-        "log2l": None,
+        "log2l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN log2fN (_FloatN X);
         "log2fN": None,
         # _FloatNx log2fNx (_FloatNx X);
@@ -1424,7 +1424,7 @@ _libc_decls = \
         # float logbf (float X);
         "logbf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double logbl (long double X);
-        "logbl": None,
+        "logbl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN logbfN (_FloatN X);
         "logbfN": None,
         # _FloatNx logbfNx (_FloatNx X);
@@ -1434,7 +1434,7 @@ _libc_decls = \
         # int ilogbf (float X);
         "ilogbf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x"]),
         # int ilogbl (long double X);
-        "ilogbl": None,
+        "ilogbl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x"]),
         # int ilogbfN (_FloatN X);
         "ilogbfN": None,
         # int ilogbfNx (_FloatNx X);
@@ -1444,7 +1444,7 @@ _libc_decls = \
         # long int llogbf (float X);
         "llogbf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeLong(signed=True), arg_names=["x"]),
         # long int llogbl (long double X);
-        "llogbl": None,
+        "llogbl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeLong(signed=True), arg_names=["x"]),
         # long int llogbfN (_FloatN X);
         "llogbfN": None,
         # long int llogbfNx (_FloatNx X);
@@ -1454,7 +1454,7 @@ _libc_decls = \
         # float powf (float BASE, float POWER);
         "powf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["base", "power"]),
         # long double powl (long double BASE, long double POWER);
-        "powl": None,
+        "powl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["base", "power"]),
         # _FloatN powfN (_FloatN BASE, _FloatN POWER);
         "powfN": None,
         # _FloatNx powfNx (_FloatNx BASE, _FloatNx POWER);
@@ -1464,7 +1464,7 @@ _libc_decls = \
         # float sqrtf (float X);
         "sqrtf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double sqrtl (long double X);
-        "sqrtl": None,
+        "sqrtl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN sqrtfN (_FloatN X);
         "sqrtfN": None,
         # _FloatNx sqrtfNx (_FloatNx X);
@@ -1474,7 +1474,7 @@ _libc_decls = \
         # float cbrtf (float X);
         "cbrtf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double cbrtl (long double X);
-        "cbrtl": None,
+        "cbrtl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN cbrtfN (_FloatN X);
         "cbrtfN": None,
         # _FloatNx cbrtfNx (_FloatNx X);
@@ -1484,7 +1484,7 @@ _libc_decls = \
         # float hypotf (float X, float Y);
         "hypotf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double hypotl (long double X, long double Y);
-        "hypotl": None,
+        "hypotl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN hypotfN (_FloatN X, _FloatN Y);
         "hypotfN": None,
         # _FloatNx hypotfNx (_FloatNx X, _FloatNx Y);
@@ -1494,7 +1494,7 @@ _libc_decls = \
         # float expm1f (float X);
         "expm1f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double expm1l (long double X);
-        "expm1l": None,
+        "expm1l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN expm1fN (_FloatN X);
         "expm1fN": None,
         # _FloatNx expm1fNx (_FloatNx X);
@@ -1504,7 +1504,7 @@ _libc_decls = \
         # float log1pf (float X);
         "log1pf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double log1pl (long double X);
-        "log1pl": None,
+        "log1pl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN log1pfN (_FloatN X);
         "log1pfN": None,
         # _FloatNx log1pfNx (_FloatNx X);
@@ -1564,7 +1564,7 @@ _libc_decls = \
         # float sinhf (float X);
         "sinhf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double sinhl (long double X);
-        "sinhl": None,
+        "sinhl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN sinhfN (_FloatN X);
         "sinhfN": None,
         # _FloatNx sinhfNx (_FloatNx X);
@@ -1574,7 +1574,7 @@ _libc_decls = \
         # float coshf (float X);
         "coshf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double coshl (long double X);
-        "coshl": None,
+        "coshl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN coshfN (_FloatN X);
         "coshfN": None,
         # _FloatNx coshfNx (_FloatNx X);
@@ -1584,7 +1584,7 @@ _libc_decls = \
         # float tanhf (float X);
         "tanhf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double tanhl (long double X);
-        "tanhl": None,
+        "tanhl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN tanhfN (_FloatN X);
         "tanhfN": None,
         # _FloatNx tanhfNx (_FloatNx X);
@@ -1624,7 +1624,7 @@ _libc_decls = \
         # float asinhf (float X);
         "asinhf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double asinhl (long double X);
-        "asinhl": None,
+        "asinhl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN asinhfN (_FloatN X);
         "asinhfN": None,
         # _FloatNx asinhfNx (_FloatNx X);
@@ -1634,7 +1634,7 @@ _libc_decls = \
         # float acoshf (float X);
         "acoshf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double acoshl (long double X);
-        "acoshl": None,
+        "acoshl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN acoshfN (_FloatN X);
         "acoshfN": None,
         # _FloatNx acoshfNx (_FloatNx X);
@@ -1644,7 +1644,7 @@ _libc_decls = \
         # float atanhf (float X);
         "atanhf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double atanhl (long double X);
-        "atanhl": None,
+        "atanhl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN atanhfN (_FloatN X);
         "atanhfN": None,
         # _FloatNx atanhfNx (_FloatNx X);
@@ -1684,7 +1684,7 @@ _libc_decls = \
         # float erff (float X);
         "erff": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double erfl (long double X);
-        "erfl": None,
+        "erfl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN erffN (_FloatN X);
         "erffN": None,
         # _FloatNx erffNx (_FloatNx X);
@@ -1694,7 +1694,7 @@ _libc_decls = \
         # float erfcf (float X);
         "erfcf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double erfcl (long double X);
-        "erfcl": None,
+        "erfcl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN erfcfN (_FloatN X);
         "erfcfN": None,
         # _FloatNx erfcfNx (_FloatNx X);
@@ -1704,7 +1704,7 @@ _libc_decls = \
         # float lgammaf (float X);
         "lgammaf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double lgammal (long double X);
-        "lgammal": None,
+        "lgammal": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN lgammafN (_FloatN X);
         "lgammafN": None,
         # _FloatNx lgammafNx (_FloatNx X);
@@ -1714,7 +1714,7 @@ _libc_decls = \
         # float lgammaf_r (float X, int *SIGNP);
         "lgammaf_r": SimTypeFunction([SimTypeFloat(size=32), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeFloat(size=32), arg_names=["x", "signp"]),
         # long double lgammal_r (long double X, int *SIGNP);
-        "lgammal_r": None,
+        "lgammal_r": SimTypeFunction([SimTypeDouble(align_double=True), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeDouble(align_double=True), arg_names=["x", "signp"]),
         # _FloatN lgammafN_r (_FloatN X, int *SIGNP);
         "lgammafN_r": None,
         # _FloatNx lgammafNx_r (_FloatNx X, int *SIGNP);
@@ -1724,13 +1724,13 @@ _libc_decls = \
         # float gammaf (float X);
         "gammaf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double gammal (long double X);
-        "gammal": None,
+        "gammal": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # double tgamma (double X);
         "tgamma": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # float tgammaf (float X);
         "tgammaf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double tgammal (long double X);
-        "tgammal": None,
+        "tgammal": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN tgammafN (_FloatN X);
         "tgammafN": None,
         # _FloatNx tgammafNx (_FloatNx X);
@@ -1740,7 +1740,7 @@ _libc_decls = \
         # float j0f (float X);
         "j0f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double j0l (long double X);
-        "j0l": None,
+        "j0l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN j0fN (_FloatN X);
         "j0fN": None,
         # _FloatNx j0fNx (_FloatNx X);
@@ -1750,7 +1750,7 @@ _libc_decls = \
         # float j1f (float X);
         "j1f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double j1l (long double X);
-        "j1l": None,
+        "j1l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN j1fN (_FloatN X);
         "j1fN": None,
         # _FloatNx j1fNx (_FloatNx X);
@@ -1760,7 +1760,7 @@ _libc_decls = \
         # float jnf (int N, float X);
         "jnf": SimTypeFunction([SimTypeInt(signed=True), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["n", "x"]),
         # long double jnl (int N, long double X);
-        "jnl": None,
+        "jnl": SimTypeFunction([SimTypeInt(signed=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["n", "x"]),
         # _FloatN jnfN (int N, _FloatN X);
         "jnfN": None,
         # _FloatNx jnfNx (int N, _FloatNx X);
@@ -1770,7 +1770,7 @@ _libc_decls = \
         # float y0f (float X);
         "y0f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double y0l (long double X);
-        "y0l": None,
+        "y0l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN y0fN (_FloatN X);
         "y0fN": None,
         # _FloatNx y0fNx (_FloatNx X);
@@ -1780,7 +1780,7 @@ _libc_decls = \
         # float y1f (float X);
         "y1f": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double y1l (long double X);
-        "y1l": None,
+        "y1l": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN y1fN (_FloatN X);
         "y1fN": None,
         # _FloatNx y1fNx (_FloatNx X);
@@ -1790,7 +1790,7 @@ _libc_decls = \
         # float ynf (int N, float X);
         "ynf": SimTypeFunction([SimTypeInt(signed=True), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["n", "x"]),
         # long double ynl (int N, long double X);
-        "ynl": None,
+        "ynl": SimTypeFunction([SimTypeInt(signed=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["n", "x"]),
         # _FloatN ynfN (int N, _FloatN X);
         "ynfN": None,
         # _FloatNx ynfNx (int N, _FloatNx X);
@@ -1866,19 +1866,19 @@ _libc_decls = \
         # int isinff (float X);
         "isinff": SimTypeFunction([SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x"]),
         # int isinfl (long double X);
-        "isinfl": None,
+        "isinfl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x"]),
         # int isnan (double X);
         "isnan": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x"]),
         # int isnanf (float X);
         "isnanf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x"]),
         # int isnanl (long double X);
-        "isnanl": None,
+        "isnanl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x"]),
         # int finite (double X);
         "finite": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x"]),
         # int finitef (float X);
         "finitef": SimTypeFunction([SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x"]),
         # int finitel (long double X);
-        "finitel": None,
+        "finitel": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x"]),
         # int feclearexcept (int EXCEPTS);
         "feclearexcept": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["excepts"]),
         # int feraiseexcept (int EXCEPTS);
@@ -1928,7 +1928,7 @@ _libc_decls = \
         # float fabsf (float NUMBER);
         "fabsf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["number"]),
         # long double fabsl (long double NUMBER);
-        "fabsl": None,
+        "fabsl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["number"]),
         # _FloatN fabsfN (_FloatN NUMBER);
         "fabsfN": None,
         # _FloatNx fabsfNx (_FloatNx NUMBER);
@@ -1948,7 +1948,7 @@ _libc_decls = \
         # float frexpf (float VALUE, int *EXPONENT);
         "frexpf": SimTypeFunction([SimTypeFloat(size=32), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeFloat(size=32), arg_names=["value", "exponent"]),
         # long double frexpl (long double VALUE, int *EXPONENT);
-        "frexpl": None,
+        "frexpl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeDouble(align_double=True), arg_names=["value", "exponent"]),
         # _FloatN frexpfN (_FloatN VALUE, int *EXPONENT);
         "frexpfN": None,
         # _FloatNx frexpfNx (_FloatNx VALUE, int *EXPONENT);
@@ -1958,7 +1958,7 @@ _libc_decls = \
         # float ldexpf (float VALUE, int EXPONENT);
         "ldexpf": SimTypeFunction([SimTypeFloat(size=32), SimTypeInt(signed=True)], SimTypeFloat(size=32), arg_names=["value", "exponent"]),
         # long double ldexpl (long double VALUE, int EXPONENT);
-        "ldexpl": None,
+        "ldexpl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True)], SimTypeDouble(align_double=True), arg_names=["value", "exponent"]),
         # _FloatN ldexpfN (_FloatN VALUE, int EXPONENT);
         "ldexpfN": None,
         # _FloatNx ldexpfNx (_FloatNx VALUE, int EXPONENT);
@@ -1968,13 +1968,13 @@ _libc_decls = \
         # float scalbf (float VALUE, float EXPONENT);
         "scalbf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["value", "exponent"]),
         # long double scalbl (long double VALUE, long double EXPONENT);
-        "scalbl": None,
+        "scalbl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["value", "exponent"]),
         # double scalbn (double X, int N);
         "scalbn": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True)], SimTypeDouble(align_double=True), arg_names=["x", "n"]),
         # float scalbnf (float X, int N);
         "scalbnf": SimTypeFunction([SimTypeFloat(size=32), SimTypeInt(signed=True)], SimTypeFloat(size=32), arg_names=["x", "n"]),
         # long double scalbnl (long double X, int N);
-        "scalbnl": None,
+        "scalbnl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True)], SimTypeDouble(align_double=True), arg_names=["x", "n"]),
         # _FloatN scalbnfN (_FloatN X, int N);
         "scalbnfN": None,
         # _FloatNx scalbnfNx (_FloatNx X, int N);
@@ -1984,7 +1984,7 @@ _libc_decls = \
         # float scalblnf (float X, long int N);
         "scalblnf": SimTypeFunction([SimTypeFloat(size=32), SimTypeLong(signed=True)], SimTypeFloat(size=32), arg_names=["x", "n"]),
         # long double scalblnl (long double X, long int N);
-        "scalblnl": None,
+        "scalblnl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeLong(signed=True)], SimTypeDouble(align_double=True), arg_names=["x", "n"]),
         # _FloatN scalblnfN (_FloatN X, long int N);
         "scalblnfN": None,
         # _FloatNx scalblnfNx (_FloatNx X, long int N);
@@ -1994,13 +1994,13 @@ _libc_decls = \
         # float significandf (float X);
         "significandf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double significandl (long double X);
-        "significandl": None,
+        "significandl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # double ceil (double X);
         "ceil": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # float ceilf (float X);
         "ceilf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double ceill (long double X);
-        "ceill": None,
+        "ceill": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN ceilfN (_FloatN X);
         "ceilfN": None,
         # _FloatNx ceilfNx (_FloatNx X);
@@ -2010,7 +2010,7 @@ _libc_decls = \
         # float floorf (float X);
         "floorf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double floorl (long double X);
-        "floorl": None,
+        "floorl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN floorfN (_FloatN X);
         "floorfN": None,
         # _FloatNx floorfNx (_FloatNx X);
@@ -2020,7 +2020,7 @@ _libc_decls = \
         # float truncf (float X);
         "truncf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double truncl (long double X);
-        "truncl": None,
+        "truncl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN truncfN (_FloatN X);
         "truncfN": None,
         # _FloatNx truncfNx (_FloatNx X);
@@ -2030,7 +2030,7 @@ _libc_decls = \
         # float rintf (float X);
         "rintf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double rintl (long double X);
-        "rintl": None,
+        "rintl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN rintfN (_FloatN X);
         "rintfN": None,
         # _FloatNx rintfNx (_FloatNx X);
@@ -2040,7 +2040,7 @@ _libc_decls = \
         # float nearbyintf (float X);
         "nearbyintf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double nearbyintl (long double X);
-        "nearbyintl": None,
+        "nearbyintl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN nearbyintfN (_FloatN X);
         "nearbyintfN": None,
         # _FloatNx nearbyintfNx (_FloatNx X);
@@ -2050,7 +2050,7 @@ _libc_decls = \
         # float roundf (float X);
         "roundf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double roundl (long double X);
-        "roundl": None,
+        "roundl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN roundfN (_FloatN X);
         "roundfN": None,
         # _FloatNx roundfNx (_FloatNx X);
@@ -2060,7 +2060,7 @@ _libc_decls = \
         # float roundevenf (float X);
         "roundevenf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double roundevenl (long double X);
-        "roundevenl": None,
+        "roundevenl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN roundevenfN (_FloatN X);
         "roundevenfN": None,
         # _FloatNx roundevenfNx (_FloatNx X);
@@ -2070,7 +2070,7 @@ _libc_decls = \
         # long int lrintf (float X);
         "lrintf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeLong(signed=True), arg_names=["x"]),
         # long int lrintl (long double X);
-        "lrintl": None,
+        "lrintl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeLong(signed=True), arg_names=["x"]),
         # long int lrintfN (_FloatN X);
         "lrintfN": None,
         # long int lrintfNx (_FloatNx X);
@@ -2080,7 +2080,7 @@ _libc_decls = \
         # long long int llrintf (float X);
         "llrintf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeLongLong(signed=True), arg_names=["x"]),
         # long long int llrintl (long double X);
-        "llrintl": None,
+        "llrintl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeLongLong(signed=True), arg_names=["x"]),
         # long long int llrintfN (_FloatN X);
         "llrintfN": None,
         # long long int llrintfNx (_FloatNx X);
@@ -2090,7 +2090,7 @@ _libc_decls = \
         # long int lroundf (float X);
         "lroundf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeLong(signed=True), arg_names=["x"]),
         # long int lroundl (long double X);
-        "lroundl": None,
+        "lroundl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeLong(signed=True), arg_names=["x"]),
         # long int lroundfN (_FloatN X);
         "lroundfN": None,
         # long int lroundfNx (_FloatNx X);
@@ -2100,7 +2100,7 @@ _libc_decls = \
         # long long int llroundf (float X);
         "llroundf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeLongLong(signed=True), arg_names=["x"]),
         # long long int llroundl (long double X);
-        "llroundl": None,
+        "llroundl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeLongLong(signed=True), arg_names=["x"]),
         # long long int llroundfN (_FloatN X);
         "llroundfN": None,
         # long long int llroundfNx (_FloatNx X);
@@ -2110,7 +2110,7 @@ _libc_decls = \
         # intmax_t fromfpf (float X, int ROUND, unsigned int WIDTH);
         "fromfpf": SimTypeFunction([SimTypeFloat(size=32), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=True, label="intmax_t"), arg_names=["x", "round", "width"]),
         # intmax_t fromfpl (long double X, int ROUND, unsigned int WIDTH);
-        "fromfpl": None,
+        "fromfpl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=True, label="intmax_t"), arg_names=["x", "round", "width"]),
         # intmax_t fromfpfN (_FloatN X, int ROUND, unsigned int WIDTH);
         "fromfpfN": None,
         # intmax_t fromfpfNx (_FloatNx X, int ROUND, unsigned int WIDTH);
@@ -2120,7 +2120,7 @@ _libc_decls = \
         # uintmax_t ufromfpf (float X, int ROUND, unsigned int WIDTH);
         "ufromfpf": SimTypeFunction([SimTypeFloat(size=32), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=False, label="uintmax_t"), arg_names=["x", "round", "width"]),
         # uintmax_t ufromfpl (long double X, int ROUND, unsigned int WIDTH);
-        "ufromfpl": None,
+        "ufromfpl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=False, label="uintmax_t"), arg_names=["x", "round", "width"]),
         # uintmax_t ufromfpfN (_FloatN X, int ROUND, unsigned int WIDTH);
         "ufromfpfN": None,
         # uintmax_t ufromfpfNx (_FloatNx X, int ROUND, unsigned int WIDTH);
@@ -2130,7 +2130,7 @@ _libc_decls = \
         # intmax_t fromfpxf (float X, int ROUND, unsigned int WIDTH);
         "fromfpxf": SimTypeFunction([SimTypeFloat(size=32), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=True, label="intmax_t"), arg_names=["x", "round", "width"]),
         # intmax_t fromfpxl (long double X, int ROUND, unsigned int WIDTH);
-        "fromfpxl": None,
+        "fromfpxl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=True, label="intmax_t"), arg_names=["x", "round", "width"]),
         # intmax_t fromfpxfN (_FloatN X, int ROUND, unsigned int WIDTH);
         "fromfpxfN": None,
         # intmax_t fromfpxfNx (_FloatNx X, int ROUND, unsigned int WIDTH);
@@ -2140,7 +2140,7 @@ _libc_decls = \
         # uintmax_t ufromfpxf (float X, int ROUND, unsigned int WIDTH);
         "ufromfpxf": SimTypeFunction([SimTypeFloat(size=32), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=False, label="uintmax_t"), arg_names=["x", "round", "width"]),
         # uintmax_t ufromfpxl (long double X, int ROUND, unsigned int WIDTH);
-        "ufromfpxl": None,
+        "ufromfpxl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=False, label="uintmax_t"), arg_names=["x", "round", "width"]),
         # uintmax_t ufromfpxfN (_FloatN X, int ROUND, unsigned int WIDTH);
         "ufromfpxfN": None,
         # uintmax_t ufromfpxfNx (_FloatNx X, int ROUND, unsigned int WIDTH);
@@ -2160,7 +2160,7 @@ _libc_decls = \
         # float fmodf (float NUMERATOR, float DENOMINATOR);
         "fmodf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["numerator", "denominator"]),
         # long double fmodl (long double NUMERATOR, long double DENOMINATOR);
-        "fmodl": None,
+        "fmodl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["numerator", "denominator"]),
         # _FloatN fmodfN (_FloatN NUMERATOR, _FloatN DENOMINATOR);
         "fmodfN": None,
         # _FloatNx fmodfNx (_FloatNx NUMERATOR, _FloatNx DENOMINATOR);
@@ -2170,7 +2170,7 @@ _libc_decls = \
         # float remainderf (float NUMERATOR, float DENOMINATOR);
         "remainderf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["numerator", "denominator"]),
         # long double remainderl (long double NUMERATOR, long double DENOMINATOR);
-        "remainderl": None,
+        "remainderl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["numerator", "denominator"]),
         # _FloatN remainderfN (_FloatN NUMERATOR, _FloatN DENOMINATOR);
         "remainderfN": None,
         # _FloatNx remainderfNx (_FloatNx NUMERATOR, _FloatNx DENOMINATOR);
@@ -2180,13 +2180,13 @@ _libc_decls = \
         # float dremf (float NUMERATOR, float DENOMINATOR);
         "dremf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["numerator", "denominator"]),
         # long double dreml (long double NUMERATOR, long double DENOMINATOR);
-        "dreml": None,
+        "dreml": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["numerator", "denominator"]),
         # double copysign (double X, double Y);
         "copysign": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # float copysignf (float X, float Y);
         "copysignf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double copysignl (long double X, long double Y);
-        "copysignl": None,
+        "copysignl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN copysignfN (_FloatN X, _FloatN Y);
         "copysignfN": None,
         # _FloatNx copysignfNx (_FloatNx X, _FloatNx Y);
@@ -2198,23 +2198,23 @@ _libc_decls = \
         # float nextafterf (float X, float Y);
         "nextafterf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double nextafterl (long double X, long double Y);
-        "nextafterl": None,
+        "nextafterl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN nextafterfN (_FloatN X, _FloatN Y);
         "nextafterfN": None,
         # _FloatNx nextafterfNx (_FloatNx X, _FloatNx Y);
         "nextafterfNx": None,
         # double nexttoward (double X, long double Y);
-        "nexttoward": None,
+        "nexttoward": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # float nexttowardf (float X, long double Y);
-        "nexttowardf": None,
+        "nexttowardf": SimTypeFunction([SimTypeFloat(size=32), SimTypeDouble(align_double=True)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double nexttowardl (long double X, long double Y);
-        "nexttowardl": None,
+        "nexttowardl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # double nextup (double X);
         "nextup": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # float nextupf (float X);
         "nextupf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double nextupl (long double X);
-        "nextupl": None,
+        "nextupl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN nextupfN (_FloatN X);
         "nextupfN": None,
         # _FloatNx nextupfNx (_FloatNx X);
@@ -2224,7 +2224,7 @@ _libc_decls = \
         # float nextdownf (float X);
         "nextdownf": SimTypeFunction([SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double nextdownl (long double X);
-        "nextdownl": None,
+        "nextdownl": SimTypeFunction([SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN nextdownfN (_FloatN X);
         "nextdownfN": None,
         # _FloatNx nextdownfNx (_FloatNx X);
@@ -2234,7 +2234,7 @@ _libc_decls = \
         # float nanf (const char *TAGP);
         "nanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeFloat(size=32), arg_names=["tagp"]),
         # long double nanl (const char *TAGP);
-        "nanl": None,
+        "nanl": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeDouble(align_double=True), arg_names=["tagp"]),
         # _FloatN nanfN (const char *TAGP);
         "nanfN": None,
         # _FloatNx nanfNx (const char *TAGP);
@@ -2244,7 +2244,7 @@ _libc_decls = \
         # int canonicalizef (float *CX, const float *X);
         "canonicalizef": SimTypeFunction([SimTypePointer(SimTypeFloat(size=32), offset=0), SimTypePointer(SimTypeFloat(size=32), offset=0)], SimTypeInt(signed=True), arg_names=["cx", "x"]),
         # int canonicalizel (long double *CX, const long double *X);
-        "canonicalizel": None,
+        "canonicalizel": SimTypeFunction([SimTypePointer(SimTypeDouble(align_double=True), offset=0), SimTypePointer(SimTypeDouble(align_double=True), offset=0)], SimTypeInt(signed=True), arg_names=["cx", "x"]),
         # int canonicalizefN (_FloatN *CX, const _FloatN *X);
         "canonicalizefN": None,
         # int canonicalizefNx (_FloatNx *CX, const _FloatNx *X);
@@ -2254,7 +2254,7 @@ _libc_decls = \
         # float getpayloadf (const float *X);
         "getpayloadf": SimTypeFunction([SimTypePointer(SimTypeFloat(size=32), offset=0)], SimTypeFloat(size=32), arg_names=["x"]),
         # long double getpayloadl (const long double *X);
-        "getpayloadl": None,
+        "getpayloadl": SimTypeFunction([SimTypePointer(SimTypeDouble(align_double=True), offset=0)], SimTypeDouble(align_double=True), arg_names=["x"]),
         # _FloatN getpayloadfN (const _FloatN *X);
         "getpayloadfN": None,
         # _FloatNx getpayloadfNx (const _FloatNx *X);
@@ -2264,7 +2264,7 @@ _libc_decls = \
         # int setpayloadf (float *X, float PAYLOAD);
         "setpayloadf": SimTypeFunction([SimTypePointer(SimTypeFloat(size=32), offset=0), SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x", "payload"]),
         # int setpayloadl (long double *X, long double PAYLOAD);
-        "setpayloadl": None,
+        "setpayloadl": SimTypeFunction([SimTypePointer(SimTypeDouble(align_double=True), offset=0), SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x", "payload"]),
         # int setpayloadfN (_FloatN *X, _FloatN PAYLOAD);
         "setpayloadfN": None,
         # int setpayloadfNx (_FloatNx *X, _FloatNx PAYLOAD);
@@ -2274,7 +2274,7 @@ _libc_decls = \
         # int setpayloadsigf (float *X, float PAYLOAD);
         "setpayloadsigf": SimTypeFunction([SimTypePointer(SimTypeFloat(size=32), offset=0), SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x", "payload"]),
         # int setpayloadsigl (long double *X, long double PAYLOAD);
-        "setpayloadsigl": None,
+        "setpayloadsigl": SimTypeFunction([SimTypePointer(SimTypeDouble(align_double=True), offset=0), SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x", "payload"]),
         # int setpayloadsigfN (_FloatN *X, _FloatN PAYLOAD);
         "setpayloadsigfN": None,
         # int setpayloadsigfNx (_FloatNx *X, _FloatNx PAYLOAD);
@@ -2284,7 +2284,7 @@ _libc_decls = \
         # int totalorderf (float X, float Y);
         "totalorderf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x", "y"]),
         # int totalorderl (long double X, long double Y);
-        "totalorderl": None,
+        "totalorderl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x", "y"]),
         # int totalorderfN (_FloatN X, _FloatN Y);
         "totalorderfN": None,
         # int totalorderfNx (_FloatNx X, _FloatNx Y);
@@ -2294,7 +2294,7 @@ _libc_decls = \
         # int totalordermagf (float X, float Y);
         "totalordermagf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["x", "y"]),
         # int totalordermagl (long double X, long double Y);
-        "totalordermagl": None,
+        "totalordermagl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["x", "y"]),
         # int totalordermagfN (_FloatN X, _FloatN Y);
         "totalordermagfN": None,
         # int totalordermagfNx (_FloatNx X, _FloatNx Y);
@@ -2304,7 +2304,7 @@ _libc_decls = \
         # float fminf (float X, float Y);
         "fminf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double fminl (long double X, long double Y);
-        "fminl": None,
+        "fminl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN fminfN (_FloatN X, _FloatN Y);
         "fminfN": None,
         # _FloatNx fminfNx (_FloatNx X, _FloatNx Y);
@@ -2314,7 +2314,7 @@ _libc_decls = \
         # float fmaxf (float X, float Y);
         "fmaxf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double fmaxl (long double X, long double Y);
-        "fmaxl": None,
+        "fmaxl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN fmaxfN (_FloatN X, _FloatN Y);
         "fmaxfN": None,
         # _FloatNx fmaxfNx (_FloatNx X, _FloatNx Y);
@@ -2324,7 +2324,7 @@ _libc_decls = \
         # float fminmagf (float X, float Y);
         "fminmagf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double fminmagl (long double X, long double Y);
-        "fminmagl": None,
+        "fminmagl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN fminmagfN (_FloatN X, _FloatN Y);
         "fminmagfN": None,
         # _FloatNx fminmagfNx (_FloatNx X, _FloatNx Y);
@@ -2334,7 +2334,7 @@ _libc_decls = \
         # float fmaxmagf (float X, float Y);
         "fmaxmagf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double fmaxmagl (long double X, long double Y);
-        "fmaxmagl": None,
+        "fmaxmagl": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN fmaxmagfN (_FloatN X, _FloatN Y);
         "fmaxmagfN": None,
         # _FloatNx fmaxmagfNx (_FloatNx X, _FloatNx Y);
@@ -2344,7 +2344,7 @@ _libc_decls = \
         # float fdimf (float X, float Y);
         "fdimf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y"]),
         # long double fdiml (long double X, long double Y);
-        "fdiml": None,
+        "fdiml": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y"]),
         # _FloatN fdimfN (_FloatN X, _FloatN Y);
         "fdimfN": None,
         # _FloatNx fdimfNx (_FloatNx X, _FloatNx Y);
@@ -2354,7 +2354,7 @@ _libc_decls = \
         # float fmaf (float X, float Y, float Z);
         "fmaf": SimTypeFunction([SimTypeFloat(size=32), SimTypeFloat(size=32), SimTypeFloat(size=32)], SimTypeFloat(size=32), arg_names=["x", "y", "z"]),
         # long double fmal (long double X, long double Y, long double Z);
-        "fmal": None,
+        "fmal": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeDouble(align_double=True), SimTypeDouble(align_double=True)], SimTypeDouble(align_double=True), arg_names=["x", "y", "z"]),
         # _FloatN fmafN (_FloatN X, _FloatN Y, _FloatN Z);
         "fmafN": None,
         # _FloatNx fmafNx (_FloatNx X, _FloatNx Y, _FloatNx Z);
@@ -2452,7 +2452,7 @@ _libc_decls = \
         # float strtof (const char *STRING, char **TAILPTR);
         "strtof": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeFloat(size=32), arg_names=["string", "tailptr"]),
         # long double strtold (const char *STRING, char **TAILPTR);
-        "strtold": None,
+        "strtold": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeDouble(align_double=True), arg_names=["string", "tailptr"]),
         # _FloatN strtofN (const char *STRING, char **TAILPTR);
         "strtofN": None,
         # _FloatNx strtofNx (const char *STRING, char **TAILPTR);
@@ -2462,7 +2462,7 @@ _libc_decls = \
         # float wcstof (const wchar_t *STRING, wchar_t **TAILPTR);
         "wcstof": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), offset=0)], SimTypeFloat(size=32), arg_names=["string", "tailptr"]),
         # long double wcstold (const wchar_t *STRING, wchar_t **TAILPTR);
-        "wcstold": None,
+        "wcstold": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), offset=0)], SimTypeDouble(align_double=True), arg_names=["string", "tailptr"]),
         # _FloatN wcstofN (const wchar_t *STRING, wchar_t **TAILPTR);
         "wcstofN": None,
         # _FloatNx wcstofNx (const wchar_t *STRING, wchar_t **TAILPTR);
@@ -2474,7 +2474,7 @@ _libc_decls = \
         # int strfromf (char *restrict STRING, size_t SIZE, const char *restrict FORMAT, float VALUE);
         "strfromf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), SimTypeFloat(size=32)], SimTypeInt(signed=True), arg_names=["string", "size", "format", "value"]),
         # int strfroml (char *restrict STRING, size_t SIZE, const char *restrict FORMAT, long double VALUE);
-        "strfroml": None,
+        "strfroml": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), SimTypeDouble(align_double=True)], SimTypeInt(signed=True), arg_names=["string", "size", "format", "value"]),
         # int strfromfN (char *restrict STRING, size_t SIZE, const char *restrict FORMAT, _FloatN VALUE);
         "strfromfN": None,
         # int strfromfNx (char *restrict STRING, size_t SIZE, const char *restrict FORMAT, _FloatNx VALUE);
@@ -2486,19 +2486,19 @@ _libc_decls = \
         # char * gcvt (double VALUE, int NDIGIT, char *BUF);
         "gcvt": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["value", "ndigit", "buf"]),
         # char * qecvt (long double VALUE, int NDIGIT, int *DECPT, int *NEG);
-        "qecvt": None,
+        "qecvt": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["value", "ndigit", "decpt", "neg"]),
         # char * qfcvt (long double VALUE, int NDIGIT, int *DECPT, int *NEG);
-        "qfcvt": None,
+        "qfcvt": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["value", "ndigit", "decpt", "neg"]),
         # char * qgcvt (long double VALUE, int NDIGIT, char *BUF);
-        "qgcvt": None,
+        "qgcvt": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["value", "ndigit", "buf"]),
         # int ecvt_r (double VALUE, int NDIGIT, int *DECPT, int *NEG, char *BUF, size_t LEN);
         "ecvt_r": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["value", "ndigit", "decpt", "neg", "buf", "len"]),
         # int fcvt_r (double VALUE, int NDIGIT, int *DECPT, int *NEG, char *BUF, size_t LEN);
         "fcvt_r": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["value", "ndigit", "decpt", "neg", "buf", "len"]),
         # int qecvt_r (long double VALUE, int NDIGIT, int *DECPT, int *NEG, char *BUF, size_t LEN);
-        "qecvt_r": None,
+        "qecvt_r": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["value", "ndigit", "decpt", "neg", "buf", "len"]),
         # int qfcvt_r (long double VALUE, int NDIGIT, int *DECPT, int *NEG, char *BUF, size_t LEN);
-        "qfcvt_r": None,
+        "qfcvt_r": SimTypeFunction([SimTypeDouble(align_double=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["value", "ndigit", "decpt", "neg", "buf", "len"]),
         # double difftime (time_t TIME1, time_t TIME0);
         "difftime": SimTypeFunction([SimTypeLong(signed=True, label="time_t"), SimTypeLong(signed=True, label="time_t")], SimTypeDouble(align_double=True), arg_names=["time1", "time0"]),
         # clock_t clock (void);
@@ -2510,11 +2510,11 @@ _libc_decls = \
         # int stime (const time_t *NEWTIME);
         "stime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypeInt(signed=True), arg_names=["newtime"]),
         # int gettimeofday (struct timeval *TP, struct timezone *TZP);
-        "gettimeofday": None,
+        "gettimeofday": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="timezone", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["tp", "tzp"]),
         # int settimeofday (const struct timeval *TP, const struct timezone *TZP);
-        "settimeofday": None,
+        "settimeofday": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="timezone", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["tp", "tzp"]),
         # int adjtime (const struct timeval *DELTA, struct timeval *OLDDELTA);
-        "adjtime": None,
+        "adjtime": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["delta", "olddelta"]),
         # int adjtimex (struct timex *TIMEX);
         "adjtimex": SimTypeFunction([SimTypePointer(SimStruct({}, name="timex", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["timex"]),
         # struct tm * localtime (const time_t *TIME);
@@ -2564,7 +2564,7 @@ _libc_decls = \
         # unsigned int sleep (unsigned int SECONDS);
         "sleep": SimTypeFunction([SimTypeInt(signed=False)], SimTypeInt(signed=False), arg_names=["seconds"]),
         # int nanosleep (const struct timespec *REQUESTED_TIME, struct timespec *REMAINING);
-        "nanosleep": None,
+        "nanosleep": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["requested_time", "remaining"]),
         # int getrusage (int PROCESSES, struct rusage *RUSAGE);
         "getrusage": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rusage", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["processes", "rusage"]),
         # int vtimes (struct vtimes *CURRENT, struct vtimes *CHILD);
@@ -2578,7 +2578,7 @@ _libc_decls = \
         # int setrlimit64 (int RESOURCE, const struct rlimit64 *RLP);
         "setrlimit64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rlimit64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
         # long int ulimit (int CMD, ...);
-        "ulimit": None,
+        "ulimit": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["cmd"], variadic=True),
         # int vlimit (int RESOURCE, int LIMIT);
         "vlimit": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["resource", "limit"]),
         # int sched_setscheduler (pid_t PID, int POLICY, const struct sched_param *PARAM);
@@ -2594,7 +2594,7 @@ _libc_decls = \
         # int sched_get_priority_max (int POLICY);
         "sched_get_priority_max": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["policy"]),
         # int sched_rr_get_interval (pid_t PID, struct timespec *INTERVAL);
-        "sched_rr_get_interval": None,
+        "sched_rr_get_interval": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["pid", "interval"]),
         # int sched_yield (void);
         "sched_yield": SimTypeFunction([], SimTypeInt(signed=True)),
         # int getpriority (int CLASS, int ID);
@@ -2694,9 +2694,9 @@ _libc_decls = \
         # void argp_usage (const struct argp_state *STATE);
         "argp_usage": SimTypeFunction([SimTypePointer(SimStruct({}, name="argp_state", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["state"]),
         # void argp_error (const struct argp_state *STATE, const char *FMT, ...);
-        "argp_error": None,
+        "argp_error": SimTypeFunction([SimTypePointer(SimStruct({}, name="argp_state", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["state", "fmt"], variadic=True),
         # void argp_failure (const struct argp_state *STATE, int STATUS, int ERRNUM, const char *FMT, ...);
-        "argp_failure": None,
+        "argp_failure": SimTypeFunction([SimTypePointer(SimStruct({}, name="argp_state", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["state", "status", "errnum", "fmt"], variadic=True),
         # void argp_state_help (const struct argp_state *STATE, FILE *STREAM, unsigned FLAGS);
         "argp_state_help": None,
         # void argp_help (const struct argp *ARGP, FILE *STREAM, unsigned FLAGS, char *NAME);
@@ -2718,7 +2718,7 @@ _libc_decls = \
         # unsigned long int getauxval (unsigned long int TYPE);
         "getauxval": SimTypeFunction([SimTypeLong(signed=False)], SimTypeLong(signed=False), arg_names=["type"]),
         # long int syscall (long int SYSNO, ...);
-        "syscall": None,
+        "syscall": SimTypeFunction([SimTypeLong(signed=True)], SimTypeLong(signed=True), arg_names=["sysno"], variadic=True),
         # void exit (int STATUS);
         "exit": SimTypeFunction([SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["status"]),
         # int atexit (void (*FUNCTION));
@@ -2744,7 +2744,7 @@ _libc_decls = \
         # int execv (const char *FILENAME, char *const ARGV[]);
         "execv": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv"]),
         # int execl (const char *FILENAME, const char *ARG0, ...);
-        "execl": None,
+        "execl": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "arg0"], variadic=True),
         # int execve (const char *FILENAME, char *const ARGV[], char *const ENV[]);
         "execve": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv", "env"]),
         # int execle (const char *FILENAME, const char *ARG0, ..., char *const ENV[]);
@@ -2752,7 +2752,7 @@ _libc_decls = \
         # int execvp (const char *FILENAME, char *const ARGV[]);
         "execvp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv"]),
         # int execlp (const char *FILENAME, const char *ARG0, ...);
-        "execlp": None,
+        "execlp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "arg0"], variadic=True),
         # pid_t waitpid (pid_t PID, int *STATUS_PTR, int OPTIONS);
         "waitpid": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True)], SimTypeInt(signed=True, label="pid_t"), arg_names=["pid", "status_ptr", "options"]),
         # pid_t wait (int *STATUS_PTR);
@@ -2768,13 +2768,13 @@ _libc_decls = \
         # int semop (int SEMID, struct sembuf *SOPS, size_t NSOPS);
         "semop": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sembuf", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["semid", "sops", "nsops"]),
         # int semtimedop (int SEMID, struct sembuf *SOPS, size_t NSOPS, const struct timespec *TIMEOUT);
-        "semtimedop": None,
+        "semtimedop": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sembuf", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["semid", "sops", "nsops", "timeout"]),
         # int sem_init (sem_t *SEM, int PSHARED, unsigned int VALUE);
         "sem_init": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=True), arg_names=["sem", "pshared", "value"]),
         # int sem_destroy (sem_t *SEM);
         "sem_destroy": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0)], SimTypeInt(signed=True), arg_names=["sem"]),
         # sem_t *sem_open (const char *NAME, int OFLAG, ...);
-        "*sem_open": None,
+        "sem_open": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0), arg_names=["name", "oflag"], variadic=True),
         # int sem_close (sem_t *SEM);
         "sem_close": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0)], SimTypeInt(signed=True), arg_names=["sem"]),
         # int sem_unlink (const char *NAME);
@@ -2782,7 +2782,7 @@ _libc_decls = \
         # int sem_wait (sem_t *SEM);
         "sem_wait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0)], SimTypeInt(signed=True), arg_names=["sem"]),
         # int sem_timedwait (sem_t *SEM, const struct timespec *ABSTIME);
-        "sem_timedwait": None,
+        "sem_timedwait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["sem", "abstime"]),
         # int sem_trywait (sem_t *SEM);
         "sem_trywait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0)], SimTypeInt(signed=True), arg_names=["sem"]),
         # int sem_post (sem_t *SEM);

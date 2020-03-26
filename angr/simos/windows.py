@@ -15,7 +15,6 @@ from ..errors import (
     SimUnsupportedError,
     SimZeroDivisionException,
 )
-from .. import errors
 from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
@@ -70,7 +69,10 @@ class SimWindows(SimOS):
         self.acmdln_ptr = self._find_or_make('_acmdln')
         self.wcmdln_ptr = self._find_or_make('_wcmdln')
 
-        self.project.loader.tls.new_thread()
+        self.is_dump = isinstance(self.project.loader.main_object, cle.backends.Minidump)
+
+        if not self.is_dump:
+            self.project.loader.tls.new_thread()
 
     def _find_or_make(self, name):
         sym = self.project.loader.find_symbol(name)
@@ -173,126 +175,127 @@ class SimWindows(SimOS):
 
         return state
 
-    def state_blank(self, **kwargs):
+    def state_blank(self, thread_idx=0, **kwargs):
         if self.project.loader.main_object.supports_nx:
             add_options = kwargs.get('add_options', set())
             add_options.add(o.ENABLE_NX)
             kwargs['add_options'] = add_options
         state = super(SimWindows, self).state_blank(**kwargs)
 
-        # yikes!!!
-        fun_stuff_addr = state.heap.mmap_base
-        if fun_stuff_addr & 0xffff != 0:
-            fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
-        state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
+        if not self.is_dump:
+            # yikes!!!
+            fun_stuff_addr = state.heap.mmap_base
+            if fun_stuff_addr & 0xffff != 0:
+                fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
+            state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
 
-        TIB_addr = fun_stuff_addr
-        PEB_addr = fun_stuff_addr + 0x1000
+            TIB_addr = fun_stuff_addr
+            PEB_addr = fun_stuff_addr + 0x1000
 
-        if state.arch.name == 'X86':
-            LDR_addr = fun_stuff_addr + 0x2000
+            if state.arch.name == 'X86':
+                LDR_addr = fun_stuff_addr + 0x2000
 
-            state.mem[TIB_addr + 0].dword = -1  # Initial SEH frame
-            state.mem[TIB_addr + 4].dword = state.regs.sp  # stack base (high addr)
-            state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000  # stack limit (low addr)
-            state.mem[TIB_addr + 0x18].dword = TIB_addr  # myself!
-            state.mem[TIB_addr + 0x24].dword = 0xbad76ead  # thread id
-            state.mem[TIB_addr + 0x2c].dword = self.project.loader.tls.threads[0].user_thread_pointer  # tls array pointer
-            state.mem[TIB_addr + 0x30].dword = PEB_addr  # PEB addr, of course
+                state.mem[TIB_addr + 0].dword = -1  # Initial SEH frame
+                state.mem[TIB_addr + 4].dword = state.regs.sp  # stack base (high addr)
+                state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000  # stack limit (low addr)
+                state.mem[TIB_addr + 0x18].dword = TIB_addr  # myself!
+                state.mem[TIB_addr + 0x24].dword = 0xbad76ead  # thread id
+                state.mem[TIB_addr + 0x2c].dword = self.project.loader.tls.threads[thread_idx].user_thread_pointer  # tls array pointer
+                state.mem[TIB_addr + 0x30].dword = PEB_addr  # PEB addr, of course
 
-            state.regs.fs = TIB_addr >> 16
+                state.regs.fs = TIB_addr >> 16
 
-            state.mem[PEB_addr + 0xc].dword = LDR_addr
+                state.mem[PEB_addr + 0xc].dword = LDR_addr
 
-            # OKAY IT'S TIME TO SUFFER
-            # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
-            THUNK_SIZE = 0x100
-            num_pe_objects = len(self.project.loader.all_pe_objects)
-            thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
-            string_alloc_size = 0
-            for obj in self.project.loader.all_pe_objects:
-                bin_name = obj.binary_basename if obj.binary is None else obj.binary
-                string_alloc_size += len(bin_name)*2 + 2
-            total_alloc_size = thunk_alloc_size + string_alloc_size
-            if total_alloc_size & 0xfff != 0:
-                total_alloc_size += 0x1000 - (total_alloc_size & 0xfff)
-            state.memory.map_region(LDR_addr, total_alloc_size, claripy.BVV(3, 3))
-            state.heap.mmap_base = LDR_addr + total_alloc_size
+                # OKAY IT'S TIME TO SUFFER
+                # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
+                THUNK_SIZE = 0x100
+                num_pe_objects = len(self.project.loader.all_pe_objects)
+                thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
+                string_alloc_size = 0
+                for obj in self.project.loader.all_pe_objects:
+                    bin_name = obj.binary_basename if obj.binary is None else obj.binary
+                    string_alloc_size += len(bin_name)*2 + 2
+                total_alloc_size = thunk_alloc_size + string_alloc_size
+                if total_alloc_size & 0xfff != 0:
+                    total_alloc_size += 0x1000 - (total_alloc_size & 0xfff)
+                state.memory.map_region(LDR_addr, total_alloc_size, claripy.BVV(3, 3))
+                state.heap.mmap_base = LDR_addr + total_alloc_size
 
-            string_area = LDR_addr + thunk_alloc_size
-            for i, obj in enumerate(self.project.loader.all_pe_objects):
-                # Create a LDR_MODULE, we'll handle the links later...
-                obj.module_id = i+1  # HACK HACK HACK HACK
-                addr = LDR_addr + (i+1) * THUNK_SIZE
-                state.mem[addr+0x18].dword = obj.mapped_base
-                state.mem[addr+0x1C].dword = obj.entry
+                string_area = LDR_addr + thunk_alloc_size
+                for i, obj in enumerate(self.project.loader.all_pe_objects):
+                    # Create a LDR_MODULE, we'll handle the links later...
+                    obj.module_id = i+1  # HACK HACK HACK HACK
+                    addr = LDR_addr + (i+1) * THUNK_SIZE
+                    state.mem[addr+0x18].dword = obj.mapped_base
+                    state.mem[addr+0x1C].dword = obj.entry
 
-                # Allocate some space from the same region to store the paths
-                path = obj.binary_basename if obj.binary is None else obj.binary
-                string_size = len(path) * 2
-                tail_size = len(os.path.basename(path)) * 2
-                state.mem[addr+0x24].short = string_size
-                state.mem[addr+0x26].short = string_size
-                state.mem[addr+0x28].dword = string_area
-                state.mem[addr+0x2C].short = tail_size
-                state.mem[addr+0x2E].short = tail_size
-                state.mem[addr+0x30].dword = string_area + string_size - tail_size
+                    # Allocate some space from the same region to store the paths
+                    path = obj.binary_basename if obj.binary is None else obj.binary
+                    string_size = len(path) * 2
+                    tail_size = len(os.path.basename(path)) * 2
+                    state.mem[addr+0x24].short = string_size
+                    state.mem[addr+0x26].short = string_size
+                    state.mem[addr+0x28].dword = string_area
+                    state.mem[addr+0x2C].short = tail_size
+                    state.mem[addr+0x2E].short = tail_size
+                    state.mem[addr+0x30].dword = string_area + string_size - tail_size
 
-                for j, c in enumerate(path):
-                    # if this segfaults, increase the allocation size
-                    state.mem[string_area + j*2].short = ord(c)
-                state.mem[string_area + string_size].short = 0
-                string_area += string_size + 2
+                    for j, c in enumerate(path):
+                        # if this segfaults, increase the allocation size
+                        state.mem[string_area + j*2].short = ord(c)
+                    state.mem[string_area + string_size].short = 0
+                    string_area += string_size + 2
 
-            # handle the links. we construct a python list in the correct order for each, and then, uh,
-            mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
-            init_order = []
-            partially_loaded = set()
+                # handle the links. we construct a python list in the correct order for each, and then, uh,
+                mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
+                init_order = []
+                partially_loaded = set()
 
-            def fuck_load(x):
-                if x.provides in partially_loaded:
-                    return
-                partially_loaded.add(x.provides)
-                for dep in x.deps:
-                    if dep in self.project.loader.shared_objects:
-                        depo = self.project.loader.shared_objects[dep]
-                        fuck_load(depo)
-                        if depo not in init_order:
-                            init_order.append(depo)
+                def fuck_load(x):
+                    if x.provides in partially_loaded:
+                        return
+                    partially_loaded.add(x.provides)
+                    for dep in x.deps:
+                        if dep in self.project.loader.shared_objects:
+                            depo = self.project.loader.shared_objects[dep]
+                            fuck_load(depo)
+                            if depo not in init_order:
+                                init_order.append(depo)
 
-            fuck_load(self.project.loader.main_object)
-            load_order = [self.project.loader.main_object] + init_order
+                fuck_load(self.project.loader.main_object)
+                load_order = [self.project.loader.main_object] + init_order
 
-            def link(a, b):
-                state.mem[a].dword = b
-                state.mem[b+4].dword = a
+                def link(a, b):
+                    state.mem[a].dword = b
+                    state.mem[b+4].dword = a
 
-            # I have genuinely never felt so dead in my life as I feel writing this code
-            def link_list(mods, offset):
-                if mods:
-                    addr_a = LDR_addr + 12
-                    addr_b = LDR_addr + THUNK_SIZE * mods[0].module_id
-                    link(addr_a + offset, addr_b + offset)
-                    for mod_a, mod_b in zip(mods[:-1], mods[1:]):
-                        addr_a = LDR_addr + THUNK_SIZE * mod_a.module_id
-                        addr_b = LDR_addr + THUNK_SIZE * mod_b.module_id
+                # I have genuinely never felt so dead in my life as I feel writing this code
+                def link_list(mods, offset):
+                    if mods:
+                        addr_a = LDR_addr + 12
+                        addr_b = LDR_addr + THUNK_SIZE * mods[0].module_id
                         link(addr_a + offset, addr_b + offset)
-                    addr_a = LDR_addr + THUNK_SIZE * mods[-1].module_id
-                    addr_b = LDR_addr + 12
-                    link(addr_a + offset, addr_b + offset)
-                else:
-                    link(LDR_addr + 12, LDR_addr + 12)
+                        for mod_a, mod_b in zip(mods[:-1], mods[1:]):
+                            addr_a = LDR_addr + THUNK_SIZE * mod_a.module_id
+                            addr_b = LDR_addr + THUNK_SIZE * mod_b.module_id
+                            link(addr_a + offset, addr_b + offset)
+                        addr_a = LDR_addr + THUNK_SIZE * mods[-1].module_id
+                        addr_b = LDR_addr + 12
+                        link(addr_a + offset, addr_b + offset)
+                    else:
+                        link(LDR_addr + 12, LDR_addr + 12)
 
-            _l.debug("Load order: %s", load_order)
-            _l.debug("In-memory order: %s", mem_order)
-            _l.debug("Initialization order: %s", init_order)
-            link_list(load_order, 0)
-            link_list(mem_order, 8)
-            link_list(init_order, 16)
+                _l.debug("Load order: %s", load_order)
+                _l.debug("In-memory order: %s", mem_order)
+                _l.debug("Initialization order: %s", init_order)
+                link_list(load_order, 0)
+                link_list(mem_order, 8)
+                link_list(init_order, 16)
 
-        for loaded_object in self.project.loader.all_objects:
-            if isinstance(loaded_object, cle.backends.pe.PE):
-                self._init_object_pe_security_cookie(loaded_object, state, kwargs)
+            for loaded_object in self.project.loader.all_objects:
+                if isinstance(loaded_object, cle.backends.pe.PE):
+                    self._init_object_pe_security_cookie(loaded_object, state, kwargs)
 
         return state
 
