@@ -34,10 +34,10 @@ class Expression(TaggedObject):
         return r, replaced
 
     def __add__(self, other):
-        return BinaryOp(None, 'Add', [ self, other ])
+        return BinaryOp(None, 'Add', [ self, other ], False)
 
     def __sub__(self, other):
-        return BinaryOp(None, 'Sub', [ self, other ])
+        return BinaryOp(None, 'Sub', [ self, other ], False)
 
 
 class Atom(Expression):
@@ -140,6 +140,10 @@ class Op(Expression):
         super(Op, self).__init__(idx, **kwargs)
         self.op = op
 
+    @property
+    def verbose_op(self):
+        return self.op
+
 
 class UnaryOp(Op):
     def __init__(self, idx, op, operand, **kwargs):
@@ -222,33 +226,39 @@ class BinaryOp(Op):
         'CmpLE': '<=',
         'CmpGT': '>',
         'CmpGE': '>=',
+        'CmpLTs': '<s',
+        'CmpLEs': '<=s',
+        'CmpGTs': '>s',
+        'CmpGEs': '>=s',
     }
 
-    def __init__(self, idx, op, operands, **kwargs):
+    def __init__(self, idx, op, operands, signed, **kwargs):
         super(BinaryOp, self).__init__(idx, op, **kwargs)
 
         assert len(operands) == 2
         self.operands = operands
         self.bits = operands[0].bits if type(operands[0]) is not int else operands[1].bits
+        self.signed = signed
 
         # TODO: sanity check of operands' sizes for some ops
         # assert self.bits == operands[1].bits
 
     def __str__(self):
-        op_str = self.OPSTR_MAP.get(self.op, self.op)
+        op_str = self.OPSTR_MAP.get(self.verbose_op, self.verbose_op)
         return "(%s %s %s)" % (str(self.operands[0]), op_str, str(self.operands[1]))
 
     def __repr__(self):
-        return "%s(%s, %s)" % (self.op, self.operands[0], self.operands[1])
+        return "%s(%s, %s)" % (self.verbose_op, self.operands[0], self.operands[1])
 
     def __eq__(self, other):
         return type(other) is BinaryOp and \
                self.operands == other.operands and \
                self.op == other.op and \
-               self.bits == other.bits
+               self.bits == other.bits and \
+               self.signed == other.signed
 
     def __hash__(self):
-        return hash((self.op, tuple(self.operands), self.bits))
+        return hash((self.op, tuple(self.operands), self.bits, self.signed))
 
     def has_atom(self, atom, identity=True):
         for op in self.operands:
@@ -265,9 +275,17 @@ class BinaryOp(Op):
         r1, replaced_operand_1 = self.operands[1].replace(old_expr, new_expr)
 
         if r0 or r1:
-            return True, BinaryOp(self.idx, self.op, [ replaced_operand_0, replaced_operand_1 ], **self.tags)
+            return True, BinaryOp(self.idx, self.op, [ replaced_operand_0, replaced_operand_1 ], self.signed,
+                                  **self.tags)
         else:
             return False, self
+
+    @property
+    def verbose_op(self):
+        op = self.op
+        if self.signed:
+            op += "s"
+        return op
 
 
 class Load(Expression):

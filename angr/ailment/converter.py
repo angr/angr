@@ -110,9 +110,15 @@ class VEXExprConverter(Converter):
             op1_val, op1_bits = operands[1].value, operands[1].bits
             operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
 
+        signed = False
+        if op in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT'}:
+            if vexop_to_simop(expr.op).is_signed:
+                signed = True
+
         return BinaryOp(manager.next_atom(),
                         op,
-                        operands
+                        operands,
+                        signed,
                         )
 
     @staticmethod
