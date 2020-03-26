@@ -143,6 +143,8 @@ class Structurer(Analysis):
 
         while self._new_sequences:
             seq_ = self._new_sequences.pop(0)
+            if len(seq_.nodes) <= 1:
+                continue
             self._structure_sequence(seq_)
 
         # remove conditional jumps
