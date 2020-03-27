@@ -1,9 +1,13 @@
 
+import logging
 from typing import Optional
 
 import networkx
 
 from .structurer_nodes import MultiNode
+
+
+l = logging.getLogger(name=__name__)
 
 
 class GraphRegion:

@@ -1,6 +1,5 @@
 
 import logging
-from typing import Optional
 
 import networkx
 
@@ -9,8 +8,9 @@ import ailment
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
 from .. import Analysis, register_analysis
 from .utils import remove_last_statement, append_statement
-from .structurer_nodes import MultiNode
+from .structurer_nodes import MultiNode, ConditionNode
 from .graph_region import GraphRegion
+from .condition_processor import ConditionProcessor
 
 l = logging.getLogger(name=__name__)
 
@@ -65,7 +65,8 @@ class RegionIdentifier(Analysis):
 
         self.region = self._make_regions(graph)
 
-    def _get_start_node(self, graph):
+    @staticmethod
+    def _get_start_node(graph):
         return next(n for n in graph.nodes() if graph.in_degree(n) == 0)
 
     def _test_reducibility(self):
@@ -285,9 +286,6 @@ class RegionIdentifier(Analysis):
         """
         if len(region.successors) <= 1:
             return
-
-        from .condition_processor import ConditionProcessor
-        from .structurer_nodes import ConditionNode
 
         # recover reaching conditions
         cond_proc = ConditionProcessor()

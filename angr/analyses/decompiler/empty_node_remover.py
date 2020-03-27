@@ -6,6 +6,7 @@ from .sequence_walker import SequenceWalker
 from .region_identifier import MultiNode
 from .structurer_nodes import SequenceNode, CodeNode, ConditionNode, SwitchCaseNode, ConditionalBreakNode, \
     BreakNode, LoopNode
+from .condition_processor import ConditionProcessor
 
 
 class EmptyNodeRemover:
@@ -65,9 +66,6 @@ class EmptyNodeRemover:
 
     def _handle_Condition(self, node, **kwargs):
 
-        # delayed import
-        from .structurer import Structurer  # pylint:disable=import-outside-toplevel
-
         true_node = self._walker._handle(node.true_node)
         false_node = self._walker._handle(node.false_node)
 
@@ -78,7 +76,7 @@ class EmptyNodeRemover:
             # swap them
             return ConditionNode(node.addr,
                                  node.reaching_condition,
-                                 Structurer._simplify_condition(claripy.Not(node.condition)),
+                                 ConditionProcessor.simplify_condition(claripy.Not(node.condition)),
                                  false_node,
                                  false_node=None)
         return ConditionNode(node.addr, node.reaching_condition, node.condition, true_node, false_node=false_node)

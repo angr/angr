@@ -130,8 +130,6 @@ class ConditionProcessor:
 
             jump_table = jump_tables[target]
             node_a = addr2nodes[target]
-            # the default case
-            node_b_addr = next(iter(t for t in successor_addrs if t != target))
 
             # edge conditions
             for i, entry_addr in enumerate(jump_table.jumptable_entries):

@@ -343,7 +343,7 @@ class Structurer(Analysis):
         seq = structurer.result
 
         # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
-        self._rewrite_conditional_jumps_to_breaks(seq, loop_successor_addrs, loop_node_addrs)
+        self._rewrite_conditional_jumps_to_breaks(seq, loop_successor_addrs)
         # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
         self._rewrite_jumps_to_continues(seq)
 
@@ -361,12 +361,11 @@ class Structurer(Analysis):
 
         return seq
 
-    def _loop_create_break_node(self, node, last_stmt, loop_nodes, loop_successor_addrs):
+    def _loop_create_break_node(self, last_stmt, loop_successor_addrs):
 
         # This node has an exit to the outside of the loop
         # add a break or a conditional break node
         new_node = None
-        new_loop_head = None
 
         if type(last_stmt) is ailment.Stmt.Jump:
             # shrink the block to remove the last statement
@@ -515,7 +514,7 @@ class Structurer(Analysis):
                     continue
 
                 # build switch-cases
-                cases, node_default, to_remove = self._switch_build_cases(seq, i, cmp_expr, cmp_lb,
+                cases, node_default, to_remove = self._switch_build_cases(seq, i, cmp_lb,
                                                                           jump_table.jumptable_entries,
                                                                           node_b_addr, addr2nodes)
                 if node_default is None:
@@ -605,7 +604,7 @@ class Structurer(Analysis):
         # not sure what's going on... give up on this case
         return False, None
 
-    def _switch_build_cases(self, seq, header_idx, cmp_expr, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
+    def _switch_build_cases(self, seq, header_idx, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
 
@@ -667,7 +666,8 @@ class Structurer(Analysis):
 
         return cases, node_default, to_remove
 
-    def _switch_handle_gotos(self, cases, default, switch_end_addr):
+    @staticmethod
+    def _switch_handle_gotos(cases, default, switch_end_addr):
         """
         For each case, convert the goto that goes to outside of the switch-case to a break statement.
 
@@ -801,7 +801,8 @@ class Structurer(Analysis):
             if not structured:
                 i += 1
 
-    def _nodes_guarded_by_common_subexpr(self, seq, common_subexpr, starting_idx):
+    @staticmethod
+    def _nodes_guarded_by_common_subexpr(seq, common_subexpr, starting_idx):
 
         candidates = []
 
@@ -921,9 +922,9 @@ class Structurer(Analysis):
 
         return seq
 
-    def _rewrite_conditional_jumps_to_breaks(self, loop_node, successor_addrs, loop_node_addrs):
+    def _rewrite_conditional_jumps_to_breaks(self, loop_node, successor_addrs):
 
-        def _rewrite_conditional_jump_to_break(node, parent=None, index=None, **kwargs):
+        def _rewrite_conditional_jump_to_break(node, parent=None, index=None, **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
                 return
             stmt = node.statements[-1]
@@ -932,7 +933,7 @@ class Structurer(Analysis):
                 if any(target in successor_addrs for target in targets):
                     # This node has an exit to the outside of the loop
                     # create a break or a conditional break node
-                    break_node = self._loop_create_break_node(parent, stmt, loop_node_addrs, successor_addrs)
+                    break_node = self._loop_create_break_node(stmt, successor_addrs)
                     # insert this node to the parent
                     insert_node(parent, index + 1, break_node)
                     # remove this statement
@@ -945,9 +946,10 @@ class Structurer(Analysis):
         walker = SequenceWalker(handlers=handlers)
         walker.walk(loop_node)
 
-    def _rewrite_jumps_to_continues(self, loop_seq):
+    @staticmethod
+    def _rewrite_jumps_to_continues(loop_seq):
 
-        def _rewrite_jump_to_continue(node, parent=None, index=None, **kwargs):
+        def _rewrite_jump_to_continue(node, parent=None, index=None, **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
                 return
             stmt = node.statements[-1]
@@ -969,7 +971,8 @@ class Structurer(Analysis):
         walker = SequenceWalker(handlers=handlers)
         walker.walk(loop_seq)
 
-    def _merge_conditional_breaks(self, seq):
+    @staticmethod
+    def _merge_conditional_breaks(seq):
 
         # Find consecutive ConditionalBreakNodes and merge their conditions
 
@@ -1063,18 +1066,18 @@ class Structurer(Analysis):
                         walker.merged = True
                         i += 1
                         continue
-                    else:
-                        r, condbreak_node = _condbreaknode(node.true_node)
-                        if r:
-                            # amazing!
-                            merged_cond = ConditionProcessor.simplify_condition(
-                                claripy.And(self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
-                                            condbreak_node.condition))
-                            new_node = ConditionalBreakNode(condbreak_node.addr, merged_cond, condbreak_node.target)
-                            seq_node.nodes[i] = new_node
-                            walker.merged = True
-                            i += 1
-                            continue
+                    # else:
+                    r, condbreak_node = _condbreaknode(node.true_node)
+                    if r:
+                        # amazing!
+                        merged_cond = ConditionProcessor.simplify_condition(
+                            claripy.And(self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
+                                        condbreak_node.condition))
+                        new_node = ConditionalBreakNode(condbreak_node.addr, merged_cond, condbreak_node.target)
+                        seq_node.nodes[i] = new_node
+                        walker.merged = True
+                        i += 1
+                        continue
 
                 walker._handle(node, parent=seq_node, index=i)
 
