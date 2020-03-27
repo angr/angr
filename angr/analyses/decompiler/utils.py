@@ -130,7 +130,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(self, parent, idx, node):
+def insert_node(parent, idx, node):
 
     if isinstance(parent, SequenceNode):
         parent.nodes.insert(idx, node)

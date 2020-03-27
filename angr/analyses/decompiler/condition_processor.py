@@ -407,7 +407,7 @@ class ConditionProcessor:
             'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1].value)
         }
 
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression)):
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset)):
             var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
