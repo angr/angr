@@ -4,7 +4,7 @@ import logging
 import ailment
 
 from ..analysis import Analysis
-from .structurer import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode
+from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode
 
 l = logging.getLogger(name=__name__)
 
