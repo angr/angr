@@ -295,7 +295,6 @@ class Structurer(Analysis):
     def _to_loop_body_sequence(self, loop_head, loop_subgraph, loop_successors):
 
         graph = self._region.graph_with_successors
-        loop_node_addrs = set(s.addr for s in self._region.graph.nodes())
         loop_region_graph = networkx.DiGraph()
 
         # TODO: Make sure the loop body has been structured
