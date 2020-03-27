@@ -498,8 +498,12 @@ class SimCC:
             if is_fp is None:
                 raise ValueError('"is_fp" must be provided when no function prototype is available.')
         else:
-            # let's rely on the func_ty for the number of arguments and whether each argument is FP or not
-            is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) else False for arg in self.func_ty.args ]
+            # let's rely on the func_ty or self.args for the number of arguments and whether each argument is FP or not
+            if self.func_ty is not None:
+                args = self.func_ty.args
+            else:
+                args = self.args
+            is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) else False for arg in args ]
 
         if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
         return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
