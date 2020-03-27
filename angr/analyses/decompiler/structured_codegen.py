@@ -761,8 +761,10 @@ class CBinaryOp(CExpression):
             'Add': self._c_repr_add,
             'Sub': self._c_repr_sub,
             'Mul': self._c_repr_mul,
+            'Div': self._c_repr_div,
             'And': self._c_repr_and,
             'Xor': self._c_repr_xor,
+            'Or': self._c_repr_or,
             'Shr': self._c_repr_shr,
             'LogicalAnd': self._c_repr_logicaland,
             'LogicalOr': self._c_repr_logicalor,
@@ -804,6 +806,13 @@ class CBinaryOp(CExpression):
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
 
+    def _c_repr_div(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " / "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
     def _c_repr_and(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " & "
@@ -814,6 +823,13 @@ class CBinaryOp(CExpression):
     def _c_repr_xor(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " ^ "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_or(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " | "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
