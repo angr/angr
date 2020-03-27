@@ -60,9 +60,8 @@ class CallSiteMaker(Analysis):
                 # Make arguments
                 arg_locs = func.calling_convention.arg_locs()
             else:
-                # FIXME: We are assuming no floating-point arguments
                 if func.calling_convention.args is not None:
-                    arg_locs = func.calling_convention.arg_locs([False] * len(func.calling_convention.args))
+                    arg_locs = func.calling_convention.arg_locs()
 
         if arg_locs is not None:
             for arg_loc in arg_locs:
