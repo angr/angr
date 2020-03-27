@@ -493,8 +493,8 @@ class SimCC:
         If you've customized this CC, this will sanity-check the provided locations with the given list.
         """
         session = self.arg_session
-        if self.func_ty is None:
-            # No function prototype is provided. `is_fp` must be provided.
+        if self.func_ty is None and self.args is None:
+            # No function prototype is provided, no args is provided. `is_fp` must be provided.
             if is_fp is None:
                 raise ValueError('"is_fp" must be provided when no function prototype is available.')
         else:
