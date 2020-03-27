@@ -362,6 +362,9 @@ class ConditionProcessor:
             '__xor__': lambda cond_: ailment.Expr.BinaryOp(None, 'Xor',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
+            '__or__': lambda cond_: ailment.Expr.BinaryOp(None, 'Or',
+                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
+                                                          False),
             '__and__': lambda cond_: ailment.Expr.BinaryOp(None, 'And',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
@@ -402,6 +405,7 @@ class ConditionProcessor:
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
+            'Or': lambda expr, conv: conv(expr.operands[0]) | conv(expr.operands[1]),
             'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1].value)
         }
 
