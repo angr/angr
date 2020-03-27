@@ -2,7 +2,47 @@
 import claripy
 import ailment
 
+
 INDENT_DELTA = 2
+
+
+class EmptyBlockNotice(Exception):
+    pass
+
+
+class MultiNode:
+    def __init__(self, nodes):
+
+        # delayed import
+        from .graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
+
+        self.nodes = [ ]
+
+        for node in nodes:
+            if type(node) is MultiNode:
+                self.nodes += node.nodes
+            elif type(node) is GraphRegion:
+                self.nodes += node.nodes
+            else:
+                self.nodes.append(node)
+
+    def copy(self):
+        return MultiNode(self.nodes[::])
+
+    def __repr__(self):
+
+        addrs = [ ]
+        s = ""
+        for node in self.nodes:
+            if hasattr(node, 'addr'):
+                addrs.append(node.addr)
+            s = ": %#x-%#x" % (min(addrs), max(addrs))
+
+        return "<MultiNode of %d nodes%s>" % (len(self.nodes), s)
+
+    @property
+    def addr(self):
+        return self.nodes[0].addr
 
 
 class BaseNode:
@@ -161,6 +201,12 @@ class LoopNode(BaseNode):
 
 
 class BreakNode(BaseNode):
+    def __init__(self, addr, target):
+        self.addr = addr
+        self.target = target
+
+
+class ContinueNode(BaseNode):
     def __init__(self, addr, target):
         self.addr = addr
         self.target = target

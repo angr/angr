@@ -12,7 +12,8 @@ from ...utils.constants import is_alignment_mask
 from ...errors import UnsupportedNodeTypeError
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
-from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode, SwitchCaseNode
+from .structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
+                         SwitchCaseNode, ContinueNode)
 
 
 l = logging.getLogger(name=__name__)
@@ -374,6 +375,19 @@ class CBreak(CStatement):
 
         indent_str = self.indent_str(indent=indent)
         s = indent_str + "break;"
+        if posmap: posmap.tick_pos(len(s))
+
+        return s
+
+
+class CContinue(CStatement):
+    """
+    Represents a continue statement in C.
+    """
+    def c_repr(self, indent=0, posmap=None):
+
+        indent_str = self.indent_str(indent=indent)
+        s = indent_str + "continue;"
         if posmap: posmap.tick_pos(len(s))
 
         return s
@@ -941,6 +955,7 @@ class StructuredCodeGenerator(Analysis):
             Block: self._handle_AILBlock,
             BreakNode: self._handle_Break,
             SwitchCaseNode: self._handle_SwitchCase,
+            ContinueNode: self._handle_Continue,
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
@@ -1120,6 +1135,10 @@ class StructuredCodeGenerator(Analysis):
         default = self._handle(node.default_node) if node.default_node is not None else None
         switch_case = CSwitchCase(switch_expr, cases, default=default)
         return switch_case
+
+    def _handle_Continue(self, node):  # pylint:disable=no-self-use,unused-argument
+
+        return CContinue()
 
     def _handle_AILBlock(self, node):
         """
