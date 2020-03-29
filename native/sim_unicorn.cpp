@@ -37,6 +37,67 @@ typedef enum taint: uint8_t {
 	TAINT_DIRTY = 2,
 } taint_t;
 
+typedef enum taint_entity: uint8_t {
+	TAINT_SRC_REG = 0,
+	TAINT_SRC_TMP = 1,
+	TAINT_SRC_MEM = 2,
+} taint_entity_enum_t;
+
+typedef struct taint_entity_t {
+	taint_entity_enum_t entity_type;
+
+	// The actual entity data. Only one of them is valid at a time depending on entity_type.
+	// This could have been in a union but std::vector has a constructor and datatypes with
+	// constructors are not allowed inside unions
+	// VEX Register ID
+	uint64_t reg_id;
+	// VEX temp ID
+	uint64_t tmp_id;
+	// List of registers and VEX temps. Used in case of memory references.
+	std::vector<taint_entity_t> mem_ref_entity_list;
+
+	bool operator==(const taint_entity_t &other_entity) const {
+		if (entity_type != other_entity.entity_type) {
+			return false;
+		}
+		if (entity_type == TAINT_SRC_REG) {
+			return (reg_id == other_entity.reg_id);
+		}
+		if (entity_type == TAINT_SRC_TMP) {
+			return (tmp_id == other_entity.tmp_id);
+		}
+		return (mem_ref_entity_list == other_entity.mem_ref_entity_list);
+	}
+
+	// Hash function for use in unordered_map. Defined in class and invoked from hash struct.
+	// TODO: Check performance of hash and come up with better one if too bad
+	std::size_t operator()(const taint_entity_t &taint_entity) const {
+		if (taint_entity.entity_type == TAINT_SRC_REG) {
+			return std::hash<uint64_t>()(taint_entity.entity_type) ^
+				   std::hash<uint64_t>()(taint_entity.reg_id);
+		}
+		else if (taint_entity.entity_type == TAINT_SRC_TMP) {
+			return std::hash<uint64_t>()(taint_entity.entity_type) ^
+				   std::hash<uint64_t>()(taint_entity.tmp_id);
+		}
+		else {
+			std::size_t taint_entity_hash = std::hash<uint64_t>()(taint_entity.entity_type);
+			for (auto &sub_entity: taint_entity.mem_ref_entity_list) {
+				taint_entity_hash ^= sub_entity.operator()(sub_entity);
+			}
+			return taint_entity_hash;
+		}
+	}
+} taint_entity_t;
+
+// Hash function for unordered_map. Needs to be defined this way in C++.
+template <>
+struct std::hash<taint_entity_t> {
+	std::size_t operator()(const taint_entity_t &entity) const {
+		return entity.operator()(entity);
+	}
+};
+
 typedef enum stop {
 	STOP_NORMAL=0,
 	STOP_STOPPOINT,
@@ -178,7 +239,7 @@ public:
 		arch = *((uc_arch*)uc); // unicorn hides all its internals...
 		mode = *((uc_mode*)((uc_arch*)uc + 1));
 	}
-	
+
 	/*
 	 * HOOK_MEM_WRITE is called before checking if the address is valid. so we might
 	 * see uninitialized pages. Using HOOK_MEM_PROT is too late for tracking taint.
@@ -990,6 +1051,98 @@ public:
 
 		record.clean = clean;
 		mem_writes.push_back(record);
+	}
+
+	std::unordered_set<taint_entity_t> get_taint_sources(IRExpr *expr) {
+		std::unordered_set<taint_entity_t> sources;
+		switch (expr->tag) {
+			case Iex_RdTmp:
+			{
+				taint_entity_t taint_entity;
+				taint_entity.entity_type = TAINT_SRC_TMP;
+				taint_entity.tmp_id = expr->Iex.RdTmp.tmp;
+				sources.emplace(taint_entity);
+				break;
+			}
+			case Iex_Get:
+			{
+				taint_entity_t taint_entity;
+				taint_entity.entity_type = TAINT_SRC_REG;
+				taint_entity.reg_id = expr->Iex.Get.offset;
+				sources.emplace(taint_entity);
+				break;
+			}
+			case Iex_Unop:
+			{
+				auto temp = get_taint_sources(expr->Iex.Unop.arg);
+				sources.insert(temp.begin(), temp.end());
+				break;
+			}
+			case Iex_Binop:
+			{
+				auto temp = get_taint_sources(expr->Iex.Binop.arg1);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.Binop.arg2);
+				sources.insert(temp.begin(), temp.end());
+				break;
+			}
+			case Iex_Triop:
+			{
+				auto temp = get_taint_sources(expr->Iex.Triop.details->arg1);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.Triop.details->arg2);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.Triop.details->arg3);
+				sources.insert(temp.begin(), temp.end());
+				break;
+			}
+			case Iex_Qop:
+			{
+				auto temp = get_taint_sources(expr->Iex.Qop.details->arg1);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.Qop.details->arg2);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.Qop.details->arg3);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.Qop.details->arg4);
+				sources.insert(temp.begin(), temp.end());
+				break;
+			}
+			case Iex_ITE:
+			{
+				// TODO: The condition should be somehow stored separately to jump back to angr
+				// if it's symbolic
+				auto temp = get_taint_sources(expr->Iex.ITE.cond);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.ITE.iffalse);
+				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources(expr->Iex.ITE.iftrue);
+				sources.insert(temp.begin(), temp.end());
+				break;
+			}
+			case Iex_CCall:
+			{
+				IRExpr **ccall_args = expr->Iex.CCall.args;
+				for (uint64_t i = 0; ccall_args[i]; i++) {
+					auto temp = get_taint_sources(ccall_args[i]);
+					sources.insert(temp.begin(), temp.end());
+				}
+				break;
+			}
+			case Iex_Load:
+				// TODO
+			case Iex_GetI:
+				// TODO
+			case Iex_Const:
+			case Iex_VECRET:
+			case Iex_GSPTR:
+			case Iex_Binder:
+				break;
+			default:
+				std::cerr << "Unknown expression type: " << expr->tag << std::endl;
+				assert(false);
+		}
+		return sources;
 	}
 
 	inline unsigned int arch_pc_reg() {
