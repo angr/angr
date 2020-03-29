@@ -8,7 +8,7 @@ from ... import sim_options
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
 from .. import register_analysis
-from ..code_location import CodeLocation
+from ..code_location import CodeLocation  # pylint:disable=unused-import
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .values import TOP

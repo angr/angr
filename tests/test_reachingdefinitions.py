@@ -342,7 +342,7 @@ def test_dep_graph():
     )
 
     # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
-    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=True)
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=True, dep_graph=DepGraph())
     tmp_7 = list(filter(
         lambda def_: type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr,
         rda.dep_graph._graph.nodes()

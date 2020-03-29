@@ -1,4 +1,4 @@
-
+# pylint:disable=unused-import
 from collections import defaultdict
 from typing import List, Tuple, Any
 
@@ -53,11 +53,14 @@ class Decompiler(Analysis):
         self.clinic = clinic
         self.codegen = codegen
 
-    def options_to_params(self, options):
+    @staticmethod
+    def options_to_params(options):
         """
+        Convert decompilation options to a dict of params.
 
-        :param List[Tuple[DecompilationOption, Any]] options:
-        :return:
+        :param List[Tuple[DecompilationOption, Any]] options:   The decompilation options.
+        :return:                                                A dict of keyword arguments.
+        :rtype:                                                 dict
         """
 
         d = { }

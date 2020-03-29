@@ -287,14 +287,12 @@ class LiveDefinitions:
     def _kill_and_add_register_definition(self, atom, code_loc, data, dummy=False):
 
         # FIXME: check correctness
-        current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
         definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
         return definition
 
     def _kill_and_add_stack_definition(self, atom, code_loc, data, dummy=False):
-        current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
         definition = Definition(atom, code_loc, data, dummy=dummy)
         self.stack_definitions.set_object(atom.offset, definition, data.bits // 8)
         return definition

@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional
+from typing import Optional  # pylint:disable=unused-import
 from collections import defaultdict
 
 import ailment
@@ -19,7 +19,6 @@ from .engine_vex import SimEngineRDVEX
 from .live_definitions import LiveDefinitions
 from .subject import Subject
 from .uses import Uses
-from .dep_graph import DepGraph
 
 
 l = logging.getLogger(name=__name__)
