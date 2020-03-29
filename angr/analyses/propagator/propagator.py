@@ -20,10 +20,11 @@ _l = logging.getLogger(name=__name__)
 # The base state
 
 class PropagatorState:
-    def __init__(self, arch, replacements=None):
+    def __init__(self, arch, replacements=None, only_consts=False):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
+        self._only_consts = only_consts
         self._replacements = defaultdict(dict) if replacements is None else replacements
 
     def __repr__(self):
@@ -51,13 +52,17 @@ class PropagatorState:
         return state
 
     def add_replacement(self, codeloc, old, new):
-        self._replacements[codeloc][old] = new
+        if self._only_consts:
+            if isinstance(new, int) or new == TOP:
+                self._replacements[codeloc][old] = new
+        else:
+            self._replacements[codeloc][old] = new
 
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None, replacements=None):
-        super().__init__(arch, replacements=replacements)
+    def __init__(self, arch, registers=None, local_variables=None, replacements=None, only_consts=False):
+        super().__init__(arch, replacements=replacements, only_consts=only_consts)
         self.registers = {} if registers is None else registers  # offset to values
         self.local_variables = {} if local_variables is None else local_variables  # offset to values
 
@@ -70,6 +75,7 @@ class PropagatorVEXState(PropagatorState):
             registers=self.registers.copy(),
             local_variables=self.local_variables.copy(),
             replacements=self._replacements.copy(),
+            only_consts=self._only_consts
         )
 
         return cp
@@ -124,8 +130,8 @@ class PropagatorVEXState(PropagatorState):
 # AIL state
 
 class PropagatorAILState(PropagatorState):
-    def __init__(self, arch, replacements=None):
-        super().__init__(arch, replacements=replacements)
+    def __init__(self, arch, replacements=None, only_consts=False):
+        super().__init__(arch, replacements=replacements, only_consts=only_consts)
 
         self._stack_variables = KeyedRegion()
         self._registers = KeyedRegion()
@@ -138,6 +144,7 @@ class PropagatorAILState(PropagatorState):
         rd = PropagatorAILState(
             self.arch,
             replacements=self._replacements.copy(),
+            only_consts=self._only_consts
         )
 
         rd._stack_variables = self._stack_variables.copy()
@@ -228,7 +235,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None):
+                 load_callback=None, stack_pointer_tracker=None, only_consts=False):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -248,15 +255,18 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._max_iterations = max_iterations
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
+        self._only_consts = only_consts
 
         self._node_iterations = defaultdict(int)
         self._states = { }
         self.replacements = None  # type: None|defaultdict
+        self._prev_replacements = self.replacements
 
         self._engine_vex = SimEnginePropagatorVEX(project=self.project)
         self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
 
         self._analyze()
+
 
     #
     # Main analysis routines
@@ -271,13 +281,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            state = PropagatorAILState(arch=self.project.arch)
+            state = PropagatorAILState(arch=self.project.arch,only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(arch=self.project.arch)
+            state = PropagatorVEXState(arch=self.project.arch,only_consts=self._only_consts)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
-                                 SpOffset(self.project.arch.bits, 0)
+                                 SpOffset(self.project.arch.bits, 0),
                                  )
         return state
 
