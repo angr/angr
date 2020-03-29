@@ -260,7 +260,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._node_iterations = defaultdict(int)
         self._states = { }
         self.replacements = None  # type: None|defaultdict
-        self._prev_replacements = self.replacements
 
         self._engine_vex = SimEnginePropagatorVEX(project=self.project)
         self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
