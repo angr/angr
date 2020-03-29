@@ -254,7 +254,8 @@ class Clinic(Analysis):
 
         # variable recovery
         tmp_kb = KnowledgeBase(self.project)
-        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb)  # pylint:disable=unused-variable
+        # stack pointers have been removed at this point
+        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb, track_sp=False)  # pylint:disable=unused-variable
 
         # TODO: The current mapping implementation is kinda hackish...
 
