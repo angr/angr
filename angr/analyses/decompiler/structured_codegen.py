@@ -1269,8 +1269,8 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_Load(self, expr):
 
         if hasattr(expr, 'variable') and expr.variable is not None:
-            if expr.offset is not None:
-                offset = self._handle(expr.offset)
+            if expr.variable_offset is not None:
+                offset = self._handle(expr.variable_offset)
             else:
                 offset = None
             return CVariable(expr.variable, offset=offset)
