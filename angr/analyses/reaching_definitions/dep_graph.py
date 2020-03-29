@@ -9,9 +9,9 @@ def _is_definition(node):
     return isinstance(node, Definition)
 
 
-class DefUseGraph:
+class DepGraph:
     """
-    The representation of a definition-use graph: a directed graph, where nodes are definitions, and edges represent uses.
+    The representation of a dependency graph: a directed graph, where nodes are definitions, and edges represent uses.
 
     Mostly a wrapper around a <networkx.DiGraph>.
     """

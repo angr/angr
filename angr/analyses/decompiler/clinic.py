@@ -19,7 +19,11 @@ class Clinic(Analysis):
     """
     A Clinic deals with AILments.
     """
-    def __init__(self, func, optimization_passes=None, sp_tracker_track_memory=True):
+    def __init__(self, func,
+                 remove_dead_memdefs=True,
+                 sp_tracker_track_memory=True,
+                 optimization_passes=None,
+                 ):
 
         # Delayed import
         import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import,import-outside-toplevel
@@ -34,6 +38,7 @@ class Clinic(Analysis):
         self._ail_manager = None
         self._blocks = { }
 
+        self._remove_dead_memdefs = remove_dead_memdefs
         self._sp_tracker_track_memory = sp_tracker_track_memory
 
         # sanity checks
@@ -179,7 +184,11 @@ class Clinic(Analysis):
         :return:                        A simplified AIL block.
         """
 
-        simp = self.project.analyses.AILBlockSimplifier(ail_block, stack_pointer_tracker=stack_pointer_tracker)
+        simp = self.project.analyses.AILBlockSimplifier(
+            ail_block,
+            remove_dead_memdefs=self._remove_dead_memdefs,
+            stack_pointer_tracker=stack_pointer_tracker,
+        )
         return simp.result_block
 
     def _simplify_function(self):
@@ -193,7 +202,12 @@ class Clinic(Analysis):
         rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph,
                                                        observe_callback=self._simplify_function_rd_observe_callback)
 
-        simp = self.project.analyses.AILSimplifier(self.function, func_graph=self.graph, reaching_definitions=rd)
+        simp = self.project.analyses.AILSimplifier(
+            self.function,
+            func_graph=self.graph,
+            remove_dead_memdefs=self._remove_dead_memdefs,
+            reaching_definitions=rd
+        )
 
         for key in list(self._blocks.keys()):
             old_block = self._blocks[key]
@@ -240,7 +254,8 @@ class Clinic(Analysis):
 
         # variable recovery
         tmp_kb = KnowledgeBase(self.project)
-        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb)  # pylint:disable=unused-variable
+        # stack pointers have been removed at this point
+        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb, track_sp=False)  # pylint:disable=unused-variable
 
         # TODO: The current mapping implementation is kinda hackish...
 
@@ -297,7 +312,7 @@ class Clinic(Analysis):
             if len(reg_vars) == 1:
                 reg_var, offset = next(iter(reg_vars))
                 expr.variable = reg_var
-                expr.offset = offset
+                expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.Load:
             # import ipdb; ipdb.set_trace()
@@ -311,14 +326,14 @@ class Clinic(Analysis):
                             )
                 var, offset = next(iter(variables))
                 expr.variable = var
-                expr.offset = offset
+                expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
                 var, offset = next(iter(variables))
                 expr.referenced_variable = var
-                expr.offset = offset
+                expr.variable_offset = offset
             else:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[0])
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[1])
@@ -328,7 +343,7 @@ class Clinic(Analysis):
             if len(variables) == 1:
                 var, offset = next(iter(variables))
                 expr.referenced_variable = var
-                expr.offset = offset
+                expr.variable_offset = offset
             else:
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands)
 
@@ -340,7 +355,7 @@ class Clinic(Analysis):
             if len(variables) == 1:
                 var, offset = next(iter(variables))
                 expr.referenced_variable = var
-                expr.offset = offset
+                expr.variable_offset = offset
 
     def _update_graph(self):
 

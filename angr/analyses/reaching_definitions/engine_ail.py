@@ -252,6 +252,7 @@ class SimEngineRDAIL(
         addrs = self._expr(expr.addr)
         size = expr.size
         bits = expr.bits
+        codeloc = self._codeloc()
 
         data = set()
         for addr in addrs:
@@ -259,6 +260,7 @@ class SimEngineRDAIL(
                 current_defs = self.state.memory_definitions.get_objects_by_offset(addr)
                 if current_defs:
                     for current_def in current_defs:
+                        # self.state.add_use(current_def, codeloc)
                         data.update(current_def.data)
                     if any(type(d) is Undefined for d in data):
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', addr, self.ins_addr)
@@ -269,18 +271,19 @@ class SimEngineRDAIL(
                         pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
-                self.state.add_use(MemoryLocation(addr, size), self._codeloc())
+                self.state.add_use(MemoryLocation(addr, size), codeloc)
             elif isinstance(addr, SpOffset):
                 current_defs = self.state.stack_definitions.get_objects_by_offset(addr.offset)
                 if current_defs:
                     for current_def in current_defs:
+                        # self.state.add_use(current_def, codeloc)
                         data.update(current_def.data)
                     if any(type(d) is Undefined for d in data):
                         l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
                 else:
                     data.add(undefined)
 
-                self.state.add_use(addr, self._codeloc())
+                self.state.add_use(addr, codeloc)
             else:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 

@@ -1,4 +1,6 @@
+
 import logging
+from typing import Optional  # pylint:disable=unused-import
 from collections import defaultdict
 
 import ailment
@@ -12,11 +14,11 @@ from ..forward_analysis import ForwardAnalysis
 from ..code_location import CodeLocation
 from .atoms import Register
 from .constants import OP_BEFORE, OP_AFTER
-from .def_use_graph import DefUseGraph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .live_definitions import LiveDefinitions
 from .subject import Subject
+from .uses import Uses
 
 
 l = logging.getLogger(name=__name__)
@@ -39,7 +41,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state=None, cc=None, function_handler=None,
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
-                 def_use_graph=None, observe_callback=None):
+                 dep_graph=None, observe_callback=None):
         """
         :param Block|Function subject: The subject of the analysis: a function, or a single basic block.
         :param func_graph:                      Alternative graph for function.graph.
@@ -52,7 +54,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param angr.analyses.reaching_definitions.LiveDefinitions init_state:
                                                 An optional initialization state. The analysis creates and works on a
                                                 copy.
-                                                Default to None: the analysis then initialise its own abstract state,
+                                                Default to None: the analysis then initialize its own abstract state,
                                                 based on the given <Subject>.
         :param SimCC cc:                        Calling convention of the function.
         :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
@@ -62,8 +64,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param Boolean observe_all:             Observe every statement, both before and after.
         :param List<ailment.Block|Block|CodeNode|CFGNode> visited_blocks:
                                                 A list of previously visited blocks.
-        :param angr.analyses.reaching_definitions.def_use_graph.DefUseGraph def_use_graph:
-                                                An initial definition-use graph to add the result of the analysis to.
+        :param Optional[DepGraph] dep_graph:    An initial dependency graph to add the result of the analysis to. Set it
+                                                to None to skip dependency graph generation.
         """
 
         self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc)
@@ -80,7 +82,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
 
-        self._def_use_graph = def_use_graph or DefUseGraph()
+        self._dep_graph = dep_graph
         self.current_codeloc = None
         self.codeloc_uses = set()
 
@@ -113,6 +115,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._visited_blocks = visited_blocks or []
 
         self.observed_results = {}
+        self.all_definitions = set()
+        self.all_uses = Uses()
 
         self._analyze()
 
@@ -127,8 +131,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         return next(iter(self.observed_results.values()))
 
     @property
-    def def_use_graph(self):
-        return self._def_use_graph
+    def dep_graph(self):
+        return self._dep_graph
 
     @property
     def visited_blocks(self):
@@ -149,8 +153,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     def get_reaching_definitions_by_node(self, node_addr, op_type):
         key = 'node', node_addr, op_type
         if key not in self.observed_results:
-            raise KeyError(("Reaching definitions are not available at observation point %s. "
-                            "Did you specify that observation point?") % key)
+            raise KeyError("Reaching definitions are not available at observation point %s. "
+                            "Did you specify that observation point?" % str(key))
 
         return self.observed_results[key]
 
@@ -237,6 +241,13 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         return states[0].merge(*states[1:])
 
     def _run_on_node(self, node, state):
+        """
+
+        :param node:
+        :param LiveDefinitions state:
+        :return:
+        """
+
         self._visited_blocks.append(node)
 
         if isinstance(node, ailment.Block):
@@ -259,7 +270,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             block=block,
             fail_fast=self._fail_fast,
             visited_blocks=self._visited_blocks
-        )
+        )  # type: LiveDefinitions, set
 
         self._node_iterations[block_key] += 1
 
@@ -276,6 +287,11 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             state.kill_definitions(Register(self.project.arch.ip_offset, self.project.arch.bytes),
                                    codeloc)
         self.node_observe(node.addr, state, OP_AFTER)
+
+        # update all definitions and all uses
+        self.all_definitions |= state.all_definitions
+        for use in [state.stack_uses, state.register_uses]:
+            self.all_uses.merge(use)
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state
