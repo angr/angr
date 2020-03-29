@@ -15,7 +15,7 @@ class Block:
         return Block(
             addr=self.addr,
             original_size=self.original_size,
-            statements=self.statements[::] if not statements else statements,
+            statements=self.statements[::] if statements is None else statements,
         )
 
     def __repr__(self):

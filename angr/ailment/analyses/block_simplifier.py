@@ -2,7 +2,9 @@
 import logging
 
 from angr import Analysis, register_analysis
+from angr.engines.light.data import SpOffset
 from angr.analyses.reaching_definitions import OP_AFTER
+from angr.analyses.reaching_definitions import atoms
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
 from ..block import Block
@@ -16,13 +18,15 @@ class BlockSimplifier(Analysis):
     """
     Simplify an AIL block.
     """
-    def __init__(self, block, stack_pointer_tracker=None):
+    def __init__(self, block, remove_dead_memdefs=False, stack_pointer_tracker=None):
         """
 
         :param Block block:
         """
 
         self.block = block
+
+        self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_pointer_tracker = stack_pointer_tracker
 
         self.result_block = None
@@ -114,9 +118,22 @@ class BlockSimplifier(Analysis):
                                                        )
 
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
-        dead_virgins = rd.one_result._dead_virgin_definitions
-        dead_virgins_stmt_idx = { d.codeloc.stmt_idx for d in dead_virgins
-                                      if not isinstance(d.codeloc, ExternalCodeLocation) and not d.dummy }
+        live_defs = rd.one_result
+        # dead_defs = set()
+        dead_defs_stmt_idx = set()
+        all_defs = live_defs.all_definitions
+        for d in all_defs:
+            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                continue
+            if not self._remove_dead_memdefs and isinstance(d.atom, (atoms.MemoryLocation, SpOffset)):
+                continue
+            if isinstance(d.atom, atoms.Tmp):
+                uses = live_defs.tmp_uses[d.atom.tmp_idx]
+            else:
+                uses = rd.all_uses.get_uses(d)
+
+            if not uses:
+                dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
@@ -125,7 +142,7 @@ class BlockSimplifier(Analysis):
                         continue
 
                 # is it a dead virgin?
-                if idx in dead_virgins_stmt_idx:
+                if idx in dead_defs_stmt_idx:
                     continue
 
                 # is it an assignment to an artificial register?

@@ -2,6 +2,8 @@
 from collections import defaultdict
 
 from angr import Analysis, AnalysesHub
+from angr.engines.light.data import SpOffset
+from angr.analyses.reaching_definitions import atoms
 from angr.analyses.reaching_definitions.definition import Definition
 from angr.analyses.reaching_definitions.constants import OP_AFTER
 
@@ -13,10 +15,12 @@ class Simplifier(Analysis):
     """
     Perform function-level simplifications.
     """
-    def __init__(self, func, func_graph=None, reaching_definitions=None):
+    def __init__(self, func, func_graph=None, remove_dead_memdefs=False, reaching_definitions=None):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = reaching_definitions
+
+        self._remove_dead_memdefs = remove_dead_memdefs
 
         self.blocks = {}  # Mapping nodes to simplified blocks
 
@@ -31,22 +35,16 @@ class Simplifier(Analysis):
         stmts_to_remove_per_block = defaultdict(set)
 
         # Find all statements that should be removed
-        for block in self.func_graph.nodes():
-            if not isinstance(block, Block):
-                # Skip all blocks that are not AIL blocks
-                continue
-            if not block.statements:
-                # Skip all empty blocks
-                continue
-            rd = self._reaching_definitions.get_reaching_definitions_by_node(block.addr, OP_AFTER)
-            if rd is None:
-                continue
-            dead_defs = rd._dead_virgin_definitions
 
-            for dead_def in dead_defs:  # type: Definition
-                if dead_def.dummy:
-                    continue
-                stmts_to_remove_per_block[dead_def.codeloc.block_addr].add(dead_def.codeloc.stmt_idx)
+        for def_ in self._reaching_definitions.all_definitions:
+            if def_.dummy:
+                continue
+            if not self._remove_dead_memdefs and isinstance(def_.atom, (atoms.MemoryLocation, SpOffset)):
+                continue
+            uses = self._reaching_definitions.all_uses.get_uses(def_)
+
+            if not uses:
+                stmts_to_remove_per_block[def_.codeloc.block_addr].add(def_.codeloc.stmt_idx)
 
         # Remove the statements
         for block in self.func_graph.nodes():
