@@ -143,6 +143,20 @@ class AngrTracerError(AngrExplorationTechniqueError):
 class AngrVariableRecoveryError(AngrAnalysisError):
     pass
 
+
+#
+# AngrDB errors
+#
+
+
+class AngrDBError(AngrError):
+    pass
+
+
+class AngrCorruptDBError(AngrDBError):
+    pass
+
+
 #
 # Tracer
 #

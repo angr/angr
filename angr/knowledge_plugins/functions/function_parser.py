@@ -31,11 +31,13 @@ class FunctionParser():
         obj.returning = function.returning
         obj.alignment = function.alignment
         obj.binary_name = function.binary_name
+        obj.normalized = function.normalized
 
         # blocks
         blocks_list = [ b.serialize_to_cmessage() for b in function.blocks ]
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
+        block_addrs_set = function.block_addrs_set
         # graph
         edges = []
         external_functions = set()
@@ -44,22 +46,25 @@ class FunctionParser():
             edge = primitives_pb2.Edge()
             edge.src_ea = src.addr
             edge.dst_ea = dst.addr
-            if isinstance(src, angr.knowledge_plugins.functions.function.Function):
+            if src.addr not in block_addrs_set:
+                # this is a Block in another function, or just another Function instance.
                 external_functions.add(src.addr)
-            if isinstance(dst, angr.knowledge_plugins.functions.function.Function):
+            if dst.addr not in block_addrs_set:
                 external_functions.add(dst.addr)
             edge.jumpkind = TRANSITION_JK
-            for key, address in data.items():
+            for key, value in data.items():
                 if key == "type":
-                    edge.jumpkind = func_edge_type_to_pb(address)
+                    edge.jumpkind = func_edge_type_to_pb(value)
                 elif key == "ins_addr":
-                    edge.ins_addr = address
+                    if value is not None:
+                        edge.ins_addr = value
                 elif key == "stmt_idx":
-                    edge.stmt_idx = address
+                    if value is not None:
+                        edge.stmt_idx = value
                 elif key == "outside":
-                    edge.is_outside = address
+                    edge.is_outside = value
                 else:
-                    edge.data[key] = pickle.dumps(address)  # pylint:disable=no-member
+                    edge.data[key] = pickle.dumps(value)  # pylint:disable=no-member
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
@@ -68,7 +73,7 @@ class FunctionParser():
         return obj
 
     @staticmethod
-    def parse_from_cmsg(cmsg, function_manager=None):
+    def parse_from_cmsg(cmsg, function_manager=None, project=None):
         """
         :param cmsg: The data to instanciate the <Function> from.
 
@@ -86,6 +91,8 @@ class FunctionParser():
             alignment=cmsg.alignment,
             binary_name=cmsg.binary_name,
         )
+        obj._project = project
+        obj.normalized = cmsg.normalized
 
         # blocks
         blocks = dict(map(

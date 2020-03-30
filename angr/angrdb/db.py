@@ -1,9 +1,13 @@
 
 from contextlib import contextmanager
 
-import sqlite3
+import sqlalchemy
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from .serializers import LoaderSerializer
+from ..project import Project
+from .models import Base
+from .serializers import LoaderSerializer, KnowledgeBaseSerializer
 
 
 class AngrDB:
@@ -23,62 +27,50 @@ class AngrDB:
             # register the default kb
             self.kbs.append(project.kb)
 
-    @staticmethod
     @contextmanager
-    def open_db(db_path):
-        conn = sqlite3.connect(db_path)
-        yield conn
-        conn.close()
+    def open_db(self, db_str="sqlite:///:memory:"):
+        engine = create_engine(db_str)
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        yield Session
 
-    def db_initialized(self, conn):
-        """
-        Determine whether the current angr db has been initialized or not.
-
-        :param conn:
-        :return:
-        """
-
-        sql = "SELECT name FROM sqlite_master WHERE type='table' AND name=?;"
-        cursor = conn.cursor()
-        for table_name in self.ALL_TABLES:
-            cursor.execute(sql, (table_name,))
-            if cursor.fetchone() is None:
-                # the table does not exist
-                return False
-        return True
-
-    def init_db(self, conn):
-        """
-        Initialize the database.
-
-        :return:
-        """
-
-        schemas = [
-            """DROP TABLE IF EXISTS objects""",
-            """CREATE TABLE objects (
-                id INTEGER PRIMARY KEY,
-                main_object INTEGER,
-                path VARCHAR,
-                content BLOB,
-                backend VARCHAR,
-                backend_args VARCHAR
-                )
-                """,
-        ]
-
-        cursor = conn.cursor()
-
-        # create tables
-        for schema_sql in schemas:
-            cursor.execute(schema_sql)
-
-        conn.commit()
+    @contextmanager
+    def session_scope(self, Session):
+        session = Session()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def dump(self, db_path):
-        with self.open_db(db_path) as conn:
-            if not self.db_initialized(conn):
-                self.init_db(conn)
 
-            # Dump the loader
-            LoaderSerializer.dump(self.project.loader, conn)
+        db_str = "sqlite:///%s" % db_path
+
+        with self.open_db(db_str) as Session:
+            with self.session_scope(Session) as session:
+                # Dump the loader
+                LoaderSerializer.dump(session, self.project.loader)
+                # Dump the knowledge base
+                KnowledgeBaseSerializer.dump(session, self.project.kb)
+
+    def load(self, db_path):
+
+        db_str = "sqlite:///%s" % db_path
+
+        with self.open_db(db_str) as Session:
+            with self.session_scope(Session) as session:
+                # Load the loader
+                loader = LoaderSerializer.load(session)
+                # Create the project
+                proj = Project(loader)
+
+                # Load the kb
+                kb = KnowledgeBaseSerializer.load(session, proj, "global")
+                if kb is not None:
+                    proj.kb = kb
+
+                return proj
