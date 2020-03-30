@@ -55,7 +55,7 @@ class PropagatorState:
         return state
 
     def add_replacement(self, codeloc, old, new):
-         """
+        """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
         If the self._only_consts flag is set to true, only constant values will be set.
 
@@ -77,7 +77,8 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None, replacements=None, only_consts=False, prop_count=None):
+    def __init__(self, arch, registers=None, local_variables=None, 
+            replacements=None, only_consts=False, prop_count=None):
         super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
         self.registers = {} if registers is None else registers  # offset to values
         self.local_variables = {} if local_variables is None else local_variables  # offset to values
@@ -330,7 +331,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             state = PropagatorVEXState(arch=self.project.arch, only_consts=self._only_consts)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
-                                 SpOffset(self.project.arch.bits, 0),
+                                 SpOffset(self.project.arch.bits, 0)
                                  )
         return state
 
