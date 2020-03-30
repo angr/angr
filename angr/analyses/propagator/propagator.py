@@ -65,7 +65,7 @@ class PropagatorState:
         :return:                        None
         """
         if self._only_consts:
-            if isinstance(new, int) or new == TOP:
+            if isinstance(new, int) or new is TOP:
                 self._replacements[codeloc][old] = new
         else:
             self._replacements[codeloc][old] = new
@@ -77,8 +77,8 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None,
-            replacements=None, only_consts=False, prop_count=None):
+    def __init__(self, arch, registers=None, local_variables=None, replacements=None, only_consts=False,
+                 prop_count=None):
         super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
         self.registers = {} if registers is None else registers  # offset to values
         self.local_variables = {} if local_variables is None else local_variables  # offset to values
@@ -164,8 +164,7 @@ class PropagatorAILState(PropagatorState):
             self.arch,
             replacements=self._replacements.copy(),
             prop_count=self._prop_count.copy(),
-            only_consts=self._only_consts
-
+            only_consts=self._only_consts,
         )
 
         rd._stack_variables = self._stack_variables.copy()
@@ -310,7 +309,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
 
         self._analyze()
-
 
     #
     # Main analysis routines
