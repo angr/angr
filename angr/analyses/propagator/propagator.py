@@ -77,7 +77,7 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None, 
+    def __init__(self, arch, registers=None, local_variables=None,
             replacements=None, only_consts=False, prop_count=None):
         super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
         self.registers = {} if registers is None else registers  # offset to values
