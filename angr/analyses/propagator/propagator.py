@@ -280,10 +280,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            state = PropagatorAILState(arch=self.project.arch,only_consts=self._only_consts)
+            state = PropagatorAILState(arch=self.project.arch, only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(arch=self.project.arch,only_consts=self._only_consts)
+            state = PropagatorVEXState(arch=self.project.arch, only_consts=self._only_consts)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  SpOffset(self.project.arch.bits, 0),
