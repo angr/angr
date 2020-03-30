@@ -513,8 +513,7 @@ class Structurer(Analysis):
                     continue
 
                 # build switch-cases
-                cases, node_default, to_remove = self._switch_build_cases(seq, i, cmp_lb,
-                                                                          jump_table.jumptable_entries,
+                cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jump_table.jumptable_entries,
                                                                           node_b_addr, addr2nodes)
                 if node_default is None:
                     switch_end_addr = node_b_addr
@@ -603,12 +602,11 @@ class Structurer(Analysis):
         # not sure what's going on... give up on this case
         return False, None
 
-    def _switch_build_cases(self, seq, header_idx, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
+    def _switch_build_cases(self, seq, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
 
         :param seq:                 The original Sequence node.
-        :param int header_idx:      Position of the header node in `seq.nodes`.
         :param int cmp_lb:          The lower bound of the jump table comparison.
         :param list jumptable_entries:  Addresses of indirect jump targets in the jump table.
         :param int node_b_addr:     Address of node B. Potentially, node B is the default node.
@@ -630,12 +628,13 @@ class Structurer(Analysis):
             entry_node = addr2nodes[entry_addr]
             case_node = SequenceNode(nodes=[CodeNode(entry_node.node, claripy.true)])
             to_remove.add(entry_node)
+            entry_node_idx = seq.nodes.index(entry_node)
 
             # find nodes that this entry node dominates
             cond_subexprs = list(get_ast_subexprs(entry_node.reaching_condition))
             guarded_nodes = None
             for subexpr in cond_subexprs:
-                guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, header_idx + 1)
+                guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, entry_node_idx + 1)
                 if guarded_nodes is None:
                     guarded_nodes = set(node_ for _, node_, _ in guarded_node_candidates)
                 else:

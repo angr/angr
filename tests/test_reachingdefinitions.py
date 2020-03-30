@@ -16,6 +16,7 @@ from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.analyses.reaching_definitions.live_definitions import LiveDefinitions
 from angr.analyses.reaching_definitions.subject import Subject, SubjectType
+from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
 
 LOGGER = logging.getLogger('test_reachingdefinitions')
@@ -315,42 +316,43 @@ class LiveDefinitionsTest(TestCase):
 
         nose.tools.assert_equal(sp_value, project.arch.initial_sp)
 
-def test_def_use_graph():
+
+def test_dep_graph():
     project = angr.Project(os.path.join(TESTS_LOCATION, 'x86_64', 'true'), auto_load_libs=False)
     cfg = project.analyses.CFGFast()
     main = cfg.functions['main']
 
     # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's guard is the four cc registers
-    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False)
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
     guard_use = list(filter(
         lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
-        rda.def_use_graph._graph.nodes()
+        rda.dep_graph._graph.nodes()
     ))[0]
     nose.tools.assert_equal(
-        len(rda.def_use_graph._graph.pred[guard_use]),
+        len(rda.dep_graph._graph.pred[guard_use]),
         4
     )
     nose.tools.assert_equal(
-        all(type(def_.atom) is Register for def_ in rda.def_use_graph._graph.pred[guard_use]),
+        all(type(def_.atom) is Register for def_ in rda.dep_graph._graph.pred[guard_use]),
         True
     )
     nose.tools.assert_equal(
-        set(def_.atom.reg_offset for def_ in rda.def_use_graph._graph.pred[guard_use]),
+        set(def_.atom.reg_offset for def_ in rda.dep_graph._graph.pred[guard_use]),
         {reg.vex_offset for reg in project.arch.register_list if reg.name.startswith('cc_')}
     )
 
     # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
-    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=True)
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=True, dep_graph=DepGraph())
     tmp_7 = list(filter(
         lambda def_: type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr,
-        rda.def_use_graph._graph.nodes()
+        rda.dep_graph._graph.nodes()
     ))[0]
     nose.tools.assert_equal(
-        len(rda.def_use_graph._graph.succ[tmp_7]),
+        len(rda.dep_graph._graph.succ[tmp_7]),
         1
     )
     nose.tools.assert_equal(
-        type(list(rda.def_use_graph._graph.succ[tmp_7])[0].atom),
+        type(list(rda.dep_graph._graph.succ[tmp_7])[0].atom),
         GuardUse
     )
 

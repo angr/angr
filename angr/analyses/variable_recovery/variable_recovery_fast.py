@@ -593,10 +593,10 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
 class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=abstract-method
     """
-    Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
+    Recover "variables" from a function by keeping track of stack pointer offsets and pattern matching VEX statements.
     """
 
-    def __init__(self, func, max_iterations=1, clinic=None, low_priority=False):
+    def __init__(self, func, max_iterations=1, clinic=None, low_priority=False, track_sp=True):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -617,6 +617,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._clinic = clinic
         self._low_priority = low_priority
         self._job_ctr = 0
+        self._track_sp = track_sp
 
         self._ail_engine = SimEngineVRAIL(self.project)
         self._vex_engine = SimEngineVRVEX(self.project)
@@ -641,9 +642,11 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         # initialize node_to_cc map
         function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
-        for func_node in function_nodes:
-            for callsite_node in self.function.transition_graph.predecessors(func_node):
-                self._node_to_cc[callsite_node.addr] = func_node.calling_convention
+
+        if self._track_sp:
+            for func_node in function_nodes:
+                for callsite_node in self.function.transition_graph.predecessors(func_node):
+                    self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
     def _pre_job_handling(self, job):
         self._job_ctr += 1
@@ -749,14 +752,22 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
         processor.process(state, block=block, fail_fast=self._fail_fast)
 
+        if self._track_sp and block.addr in self._node_to_cc:
         # readjusting sp at the end for blocks that end in a call
-        if block.addr in self._node_to_cc:
             cc = self._node_to_cc[block.addr]
+            state.processor_state.sp_adjusted = False
+
             if cc is not None and cc.sp_delta is not None:
                 state.processor_state.sp_adjustment += cc.sp_delta
                 state.processor_state.sp_adjusted = True
                 l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.',
                         block.addr, state.processor_state.sp_adjustment)
+            else:
+                # make a guess
+                # of course, this will fail miserably if the function called is not cdecl
+                if self.project.arch.call_pushes_ret:
+                    state.processor_state.sp_adjustment += self.project.arch.bytes
+                    state.processor_state.sp_adjusted = True
 
 
 from angr.analyses import AnalysesHub
