@@ -2,7 +2,13 @@ import claripy
 
 from . import MemoryMixin
 
-class ConditionalStoreMixin(MemoryMixin):
+class ConditionalMixin(MemoryMixin):
+    def load(self, addr, condition=None, fallback=None, **kwargs):
+        res = super().load(addr, condition=condition, **kwargs)
+        if condition is not None:
+            res = claripy.If(condition, res, fallback)
+        return res
+
     def store(self, addr, data, size=None, condition=None, **kwargs):
         if condition is None or self.state.solver.is_true(condition):
             super().store(addr, data, size=size, **kwargs)

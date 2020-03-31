@@ -102,7 +102,8 @@ from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
 from .address_concretization_mixin import AddressConcretizationMixin
 from .bvv_conversion_mixin import DataNormalizationMixin
 from .clouseau_mixin import InspectMixinHigh
-from .conditional_store_mixin import ConditionalStoreMixin
+from .conditional_store_mixin import ConditionalMixin
+from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
@@ -130,7 +131,8 @@ class DefaultMemory(
         AddressConcretizationMixin,
         #InspectMixinLow,
         ActionsMixinLow,
-        ConditionalStoreMixin,
+        ConditionalMixin,
+        ConvenientMappingsMixin,
         # -----
         StackAllocationMixin,
         ClemoryBackerMixin,
