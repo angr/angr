@@ -38,6 +38,18 @@ class SimMemoryObject(object):
         return self.size()
 
     @property
+    def variables(self):
+        return self.object.variables
+
+    @property
+    def cache_key(self):
+        return self.object.cache_key
+
+    @property
+    def symbolic(self):
+        return self.object.symbolic
+
+    @property
     def last_addr(self):
         return self.base + self.length - 1
 
