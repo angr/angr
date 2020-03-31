@@ -56,7 +56,7 @@ class XRef(Serializable):
         # pylint:disable=no-member
 
         # delayed import
-        from ...engines.light import SpOffset
+        from ...engines.light import SpOffset  # pylint:disable=import-outside-toplevel
 
         cmsg = self._get_cmsg()
         if self.memory_data is not None:
@@ -88,16 +88,16 @@ class XRef(Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, bits=None, **kwargs):
+    def parse_from_cmessage(cls, cmsg, bits=None, **kwargs):  # pylint:disable=arguments-differ
         # Note that we cannot recover _memory_data from cmsg
 
         # delayed import
-        from ...engines.light import SpOffset
+        from ...engines.light import SpOffset  # pylint:disable=import-outside-toplevel
 
         if not isinstance(bits, int):
             raise TypeError("bits must be provided.")
 
-        if cmsg.target_type == primitives_pb2.CodeReference.StackTarget:
+        if cmsg.target_type == primitives_pb2.CodeReference.StackTarget:  # pylint:disable=no-member
             dst = SpOffset(bits, cmsg.data_ea, is_base=False)
         else:
             dst = cmsg.data_ea

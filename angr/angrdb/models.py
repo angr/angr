@@ -1,6 +1,5 @@
 
-import sqlalchemy
-from sqlalchemy import (Column, Integer, String, Boolean, DateTime, BLOB, ForeignKey, create_engine)
+from sqlalchemy import (Column, Integer, String, Boolean, BLOB, ForeignKey)
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 

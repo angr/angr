@@ -697,7 +697,7 @@ def test_blanket_fauxware():
 
     cfg = proj.analyses.CFGFast()
 
-    cfb = proj.analyses.CFBlanket(cfg=cfg)
+    cfb = proj.analyses.CFBlanket(kb=cfg.kb)
 
     # it should raise a key error when calling floor_addr on address 0 because nothing is mapped there
     nose.tools.assert_raises(KeyError, cfb.floor_addr, 0)

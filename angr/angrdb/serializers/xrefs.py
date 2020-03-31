@@ -1,4 +1,4 @@
-
+# pylint:disable=unused-import
 from ..models import DbKnowledgeBase, DbXRefs
 from ...knowledge_plugins.xrefs import XRefManager
 from ...knowledge_plugins.cfg import CFGModel
@@ -32,7 +32,7 @@ class XRefsSerializer:
             session.add(db_xrefs)
 
     @staticmethod
-    def load(session, db_kb, kb, cfg_model=None):
+    def load(session, db_kb, kb, cfg_model=None):  # pylint:disable=unused-argument
         """
 
         :param session:
@@ -48,4 +48,3 @@ class XRefsSerializer:
 
         xrefs = XRefManager.parse(db_xrefs.blob, cfg_model=cfg_model, kb=kb)
         return xrefs
-

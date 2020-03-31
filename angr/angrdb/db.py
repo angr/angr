@@ -1,7 +1,6 @@
 
 from contextlib import contextmanager
 
-import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -27,15 +26,17 @@ class AngrDB:
             # register the default kb
             self.kbs.append(project.kb)
 
+    @staticmethod
     @contextmanager
-    def open_db(self, db_str="sqlite:///:memory:"):
+    def open_db(db_str="sqlite:///:memory:"):
         engine = create_engine(db_str)
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine)
         yield Session
 
+    @staticmethod
     @contextmanager
-    def session_scope(self, Session):
+    def session_scope(Session):
         session = Session()
         try:
             yield session

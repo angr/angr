@@ -1,4 +1,4 @@
-
+# pylint:disable=unused-import
 from ..models import DbCFGModel, DbKnowledgeBase
 from ...knowledge_plugins.cfg.cfg_model import CFGModel
 
