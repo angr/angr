@@ -159,6 +159,9 @@ setup(
         'protobuf',
     ],
     setup_requires=['unicorn', 'pyvex'],
+    extras_require={
+        'AngrDB': ['sqlalchemy'],
+    },
     cmdclass=cmdclass,
     include_package_data=True,
     package_data={
