@@ -33,6 +33,7 @@ class DbKnowledgeBase(Base):
     funcs = relationship('DbFunction', back_populates="kb")
     xrefs = relationship('DbXRefs', uselist=False, back_populates="kb")
     comments = relationship('DbComment', back_populates="kb")
+    labels = relationship('DbLabel', back_populates="kb")
 
 
 class DbCFGModel(Base):
@@ -97,3 +98,19 @@ class DbComment(Base):
     addr = Column(Integer, index=True)
     comment = Column(String)
     type = Column(Integer)  # not really used for now, but we'd better get it prepared
+
+
+class DbLabel(Base):
+    """
+    Models a label.
+    """
+    __tablename__ = "labels"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(Integer,
+                   ForeignKey("knowledgebases.id"),
+                   nullable=False,
+                   )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="labels")
+    addr = Column(Integer, index=True)
+    name = Column(String)

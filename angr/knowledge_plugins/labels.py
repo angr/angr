@@ -54,6 +54,9 @@ class Labels(KnowledgeBasePlugin):
     def __contains__(self, k):
         return k in self._labels
 
+    def items(self):
+        return self._labels.items()
+
     def get(self, addr):
         """
         Get a label as string for a given address
