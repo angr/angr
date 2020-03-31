@@ -137,18 +137,21 @@ class FunctionParser():
             else:
                 edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
 
+        added_nodes = set()
         for k, v in edges.items():
-            _, dst_addr, edge_type = k
+            src_addr, dst_addr, edge_type = k
             src, dst, data = v
 
             outside = data.get('outside', False)
             ins_addr = data.get('ins_addr', None)
             stmt_idx = data.get('stmt_idx', None)
+            added_nodes.add(src)
+            added_nodes.add(dst)
             if edge_type == 'transition':
                 obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx)
             elif edge_type == 'call':
                 # find the corresponding fake_ret edge
-                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[dst_addr]
+                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[src_addr]
                                           if edge_[1].addr == src.addr + src.size), None)
                 if dst is None:
                     l.warning("The destination function %#x does not exist, and it cannot be created since function "
@@ -160,8 +163,19 @@ class FunctionParser():
                                  ins_addr=ins_addr,
                                  return_to_outside=fake_ret_edge is None,
                                  )
+                    if fake_ret_edge is not None:
+                        fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge
+                        added_nodes.add(fakeret_dst)
+                        obj._fakeret_to(fakeret_src, fakeret_dst,
+                                        confirmed=fakeret_data.get('confirmed'),
+                                        to_outside=fakeret_data.get('outside', None))
             elif edge_type == 'fake_return':
                 pass
+
+        # add leftover blocks
+        for block in blocks.values():
+            if block not in added_nodes:
+                obj._register_nodes(True, block)
 
         return obj
 

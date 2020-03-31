@@ -9,6 +9,7 @@ message CodeReference {
     enum TargetType {
         CodeTarget = 0;
         DataTarget = 1;
+        StackTarget = 2;
     }
 
     enum OperandType {

@@ -32,6 +32,7 @@ class DbKnowledgeBase(Base):
 
     cfgs = relationship("DbCFGModel", back_populates="kb")
     funcs = relationship('DbFunction', back_populates="kb")
+    xrefs = relationship('DbXRefs', uselist=False, back_populates="kb")
 
 
 class DbCFGModel(Base):
@@ -45,7 +46,7 @@ class DbCFGModel(Base):
                    ForeignKey("knowledgebases.id"),
                    nullable=False,
                    )
-    kb = relationship('DbKnowledgeBase', back_populates="cfgs")
+    kb = relationship('DbKnowledgeBase', uselist=False, back_populates="cfgs")
     ident = Column(String)
     blob = Column(BLOB)
 
@@ -61,6 +62,21 @@ class DbFunction(Base):
                    ForeignKey("knowledgebases.id"),
                    nullable=False,
                    )
-    kb = relationship('DbKnowledgeBase', back_populates="funcs")
+    kb = relationship('DbKnowledgeBase', uselist=False, back_populates="funcs")
     addr = Column(Integer)
     blob = Column(BLOB)
+
+
+class DbXRefs(Base):
+    """
+    Models an XRefManager instance.
+    """
+    __tablename__ = "xrefs"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(Integer,
+                   ForeignKey("knowledgebases.id"),
+                   nullable=False,
+                   )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="xrefs")
+    blob = Column(BLOB, nullable=True)

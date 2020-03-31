@@ -32,11 +32,11 @@ class CFGModelSerializer:
         session.add(db_cfg)
 
     @staticmethod
-    def load(session, db_kb, ident, cfg_manager):
+    def load(session, db_kb, ident, cfg_manager, loader=None):
 
         db_cfg = session.query(DbCFGModel).filter_by(kb=db_kb, ident=ident).scalar()  # type: DbCFGModel
         if db_cfg is None:
             return None
 
-        cfg_model = CFGModel.parse(db_cfg.blob, cfg_manager=cfg_manager)
+        cfg_model = CFGModel.parse(db_cfg.blob, cfg_manager=cfg_manager, loader=loader)
         return cfg_model

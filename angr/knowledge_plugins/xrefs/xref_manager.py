@@ -98,18 +98,19 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, cfg_model=None, **kwargs):  # pylint:disable=arguments-differ
+    def parse_from_cmessage(cls, cmsg, cfg_model=None, kb=None, **kwargs):  # pylint:disable=arguments-differ
 
-        model = XRefManager(None)
+        model = XRefManager(kb)
+        bits = kb._project.arch.bits
 
         # references
         for xref_pb2 in cmsg.xrefs:
             if xref_pb2.data_ea == -1:
                 l.warning("Unknown address of the referenced data item. Ignore the reference at %#x.", xref_pb2.ea)
                 continue
-            xref = XRef.parse_from_cmessage(xref_pb2)
-            if cfg_model is not None:
-                xref.memory_data = cfg_model.memory_data[xref_pb2.data_ea]
+            xref = XRef.parse_from_cmessage(xref_pb2, bits=bits)
+            if cfg_model is not None and isinstance(xref.dst, int):
+                xref.memory_data = cfg_model.memory_data.get(xref.dst, None)
             model.add_xref(xref)
 
         return model

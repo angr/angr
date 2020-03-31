@@ -3,6 +3,7 @@ from ...knowledge_base import KnowledgeBase
 from ..models import DbKnowledgeBase
 from .cfg_model import CFGModelSerializer
 from .funcs import FunctionManagerSerializer
+from .xrefs import XRefsSerializer
 
 
 class KnowledgeBaseSerializer:
@@ -31,6 +32,7 @@ class KnowledgeBaseSerializer:
                 CFGModelSerializer.dump(session, db_kb, 'CFGFast', cfg_model)
 
         FunctionManagerSerializer.dump(session, db_kb, kb.functions)
+        XRefsSerializer.dump(session, db_kb, kb.xrefs)
 
     @staticmethod
     def load(session, project, name):
@@ -47,7 +49,7 @@ class KnowledgeBaseSerializer:
         kb = KnowledgeBase(project, name=name)
 
         # Load CFGs
-        cfg_model = CFGModelSerializer.load(session, db_kb, 'CFGFast', kb.cfgs)
+        cfg_model = CFGModelSerializer.load(session, db_kb, 'CFGFast', kb.cfgs, loader=project.loader)
         if cfg_model is not None:
             kb.cfgs['CFGFast'] = cfg_model
 
@@ -55,5 +57,24 @@ class KnowledgeBaseSerializer:
         funcs = FunctionManagerSerializer.load(session, db_kb, kb)
         if funcs is not None:
             kb.functions = funcs
+
+        # Load xrefs
+        xrefs = XRefsSerializer.load(session, db_kb, kb, cfg_model=cfg_model)
+        if xrefs is not None:
+            kb.xrefs = xrefs
+
+        # fill in CFGNode.function_address
+        for func in funcs.values():
+            for block_addr in func.block_addrs_set:
+                node = cfg_model.get_any_node(block_addr)
+                if node is not None:
+                    node.function_address = func.addr
+
+        # re-initialize CFGModel.insn_addr_to_memory_data
+        # fill in insn_addr_to_memory_data
+        for xrefs in xrefs.xrefs_by_ins_addr.values():
+            for xref in xrefs:
+                if xref.ins_addr is not None and xref.memory_data is not None:
+                    cfg_model.insn_addr_to_memory_data[xref.ins_addr] = xref.memory_data
 
         return kb
