@@ -4,6 +4,7 @@ from ..models import DbKnowledgeBase
 from .cfg_model import CFGModelSerializer
 from .funcs import FunctionManagerSerializer
 from .xrefs import XRefsSerializer
+from .comments import CommentsSerializer
 
 
 class KnowledgeBaseSerializer:
@@ -33,6 +34,7 @@ class KnowledgeBaseSerializer:
 
         FunctionManagerSerializer.dump(session, db_kb, kb.functions)
         XRefsSerializer.dump(session, db_kb, kb.xrefs)
+        CommentsSerializer.dump(session, db_kb, kb.comments)
 
     @staticmethod
     def load(session, project, name):
@@ -62,6 +64,11 @@ class KnowledgeBaseSerializer:
         xrefs = XRefsSerializer.load(session, db_kb, kb, cfg_model=cfg_model)
         if xrefs is not None:
             kb.xrefs = xrefs
+
+        # Load comments
+        comments = CommentsSerializer.load(session, db_kb, kb)
+        if comments is not None:
+            kb.comments = comments
 
         # fill in CFGNode.function_address
         for func in funcs.values():

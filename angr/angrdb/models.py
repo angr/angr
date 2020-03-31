@@ -32,6 +32,7 @@ class DbKnowledgeBase(Base):
     cfgs = relationship("DbCFGModel", back_populates="kb")
     funcs = relationship('DbFunction', back_populates="kb")
     xrefs = relationship('DbXRefs', uselist=False, back_populates="kb")
+    comments = relationship('DbComment', back_populates="kb")
 
 
 class DbCFGModel(Base):
@@ -79,3 +80,20 @@ class DbXRefs(Base):
                    )
     kb = relationship("DbKnowledgeBase", uselist=False, back_populates="xrefs")
     blob = Column(BLOB, nullable=True)
+
+
+class DbComment(Base):
+    """
+    Models a comment.
+    """
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(Integer,
+                   ForeignKey("knowledgebases.id"),
+                   nullable=False,
+                   )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="comments")
+    addr = Column(Integer, index=True)
+    comment = Column(String)
+    type = Column(Integer)  # not really used for now, but we'd better get it prepared

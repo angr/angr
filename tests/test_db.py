@@ -13,6 +13,7 @@ def test_angrdb_fauxware():
 
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+    proj.kb.comments[proj.entry] = "Entry point"
 
     dtemp = tempfile.mkdtemp()
     db_file = os.path.join(dtemp, "fauxware.adb")
@@ -54,6 +55,12 @@ def test_angrdb_fauxware():
         assert memory_data.content == new_memory_data.content
 
     assert cfg.model.insn_addr_to_memory_data.keys() == new_cfg.insn_addr_to_memory_data.keys()
+
+    # comments
+    for addr, comment in proj.kb.comments.items():
+        new_comment = new_proj.kb.comments.get(addr, None)
+
+        assert comment == new_comment
 
 
 if __name__ == "__main__":
