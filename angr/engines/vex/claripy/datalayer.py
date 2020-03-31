@@ -83,7 +83,11 @@ class ClaripyDataMixin(VEXMixin):
             except AttributeError as e:
                 raise errors.UnsupportedCCallError("Unsupported ccall %s" % func_name) from e
 
-        return func(self.state, *args)
+        try:
+            return func(self.state, *args)
+        except ccall.CCallMultivaluedException as e:
+            cases = e.args[0]
+            return claripy.ite_cases([(case, func(self.state, value, *args[1:])) for case, value in cases], value(ty, 0))
 
 from . import irop
 from . import ccall
