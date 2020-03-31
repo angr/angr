@@ -17,7 +17,7 @@ from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
-from ..slice_to_sink import slice_function_graph
+from ..slice_to_sink import slice_cfg_graph, slice_function_graph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
@@ -126,7 +126,11 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._analyze()
 
     def _update_kb_content_from_slice(self):
-        self.kb.cfgs['CFGFast'] = self._graph_visitor.cfg
+        # Removes the nodes that are not in the slice from the CFG.
+        cfg = self.kb.cfgs['CFGFast']
+        slice_cfg_graph(cfg.graph, self._subject.content)
+        for node in cfg.nodes():
+            node._cfg_model = cfg
 
         # Removes the functions for which entrypoints are not present in the slice.
         for f in self.kb.functions:

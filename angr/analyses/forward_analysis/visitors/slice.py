@@ -2,7 +2,6 @@ from functools import reduce
 
 from angr.analyses.cfg.cfg_utils import CFGUtils
 from angr.analyses.forward_analysis.visitors.graph import GraphVisitor
-from angr.analyses.slice_to_sink import slice_graph
 
 
 class SliceVisitor(GraphVisitor):
@@ -14,24 +13,16 @@ class SliceVisitor(GraphVisitor):
         :param SliceToSink slice:
             A slice, representing a graph where all paths are leading to a sink.
         :param angr.knowledge_plugins.cfg.cfg_model.CFGModel cfg:
-            The cfg the slice has been extracted from.
+            The CFG represented by the slice.
         """
         super(SliceVisitor, self).__init__()
         self._slice = slice_to_visit
-        self._original_cfg = cfg
-        self._cfg = None
+        self._cfg = cfg
 
         self.reset()
 
     @property
     def cfg(self):
-        if self._cfg is None:
-            self._cfg = self._original_cfg.copy()
-            slice_graph(self._cfg.graph, self._slice)
-
-            for node in self._cfg.nodes():
-                node._cfg_model = self._cfg
-
         return self._cfg
 
     def _successors(self, node):

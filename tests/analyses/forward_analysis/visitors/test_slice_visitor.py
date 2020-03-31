@@ -3,14 +3,13 @@ import os
 from unittest import mock
 
 import nose
+from claripy.utils.orderedset import OrderedSet
 
-from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.cfg.cfg_utils import CFGUtils
 from angr.analyses.forward_analysis.visitors.slice import SliceVisitor
 from angr.analyses.slice_to_sink import SliceToSink
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.project import Project
-from claripy.utils.orderedset import OrderedSet
 
 
 BINARIES_PATH = os.path.join(
@@ -96,6 +95,9 @@ class TestSliceVisitor():
     @mock.patch.object(CFGUtils, 'quasi_topological_sort_nodes')
     def test_sort_nodes(self, mock_quasi_topological_sort, _):
         class SliceVisitorMock(SliceVisitor):
+            def __init__(self, *args):
+                super().__init__(*args)
+                self._cfg = CFGMock()
             @property
             def cfg(self):
                 return CFGMock()
@@ -108,19 +110,6 @@ class TestSliceVisitor():
         _ = slice_visitor.sort_nodes()
 
         mock_quasi_topological_sort.assert_called_once_with('mock_graph_return')
-
-
-    def test_compute_cfg_of_the_slice_from_original_cfg(self, _):
-        slice_to_visit = SliceToSink(PRINTF, {
-            PRINTF_NODE.predecessors[0].addr: [PRINTF_NODE.addr],
-        })
-        slice_visitor = SliceVisitor(slice_to_visit, CFG)
-
-        slice_cfg = slice_visitor.cfg
-
-        nose.tools.assert_equal(isinstance(slice_cfg, CFGBase), True)
-        nose.tools.assert_equal(len(slice_cfg.graph.edges), 1)
-        nose.tools.assert_equal(len(slice_cfg.graph.nodes), 2)
 
 
     def test_remove_from_sorted_nodes(self, _):
