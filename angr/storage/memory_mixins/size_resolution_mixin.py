@@ -59,7 +59,7 @@ class SizeConcretizationMixin(MemoryMixin):
 
     def store(self, addr, data, size=None, condition=None, **kwargs):
         if getattr(size, 'op', 'BVV') == 'BVV':
-            super().store(addr, data, size=size, **kwargs)
+            super().store(addr, data, size=size, condition=condition, **kwargs)
             return
 
         max_size = len(data) // self.state.arch.byte_width

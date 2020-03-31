@@ -169,7 +169,7 @@ class PagedMemoryMixin(MemoryMixin):
         next(sub_gen)
 
         sub_data = sub_gen.send(size)
-        page.store(0, sub_data, size=size, endness=endness, page_addr=page_addr, memory=self, **kwargs)
+        page.store(addr - page_addr, sub_data, size=size, endness=endness, page_addr=page_addr, memory=self, **kwargs)
         sub_gen.close()
 
     def permissions(self, addr, permissions=None, **kwargs):

@@ -785,7 +785,7 @@ class SimState(PluginHub):
         # increment sp
         sp = self.regs.sp + self.arch.stack_change
         self.regs.sp = sp
-        return self.memory.store(sp, thing, endness=self.arch.memory_endness)
+        return self.memory.store(sp, thing, endness=self.arch.memory_endness, size=self.arch.bytes)
 
     @arch_overrideable
     def stack_pop(self):
