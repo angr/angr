@@ -38,7 +38,7 @@ class CommentsSerializer:
                 session.add(db_comment)
 
     @staticmethod
-    def load(session, db_kb, kb):
+    def load(session, db_kb, kb):  # pylint:disable=unused-argument
         """
 
         :param session:

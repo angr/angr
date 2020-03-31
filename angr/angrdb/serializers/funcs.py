@@ -1,4 +1,4 @@
-
+# pylint:disable=unused-import
 from ...knowledge_base import KnowledgeBase
 from ...knowledge_plugins import FunctionManager, Function
 from ..models import DbFunction, DbKnowledgeBase

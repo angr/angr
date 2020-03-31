@@ -37,7 +37,7 @@ class LabelsSerializer:
                 session.add(db_label)
 
     @staticmethod
-    def load(session, db_kb, kb):
+    def load(session, db_kb, kb):  # pylint:disable=unused-argument
         """
 
         :param session:
