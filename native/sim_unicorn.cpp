@@ -12,12 +12,15 @@
 #include <unordered_map>
 #include <set>
 #include <algorithm>
+#include <sstream>
 
 extern "C" {
 #include <assert.h>
 #include <libvex.h>
 #include <pyvex.h>
 }
+
+#include "log.h"
 
 #define PAGE_SIZE 0x1000
 #define PAGE_SHIFT 12
@@ -1139,8 +1142,13 @@ public:
 			case Iex_Binder:
 				break;
 			default:
-				std::cerr << "Unknown expression type: " << expr->tag << std::endl;
-				assert(false);
+			{
+				// TODO: Switch to VEX engine rather than abort.
+				std::stringstream ss;
+				ss << "Unsupported expression type: " << expr->tag;
+				LOG_D(ss.str().c_str());
+				assert(false && "Unsupported expression type encountered! See debug log.");
+			}
 		}
 		return sources;
 	}
