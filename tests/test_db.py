@@ -67,7 +67,7 @@ def test_angrdb_open_multiple_times():
     bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
     proj = angr.Project(bin_path, auto_load_libs=False)
-    cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+    _ = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
     proj.kb.comments[proj.entry] = "Entry point"
 
     dtemp = tempfile.mkdtemp()
@@ -108,7 +108,7 @@ def test_angrdb_save_multiple_times():
     bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
     proj = angr.Project(bin_path, auto_load_libs=False)
-    cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+    _ = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
     proj.kb.comments[proj.entry] = "Entry point"
 
     dtemp = tempfile.mkdtemp()
