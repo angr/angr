@@ -6,6 +6,17 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 
+class DbInformation(Base):
+    """
+    Stores information related to the current database. Basically a key-value store.
+    """
+    __tablename__ = "information"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String, unique=True, index=True)
+    value = Column(String)
+
+
 class DbObject(Base):
     """
     Models a binary object.

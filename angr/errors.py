@@ -156,6 +156,8 @@ class AngrDBError(AngrError):
 class AngrCorruptDBError(AngrDBError):
     pass
 
+class AngrIncompatibleDBError(AngrDBError):
+    pass
 
 #
 # Tracer

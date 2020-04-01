@@ -63,5 +63,85 @@ def test_angrdb_fauxware():
         assert comment == new_comment
 
 
+def test_angrdb_open_multiple_times():
+    bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+    proj = angr.Project(bin_path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+    proj.kb.comments[proj.entry] = "Entry point"
+
+    dtemp = tempfile.mkdtemp()
+    db_file = os.path.join(dtemp, "fauxware.adb")
+
+    db = AngrDB(proj)
+    db.dump(db_file)
+
+    # attempt 0
+    db0 = AngrDB()
+    proj0 = db0.load(db_file)
+
+    # attempt 1
+    db1 = AngrDB()
+    proj1 = db1.load(db_file)
+
+    # attempt 2
+    db2 = AngrDB()
+    proj2 = db2.load(db_file)
+
+    # attempt 3
+    db3 = AngrDB()
+    proj3 = db3.load(db_file)
+
+    # compare functions
+    for func in proj.kb.functions.values():
+        for p in [proj0, proj1, proj2, proj3]:
+            new_func = p.kb.functions[func.addr]
+
+            assert func.addr == new_func.addr
+            assert func.normalized == new_func.normalized
+
+            assert len(func.transition_graph.nodes()) == len(new_func.transition_graph.nodes())
+            assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
+
+
+def test_angrdb_save_multiple_times():
+    bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+    proj = angr.Project(bin_path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+    proj.kb.comments[proj.entry] = "Entry point"
+
+    dtemp = tempfile.mkdtemp()
+    db_file = os.path.join(dtemp, "fauxware.adb")
+
+    # attempt 0
+    db = AngrDB(proj)
+    db.dump(db_file)
+
+    # attempt 1
+    proj0 = AngrDB().load(db_file)
+    assert proj0.kb.comments[proj.entry] == "Entry point"
+    proj0.kb.comments[proj.entry] = "Comment 0"
+    AngrDB(proj0).dump(db_file)
+
+    # attempt 2
+    proj1 = AngrDB().load(db_file)
+    assert proj1.kb.comments[proj.entry] == "Comment 0"
+    proj1.kb.comments[proj.entry] = "Comment 1"
+    AngrDB(proj1).dump(db_file)
+
+    # attempt 3
+    proj1 = AngrDB().load(db_file)
+    assert proj1.kb.comments[proj.entry] == "Comment 1"
+    proj1.kb.comments[proj.entry] = "Comment 22222222222222222222222"
+    AngrDB(proj1).dump(db_file)
+
+    # attempt 4
+    proj1 = AngrDB().load(db_file)
+    assert proj1.kb.comments[proj.entry] == "Comment 22222222222222222222222"
+
+
 if __name__ == "__main__":
     test_angrdb_fauxware()
+    test_angrdb_open_multiple_times()
+    test_angrdb_save_multiple_times()
