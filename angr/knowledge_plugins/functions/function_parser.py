@@ -31,11 +31,13 @@ class FunctionParser():
         obj.returning = function.returning
         obj.alignment = function.alignment
         obj.binary_name = function.binary_name
+        obj.normalized = function.normalized
 
         # blocks
         blocks_list = [ b.serialize_to_cmessage() for b in function.blocks ]
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
+        block_addrs_set = function.block_addrs_set
         # graph
         edges = []
         external_functions = set()
@@ -44,22 +46,25 @@ class FunctionParser():
             edge = primitives_pb2.Edge()
             edge.src_ea = src.addr
             edge.dst_ea = dst.addr
-            if isinstance(src, angr.knowledge_plugins.functions.function.Function):
+            if src.addr not in block_addrs_set:
+                # this is a Block in another function, or just another Function instance.
                 external_functions.add(src.addr)
-            if isinstance(dst, angr.knowledge_plugins.functions.function.Function):
+            if dst.addr not in block_addrs_set:
                 external_functions.add(dst.addr)
             edge.jumpkind = TRANSITION_JK
-            for key, address in data.items():
+            for key, value in data.items():
                 if key == "type":
-                    edge.jumpkind = func_edge_type_to_pb(address)
+                    edge.jumpkind = func_edge_type_to_pb(value)
                 elif key == "ins_addr":
-                    edge.ins_addr = address
+                    if value is not None:
+                        edge.ins_addr = value
                 elif key == "stmt_idx":
-                    edge.stmt_idx = address
+                    if value is not None:
+                        edge.stmt_idx = value
                 elif key == "outside":
-                    edge.is_outside = address
+                    edge.is_outside = value
                 else:
-                    edge.data[key] = pickle.dumps(address)  # pylint:disable=no-member
+                    edge.data[key] = pickle.dumps(value)  # pylint:disable=no-member
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
@@ -68,7 +73,7 @@ class FunctionParser():
         return obj
 
     @staticmethod
-    def parse_from_cmsg(cmsg, function_manager=None):
+    def parse_from_cmsg(cmsg, function_manager=None, project=None):
         """
         :param cmsg: The data to instanciate the <Function> from.
 
@@ -86,6 +91,8 @@ class FunctionParser():
             alignment=cmsg.alignment,
             binary_name=cmsg.binary_name,
         )
+        obj._project = project
+        obj.normalized = cmsg.normalized
 
         # blocks
         blocks = dict(map(
@@ -130,18 +137,21 @@ class FunctionParser():
             else:
                 edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
 
+        added_nodes = set()
         for k, v in edges.items():
-            _, dst_addr, edge_type = k
+            src_addr, dst_addr, edge_type = k
             src, dst, data = v
 
             outside = data.get('outside', False)
             ins_addr = data.get('ins_addr', None)
             stmt_idx = data.get('stmt_idx', None)
+            added_nodes.add(src)
+            added_nodes.add(dst)
             if edge_type == 'transition':
                 obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx)
             elif edge_type == 'call':
                 # find the corresponding fake_ret edge
-                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[dst_addr]
+                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[src_addr]
                                           if edge_[1].addr == src.addr + src.size), None)
                 if dst is None:
                     l.warning("The destination function %#x does not exist, and it cannot be created since function "
@@ -153,8 +163,19 @@ class FunctionParser():
                                  ins_addr=ins_addr,
                                  return_to_outside=fake_ret_edge is None,
                                  )
+                    if fake_ret_edge is not None:
+                        fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge
+                        added_nodes.add(fakeret_dst)
+                        obj._fakeret_to(fakeret_src, fakeret_dst,
+                                        confirmed=fakeret_data.get('confirmed'),
+                                        to_outside=fakeret_data.get('outside', None))
             elif edge_type == 'fake_return':
                 pass
+
+        # add leftover blocks
+        for block in blocks.values():
+            if block not in added_nodes:
+                obj._register_nodes(True, block)
 
         return obj
 

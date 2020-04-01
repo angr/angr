@@ -67,7 +67,7 @@ def internaltest_project(fpath):
 def test_analyses():
     p = angr.Project(os.path.join(internaltest_location, 'i386', 'fauxware'), load_options={'auto_load_libs': False})
     cfg = p.analyses.CFG()
-    cfb = p.analyses.CFB(cfg)
+    cfb = p.analyses.CFB(kb=cfg.kb)
     vrf = p.analyses.VariableRecoveryFast(p.kb.functions['main'])
 
     assert len(p.kb.functions) > 0

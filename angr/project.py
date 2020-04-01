@@ -192,7 +192,7 @@ class Project:
         self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
 
         # Step 4.3: ...etc
-        self.kb = KnowledgeBase(self)
+        self.kb = KnowledgeBase(self, name="global")
 
         # Step 5: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):

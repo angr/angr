@@ -78,19 +78,17 @@ class CFBlanket(Analysis):
     """
     A Control-Flow Blanket is a representation for storing all instructions, data entries, and bytes of a full program.
     """
-    def __init__(self, cfg=None):
+    def __init__(self):
         self._blanket = SortedDict()
 
         self._regions = [ ]
 
         self._init_regions()
 
-        if cfg is not None:
-            self._from_cfg(cfg)
-        else:
-            _l.debug("CFG is not specified. Initialize CFBlanket from the knowledge base.")
-            for func in self.kb.functions.values():
-                self.add_function(func)
+        # initialize
+        for func in self.kb.functions.values():
+            self.add_function(func)
+        self._mark_unknowns()
 
     def _init_regions(self):
 
@@ -224,20 +222,6 @@ class CFBlanket(Analysis):
                 output.append("")
 
         return "\n".join(output)
-
-    def _from_cfg(self, cfg):
-        """
-        Initialize CFBlanket from a CFG instance.
-
-        :param cfg: A CFG instance.
-        :return:    None
-        """
-
-        # Let's first add all functions first
-        for func in cfg.kb.functions.values():
-            self.add_function(func)
-
-        self._mark_unknowns()
 
     def _mark_unknowns(self):
         """

@@ -13,7 +13,7 @@ from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
-from ...codenode import BlockNode, HookNode, SyscallNode
+from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
 from ...serializable import Serializable
 from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
@@ -388,13 +388,13 @@ class Function(Serializable):
         return FunctionParser.serialize(self)
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, function_manager=None):  # pylint:disable=arguments-differ
+    def parse_from_cmessage(cls, cmsg, **kwargs):
         """
         :param cmsg:
 
         :return Function: The function instantiated out of the cmsg data.
         """
-        return FunctionParser.parse_from_cmsg(cmsg, function_manager)
+        return FunctionParser.parse_from_cmsg(cmsg, **kwargs)
 
 
     def string_references(self, minimum_length=2, vex_only=False):
@@ -859,6 +859,8 @@ class Function(Serializable):
 
         for node in nodes:
             self.transition_graph.add_node(node)
+            if not isinstance(node, CodeNode):
+                continue
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
                 self._block_sizes[node.addr] = node.size

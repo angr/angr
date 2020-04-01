@@ -18,4 +18,5 @@ message Function {
     BlockGraph      graph = 12; // Graph of this function
     repeated int64  external_functions = 13; // Address of referenced functions
     bool            alignment = 14; // Whether this function is used as an alignment filling or not
+    bool            normalized = 15; // Whether this function has been normalized or not
 }
