@@ -25,10 +25,10 @@ class SimEngineRDVEX(
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
         self._visited_blocks = None
-        self._def_use_graph = None
+        self._dep_graph = None
 
     def process(self, state, *args, **kwargs):
-        self._def_use_graph = kwargs.pop('def_use_graph', None)
+        self._dep_graph = kwargs.pop('dep_graph', None)
         self._visited_blocks = kwargs.pop('visited_blocks', None)
 
         # we are using a completely different state. Therefore, we directly call our _process() method before

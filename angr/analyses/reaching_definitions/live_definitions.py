@@ -23,7 +23,7 @@ class LiveDefinitions:
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'register_definitions', 'stack_definitions',
                  'memory_definitions', 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses',
-                 'uses_by_codeloc', 'tmp_uses', '_dead_virgin_definitions', )
+                 'uses_by_codeloc', 'tmp_uses', 'all_definitions', )
 
     """
     Represents the internal state of the ReachingDefinitionsAnalysis.
@@ -51,16 +51,15 @@ class LiveDefinitions:
         self.stack_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
         self.tmp_definitions = {}
+        self.all_definitions = set()
 
-        self._set_initialisation_values(subject, rtoc_value)
+        self._set_initialization_values(subject, rtoc_value)
 
         self.register_uses = Uses()
         self.stack_uses = Uses()
         self.memory_uses = Uses()
         self.uses_by_codeloc = defaultdict(set)
         self.tmp_uses = defaultdict(set)
-
-        self._dead_virgin_definitions = set()  # definitions that are killed before used
 
     def __repr__(self):
         ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d memdefs" % (
@@ -72,12 +71,16 @@ class LiveDefinitions:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
 
-    def _set_initialisation_values(self, subject, rtoc_value=None):
+    @property
+    def dep_graph(self):
+        return self.analysis.dep_graph
+
+    def _set_initialization_values(self, subject, rtoc_value=None):
         if subject.type is SubjectType.Function:
             if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
                 raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
 
-            self._initialise_function(
+            self._initialize_function(
                 subject.cc,
                 subject.content.addr,
                 rtoc_value,
@@ -87,7 +90,7 @@ class LiveDefinitions:
 
         return self
 
-    def _initialise_function(self, cc, func_addr, rtoc_value=None):
+    def _initialize_function(self, cc, func_addr, rtoc_value=None):
         # initialize stack pointer
         sp = Register(self.arch.sp_offset, self.arch.bytes)
         sp_def = Definition(sp, ExternalCodeLocation(), DataSet(self.arch.initial_sp, self.arch.bits))
@@ -145,10 +148,9 @@ class LiveDefinitions:
         rd.stack_uses = self.stack_uses.copy()
         rd.memory_uses = self.memory_uses.copy()
         rd.tmp_uses = self.tmp_uses.copy()
-        rd._dead_virgin_definitions = self._dead_virgin_definitions.copy()
+        rd.all_definitions = self.all_definitions.copy()
 
         return rd
-
 
     def get_sp(self):
         """
@@ -162,12 +164,11 @@ class LiveDefinitions:
         # Assuming sp_definition has only one concrete value.
         return sp_definition.data.get_first_element()
 
-
     def merge(self, *others):
 
         state = self.copy()
 
-        for other in others:
+        for other in others:  # type: LiveDefinitions
             state.register_definitions.merge(other.register_definitions)
             state.stack_definitions.merge(other.stack_definitions)
             state.memory_definitions.merge(other.memory_definitions)
@@ -176,7 +177,7 @@ class LiveDefinitions:
             state.stack_uses.merge(other.stack_uses)
             state.memory_uses.merge(other.memory_uses)
 
-            state._dead_virgin_definitions |= other._dead_virgin_definitions
+            state.all_definitions.update(other.all_definitions)
 
         return state
 
@@ -216,16 +217,18 @@ class LiveDefinitions:
             raise NotImplementedError()
 
         if definition is not None:
-            self.analysis.def_use_graph.add_node(definition)
-            for used in self.analysis.codeloc_uses:
-                # Moderately confusing misnomers. This is an edge from a def to a use, since the
-                # "uses" are actually the definitions that we're using and the "definition" is the
-                # new definition; i.e. The def that the old def is used to construct so this is
-                # really a graph where nodes are defs and edges are uses.
-                self.analysis.def_use_graph.add_edge(used, definition)
+            self.all_definitions.add(definition)
+
+            if self.dep_graph is not None:
+                self.dep_graph.add_node(definition)
+                for used in self.analysis.codeloc_uses:
+                    # Moderately confusing misnomers. This is an edge from a def to a use, since the
+                    # "uses" are actually the definitions that we're using and the "definition" is the
+                    # new definition; i.e. The def that the old def is used to construct so this is
+                    # really a graph where nodes are defs and edges are uses.
+                    self.dep_graph.add_edge(used, definition)
 
         return definition
-
 
     def add_use(self, atom, code_loc):
         self._cycle(code_loc)
@@ -271,9 +274,11 @@ class LiveDefinitions:
         self._cycle(code_loc)
         atom = GuardUse(target)
         kinda_definition = Definition(atom, code_loc, data)
-        self.analysis.def_use_graph.add_node(kinda_definition)
-        for used in self.analysis.codeloc_uses:
-            self.analysis.def_use_graph.add_edge(used, kinda_definition)
+
+        if self.dep_graph is not None:
+            self.dep_graph.add_node(kinda_definition)
+            for used in self.analysis.codeloc_uses:
+                self.dep_graph.add_edge(used, kinda_definition)
 
     #
     # Private methods
@@ -282,28 +287,12 @@ class LiveDefinitions:
     def _kill_and_add_register_definition(self, atom, code_loc, data, dummy=False):
 
         # FIXME: check correctness
-        current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
-        if current_defs:
-            uses = set()
-            for current_def in current_defs:
-                uses |= self.register_uses.get_uses(current_def)
-            if not uses:
-                self._dead_virgin_definitions |= current_defs
-
         definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
         return definition
 
     def _kill_and_add_stack_definition(self, atom, code_loc, data, dummy=False):
-        current_defs = self.stack_definitions.get_objects_by_offset(atom.offset)
-        if current_defs:
-            uses = set()
-            for current_def in current_defs:
-                uses |= self.stack_uses.get_uses(current_def)
-            if not uses:
-                self._dead_virgin_definitions |= current_defs
-
         definition = Definition(atom, code_loc, data, dummy=dummy)
         self.stack_definitions.set_object(atom.offset, definition, data.bits // 8)
         return definition
@@ -352,6 +341,9 @@ class LiveDefinitions:
     def _add_stack_use_by_def(self, def_, code_loc):
         self.stack_uses.add_use(def_, code_loc)
         self.uses_by_codeloc[code_loc].add(def_)
+
+        if self.dep_graph is not None:
+            self.dep_graph.add_edge(def_, code_loc)
 
     def _add_memory_use(self, atom, code_loc):
 

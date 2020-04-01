@@ -35,9 +35,16 @@ def boolean_extend(O, a, b, size):
 def op_concretize(op):
     if type(op) is int:
         return op
+    if op.op == 'If':
+        cases = list(claripy.reverse_ite_cases(op))
+        if all(c.op == 'BVV' for _, c in cases):
+            raise CCallMultivaluedException(cases)
     if op.op != 'BVV':
         raise SimError("Hit a symbolic conditional operation. Something has gone wildly wrong.")
     return op.args[0]
+
+class CCallMultivaluedException(Exception):
+    pass
 
 ##################
 ### x86* data ###
@@ -1484,8 +1491,10 @@ def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 
 
 def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
-    cond = claripy.LShR(cond_n_op, 4)
-    cc_op = cond_n_op & 0xF
+    concrete_cond_n_op = op_concretize(cond_n_op)
+
+    cond = concrete_cond_n_op >> 4
+    cc_op = concrete_cond_n_op & 0xF
     inv = cond & 1
 
     concrete_cond = op_concretize(cond)

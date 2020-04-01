@@ -12,7 +12,8 @@ from ...utils.constants import is_alignment_mask
 from ...errors import UnsupportedNodeTypeError
 from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
-from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode, SwitchCaseNode
+from .structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
+                         SwitchCaseNode, ContinueNode)
 
 
 l = logging.getLogger(name=__name__)
@@ -374,6 +375,19 @@ class CBreak(CStatement):
 
         indent_str = self.indent_str(indent=indent)
         s = indent_str + "break;"
+        if posmap: posmap.tick_pos(len(s))
+
+        return s
+
+
+class CContinue(CStatement):
+    """
+    Represents a continue statement in C.
+    """
+    def c_repr(self, indent=0, posmap=None):
+
+        indent_str = self.indent_str(indent=indent)
+        s = indent_str + "continue;"
         if posmap: posmap.tick_pos(len(s))
 
         return s
@@ -747,8 +761,10 @@ class CBinaryOp(CExpression):
             'Add': self._c_repr_add,
             'Sub': self._c_repr_sub,
             'Mul': self._c_repr_mul,
+            'Div': self._c_repr_div,
             'And': self._c_repr_and,
             'Xor': self._c_repr_xor,
+            'Or': self._c_repr_or,
             'Shr': self._c_repr_shr,
             'LogicalAnd': self._c_repr_logicaland,
             'LogicalOr': self._c_repr_logicalor,
@@ -790,6 +806,13 @@ class CBinaryOp(CExpression):
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
 
+    def _c_repr_div(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " / "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
     def _c_repr_and(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " & "
@@ -800,6 +823,13 @@ class CBinaryOp(CExpression):
     def _c_repr_xor(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " ^ "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_or(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " | "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
@@ -941,6 +971,7 @@ class StructuredCodeGenerator(Analysis):
             Block: self._handle_AILBlock,
             BreakNode: self._handle_Break,
             SwitchCaseNode: self._handle_SwitchCase,
+            ContinueNode: self._handle_Continue,
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
@@ -1121,6 +1152,10 @@ class StructuredCodeGenerator(Analysis):
         switch_case = CSwitchCase(switch_expr, cases, default=default)
         return switch_case
 
+    def _handle_Continue(self, node):  # pylint:disable=no-self-use,unused-argument
+
+        return CContinue()
+
     def _handle_AILBlock(self, node):
         """
 
@@ -1234,8 +1269,8 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_Load(self, expr):
 
         if hasattr(expr, 'variable') and expr.variable is not None:
-            if expr.offset is not None:
-                offset = self._handle(expr.offset)
+            if expr.variable_offset is not None:
+                offset = self._handle(expr.variable_offset)
             else:
                 offset = None
             return CVariable(expr.variable, offset=offset)

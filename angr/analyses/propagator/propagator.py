@@ -8,6 +8,7 @@ from ... import sim_options
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
 from .. import register_analysis
+from ..code_location import CodeLocation  # pylint:disable=unused-import
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .values import TOP
@@ -20,10 +21,13 @@ _l = logging.getLogger(name=__name__)
 # The base state
 
 class PropagatorState:
-    def __init__(self, arch, replacements=None):
+    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
+        # propagation count of each expression
+        self._prop_count = defaultdict(int) if prop_count is None else prop_count
+        self._only_consts = only_consts
         self._replacements = defaultdict(dict) if replacements is None else replacements
 
     def __repr__(self):
@@ -51,13 +55,31 @@ class PropagatorState:
         return state
 
     def add_replacement(self, codeloc, old, new):
-        self._replacements[codeloc][old] = new
+        """
+        Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
+        If the self._only_consts flag is set to true, only constant values will be set.
+
+        :param CodeLocation codeloc:    The code location.
+        :param old:                     The expression to be replaced.
+        :param new:                     The expression to replace with.
+        :return:                        None
+        """
+        if self._only_consts:
+            if isinstance(new, int) or new is TOP:
+                self._replacements[codeloc][old] = new
+        else:
+            self._replacements[codeloc][old] = new
+
+    def filter_replacements(self):
+        pass
+
 
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None, replacements=None):
-        super().__init__(arch, replacements=replacements)
+    def __init__(self, arch, registers=None, local_variables=None, replacements=None, only_consts=False,
+                 prop_count=None):
+        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
         self.registers = {} if registers is None else registers  # offset to values
         self.local_variables = {} if local_variables is None else local_variables  # offset to values
 
@@ -70,6 +92,8 @@ class PropagatorVEXState(PropagatorState):
             registers=self.registers.copy(),
             local_variables=self.local_variables.copy(),
             replacements=self._replacements.copy(),
+            prop_count=self._prop_count.copy(),
+            only_consts=self._only_consts
         )
 
         return cp
@@ -121,11 +145,12 @@ class PropagatorVEXState(PropagatorState):
         except KeyError:
             return TOP
 
+
 # AIL state
 
 class PropagatorAILState(PropagatorState):
-    def __init__(self, arch, replacements=None):
-        super().__init__(arch, replacements=replacements)
+    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None):
+        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
 
         self._stack_variables = KeyedRegion()
         self._registers = KeyedRegion()
@@ -138,6 +163,8 @@ class PropagatorAILState(PropagatorState):
         rd = PropagatorAILState(
             self.arch,
             replacements=self._replacements.copy(),
+            prop_count=self._prop_count.copy(),
+            only_consts=self._only_consts,
         )
 
         rd._stack_variables = self._stack_variables.copy()
@@ -209,11 +236,35 @@ class PropagatorAILState(PropagatorState):
             return next(iter(objs))
         return None
 
+    def add_replacement(self, codeloc, old, new):
+
+        prop_count = 0
+        if isinstance(new, ailment.Expr.Expression) and not isinstance(new, ailment.Expr.Const):
+            self._prop_count[new] += 1
+            prop_count = self._prop_count[new]
+
+        if prop_count <= 1:
+            # we can propagate this expression
+            super().add_replacement(codeloc, old, new)
+
+    def filter_replacements(self):
+
+        to_remove = set()
+
+        for old, new in self._replacements.items():
+            if isinstance(new, ailment.Expr.Expression) and not isinstance(new, ailment.Expr.Const):
+                if self._prop_count[new] > 1:
+                    # do not propagate this expression
+                    to_remove.add(old)
+
+        for old in to_remove:
+            del self._replacements[old]
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
-    PropagatorAnalysis propagates values, either constants or variables, across a block or a function. It supports both
-    VEX and AIL. It performs certain arithmetic operations between constants, including but are not limited to:
+    PropagatorAnalysis propagates values (either constant values or variables) and expressions inside a block or across
+    a function. It supports both VEX and AIL. It performs certain arithmetic operations between constants, including
+    but are not limited to:
 
     - addition
     - subtraction
@@ -228,7 +279,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None):
+                 load_callback=None, stack_pointer_tracker=None, only_consts=False):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -248,6 +299,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._max_iterations = max_iterations
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
+        self._only_consts = only_consts
 
         self._node_iterations = defaultdict(int)
         self._states = { }
@@ -271,10 +323,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            state = PropagatorAILState(arch=self.project.arch)
+            state = PropagatorAILState(arch=self.project.arch, only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(arch=self.project.arch)
+            state = PropagatorVEXState(arch=self.project.arch, only_consts=self._only_consts)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  SpOffset(self.project.arch.bits, 0)
@@ -302,6 +354,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
         state = engine.process(state, block=block, project=self.project, base_state=self._base_state,
                                load_callback=self._load_callback, fail_fast=self._fail_fast)
+        state.filter_replacements()
 
         self._node_iterations[block_key] += 1
         self._states[block_key] = state

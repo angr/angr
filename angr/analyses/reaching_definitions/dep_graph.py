@@ -9,9 +9,9 @@ def _is_definition(node):
     return isinstance(node, Definition)
 
 
-class DefUseGraph:
+class DepGraph:
     """
-    The representation of a definition-use graph: a directed graph, where nodes are definitions, and edges represent uses.
+    The representation of a dependency graph: a directed graph, where nodes are definitions, and edges represent uses.
 
     Mostly a wrapper around a <networkx.DiGraph>.
     """
@@ -28,7 +28,7 @@ class DefUseGraph:
             return
 
         if not all(map(_is_definition, graph.nodes)):
-            raise TypeError("In a DefUseGraph, nodes need to be <%s>s." % Definition.__name__)
+            raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
         self._graph = graph
 
@@ -41,7 +41,7 @@ class DefUseGraph:
         :param Definition node: The definition to add to the definition-use graph.
         """
         if not _is_definition(node):
-            raise TypeError("In a DefUseGraph, nodes need to be <%s>s." % Definition.__name__)
+            raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
         self._graph.add_node(node)
 
@@ -54,7 +54,7 @@ class DefUseGraph:
         :param labels: Optional keyword arguments to represent edge labels.
         """
         if not _is_definition(source) and not _is_definition(destination):
-            raise TypeError("In a DefUseGraph, edges need to be between <%s>s." % Definition.__name__)
+            raise TypeError("In a DepGraph, edges need to be between <%s>s." % Definition.__name__)
 
         self._graph.add_edge(source, destination, **labels)
 

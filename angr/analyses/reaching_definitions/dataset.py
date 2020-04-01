@@ -162,4 +162,9 @@ class DataSet:
         return iter(self.data)
 
     def __str__(self):
-        return 'DataSet<%d>: %s' % (self._bits, str(self.data))
+        if undefined in self.data:
+            data_string = str(self.data)
+        else:
+            data_string = str([ hex(i) for i in self.data ])
+
+        return 'DataSet<%d>: %s' % (self._bits, data_string)
