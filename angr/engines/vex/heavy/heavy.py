@@ -242,8 +242,10 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             cont_state = self.state
 
         if exit_state is not None:
-            self.successors.add_successor(exit_state, target, guard, jumpkind,
-                                     exit_stmt_idx=self.stmt_idx, exit_ins_addr=self.state.scratch.ins_addr)
+            # is the guard satisfiable?
+            if exit_state.solver.satisfiable([guard]):
+                self.successors.add_successor(exit_state, target, guard, jumpkind,
+                                         exit_stmt_idx=self.stmt_idx, exit_ins_addr=self.state.scratch.ins_addr)
 
         if cont_state is None:
             raise VEXEarlyExit
