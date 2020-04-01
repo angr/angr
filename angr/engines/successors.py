@@ -184,7 +184,7 @@ class SimSuccessors:
                     ret_addr = state.mem[state.regs._sp].long.concrete
                 else:
                     ret_addr = state.solver.eval(state.regs._lr)
-            except SimSolverModeError:
+            except (SimSolverModeError, SimUnsatError):
                 # Use the address for UnresolvableCallTarget instead.
                 ret_addr = state.project.simos.unresolvable_call_target
 
@@ -195,7 +195,7 @@ class SimSuccessors:
 
             try:
                 stack_ptr = state.solver.eval(state.regs._sp)
-            except SimSolverModeError:
+            except (SimSolverModeError, SimUnsatError):
                 stack_ptr = 0
 
             new_frame = CallStack(
@@ -517,7 +517,7 @@ class SimSuccessors:
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError
+from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
