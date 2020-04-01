@@ -30,14 +30,14 @@ class Definition:
             self.data = DataSet(self.data, self.data.bits)
 
     def __eq__(self, other):
-        return self.atom == other.atom and self.codeloc == other.codeloc and self.data == other.data
+        return self.atom == other.atom and self.codeloc == other.codeloc
 
     def __repr__(self):
         return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else " dummy")
 
     def __hash__(self):
-        return hash((self.atom, self.codeloc, self.data))
+        return hash((self.atom, self.codeloc))
 
     @property
     def offset(self):
