@@ -621,7 +621,7 @@ class SimIROp:
         x = args[0]
         y = args[1]
         s = self._from_size
-        cond = x < y if self.is_signed else claripy.ULT(x, y)
+        cond = claripy.SLT(x, y) if self.is_signed else claripy.ULT(x, y)
         return claripy.If(x == y, claripy.BVV(0x2, s), claripy.If(cond, claripy.BVV(0x8, s), claripy.BVV(0x4, s)))
 
     def generic_shift_thing(self, args, op):
