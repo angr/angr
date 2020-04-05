@@ -1245,6 +1245,30 @@ public:
 						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
 						break;
 					}
+					case Ist_PutI:
+					{
+						assert(false && "PutI statements not yet supported!");
+					}
+					case Ist_StoreG:
+					{
+						assert(false && "StoreG statements not yet supported!");
+					}
+					case Ist_LoadG:
+					{
+						assert(false && "LoadG statements not yet supported!");
+					}
+					case Ist_CAS:
+					{
+						assert(false && "CAS statements not yet supported!");
+					}
+					case Ist_LLSC:
+					{
+						assert(false && "LLSC statements not yet supported!");
+					}
+					case Ist_Dirty:
+					{
+						assert(false && "Dirty statements not yet supported!");
+					}
 					case Ist_MBE:
 					case Ist_NoOp:
 					case Ist_AbiHint:
