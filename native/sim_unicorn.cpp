@@ -44,6 +44,7 @@ typedef enum taint_entity: uint8_t {
 	TAINT_SRC_REG = 0,
 	TAINT_SRC_TMP = 1,
 	TAINT_SRC_MEM = 2,
+	TAINT_SRC_NONE = 3,
 } taint_entity_enum_t;
 
 typedef struct taint_entity_t {
@@ -1207,6 +1208,30 @@ public:
 						sink.entity_type = TAINT_SRC_TMP;
 						sink.tmp_id = stmt->Ist.WrTmp.tmp;
 						srcs = get_taint_sources(stmt->Ist.WrTmp.data);
+						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						break;
+					}
+					case Ist_Store:
+					{
+						taint_entity_t sink;
+						std::unordered_set<taint_entity_t> srcs;
+						block_taint_entry_t block_taint_entry;
+
+						sink.entity_type = TAINT_SRC_MEM;
+						auto temp = get_taint_sources(stmt->Ist.Store.addr);
+						sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
+						srcs = get_taint_sources(stmt->Ist.Store.data);
+						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						break;
+					}
+					case Ist_Exit:
+					{
+						taint_entity_t sink;
+						std::unordered_set<taint_entity_t> srcs;
+						block_taint_entry_t block_taint_entry;
+
+						sink.entity_type = TAINT_SRC_NONE;
+						srcs = get_taint_sources(stmt->Ist.Exit.guard);
 						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
 						break;
 					}
