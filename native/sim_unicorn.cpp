@@ -1157,7 +1157,10 @@ public:
 				break;
 			}
 			case Iex_GetI:
+			{
 				// TODO
+				assert(false && "GetI expression not yet supported!");
+			}
 			case Iex_Const:
 			case Iex_VECRET:
 			case Iex_GSPTR:
