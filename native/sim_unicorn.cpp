@@ -123,6 +123,16 @@ typedef struct block_entry {
 	std::unordered_set<uint64_t> clobbered_registers;
 } block_entry_t;
 
+typedef std::unordered_map<taint_entity_t, std::unordered_set<taint_entity_t>> taint_map_t;
+
+typedef struct block_taint_entry_t {
+	taint_map_t taint_sink_src_map;
+
+	bool operator==(const block_taint_entry_t &other_entry) const {
+		return (taint_sink_src_map == other_entry.taint_sink_src_map);
+	}
+} block_taint_entry_t;
+
 typedef struct CachedPage {
 	size_t size;
 	uint8_t *bytes;
@@ -132,6 +142,7 @@ typedef struct CachedPage {
 typedef taint_t PageBitmap[PAGE_SIZE];
 typedef std::map<uint64_t, CachedPage> PageCache;
 typedef std::unordered_map<uint64_t, block_entry_t> BlockCache;
+typedef std::unordered_map<uint64_t, block_taint_entry_t> BlockTaintCache;
 typedef struct caches {
 	PageCache *page_cache;
 	BlockCache *block_cache;
@@ -139,6 +150,7 @@ typedef struct caches {
 std::map<uint64_t, caches_t> global_cache;
 
 typedef std::unordered_set<uint64_t> RegisterSet;
+typedef std::unordered_set<uint64_t> TempSet;
 
 typedef struct mem_access {
 	uint64_t address;
@@ -170,6 +182,7 @@ private:
 	uc_engine *uc;
 	PageCache *page_cache;
 	BlockCache *block_cache;
+	BlockTaintCache block_taint_cache;
 	bool hooked;
 
 	uc_context *saved_regs;
@@ -208,6 +221,7 @@ public:
 	VexArch vex_guest;
 	VexArchInfo vex_archinfo;
 	RegisterSet symbolic_registers; // tracking of symbolic registers
+	TempSet symbolic_temps;
 
 	bool track_bbls;
 	bool track_stack;
@@ -1153,6 +1167,74 @@ public:
 		return sources;
 	}
 
+	void propagate_taints(uint64_t address, int32_t size) {
+		block_taint_entry_t block_taint_entry;
+		auto result = this->block_taint_cache.find(address);
+		if (result == this->block_taint_cache.end()) {
+			// Compute and cache taint sink-source relations for this block
+			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
+			uc_mem_read(this->uc, address, instructions.get(), size);
+			VEXLiftResult *lift_ret = vex_lift(
+				this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 1, 1, 0
+			);
+
+			if (lift_ret == NULL) {
+				// TODO: abort unicorn engine?
+				return;
+			}
+			// Compute taint map
+			IRSB *vex_block = lift_ret->irsb;
+			for (int i = 0; i < vex_block->stmts_used; i++) {
+				auto stmt = vex_block->stmts[i];
+				switch (stmt->tag) {
+					case Ist_Put:
+					{
+						taint_entity_t sink;
+						std::unordered_set<taint_entity_t> srcs;
+
+						sink.entity_type = TAINT_SRC_REG;
+						sink.reg_id = stmt->Ist.Put.offset;
+						srcs = get_taint_sources(stmt->Ist.Put.data);
+						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						break;
+					}
+					case Ist_WrTmp:
+					{
+						taint_entity_t sink;
+						std::unordered_set<taint_entity_t> srcs;
+						block_taint_entry_t block_taint_entry;
+
+						sink.entity_type = TAINT_SRC_TMP;
+						sink.tmp_id = stmt->Ist.WrTmp.tmp;
+						srcs = get_taint_sources(stmt->Ist.WrTmp.data);
+						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						break;
+					}
+					case Ist_MBE:
+					case Ist_NoOp:
+					case Ist_AbiHint:
+					case Ist_IMark:
+						break;
+					default:
+					{
+						std::stringstream ss;
+						ss << "Block addr: 0x" << std::hex << address << std::dec;
+						ss << ", Statement index: " << i << ", Statement type: " << stmt->tag;
+						LOG_D(ss.str().c_str());
+						assert(false && "Unsupported statement type encountered! See debug log.");
+					}
+				}
+			}
+			// Add entry to taint relations cache
+			block_taint_cache.emplace(address, block_taint_entry);
+		}
+		else {
+			block_taint_entry = result->second;
+		}
+		// Propagate taints using symbolic_registers and symbolic_temps
+		return;
+	}
+
 	inline unsigned int arch_pc_reg() {
 		switch (arch) {
 			case UC_ARCH_X86:
@@ -1273,6 +1355,8 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 	}
 	state->commit();
 	state->step(address, size);
+
+	state->propagate_taints(address, size);
 
 	if (!state->stopped && !state->check_block(address, size)) {
 		state->stop(STOP_SYMBOLIC_REG);
