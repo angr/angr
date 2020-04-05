@@ -1148,7 +1148,14 @@ public:
 				break;
 			}
 			case Iex_Load:
-				// TODO
+			{
+				auto temp = get_taint_sources(expr->Iex.Load.addr);
+				taint_entity_t source;
+				source.entity_type = TAINT_SRC_MEM;
+				source.mem_ref_entity_list.assign(temp.begin(), temp.end());
+				sources.emplace(source);
+				break;
+			}
 			case Iex_GetI:
 				// TODO
 			case Iex_Const:
