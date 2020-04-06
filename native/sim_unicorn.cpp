@@ -41,10 +41,10 @@ typedef enum taint: uint8_t {
 } taint_t;
 
 typedef enum taint_entity: uint8_t {
-	TAINT_SRC_REG = 0,
-	TAINT_SRC_TMP = 1,
-	TAINT_SRC_MEM = 2,
-	TAINT_SRC_NONE = 3,
+	TAINT_ENTITY_REG = 0,
+	TAINT_ENTITY_TMP = 1,
+	TAINT_ENTITY_MEM = 2,
+	TAINT_ENTITY_NONE = 3,
 } taint_entity_enum_t;
 
 typedef struct taint_entity_t {
@@ -64,10 +64,10 @@ typedef struct taint_entity_t {
 		if (entity_type != other_entity.entity_type) {
 			return false;
 		}
-		if (entity_type == TAINT_SRC_REG) {
+		if (entity_type == TAINT_ENTITY_REG) {
 			return (reg_id == other_entity.reg_id);
 		}
-		if (entity_type == TAINT_SRC_TMP) {
+		if (entity_type == TAINT_ENTITY_TMP) {
 			return (tmp_id == other_entity.tmp_id);
 		}
 		return (mem_ref_entity_list == other_entity.mem_ref_entity_list);
@@ -76,11 +76,11 @@ typedef struct taint_entity_t {
 	// Hash function for use in unordered_map. Defined in class and invoked from hash struct.
 	// TODO: Check performance of hash and come up with better one if too bad
 	std::size_t operator()(const taint_entity_t &taint_entity) const {
-		if (taint_entity.entity_type == TAINT_SRC_REG) {
+		if (taint_entity.entity_type == TAINT_ENTITY_REG) {
 			return std::hash<uint64_t>()(taint_entity.entity_type) ^
 				   std::hash<uint64_t>()(taint_entity.reg_id);
 		}
-		else if (taint_entity.entity_type == TAINT_SRC_TMP) {
+		else if (taint_entity.entity_type == TAINT_ENTITY_TMP) {
 			return std::hash<uint64_t>()(taint_entity.entity_type) ^
 				   std::hash<uint64_t>()(taint_entity.tmp_id);
 		}
@@ -1077,7 +1077,7 @@ public:
 			case Iex_RdTmp:
 			{
 				taint_entity_t taint_entity;
-				taint_entity.entity_type = TAINT_SRC_TMP;
+				taint_entity.entity_type = TAINT_ENTITY_TMP;
 				taint_entity.tmp_id = expr->Iex.RdTmp.tmp;
 				sources.emplace(taint_entity);
 				break;
@@ -1085,7 +1085,7 @@ public:
 			case Iex_Get:
 			{
 				taint_entity_t taint_entity;
-				taint_entity.entity_type = TAINT_SRC_REG;
+				taint_entity.entity_type = TAINT_ENTITY_REG;
 				taint_entity.reg_id = expr->Iex.Get.offset;
 				sources.emplace(taint_entity);
 				break;
@@ -1151,7 +1151,7 @@ public:
 			{
 				auto temp = get_taint_sources(expr->Iex.Load.addr);
 				taint_entity_t source;
-				source.entity_type = TAINT_SRC_MEM;
+				source.entity_type = TAINT_ENTITY_MEM;
 				source.mem_ref_entity_list.assign(temp.begin(), temp.end());
 				sources.emplace(source);
 				break;
@@ -1203,7 +1203,7 @@ public:
 						taint_entity_t sink;
 						std::unordered_set<taint_entity_t> srcs;
 
-						sink.entity_type = TAINT_SRC_REG;
+						sink.entity_type = TAINT_ENTITY_REG;
 						sink.reg_id = stmt->Ist.Put.offset;
 						srcs = get_taint_sources(stmt->Ist.Put.data);
 						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
@@ -1215,7 +1215,7 @@ public:
 						std::unordered_set<taint_entity_t> srcs;
 						block_taint_entry_t block_taint_entry;
 
-						sink.entity_type = TAINT_SRC_TMP;
+						sink.entity_type = TAINT_ENTITY_TMP;
 						sink.tmp_id = stmt->Ist.WrTmp.tmp;
 						srcs = get_taint_sources(stmt->Ist.WrTmp.data);
 						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
@@ -1227,7 +1227,7 @@ public:
 						std::unordered_set<taint_entity_t> srcs;
 						block_taint_entry_t block_taint_entry;
 
-						sink.entity_type = TAINT_SRC_MEM;
+						sink.entity_type = TAINT_ENTITY_MEM;
 						auto temp = get_taint_sources(stmt->Ist.Store.addr);
 						sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
 						srcs = get_taint_sources(stmt->Ist.Store.data);
@@ -1240,7 +1240,7 @@ public:
 						std::unordered_set<taint_entity_t> srcs;
 						block_taint_entry_t block_taint_entry;
 
-						sink.entity_type = TAINT_SRC_NONE;
+						sink.entity_type = TAINT_ENTITY_NONE;
 						srcs = get_taint_sources(stmt->Ist.Exit.guard);
 						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
 						break;
