@@ -42,6 +42,9 @@ class SimEngineInitFinderVEX(
     # Statement handlers
     #
 
+    def _handle_function(self, *args, **kwargs):
+        pass
+
     def _handle_WrTmp(self, stmt):
         # Don't do anything since constant propagation has already processed it
         return
