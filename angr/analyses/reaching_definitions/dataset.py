@@ -110,7 +110,7 @@ class DataSet:
                         if isinstance(tmp, int):
                             tmp &= self._mask
                         res.add(tmp)
-                    except TypeError as ex:  # pylint;disable=try-except-raise,unused-variable
+                    except TypeError as ex:  # pylint:disable=try-except-raise,unused-variable
                         # l.warning(ex)
                         raise
 
@@ -165,6 +165,6 @@ class DataSet:
         if undefined in self.data:
             data_string = str(self.data)
         else:
-            data_string = str([ hex(i) for i in self.data ])
+            data_string = str([ hex(i) if isinstance(i, int) else i for i in self.data ])
 
         return 'DataSet<%d>: %s' % (self._bits, data_string)

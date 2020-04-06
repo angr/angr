@@ -124,7 +124,7 @@ class CFGModel(Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, cfg_manager=None):  # pylint:disable=arguments-differ
+    def parse_from_cmessage(cls, cmsg, cfg_manager=None, loader=None):  # pylint:disable=arguments-differ
         if cfg_manager is None:
             # create a new model unassociated from any project
             model = cls(cmsg.ident)
@@ -158,6 +158,9 @@ class CFGModel(Serializable):
         # memory data
         for data_pb2 in cmsg.memory_data:
             md = MemoryData.parse_from_cmessage(data_pb2)
+            if loader is not None and md.content is None:
+                # fill in the content
+                md.fill_content(loader)
             model.memory_data[md.addr] = md
 
         return model

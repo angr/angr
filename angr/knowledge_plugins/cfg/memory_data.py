@@ -70,6 +70,22 @@ class MemoryData(Serializable):
 
         return s
 
+    def fill_content(self, loader):
+        """
+        Load data to fill self.content.
+
+        :param loader:  The project loader.
+        :return:        None
+        """
+
+        if self.sort == MemoryDataSort.String:
+            self.content = loader.memory.load(self.addr, self.size)
+            if self.content.endswith(b"\x00"):
+                self.content = self.content.strip(b"\x00")
+        else:
+            # FIXME: Other types are not supported yet
+            return
+
     #
     # Serialization
     #
