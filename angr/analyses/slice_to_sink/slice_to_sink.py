@@ -92,3 +92,31 @@ class SliceToSink:
         :return bool: True if the <SliceToSink> instance does not contain any transitions. False otherwise.
         """
         return not bool(self._transitions)
+
+    def path_between(self, source, destination, visited=None):
+        """
+        Check the existence of a path in the slice between two given node adresses.
+
+        :param int source: The source address.
+        :param int destination: The destination address.
+        :param List[int] visited: Used to avoid infinite recursion if loops are present in the slice.
+
+        :return bool:
+            True if there is a path between the source and the destination in the CFG, False if not,
+            or if we have been unable to decide (because of loops).
+        """
+        _visited = visited or []
+
+        if source not in self._transitions.keys() or source in _visited:
+            return False
+        _visited += [source]
+
+        direct_successors = self._transitions[source]
+
+        if destination in direct_successors:
+            return True
+        else:
+            return any(list(map(
+                lambda s: self.path_between(s, destination, _visited),
+                direct_successors
+            )))

@@ -77,3 +77,26 @@ def test_emptyness():
 
     nose.tools.assert_equals(empty_slice.is_empty(), True)
     nose.tools.assert_equals(non_empty_slice.is_empty(), False)
+
+
+def test_path_between_returns_True_only_if_there_exists_at_least_a_path_between_two_nodes_in_the_slice():
+    my_slice = SliceToSink(None, {
+        1: [2, 3],
+        2: [4]
+    })
+
+    nose.tools.assert_true(my_slice.path_between(1, 2))
+    nose.tools.assert_true(my_slice.path_between(1, 3))
+    nose.tools.assert_true(my_slice.path_between(2, 4))
+    nose.tools.assert_true(my_slice.path_between(1, 4))
+
+    nose.tools.assert_false(my_slice.path_between(3, 4))
+
+
+def test_path_between_deals_with_loops():
+    my_slice = SliceToSink(None, {
+        1: [2, 3],
+        2: [1]
+    })
+
+    nose.tools.assert_false(my_slice.path_between(1, 4))
