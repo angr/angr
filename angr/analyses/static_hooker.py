@@ -6,7 +6,7 @@ from . import Analysis
 from .. import SIM_LIBRARIES
 from ..errors import AngrValueError
 
-l = logging.getLogger("angr.analyses.static_hooker")
+l = logging.getLogger(name=__name__)
 
 class StaticHooker(Analysis):
     """
@@ -26,7 +26,7 @@ class StaticHooker(Analysis):
         if binary is None:
             binary = self.project.loader.main_object
 
-        for func in binary._symbol_cache.values():
+        for func in binary.symbols:
             if not func.is_function:
                 continue
 

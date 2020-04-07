@@ -13,6 +13,9 @@ class AngrExitError(AngrError):
 class AngrPathError(AngrError):
     pass
 
+class AngrVaultError(AngrError):
+    pass
+
 class PathUnreachableError(AngrPathError):
     pass
 
@@ -110,24 +113,51 @@ class AngrDDGError(AngrAnalysisError):
     pass
 
 #
+# Loop analysis
+#
+
+class AngrLoopAnalysisError(AngrAnalysisError):
+    pass
+
+#
 # Exploration techniques
 #
 
 class AngrExplorationTechniqueError(AngrError):
-    def __str__(self):
-        return "<OtiegnqwvkError %s>" % self.message
+    pass
 
 class AngrExplorerError(AngrExplorationTechniqueError):
-    def __str__(self):
-        return "<OtiegnqwvkExplorerError %s>" % self.message
+    pass
 
 class AngrDirectorError(AngrExplorationTechniqueError):
-    def __str__(self):
-        return "<OtiegnqwvkDirectorError %s>" % self.message
+    pass
 
 class AngrTracerError(AngrExplorationTechniqueError):
-    def __str__(self):
-        return "<OtiegnqwvkTracerError %s>" % self.message
+    pass
+
+
+#
+# VariableRecovery errors
+#
+
+class AngrVariableRecoveryError(AngrAnalysisError):
+    pass
+
+
+#
+# AngrDB errors
+#
+
+
+class AngrDBError(AngrError):
+    pass
+
+
+class AngrCorruptDBError(AngrDBError):
+    pass
+
+class AngrIncompatibleDBError(AngrDBError):
+    pass
 
 #
 # Tracer
@@ -168,6 +198,9 @@ class SimMergeError(SimStateError):
 class SimMemoryError(SimStateError):
     pass
 
+class SimMemoryMissingError(SimMemoryError):
+    pass
+
 class SimAbstractMemoryError(SimMemoryError):
     pass
 
@@ -197,6 +230,9 @@ class SimSymbolicFilesystemError(SimFilesystemError):
     pass
 
 class SimFileError(SimMemoryError, SimFilesystemError):
+    pass
+
+class SimHeapError(SimStateError):
     pass
 
 #
@@ -260,6 +296,9 @@ class SimUninitializedAccessError(SimExpressionError):
     def __repr__(self):
         return "SimUninitializedAccessError (expr %s is used as %s)" % (self.expr, self.expr_type)
 
+    def __reduce__(self):
+        return (SimUninitializedAccessError, (self.expr_type, self.expr))
+
 #
 # SimIRStmt errors
 #
@@ -290,6 +329,9 @@ class SimProcedureError(SimEngineError):
     pass
 
 class SimProcedureArgumentError(SimProcedureError):
+    pass
+
+class SimShadowStackError(SimProcedureError):
     pass
 
 class SimFastPathError(SimEngineError):
@@ -388,6 +430,9 @@ class SimSegfaultException(SimException, SimMemoryError):
             (', original %s' % self.original_addr.__repr__(max_depth=3)) if self.original_addr is not None else ''
         )
 
+    def __reduce__(self):
+        return (SimSegfaultException, (self.addr, self.reason, self.original_addr))
+
 SimSegfaultError = SimSegfaultException
 
 class SimZeroDivisionException(SimException, SimOperationError):
@@ -395,4 +440,27 @@ class SimZeroDivisionException(SimException, SimOperationError):
 
 
 class AngrNoPluginError(AngrError):
+    pass
+
+#
+# Concrete Targets Execution errors
+#
+
+
+class SimConcreteMemoryError(AngrError):
+    pass
+
+
+class SimConcreteRegisterError(AngrError):
+    pass
+
+
+class SimConcreteBreakpointError(AngrError):
+    pass
+
+#
+# Decompiler errors
+#
+
+class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass

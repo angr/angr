@@ -1,64 +1,61 @@
 import logging
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 from .errors import AngrAssemblyError
+from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 
 
-l = logging.getLogger("angr.factory")
-
-
-_deprecation_cache = set()
-def deprecate(name, replacement):
-    def wrapper(func):
-        def inner(*args, **kwargs):
-            if name not in _deprecation_cache:
-                l.warning("factory.%s is deprecated! Please use factory.%s instead.", name, replacement)
-                _deprecation_cache.add(name)
-            return func(*args, **kwargs)
-        return inner
-    return wrapper
+l = logging.getLogger(name=__name__)
 
 
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project):
+    def __init__(self, project, default_engine=None):
+        if default_engine is None:
+            default_engine = UberEngine
+
         self.project = project
         self._default_cc = DEFAULT_CC[project.arch.name]
+        self.default_engine = default_engine(project)
+        self.procedure_engine = ProcedureEngine(project)
 
-    @property
-    def default_engine(self):
-        return self.project.engines.default_engine
-
-    @property
-    def procedure_engine(self):
-        return self.project.engines.procedure_engine
+        if project.concrete_target:
+            self.concrete_engine = SimEngineConcrete(project)
+        else:
+            self.concrete_engine = None
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get('length', 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
+        elif self.project.simos.is_syscall_addr(addr):
+            syscall = self.project.simos.syscall_from_addr(addr)
+            size = syscall.kwargs.get('length', 0)
+            return SyscallNode(addr, size, syscall)
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def successors(self, *args, **kwargs):
+    def successors(self, *args, engine=None, **kwargs):
         """
-        Perform execution using any applicable engine. Enumerate the current engines and use the
-        first one that works. Return a SimSuccessors object classifying the results of the run.
+        Perform execution using an engine. Generally, return a SimSuccessors object classifying the results of the run.
 
         :param state:           The state to analyze
+        :param engine:          The engine to use. If not provided, will use the project default.
         :param addr:            optional, an address to execute at instead of the state's ip
         :param jumpkind:        optional, the jumpkind of the previous exit
         :param inline:          This is an inline execution. Do not bother copying the state.
 
         Additional keyword arguments will be passed directly into each engine's process method.
         """
-
-        return self.project.engines.successors(*args, **kwargs)
+        if engine is not None:
+            return engine.process(*args, **kwargs)
+        return self.default_engine.process(*args, **kwargs)
 
     def blank_state(self, **kwargs):
         """
@@ -166,9 +163,6 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simgr(self, thing=None, **kwargs):
-        return self.simulation_manager(thing=thing, **kwargs)
-
     def simulation_manager(self, thing=None, **kwargs):
         """
         Constructs a new simulation manager.
@@ -197,6 +191,12 @@ class AngrObjectFactory(object):
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
 
+    def simgr(self, *args, **kwargs):
+        """
+        Alias for `simulation_manager` to save our poor fingers
+        """
+        return self.simulation_manager(*args, **kwargs)
+
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
@@ -210,7 +210,7 @@ class AngrObjectFactory(object):
         :param cc:              The SimCC to use for a calling convention
         :returns:               A Callable object that can be used as a interface for executing guest code like a
                                 python function.
-        :rtype:                 angr.surveyors.caller.Callable
+        :rtype:                 angr.callable.Callable
         """
         return Callable(self.project,
                         addr=addr,
@@ -220,7 +220,6 @@ class AngrObjectFactory(object):
                         toc=toc,
                         cc=cc)
 
-
     def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
         """
         Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
@@ -228,13 +227,20 @@ class AngrObjectFactory(object):
         :param args:        A list of argument storage locations, as SimFunctionArguments.
         :param ret_val:     The return value storage location, as a SimFunctionArgument.
         :param sp_delta:    Does this even matter??
-        :param func_ty:     The protoype for the given function, as a SimType.
+        :param func_ty:     The prototype for the given function, as a SimType or a C-style function declaration that
+                            can be parsed into a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
 
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
 
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
+
         return self._default_cc(arch=self.project.arch,
                                   args=args,
                                   ret_val=ret_val,
@@ -252,7 +258,14 @@ class AngrObjectFactory(object):
         :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
                             size of the corresponding argument in bytes.
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :parmm func_ty:     A SimType for the function itself
+        :param func_ty:     A SimType for the function itself or a C-style function declaration that can be parsed into
+                            a SimTypeFunction instance.
+
+        Example func_ty strings:
+        >>> "int func(char*, int)"
+        >>> "int f(int, int, int*);"
+        Function names are ignored.
+
         """
         return self._default_cc.from_arg_kinds(arch=self.project.arch,
                 fp_args=fp_args,
@@ -262,10 +275,13 @@ class AngrObjectFactory(object):
                 func_ty=func_ty)
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-              opt_level=None, num_inst=None, traceflags=0,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None,
+              strict_block_end=None, collect_data_refs=False,
               ):
+
+        if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
+            return SootBlock(addr, arch=self.project.arch, project=self.project)
 
         if insn_bytes is not None and insn_text is not None:
             raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
@@ -283,10 +299,11 @@ class AngrObjectFactory(object):
         if max_size is not None:
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
             size = max_size
-        return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
-                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
-                     strict_block_end=strict_block_end
-                     )
+        return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex,
+                     extra_stop_points=extra_stop_points, thumb=thumb, backup_state=backup_state,
+                     opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
+                     strict_block_end=strict_block_end, collect_data_refs=collect_data_refs,
+         )
 
     def fresh_block(self, addr, size, backup_state=None):
         return Block(addr, project=self.project, size=size, backup_state=backup_state)
@@ -298,35 +315,7 @@ class AngrObjectFactory(object):
     call_state.PointerWrapper = PointerWrapper
 
 
-    #
-    # Private methods
-    #
-
-    @deprecate('sim_run()', 'successors()')
-    def sim_run(self, *args, **kwargs):
-        return self.successors(*args, **kwargs)
-
-    @deprecate('sim_block()', 'successors(default_engine=True)')
-    def sim_block(self, *args, **kwargs):
-        kwargs['default_engine'] = True
-        return self.successors(*args, **kwargs)
-
-    #
-    # Compatibility layer
-    #
-
-    @deprecate('path_group()', 'simulation_manager()')
-    def path_group(self, thing=None, **kwargs):
-        return self.simgr(thing, **kwargs)
-
-    @deprecate('path()', 'entry_state()')
-    def path(self, state=None, **kwargs):
-        if state is not None:
-            return state
-        return self.entry_state(**kwargs)
-
-
 from .errors import AngrError
 from .sim_manager import SimulationManager
-from .codenode import HookNode
-from .block import Block
+from .codenode import HookNode, SyscallNode
+from .block import Block, SootBlock

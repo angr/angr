@@ -1,6 +1,7 @@
 import operator
 import logging
 import itertools
+import contextlib
 
 import claripy
 
@@ -8,7 +9,7 @@ from .plugin import SimStatePlugin
 from .. import sim_options
 from ..state_plugins.sim_action import SimActionObject
 
-l = logging.getLogger("angr.state_plugins.history")
+l = logging.getLogger(name=__name__)
 
 
 class SimStateHistory(SimStatePlugin):
@@ -64,6 +65,10 @@ class SimStateHistory(SimStatePlugin):
 
     def __getstate__(self):
         # flatten ancestry, otherwise we hit recursion errors trying to get the entire history...
+        # the important intuition here is that if we provide the entire linked list to pickle, pickle
+        # will traverse it recursively. If we provide it as a real list, it will not do any recursion.
+        # the nuance is in whether the list we provide has live parent links, in which case it matters
+        # what order pickle iterates the list, as it will suddenly be able to perform memoization.
         ancestry = []
         parent = self.parent
         self.parent = None
@@ -72,18 +77,31 @@ class SimStateHistory(SimStatePlugin):
             parent = parent.parent
             ancestry[-1].parent = None
 
+        rev_ancestry = list(reversed(ancestry))
         d = super(SimStateHistory, self).__getstate__()
         d['strongref_state'] = None
-        d['ancestry'] = ancestry
+        d['rev_ancestry'] = rev_ancestry
         d['successor_ip'] = self.successor_ip
+
+        # reconstruct chain
+        child = self
+        for parent in ancestry:
+            child.parent = parent
+            child = parent
+
+        d.pop('parent')
         return d
 
     def __setstate__(self, d):
         child = self
-        for parent in d.pop('ancestry'):
+        ancestry = list(reversed(d.pop('rev_ancestry')))
+        for parent in ancestry:
+            if hasattr(child, 'parent'):
+                break
             child.parent = parent
             child = parent
-        child.parent = None
+        else:
+            child.parent = None
         self.__dict__.update(d)
 
     def __repr__(self):
@@ -201,7 +219,7 @@ class SimStateHistory(SimStatePlugin):
         #    stmts = self.state.project.factory.block(bbl_addr).vex.statements
         #    if stmt_idx >= len(stmts):
         #        return None
-        #    for i in reversed(xrange(stmt_idx + 1)):
+        #    for i in reversed(range(stmt_idx + 1)):
         #        if stmts[i].tag == 'Ist_IMark':
         #            return stmts[i].addr + stmts[i].delta
         #    return None
@@ -219,7 +237,7 @@ class SimStateHistory(SimStatePlugin):
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = self.state.se.eval(addr)
+                addr = self.state.solver.eval(addr)
             if addr != read_offset:
                 return False
             return True
@@ -237,7 +255,7 @@ class SimStateHistory(SimStatePlugin):
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = self.state.se.eval(addr)
+                addr = self.state.solver.eval(addr)
             if addr != write_offset:
                 return False
             return True
@@ -268,11 +286,11 @@ class SimStateHistory(SimStatePlugin):
     #       self._events = state.history.events
     #
     #   # record constraints, added constraints, and satisfiability
-    #   self._all_constraints = state.se.constraints
+    #   self._all_constraints = state.solver.constraints
     #   self._fresh_constraints = state.history.fresh_constraints
     #
-    #   if isinstance(state.se._solver, claripy.frontend_mixins.SatCacheMixin):
-    #       self._satisfiable = state.se._solver._cached_satness
+    #   if isinstance(state.solver._solver, claripy.frontend_mixins.SatCacheMixin):
+    #       self._satisfiable = state.solver._solver._cached_satness
     #   else:
     #       self._satisfiable = None
     #
@@ -293,7 +311,7 @@ class SimStateHistory(SimStatePlugin):
         if self._satisfiable is not None:
             pass
         elif self.state is not None:
-            self._satisfiable = self.state.se.satisfiable()
+            self._satisfiable = self.state.solver.satisfiable()
         else:
             solver = claripy.Solver()
             solver.add(self._all_constraints)
@@ -314,6 +332,13 @@ class SimStateHistory(SimStatePlugin):
 
     def extend_actions(self, new_actions):
         self.recent_events.extend(new_actions)
+
+    @contextlib.contextmanager
+    def subscribe_actions(self):
+        start_idx = len(self.recent_actions)
+        res = []
+        yield res
+        res.extend(self.recent_actions[start_idx:])
 
     #
     # Convenient accessors
@@ -363,14 +388,6 @@ class SimStateHistory(SimStatePlugin):
     @property
     def ins_addrs(self):
         return LambdaIterIter(self, operator.attrgetter('recent_ins_addrs'))
-    @property
-    def trace(self):
-        print ".trace is deprecated: please use .descriptions"
-        return self.descriptions
-    @property
-    def addr_trace(self):
-        print ".addr_trace is deprecated: please use .bbl_addrs"
-        return self.bbl_addrs
     @property
     def stack_actions(self):
         return LambdaIterIter(self, operator.attrgetter('recent_stack_actions'))

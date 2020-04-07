@@ -1,14 +1,14 @@
 import logging
 import claripy
 from sortedcontainers import SortedDict
-
+from archinfo.arch_arm import is_arm_arch
 from ..state_plugins.plugin import SimStatePlugin
 
 
-l = logging.getLogger("angr.storage.memory")
+l = logging.getLogger(name=__name__)
 
-stn_map = { 'st%d' % n: n for n in xrange(8) }
-tag_map = { 'tag%d' % n: n for n in xrange(8) }
+stn_map = { 'st%d' % n: n for n in range(8) }
+tag_map = { 'tag%d' % n: n for n in range(8) }
 
 DUMMY_SYMBOLIC_READ_VALUE = 0xc0deb4be
 
@@ -23,9 +23,9 @@ class AddressWrapper(object):
         """
         Constructor for the class AddressWrapper.
 
-        :param strregion:              Name of the memory regions it belongs to.
+        :param str region:             Name of the memory regions it belongs to.
         :param int region_base_addr:   Base address of the memory region
-        :param address:             An address (not a ValueSet object).
+        :param address:                An address (not a ValueSet object).
         :param bool is_on_stack:       Whether this address is on a stack region or not.
         :param int function_address:   Related function address (if any).
         """
@@ -51,7 +51,7 @@ class AddressWrapper(object):
         :param state: A state
         :return: The converted ValueSet instance
         """
-        return state.se.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
+        return state.solver.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
 
 class RegionDescriptor(object):
     """
@@ -367,7 +367,7 @@ class SimMemory(SimStatePlugin):
     def _resolve_location_name(self, name, is_write=False):
 
         # Delayed load so SimMemory does not rely on SimEngines
-        from ..engines.vex.ccall import _get_flags
+        from angr.engines.vex.claripy.ccall import _get_flags
 
         if self.category == 'reg':
             if self.state.arch.name in ('X86', 'AMD64'):
@@ -378,13 +378,13 @@ class SimMemory(SimStatePlugin):
                 elif name in ('flags', 'eflags', 'rflags'):
                     # we tweak the state to convert the vex condition registers into the flags register
                     if not is_write: # this work doesn't need to be done if we're just gonna overwrite it
-                        self.store('cc_dep1', _get_flags(self.state)[0]) # TODO: can constraints be added by this?
+                        self.store('cc_dep1', _get_flags(self.state))
                     self.store('cc_op', 0) # OP_COPY
                     return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
-            if self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
+            if is_arm_arch(self.state.arch):
                 if name == 'flags':
                     if not is_write:
-                        self.store('cc_dep1', _get_flags(self.state)[0])
+                        self.store('cc_dep1', _get_flags(self.state))
                     self.store('cc_op', 0)
                     return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
 
@@ -398,12 +398,12 @@ class SimMemory(SimStatePlugin):
         """
         Make an AST out of concrete @data_e
         """
-        if type(data_e) is str:
+        if type(data_e) is bytes:
             # Convert the string into a BVV, *regardless of endness*
             bits = len(data_e) * self.state.arch.byte_width
-            data_e = self.state.se.BVV(data_e, bits)
-        elif type(data_e) in (int, long):
-            data_e = self.state.se.BVV(data_e, size_e*self.state.arch.byte_width if size_e is not None
+            data_e = self.state.solver.BVV(data_e, bits)
+        elif type(data_e) is int:
+            data_e = self.state.solver.BVV(data_e, size_e*self.state.arch.byte_width if size_e is not None
                                        else self.state.arch.bits)
         else:
             data_e = data_e.raw_to_bv()
@@ -453,7 +453,7 @@ class SimMemory(SimStatePlugin):
         if region_id not in region_ids:
             return region_id
         else:
-            for i in xrange(0, 2000):
+            for i in range(0, 2000):
                 new_region_id = region_id + '_%d' % i
                 if new_region_id not in region_ids:
                     return new_region_id
@@ -478,6 +478,9 @@ class SimMemory(SimStatePlugin):
         :param bool disable_actions: Whether this store should avoid creating SimActions or not. When set to False,
                                      state options are respected.
         """
+
+        _inspect = inspect and self.state.supports_inspect
+
         if priv is not None: self.state.scratch.push_priv(priv)
 
         addr_e = _raw_ast(addr)
@@ -494,20 +497,32 @@ class SimMemory(SimStatePlugin):
                 size = named_size
                 size_e = size
 
+        if isinstance(data_e, str):
+            data_e = data_e.encode()
+            l.warning("Storing unicode string encoded as utf-8. Did you mean to use a bytestring?")
+
         # store everything as a BV
-        data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, (int, long)) else None)
+        data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, int) else None)
 
         # zero extend if size is greater than len(data_e)
-        stored_size = size_e*self.state.arch.byte_width if isinstance(size_e, (int, long)) else self.state.arch.bits
+        stored_size = size_e*self.state.arch.byte_width if isinstance(size_e, int) else self.state.arch.bits
         if size_e is not None and self.category == 'reg' and len(data_e) < stored_size:
             data_e = data_e.zero_extend(stored_size - len(data_e))
 
-        if type(size_e) in (int, long):
-            size_e = self.state.se.BVV(size_e, self.state.arch.bits)
+        if type(size_e) is int:
+            size_e = self.state.solver.BVV(size_e, self.state.arch.bits)
         elif size_e is None:
-            size_e = self.state.se.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
+            size_e = self.state.solver.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
 
-        if inspect is True:
+        if endness is None:
+            endness = self.endness
+
+        if len(data_e) % self.state.arch.byte_width != 0:
+            raise SimMemoryError("Attempting to store non-byte data to memory")
+        if not size_e.symbolic and (len(data_e) < size_e*self.state.arch.byte_width).is_true():
+            raise SimMemoryError("Provided data is too short for this memory store")
+
+        if _inspect:
             if self.category == 'reg':
                 self.state._inspect(
                     'reg_write',
@@ -516,11 +531,13 @@ class SimMemory(SimStatePlugin):
                     reg_write_length=size_e,
                     reg_write_expr=data_e,
                     reg_write_condition=condition_e,
+                    reg_write_endness=endness,
                 )
                 addr_e = self.state._inspect_getattr('reg_write_offset', addr_e)
                 size_e = self.state._inspect_getattr('reg_write_length', size_e)
                 data_e = self.state._inspect_getattr('reg_write_expr', data_e)
                 condition_e = self.state._inspect_getattr('reg_write_condition', condition_e)
+                endness = self.state._inspect_getattr('reg_write_endness', endness)
             elif self.category == 'mem':
                 self.state._inspect(
                     'mem_write',
@@ -529,36 +546,40 @@ class SimMemory(SimStatePlugin):
                     mem_write_length=size_e,
                     mem_write_expr=data_e,
                     mem_write_condition=condition_e,
+                    mem_write_endness=endness,
                 )
                 addr_e = self.state._inspect_getattr('mem_write_address', addr_e)
                 size_e = self.state._inspect_getattr('mem_write_length', size_e)
                 data_e = self.state._inspect_getattr('mem_write_expr', data_e)
                 condition_e = self.state._inspect_getattr('mem_write_condition', condition_e)
+                endness = self.state._inspect_getattr('mem_write_endness', endness)
 
         # if the condition is false, bail
-        if condition_e is not None and self.state.se.is_false(condition_e):
+        if condition_e is not None and self.state.solver.is_false(condition_e):
             if priv is not None: self.state.scratch.pop_priv()
             return
 
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
             isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized
+            addr_e.uninitialized and
+            addr_e.uc_alloc_depth is not None
         ):
             self._constrain_underconstrained_index(addr_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         try:
-            self._store(request)
+            self._store(request) #will use state_plugins/symbolic_memory.py
         except SimSegfaultError as e:
             e.original_addr = addr_e
             raise
 
-        if inspect is True:
+        if _inspect:
             if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
-            if self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
+            elif self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
+            # tracer uses address_concretization_add_constraints
+            add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
 
-        add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
 
@@ -579,9 +600,9 @@ class SimMemory(SimStatePlugin):
                 action.actual_addrs = request.actual_addresses
                 action.actual_value = action._make_object(request.stored_values[0]) # TODO
                 if len(request.constraints) > 0:
-                    action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
+                    action.added_constraints = action._make_object(self.state.solver.And(*request.constraints))
                 else:
-                    action.added_constraints = action._make_object(self.state.se.true)
+                    action.added_constraints = action._make_object(self.state.solver.true)
 
         if priv is not None: self.state.scratch.pop_priv()
 
@@ -636,15 +657,15 @@ class SimMemory(SimStatePlugin):
                 # We may use some refactoring later
                 region_type = self.id
             action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=req.stored_values[-1],
-                                   size=max_bits, condition=self.state.se.Or(*conditions), fallback=fallback
+                                   size=max_bits, condition=self.state.solver.Or(*conditions), fallback=fallback
                                    )
             self.state.history.add_action(action)
 
         if req.completed and action is not None:
             action.actual_addrs = req.actual_addresses
             action.actual_value = action._make_object(req.stored_values[-1])
-            action.added_constraints = action._make_object(self.state.se.And(*req.constraints)
-                                                           if len(req.constraints) > 0 else self.state.se.true)
+            action.added_constraints = action._make_object(self.state.solver.And(*req.constraints)
+                                                           if len(req.constraints) > 0 else self.state.solver.true)
 
     def _store_cases(self, addr, contents, conditions, fallback, endness=None):
         extended_contents = [ ]
@@ -667,7 +688,7 @@ class SimMemory(SimStatePlugin):
         unique_constraints = [ ]
         for c,g in case_constraints.items():
             unique_contents.append(c)
-            unique_constraints.append(self.state.se.Or(*g))
+            unique_constraints.append(self.state.solver.Or(*g))
 
         if len(unique_contents) == 1 and unique_contents[0] is fallback:
             req = MemoryStoreRequest(addr, data=fallback, endness=endness)
@@ -676,12 +697,12 @@ class SimMemory(SimStatePlugin):
             simplified_contents = [ ]
             simplified_constraints = [ ]
             for c,g in zip(unique_contents, unique_constraints):
-                simplified_contents.append(self.state.se.simplify(c))
-                simplified_constraints.append(self.state.se.simplify(g))
+                simplified_contents.append(self.state.solver.simplify(c))
+                simplified_constraints.append(self.state.solver.simplify(g))
             cases = zip(simplified_constraints, simplified_contents)
             #cases = zip(unique_constraints, unique_contents)
 
-            ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
+            ite = self.state.solver.simplify(self.state.solver.ite_cases(cases, fallback))
             req = MemoryStoreRequest(addr, data=ite, endness=endness)
             return self._store(req)
 
@@ -690,7 +711,7 @@ class SimMemory(SimStatePlugin):
         """
         Loads size bytes from dst.
 
-        :param dst:             The address to load from.
+        :param addr:             The address to load from.
         :param size:            The size (in bytes) of the load.
         :param condition:       A claripy expression representing a condition for a conditional load.
         :param fallback:        A fallback value if the condition ends up being False.
@@ -712,6 +733,9 @@ class SimMemory(SimStatePlugin):
 
             <A If(condition, BVV(0x41, 32), fallback)>
         """
+
+        _inspect = inspect and self.state.supports_inspect
+
         add_constraints = True if add_constraints is None else add_constraints
 
         addr_e = _raw_ast(addr)
@@ -731,37 +755,45 @@ class SimMemory(SimStatePlugin):
             size = self.state.arch.bits // self.state.arch.byte_width
             size_e = size
 
-        if inspect is True:
+        endness = self.endness if endness is None else endness
+
+        if _inspect:
             if self.category == 'reg':
                 self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e,
-                                    reg_read_condition=condition_e
+                                    reg_read_condition=condition_e, reg_read_endness=endness,
                                     )
                 addr_e = self.state._inspect_getattr("reg_read_offset", addr_e)
                 size_e = self.state._inspect_getattr("reg_read_length", size_e)
                 condition_e = self.state._inspect_getattr("reg_read_condition", condition_e)
+                endness = self.state._inspect_getattr("reg_read_endness", endness)
 
             elif self.category == 'mem':
                 self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e,
-                                    mem_read_condition=condition_e
+                                    mem_read_condition=condition_e, mem_read_endness=endness,
                                     )
                 addr_e = self.state._inspect_getattr("mem_read_address", addr_e)
                 size_e = self.state._inspect_getattr("mem_read_length", size_e)
                 condition_e = self.state._inspect_getattr("mem_read_condition", condition_e)
+                endness = self.state._inspect_getattr('mem_read_endness', endness)
 
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
             isinstance(addr_e, claripy.ast.Base) and
-            addr_e.uninitialized
+            addr_e.uninitialized and
+            addr_e.uc_alloc_depth is not None
         ):
             self._constrain_underconstrained_index(addr_e)
 
         try:
-            a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=inspect,
+            a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=_inspect,
                                events=not disable_actions, ret_on_segv=ret_on_segv)
         except SimSegfaultError as e:
             e.original_addr = addr_e
             raise
-        add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
+        if _inspect:
+            # tracer uses address_concretization_add_constraints to overwrite the add_constraints value
+            # TODO: Make this logic less arbitrary
+            add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and c:
             self.state.add_constraints(*c)
 
@@ -773,7 +805,7 @@ class SimMemory(SimStatePlugin):
         if not self._abstract_backer and \
                 o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
                 self.state.uninitialized_access_handler is not None and \
-                (r.op == 'Reverse' or r.op == 'I') and \
+                (r.op == 'Reverse' or r.op == 'BVV') and \
                 getattr(r._model_vsa, 'uninitialized', False):
             normalized_addresses = self.normalize_address(addr)
             if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
@@ -781,11 +813,10 @@ class SimMemory(SimStatePlugin):
             self.state.uninitialized_access_handler(self.category, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         # the endianess
-        endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             r = r.reversed
 
-        if inspect is True:
+        if _inspect:
             if self.category == 'mem':
                 self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
                 r = self.state._inspect_getattr("mem_read_expr", r)
@@ -811,22 +842,22 @@ class SimMemory(SimStatePlugin):
 
             if action is not None:
                 action.actual_addrs = a
-                action.added_constraints = action._make_object(self.state.se.And(*c)
-                                                               if len(c) > 0 else self.state.se.true)
+                action.added_constraints = action._make_object(self.state.solver.And(*c)
+                                                               if len(c) > 0 else self.state.solver.true)
 
         return r
 
     def _constrain_underconstrained_index(self, addr_e):
-        if not self.state.uc_manager.is_bounded(addr_e) or self.state.se.max_int(addr_e) - self.state.se.min_int( addr_e) >= self._read_address_range:
+        if not self.state.uc_manager.is_bounded(addr_e) or self.state.solver.max_int(addr_e) - self.state.solver.min_int( addr_e) >= self._read_address_range:
             # in under-constrained symbolic execution, we'll assign a new memory region for this address
             mem_region = self.state.uc_manager.assign(addr_e)
 
             # ... but only if it's not already been constrained to something!
-            if self.state.se.solution(addr_e, mem_region):
+            if self.state.solver.solution(addr_e, mem_region):
                 self.state.add_constraints(addr_e == mem_region)
             l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
-    def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
+    def normalize_address(self, addr, is_write=False):  # pylint:disable=no-self-use,unused-argument
         """
         Normalize `addr` for use in static analysis (with the abstract memory model). In non-abstract mode, simply
         returns the address in a single-element list.
@@ -836,7 +867,8 @@ class SimMemory(SimStatePlugin):
     def _load(self, _addr, _size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         raise NotImplementedError()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+             disable_actions=False, inspect=True, chunk_size=None):
         """
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
         value, this search could cause the state to go unsat if no possible matching byte exists.
@@ -846,6 +878,9 @@ class SimMemory(SimStatePlugin):
         :param max_search:          Search at most this many bytes.
         :param max_symbolic_bytes:  Search through at most this many symbolic bytes.
         :param default:             The default value, if what you're looking for wasn't found.
+        :param step:                The stride that the search should use while scanning memory
+        :param disable_actions:     Whether to inhibit the creation of SimActions for memory access
+        :param inspect:             Whether to trigger SimInspect breakpoints
 
         :returns:                   An expression representing the address of the matching byte.
         """
@@ -853,18 +888,19 @@ class SimMemory(SimStatePlugin):
         what = _raw_ast(what)
         default = _raw_ast(default)
 
-        if isinstance(what, str):
+        if isinstance(what, bytes):
             # Convert it to a BVV
             what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
-                           step=step)
+                           step=step, disable_actions=disable_actions, inspect=inspect, chunk_size=chunk_size)
         if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+              disable_actions=False, inspect=True, chunk_size=None):
         raise NotImplementedError()
 
     def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
@@ -894,6 +930,7 @@ class SimMemory(SimStatePlugin):
     def _copy_contents(self, _dst, _src, _size, condition=None, src_memory=None, dst_memory=None, inspect=True,
                       disable_actions=False):
         raise NotImplementedError()
+
 
 from .. import sim_options as o
 from ..state_plugins.sim_action import SimActionData

@@ -1,7 +1,7 @@
 from . import SimLibrary
 from .. import SIM_PROCEDURES as P
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
-from ...sim_type import SimTypeFunction, SimTypeLong
+from ...sim_type import SimTypeFunction, SimTypeLong, SimTypeLongLong
 
 lib = SimLibrary()
 lib.set_library_names('kernel32.dll')
@@ -680,7 +680,7 @@ prototypes = {
     "GetThreadTimes": SimTypeFunction((SimTypeLong(),)*5, SimTypeLong()),
     "GetThreadUILanguage": SimTypeFunction((SimTypeLong(),)*0, SimTypeLong()),
     "GetTickCount": SimTypeFunction((SimTypeLong(),)*0, SimTypeLong()),
-    "GetTickCount64": SimTypeFunction((SimTypeLong(),)*0, SimTypeLong()),
+    "GetTickCount64": SimTypeFunction((SimTypeLong(),)*0, SimTypeLongLong()),
     "GetTimeFormatA": SimTypeFunction((SimTypeLong(),)*6, SimTypeLong()),
     "GetTimeFormatEx": SimTypeFunction((SimTypeLong(),)*6, SimTypeLong()),
     "GetTimeFormatW": SimTypeFunction((SimTypeLong(),)*6, SimTypeLong()),

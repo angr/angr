@@ -56,7 +56,7 @@ def convert_cproto_to_py(c_decl):
         if not parsed_decl:
             raise ValueError('Cannot parse the function prototype.')
 
-        func_name, func_proto = parsed_decl.items()[0]
+        func_name, func_proto = next(iter(parsed_decl.items()))
 
         s.append('"%s": %s,' % (func_name, func_proto._init_str()))  # The real Python string
 
@@ -71,3 +71,23 @@ def convert_cproto_to_py(c_decl):
             func_name, func_proto = None, None
 
     return func_name, func_proto, "\n".join(s)
+
+
+def cprotos2py(cprotos):
+    """
+    Parse a list of C function declarations and output to Python code that can be embedded into
+    angr.procedures.definitions.
+
+    >>> # parse the list of glibc C prototypes and output to a file
+    >>> from angr.procedures.definitions import glibc
+    >>> with open("glibc_protos", "w") as f: f.write(cprotos2py(glibc._libc_c_decls))
+
+    :param list cprotos:    A list of C prototype strings.
+    :return:                A Python string.
+    :rtype:                 str
+    """
+    s = ""
+    for decl in cprotos:
+        func_name, proto_, str_ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
+        s += " " * 8 + str_.replace("\n", "\n" + " " * 8) + "\n"
+    return s

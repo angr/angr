@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from functools import cmp_to_key
 
 import networkx
 
@@ -11,7 +12,7 @@ from ..sim_manager import SimulationManager
 from ..utils.graph import shallow_reverse
 from . import Analysis
 
-l = logging.getLogger("angr.analyses.veritesting")
+l = logging.getLogger(name=__name__)
 
 
 class VeritestingError(Exception):
@@ -65,7 +66,7 @@ class CallTracingFilter(object):
             return REJECT
 
         try:
-            addr = call_target_state.se.eval_one(ip)
+            addr = call_target_state.solver.eval_one(ip)
         except (SimValueError, SimSolverModeError):
             self._skipped_targets.add(-1)
             l.debug('Rejecting target %s - cannot be concretized', ip)
@@ -102,18 +103,18 @@ class CallTracingFilter(object):
                 l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, type(next_run))
                 return REJECT
 
-        cfg_key = (addr, jumpkind)
+        cfg_key = (addr, jumpkind, self.project.filename)
         if cfg_key not in self.cfg_cache:
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self.project, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self.project.analyses.CFGAccurate(starts=((addr, jumpkind),),
+            cfg = self.project.analyses.CFGEmulated(starts=((addr, jumpkind),),
                                                     initial_state=call_target_state,
                                                     context_sensitivity_level=0,
                                                     call_depth=1,
                                                     call_tracing_filter=tracing_filter.filter,
                                                     normalize=True,
-                                                    kb=KnowledgeBase(self.project, self.project.loader.main_object)
+                                                    kb=KnowledgeBase(self.project)
                                                     )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
@@ -189,9 +190,10 @@ class Veritesting(Analysis):
         branches = block.vex.constant_jump_targets_and_jumpkinds
 
         # if we are not at a conditional jump, just do a normal step
-        if not branches.values() == ['Ijk_Boring', 'Ijk_Boring']:
+        if list(branches.values()) != ['Ijk_Boring', 'Ijk_Boring']:
             self.result, self.final_manager = False, None
             return
+
         # otherwise do a veritesting step
 
         self._input_state = input_state.copy()
@@ -204,7 +206,7 @@ class Veritesting(Analysis):
         # set up the cfg stuff
         self._cfg, self._loop_graph = self._make_cfg()
         self._loop_backedges = self._cfg._loop_back_edges
-        self._loop_heads = set([ dst.addr for _, dst in self._loop_backedges ])
+        self._loop_heads = {dst.addr for _, dst in self._loop_backedges}
 
         l.info("Static symbolic execution starts at %#x", self._input_state.addr)
         l.debug(
@@ -280,7 +282,6 @@ class Veritesting(Analysis):
         manager = SimulationManager(
             self.project,
             active_states=[ initial_state ],
-            immutable=False,
             resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.options
         )
 
@@ -403,7 +404,7 @@ class Veritesting(Analysis):
                 # merge the loop_ctrs
                 new_loop_ctrs = defaultdict(int)
                 for m in manager.merge_tmp:
-                    for head_addr, looping_times in m.globals['loop_ctrs'].iteritems():
+                    for head_addr, looping_times in m.globals['loop_ctrs'].items():
                         new_loop_ctrs[head_addr] = max(
                             looping_times,
                             m.globals['loop_ctrs'][head_addr]
@@ -423,7 +424,7 @@ class Veritesting(Analysis):
                     manager.move('merge_tmp', 'active')
                 elif any(
                     loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
-                    manager.one_merge_tmp.globals['loop_ctrs'].itervalues()
+                    manager.one_merge_tmp.globals['loop_ctrs'].values()
                 ):
                     l.debug("... merged state is overlooping")
                     manager.move('merge_tmp', 'deadended')
@@ -445,7 +446,7 @@ class Veritesting(Analysis):
         :returns bool: False if our CFG contains p.addr, True otherwise.
         """
 
-        n = self._cfg.get_any_node(s.addr, is_syscall=s.history.jumpkind.startswith('Ijk_Sys'))
+        n = self._cfg.model.get_any_node(s.addr, is_syscall=s.history.jumpkind.startswith('Ijk_Sys'))
         if n is None:
             return True
 
@@ -462,7 +463,7 @@ class Veritesting(Analysis):
         :param SimState state:          Current state to step on from
         :returns SimSuccessors:         The SimSuccessors object
         """
-        size_of_next_irsb = self._cfg.get_any_node(state.addr).size
+        size_of_next_irsb = self._cfg.model.get_any_node(state.addr).size
         return self.project.factory.successors(state, size=size_of_next_irsb)
 
     def is_overbound(self, state):
@@ -521,13 +522,13 @@ class Veritesting(Analysis):
         Builds a CFG from the current function.
         Saved in cfg_cache.
 
-        returns (CFGAccurate, networkx.DiGraph): Tuple of the CFG and networkx representation of it
+        returns (CFGEmulated, networkx.DiGraph): Tuple of the CFG and networkx representation of it
         """
 
         state = self._input_state
         ip_int = state.addr
 
-        cfg_key = (ip_int, state.history.jumpkind)
+        cfg_key = (ip_int, state.history.jumpkind, self.project.filename)
         if cfg_key in self.cfg_cache:
             cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
         else:
@@ -543,20 +544,20 @@ class Veritesting(Analysis):
             # FIXME: This is very hackish
             # FIXME: And now only Linux-like syscalls are supported
             if self.project.arch.name == 'X86':
-                if not state.se.symbolic(state.regs.eax):
+                if not state.solver.symbolic(state.regs.eax):
                     cfg_initial_state.regs.eax = state.regs.eax
             elif self.project.arch.name == 'AMD64':
-                if not state.se.symbolic(state.regs.rax):
+                if not state.solver.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
-            cfg = self.project.analyses.CFGAccurate(
+            cfg = self.project.analyses.CFGEmulated(
                 starts=((ip_int, state.history.jumpkind),),
                 context_sensitivity_level=0,
                 call_depth=1,
                 call_tracing_filter=filter,
                 initial_state=cfg_initial_state,
                 normalize=True,
-                kb=KnowledgeBase(self.project, self.project.loader.main_object)
+                kb=KnowledgeBase(self.project)
             )
             cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
             cfg.force_unroll_loops(self._loop_unrolling_limit)
@@ -575,14 +576,14 @@ class Veritesting(Analysis):
         :returns bool:                           True/False.
         """
 
-        ds = networkx.dominating_set(reversed_graph, n1)
+        ds = networkx.immediate_dominators(reversed_graph, n1)
         return n2 in ds
 
     def _get_all_merge_points(self, cfg, graph_with_loops):
         """
         Return all possible merge points in this CFG.
 
-        :param CFGAccurate cfg: The control flow graph, which must be acyclic.
+        :param CFGEmulated cfg: The control flow graph, which must be acyclic.
         :returns [(int, int)]:  A list of merge points (address and number of times looped).
         """
 
@@ -609,10 +610,10 @@ class Veritesting(Analysis):
         nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0 ]
 
         # Reorder nodes based on post-dominance relations
-        nodes = sorted(nodes, cmp=lambda n1, n2: (
+        nodes = sorted(nodes, key=cmp_to_key(lambda n1, n2: (
             1 if self._post_dominate(reversed_cyclic_graph, n1, n2)
             else (-1 if self._post_dominate(reversed_cyclic_graph, n2, n1) else 0)
-        ))
+        )))
 
         return [ (n.addr, n.looping_times) for n in nodes ]
 

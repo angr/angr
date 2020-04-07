@@ -5,6 +5,27 @@ import subprocess
 import pkg_resources
 import shutil
 import platform
+import glob
+
+if bytes is str:
+    raise Exception("""
+
+=-=-=-=-=-=-=-=-=-=-=-=-=  WELCOME TO THE FUTURE!  =-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+angr has transitioned to python 3. Due to the small size of the team behind it,
+we can't reasonably maintain compatibility between both python 2 and python 3.
+If you want to continue using the most recent version of angr (you definitely
+want that, trust us) you should upgrade to python 3. It's like getting your
+vaccinations. It hurts a little bit initially but in the end it's worth it.
+
+If you are staying on python 2 and would like to make sure you don't get
+incompatible versions, make sure your pip is at least version 9.0, and it will
+use our metadata to implicitly avoid them.
+
+For more information, see here: https://docs.angr.io/appendix/migration
+
+Good luck!
+""")
 
 try:
     from setuptools import setup
@@ -17,6 +38,7 @@ except ImportError:
 from distutils.util import get_platform
 from distutils.errors import LibError
 from distutils.command.build import build as _build
+from distutils.command.clean import clean as _clean
 
 if sys.platform == 'darwin':
     library_file = "angr_native.dylib"
@@ -41,7 +63,7 @@ def _build_native():
                 ('PYVEX_LIB_FILE', 'pyvex', 'lib\\pyvex.lib'))
     for var, pkg, fnm in env_data:
         try:
-            env[var] = pkg_resources.resource_filename(pkg, fnm).encode('ascii', 'ignore')
+            env[var] = pkg_resources.resource_filename(pkg, fnm)
         except KeyError:
             pass
 
@@ -61,13 +83,28 @@ def _build_native():
     os.mkdir('angr/lib')
     shutil.copy(os.path.join('native', library_file), 'angr/lib')
 
+def _clean_native():
+    oglob  = glob.glob('native/*.o')
+    oglob += glob.glob('native/*.obj')
+    oglob += glob.glob('native/*.so')
+    oglob += glob.glob('native/*.dll')
+    oglob += glob.glob('native/*.dylib')
+    for fname in oglob:
+        os.unlink(fname)
+
 class build(_build):
     def run(self, *args):
         self.execute(_build_native, (), msg='Building angr_native')
         _build.run(self, *args)
 
+class clean(_clean):
+    def run(self, *args):
+        self.execute(_clean_native, (), msg='Cleaning angr_native')
+        _clean.run(self, *args)
+
 cmdclass = {
     'build': build,
+    'clean': clean,
 }
 
 try:
@@ -94,33 +131,37 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
 
 setup(
     name='angr',
-    version='7.8.6.23',
+    version='8.20.1.7',
+    python_requires='>=3.5',
     description='A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries',
     url='https://github.com/angr/angr',
     packages=packages,
     install_requires=[
-        'ana',
-        'sortedcontainers<2',
+        'sortedcontainers',
         'cachetools',
         'capstone>=3.0.5rc2',
-        'cooldict',
-        'dpkt-fix',
-        'futures; python_version == "2.7"',
+        'dpkt',
         'mulpyplexer',
         'networkx>=2.0',
-        'progressbar',
+        'progressbar2',
         'rpyc',
         'cffi>=1.7.0',
-        'unicorn',
-        'archinfo>=7.8.6.16',
-        'claripy>=7.8.6.16',
-        'cle>=7.8.6.16',
-        'pyvex>=7.8.6.23',
-        'ailment>=7.8.6.16',
+        'unicorn>=1.0.2rc2',
+        'archinfo==8.20.1.7',
+        'claripy==8.20.1.7',
+        'cle==8.20.1.7',
+        'pyvex==8.20.1.7',
+        'ailment==8.20.1.7',
         'GitPython',
+        'psutil',
         'pycparser>=2.18',
+        'itanium_demangler',
+        'protobuf',
     ],
     setup_requires=['unicorn', 'pyvex'],
+    extras_require={
+        'AngrDB': ['sqlalchemy'],
+    },
     cmdclass=cmdclass,
     include_package_data=True,
     package_data={

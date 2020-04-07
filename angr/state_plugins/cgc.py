@@ -44,7 +44,7 @@ class SimStateCGC(SimStatePlugin):
         if len(self.input_strings) == 0: return
 
         self.input_strings[0] = self.input_strings[0][num_bytes:]
-        if self.input_strings[0] == '':
+        if self.input_strings[0] == b'':
             self.input_strings.pop(0)
 
     def peek_output(self):
@@ -55,11 +55,11 @@ class SimStateCGC(SimStatePlugin):
         if len(self.output_strings) == 0: return
 
         self.output_strings[0] = self.output_strings[0][num_bytes:]
-        if self.output_strings[0] == '':
+        if self.output_strings[0] == b'':
             self.output_strings.pop(0)
 
     def addr_invalid(self, a):
-        return not self.state.se.solution(a != 0, True)
+        return not self.state.solver.solution(a != 0, True)
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
@@ -78,20 +78,11 @@ class SimStateCGC(SimStatePlugin):
         merging_occured = False
 
         new_allocation_base = max(o.allocation_base for o in others)
-        if self.state.se.symbolic(new_allocation_base):
+        if self.state.solver.symbolic(new_allocation_base):
             raise ValueError("wat")
 
-        concrete_allocation_base = (
-            self.allocation_base
-            if type(self.allocation_base) in (int, long) else
-            self.state.se.eval(self.allocation_base)
-        )
-
-        concrete_new_allocation_base = (
-            new_allocation_base
-            if type(new_allocation_base) in (int, long) else
-            self.state.se.eval(new_allocation_base)
-        )
+        concrete_allocation_base = self.state.solver.eval(self.allocation_base)
+        concrete_new_allocation_base = self.state.solver.eval(new_allocation_base)
 
         if concrete_allocation_base != concrete_new_allocation_base:
             self.allocation_base = new_allocation_base

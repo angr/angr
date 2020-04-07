@@ -1,7 +1,7 @@
 # This module contains data structures for handling memory, code, and register references.
 
 import logging
-l = logging.getLogger("angr.state_plugins.sim_action")
+l = logging.getLogger(name=__name__)
 
 _noneset = frozenset()
 
@@ -17,6 +17,7 @@ class SimAction(SimEvent):
     TMP = 'tmp'
     REG = 'reg'
     MEM = 'mem'
+    _MAX_ACTION_ID = -1
 
     def __init__(self, state, region_type):
         """
@@ -26,6 +27,8 @@ class SimAction(SimEvent):
         """
         SimEvent.__init__(self, state, 'action')
         self.type = region_type
+        SimAction._MAX_ACTION_ID += 1
+        self._action_id = SimAction._MAX_ACTION_ID
 
     def __repr__(self):
         if self.sim_procedure is not None:
@@ -43,7 +46,7 @@ class SimAction(SimEvent):
     #def __getstate__(self):
     #   return { k: getattr(self, k) for k in sum([ c.__slots__ for c in self.__class__.mro() if hasattr(c, '__slots__')], []) } #pylint:disable=no-member
     #def __setstate__(self, s):
-    #   for k,v in s.iteritems():
+    #   for k,v in s.items():
     #       setattr(self, k, v)
 
     @staticmethod
@@ -64,6 +67,10 @@ class SimAction(SimEvent):
 
     @property
     def all_objects(self):
+        raise NotImplementedError()
+
+    @property
+    def is_symbolic(self):
         raise NotImplementedError()
 
     @property
@@ -117,6 +124,10 @@ class SimActionExit(SimAction):
     def all_objects(self):
         return [ a for a in ( self.target, self.condition ) if a is not None ]
 
+    @property
+    def is_symbolic(self):
+        return getattr(self.target, "symbolic", False)
+
     def _copy_objects(self, c):
         c.exit_type = self.exit_type
         c.target = self._copy_object(self.target)
@@ -138,6 +149,10 @@ class SimActionConstraint(SimAction):
     def all_objects(self):
         return [ a for a in ( self.constraint, self.condition ) if a is not None ]
 
+    @property
+    def is_symbolic(self):
+        return getattr(self.constraint, "symbolic", False)
+
     def _copy_objects(self, c):
         c.constraint = self._copy_object(self.constraint)
         c.condition = self._copy_object(self.condition)
@@ -154,19 +169,26 @@ class SimActionOperation(SimAction):
     An action representing an operation between variables and/or constants.
     """
 
-    def __init__(self, state, op, exprs):
+    def __init__(self, state, op, exprs, result):
         super(SimActionOperation, self).__init__(state, 'operation')
 
         self.op = op
         self.exprs = exprs
 
+        self.result = result
+
     @property
     def all_objects(self):
         return [ ex for ex in self.exprs if isinstance(ex, SimActionObject) ]
 
+    @property
+    def is_symbolic(self):
+        return any([ getattr(ex, "symbolic", False) for ex in self.exprs ])
+
     def _copy_objects(self, c):
         c.op = self.op
         c.exprs = self.exprs[::]
+        c.result = self.result
 
     def _desc(self):
         return "operation/%s" % (self.op)
@@ -187,22 +209,22 @@ class SimActionData(SimAction):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
-        self._reg_dep = _noneset if addr is None or action != SimActionData.READ or not isinstance(addr, (int, long)) else frozenset((addr,))
+        self._reg_dep = _noneset if addr is None or action != SimActionData.READ or not isinstance(addr, int) else frozenset((addr,))
         self._tmp_dep = _noneset if tmp is None or action != SimActionData.READ else frozenset((tmp,))
 
         self.tmp = tmp
         self.offset = None
         if region_type == 'reg':
-            if isinstance(addr, (int, long)):
+            if isinstance(addr, int):
                 self.offset = addr
             else:
                 if addr.symbolic:
                     # FIXME: we should fix it by allowing .offset taking ASTs instead of concretizing it right away
                     l.warning('Concretizing a symbolic register offset in SimActionData.')
-                    self.offset = state.se.eval(addr)
+                    self.offset = state.solver.eval(addr)
                 else:
                     # it's not symbolic
-                    self.offset = state.se.eval_one(addr)
+                    self.offset = state.solver.eval_one(addr)
         self.addr = self._make_object(addr)
         self.size = self._make_object(size)
         self.data = self._make_object(data)
@@ -226,6 +248,10 @@ class SimActionData(SimAction):
     @property
     def all_objects(self):
         return [ a for a in [ self.addr, self.size, self.data, self.condition, self.fallback, self.fd ] if a is not None ]
+
+    @property
+    def is_symbolic(self):
+        return any([ getattr(a, "symbolic", False) for a in [ self.addr, self.size, self.data ] if a is not None ])
 
     @property
     def tmp_deps(self):

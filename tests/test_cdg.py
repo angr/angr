@@ -8,7 +8,7 @@ import nose.tools
 import angr
 from angr.analyses.cdg import TemporaryNode
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 def test_graph_0():
@@ -17,12 +17,12 @@ def test_graph_0():
     # etc.
 
     # Create a project with a random binary - it will not be used anyways
-    p = angr.Project(test_location + "/x86_64/datadep_test",
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'datadep_test'),
                      load_options={'auto_load_libs': False},
                      use_sim_procedures=True)
 
     # Create the CDG analysis
-    cfg = p.analyses.CFGAccurate(no_construct=True)
+    cfg = p.analyses.CFGEmulated(no_construct=True)
 
     # Create our mock control flow graph
     g = networkx.DiGraph()
@@ -55,8 +55,8 @@ def test_graph_0():
         g.add_edge(n1, n2)
 
     # Manually set the CFG
-    cfg._graph = g
-    cfg._nodes = { }
+    cfg.model.graph = g
+    cfg.model._nodes = { }
     cfg._edge_map = { }
     cfg._loop_back_edges = [ ]
     cfg._overlapped_loop_headers = [ ]
@@ -82,7 +82,7 @@ def test_graph_0():
         12: { 2, 8, 9, 11, 12 }
     }
 
-    for node, cd_nodes in standard_result.iteritems():
+    for node, cd_nodes in standard_result.items():
         # Each node in set `cd_nodes` is control dependent on `node`
         for n in cd_nodes:
             nose.tools.assert_true(cdg.graph.has_edge(TemporaryNode(node), TemporaryNode(n)))
@@ -158,7 +158,7 @@ def test_dominance_frontiers():
 
 def run_all():
     g = globals()
-    for k, v in g.iteritems():
+    for k, v in g.items():
         if k.startswith('test_') and hasattr(v, '__call__'):
             v()
 

@@ -13,19 +13,19 @@ class pthread_create(angr.SimProcedure):
     # pylint: disable=unused-argument,arguments-differ
     def run(self, thread, attr, start_routine, arg):
         self.call(start_routine, (arg,), 'terminate_thread')
-        self.ret(self.state.se.BVV(0, self.state.arch.bits))
+        self.ret(self.state.solver.BVV(0, self.state.arch.bits))
 
     def terminate_thread(self, thread, attr, start_routine, arg):
         self.exit(0)
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath")
+        blank_state = angr.SimState(project=self.project, mode="fastpath", memory_backer=self.project.loader.memory)
 
         # Execute each block
         state = blank_state
         for b in blocks:
-            irsb = self.project.engines.default_engine.process(state, b,
+            irsb = self.project.factory.default_engine.process(state, b,
                     force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
                                                   )
             if irsb.successors:
@@ -38,8 +38,8 @@ class pthread_create(angr.SimProcedure):
         retaddr = state.memory.load(state.regs.sp, self.arch.bytes)
 
         all_exits = [
-            (callfunc, 'Ijk_Call'),
-            (retaddr, 'Ijk_Ret')
+            {'address': callfunc, 'jumpkind': 'Ijk_Call', 'namehint': 'thread_entry'},
+            {'address': retaddr, 'jumpkind': 'Ijk_Ret', 'namehint': None},
         ]
 
         return all_exits

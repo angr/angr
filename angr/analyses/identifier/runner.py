@@ -15,14 +15,14 @@ from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError,
 from .custom_callable import IdentifierCallable
 
 
-l = logging.getLogger("identifier.runner")
+l = logging.getLogger(name=__name__)
 
 flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../example_flag_page'))
 try:
     with open(flag_loc, "rb") as f:
         FLAG_DATA = f.read()
 except IOError:
-    FLAG_DATA = "A"*0x1000
+    FLAG_DATA = b"A"*0x1000
 
 assert len(FLAG_DATA) == 0x1000
 
@@ -56,7 +56,7 @@ class Runner(object):
                     remove_options=remove_options)
 
             # map the CGC flag page
-            fake_flag_data = entry_state.se.BVV(FLAG_DATA)
+            fake_flag_data = entry_state.solver.BVV(FLAG_DATA)
             entry_state.memory.store(0x4347c000, fake_flag_data)
             # map the place where I put arguments
             entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
@@ -71,7 +71,7 @@ class Runner(object):
             entry_state.unicorn.cooldown_nonunicorn_blocks = 1
             entry_state.unicorn.max_steps = 10000
 
-            pg = self.project.factory.simgr(entry_state)
+            pg = self.project.factory.simulation_manager(entry_state)
             stop_addr = self.project.simos.syscall_from_number(2).addr
             num_steps = 0
             while len(pg.active) > 0:
@@ -81,7 +81,7 @@ class Runner(object):
 
                 if len(pg.active) > 1:
                     pp = pg.one_active
-                    pg = self.project.factory.simgr(pp)
+                    pg = self.project.factory.simulation_manager(pp)
                 pg.step()
                 num_steps += 1
                 if num_steps > 50:
@@ -96,10 +96,10 @@ class Runner(object):
             out_state.history.jumpkind = "Ijk_Boring"
             return out_state
         except SimError as e:
-            l.warning("SimError in get recv state %s", e.message)
+            l.warning("SimError in get recv state %s", e)
             return self.project.factory.entry_state()
         except AngrError as e:
-            l.warning("AngrError in get recv state %s", e.message)
+            l.warning("AngrError in get recv state %s", e)
             return self.project.factory.entry_state()
 
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
@@ -151,7 +151,7 @@ class Runner(object):
             )
 
         # solver timeout
-        entry_state.se._solver.timeout = 500
+        entry_state.solver._solver.timeout = 500
 
         return entry_state
 
@@ -161,17 +161,17 @@ class Runner(object):
         # kill path that try to read/write large amounts
         syscall_name = state.inspect.syscall_name
         if syscall_name == "transmit":
-            count = state.se.eval(state.regs.edx)
+            count = state.solver.eval(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
                 state.add_constraints(claripy.BoolV(False))
         if syscall_name == "receive":
-            count = state.se.eval(state.regs.edx)
+            count = state.solver.eval(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
                 state.add_constraints(claripy.BoolV(False))
         if syscall_name == "random":
-            count = state.se.eval(state.regs.ecx)
+            count = state.solver.eval(state.regs.ecx)
             if count > 0x1000:
                 state.regs.ecx = 0
                 state.add_constraints(claripy.BoolV(False))
@@ -182,13 +182,13 @@ class Runner(object):
         # kill path that try to read/write large amounts
         syscall_name = state.inspect.syscall_name
         if syscall_name == "random":
-            count = state.se.eval(state.regs.ecx)
+            count = state.solver.eval(state.regs.ecx)
             if count > 100:
                 return
-            buf = state.se.eval(state.regs.ebx)
+            buf = state.solver.eval(state.regs.ebx)
             for i in range(count):
                 a = random.randint(0, 255)
-                state.memory.store(buf+i, state.se.BVV(a, 8))
+                state.memory.store(buf+i, state.solver.BVV(a, 8))
 
     def get_base_call_state(self, function, test_data, initial_state=None, concrete_rand=False):
         curr_buf_loc = 0x2000
@@ -196,13 +196,13 @@ class Runner(object):
         s = self.setup_state(function, test_data, initial_state, concrete_rand=concrete_rand)
 
         for i in test_data.input_args:
-            if isinstance(i, (str, claripy.ast.BV)):
+            if isinstance(i, (bytes, claripy.ast.BV)):
                 s.memory.store(curr_buf_loc, i)
                 mapped_input.append(curr_buf_loc)
                 curr_buf_loc += max(len(i), 0x1000)
             else:
-                if not isinstance(i, (int, long)):
-                    raise Exception("Expected int/long got %s" % type(i))
+                if not isinstance(i, int):
+                    raise Exception("Expected int/bytes got %s" % type(i))
                 mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -219,23 +219,23 @@ class Runner(object):
 
         if custom_offs is None:
             for i in test_data.input_args:
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s" % type(i))
+                    if not isinstance(i, int):
+                        raise Exception("Expected int/str got %s" % type(i))
                     mapped_input.append(i)
         else:
             for i, off in zip(test_data.input_args, custom_offs):
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc+off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s" % type(i))
+                    if not isinstance(i, int):
+                        raise Exception("Expected int/str got %s" % type(i))
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -247,16 +247,16 @@ class Runner(object):
             result = call(*mapped_input)
             result_state = call.result_state
         except AngrCallableMultistateError as e:
-            l.info("multistate error: %s", e.message)
+            l.info("multistate error: %s", e)
             return False
         except AngrCallableError as e:
-            l.info("other callable error: %s", e.message)
+            l.info("other callable error: %s", e)
             return False
 
         # check matches
         outputs = []
         for i, out in enumerate(test_data.expected_output_args):
-            if isinstance(out, str):
+            if isinstance(out, bytes):
                 if len(out) == 0:
                     raise Exception("len 0 out")
                 outputs.append(result_state.memory.load(mapped_input[i], len(out)))
@@ -268,40 +268,40 @@ class Runner(object):
         for out in tmp_outputs:
             if out is None:
                 outputs.append(None)
-            elif result_state.se.symbolic(out):
+            elif result_state.solver.symbolic(out):
                 l.info("symbolic memory output")
                 return False
             else:
-                outputs.append(result_state.se.eval(out, cast_to=str))
+                outputs.append(result_state.solver.eval(out, cast_to=bytes))
 
         if outputs != test_data.expected_output_args:
             # print map(lambda x: x.encode('hex'), [a for a in outputs if a is not None]), map(lambda x: x.encode('hex'), [a for a in test_data.expected_output_args if a is not None])
             l.info("mismatch output")
             return False
 
-        if result_state.se.symbolic(result):
+        if result_state.solver.symbolic(result):
             l.info("result value sybolic")
             return False
 
         if test_data.expected_return_val is not None and test_data.expected_return_val < 0:
             test_data.expected_return_val &= (2**self.project.arch.bits - 1)
         if test_data.expected_return_val is not None and \
-                result_state.se.eval(result) != test_data.expected_return_val:
-            l.info("return val mismatch got %#x, expected %#x", result_state.se.eval(result), test_data.expected_return_val)
+                result_state.solver.eval(result) != test_data.expected_return_val:
+            l.info("return val mismatch got %#x, expected %#x", result_state.solver.eval(result), test_data.expected_return_val)
             return False
 
-        if result_state.se.symbolic(result_state.posix.stdout.size):
+        if result_state.solver.symbolic(result_state.posix.stdout.size):
             l.info("symbolic stdout pos")
             return False
 
-        if result_state.se.eval(result_state.posix.stdout.size) == 0:
+        if result_state.solver.eval(result_state.posix.stdout.size) == 0:
             stdout = ""
         else:
             stdout = result_state.posix.stdout.load(0, result_state.posix.stdout.size)
             if stdout.symbolic:
                 l.info("symbolic stdout")
                 return False
-            stdout = result_state.se.eval(stdout, cast_to=str)
+            stdout = result_state.solver.eval(stdout, cast_to=bytes)
 
         if stdout != test_data.expected_stdout:
             l.info("mismatch stdout")
@@ -316,24 +316,24 @@ class Runner(object):
 
         if custom_offs is None:
             for i in test_data.input_args:
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s" % type(i))
+                    if not isinstance(i, int):
+                        raise Exception("Expected int/bytes got %s" % type(i))
                     mapped_input.append(i)
 
         else:
             for i, off in zip(test_data.input_args, custom_offs):
-                if isinstance(i, str):
-                    s.memory.store(curr_buf_loc, i + "\x00")
+                if isinstance(i, bytes):
+                    s.memory.store(curr_buf_loc, i + b"\x00")
                     mapped_input.append(curr_buf_loc+off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
-                    if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s" % type(i))
+                    if not isinstance(i, int):
+                        raise Exception("Expected int/bytes got %s" % type(i))
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -345,10 +345,10 @@ class Runner(object):
             _ = call(*mapped_input)
             result_state = call.result_state
         except AngrCallableMultistateError as e:
-            l.info("multistate error: %s", e.message)
+            l.info("multistate error: %s", e)
             return None
         except AngrCallableError as e:
-            l.info("other callable error: %s", e.message)
+            l.info("other callable error: %s", e)
             return None
 
         return result_state

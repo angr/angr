@@ -6,7 +6,7 @@ import nose.tools
 import angr
 import angr.calling_conventions
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
 def test_function_prototype():
@@ -19,8 +19,6 @@ def test_function_prototype():
         proj.arch,
         func_ty=func.prototype,
     )
-
-    # import ipdb; ipdb.set_trace()
 
 
 def test_find_prototype():

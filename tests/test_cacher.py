@@ -9,7 +9,7 @@ import angr
 
 l = logging.getLogger("angr_tests.managers")
 
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def broken_cacher():
     p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})
@@ -17,11 +17,11 @@ def broken_cacher():
     tmp_dir = tempfile.mkdtemp(prefix='test_cacher_container')
     container = os.path.join(tmp_dir, '%s.cache' % os.path.basename(p.filename))
 
-    pg = p.factory.simgr(immutable=False)
+    pg = p.factory.simulation_manager()
     pg.use_technique(angr.exploration_techniques.Cacher(when=0x4006ee, container=container))
     pg.run()
 
-    pg2 = p.factory.simgr(immutable=False)
+    pg2 = p.factory.simulation_manager()
     pg2.use_technique(angr.exploration_techniques.Cacher(container=container))
     nose.tools.assert_equal(pg2.active[0].addr, 0x4006ed)
 

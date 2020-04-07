@@ -5,7 +5,7 @@ import networkx
 from ..utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
 from . import Analysis
 
-_l = logging.getLogger("angr.analyses.cdg")
+_l = logging.getLogger(name=__name__)
 
 
 class CDG(Analysis):
@@ -34,10 +34,10 @@ class CDG(Analysis):
 
         if not no_construct:
             if self._cfg is None:
-                self._cfg = self.project.analyses.CFGAccurate()
+                self._cfg = self.project.analyses.CFGEmulated()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
-            self._entry = self._cfg.get_any_node(self._start)
+            self._entry = self._cfg.model.get_any_node(self._start)
 
             self._construct()
 
@@ -164,7 +164,7 @@ class CDG(Analysis):
             successors = graph.graph.successors(node)
         else:
             # Real CFGNode!
-            successors = graph.get_successors(node)
+            successors = graph.model.get_successors(node)
 
         return successors
 

@@ -38,6 +38,16 @@ class SimSlicer(object):
             raise SimSlicerError('You must specify at least one of the following: "'
                                  'target temps, target registers, and/or target stack offsets.')
 
+        # convert target registers to base registers
+        target_base_regs = set()
+        for target_reg in self._target_regs:
+            base_reg = self._arch.get_base_register(target_reg)
+            if base_reg is None:
+                target_base_regs.add(target_reg)
+            else:
+                target_base_regs.add(base_reg[0])
+        self._target_regs = target_base_regs
+
         self._aliases = { }
 
         self._alias_analysis()
@@ -213,8 +223,12 @@ class SimSlicer(object):
 
         return True
 
-    def _backward_handler_stmt_Put(self, stmt, state):
+    def _backward_handler_stmt_Put(self, stmt : pyvex.IRStmt.Put, state):
         reg = stmt.offset
+        # convert it to its base register
+        base_reg = self._arch.get_base_register(reg)
+        if base_reg is not None:
+            reg = base_reg[0]
 
         if reg in state.regs:
             state.regs.remove(reg)
@@ -275,6 +289,10 @@ class SimSlicer(object):
 
     def _backward_handler_expr_Get(self, expr, state):
         reg = expr.offset
+        # convert it to its base register
+        base_reg = self._arch.get_base_register(reg)
+        if base_reg is not None:
+            reg = base_reg[0]
 
         state.regs.add(reg)
 

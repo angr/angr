@@ -2,7 +2,7 @@
 import logging
 import math
 import types
-from collections import deque
+from collections import deque, defaultdict
 
 import networkx
 from . import Analysis
@@ -13,7 +13,7 @@ from ..errors import SimEngineError, SimMemoryError
 # todo include a method that detects any change other than constants
 # todo use function names / string references where available
 
-l = logging.getLogger("angr.analyses.bindiff")
+l = logging.getLogger(name=__name__)
 
 # basic block changes
 DIFF_TYPE = "type"
@@ -205,7 +205,7 @@ def compare_statement_dict(statement_1, statement_2):
         return []
 
     # constants
-    if isinstance(statement_1, (int, long, float, str)):
+    if isinstance(statement_1, (int, float, str, bytes)):
         if isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2):
             return []
         elif statement_1 == statement_2:
@@ -680,7 +680,7 @@ class FunctionDiff(object):
             if self.blocks_probably_identical(block_a, block_b) and len(block_a_succ) == len(block_b_succ):
                 ordered_succ_a = self._get_ordered_successors(self._project_a, block_a, block_a_succ)
                 ordered_succ_b = self._get_ordered_successors(self._project_b, block_b, block_b_succ)
-                new_matches += zip(ordered_succ_a, ordered_succ_b)
+                new_matches.extend(zip(ordered_succ_a, ordered_succ_b))
 
             new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
                                                    delta, tiebreak_with_block_similarity=True)
@@ -848,12 +848,12 @@ class BinDiff(Analysis):
         if cfg_a is None:
             #self.cfg_a = self.project.analyses.CFG(resolve_indirect_jumps=True)
             #self.cfg_b = other_project.analyses.CFG(resolve_indirect_jumps=True)
-            self.cfg_a = self.project.analyses.CFGAccurate(context_sensitivity_level=1,
+            self.cfg_a = self.project.analyses.CFGEmulated(context_sensitivity_level=1,
                                                             keep_state = True,
                                                             enable_symbolic_back_traversal = back_traversal,
                                                             enable_advanced_backward_slicing = enable_advanced_backward_slicing)
 
-            self.cfg_b = other_project.analyses.CFGAccurate(context_sensitivity_level=1,
+            self.cfg_b = other_project.analyses.CFGEmulated(context_sensitivity_level=1,
                                                             keep_state = True,
                                                             enable_symbolic_back_traversal = back_traversal,
                                                             enable_advanced_backward_slicing = enable_advanced_backward_slicing)
@@ -1055,20 +1055,23 @@ class BinDiff(Analysis):
         return plt_matches
 
     def _get_name_matches(self):
-        names_to_addrs_a = dict()
+        names_to_addrs_a = defaultdict(list)
         for f in self.cfg_a.functions.values():
             if not f.name.startswith("sub_"):
-                names_to_addrs_a[f.name] = f.addr
+                names_to_addrs_a[f.name].append(f.addr)
 
-        names_to_addrs_b = dict()
+        names_to_addrs_b = defaultdict(list)
         for f in self.cfg_b.functions.values():
             if not f.name.startswith("sub_"):
-                names_to_addrs_b[f.name] = f.addr
+                names_to_addrs_b[f.name].append(f.addr)
 
         name_matches = []
-        for name, addr in names_to_addrs_a.items():
+        for name, addrs in names_to_addrs_a.items():
             if name in names_to_addrs_b:
-                name_matches.append((addr, names_to_addrs_b[name]))
+                for addr_a, addr_b in zip(addrs, names_to_addrs_b[name]):
+                    # if binary a and binary b have different numbers of functions with the same name, we will see them
+                    # in unmatched functions in the end.
+                    name_matches.append((addr_a, addr_b))
 
         return name_matches
 
@@ -1082,7 +1085,7 @@ class BinDiff(Analysis):
         initial_matches += self._get_name_matches()
         initial_matches += self._get_function_matches(self.attributes_a, self.attributes_b)
         for (a, b) in initial_matches:
-            l.debug("Initally matched (%#x, %#x)", a, b)
+            l.debug("Initially matched (%#x, %#x)", a, b)
 
         # Use a queue so we process matches in the order that they are found
         to_process = deque(initial_matches)
@@ -1128,9 +1131,11 @@ class BinDiff(Analysis):
             # for each of the possible new matches add it if it improves the matching
             for (x, y) in new_matches:
                 # skip none functions and syscalls
-                if self.cfg_a.kb.functions.function(x) is None or self.cfg_a.kb.functions.function(x).is_syscall:
+                func_a = self.cfg_a.kb.functions.function(x)
+                if func_a is None or func_a.is_simprocedure or func_a.is_syscall:
                     continue
-                if self.cfg_b.kb.functions.function(y) is None or self.cfg_b.kb.functions.function(y).is_syscall:
+                func_b = self.cfg_b.kb.functions.function(y)
+                if func_b is None or func_b.is_simprocedure or func_b.is_syscall:
                     continue
 
                 if (x, y) not in processed_matches:

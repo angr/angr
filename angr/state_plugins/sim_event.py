@@ -4,7 +4,7 @@ event_id_count = itertools.count()
 class SimEvent(object):
     #def __init__(self, address=None, stmt_idx=None, message=None, exception=None, traceback=None):
     def __init__(self, state, event_type, **kwargs):
-        self.id = event_id_count.next()
+        self.id = next(event_id_count)
         self.type = event_type
         self.ins_addr = state.scratch.ins_addr
         self.bbl_addr = state.scratch.bbl_addr

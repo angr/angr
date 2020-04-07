@@ -28,7 +28,7 @@ class calloc(Func):
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         state = runner.get_out_state(func, test)
-        if state is not None and state.se.eval(state.regs.eax) != 0:
+        if state is not None and state.solver.eval(state.regs.eax) != 0:
             return False
 
         # we should be able to get different outputs if we call malloc multiple times
@@ -43,13 +43,13 @@ class calloc(Func):
         state = runner.get_out_state(func, test)
         if state is None:
             return False
-        returned_locs.append(state.se.eval(state.regs.eax))
+        returned_locs.append(state.solver.eval(state.regs.eax))
 
         for i in range(6): #pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False
-            returned_locs.append(state.se.eval(state.regs.eax))
+            returned_locs.append(state.solver.eval(state.regs.eax))
 
         # if we got the same value 2x it didnt work
         if len(set(returned_locs)) != len(returned_locs):
@@ -65,7 +65,7 @@ class calloc(Func):
 
         # they all should be writable/readable
         try:
-            if any(state.se.eval(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+            if any(state.solver.eval(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
                 return False
         except SimMemoryError:
             return False

@@ -9,7 +9,7 @@ class TechniqueBuilder(ExplorationTechnique):
     class SomeComplexAnalysis(Analysis):
 
         def do_something():
-            simgr = self.project.factory.simgr()
+            simgr = self.project.factory.simulation_manager()
             simgr.use_tech(ProxyTechnique(step_state=self._step_state))
             simgr.run()
 
@@ -17,7 +17,7 @@ class TechniqueBuilder(ExplorationTechnique):
             # Do stuff!
             pass
 
-    In the above example, the _step_state method can access all the neccessary stuff,
+    In the above example, the _step_state method can access all the necessary stuff,
     hidden in the analysis instance, without passing that instance to a one-shot-styled
     exploration technique.
     """

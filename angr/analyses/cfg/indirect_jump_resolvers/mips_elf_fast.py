@@ -8,12 +8,12 @@ import archinfo
 from .... import options, BP_BEFORE
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
-from ....surveyors import Slicecutor
+from ....exploration_techniques import Slicecutor
 
 from .resolver import IndirectJumpResolver
 
 
-l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.mips_elf_fast")
+l = logging.getLogger(name=__name__)
 
 
 class MipsElfFastResolver(IndirectJumpResolver):
@@ -21,7 +21,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         super(MipsElfFastResolver, self).__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(self.project.arch, archinfo.ArchMIPS32):
+        if not isinstance(self.project.arch, (archinfo.ArchMIPS32, archinfo.ArchMIPS64, )):
             return False
         return True
 
@@ -40,7 +40,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         project = self.project
 
-        b = Blade(cfg._graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
+        b = Blade(cfg.graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
                   ignored_regs=('gp',)
                   )
 
@@ -54,7 +54,9 @@ class MipsElfFastResolver(IndirectJumpResolver):
         annotated_cfg.from_digraph(b.slice)
 
         state = project.factory.blank_state(addr=source_addr, mode="fastpath",
-                                            remove_options=options.refs
+                                            remove_options=options.refs,
+                                            # suppress unconstrained stack reads for `gp`
+                                            add_options={options.SYMBOL_FILL_UNCONSTRAINED_MEMORY},
                                             )
         func = cfg.kb.functions.function(addr=func_addr)
 
@@ -71,7 +73,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             state.regs.gp = func.info['gp']
 
         def overwrite_tmp_value(state):
-            state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
+            state.inspect.tmp_write_expr = state.solver.BVV(func.info['gp'], state.arch.bits)
 
         # Special handling for cases where `gp` is stored on the stack
         got_gp_stack_store = False
@@ -92,12 +94,18 @@ class MipsElfFastResolver(IndirectJumpResolver):
             if got_gp_stack_store:
                 break
 
-        slicecutor = Slicecutor(project, annotated_cfg=annotated_cfg, start=state)
-        slicecutor.run()
+        simgr = self.project.factory.simulation_manager(state)
+        simgr.use_technique(Slicecutor(annotated_cfg))
+        simgr.run()
 
-        if slicecutor.cut:
-            succ = project.factory.successors(slicecutor.cut[0])
-            target = succ.flat_successors[0].addr
+        if simgr.cut:
+            # pick the successor that is cut right after executing `addr`
+            try:
+                target_state = next(iter(cut for cut in simgr.cut if cut.history.addr == addr))
+            except StopIteration:
+                l.debug("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
+                return False, [ ]
+            target = target_state.addr
 
             if self._is_target_valid(cfg, target):
                 l.debug("Indirect jump at %#x is resolved to target %#x.", addr, target)

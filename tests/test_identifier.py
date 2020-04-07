@@ -2,7 +2,7 @@ import angr
 import nose
 
 import os
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries'))
+bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
 
 import logging
 
@@ -21,7 +21,7 @@ def test_comparison_identification():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
             all_functions[f]()

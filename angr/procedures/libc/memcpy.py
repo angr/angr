@@ -1,27 +1,21 @@
 import angr
-from angr.sim_type import SimTypeTop, SimTypeLength
-
 import logging
-l = logging.getLogger("angr.procedures.libc.memcpy")
+
+l = logging.getLogger(name=__name__)
 
 class memcpy(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst_addr, src_addr, limit):
-        # TODO: look into smarter types here
-        self.argument_types = {0: self.ty_ptr(SimTypeTop()),
-                               1: self.ty_ptr(SimTypeTop()),
-                               2: SimTypeLength(self.state.arch)}
-        self.return_type = self.ty_ptr(SimTypeTop())
-
-        if not self.state.se.symbolic(limit):
+        if not self.state.solver.symbolic(limit):
             # not symbolic so we just take the value
-            conditional_size = self.state.se.eval(limit)
+            conditional_size = self.state.solver.eval(limit)
         else:
             # constraints on the limit are added during the store
             max_memcpy_size = self.state.libc.max_memcpy_size
-            max_limit = self.state.se.max_int(limit)
-            conditional_size = max(self.state.se.min_int(limit), min(max_limit, max_memcpy_size))
+            max_limit = self.state.solver.max_int(limit)
+            min_limit = self.state.solver.min_int(limit)
+            conditional_size = min(max_memcpy_size, max(min_limit, max_limit))
             if max_limit > max_memcpy_size and conditional_size < max_limit:
                 l.warning("memcpy upper bound of %#x outside limit, limiting to %#x instead",
                           max_limit, conditional_size)

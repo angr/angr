@@ -9,4 +9,4 @@ import angr
 class NoReturnUnconstrained(angr.SimProcedure): #pylint:disable=redefined-builtin
     NO_RET = True
     def run(self, **kwargs): #pylint:disable=unused-argument
-        self.exit(self.state.se.Unconstrained('unconstrained_exit_code', self.state.arch.bits))
+        self.exit(self.state.solver.Unconstrained('unconstrained_exit_code', self.state.arch.bits))

@@ -1,17 +1,39 @@
 
-
 import os
+
+import nose.tools
 
 import angr
 import angr.analyses.decompiler
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
 def test_smoketest():
 
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)
-    cfg = p.analyses.CFG(normalize=True)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False, load_debug_info=True)
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    main_func = cfg.kb.functions['main']
+
+    # convert function blocks to AIL blocks
+    clinic = p.analyses.Clinic(main_func)
+
+    # recover regions
+    ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
+
+    # structure it
+    st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
+
+    # simplify it
+    _ = p.analyses.RegionSimplifier(st.result)
+
+
+def test_smoketest_cm3_firmware():
+
+    p = angr.Project(os.path.join(test_location, 'armel', 'i2c_master_read-nucleol152re.elf'), auto_load_libs=False, load_debug_info=True)
+    cfg = p.analyses.CFG(normalize=True,
+                         force_complete_scan=False)
 
     main_func = cfg.kb.functions['main']
 
@@ -27,8 +49,8 @@ def test_smoketest():
 
 def test_simple():
 
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False)
-    cfg = p.analyses.CFG(normalize=True)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'all'), auto_load_libs=False, load_debug_info=True)
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     main_func = cfg.kb.functions['main']
 
@@ -41,15 +63,17 @@ def test_simple():
     # structure it
     rs = p.analyses.RecursiveStructurer(ri.region)
 
-    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+    # simplify it
+    s = p.analyses.RegionSimplifier(rs.result)
 
-    print codegen.text
+    codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg)
+    print(codegen.text)
 
 
 def test_simple_loop():
 
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'), auto_load_libs=False)
-    cfg = p.analyses.CFG(normalize=True)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'), auto_load_libs=False, load_debug_info=True)
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     test_func = cfg.kb.functions['test_func']
 
@@ -62,15 +86,20 @@ def test_simple_loop():
     # structure it
     rs = p.analyses.RecursiveStructurer(ri.region)
 
-    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+    # simplify it
+    s = p.analyses.RegionSimplifier(rs.result)
 
-    print codegen.text
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+    print(codegen.text)
+
+    nose.tools.assert_greater(len(codegen.posmap._posmap), 1)
+    nose.tools.assert_greater(len(codegen.nodemap), 1)
 
 
 def test_recursive_structuring():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'),
-                     auto_load_libs=False)
-    cfg = p.analyses.CFG(normalize=True)
+                     auto_load_libs=False, load_debug_info=True)
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     test_func = cfg.kb.functions['test_func']
 
@@ -83,15 +112,17 @@ def test_recursive_structuring():
     # structure it
     rs = p.analyses.RecursiveStructurer(ri.region)
 
-    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+    # simplify it
+    s = p.analyses.RegionSimplifier(rs.result)
 
-    print codegen.text
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+    print(codegen.text)
 
 
 def test_while_true_break():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),
-                     auto_load_libs=False)
-    cfg = p.analyses.CFG(normalize=True)
+                     auto_load_libs=False, load_debug_info=True)
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     test_func = cfg.kb.functions['_while_true_break']
 
@@ -104,14 +135,18 @@ def test_while_true_break():
     # structure it
     rs = p.analyses.RecursiveStructurer(ri.region)
 
-    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+    # simplify it
+    s = p.analyses.RegionSimplifier(rs.result)
 
-    print codegen.text
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+
+    print(codegen.text)
+
 
 def test_while():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),
-                     auto_load_libs=False)
-    cfg = p.analyses.CFG(normalize=True)
+                     auto_load_libs=False, load_debug_info=True)
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     test_func = cfg.kb.functions['_while']
 
@@ -124,9 +159,12 @@ def test_while():
     # structure it
     rs = p.analyses.RecursiveStructurer(ri.region)
 
-    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+    # simplify it
+    s = p.analyses.RegionSimplifier(rs.result)
 
-    print codegen.text
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+
+    print(codegen.text)
 
 
 if __name__ == "__main__":
@@ -136,3 +174,4 @@ if __name__ == "__main__":
     test_recursive_structuring()
     test_while_true_break()
     test_while()
+    test_smoketest_cm3_firmware()

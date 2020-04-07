@@ -2,7 +2,7 @@
 import networkx
 
 
-class SCCPlaceholder(object):
+class SCCPlaceholder:
     __slots__ = ['scc_id']
 
     def __init__(self, scc_id):
@@ -15,7 +15,7 @@ class SCCPlaceholder(object):
         return hash('scc_placeholder_%d' % self.scc_id)
 
 
-class CFGUtils(object):
+class CFGUtils:
     """
     A helper class with some static methods and algorithms implemented, that in fact, might take more than just normal
     CFGs.
@@ -206,7 +206,7 @@ class CFGUtils(object):
             loop_head = next(iter(scc))
 
         subgraph = graph.subgraph(scc).copy()  # type: networkx.DiGraph
-        for src, _ in subgraph.in_edges(loop_head):
+        for src, _ in list(subgraph.in_edges(loop_head)):
             subgraph.remove_edge(src, loop_head)
 
         ordered_nodes.extend(CFGUtils.quasi_topological_sort_nodes(subgraph))

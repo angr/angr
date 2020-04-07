@@ -10,7 +10,7 @@ from .. import SIM_PROCEDURES
 from ..codenode import HookNode
 from ..sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 
-l = logging.getLogger("angr.analyses.binary_optimizer")
+l = logging.getLogger(name=__name__)
 
 
 class ConstantPropagation(object):
@@ -137,9 +137,11 @@ class BinaryOptimizer(Analysis):
         self.optimize()
 
     def optimize(self):
-        for f in self.kb.functions.itervalues():  # type: angr.knowledge.Function
+        for f in self.kb.functions.values():  # type: angr.knowledge.Function
             # if there are unresolved targets in this function, we do not try to optimize it
-            if any([ n.sim_procedure is SIM_PROCEDURES['stubs']['UnresolvableTarget'] for n in f.graph.nodes()
+            unresolvable_targets = (SIM_PROCEDURES['stubs']['UnresolvableJumpTarget'],
+                                    SIM_PROCEDURES['stubs']['UnresolvableCallTarget'])
+            if any([ n.sim_procedure in unresolvable_targets for n in f.graph.nodes()
                      if isinstance(n, HookNode) ]):
                 continue
 
@@ -158,7 +160,7 @@ class BinaryOptimizer(Analysis):
         #if function.addr != 0x8048250:
         #    return
 
-        func_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+        func_kb = KnowledgeBase(self.project)
 
         # switch to non-optimized IR, since optimized IR will optimize away register reads/writes
         # for example,
@@ -176,7 +178,7 @@ class BinaryOptimizer(Analysis):
         #    14 | PUT(eip) = 0x0804828b
         # there is no write to or read from eax
 
-        cfg = self.project.analyses.CFGAccurate(kb=func_kb,
+        cfg = self.project.analyses.CFGEmulated(kb=func_kb,
                                                 call_depth=1,
                                                 base_graph=function.graph,
                                                 keep_state=True,
@@ -330,7 +332,7 @@ class BinaryOptimizer(Analysis):
         # find local correspondence that are not modified throughout this function
         redundant_stack_variables = [ ]
 
-        for argument, local_var in argument_to_local.iteritems():
+        for argument, local_var in argument_to_local.items():
             # local_var cannot be killed anywhere
             out_edges = data_graph.out_edges(local_var, data=True)
 

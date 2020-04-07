@@ -3,7 +3,7 @@ import logging
 import networkx
 from . import Analysis
 
-l = logging.getLogger("angr.analyses.loopfinder")
+l = logging.getLogger(name=__name__)
 
 class Loop(object):
     def __init__(self, entry, entry_edges, break_edges, continue_edges, body_nodes, graph, subloops):
@@ -25,7 +25,7 @@ class Loop(object):
                     break
 
     def __repr__(self):
-        s = "<Loop @ %#x, %d blocks>" % (self.entry.addr, len(self.body_nodes))
+        s = "<Loop @ %s, %d blocks>" % (self.entry.addr, len(self.body_nodes))
         return s
 
 class LoopFinder(Analysis):
@@ -35,7 +35,7 @@ class LoopFinder(Analysis):
 
     def __init__(self, functions=None, normalize=True):
         if functions is None:
-            functions = self.kb.functions.itervalues()
+            functions = self.kb.functions.values()
 
         found_any = False
         self.loops = []
@@ -137,9 +137,10 @@ class LoopFinder(Analysis):
                     else:
                         subg.add_edge(subloop, exit_edge[1])
                         removed_exits[exit_edge] = subloop
-                subg = filter(lambda g: entry_node in g.nodes(),
-                        networkx.weakly_connected_component_subgraphs(subg))[0]
-
+                _subgraphs = (networkx.induced_subgraph(subg, nodes).copy() for nodes in
+                             networkx.weakly_connected_components(subg))
+                subg = next(filter( lambda g: entry_node in g.nodes(),
+                                    _subgraphs))
         me = Loop(entry_node,
              entry_edges,
              break_edges,
@@ -159,7 +160,7 @@ class LoopFinder(Analysis):
         """
         outtop = []
         outall = []
-        for subg in networkx.strongly_connected_component_subgraphs(graph):
+        for subg in ( networkx.induced_subgraph(graph, nodes).copy() for nodes in networkx.strongly_connected_components(graph)):
             if len(subg.nodes()) == 1:
                 if len(list(subg.successors(list(subg.nodes())[0]))) == 0:
                     continue

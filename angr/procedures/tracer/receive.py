@@ -3,7 +3,7 @@ import logging
 from ..cgc.receive import receive as orig_receive
 
 
-l = logging.getLogger("angr.procedures.tracer.receive")
+l = logging.getLogger(name=__name__)
 
 
 class receive(orig_receive):
@@ -13,9 +13,9 @@ class receive(orig_receive):
     """
 
     def run(self, fd, buf, count, rx_bytes):
-        if len(self.state.se.eval_upto(fd, 2)) < 2:
-            if self.state.se.eval(fd) == 1:
+        if len(self.state.solver.eval_upto(fd, 2)) < 2:
+            if self.state.solver.eval(fd) == 1:
                 l.debug("Fixed receive call's fd.")
-                fd = self.state.se.BVV(0, self.state.arch.bits)
+                fd = self.state.solver.BVV(0, self.state.arch.bits)
 
         return super(receive, self).run(fd, buf, count, rx_bytes)

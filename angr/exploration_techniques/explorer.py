@@ -1,9 +1,9 @@
 from . import ExplorationTechnique
+from .common import condition_to_lambda
 from .. import sim_options
-from ..errors import SimIRSBNoDecodeError
 
 import logging
-l = logging.getLogger("angr.exploration_techniques.explorer")
+l = logging.getLogger(name=__name__)
 
 class Explorer(ExplorationTechnique):
     """
@@ -23,8 +23,8 @@ class Explorer(ExplorationTechnique):
     """
     def __init__(self, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, avoid_priority=False):
         super(Explorer, self).__init__()
-        self.find = self._condition_to_lambda(find)
-        self.avoid = self._condition_to_lambda(avoid)
+        self.find, static_find = condition_to_lambda(find)
+        self.avoid, static_avoid = condition_to_lambda(avoid)
         self.find_stash = find_stash
         self.avoid_stash = avoid_stash
         self.cfg = cfg
@@ -32,15 +32,10 @@ class Explorer(ExplorationTechnique):
         self.num_find = num_find
         self.avoid_priority = avoid_priority
 
-        find_addrs = getattr(self.find, "addrs", None)
-        avoid_addrs = getattr(self.avoid, "addrs", None)
-
-        # it is safe to use unicorn only if all addresses at which we should stop are statically known
-        self._warn_unicorn = (find_addrs is None) or (avoid_addrs is None)
-
         # even if avoid or find addresses are not statically known, stop on those that we do know
-        self._extra_stop_points = (find_addrs or set()) | (avoid_addrs or set())
-
+        self._extra_stop_points = (static_find or set()) | (static_avoid or set())
+        self._unknown_stop_points = static_find is None or static_avoid is None
+        self._warned_unicorn = False
 
         # TODO: This is a hack for while CFGFast doesn't handle procedure continuations
         from .. import analyses
@@ -50,23 +45,23 @@ class Explorer(ExplorationTechnique):
             self.cfg = None
 
         if self.cfg is not None:
-            avoid = avoid_addrs or set()
+            avoid = static_avoid or set()
 
             # we need the find addresses to be determined statically
-            if not find_addrs:
+            if not static_find:
                 l.error("You must provide at least one 'find' address as a number, set, list, or tuple if you provide a CFG.")
                 l.error("Usage of the CFG has been disabled for this explorer.")
                 self.cfg = None
                 return
 
             for a in avoid:
-                if cfg.get_any_node(a) is None:
+                if cfg.model.get_any_node(a) is None:
                     l.warning("'Avoid' address %#x not present in CFG...", a)
 
             # not a queue but a stack... it's just a worklist!
             queue = []
-            for f in find_addrs:
-                nodes = cfg.get_all_nodes(f)
+            for f in static_find:
+                nodes = cfg.model.get_all_nodes(f)
                 if len(nodes) == 0:
                     l.warning("'Find' address %#x not present in CFG...", f)
                 else:
@@ -97,52 +92,48 @@ class Explorer(ExplorationTechnique):
         if not self.avoid_stash in simgr.stashes: simgr.stashes[self.avoid_stash] = []
 
     def step(self, simgr, stash='active', **kwargs):
-        base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
+        base_extra_stop_points = set(kwargs.pop("extra_stop_points", []))
         return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
-    def filter(self, simgr, state, filter_func=None):
-        if sim_options.UNICORN in state.options and self._warn_unicorn:
-            self._warn_unicorn = False # show warning only once
-            l.warning("Using unicorn with find or avoid conditions that are a lambda (not a number, set, tuple or list).")
+    def _classify(self, addr, findable, avoidable):
+        if self.avoid_priority:
+            if avoidable and (avoidable is True or addr in avoidable):
+                return self.avoid_stash
+            elif findable and (findable is True or addr in findable):
+                return self.find_stash
+        else:
+            if findable and (findable is True or addr in findable):
+                return self.find_stash
+            elif avoidable and (avoidable is True or addr in avoidable):
+                return self.avoid_stash
+        return None
+
+    # make it more natural to deal with the intended dataflow
+    def filter(self, simgr, state, **kwargs):
+        stash = self._filter_inner(state)
+        if stash is None:
+            return simgr.filter(state, **kwargs)
+        return stash
+
+    def _filter_inner(self, state):
+        if self._unknown_stop_points and sim_options.UNICORN in state.options and not self._warned_unicorn:
+            l.warning("Using unicorn with find/avoid conditions that are a lambda (not a number, set, tuple or list)")
             l.warning("Unicorn may step over states that match the condition (find or avoid) without stopping.")
-        rFind = self.find(state)
-        if rFind:
-            if not state.history.reachable:
-                return 'unsat'
-            rAvoid = self.avoid(state)
-            if rAvoid:
-                # if there is a conflict
-                if self.avoid_priority & ((type(rFind) is not set) | (type(rAvoid) is not set)):
-                    # with avoid_priority and one of the conditions is not a set
+            self._warned_unicorn = True
+
+        findable = self.find(state)
+        avoidable = self.avoid(state)
+
+        if not findable and not avoidable:
+            if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
+                if state.addr not in self.ok_blocks:
                     return self.avoid_stash
-            if type(rAvoid) is not set:
-                # rAvoid is False or self.avoid_priority is False
-                # Setting rAvoid to {} simplifies the rest of the code
-                rAvoid = {}
-            if type(rFind) is set:
-                while state.addr not in rFind:
-                    if state.addr in rAvoid:
-                        return self.avoid_stash
-                    try:
-                        state = self.project.factory.successors(state, num_inst=1).successors[0]
-                    except SimIRSBNoDecodeError as ex:
-                        if state.arch.name.startswith('MIPS'):
-                            l.warning('Due to MIPS delay slots, the find address must be executed with other instructions and therefore may not be able to be found' + \
-                                ' - Trying to find state that includes find address')
-                            if len(rFind.intersection(set(state.block().instruction_addrs))) > 0:
-                                #there is an address that is both in the block AND in the rFind stat
-                                l.warning('Found state that includes find instruction, this one will be returned')
-                                rFind = rFind.union(set(state.block().instruction_addrs))
-                        else:
-                                raise ex
-                if self.avoid_priority & (state.addr in rAvoid):
-                    # Only occurs if the intersection of rAvoid and rFind is not empty
-                    # Why would anyone want that?
-                    return self.avoid_stash
-            return (self.find_stash, state)
-        if self.avoid(state): return self.avoid_stash
-        if self.cfg is not None and self.cfg.get_any_node(state.addr) is not None:
-            if state.addr not in self.ok_blocks: return self.avoid_stash
+            return None
+
+        stash = self._classify(state.addr, findable, avoidable)
+        if stash is not None:
+            return stash
+
         return None
 
     def complete(self, simgr):

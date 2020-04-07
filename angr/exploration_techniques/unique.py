@@ -84,7 +84,7 @@ class UniqueSearch(ExplorationTechnique):
         count_a = Counter(state_a.history.bbl_addrs)
         count_b = Counter(state_b.history.bbl_addrs)
         normal_distance = sum((count_a.get(addr, 0) - count_b.get(addr, 0)) ** 2
-                              for addr in set(count_a.keys() + count_b.keys())) ** 0.5
+                              for addr in set(list(count_a.keys()) + list(count_b.keys()))) ** 0.5
         return 1.0 / (1 + normal_distance)
 
     @staticmethod

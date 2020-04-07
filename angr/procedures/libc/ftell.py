@@ -1,6 +1,6 @@
 import angr
 
-from . import io_file_data_for_arch
+from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 ######################################
 # ftell

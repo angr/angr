@@ -1,14 +1,14 @@
 import angr
 import logging
 
-l = logging.getLogger('angr.procedures.win32.GetModuleHandle')
+l = logging.getLogger(name=__name__)
 
 class GetModuleHandleA(angr.SimProcedure):
     def run(self, pointer):
-        if self.state.se.is_true(pointer == 0):
+        if self.state.solver.is_true(pointer == 0):
             return self.handle(None)
         else:
-            return self.handle(self.state.mem[pointer].string.concrete)
+            return self.handle(self.state.mem[pointer].string.concrete.decode('utf-8'))
 
     def handle(self, module_name):
         if module_name is None:
@@ -22,7 +22,7 @@ class GetModuleHandleA(angr.SimProcedure):
 
 class GetModuleHandleW(GetModuleHandleA):
     def run(self, pointer):
-        if self.state.se.is_true(pointer == 0):
+        if self.state.solver.is_true(pointer == 0):
             return self.handle(None)
         else:
             return self.handle(self.state.mem[pointer].wstring.concrete)

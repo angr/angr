@@ -2,15 +2,13 @@ import logging
 
 from angr.procedures.stubs.format_parser import FormatParser
 
-l = logging.getLogger("angr.procedures.libc.sprintf")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # sprintf
 ######################################
 
 class sprintf(FormatParser):
-
-    ARGS_MISMATCH = True
 
     #pylint:disable=arguments-differ
 
@@ -21,7 +19,7 @@ class sprintf(FormatParser):
         self.state.memory.store(dst_ptr, out_str)
 
         # place the terminating null byte
-        self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
+        self.state.memory.store(dst_ptr + (out_str.size() // 8), self.state.solver.BVV(0, 8))
 
         # size_t has size arch.bits
-        return self.state.se.BVV(out_str.size()/8, self.state.arch.bits)
+        return self.state.solver.BVV(out_str.size()//8, self.state.arch.bits)

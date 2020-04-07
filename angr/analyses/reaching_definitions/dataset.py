@@ -2,17 +2,23 @@ import logging
 import operator
 
 from .constants import DEBUG
-from .undefined import Undefined
+from .undefined import Undefined, undefined
 
-l = logging.getLogger('angr.analyses.reaching_definitions.dataset')
+l = logging.getLogger(name=__name__)
 
 
-class DataSet(object):
+class DataSet:
+
+    __slots__ = ('data', '_bits', '_mask')
+
     """
     This class represents a set of data.
 
     Addition and subtraction are performed on the cartesian product of the operands. Duplicate results are removed.
-    data must always include a set.
+    Data must always include a set.
+
+    :ivar set data:    The set of data to represent.
+    :ivar int bits:    The size of an element of the set, in number of bits its representation takes.
     """
     maximum_size = 5
 
@@ -43,6 +49,14 @@ class DataSet(object):
             while len(self.data) > DataSet.maximum_size:
                 l.warning('Reached maximum size of DataSet, discarded %s.', str(self.data.pop()))
 
+    def truncate(self, bits):
+        if self._bits <= bits:
+            return DataSet(self.data, bits)
+
+        mask = (1 << bits) - 1
+        data = { d & mask if isinstance(d, int) else d for d in self.data }
+        return DataSet(data, bits)
+
     def update(self, data):
         if type(data) is DataSet:
             if self.bits != data.bits:
@@ -64,21 +78,22 @@ class DataSet(object):
 
         for s in self:
             if type(s) is Undefined:
-                res.add(Undefined())
+                res.add(undefined)
             else:
                 try:
                     tmp = op(s)
-                    if isinstance(tmp, (int, long)):
+                    if isinstance(tmp, int):
                         tmp &= self._mask
                     res.add(tmp)
-                except TypeError as e:
-                    res.add(Undefined())
-                    l.warning(e)
+                except TypeError as ex:  # pylint:disable=try-except-raise,unused-variable
+                    # l.warning(ex)
+                    raise
 
         return DataSet(res, self._bits)
 
     def _bin_op(self, other, op):
-        assert type(other) is DataSet
+        if not type(other) is DataSet:
+            raise TypeError("_bin_op() only works on another DataSet instance.")
 
         res = set()
 
@@ -88,16 +103,16 @@ class DataSet(object):
         for o in other:
             for s in self:
                 if type(o) is Undefined or type(s) is Undefined:
-                    res.add(Undefined())
+                    res.add(undefined)
                 else:
                     try:
                         tmp = op(s, o)
-                        if isinstance(tmp, (int, long)):
+                        if isinstance(tmp, int):
                             tmp &= self._mask
                         res.add(tmp)
-                    except TypeError as e:
-                        res.add(Undefined())
-                        l.warning(e)
+                    except TypeError as ex:  # pylint:disable=try-except-raise,unused-variable
+                        # l.warning(ex)
+                        raise
 
         return DataSet(res, self._bits)
 
@@ -106,6 +121,12 @@ class DataSet(object):
 
     def __sub__(self, other):
         return self._bin_op(other, operator.sub)
+
+    def __mul__(self, other):
+        return self._bin_op(other, operator.mul)
+
+    def __div__(self, other):
+        return self._bin_op(other, operator.floordiv)
 
     def __lshift__(self, other):
         return self._bin_op(other, operator.lshift)
@@ -125,14 +146,25 @@ class DataSet(object):
     def __neg__(self):
         return self._un_op(operator.neg)
 
+    def __invert__(self):
+        return self._un_op(operator.invert)
+
     def __eq__(self, other):
         if type(other) == DataSet:
             return self.data == other.data and self._bits == other.bits and self._mask == other.mask
         else:
             return False
 
+    def __hash__(self):
+        return hash((self._bits, self._mask))
+
     def __iter__(self):
         return iter(self.data)
 
     def __str__(self):
-        return 'DataSet<%d>: %s' % (self._bits, str(self.data))
+        if undefined in self.data:
+            data_string = str(self.data)
+        else:
+            data_string = str([ hex(i) if isinstance(i, int) else i for i in self.data ])
+
+        return 'DataSet<%d>: %s' % (self._bits, data_string)

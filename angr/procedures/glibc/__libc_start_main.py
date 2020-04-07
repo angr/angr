@@ -4,7 +4,7 @@ import logging
 import pyvex
 import angr
 
-l = logging.getLogger("angr.procedures.glibc.__libc_start_main")
+l = logging.getLogger(name=__name__)
 
 ######################################
 # __libc_start_main
@@ -24,13 +24,12 @@ class __libc_start_main(angr.SimProcedure):
         """
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         table = self.inline_call(malloc, 768).ret_expr
-        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
             # Each entry is 2 bytes
             self.state.memory.store(table + (pos*2),
-                                    self.state.se.BVV(c, 16),
-                                    endness=self.state.arch.memory_endness,
+                                    self.state.solver.BVV(c, 16),
                                     inspect=False,
                                     disable_actions=True,
                                     )
@@ -39,7 +38,7 @@ class __libc_start_main(angr.SimProcedure):
         table += 256
         self.state.memory.store(table_ptr,
                                 table,
-                                size=self.state.arch.bits / 8,
+                                size=self.state.arch.bytes,
                                 endness=self.state.arch.memory_endness,
                                 inspect=False,
                                 disable_actions=True,
@@ -56,11 +55,11 @@ class __libc_start_main(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
-        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
-                                    self.state.se.BVV(c, 32),
+                                    self.state.solver.BVV(c, 32),
                                     endness=self.state.arch.memory_endness,
                                     inspect=False,
                                     disable_actions=True,
@@ -70,7 +69,7 @@ class __libc_start_main(angr.SimProcedure):
         table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
-                                size=self.state.arch.bits / 8,
+                                size=self.state.arch.bytes,
                                 endness=self.state.arch.memory_endness,
                                 inspect=False,
                                 disable_actions=True,
@@ -87,11 +86,11 @@ class __libc_start_main(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
-        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
-                                    self.state.se.BVV(c, 32),
+                                    self.state.solver.BVV(c, 32),
                                     endness=self.state.arch.memory_endness,
                                     inspect=False,
                                     disable_actions=True,
@@ -101,7 +100,7 @@ class __libc_start_main(angr.SimProcedure):
         table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
-                                size=self.state.arch.bits / 8,
+                                size=self.state.arch.bytes,
                                 endness=self.state.arch.memory_endness,
                                 inspect=False,
                                 disable_actions=True,
@@ -114,6 +113,12 @@ class __libc_start_main(angr.SimProcedure):
         self._initialize_tolower_loc_table()
         self._initialize_toupper_loc_table()
 
+    def _initialize_errno(self):
+        malloc = angr.SIM_PROCEDURES['libc']['malloc']
+        errno_loc = self.inline_call(malloc, self.state.arch.bytes).ret_expr
+
+        self.state.libc.errno_location = errno_loc
+        self.state.memory.store(errno_loc, self.state.solver.BVV(0, self.state.arch.bits))
 
     @property
     def envp(self):
@@ -124,6 +129,7 @@ class __libc_start_main(angr.SimProcedure):
         # TODO: add argument types
 
         self._initialize_ctype_table()
+        self._initialize_errno()
 
         self.main, self.argc, self.argv, self.init, self.fini = self._extract_args(self.state, main, argc, argv, init,
                                                                                    fini)
@@ -133,10 +139,6 @@ class __libc_start_main(angr.SimProcedure):
         self.call(self.init, (self.argc, self.argv, self.envp), 'after_init')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
-        if isinstance(self.state.arch, ArchAMD64):
-            # (rsp+8) must be aligned to 16 as required by System V ABI
-            # ref: http://www.x86-64.org/documentation/abi.pdf , page 16
-            self.state.regs.rsp = (self.state.regs.rsp & 0xfffffffffffffff0) - 8
         self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
@@ -144,15 +146,16 @@ class __libc_start_main(angr.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath")
+        blank_state = angr.SimState(project=self.project, mode="fastpath", memory_backer=self.project.loader.memory,
+                                    add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY})
         # set up the stack pointer
-        blank_state.regs.sp = 0x7fffffff
+        blank_state.regs.sp = 0x7ffffff0
 
         # Execute each block
         state = blank_state
         for b in blocks:
             # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = self.project.engines.default_engine.process(state, b,
+            irsb = self.project.factory.default_engine.process(state, b,
                     force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
             if irsb.successors:
                 state = irsb.successors[0]
@@ -160,13 +163,13 @@ class __libc_start_main(angr.SimProcedure):
                 break
 
         cc = angr.DEFAULT_CC[self.arch.name](self.arch)
-        args = [ cc.arg(state, _) for _ in xrange(5) ]
+        args = [ cc.arg(state, _) for _ in range(5) ]
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [
-            (init, 'Ijk_Call'),
-            (main, 'Ijk_Call'),
-            (fini, 'Ijk_Call'),
+            {'address': init, 'jumpkind': 'Ijk_Call', 'namehint': 'init'},
+            {'address': main, 'jumpkind': 'Ijk_Call', 'namehint': 'main'},
+            {'address': fini, 'jumpkind': 'Ijk_Call', 'namehint': 'fini'},
         ]
 
         return all_exits
@@ -206,5 +209,3 @@ class __libc_start_main(angr.SimProcedure):
             fini_ = state.mem[state.regs.r8 + 24:].long.resolved
 
         return main_, argc_, argv_, init_, fini_
-
-from archinfo import ArchAMD64

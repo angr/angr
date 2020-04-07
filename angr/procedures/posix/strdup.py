@@ -1,13 +1,9 @@
 import angr
-from angr.sim_type import SimTypeString
 
 class strdup(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s):
-        self.argument_types = {0: self.ty_ptr(SimTypeString())}
-        self.return_type = self.ty_ptr(SimTypeString())
-
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
         strncpy = angr.SIM_PROCEDURES['libc']['strncpy']
         malloc = angr.SIM_PROCEDURES['libc']['malloc']

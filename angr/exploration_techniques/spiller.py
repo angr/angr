@@ -1,19 +1,118 @@
+
 import logging
+import datetime
 
-l = logging.getLogger("angr.exploration_techniques.spiller")
+try:
+    import sqlalchemy
+    from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.declarative import declarative_base
 
-import ana
+    Base = declarative_base()
+
+    class PickledState(Base):
+        __tablename__ = "pickled_states"
+
+        id = Column(String, primary_key=True)
+        priority = Column(Integer)
+        taken = Column(Boolean, default=False)
+        timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+except ImportError:
+    sqlalchemy = None
+
+l = logging.getLogger(name=__name__)
+
 from . import ExplorationTechnique
 
-class SpilledState(ana.Storable):
-    def __init__(self, state):
-        self.state = state
 
-    def _ana_getstate(self):
-        return (self.state,)
+class PickledStatesBase:
+    """
+    The base class of pickled states
+    """
 
-    def _ana_setstate(self, s):
-        self.state = s[0]
+    def sort(self):
+        """
+        Sort pickled states.
+        """
+
+        raise NotImplementedError()
+
+    def add(self, prio, sid):
+        """
+        Add a newly pickled state.
+
+        :param int prio:    Priority of the state.
+        :param str sid:     Persistent ID of the state.
+        :return:            None
+        """
+        raise NotImplementedError()
+
+    def pop_n(self, n):
+        """
+        Pop the top N states.
+
+        :param int n:   Number of states to take.
+        :return:        A list of states.
+        """
+        raise NotImplementedError()
+
+
+class PickledStatesList(PickledStatesBase):
+    def __init__(self):
+        self._picked_states = [ ]
+
+    def sort(self):
+        self._picked_states.sort()
+
+    def add(self, prio, sid):
+        self._picked_states.append((prio, sid))
+
+    def pop_n(self, n):
+        ss = self._picked_states[:n]
+        self._picked_states[:n] = [ ]
+        return ss
+
+
+class PickledStatesDb(PickledStatesBase):
+    def __init__(self, db_str="sqlite:///:memory:"):
+        if sqlalchemy is None:
+            raise ImportError("Cannot import SQLAlchemy. Please install SQLAlchemy before using %s."
+                              % self.__class__.__name__)
+
+        # ORM declarations
+        engine = create_engine(db_str)
+
+        # create table
+        Base.metadata.create_all(engine)
+
+        self.Session = sessionmaker(bind=engine)
+
+    def sort(self):
+        pass
+
+    def add(self, prio, sid):
+        record = PickledState(id=sid, priority=prio)
+        session = self.Session()
+        session.add(record)
+        session.commit()
+        session.close()
+
+    def pop_n(self, n):
+        session = self.Session()
+        q = session.query(PickledState)\
+            .filter_by(taken=False)\
+            .order_by(PickledState.priority)\
+            .limit(n)\
+            .all()
+
+        ss = [ ]
+        for r in q:
+            r.taken = True
+            ss.append((r.priority, r.id))
+        session.commit()
+        return ss
+
 
 class Spiller(ExplorationTechnique):
     """
@@ -25,7 +124,8 @@ class Spiller(ExplorationTechnique):
         self,
         src_stash="active", min=5, max=10, #pylint:disable=redefined-builtin
         staging_stash="spill_stage", staging_min=10, staging_max=20,
-        pickle_callback=None, unpickle_callback=None, priority_key=None
+        pickle_callback=None, unpickle_callback=None, post_pickle_callback=None,
+        priority_key=None, vault=None, states_collection=None,
     ):
         """
         Initializes the spiller.
@@ -35,6 +135,7 @@ class Spiller(ExplorationTechnique):
         @param staging_stash: the stash *to* which to spill states (default: "spill_stage")
         @param staging_max: the number of states that can be in the staging stash before things get spilled to ANA (default: None. If staging_stash is set, then this means unlimited, and ANA will not be used).
         @param priority_key: a function that takes a state and returns its numberical priority (MAX_INT is lowest priority). By default, self.state_priority will be used, which prioritizes by object ID.
+        @param vault: an angr.Vault object to handle storing and loading of states. If not provided, an angr.vaults.VaultShelf will be created with a temporary file.
         """
         super(Spiller, self).__init__()
         self.max = max
@@ -48,32 +149,42 @@ class Spiller(ExplorationTechnique):
         self.priority_key = priority_key
         self.unpickle_callback = unpickle_callback
         self.pickle_callback = pickle_callback
+        self.post_pickle_callback = post_pickle_callback
 
         # tracking of pickled stuff
-        self._pickled_states = [ ]
+        self._pickled_states = PickledStatesList() if states_collection is None else states_collection
         self._ever_pickled = 0
         self._ever_unpickled = 0
+        self._vault = vaults.VaultShelf() if vault is None else vault
 
     def _unpickle(self, n):
         self._pickled_states.sort()
-        unpickled = [ SpilledState.ana_load(pid).state for _,pid in self._pickled_states[:n] ]
-        self._pickled_states[:n] = [ ]
+        unpickled = [ (sid, self._load_state(sid)) for _,sid in self._pickled_states.pop_n(n) ]
         self._ever_unpickled += len(unpickled)
         if self.unpickle_callback:
-            map(self.unpickle_callback, unpickled)
-        return unpickled
+            for sid,u in unpickled:
+                self.unpickle_callback(sid, u)
+        return [ u for _, u in unpickled ]
 
     def _get_priority(self, state):
         return (self.priority_key or self.state_priority)(state)
 
     def _pickle(self, states):
         if self.pickle_callback:
-            map(self.pickle_callback, states)
-        wrappers = [ SpilledState(state) for state in states ]
+            for s in states:
+                self.pickle_callback(s)
         self._ever_pickled += len(states)
-        for w in wrappers:
-            w.make_uuid()
-        self._pickled_states += [ (self._get_priority(w.state), w.ana_store()) for w in wrappers ]
+        for state in states:
+            prio, state_oid = self._get_priority(state), self._store_state(state)
+            if self.post_pickle_callback:
+                self.post_pickle_callback(state, prio, state_oid)
+            self._pickled_states.add(prio, state_oid)
+
+    def _store_state(self, state):
+        return self._vault.store(state)
+
+    def _load_state(self, sid):
+        return self._vault.load(sid)
 
     def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
@@ -84,7 +195,7 @@ class Spiller(ExplorationTechnique):
         staged_states = simgr.stashes.setdefault(self.staging_stash, [ ]) if self.staging_stash else [ ]
 
         if len(states) < self.min:
-            missing = (self.max + self.min) / 2 - len(states)
+            missing = (self.max + self.min) // 2 - len(states)
             l.debug("Too few states (%d/%d) in stash %s.", len(states), self.min, self.src_stash)
             if self.staging_stash:
                 l.debug("... retrieving states from staging stash (%s)", self.staging_stash)
@@ -104,7 +215,7 @@ class Spiller(ExplorationTechnique):
         # if we have too few staged states, unpickle up to halfway between max and min
         if len(staged_states) < self.staging_min:
             l.debug("Too few states in staging stash (%s)", self.staging_stash)
-            staged_states += self._unpickle((self.staging_min + self.staging_max) / 2 - len(staged_states))
+            staged_states += self._unpickle((self.staging_min + self.staging_max) // 2 - len(staged_states))
 
         if len(staged_states) > self.staging_max:
             l.debug("Too many states in staging stash (%s)", self.staging_stash)
@@ -118,3 +229,5 @@ class Spiller(ExplorationTechnique):
     @staticmethod
     def state_priority(state):
         return id(state)
+
+from .. import vaults

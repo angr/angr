@@ -45,7 +45,7 @@ def dfs_back_edges(graph, start_node):
         visited.add(node)
         for child in iter(graph[node]):
             if child not in finished:
-                if child in  visited:
+                if child in visited:
                     yield node, child
                 else:
                     for s,t in _dfs_back_edges_core(child):
@@ -56,11 +56,76 @@ def dfs_back_edges(graph, start_node):
         yield s,t
 
 
+def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
+    """
+    For a directed graph, return a subgraph that includes all nodes going from a source node to a target node.
+
+    :param networkx.DiGraph graph:  The directed graph.
+    :param source:                  The source node.
+    :param list frontier:           A collection of target nodes.
+    :param bool include_frontier:   Should nodes in frontier be included in the subgraph.
+    :return:                        A subgraph.
+    :rtype:                         networkx.DiGraph
+    """
+
+    graph = networkx.DiGraph(graph)  # make a copy
+    for pred in list(graph.predecessors(source)):
+        # make sure we cannot go from any other node to the source node
+        graph.remove_edge(pred, source)
+
+    g0 = networkx.DiGraph()
+
+    if source not in graph or any(node not in graph for node in frontier):
+        raise KeyError("Source node or frontier nodes are not in the source graph.")
+
+    # BFS on graph and add new nodes to g0
+    queue = [ source ]
+    traversed = set()
+
+    frontier = set(frontier)
+
+    while queue:
+        node = queue.pop(0)
+        traversed.add(node)
+
+        for _, succ, data in graph.out_edges(node, data=True):
+            g0.add_edge(node, succ, **data)
+            if succ in traversed or succ in frontier:
+                continue
+            for frontier_node in frontier:
+                if networkx.has_path(graph, succ, frontier_node):
+                    queue.append(succ)
+                    break
+
+    # recursively remove all nodes that have less than two neighbors
+    to_remove = [ n for n in g0.nodes() if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0) ]
+    while to_remove:
+        g0.remove_nodes_from(to_remove)
+        to_remove = [ n for n in g0.nodes() if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0) ]
+
+    if not include_frontier:
+        # remove the frontier nodes
+        g0.remove_nodes_from(frontier)
+
+    return g0
+
+
+def dominates(idom, dominator_node, node):
+    n = node
+    while n:
+        if n == dominator_node:
+            return True
+        if n in idom and n != idom[n]:
+            n = idom[n]
+        else:
+            n = None
+    return False
+
 #
 # Dominance frontier
 #
 
-def compute_dominance_frontier(graph, postdom):
+def compute_dominance_frontier(graph, domtree):
     """
     Compute a dominance frontier based on the given post-dominator tree.
 
@@ -68,43 +133,48 @@ def compute_dominance_frontier(graph, postdom):
     Form by Ron Cytron, etc.
 
     :param graph:   The graph where we want to compute the dominance frontier.
-    :param postdom: The post-dominator tree
+    :param domtree: The dominator tree
     :returns:       A dict of dominance frontier
     """
 
     df = {}
 
-    # Perform a post-order search on the post-dom tree
-    for x in networkx.dfs_postorder_nodes(postdom):
+    # Perform a post-order search on the dominator tree
+    for x in networkx.dfs_postorder_nodes(domtree):
+
+        if x not in graph:
+            # Skip nodes that are not in the graph
+            continue
+
         df[x] = set()
 
         # local set
         for y in graph.successors(x):
-            if x not in postdom.predecessors(y):
+            if x not in domtree.predecessors(y):
                 df[x].add(y)
 
         # up set
         if x is None:
             continue
 
-        for z in postdom.successors(x):
+        for z in domtree.successors(x):
             if z is x:
                 continue
             if z not in df:
                 continue
             for y in df[z]:
-                if x not in list(postdom.predecessors(y)):
+                if x not in list(domtree.predecessors(y)):
                     df[x].add(y)
 
     return df
 
 
 #
-# Post dominators
+# Dominators and post-dominators
 #
 
 
-class TemporaryNode(object):
+class TemporaryNode:
     """
     A temporary node.
 
@@ -117,7 +187,7 @@ class TemporaryNode(object):
         self._label = label
 
     def __repr__(self):
-        return 'TemporaryNode[%s]' % self._label
+        return 'TN[%s]' % self._label
 
     def __eq__(self, other):
         if isinstance(other, TemporaryNode) and other._label == self._label:
@@ -125,14 +195,14 @@ class TemporaryNode(object):
         return False
 
     def __hash__(self):
-        return hash('%s' % self._label)
+        return hash(('TemporaryNode', self._label))
 
 
-class ContainerNode(object):
+class ContainerNode:
     """
     A container node.
 
-    Only used in post-dominator tree generation. We did this so we can set the index property without modifying the
+    Only used in dominator tree generation. We did this so we can set the index property without modifying the
     original object.
     """
 
@@ -148,16 +218,24 @@ class ContainerNode(object):
 
     def __eq__(self, other):
         if isinstance(other, ContainerNode):
-            return self._obj == other._obj and self.index == other.index
+            return self._obj is other._obj
         return False
 
+    def __hash__(self):
+        return hash(('CN', self._obj))
 
-class PostDominators(object):
+    def __repr__(self):
+        return "CN[%s]" % repr(self._obj)
 
-    def __init__(self, graph, entry_node, successors_func=None):
 
-        self._l = logging.getLogger("utils.graph.post_dominators")
+class Dominators:
+
+    def __init__(self, graph, entry_node, successors_func=None, reverse=False):
+
+        self._l = logging.getLogger("utils.graph.dominators")
         self._graph_successors_func = successors_func
+
+        self._reverse = reverse  # Set it to True to generate a post-dominator tree.
 
         # Temporary variables
         self._ancestor = None
@@ -165,7 +243,7 @@ class PostDominators(object):
         self._label = None
 
         # Output
-        self.post_dom = None
+        self.dom = None
         self.prepared_graph = None
 
         self._construct(graph, entry_node)
@@ -207,7 +285,7 @@ class PostDominators(object):
         dom = [None] * (len(vertices))
         self._ancestor = [None] * (len(vertices) + 1)
 
-        for i in xrange(len(vertices) - 1, 0, -1):
+        for i in range(len(vertices) - 1, 0, -1):
             w = vertices[i]
 
             # Step 2
@@ -235,17 +313,17 @@ class PostDominators(object):
 
             bucket[parent[w].index].clear()
 
-        for i in xrange(1, len(vertices)):
+        for i in range(1, len(vertices)):
             w = vertices[i]
             if w not in parent:
                 continue
             if dom[w.index].index != vertices[self._semi[w.index].index].index:
                 dom[w.index] = dom[dom[w.index].index]
 
-        self.post_dom = networkx.DiGraph()  # The post-dom tree described in a directional graph
-        for i in xrange(1, len(vertices)):
+        self.dom = networkx.DiGraph()  # The post-dom tree described in a directional graph
+        for i in range(1, len(vertices)):
             if dom[i] is not None and vertices[i] is not None:
-                self.post_dom.add_edge(dom[i].obj, vertices[i].obj)
+                self.dom.add_edge(dom[i].obj, vertices[i].obj)
 
         # Output
         self.prepared_graph = _prepared_graph
@@ -261,6 +339,8 @@ class PostDominators(object):
         start_node = TemporaryNode("start_node")
         # Put the start_node into a Container as well
         start_node = ContainerNode(start_node)
+        # Create the end_node, too
+        end_node = ContainerNode(TemporaryNode("end_node"))
 
         container_nodes = {}
 
@@ -280,8 +360,14 @@ class PostDominators(object):
             traversed_nodes.add(container_node)
 
             if len(successors) == 0:
-                # Add an edge between this node and our start node
-                new_graph.add_edge(start_node, container_node)
+                # Note that this condition may never be satisfied if there is no real "end node" in the graph: the graph
+                # may end with a loop.
+                if self._reverse:
+                    # Add an edge between the start node and this node
+                    new_graph.add_edge(start_node, container_node)
+                else:
+                    # Add an edge between our this node and end node
+                    new_graph.add_edge(container_node, end_node)
 
             for s in successors:
                 if s in container_nodes:
@@ -289,14 +375,21 @@ class PostDominators(object):
                 else:
                     container_s = ContainerNode(s)
                     container_nodes[s] = container_s
-                new_graph.add_edge(container_s, container_node)  # Reversed
+                if self._reverse:
+                    new_graph.add_edge(container_s, container_node)  # Reversed
+                else:
+                    new_graph.add_edge(container_node, container_s)  # Reversed
                 if container_s not in traversed_nodes:
                     queue.append(s)
 
-        # Add a start node and an end node
-        new_graph.add_edge(container_nodes[n], ContainerNode(TemporaryNode("end_node")))
+        if self._reverse:
+            # Add the end node
+            new_graph.add_edge(container_nodes[n], end_node)
+        else:
+            # Add the start node
+            new_graph.add_edge(start_node, container_nodes[n])
 
-        all_nodes_count = len(traversed_nodes) + 2  # A start node and an end node
+        all_nodes_count = new_graph.number_of_nodes()
         self._l.debug("There should be %d nodes in all", all_nodes_count)
         counter = 0
         vertices = [ContainerNode("placeholder")]
@@ -363,3 +456,12 @@ class PostDominators(object):
                     self._semi[self._label[v.index].index].index:
                 self._label[v.index] = self._label[self._ancestor[v.index].index]
             self._ancestor[v.index] = self._ancestor[self._ancestor[v.index].index]
+
+
+class PostDominators(Dominators):
+    def __init__(self, graph, entry_node, successors_func=None):
+        super().__init__(graph, entry_node, successors_func=successors_func, reverse=True)
+
+    @property
+    def post_dom(self):
+        return self.dom

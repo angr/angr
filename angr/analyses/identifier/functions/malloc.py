@@ -25,7 +25,7 @@ class malloc(Func):
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         state = runner.get_out_state(func, test, concrete_rand=True)
-        if state is not None and 0x10 < state.se.eval(state.regs.eax) < 0xfffffff0:
+        if state is not None and 0x10 < state.solver.eval(state.regs.eax) < 0xfffffff0:
             return False
 
         # we should be able to get different outputs if we call malloc multiple times
@@ -40,13 +40,13 @@ class malloc(Func):
         state = runner.get_out_state(func, test, concrete_rand=True)
         if state is None:
             return False
-        returned_locs.append(state.se.eval(state.regs.eax))
+        returned_locs.append(state.solver.eval(state.regs.eax))
 
         for i in range(6): #pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
             if state is None:
                 return False
-            returned_locs.append(state.se.eval(state.regs.eax))
+            returned_locs.append(state.solver.eval(state.regs.eax))
             if any(a < 0x3000 for a in returned_locs):
                 return False
 
@@ -64,7 +64,7 @@ class malloc(Func):
 
         # they all should be writable/readable
         try:
-            if any(state.se.eval(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+            if any(state.solver.eval(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
                 return False
         except SimMemoryError:
             return False
@@ -83,7 +83,7 @@ class malloc(Func):
         if state is None:
             return False
 
-        res = state.se.eval(state.regs.eax)
+        res = state.solver.eval(state.regs.eax)
         if res < 0x10 or res > 0xfffffff0:
             return False
 
@@ -98,13 +98,13 @@ class malloc(Func):
         state = runner.get_out_state(func, test, concrete_rand=True)
         if state is None:
             return False
-        returned_locs2.append(state.se.eval(state.regs.eax))
+        returned_locs2.append(state.solver.eval(state.regs.eax))
 
         for i in range(10):
             state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
             if state is None:
                 return False
-            returned_locs2.append(state.se.eval(state.regs.eax))
+            returned_locs2.append(state.solver.eval(state.regs.eax))
             if any(a < 0x3000 for a in returned_locs2):
                 return False
 
