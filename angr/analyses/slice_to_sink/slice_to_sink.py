@@ -1,6 +1,6 @@
 from functools import reduce
 
-from .transitions import direct_transitions_to, merge_transitions
+from .transitions import merge_transitions
 
 
 class SliceToSink:
@@ -73,17 +73,17 @@ class SliceToSink:
         """
         return sorted(list(self._origins - self._destinations))
 
-    def add_transitions_to(self, node):
+    def add_transitions(self, transitions):
         """
-        Add the transitions flowing into the node to the current slice.
+        Add the given transitions to the current slice.
 
-        :param angr.knowledge_plugins.cfg.cfg_node.CFGNode node:
-            The node, which we want to add the transitions flowing into.
+        :param Dict[int,List[int]] transitions:
+            The list of transitions to be added to `self.transitions`.
 
-        :return SliceToSink: The slice, to which the transitions to node have been added.
+        :return Dict[int,List[int]]: Return the updated list of transitions.
         """
-        transitions = direct_transitions_to(node)
         self._transitions = merge_transitions(transitions, self._transitions)
+        return self._transitions
 
     def is_empty(self):
         """

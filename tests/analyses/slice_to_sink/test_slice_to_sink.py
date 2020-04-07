@@ -30,17 +30,16 @@ def test_get_entrypoints_from_slice():
     nose.tools.assert_list_equal(my_slice.entrypoints, [0, 1])
 
 
-def test_add_transitions_to_a_node_updates_the_slice():
-    printf_predecessor = PRINTF_NODE.predecessors[0]
-
+def test_add_transitions_updates_the_slice():
     my_slice = SliceToSink(None, {1: [2, 3]})
+    transitions_to_add = { 1: [4], 2: [4] }
+
+    result = my_slice.add_transitions(transitions_to_add)
 
     expected_result = {
-        1: [2, 3],
-        printf_predecessor.addr: [PRINTF.addr],
+        1: [2, 3, 4],
+        2: [4],
     }
-    my_slice.add_transitions_to(PRINTF_NODE)
-    result = my_slice._transitions
 
     nose.tools.assert_dict_equal(result, expected_result)
 
