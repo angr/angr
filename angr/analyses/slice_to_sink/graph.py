@@ -1,6 +1,6 @@
-def slice_graph(graph, slice_to_sink):
+def slice_cfg_graph(graph, slice_to_sink):
     """
-    Slice a graph, keeping only the transitions and nodes present in the <SliceToSink> representation.
+    Slice a CFG graph, keeping only the transitions and nodes present in the <SliceToSink> representation.
 
     *Note* that this function mutates the graph passed as an argument.
 

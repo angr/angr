@@ -1,7 +1,7 @@
 import networkx
 import nose
 
-from angr.analyses.slice_to_sink import SliceToSink, slice_function_graph, slice_graph
+from angr.analyses.slice_to_sink import SliceToSink, slice_cfg_graph, slice_function_graph
 
 
 class _MockCFGNode():
@@ -21,7 +21,7 @@ def _a_graph_and_its_nodes():
     return (graph, nodes)
 
 
-def test_slice_graph_remove_content_not_in_a_slice_to_sink():
+def test_slice_cfg_graph_remove_content_not_in_a_slice_to_sink():
     my_graph, nodes = _a_graph_and_its_nodes()
 
     transitions = {
@@ -30,7 +30,7 @@ def test_slice_graph_remove_content_not_in_a_slice_to_sink():
     }
     my_slice = SliceToSink(None, transitions)
 
-    sliced_graph = slice_graph(my_graph, my_slice)
+    sliced_graph = slice_cfg_graph(my_graph, my_slice)
     result_nodes = list(sliced_graph.nodes)
     result_edges = list(sliced_graph.edges)
 
@@ -38,13 +38,13 @@ def test_slice_graph_remove_content_not_in_a_slice_to_sink():
     nose.tools.assert_list_equal(result_edges, [(nodes[0], nodes[1]), (nodes[1], nodes[2])])
 
 
-def test_slice_graph_mutates_the_original_graph():
+def test_slice_cfg_graph_mutates_the_original_graph():
     my_graph, nodes = _a_graph_and_its_nodes()
 
     transitions = { nodes[0].addr: [nodes[1].addr] }
     my_slice = SliceToSink(None, transitions)
 
-    sliced_graph = slice_graph(my_graph, my_slice)
+    sliced_graph = slice_cfg_graph(my_graph, my_slice)
 
     nose.tools.assert_equals(len(my_graph.nodes), 2)
     nose.tools.assert_equals(len(my_graph.edges), 1)
