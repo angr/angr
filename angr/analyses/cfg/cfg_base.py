@@ -156,6 +156,9 @@ class CFGBase(Analysis):
         self._function_addresses_from_symbols = self._load_func_addrs_from_symbols()
         self._function_addresses_from_eh_frame = self._load_func_addrs_from_eh_frame()
 
+        # Cache if an object has executable sections or not
+        self._object_to_executable_sections = { }
+
         if model is not None:
             self._model = model
         else:
@@ -664,6 +667,20 @@ class CFGBase(Analysis):
             return False
 
         return src_section.contains_addr(addr_b)
+
+    def _object_has_executable_sections(self, obj):
+        """
+        Check whether an object has at least one executable section.
+
+        :param cle.Backend obj: The object to test.
+        :return:                None
+        """
+
+        if obj in self._object_to_executable_sections:
+            return self._object_to_executable_sections[obj]
+        r = any(sec.is_executable for sec in obj.sections)
+        self._object_to_executable_sections[obj] = r
+        return r
 
     def _addr_hooked_or_syscall(self, addr):
         """
