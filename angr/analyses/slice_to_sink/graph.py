@@ -1,3 +1,32 @@
+def slice_callgraph(callgraph, slice_to_sink):
+    """
+    Slice a callgraph, keeping only the nodes present in the <SliceToSink> representation, and th transitions for which
+    a path exists.
+
+    *Note* that this function mutates the graph passed as an argument.
+
+    :param networkx.MultiDiGraph callgraph:
+        The callgraph to update.
+    :param SliceToSink slice_to_sink:
+        The representation of the slice, containing the data to update the callgraph from.
+    """
+
+    edges_to_remove = list(filter(
+        lambda e: not slice_to_sink.path_between(*e),
+        callgraph.edges()
+    ))
+
+    nodes_to_remove = list(filter(
+        lambda node: node not in slice_to_sink.nodes,
+        callgraph.nodes()
+    ))
+
+    callgraph.remove_edges_from(edges_to_remove)
+    callgraph.remove_nodes_from(nodes_to_remove)
+
+    return callgraph
+
+
 def slice_cfg_graph(graph, slice_to_sink):
     """
     Slice a CFG graph, keeping only the transitions and nodes present in the <SliceToSink> representation.

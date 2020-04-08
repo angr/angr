@@ -1,7 +1,7 @@
 import networkx
 import nose
 
-from angr.analyses.slice_to_sink import SliceToSink, slice_cfg_graph, slice_function_graph
+from angr.analyses.slice_to_sink import SliceToSink, slice_callgraph, slice_cfg_graph, slice_function_graph
 
 
 class _MockCFGNode():
@@ -19,6 +19,46 @@ def _a_graph_and_its_nodes():
     graph.add_edge(nodes[1], nodes[2])
     graph.add_edge(nodes[0], nodes[3])
     return (graph, nodes)
+
+
+def test_slice_callgraph_remove_content_not_in_a_slice_to_sink():
+    my_callgraph, nodes = _a_graph_and_its_nodes()
+
+    # Let's imagine a node (0x42), not a function entry point, not in my_callgraph, such as:
+    # 1 -> 0x42, 0x42 -> 2
+    transitions = {
+        nodes[0]: [nodes[1]],
+        nodes[1]: [0x42],
+        0x42: [nodes[2]]
+    }
+    slice_to_sink = SliceToSink(None, transitions)
+
+    sliced_callgraph = slice_callgraph(my_callgraph, slice_to_sink)
+
+    result_nodes = list(sliced_callgraph.nodes)
+    result_edges = list(sliced_callgraph.edges)
+
+    nose.tools.assert_list_equal(result_nodes, [nodes[0], nodes[1], nodes[2]])
+    nose.tools.assert_list_equal(result_edges, [(nodes[0], nodes[1]), (nodes[1], nodes[2])])
+
+
+def test_slice_callgraph_mutates_the_original_graph():
+    my_callgraph, nodes = _a_graph_and_its_nodes()
+
+    # Let's imagine a node (0x42), not a function entry point, not in my_callgraph, such as:
+    # 1 -> 0x42, 0x42 -> 2
+    transitions = {
+        nodes[0]: [nodes[1]],
+        nodes[1]: [0x42],
+        0x42: [nodes[2]]
+    }
+    slice_to_sink = SliceToSink(None, transitions)
+
+    sliced_callgraph = slice_callgraph(my_callgraph, slice_to_sink)
+
+    nose.tools.assert_equals(len(my_callgraph.nodes), 3)
+    nose.tools.assert_equals(len(my_callgraph.edges), 2)
+    nose.tools.assert_equals(my_callgraph, sliced_callgraph)
 
 
 def test_slice_cfg_graph_remove_content_not_in_a_slice_to_sink():
