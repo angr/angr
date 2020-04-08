@@ -27,12 +27,14 @@ class SimRegNameView(SimStatePlugin):
             k = k[1:]
             inspect = False
             disable_actions = True
+            events = False
         else:
             inspect = True
             disable_actions = False
+            events = True
 
         try:
-            return state.registers.load(k, inspect=inspect, disable_actions=disable_actions)
+            return state.registers.load(k, inspect=inspect, disable_actions=disable_actions, events=events)
         except KeyError:
             return super(SimRegNameView, self).__getattribute__(k)
 
