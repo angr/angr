@@ -156,7 +156,7 @@ class SimLinux(SimUserland):
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
-            cwd=None, pathsep=b'/', thread_idx=None, **kwargs):
+            cwd=None, pathsep=b'/', thread_idx=None, init_libc = False, **kwargs):
         state = super(SimLinux, self).state_blank(thread_idx=thread_idx, **kwargs)
 
         tls_obj = self.project.loader.tls.threads[thread_idx if thread_idx is not None else 0]
@@ -213,7 +213,11 @@ class SimLinux(SimUserland):
 
         if isinstance(self.project.loader.main_object, MetaELF) and self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
-
+        if init_libc:
+            libc_start_main = P['glibc']['__libc_start_main']()
+            libc_start_main.state = state
+            libc_start_main._initialize_ctype_table()
+            libc_start_main._initialize_errno()
         return state
 
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
