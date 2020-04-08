@@ -74,7 +74,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
 
         permissions = self._cle_permissions_lookup(addr)
 
-        # TODO: if any pages implement new_from_shared it could save us a lot of copying
+        # see if this page supports creating without copying
         if type(data) is memoryview:
             try:
                 new_from_shared = self.PAGE_TYPE.new_from_shared
@@ -86,7 +86,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
                 return new_from_shared(data, memory_id='%s_%d' % (self.id, pageno), memory=self, permissions=permissions)
 
         new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=permissions, **kwargs)
-        self._simple_store(new_page, addr, data, self.page_size, 'Iend_BE', **kwargs)
+        new_page.store(addr, data, size=self.page_size, endness='Iend_BE', **kwargs)
         return new_page
 
     def _cle_permissions_lookup(self, addr):
@@ -127,7 +127,7 @@ class DictBackerMixin(PagedMemoryMixin):
                 if new_page is None:
                     kwargs['allow_default'] = True
                     new_page = PagedMemoryMixin._initialize_default_page(self, pageno, **kwargs)
-                self._simple_store(new_page, addr, claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width), 1, 'Iend_BE', **kwargs)
+                new_page.store(addr, claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width), size=1, endness='Iend_BE', **kwargs)
 
         if new_page is None:
             return super()._initialize_page(pageno, **kwargs)

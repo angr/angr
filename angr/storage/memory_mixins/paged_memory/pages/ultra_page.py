@@ -35,7 +35,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         o.symbolic_data = SortedDict(self.symbolic_data)
         return o
 
-    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, **kwargs):
+    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs):
         concrete_run = []
         symbolic_run = ...
         last_run = None
@@ -93,9 +93,14 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     result.append((realaddr, cur_val))
 
         cycle(page_addr + addr + size)
+        if not cooperate:
+            result = self._force_load_cooperation(result, size, endness, memory=memory, **kwargs)
         return result
 
-    def store(self, addr, data, size=None, endness=None, memory=None, page_addr=None, **kwargs):
+    def store(self, addr, data, size=None, endness=None, memory=None, page_addr=None, cooperate=False, **kwargs):
+        if not cooperate:
+            data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
+
         if data.object.op == 'BVV':
             # mark range as symbolic
             self.symbolic_bitmap[addr:addr+size] = b'\0'*size

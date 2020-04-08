@@ -104,7 +104,8 @@ class PagedMemoryMixin(MemoryMixin):
 
         # fasttrack basic case
         if pageoff + size <= self.page_size:
-            vals.append(self._get_page(pageno, False, **kwargs).load(pageoff, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, **kwargs))
+            page = self._get_page(pageno, False, **kwargs)
+            vals.append(page.load(pageoff, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs))
 
         else:
             max_pageno = (1 << self.state.arch.bits) // self.page_size
@@ -112,7 +113,7 @@ class PagedMemoryMixin(MemoryMixin):
             while bytes_done < size:
                 page = self._get_page(pageno, False, **kwargs)
                 sub_size = min(self.page_size-pageoff, size-bytes_done)
-                vals.append(page.load(pageoff, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self, **kwargs))
+                vals.append(page.load(pageoff, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs))
 
                 bytes_done += sub_size
                 pageno = (pageno + 1) % max_pageno
@@ -137,7 +138,8 @@ class PagedMemoryMixin(MemoryMixin):
         # fasttrack basic case
         if pageoff + size <= self.page_size:
             sub_data = sub_gen.send(size)
-            self._get_page(pageno, True, **kwargs).store(pageoff, sub_data, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, **kwargs)
+            page = self._get_page(pageno, True, **kwargs)
+            page.store(pageoff, sub_data, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs)
             sub_gen.close()
             return
 
@@ -151,25 +153,12 @@ class PagedMemoryMixin(MemoryMixin):
 
             sub_data = sub_gen.send(sub_size)
 
-            page.store(pageoff, sub_data, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self, **kwargs)
+            page.store(pageoff, sub_data, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs)
 
             bytes_done += sub_size
             pageno = (pageno + 1) % max_pageno
             pageoff = 0
 
-        sub_gen.close()
-
-    def _simple_store(self, page, addr, data, size, endness, **kwargs):
-        page_addr = addr - (addr % self.page_size)
-        if data is not None:
-            sub_gen = self.PAGE_TYPE._decompose_objects(addr, data, endness, memory=self, **kwargs)
-        else:
-            sub_gen = self.PAGE_TYPE._zero_objects(addr, size, memory=self, **kwargs)
-
-        next(sub_gen)
-
-        sub_data = sub_gen.send(size)
-        page.store(addr - page_addr, sub_data, size=size, endness=endness, page_addr=page_addr, memory=self, **kwargs)
         sub_gen.close()
 
     def permissions(self, addr, permissions=None, **kwargs):
@@ -227,7 +216,7 @@ class PagedMemoryMixin(MemoryMixin):
         page = self._initialize_default_page(pageno, permissions=permissions, **kwargs)
         self._pages[pageno] = page
         if init_zero:
-            self._simple_store(page, pageno * self.page_size, None, self.page_size, 'Iend_BE', **kwargs)
+            page.store(0, None, size=self.page_size, endness='Iend_BE', **kwargs)
 
     def _unmap_page(self, pageno, **kwargs):
         try:

@@ -24,7 +24,7 @@ class ListPage(MemoryObjectMixin, PageBase):
     def merge(self, _others, _merge_conditions, _common_ancestor=None):
         raise NotImplementedError("uh oh sisters!")
 
-    def load(self, addr, size=None, endness=None, page_addr=None, memory=None, **kwargs):
+    def load(self, addr, size=None, endness=None, page_addr=None, memory=None, cooperate=False, **kwargs):
         result = []
         last_seen = ...  # ;)
 
@@ -42,6 +42,9 @@ class ListPage(MemoryObjectMixin, PageBase):
 
         if last_seen is None:
             self._fill(result, addr + size, page_addr, endness, memory, **kwargs)
+
+        if not cooperate:
+            result = self._force_load_cooperation(result, size, endness, memory=memory, **kwargs)
         return result
 
     def _fill(self, result, addr, page_addr, endness, memory, **kwargs):
@@ -60,7 +63,10 @@ class ListPage(MemoryObjectMixin, PageBase):
             self.content[subaddr] = new_item
         result[-1] = (global_start_addr, new_item)
 
-    def store(self, addr, data, size=None, endness=None, memory=None, **kwargs):
+    def store(self, addr, data, size=None, endness=None, memory=None, cooperate=False, **kwargs):
+        if not cooperate:
+            data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
+
         if size == len(self.content) and addr == 0:
             self.sinkhole = data
             self.content = [None]*len(self.content)
