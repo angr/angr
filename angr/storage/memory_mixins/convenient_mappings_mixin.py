@@ -38,12 +38,7 @@ class ConvenientMappingsMixin(MemoryMixin):
             old_obj = self.load(addr, size=size)
 
             if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
-                if type(old_obj) is list: # XXX gigantic hack
-                    obj_vars = set()
-                    for _, subobj in old_obj:
-                        obj_vars.update(subobj.variables)
-                else:
-                    obj_vars = old_obj.variables
+                obj_vars = old_obj.variables
                 for v in obj_vars:
                     self._mark_updated_mapping(self._name_mapping, v)
                     self._name_mapping[v].difference_update(range(addr, addr+size))
@@ -51,15 +46,11 @@ class ConvenientMappingsMixin(MemoryMixin):
                         self._name_mapping.pop(v, None)
 
                 if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                    if type(old_obj) is list: # XXX gigantic hack
-                        obj_hashes = [x.cache_key for _, x in old_obj]
-                    else:
-                        obj_hashes = [old_obj.cache_key]
-                    for h in obj_hashes:
-                        self._mark_updated_mapping(self._hash_mapping, h)
-                        self._hash_mapping[h].difference_update(range(addr, addr+size))
-                        if len(self._hash_mapping[h]) == 0:
-                            self._hash_mapping.pop(h, None)
+                    h = old_obj.cache_key
+                    self._mark_updated_mapping(self._hash_mapping, h)
+                    self._hash_mapping[h].difference_update(range(addr, addr+size))
+                    if len(self._hash_mapping[h]) == 0:
+                        self._hash_mapping.pop(h, None)
         except KeyError:
             pass
 

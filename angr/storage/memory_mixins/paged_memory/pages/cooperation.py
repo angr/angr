@@ -24,11 +24,27 @@ class CooperationBase:
         pass
 
     @classmethod
-    def _zero_objects(self, cls, addr, size, **kwargs):
+    def _zero_objects(cls, addr, size, **kwargs):
         """
         Like decompose objects, but with a size to zero-fill instead of explicit data
         """
         pass
+
+    @classmethod
+    def _force_store_cooperation(cls, addr, data, size, endness, **kwargs):
+        if data is not None:
+            sub_gen = cls._decompose_objects(addr, data, endness, **kwargs)
+        else:
+            sub_gen = cls._zero_objects(addr, size, **kwargs)
+
+        next(sub_gen)
+        sub_data = sub_gen.send(size)
+        sub_gen.close()
+        return sub_data
+
+    @classmethod
+    def _force_load_cooperation(cls, results, size, endness, **kwargs):
+        return cls._compose_objects([results], size, endness, **kwargs)
 
 class MemoryObjectMixin(CooperationBase):
     """

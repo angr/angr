@@ -5,7 +5,7 @@ from . import MemoryMixin
 class ConditionalMixin(MemoryMixin):
     def load(self, addr, condition=None, fallback=None, **kwargs):
         res = super().load(addr, condition=condition, **kwargs)
-        if condition is not None:
+        if condition is not None and fallback is not None:
             res = claripy.If(condition, res, fallback)
         return res
 
