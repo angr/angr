@@ -304,6 +304,13 @@ SYMBION_SYNC_CLE = "SYMBION_SYNC_CLE"
 # We will execute SimProc for functions for which we have one, and the real function for the one we have not.
 SYMBION_KEEP_STUBS_ON_SYNC = "SYMBION_KEEP_STUBS_ON_SYNC"
 
+# Activate the heuristic that tries to understand if an unknown method (e. g. library call) gets or sets an
+# attribute inside the object. Turn on this option to have a better approximation of the internal structure of the
+# symbolic object.
+JAVA_IDENTIFY_GETTER_SETTER = "JAVA_IDENTIFY_GETTER_SETTER"
+# Activate attributes tracking for objects.
+JAVA_TRACK_ATTRIBUTES = "JAVA_TRACK_ATTRIBUTES"
+
 #
 # Register those variables as Boolean state options
 #
