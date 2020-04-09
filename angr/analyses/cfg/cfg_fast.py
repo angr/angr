@@ -3471,7 +3471,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         }:
                     # ud0, ud1, and ud2 are actually valid instructions.
                     valid_ins = True
-                    nodecode_size = 2
+                    if irsb_string[-2:] == b'\x0f\x0b':
+                        # VEX supports ud2 and make it part of the block size.
+                        nodecode_size = 0
+                    else:
+                        # VEX does not support ud0 or ud1. they are not part of the block size.
+                        nodecode_size = 2
                 else:
                     valid_ins = False
                     nodecode_size = 1
