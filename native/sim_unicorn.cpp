@@ -124,13 +124,13 @@ typedef struct block_entry {
 	std::unordered_set<uint64_t> clobbered_registers;
 } block_entry_t;
 
-typedef std::unordered_map<taint_entity_t, std::unordered_set<taint_entity_t>> taint_map_t;
+typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
 
 typedef struct block_taint_entry_t {
-	taint_map_t taint_sink_src_map;
+	taint_vector_t taint_sink_src_data;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
-		return (taint_sink_src_map == other_entry.taint_sink_src_map);
+		return (taint_sink_src_data == other_entry.taint_sink_src_data);
 	}
 } block_taint_entry_t;
 
@@ -1207,7 +1207,7 @@ public:
 						sink.reg_id = stmt->Ist.Put.offset;
 						srcs = get_taint_sources(stmt->Ist.Put.data);
 						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
 						}
 						break;
 					}
@@ -1221,7 +1221,7 @@ public:
 						sink.tmp_id = stmt->Ist.WrTmp.tmp;
 						srcs = get_taint_sources(stmt->Ist.WrTmp.data);
 						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
 						}
 						break;
 					}
@@ -1236,7 +1236,7 @@ public:
 						sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
 						srcs = get_taint_sources(stmt->Ist.Store.data);
 						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
 						}
 						break;
 					}
@@ -1249,7 +1249,7 @@ public:
 						sink.entity_type = TAINT_ENTITY_NONE;
 						srcs = get_taint_sources(stmt->Ist.Exit.guard);
 						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
 						}
 						break;
 					}
