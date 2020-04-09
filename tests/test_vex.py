@@ -334,10 +334,23 @@ def test_amd64_ud012_behaviors():
     block_1 = a.factory.block(0)
     assert block_1.size == 2
 
-    # according to VEX, ud2 *is* part of the block
+    # according to VEX, ud2 under AMD64 *is* part of the block
     a = load_shellcode(b"\x90\x90\x0f\x0b", "amd64")
     block_2 = a.factory.block(0)
     assert block_2.size == 4
+
+
+def test_x86_ud2_behaviors():
+
+    # Test if VEX's lifter behaves as what CFGFast expects
+    #
+    # Note: if such behaviors change in the future, you also need to fix the ud2 handling logic in
+    # CFGFast._generate_cfgnode().
+
+    # according to VEX, ud2 on x86 is not part of the block
+    a = load_shellcode(b"\x90\x90\x0f\x0b", "x86")
+    block_0 = a.factory.block(0)
+    assert block_0.size == 2
 
 
 if __name__ == '__main__':
