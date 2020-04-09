@@ -235,7 +235,6 @@ class Concrete(SimStatePlugin):
                     func_address = struct.unpack(self.state.project.arch.struct_fmt(), func_address)[0]
                 elif self.state.project.simos.name == 'Linux':
                     try:
-                        import ipdb; ipdb.set_trace()
                         func_address = self.state.project.loader.main_object.plt[reloc.symbol.name]
                     except KeyError:
                         continue
