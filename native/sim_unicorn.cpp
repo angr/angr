@@ -1206,7 +1206,9 @@ public:
 						sink.entity_type = TAINT_ENTITY_REG;
 						sink.reg_id = stmt->Ist.Put.offset;
 						srcs = get_taint_sources(stmt->Ist.Put.data);
-						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						if (srcs.size() > 0) {
+							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						}
 						break;
 					}
 					case Ist_WrTmp:
@@ -1218,7 +1220,9 @@ public:
 						sink.entity_type = TAINT_ENTITY_TMP;
 						sink.tmp_id = stmt->Ist.WrTmp.tmp;
 						srcs = get_taint_sources(stmt->Ist.WrTmp.data);
-						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						if (srcs.size() > 0) {
+							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						}
 						break;
 					}
 					case Ist_Store:
@@ -1231,7 +1235,9 @@ public:
 						auto temp = get_taint_sources(stmt->Ist.Store.addr);
 						sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
 						srcs = get_taint_sources(stmt->Ist.Store.data);
-						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						if (srcs.size() > 0) {
+							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						}
 						break;
 					}
 					case Ist_Exit:
@@ -1242,7 +1248,9 @@ public:
 
 						sink.entity_type = TAINT_ENTITY_NONE;
 						srcs = get_taint_sources(stmt->Ist.Exit.guard);
-						block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						if (srcs.size() > 0) {
+							block_taint_entry.taint_sink_src_map.emplace(std::make_pair(sink, srcs));
+						}
 						break;
 					}
 					case Ist_PutI:
