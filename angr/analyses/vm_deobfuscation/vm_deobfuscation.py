@@ -64,7 +64,7 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
 
-        self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        #self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -87,6 +87,7 @@ class VMDeobfuscation(Analysis):
                                 block_id=copy.deepcopy(node.block_id),
                                 size=copy.deepcopy(node.size),
                                 vm_vpc=copy.deepcopy(node.vm_vpc),
+                                branch_trace = copy.deepcopy(node.branch_trace),
                                 looping_times=copy.deepcopy(node.looping_times),
                                 callstack_key=copy.deepcopy(node.callstack_key),
                                 simprocedure_name=copy.deepcopy(node.simprocedure_name),
@@ -137,7 +138,7 @@ class VMDeobfuscation(Analysis):
                                         resolve_indirect_jumps=False, ##### Need to resolve the issue that arises when this is set to True
                                         keep_state=True,
                                         state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
-                                        iropt_level=0,)
+                                        iropt_level=1,)
         return cfg, proj
 
     ####### Constant Propagation
@@ -158,7 +159,7 @@ class VMDeobfuscation(Analysis):
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         ## find the replacements
 
-        prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=0, start=start_addr, max_iterations=1)
+        prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=1, start=start_addr, max_iterations=1)
 
         ## do the actual replacements
         for key, value in prop.replacements.items():
@@ -184,7 +185,7 @@ class VMDeobfuscation(Analysis):
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
 
         #Run the emulation on the new graph to update the state attributes
-        new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=False, max_iterations=1,
+        new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=False, max_iterations=1,
                                             vm_vpc_addr=vm_vpc_addr)
 
         ### Returning a new CFGEmulated object with the updated graph
@@ -238,7 +239,7 @@ class VMDeobfuscation(Analysis):
                                                        add_options=angr.sim_options.refs | {
                                                        angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1)
+        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1)
         return new_cfg
 
     def simplifications(self, cfg, proj, start_addr, vm_vpc_addr):
@@ -252,8 +253,8 @@ class VMDeobfuscation(Analysis):
                 ail_block = IRSBConverter.convert(node.irsb, manager)
                 print("Original:")
                 print(ail_block)
-                simplified_ail_block = proj.analyses.AILBlockSimplifier(ail_block)
                 print("\nSimplified:")
+                simplified_ail_block = proj.analyses.AILBlockSimplifier(ail_block)
                 print(simplified_ail_block.result_block)
                 print("\n\n")
 
@@ -266,7 +267,7 @@ class VMDeobfuscation(Analysis):
                                                        angr.sim_options.DO_CCALLS})
 
         simplified_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGEmulated(model=simplified_new_model, keep_state=True, iropt_level=0,
+        new_cfg = proj.analyses.CFGEmulated(model=simplified_new_model, keep_state=True, iropt_level=1,
                                             resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         return new_cfg
 
@@ -301,6 +302,9 @@ class VMDeobfuscation(Analysis):
                         elif stmt.guard.con.value == 1:
                             node.irsb.next =pyvex.expr.Const(stmt.dst)
                             continue
+                    elif isinstance(stmt, pyvex.stmt.Exit) and not type(stmt.guard) == pyvex.expr.Const:
+                        new_stmts.append(stmt)
+                        continue
                     elif isinstance(stmt, pyvex.stmt.IMark) or isinstance(stmt, pyvex.stmt.AbiHint):
                         new_stmts.append(stmt)
                         continue
@@ -356,7 +360,7 @@ class VMDeobfuscation(Analysis):
                                                        add_options=angr.sim_options.refs | {
                                                        angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=0, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         return new_cfg
 
     ### Draw the graph with vex statements
