@@ -37,14 +37,10 @@ class SimSootValue_ThisRef(SimSootValue):
         """
         Sets an instance field.
 
-        :param state: angr state where we want to allocate the object attribute
-        :type SimState
-        :param field_name: name of the attribute
-        :type str
-        :param field_type: type of the attribute
-        :type str
-        :param field_value: attibute's value
-        :type SimSootValue
+        :param SimState state: angr state where we want to allocate the object attribute
+        :param str field_name: name of the attribute
+        :param str field_type: type of the attribute
+        :param SimSootValue field_value: attribute's value
         """
         field_ref = SimSootValue_InstanceFieldRef.get_ref(state=state,
                                                           obj_alloc_id=self.heap_alloc_id,
@@ -62,12 +58,9 @@ class SimSootValue_ThisRef(SimSootValue):
         """
         Gets the value of an instance field.
 
-        :param state: angr state where we want to allocate the object attribute
-        :type SimState
-        :param field_name: name of the attribute
-        :type str
-        :param field_type: type of the attribute
-        :type str
+        :param SimState state: angr state where we want to allocate the object attribute
+        :param str field_name: name of the attribute
+        :param str field_type: type of the attribute
         """
         # get field reference
         field_ref = SimSootValue_InstanceFieldRef.get_ref(state=state,
@@ -86,12 +79,9 @@ class SimSootValue_ThisRef(SimSootValue):
         """
         Store a field of a given object, WITHOUT RESOLVING HIERARCHY
 
-        :param state: angr state where we want to allocate the object attribute
-        :type SimState
-        :param field_name: name of the attribute
-        :type str
-        :param field_value: attibute's value
-        :type SimSootValue
+        :param SimState state: angr state where we want to allocate the object attribute
+        :param str field_name: name of the attribute
+        :param SimSootValue field_value: attribute's value
         """
         field_ref = SimSootValue_InstanceFieldRef(self.heap_alloc_id, self.type, field_name, field_type)
 
@@ -104,12 +94,9 @@ class SimSootValue_ThisRef(SimSootValue):
         """
         Load a field of a given object, without resolving HIERARCHY
 
-        :param state: angr state where we want to load the object attribute
-        :type SimState
-        :param field_name: name of the attribute
-        :type str
-        :param field_type: type of the attribute
-        :type str
+        :param SimState tastate: angr state where we want to load the object attribute
+        :param str field_name: name of the attribute
+        :param str field_type: type of the attribute
         """
         field_ref = SimSootValue_InstanceFieldRef(self.heap_alloc_id, self.type, field_name, field_type)
 
