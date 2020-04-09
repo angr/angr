@@ -3369,8 +3369,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             obj = self.project.loader.find_object_containing(addr, membership_check=False)
             if obj:
                 # is there a section?
-                has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0  # pylint:disable=len-as-condition
-                section = self.project.loader.find_section_containing(addr)
+                has_executable_section = self._object_has_executable_sections(obj)
+                section = obj.find_section_containing(addr)
                 if has_executable_section and section is None:
                     # the basic block should not exist here...
                     return None, None, None, None
