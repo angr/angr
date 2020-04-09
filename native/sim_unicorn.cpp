@@ -84,12 +84,15 @@ typedef struct taint_entity_t {
 			return std::hash<uint64_t>()(taint_entity.entity_type) ^
 				   std::hash<uint64_t>()(taint_entity.tmp_id);
 		}
-		else {
+		else if (taint_entity.entity_type == TAINT_ENTITY_MEM) {
 			std::size_t taint_entity_hash = std::hash<uint64_t>()(taint_entity.entity_type);
 			for (auto &sub_entity: taint_entity.mem_ref_entity_list) {
 				taint_entity_hash ^= sub_entity.operator()(sub_entity);
 			}
 			return taint_entity_hash;
+		}
+		else {
+			return std::hash<uint64_t>()(taint_entity.entity_type);
 		}
 	}
 } taint_entity_t;
