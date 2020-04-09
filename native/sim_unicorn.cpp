@@ -1174,7 +1174,7 @@ public:
 				// TODO: Switch to VEX engine rather than abort.
 				std::stringstream ss;
 				ss << "Unsupported expression type: " << expr->tag;
-				LOG_D(ss.str().c_str());
+				LOG_D("%s", ss.str().c_str());
 				assert(false && "Unsupported expression type encountered! See debug log.");
 			}
 		}
@@ -1290,7 +1290,7 @@ public:
 						std::stringstream ss;
 						ss << "Block addr: 0x" << std::hex << address << std::dec;
 						ss << ", Statement index: " << i << ", Statement type: " << stmt->tag;
-						LOG_D(ss.str().c_str());
+						LOG_D("%s", ss.str().c_str());
 						assert(false && "Unsupported statement type encountered! See debug log.");
 					}
 				}
