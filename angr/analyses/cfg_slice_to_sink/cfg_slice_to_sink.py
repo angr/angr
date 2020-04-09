@@ -3,7 +3,7 @@ from functools import reduce
 from .transitions import merge_transitions
 
 
-class SliceToSink:
+class CFGSliceToSink:
     """
     The representation of a slice of a CFG.
     """
@@ -89,7 +89,7 @@ class SliceToSink:
         """
         Test if a given slice does not contain any transition.
 
-        :return bool: True if the <SliceToSink> instance does not contain any transitions. False otherwise.
+        :return bool: True if the <CFGSliceToSink> instance does not contain any transitions. False otherwise.
         """
         return not bool(self._transitions)
 

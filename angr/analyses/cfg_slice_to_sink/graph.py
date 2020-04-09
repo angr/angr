@@ -1,23 +1,23 @@
-def slice_callgraph(callgraph, slice_to_sink):
+def slice_callgraph(callgraph, cfg_slice_to_sink):
     """
-    Slice a callgraph, keeping only the nodes present in the <SliceToSink> representation, and th transitions for which
+    Slice a callgraph, keeping only the nodes present in the <CFGSliceToSink> representation, and th transitions for which
     a path exists.
 
     *Note* that this function mutates the graph passed as an argument.
 
     :param networkx.MultiDiGraph callgraph:
         The callgraph to update.
-    :param SliceToSink slice_to_sink:
+    :param CFGSliceToSink cfg_slice_to_sink:
         The representation of the slice, containing the data to update the callgraph from.
     """
 
     edges_to_remove = list(filter(
-        lambda e: not slice_to_sink.path_between(*e),
+        lambda e: not cfg_slice_to_sink.path_between(*e),
         callgraph.edges()
     ))
 
     nodes_to_remove = list(filter(
-        lambda node: node not in slice_to_sink.nodes,
+        lambda node: node not in cfg_slice_to_sink.nodes,
         callgraph.nodes()
     ))
 
@@ -27,14 +27,14 @@ def slice_callgraph(callgraph, slice_to_sink):
     return callgraph
 
 
-def slice_cfg_graph(graph, slice_to_sink):
+def slice_cfg_graph(graph, cfg_slice_to_sink):
     """
-    Slice a CFG graph, keeping only the transitions and nodes present in the <SliceToSink> representation.
+    Slice a CFG graph, keeping only the transitions and nodes present in the <CFGSliceToSink> representation.
 
     *Note* that this function mutates the graph passed as an argument.
 
     :param networkx.DiGraph graph: The graph to slice.
-    :param SliceToSink slice_to_sink:
+    :param CFGSliceToSink cfg_slice_to_sink:
         The representation of the slice, containing the data to update the CFG from.
 
     :return networkx.DiGraph: The sliced graph.
@@ -43,15 +43,15 @@ def slice_cfg_graph(graph, slice_to_sink):
     def _edge_in_slice_transitions(transitions, edge):
         if edge[0].addr not in transitions.keys():
             return False
-        return edge[1].addr in slice_to_sink.transitions[edge[0].addr]
+        return edge[1].addr in cfg_slice_to_sink.transitions[edge[0].addr]
 
     edges_to_remove = list(filter(
-        lambda edge: not _edge_in_slice_transitions(slice_to_sink.transitions, edge),
+        lambda edge: not _edge_in_slice_transitions(cfg_slice_to_sink.transitions, edge),
         graph.edges()
     ))
 
     nodes_to_remove = list(filter(
-        lambda node: node.addr not in slice_to_sink.nodes,
+        lambda node: node.addr not in cfg_slice_to_sink.nodes,
         graph.nodes()
     ))
 
@@ -61,15 +61,15 @@ def slice_cfg_graph(graph, slice_to_sink):
     return graph
 
 
-def slice_function_graph(function_graph, slice_to_sink):
+def slice_function_graph(function_graph, cfg_slice_to_sink):
     """
-    Slice a function graph, keeping only the nodes present in the <SliceToSink> representation.
+    Slice a function graph, keeping only the nodes present in the <CFGSliceToSink> representation.
 
-    Because the <SliceToSink> is build from the CFG, and the function graph is *NOT* a subgraph of the CFG, edges of
-    the function graph will no be present in the <SliceToSink> transitions.
+    Because the <CFGSliceToSink> is build from the CFG, and the function graph is *NOT* a subgraph of the CFG, edges of
+    the function graph will no be present in the <CFGSliceToSink> transitions.
     However, we use the fact that if there is an edge between two nodes in the function graph, then there must exist
     a path between these two nodes in the slice; Proof idea:
-    - The <SliceToSink> is backward and recursively constructed;
+    - The <CFGSliceToSink> is backward and recursively constructed;
     - If a node is in the slice, then all its predecessors will be (transitively);
     - If there is an edge between two nodes in the function graph, there is a path between them in the CFG;
     - So: The origin node is a transitive predecessor of the destination one, hence if destination is in the slice,
@@ -81,14 +81,14 @@ def slice_function_graph(function_graph, slice_to_sink):
     *Note* that this function mutates the graph passed as an argument.
 
     :param networkx.DiGraph graph: The graph to slice.
-    :param SliceToSink slice_to_sink:
+    :param CFGSliceToSink cfg_slice_to_sink:
         The representation of the slice, containing the data to update the CFG from.
 
     :return networkx.DiGraph: The sliced graph.
     """
 
     nodes_to_remove = list(filter(
-        lambda node: node.addr not in slice_to_sink.nodes,
+        lambda node: node.addr not in cfg_slice_to_sink.nodes,
         function_graph.nodes()
     ))
 

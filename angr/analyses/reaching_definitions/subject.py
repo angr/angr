@@ -5,13 +5,13 @@ import ailment
 from ...block import Block
 from ...knowledge_plugins.functions.function_manager import Function
 from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, SliceVisitor
-from ..slice_to_sink import SliceToSink
+from ..cfg_slice_to_sink import CFGSliceToSink
 
 
 class SubjectType(Enum):
     Function = 1
     Block = 2
-    SliceToSink = 3
+    CFGSliceToSink = 3
 
 
 class Subject:
@@ -19,7 +19,7 @@ class Subject:
         """
         The thing being analysed, and the way (visitor) to analyse it.
 
-        :param ailment.Block|angr.Block|Function|SliceToSink content:
+        :param Union[ailment.Block, angr.Block, Function, CFGSliceToSink] content:
             Thing to be analysed.
         :param angr.knowledge_plugins.cfg.cfg_model.CFGModel cfg:
             CFG of the program the thing was found in. Only used when analysing a slice.
@@ -37,8 +37,8 @@ class Subject:
         elif isinstance(content, (ailment.Block, Block)):
             self._type = SubjectType.Block
             self._visitor = SingleNodeGraphVisitor(content)
-        elif isinstance(content, SliceToSink):
-            self._type = SubjectType.SliceToSink
+        elif isinstance(content, CFGSliceToSink):
+            self._type = SubjectType.CFGSliceToSink
             self._visitor = SliceVisitor(content, cfg)
         else:
             raise TypeError('Unsupported analysis target.')

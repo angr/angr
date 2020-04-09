@@ -17,7 +17,7 @@ from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
-from ..slice_to_sink import slice_cfg_graph, slice_function_graph
+from ..cfg_slice_to_sink import slice_cfg_graph, slice_function_graph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
@@ -48,7 +48,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
                  dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
-        :param Union[Block,Function,SliceToSink] subject:
+        :param Union[Block,Function,CFGSliceToSink] subject:
                                                 The subject of the analysis: a function, a single basic block, or the
                                                 representation of a slice to a sink.
         :param func_graph:                      Alternative graph for function.graph.
@@ -76,7 +76,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc)
         self._graph_visitor = self._subject.visitor
 
-        if self._subject.type is SubjectType.SliceToSink:
+        if self._subject.type is SubjectType.CFGSliceToSink:
             self._update_kb_content_from_slice()
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
@@ -138,9 +138,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                 del self.kb.functions[f]
 
         # Remove the nodes that are not in the slice from the functions' graphs.
-        def _update_function_graph(slice_to_sink, function):
+        def _update_function_graph(cfg_slice_to_sink, function):
             if len(function.graph.nodes()) > 1:
-                slice_function_graph(function.graph, slice_to_sink)
+                slice_function_graph(function.graph, cfg_slice_to_sink)
         list(map(
             partial(_update_function_graph, self._subject.content),
             self.kb.functions._function_map.values()

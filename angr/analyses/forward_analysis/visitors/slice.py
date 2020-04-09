@@ -10,7 +10,7 @@ class SliceVisitor(GraphVisitor):
     """
     def __init__(self, slice_to_visit, cfg):
         """
-        :param SliceToSink slice:
+        :param CFGSliceToSink slice:
             A slice, representing a graph where all paths are leading to a sink.
         :param angr.knowledge_plugins.cfg.cfg_model.CFGModel cfg:
             The CFG represented by the slice.

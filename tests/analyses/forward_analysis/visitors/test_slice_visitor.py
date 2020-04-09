@@ -7,7 +7,7 @@ from claripy.utils.orderedset import OrderedSet
 
 from angr.analyses.cfg.cfg_utils import CFGUtils
 from angr.analyses.forward_analysis.visitors.slice import SliceVisitor
-from angr.analyses.slice_to_sink import SliceToSink
+from angr.analyses.cfg_slice_to_sink import CFGSliceToSink
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.project import Project
 
@@ -33,7 +33,7 @@ class TestSliceVisitor():
         """
         addr, size, cfg = 1, None, None
         node = CFGNode(0x42, addr, size, cfg, block_id=1)
-        slice_to_visit = SliceToSink(None, {
+        slice_to_visit = CFGSliceToSink(None, {
             node.addr: [0x43, 0x44, 0x45],
         })
         slice_visitor = SliceVisitor(slice_to_visit, None)
@@ -50,7 +50,7 @@ class TestSliceVisitor():
         addr, size, cfg = 1, None, None
         node = CFGNode(0x42, addr, size, cfg, block_id=1)
 
-        slice_to_visit = SliceToSink(None, {
+        slice_to_visit = CFGSliceToSink(None, {
             0x41: [node.addr],
         })
         slice_visitor = SliceVisitor(slice_to_visit, None)
@@ -66,7 +66,7 @@ class TestSliceVisitor():
         """
         addr, size, cfg = 1, None, None
         node = CFGNode(0x42, addr, size, cfg, block_id=1)
-        slice_to_visit = SliceToSink(None, {
+        slice_to_visit = CFGSliceToSink(None, {
             0x40: [node.addr],
             0x41: [node.addr, 0x43],
         })
@@ -83,7 +83,7 @@ class TestSliceVisitor():
         """
         addr, size, cfg = 1, None, None
         node = CFGNode(0x42, addr, size, cfg, block_id=1)
-        slice_to_visit = SliceToSink(None, {
+        slice_to_visit = CFGSliceToSink(None, {
             node.addr: [0x43],
         })
         slice_visitor = SliceVisitor(slice_to_visit, None)

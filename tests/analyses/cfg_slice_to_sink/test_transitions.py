@@ -1,7 +1,7 @@
 import nose
 import os
 
-from angr.analyses.slice_to_sink.transitions import merge_transitions
+from angr.analyses.cfg_slice_to_sink.transitions import merge_transitions
 from angr.project import Project
 
 

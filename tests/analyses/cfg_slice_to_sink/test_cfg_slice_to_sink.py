@@ -1,7 +1,7 @@
 import nose
 import os
 
-from angr.analyses.slice_to_sink import SliceToSink
+from angr.analyses.cfg_slice_to_sink import CFGSliceToSink
 from angr.project import Project
 
 
@@ -18,20 +18,20 @@ PRINTF_NODE = CFG.model.get_all_nodes(PRINTF.addr)[0]
 
 def test_get_transitions_from_slice():
     transitions = {1: [2, 3]}
-    my_slice = SliceToSink(None, transitions)
+    my_slice = CFGSliceToSink(None, transitions)
 
     nose.tools.assert_dict_equal(my_slice.transitions, transitions)
 
 
 def test_get_entrypoints_from_slice():
     transitions = {0: [2], 1: [2, 3], 2: [4, 5]}
-    my_slice = SliceToSink(None, transitions)
+    my_slice = CFGSliceToSink(None, transitions)
 
     nose.tools.assert_list_equal(my_slice.entrypoints, [0, 1])
 
 
 def test_add_transitions_updates_the_slice():
-    my_slice = SliceToSink(None, {1: [2, 3]})
+    my_slice = CFGSliceToSink(None, {1: [2, 3]})
     transitions_to_add = { 1: [4], 2: [4] }
 
     result = my_slice.add_transitions(transitions_to_add)
@@ -45,7 +45,7 @@ def test_add_transitions_updates_the_slice():
 
 
 def test_nodes():
-    my_slice = SliceToSink(None, {
+    my_slice = CFGSliceToSink(None, {
         1: [2, 3],
         2: [3],
     })
@@ -57,7 +57,7 @@ def test_nodes():
 
 
 def test_transitions_as_tuples():
-    my_slice = SliceToSink(None, {
+    my_slice = CFGSliceToSink(None, {
         1: [2, 3],
         2: [3]
     })
@@ -71,15 +71,15 @@ def test_transitions_as_tuples():
 def test_emptyness():
     printf_predecessor = PRINTF_NODE.predecessors[0]
 
-    empty_slice = SliceToSink(PRINTF, {})
-    non_empty_slice = SliceToSink(PRINTF, { printf_predecessor.addr: [PRINTF.addr] })
+    empty_slice = CFGSliceToSink(PRINTF, {})
+    non_empty_slice = CFGSliceToSink(PRINTF, { printf_predecessor.addr: [PRINTF.addr] })
 
     nose.tools.assert_equals(empty_slice.is_empty(), True)
     nose.tools.assert_equals(non_empty_slice.is_empty(), False)
 
 
 def test_path_between_returns_True_only_if_there_exists_at_least_a_path_between_two_nodes_in_the_slice():
-    my_slice = SliceToSink(None, {
+    my_slice = CFGSliceToSink(None, {
         1: [2, 3],
         2: [4]
     })
@@ -93,7 +93,7 @@ def test_path_between_returns_True_only_if_there_exists_at_least_a_path_between_
 
 
 def test_path_between_deals_with_loops():
-    my_slice = SliceToSink(None, {
+    my_slice = CFGSliceToSink(None, {
         1: [2, 3],
         2: [1]
     })
