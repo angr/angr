@@ -24,6 +24,9 @@ for pkg_name, package in autoimport.auto_import_packages('angr.procedures', path
                 if pkg_name not in SIM_PROCEDURES:
                     SIM_PROCEDURES[pkg_name] = { }
                 SIM_PROCEDURES[pkg_name][name] = proc
+                if hasattr(proc, "__altnames__"):
+                    for altname in proc.__altnames__:
+                        SIM_PROCEDURES[pkg_name][altname] = proc
                 if name == 'UnresolvableJumpTarget':
                     SIM_PROCEDURES[pkg_name]['UnresolvableTarget'] = proc
 
