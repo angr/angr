@@ -6,6 +6,7 @@ from angr.state_plugins.javavm_memory import SimJavaVmMemory
 from angr.state_plugins.keyvalue_memory import SimKeyValueMemory
 from angr.state_plugins.symbolic_memory import SimSymbolicMemory
 from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
+from angr.engines.soot.method_dispatcher import resolve_method
 from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootMethodDescriptor,
                                 SootArgument, SootAddressTerminator)
@@ -554,6 +555,54 @@ def test_toggling_of_simstate():
     assert isinstance(state_copy.memory, SimSymbolicMemory)
     assert isinstance(state_copy.registers, SimSymbolicMemory)
 
+
+def test_object_tracking():
+    binary_dir = os.path.join(test_location, "object_tracking")
+    project = create_project(binary_dir, load_native_libs=False)
+    bootstrap_state = project.factory.blank_state(addr=SootAddressTerminator())
+    mylib_object = SimSootValue_ThisRef.new_object(bootstrap_state, "MyLib", symbolic=True, init_object=False)
+
+    soot_method = resolve_method(
+        bootstrap_state, 'testGetterAndSetterConcrete', "MixedJava", ("mylib.MyLib",), init_class=False).address()
+
+    call_state = project.factory.call_state(
+        soot_method,
+        SootArgument(mylib_object, mylib_object.type, is_this_ref=False),
+        base_state=bootstrap_state,
+        ret_addr=SootAddressTerminator())
+
+    call_state.options.add(angr.options.JAVA_IDENTIFY_GETTER_SETTER)
+    call_state.options.add(angr.options.JAVA_TRACK_ATTRIBUTES)
+
+    simgr = project.factory.simgr(call_state)
+    simgr.run()
+
+    assert len(simgr.deadended) == 1
+
+    final_state = simgr.deadended[0]
+
+    assert final_state.solver.eval(mylib_object.get_field(final_state, 'myInt', 'int')) == 1
+    assert final_state.solver.eval(mylib_object.get_field(final_state, 'myShort', 'short')) == 1
+    assert final_state.solver.eval(mylib_object.get_field(final_state, 'myChar', 'char')) == ord('c')
+    assert final_state.solver.eval(mylib_object.get_field(final_state, 'myLong', 'long')) == 2
+    assert final_state.solver.eval(mylib_object.get_field(final_state, 'myFloat', 'float')) == 1.5
+    assert final_state.solver.eval(mylib_object.get_field(final_state, 'myDouble', 'double')) == 1.5
+    string_ref = mylib_object.get_field(final_state, 'myString', 'java.lang.String')
+    assert final_state.solver.eval(final_state.memory.load(string_ref)) == 'Hello!'
+    array_ref = mylib_object.get_field(final_state, 'myArray', 'int[]')
+    assert final_state.solver.eval(array_ref.size) == 3
+    object_ref = mylib_object.get_field(final_state, 'myObject', 'java.lang.Object')
+    assert final_state.solver.eval(object_ref.get_field(final_state, 'a', 'int')) == 1
+
+    assert ('myInt', 'int') in mylib_object.attributes
+    assert ('myChar', 'char') in mylib_object.attributes
+    assert ('myShort', 'short') in mylib_object.attributes
+    assert ('myLong', 'long') in mylib_object.attributes
+    assert ('myFloat', 'float') in mylib_object.attributes
+    assert ('myDouble', 'double') in mylib_object.attributes
+    assert ('myString', 'java.lang.String') in mylib_object.attributes
+    assert ('myArray', 'int[]') in mylib_object.attributes
+    assert ('myObject', 'java.lang.Object') in mylib_object.attributes
 
 #
 # Helper
