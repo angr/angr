@@ -503,7 +503,8 @@ class SimCC:
                 args = self.func_ty.args
             else:
                 args = self.args
-            is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) else False for arg in args ]
+            is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) else False
+                      for arg in args ]
 
         if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
         return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
