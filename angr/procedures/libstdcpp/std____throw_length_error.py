@@ -8,7 +8,7 @@ class std____throw_logic_error(angr.SimProcedure): #pylint:disable=redefined-bui
     #pylint:disable=arguments-differ
 
     NO_RET = True
-    __altnames__ = ('std::__throw_length_error(char const*)', )
+    ALT_NAMES = ('std::__throw_length_error(char const*)', )
 
     def run(self):
         # FIXME: we need the concept of C++ exceptions to implement this right
