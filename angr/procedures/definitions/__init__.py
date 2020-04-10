@@ -5,6 +5,8 @@ from collections import defaultdict
 import logging
 import inspect
 
+import itanium_demangler
+
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
 from ...sim_type import parse_file
@@ -249,6 +251,76 @@ class SimLibrary:
         """
 
         return func_name in self.prototypes
+
+
+class SimCppLibrary(SimLibrary):
+    """
+    SimCppLibrary is a specialized version of SimLibrary that will demangle C++ function names before looking for an
+    implementation or prototype for it.
+    """
+
+    @staticmethod
+    def _try_demangle(name):
+        if name[0:2] == "_Z":
+            ast = itanium_demangler.parse(name)
+            if ast:
+                return str(ast)
+        return name
+
+    def get(self, name, arch):
+        """
+        Get an implementation of the given function specialized for the given arch, or a stub procedure if none exists.
+        Demangle the function name if it is a mangled C++ name.
+
+        :param str name:    The name of the function as a string
+        :param arch:    The architecure to use, as either a string or an archinfo.Arch instance
+        :return:        A SimProcedure instance representing the function as found in the library
+        """
+        name = self._try_demangle(name)
+        return super().get(name, arch)
+
+    def get_stub(self, name, arch):
+        """
+        Get a stub procedure for the given function, regardless of if a real implementation is available. This will
+        apply any metadata, such as a default calling convention or a function prototype. Demangle the function name
+        if it is a mangled C++ name.
+
+        :param str name:    The name of the function as a string
+        :param arch:        The architecture to use, as either a string or an archinfo.Arch instance
+        :return:            A SimProcedure instance representing a plausable stub as could be found in the library.
+        """
+        name = self._try_demangle(name)
+        return super().get_stub(name, arch)
+
+    def has_metadata(self, name):
+        """
+        Check if a function has either an implementation or any metadata associated with it. Demangle the function name
+        if it is a mangled C++ name.
+
+        :param name:    The name of the function as a string
+        :return:        A bool indicating if anything is known about the function
+        """
+        name = self._try_demangle(name)
+        return super().has_metadata(name)
+
+    def has_implementation(self, name):
+        """
+        Check if a function has an implementation associated with it. Demangle the function name if it is a mangled C++
+        name.
+
+        :param str name:    A mangled function name.
+        :return:            bool
+        """
+        return super().has_implementation(self._try_demangle(name))
+
+    def has_prototype(self, func_name):
+        """
+        Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
+
+        :param str name:    A mangled function name.
+        :return:            bool
+        """
+        return super().has_prototype(self._try_demangle(func_name))
 
 
 class SimSyscallLibrary(SimLibrary):
