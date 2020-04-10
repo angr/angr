@@ -106,7 +106,7 @@ def test_decompiling_linked_list():
     bin_path = os.path.join(test_location, "x86_64", "linked_list")
     p = angr.Project(bin_path, auto_load_libs=False)
 
-    cfg = p.analyses.CFG(collect_data_references=True)
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
 
     f = cfg.functions['sum']
     dec = p.analyses.Decompiler(f, cfg=cfg)
