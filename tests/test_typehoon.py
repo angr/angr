@@ -15,6 +15,7 @@ def test_smoketest():
     main_func = cfg.kb.functions['sum']
 
     vr = p.analyses.VariableRecoveryFast(main_func)
+    p.analyses.CompleteCallingConventions()
 
     import pprint
     tcons = vr.type_constraints
