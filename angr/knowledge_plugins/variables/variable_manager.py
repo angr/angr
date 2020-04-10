@@ -398,6 +398,20 @@ class VariableManager(KnowledgeBasePlugin):
             # key refers to a function address
             return self.get_function_manager(key)
 
+    def __delitem__(self, key):
+        """
+        Remove the existing VariableManagerInternal object for a function or a region.
+
+        :param Union[str,int] key:  Key of the region. "global" for the global region, or a function address for the
+                                    function.
+        :return:                    None
+        """
+
+        if key == 'global':
+            self.global_manager = VariableManagerInternal(self)
+        else:
+            del self.function_managers[key]
+
     def has_function_manager(self, key):
         return key in self.function_managers
 

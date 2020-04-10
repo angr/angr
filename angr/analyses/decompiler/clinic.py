@@ -295,7 +295,11 @@ class Clinic(Analysis):
     def _recover_and_link_variables(self):
 
         # variable recovery
-        tmp_kb = KnowledgeBase(self.project)
+        tmp_kb = self.kb
+        # remove existing variables for this function
+        if tmp_kb.variables.has_function_manager(self.function.addr):
+            l.warning("Removing existing variable recovery result for function %#x.", self.function.addr)
+            del tmp_kb.variables[self.function.addr]
         # stack pointers have been removed at this point
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
                                                         func_graph=self._func_graph,
