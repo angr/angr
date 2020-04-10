@@ -3376,8 +3376,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             obj = self.project.loader.find_object_containing(addr, membership_check=False)
             if obj:
                 # is there a section?
-                has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0  # pylint:disable=len-as-condition
-                section = self.project.loader.find_section_containing(addr)
+                has_executable_section = self._object_has_executable_sections(obj)
+                section = obj.find_section_containing(addr)
                 if has_executable_section and section is None:
                     # the basic block should not exist here...
                     return None, None, None, None
@@ -3410,6 +3410,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             nodecode = False
             irsb = None
             irsb_string = None
+            lifted_block = None
             try:
                 lifted_block = self._lift(addr, size=distance, opt_level=self._iropt_level, collect_data_refs=True,
                                           strict_block_end=True)
@@ -3469,15 +3470,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     irsb_size = irsb.size
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
-                if is_x86_x64_arch \
-                        and len(irsb_string) >= 2 \
-                        and irsb_string[-2:] in {
+                if irsb_string[-2:] == b'\x0f\x0b' and self.project.arch.name == 'AMD64':
+                    # VEX supports ud2 and make it part of the block size, only in AMD64.
+                    valid_ins = True
+                    nodecode_size = 0
+                elif lifted_block is not None \
+                        and is_x86_x64_arch \
+                        and len(lifted_block.bytes) - irsb_size > 2 \
+                        and lifted_block.bytes[irsb_size : irsb_size + 2] in {
                             b'\x0f\xff',  # ud0
                             b'\x0f\xb9',  # ud1
                             b'\x0f\x0b',  # ud2
                         }:
                     # ud0, ud1, and ud2 are actually valid instructions.
                     valid_ins = True
+                    # VEX does not support ud0 or ud1 or ud2 under AMD64. they are not part of the block size.
                     nodecode_size = 2
                 else:
                     valid_ins = False

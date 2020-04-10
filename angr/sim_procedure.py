@@ -262,6 +262,7 @@ class SimProcedure:
     ADDS_EXITS = False
     IS_FUNCTION = True
     ARGS_MISMATCH = False
+    ALT_NAMES = None  # alternative names
     local_vars = ()
 
     def run(self, *args, **kwargs): # pylint: disable=unused-argument

@@ -4,7 +4,7 @@ import logging
 import pyvex
 import claripy
 
-from angr import SimState
+from angr import SimState, load_shellcode
 from angr.engines import HeavyVEXMixin
 import angr.engines.vex.claripy.ccall as s_ccall
 
@@ -315,6 +315,42 @@ def test_loadg_no_constraint_creation():
     assert state.scratch.temps[0] is not None
     assert state.scratch.temps[0].variables.issuperset(state.scratch.temps[1].variables)
     assert state.scratch.temps[0].op == 'If'
+
+
+def test_amd64_ud012_behaviors():
+
+    # Test if VEX's lifter behaves as what CFGFast expects
+    #
+    # Note: if such behaviors change in the future, you also need to fix the ud{0,1,2} handling logic in
+    # CFGFast._generate_cfgnode().
+
+    # according to VEX, ud0 is not part of the block
+    a = load_shellcode(b"\x90\x90\x0f\xff", "amd64")
+    block_0 = a.factory.block(0)
+    assert block_0.size == 2
+
+    # according to VEX, ud1 is not part of the block
+    a = load_shellcode(b"\x90\x90\x0f\xb9", "amd64")
+    block_1 = a.factory.block(0)
+    assert block_1.size == 2
+
+    # according to VEX, ud2 under AMD64 *is* part of the block
+    a = load_shellcode(b"\x90\x90\x0f\x0b", "amd64")
+    block_2 = a.factory.block(0)
+    assert block_2.size == 4
+
+
+def test_x86_ud2_behaviors():
+
+    # Test if VEX's lifter behaves as what CFGFast expects
+    #
+    # Note: if such behaviors change in the future, you also need to fix the ud2 handling logic in
+    # CFGFast._generate_cfgnode().
+
+    # according to VEX, ud2 on x86 is not part of the block
+    a = load_shellcode(b"\x90\x90\x0f\x0b", "x86")
+    block_0 = a.factory.block(0)
+    assert block_0.size == 2
 
 
 if __name__ == '__main__':
