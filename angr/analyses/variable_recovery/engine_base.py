@@ -27,6 +27,14 @@ class RichR:
         self.typevar = typevar
         self.type_constraints = type_constraints
 
+    @property
+    def bits(self):
+        if self.data is not None and not isinstance(self.data, (int, float)):
+            return self.data.bits
+        if self.variable is not None:
+            return self.variable.bits
+        return None
+
 
 class SimEngineVRBase(SimEngineLight):
     def __init__(self, project):
