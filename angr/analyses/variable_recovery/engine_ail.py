@@ -157,6 +157,29 @@ class SimEngineVRAIL(
         except TypeError:
             return RichR(ailment.Expr.BinaryOp(expr.idx, 'Add', [r0, r1], **expr.tags))
 
+    def _ail_handle_Sub(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            typevar = None
+            if r0.typevar is not None and isinstance(r1.data, int):
+                typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data))
+
+            sub = None
+            if r0.data is not None and r1.data is not None:
+                sub = r0.data - r1.data
+
+            return RichR(sub,
+                         typevar=typevar,
+                         type_constraints={ typevars.Subtype(r0.typevar, r1.typevar) },
+                         )
+        except TypeError:
+            return RichR(ailment.Expr.BinaryOp(expr.idx, 'Sub', [r0, r1], **expr.tags))
+
     def _ail_handle_Shr(self, expr):
 
         arg0, arg1 = expr.operands
