@@ -131,6 +131,7 @@ typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>
 
 typedef struct block_taint_entry_t {
 	taint_vector_t taint_sink_src_data;
+	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (taint_sink_src_data == other_entry.taint_sink_src_data);
@@ -1253,14 +1254,7 @@ public:
 					}
 					case Ist_Exit:
 					{
-						taint_entity_t sink;
-						std::unordered_set<taint_entity_t> srcs;
-
-						sink.entity_type = TAINT_ENTITY_NONE;
-						srcs = get_taint_sources(stmt->Ist.Exit.guard);
-						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
-						}
+						block_taint_entry.exit_stmt_guard_expr_deps = get_taint_sources(stmt->Ist.Exit.guard);
 						break;
 					}
 					case Ist_PutI:
