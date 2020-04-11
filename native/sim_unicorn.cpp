@@ -1181,6 +1181,16 @@ public:
 		return sources;
 	}
 
+	inline void mark_register_temp_symbolic(const taint_entity_t &entity) {
+		if (entity.entity_type == TAINT_ENTITY_REG) {
+			this->symbolic_registers.emplace(entity.reg_id);
+		}
+		else if (entity.entity_type == TAINT_ENTITY_TMP) {
+			this->symbolic_temps.emplace(entity.tmp_id);
+		}
+		return;
+	}
+
 	void propagate_taints(uint64_t address, int32_t size) {
 		block_taint_entry_t block_taint_entry;
 		auto result = this->block_taint_cache.find(address);
@@ -1299,6 +1309,41 @@ public:
 			block_taint_entry = result->second;
 		}
 		// Propagate taints using symbolic_registers and symbolic_temps
+		for (auto taint_data_entry: block_taint_entry.taint_sink_src_data) {
+			auto taint_sink = taint_data_entry.first;
+			auto taint_srcs = taint_data_entry.second;
+			if (taint_sink.entity_type == TAINT_ENTITY_NONE) {
+				// No taint propagation needed
+				continue;
+			}
+			else if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
+				// TODO: Implement this
+				assert(false && "Taint propagation to memory not yet supported.");
+			}
+			else {
+				for (auto &taint_src: taint_srcs) {
+					if (taint_src.entity_type == TAINT_ENTITY_NONE) {
+						continue;
+					}
+					else if (taint_src.entity_type == TAINT_ENTITY_REG) {
+						if (this->symbolic_registers.count(taint_src.reg_id) > 0) {
+							mark_register_temp_symbolic(taint_sink);
+							break;
+						}
+					}
+					else if (taint_src.entity_type == TAINT_ENTITY_TMP) {
+						if (this->symbolic_temps.count(taint_src.tmp_id) > 0) {
+							mark_register_temp_symbolic(taint_sink);
+							break;
+						}
+					}
+					else if (taint_src.entity_type == TAINT_ENTITY_MEM) {
+						// TODO: Implement this
+						assert(false && "Taint propagation from memory not yet supported.");
+					}
+				}
+			}
+		}
 		return;
 	}
 
