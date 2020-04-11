@@ -1194,6 +1194,14 @@ public:
 		return;
 	}
 
+	inline bool is_symbolic_register(uint64_t reg_id) const {
+		return (this->symbolic_registers.count(reg_id) > 0);
+	}
+
+	inline bool is_symbolic_temp(uint64_t temp_id) const {
+		return (this->symbolic_temps.count(temp_id) > 0);
+	}
+
 	void propagate_taints(uint64_t address, int32_t size) {
 		block_taint_entry_t block_taint_entry;
 		auto result = this->block_taint_cache.find(address);
@@ -1328,13 +1336,13 @@ public:
 						continue;
 					}
 					else if (taint_src.entity_type == TAINT_ENTITY_REG) {
-						if (this->symbolic_registers.count(taint_src.reg_id) > 0) {
+						if (is_symbolic_register(taint_src.reg_id)) {
 							mark_register_temp_symbolic(taint_sink);
 							break;
 						}
 					}
 					else if (taint_src.entity_type == TAINT_ENTITY_TMP) {
-						if (this->symbolic_temps.count(taint_src.tmp_id) > 0) {
+						if (is_symbolic_temp(taint_src.tmp_id)) {
 							mark_register_temp_symbolic(taint_sink);
 							break;
 						}
