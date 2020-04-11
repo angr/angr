@@ -59,6 +59,8 @@ typedef struct taint_entity_t {
 	uint64_t tmp_id;
 	// List of registers and VEX temps. Used in case of memory references.
 	std::vector<taint_entity_t> mem_ref_entity_list;
+	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
+	uint64_t instr_addr;
 
 	bool operator==(const taint_entity_t &other_entity) const {
 		if (entity_type != other_entity.entity_type) {
@@ -1210,6 +1212,7 @@ public:
 			// Compute taint map
 			IRSB *vex_block = lift_ret->irsb;
 			for (int i = 0; i < vex_block->stmts_used; i++) {
+				uint64_t curr_instr_addr;
 				auto stmt = vex_block->stmts[i];
 				switch (stmt->tag) {
 					case Ist_Put:
@@ -1218,6 +1221,7 @@ public:
 						std::unordered_set<taint_entity_t> srcs;
 
 						sink.entity_type = TAINT_ENTITY_REG;
+						sink.instr_addr = curr_instr_addr;
 						sink.reg_id = stmt->Ist.Put.offset;
 						srcs = get_taint_sources(stmt->Ist.Put.data);
 						if (srcs.size() > 0) {
@@ -1231,6 +1235,7 @@ public:
 						std::unordered_set<taint_entity_t> srcs;
 
 						sink.entity_type = TAINT_ENTITY_TMP;
+						sink.instr_addr = curr_instr_addr;
 						sink.tmp_id = stmt->Ist.WrTmp.tmp;
 						srcs = get_taint_sources(stmt->Ist.WrTmp.data);
 						if (srcs.size() > 0) {
@@ -1244,6 +1249,7 @@ public:
 						std::unordered_set<taint_entity_t> srcs;
 
 						sink.entity_type = TAINT_ENTITY_MEM;
+						sink.instr_addr = curr_instr_addr;
 						auto temp = get_taint_sources(stmt->Ist.Store.addr);
 						sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
 						srcs = get_taint_sources(stmt->Ist.Store.data);
@@ -1257,6 +1263,9 @@ public:
 						block_taint_entry.exit_stmt_guard_expr_deps = get_taint_sources(stmt->Ist.Exit.guard);
 						break;
 					}
+					case Ist_IMark:
+						curr_instr_addr = stmt->Ist.IMark.addr;
+						break;
 					case Ist_PutI:
 					{
 						assert(false && "PutI statements not yet supported!");
@@ -1284,7 +1293,6 @@ public:
 					case Ist_MBE:
 					case Ist_NoOp:
 					case Ist_AbiHint:
-					case Ist_IMark:
 						break;
 					default:
 					{
