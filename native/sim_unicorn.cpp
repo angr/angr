@@ -1349,11 +1349,47 @@ public:
 							is_sink_symbolic = true;
 							break;
 						}
+						else {
+							bool entry_found = false;
+							for (auto &dst_entries: mem_reads_taint_dst_map) {
+								for (auto &taint_entity: dst_entries.second) {
+									if (taint_src == taint_entity) {
+										// Taint source indirectly depends on a memory read
+										// Mark the taint sink as also depending on same memory read
+										sink_depends_on_memory_read = true;
+										mem_read_instrs.emplace(dst_entries.first);
+										entry_found = true;
+										break;
+									}
+								}
+								if (entry_found) {
+									break;
+								}
+							}
+						}
 					}
 					else if (taint_src.entity_type == TAINT_ENTITY_TMP) {
 						if (is_symbolic_temp(taint_src.tmp_id)) {
 							is_sink_symbolic = true;
 							break;
+						}
+						else {
+							bool entry_found = false;
+							for (auto &dst_entries: mem_reads_taint_dst_map) {
+								for (auto &taint_entity: dst_entries.second) {
+									if (taint_src == taint_entity) {
+										// Taint source indirectly depends on a memory read
+										// Mark the taint sink as also depending on same memory read
+										sink_depends_on_memory_read = true;
+										mem_read_instrs.emplace(dst_entries.first);
+										entry_found = true;
+										break;
+									}
+								}
+								if (entry_found) {
+									break;
+								}
+							}
 						}
 					}
 					else if (taint_src.entity_type == TAINT_ENTITY_MEM) {
