@@ -1,5 +1,5 @@
 
-import networkx
+import networkx  # pylint:disable=unused-import
 
 
 class AILGraphWalker:

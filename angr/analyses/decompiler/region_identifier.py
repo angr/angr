@@ -202,7 +202,6 @@ class RegionIdentifier(Analysis):
             break
 
         new_regions.append(GraphRegion(self._get_start_node(graph), graph, None, None, True))
-        dominance_frontiers = {}  # graph head addr -> dominance frontier
 
         l.debug("Identified %d loop regions.", len(structured_loop_headers))
         l.debug("No more loops left. Start structuring acyclic regions.")
