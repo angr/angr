@@ -1194,6 +1194,11 @@ public:
 		return;
 	}
 
+	inline void mark_register_not_symbolic(uint64_t reg_id) {
+		this->symbolic_registers.erase(reg_id);
+		return;
+	}
+
 	inline bool is_symbolic_register(uint64_t reg_id) const {
 		return (this->symbolic_registers.count(reg_id) > 0);
 	}
@@ -1331,19 +1336,20 @@ public:
 				assert(false && "Taint propagation to memory not yet supported.");
 			}
 			else {
+				bool is_sink_symbolic = false;
 				for (auto &taint_src: taint_srcs) {
 					if (taint_src.entity_type == TAINT_ENTITY_NONE) {
 						continue;
 					}
 					else if (taint_src.entity_type == TAINT_ENTITY_REG) {
 						if (is_symbolic_register(taint_src.reg_id)) {
-							mark_register_temp_symbolic(taint_sink);
+							is_sink_symbolic = true;
 							break;
 						}
 					}
 					else if (taint_src.entity_type == TAINT_ENTITY_TMP) {
 						if (is_symbolic_temp(taint_src.tmp_id)) {
-							mark_register_temp_symbolic(taint_sink);
+							is_sink_symbolic = true;
 							break;
 						}
 					}
@@ -1351,6 +1357,13 @@ public:
 						// TODO: Implement this
 						assert(false && "Taint propagation from memory not yet supported.");
 					}
+				}
+				if (is_sink_symbolic) {
+					mark_register_temp_symbolic(taint_sink);
+				}
+				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
+					// Mark register as not symbolic since none of it's dependencies are symbolic
+					mark_register_not_symbolic(taint_sink.reg_id);
 				}
 			}
 		}
