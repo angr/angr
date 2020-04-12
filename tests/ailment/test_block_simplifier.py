@@ -36,10 +36,10 @@ def test_simplify_pointless_assign():
         )
     )
 
-
     b = block_simplify(block)
     nose.tools.assert_equal(len(b.statements), 1)
     nose.tools.assert_equal(b.statements[0].idx, 3)
+
 
 def test_simplify_dead_assign():
     arch = archinfo.arch_from_id('AMD64')

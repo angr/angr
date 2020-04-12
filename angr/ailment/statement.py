@@ -260,6 +260,69 @@ class Call(Statement):
         )
 
 
+class Return(Statement):
+    def __init__(self, idx, target, ret_exprs, **kwargs):
+        super().__init__(idx, **kwargs)
+
+        self.target = target
+        self.ret_exprs = list(ret_exprs) if not isinstance(ret_exprs, list) else [ ]
+
+    def __eq__(self, other):
+        return type(other) is Return and \
+                self.idx == other.idx and \
+                self.target == other.target and \
+                self.ret_exprs == other.ret_exprs
+
+    def __hash__(self):
+        return hash((self.Return, self.idx, self.target, tuple(self.ret_exprs)))
+
+    def __repr__(self):
+        return "Return to %r (%r)" % (self.target, ",".join(self.ret_exprs))
+
+    def __str__(self):
+        exprs = (",".join(str(ret_expr) for ret_expr in self.ret_exprs))
+        if not exprs:
+            return "return;"
+        else:
+            return "return %s;" % exprs
+
+    def replace(self, old_expr, new_expr):
+
+        new_ret_exprs = [ ]
+        replaced = False
+
+        r, new_target = self.target.replace(old_expr, new_expr)
+        if r:
+            replaced = True
+        else:
+            new_target = self.target
+
+        for expr in self.ret_exprs:
+            r_expr, replaced_expr = expr.replace(old_expr, new_expr)
+            if r_expr:
+                replaced = True
+                new_ret_exprs.append(replaced_expr)
+            else:
+                new_ret_exprs.append(old_expr)
+
+        if replaced:
+            return True, Return(self.idx,
+                                new_target,
+                                new_ret_exprs,
+                                **self.tags,
+                                )
+
+        return False, self
+
+    def copy(self):
+        return Return(
+            self.idx,
+            self.target,
+            self.ret_exprs[::],
+            **self.tags,
+        )
+
+
 class DirtyStatement(Statement):
     """
     Wrapper around the original statement, which is usually not convertible (temporarily).

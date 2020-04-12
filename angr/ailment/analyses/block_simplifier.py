@@ -40,7 +40,6 @@ class BlockSimplifier(Analysis):
         max_ctr = 30
 
         block = self._eliminate_self_assignments(block)
-
         block = self._eliminate_dead_assignments(block)
 
         while True:
@@ -119,7 +118,8 @@ class BlockSimplifier(Analysis):
 
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
         live_defs = rd.one_result
-        # dead_defs = set()
+
+        # Find dead assignments
         dead_defs_stmt_idx = set()
         all_defs = live_defs.all_definitions
         for d in all_defs:
@@ -127,14 +127,23 @@ class BlockSimplifier(Analysis):
                 continue
             if not self._remove_dead_memdefs and isinstance(d.atom, (atoms.MemoryLocation, SpOffset)):
                 continue
+
             if isinstance(d.atom, atoms.Tmp):
                 uses = live_defs.tmp_uses[d.atom.tmp_idx]
+                if not uses:
+                    dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
             else:
-                uses = rd.all_uses.get_uses(d)
+                # is entirely possible that at the end of the blocj, a register definition is not used.
+                # however, it might be used in future blocks.
+                # so we only remove a definition if the definition is not alive anymore at the end of the block?
+                if isinstance(d.atom, atoms.Register):
+                    if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
+                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                if isinstance(d.atom, SpOffset):
+                    if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.offset):
+                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
-            if not uses:
-                dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-
+        # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
                 if type(stmt.dst) is Tmp:

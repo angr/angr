@@ -5,7 +5,7 @@ import pyvex
 from angr.engines.vex.claripy.irop import vexop_to_simop
 
 from .block import Block
-from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement
+from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement, Return
 from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
 
 l = logging.getLogger(name=__name__)
@@ -291,5 +291,13 @@ class IRSBConverter(Converter):
                                        ins_addr=manager.ins_addr
                                        )
                                   )
+        elif irsb.jumpkind == 'Ijk_Ret':
+            # return
+            statements.append(Return(manager.next_atom(),
+                                     VEXExprConverter.convert(irsb.next, manager),
+                                     [ ],
+                                     ins_addr=manager.ins_addr,
+                                     )
+                              )
 
         return Block(addr, irsb.size, statements=statements)
