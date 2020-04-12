@@ -22,6 +22,7 @@ class AILGraphWalker:
                 out_edges = list(self.graph.out_edges(node, data=True))
 
                 self.graph.remove_node(node)
+                self.graph.add_node(r)
 
                 for src, _, data in in_edges:
                     if src is node:

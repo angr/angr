@@ -10,7 +10,7 @@ import ailment
 from .. import Analysis, register_analysis
 from .region_identifier import GraphRegion
 from .structurer_nodes import BaseNode, SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, \
-    SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice
+    SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice, MultiNode
 from .empty_node_remover import EmptyNodeRemover
 from .condition_processor import ConditionProcessor
 from .utils import remove_last_statement, extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, \
@@ -130,7 +130,8 @@ class Structurer(Analysis):
     def _analyze_acyclic(self):
 
         # let's generate conditions first
-        self.cond_proc.recover_reaching_conditions(self._region, with_successors=True) # TODO: jump_tables=self.kb.cfgs['CFGFast'].jump_tables)
+        self.cond_proc.recover_reaching_conditions(self._region, with_successors=True)
+                                                   # jump_tables=self.kb.cfgs['CFGFast'].jump_tables)
 
         # make the sequence node and pack reaching conditions into CodeNode instances
         seq = self._make_sequence()
@@ -326,8 +327,8 @@ class Structurer(Analysis):
         for src, dst in outedges:
             loop_region_graph_with_successors.add_edge(src, dst)
             loop_successors.add(dst)
-        region = GraphRegion(loop_head, loop_region_graph, successors=loop_successors,
-                             graph_with_successors=loop_region_graph_with_successors, cyclic=False)
+        region = GraphRegion(loop_head, loop_region_graph, successors=None,
+                             graph_with_successors=None, cyclic=False)
         structurer = self.project.analyses.Structurer(region, condition_processor=self.cond_proc)
         seq = structurer.result
 
@@ -395,13 +396,49 @@ class Structurer(Analysis):
 
     def _unpack_sequence(self, seq):
 
-        for i in range(len(seq.nodes)):
-            node = seq.nodes[i]
-            if isinstance(node, CodeNode):
-                node = node.node
-            if isinstance(node, SequenceNode):
-                self._unpack_sequence(node)
-            seq.nodes[i] = node
+        def _handle_Code(node, **kwargs):
+            node = node.node
+            return walker._handle(node)
+
+        def _handle_Sequence(node, **kwargs):
+            for i in range(len(node.nodes)):
+                node.nodes[i] = walker._handle(node.nodes[i])
+            return node
+
+        def _handle_ConditionNode(node, **kwargs):
+            if node.true_node is not None:
+                node.true_node = walker._handle(node.true_node)
+            if node.false_node is not None:
+                node.false_node = walker._handle(node.false_node)
+            return node
+
+        def _handle_SwitchCaseNode(node, **kwargs):
+            for i in list(node.cases.keys()):
+                node.cases[i] = walker._handle(node.cases[i])
+            if node.default_node is not None:
+                node.default_node = walker._handle(node.default_node)
+            return node
+
+        def _handle_Default(node, **kwargs):
+            return node
+
+        handlers = {
+            CodeNode: _handle_Code,
+            SequenceNode: _handle_Sequence,
+            ConditionNode: _handle_ConditionNode,
+            SwitchCaseNode: _handle_SwitchCaseNode,
+            # don't do anything
+            LoopNode: _handle_Default,
+            ContinueNode: _handle_Default,
+            ConditionalBreakNode: _handle_Default,
+            BreakNode: _handle_Default,
+            MultiNode: _handle_Default,
+            ailment.Block: _handle_Default,
+        }
+
+        walker = SequenceWalker(handlers=handlers)
+        walker.walk(seq)
+
         return seq
 
     def _structure_sequence(self, seq):
@@ -517,7 +554,8 @@ class Structurer(Analysis):
                 node_b_addr = next(iter(t for t in successor_addrs if t != target))
 
                 # Node A might have been structured. Un-structure it if that is the case.
-                r, node_a = self._switch_unpack_sequence_node(seq, node_a, jump_table.jumptable_entries, addr2nodes)
+                r, node_a = self._switch_unpack_sequence_node(seq, node_a, node_b_addr, jump_table.jumptable_entries,
+                                                              addr2nodes)
                 if not r:
                     continue
 
@@ -559,13 +597,14 @@ class Structurer(Analysis):
                 break
 
     @staticmethod
-    def _switch_unpack_sequence_node(seq, node_a, jumptable_entries, addr2nodes):
+    def _switch_unpack_sequence_node(seq, node_a, node_b_addr, jumptable_entries, addr2nodes):
         """
         We might have already structured the actual body of the switch-case structure into a single Sequence node (node
         A). If that is the case, we un-structure the sequence node in this method.
 
         :param seq:                 The original Sequence node.
         :param node_a:              Node A.
+        :param int node_b_addr:     Address of node B.
         :param jumptable_entries:   Addresses of indirect jump targets in the jump table.
         :param dict addr2nodes:     A dict of addresses to their corresponding nodes in `seq`.
         :return:                    A boolean value indicating the result and an updated node_a. The boolean value is
@@ -582,7 +621,8 @@ class Structurer(Analysis):
         # if that is the case, we un-structure it here
         if all(entry_addr in addr2nodes for entry_addr in jumptable_entries):
             return True, node_a
-        elif all(entry_addr in node_a_block_addrs | addr2nodes.keys() for entry_addr in jumptable_entries):
+        elif all(entry_addr in node_a_block_addrs | addr2nodes.keys() | {node_b_addr}
+                 for entry_addr in jumptable_entries):
             # unpack is needed
             if node_a_block_addrs.issubset(set(jumptable_entries) | {node_a.addr}):
                 for n in node_a.node.nodes:
@@ -625,7 +665,7 @@ class Structurer(Analysis):
 
         cases = { }
         to_remove = set()
-        node_default = addr2nodes[node_b_addr]
+        node_default = addr2nodes.get(node_b_addr, None)
 
         entry_addrs_set = set(jumptable_entries)
         for j, entry_addr in enumerate(jumptable_entries):
@@ -721,7 +761,7 @@ class Structurer(Analysis):
                         # add a new a break statement to its parent
                         break_node = BreakNode(stmt.ins_addr, switch_end_addr)
                         # insert node
-                        insert_node(parent, index + 1, break_node)
+                        insert_node(parent, index + 1, break_node, index)
                         # remove the last statement
                         block.statements = block.statements[:-1]
 
@@ -944,7 +984,7 @@ class Structurer(Analysis):
                     # create a break or a conditional break node
                     break_node = self._loop_create_break_node(stmt, successor_addrs)
                     # insert this node to the parent
-                    insert_node(parent, index + 1, break_node)
+                    insert_node(parent, index + 1, break_node, index)
                     # remove this statement
                     node.statements = node.statements[:-1]
 
@@ -969,7 +1009,7 @@ class Structurer(Analysis):
                     # create a continue node
                     continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
                     # insert this node to the parent
-                    insert_node(parent, index + 1, continue_node)
+                    insert_node(parent, index + 1, continue_node, index)
                     # remove this statement
                     node.statements = node.statements[:-1]
 
