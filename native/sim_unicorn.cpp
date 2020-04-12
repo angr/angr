@@ -195,6 +195,7 @@ private:
 	uc_context *saved_regs;
 
 	std::vector<mem_access_t> mem_writes;
+	std::unordered_map<uint64_t, std::vector<taint_entity_t>> mem_reads_taint_dst_map;
 	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
 	std::map<uint64_t, std::pair<taint_t *, uint8_t *>> active_pages;
 	//std::map<uint64_t, taint_t *> active_pages;
@@ -1337,6 +1338,8 @@ public:
 			}
 			else {
 				bool is_sink_symbolic = false;
+				bool sink_depends_on_memory_read = false;
+				std::unordered_set<uint64_t> mem_read_instrs;
 				for (auto &taint_src: taint_srcs) {
 					if (taint_src.entity_type == TAINT_ENTITY_NONE) {
 						continue;
@@ -1354,17 +1357,45 @@ public:
 						}
 					}
 					else if (taint_src.entity_type == TAINT_ENTITY_MEM) {
-						// TODO: Implement this
-						assert(false && "Taint propagation from memory not yet supported.");
+						sink_depends_on_memory_read = true;
+						mem_read_instrs.emplace(taint_sink.instr_addr);
 					}
 				}
 				if (is_sink_symbolic) {
 					mark_register_temp_symbolic(taint_sink);
 				}
+				else if (sink_depends_on_memory_read) {
+					for (auto &mem_read_instr: mem_read_instrs) {
+						if (mem_reads_taint_dst_map.find(mem_read_instr) == mem_reads_taint_dst_map.end()) {
+							std::vector<taint_entity_t> dsts;
+							dsts.emplace_back(taint_sink);
+							mem_reads_taint_dst_map.emplace(mem_read_instr, dsts);
+						}
+						else {
+							mem_reads_taint_dst_map.at(mem_read_instr).emplace_back(taint_sink);
+						}
+					}
+				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
 					// Mark register as not symbolic since none of it's dependencies are symbolic
 					mark_register_not_symbolic(taint_sink.reg_id);
 				}
+			}
+		}
+		return;
+	}
+
+	void propagate_mem_read_taints() {
+		// Mark taint sinks that depend on a mem read as symbolic. called by unicorn mem read hook
+		uint64_t pc_addr = get_instruction_pointer();
+		for (taint_entity_t &taint_entity: mem_reads_taint_dst_map.at(pc_addr)) {
+			if ((taint_entity.entity_type == TAINT_ENTITY_REG) || (taint_entity.entity_type == TAINT_ENTITY_TMP)) {
+				mark_register_temp_symbolic(taint_entity);
+			}
+			else if (taint_entity.entity_type != TAINT_ENTITY_NONE) {
+				std::stringstream ss;
+				ss << "hook_mem_read: Unhandled taint entity of type " << taint_entity.entity_type;
+				assert(false && ss.str().c_str());
 			}
 		}
 		return;
@@ -1448,8 +1479,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	auto tainted = state->find_tainted(address, size);
 	if (tainted != -1)
 	{
-		state->stopping_memory = tainted;
-		state->stop(STOP_SYMBOLIC_MEM);
+		state->propagate_mem_read_taints();
 	}
 }
 
