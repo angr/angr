@@ -120,13 +120,14 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a function in C.
     """
-    def __init__(self, name, statements, variables):
+    def __init__(self, name, statements, variables, demangled_name=None):
 
         super(CFunction, self).__init__()
 
         self.name = name
         self.statements = statements
         self.variables = variables
+        self.demangled_name = demangled_name
 
     def variable_list_repr(self, indent=0, posmap=None):
 
@@ -170,7 +171,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         return s
 
     def c_repr(self, indent=0, posmap=None):
-        func_header = self.indent_str(indent) + "void %s()" % self.name
+        if self.demangled_name:
+            func_header = "void %s()" % self.demangled_name
+        else:
+            func_header = "void %s()" % self.name
+        func_header = self.indent_str(indent) + func_header
         s0 = "\n" + self.indent_str(indent) + "{\n"
         if posmap: posmap.tick_pos(len(func_header + s0))
         func_var_list = self.variable_list_repr(indent=indent + INDENT_DELTA, posmap=posmap) + "\n"
@@ -567,11 +572,19 @@ class CFunctionCall(CStatement):
             if posmap: posmap.tick_pos(3)
 
         if self.callee_func is not None:
-            func_name = self.callee_func.name
+            func_name = self.callee_func.demangled_name
+            if not func_name:
+                # fall back to the normal name
+                func_name = self.callee_func.name
+            tickpos = True
+        elif isinstance(self.callee_target, CExpression):
+            func_name = self.callee_target.c_repr(posmap=posmap)
+            tickpos = False
         else:
             func_name = str(self.callee_target)
+            tickpos = True
         s_func = func_name + "("
-        if posmap:
+        if posmap and tickpos:
             posmap.add_mapping(posmap.pos, len(func_name), self)
             posmap.tick_pos(len(s_func))
 
@@ -1163,7 +1176,7 @@ class StructuredCodeGenerator(Analysis):
 
         obj = self._handle(self._sequence)
 
-        func = CFunction(self._func.name, obj, self.kb.variables[self._func.addr])
+        func = CFunction(self._func.name, obj, self.kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
 
         self.posmap = PositionMapping()
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap)
