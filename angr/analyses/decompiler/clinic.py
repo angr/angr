@@ -239,7 +239,7 @@ class Clinic(Analysis):
                 ail_graph = a.out_graph
             elif a.blocks:
                 # use blocks to update the graph
-                for key, item in a.blocks.items():
+                for item in a.blocks.values():
                     self._blocks_by_addr_and_size[(item.addr, item.original_size)] = item
 
                 def _replacement_handler(node):

@@ -194,7 +194,7 @@ class SimEngineRDAIL(
             self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
             self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
-    def _ail_handle_Return(self, stmt):
+    def _ail_handle_Return(self, stmt):  # pylint:disable=unused-argument
         # consume registers that are potentially useful
         # TODO: Consider the calling convention of the current function
 

@@ -394,32 +394,33 @@ class Structurer(Analysis):
 
         return seq
 
-    def _unpack_sequence(self, seq):
+    @staticmethod
+    def _unpack_sequence(seq):
 
-        def _handle_Code(node, **kwargs):
+        def _handle_Code(node, **kwargs):  # pylint:disable=unused-argument
             node = node.node
             return walker._handle(node)
 
-        def _handle_Sequence(node, **kwargs):
+        def _handle_Sequence(node, **kwargs):  # pylint:disable=unused-argument
             for i in range(len(node.nodes)):
                 node.nodes[i] = walker._handle(node.nodes[i])
             return node
 
-        def _handle_ConditionNode(node, **kwargs):
+        def _handle_ConditionNode(node, **kwargs):  # pylint:disable=unused-argument
             if node.true_node is not None:
                 node.true_node = walker._handle(node.true_node)
             if node.false_node is not None:
                 node.false_node = walker._handle(node.false_node)
             return node
 
-        def _handle_SwitchCaseNode(node, **kwargs):
+        def _handle_SwitchCaseNode(node, **kwargs):  # pylint:disable=unused-argument
             for i in list(node.cases.keys()):
                 node.cases[i] = walker._handle(node.cases[i])
             if node.default_node is not None:
                 node.default_node = walker._handle(node.default_node)
             return node
 
-        def _handle_Default(node, **kwargs):
+        def _handle_Default(node, **kwargs):  # pylint:disable=unused-argument
             return node
 
         handlers = {
