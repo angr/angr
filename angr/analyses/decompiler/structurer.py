@@ -130,9 +130,9 @@ class Structurer(Analysis):
     def _analyze_acyclic(self):
 
         # let's generate conditions first
-        self.cond_proc.recover_reaching_conditions(self._region) # TODO: jump_tables=self.kb.cfgs['CFGFast'].jump_tables)
+        self.cond_proc.recover_reaching_conditions(self._region, with_successors=True) # TODO: jump_tables=self.kb.cfgs['CFGFast'].jump_tables)
 
-        # make the sequence node
+        # make the sequence node and pack reaching conditions into CodeNode instances
         seq = self._make_sequence()
 
         self._new_sequences.append(seq)
@@ -143,20 +143,10 @@ class Structurer(Analysis):
                 continue
             self._structure_sequence(seq_)
 
-        # remove conditional jumps
-        # seq = self._remove_conditional_jumps(seq)
         seq = EmptyNodeRemover(seq).result
 
-        self._make_condition_nodes(seq)
-
-        while True:
-            r, seq = self._merge_conditional_breaks(seq)
-            if r: continue
-            r, seq = self._merge_nesting_conditionals(seq)
-            if r: continue
-            break
-
-        seq = EmptyNodeRemover(seq).result
+        # unpack nodes and remove CodeNode wrappers
+        seq = self._unpack_sequence(seq)
 
         self.result = seq
 
@@ -403,6 +393,17 @@ class Structurer(Analysis):
 
         return seq
 
+    def _unpack_sequence(self, seq):
+
+        for i in range(len(seq.nodes)):
+            node = seq.nodes[i]
+            if isinstance(node, CodeNode):
+                node = node.node
+            if isinstance(node, SequenceNode):
+                self._unpack_sequence(node)
+            seq.nodes[i] = node
+        return seq
+
     def _structure_sequence(self, seq):
 
         self._make_switch_cases(seq)
@@ -417,6 +418,14 @@ class Structurer(Analysis):
         self._merge_same_conditioned_nodes(seq)
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
+        self._make_condition_nodes(seq)
+
+        while True:
+            r, seq = self._merge_conditional_breaks(seq)
+            if r: continue
+            r, seq = self._merge_nesting_conditionals(seq)
+            if r: continue
+            break
 
     def _merge_same_conditioned_nodes(self, seq):
 
@@ -737,7 +746,8 @@ class Structurer(Analysis):
 
         while True:
             break_hard = False
-            for node_0 in seq.nodes:
+            for i in range(len(seq.nodes)):
+                node_0 = seq.nodes[i]
                 if not type(node_0) is CodeNode:
                     continue
                 rcond_0 = node_0.reaching_condition
@@ -745,7 +755,8 @@ class Structurer(Analysis):
                     continue
                 if claripy.is_true(rcond_0) or claripy.is_false(rcond_0):
                     continue
-                for node_1 in seq.nodes:
+                for j in range(i + 1, len(seq.nodes)):
+                    node_1 = seq.nodes[j]
                     if not type(node_1) is CodeNode:
                         continue
                     if node_0 is node_1:
@@ -978,9 +989,12 @@ class Structurer(Analysis):
             new_nodes = []
             i = 0
             while i < len(seq_node.nodes):
-                node = seq_node.nodes[i]
-                if type(node) is CodeNode:
-                    node = node.node
+                old_node = seq_node.nodes[i]
+                if type(old_node) is CodeNode:
+                    node = old_node.node
+                else:
+                    node = old_node
+                new_node = None
                 if isinstance(node, ConditionalBreakNode) and new_nodes:
                     prev_node = new_nodes[-1]
                     if type(prev_node) is CodeNode:
@@ -996,12 +1010,14 @@ class Structurer(Analysis):
                                                         merged_condition,
                                                         node.target
                                                         )
-                        node = new_node
                         walker.merged = True
                 else:
                     walker._handle(node, parent=seq_node, index=i)
 
-                new_nodes.append(node)
+                if new_node is not None:
+                    new_nodes.append(new_node)
+                else:
+                    new_nodes.append(old_node)
                 i += 1
 
             seq_node.nodes = new_nodes

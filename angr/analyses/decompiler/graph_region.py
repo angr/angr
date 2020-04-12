@@ -27,6 +27,10 @@ class GraphRegion:
         self.head = head
         self.graph = graph
         self.successors = successors
+        # successors inside graph_with_successors should be treated as read-only. when deep-copying GraphRegion objects,
+        # successors inside graph_with_successors are *not* deep copied. therefore, you should never modify any
+        # successor node in graph_with_successors. to avoid potential programming errors, just treat
+        # graph_with_successors as read-only.
         self.graph_with_successors = graph_with_successors
         self.cyclic = cyclic
 
@@ -51,8 +55,10 @@ class GraphRegion:
         new_graph = self._recursive_copy(self.graph, nodes_map)
 
         if self.graph_with_successors is not None:
-            new_graph_with_successors = self._recursive_copy(self.graph_with_successors, nodes_map)
-            successors = set(nodes_map[succ] for succ in self.successors)
+            successors = set(nodes_map.get(succ, succ) for succ in self.successors)
+            # for performance reasons, successors that are only in graph_with_successors are not recursively copied
+            new_graph_with_successors = self._recursive_copy(self.graph_with_successors, nodes_map,
+                                                             ignored_nodes=successors)
         else:
             new_graph_with_successors = None
             successors = None
@@ -60,12 +66,20 @@ class GraphRegion:
         return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic)
 
     @staticmethod
-    def _recursive_copy(old_graph, nodes_map):
+    def _recursive_copy(old_graph, nodes_map, ignored_nodes=None):
         new_graph = networkx.DiGraph()
 
         # make copy of each node and add the mapping from old nodes to new nodes into nodes_map
         for node in old_graph.nodes():
-            if node not in nodes_map:
+            if node in nodes_map:
+                new_graph.add_node(nodes_map[node])
+            elif ignored_nodes is not None and node in ignored_nodes:
+                # do not copy. use the reference instead
+                new_graph.add_node(node)
+                # drop it into the nodes_map
+                nodes_map[node] = node
+            else:
+                # make recursive copies
                 if type(node) is GraphRegion:
                     new_node = node.recursive_copy()
                     nodes_map[node] = new_node
@@ -76,8 +90,6 @@ class GraphRegion:
                     new_node = node
                     nodes_map[node] = new_node
                 new_graph.add_node(new_node)
-            else:
-                new_graph.add_node(nodes_map[node])
 
         # add all edges
         for src, dst in old_graph.edges():

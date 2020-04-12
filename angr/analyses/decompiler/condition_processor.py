@@ -51,7 +51,7 @@ class ConditionProcessor:
         if jump_tables:
             self.recover_reaching_conditions_for_jumptables(region, jump_tables, edge_conditions)
 
-        if with_successors:
+        if with_successors and region.graph_with_successors is not None:
             _g = region.graph_with_successors
         else:
             _g = region.graph
