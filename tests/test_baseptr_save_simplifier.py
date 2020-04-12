@@ -12,7 +12,7 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 def _get_block(clinic, addr):
 
-    for (block_addr, _), block in clinic._blocks.items():
+    for (block_addr, _), block in clinic._blocks_by_addr_and_size.items():
         if block_addr == addr:
             return block
     return None
