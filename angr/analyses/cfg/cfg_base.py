@@ -84,6 +84,7 @@ class CFGBase(Analysis):
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
         self._thumb_addrs = set()
+        self._tail_calls = set()
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
@@ -1956,6 +1957,7 @@ class CFGBase(Analysis):
                     self.kb.functions._add_outside_transition_to(src_function.addr, src_node, dst_node,
                                                                  to_function_addr=dst_addr
                                                                  )
+                    self._tail_calls.add(dst_addr)
 
             # is it a jump to another function?
             if isinstance(dst_addr, SootAddressDescriptor):
