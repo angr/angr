@@ -38,7 +38,6 @@ class Clinic(Analysis):
 
         self._ail_manager = None
         self._blocks_by_addr_and_size = { }
-        self._blocks_by_addr = { }
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._sp_tracker_track_memory = sp_tracker_track_memory
@@ -178,7 +177,6 @@ class Clinic(Analysis):
             ail_block = self._blocks_by_addr_and_size[key]
             simplified = self._simplify_block(ail_block, stack_pointer_tracker=stack_pointer_tracker)
             self._blocks_by_addr_and_size[key] = simplified
-            self._blocks_by_addr[simplified.addr] = simplified
 
         # Update the function graph so that we can use reaching definitions
         graph = self._function_graph_to_ail_graph(self.function.graph)
@@ -225,6 +223,12 @@ class Clinic(Analysis):
 
     def _run_simplification_passes(self, ail_graph):
 
+        # update self._blocks_by_addr since it will be used by some simplification passes
+        def _updatedict_handler(node):
+            self._blocks_by_addr_and_size[(node.addr, node.original_size)] = node
+        AILGraphWalker(ail_graph, _updatedict_handler).walk()
+
+        # Run each pass
         for pass_ in self._optimization_passes:
 
             analysis = getattr(self.project.analyses, pass_.__name__)
@@ -236,13 +240,12 @@ class Clinic(Analysis):
             elif a.blocks:
                 # use blocks to update the graph
                 for key, item in a.blocks.items():
-                    self._blocks_by_addr_and_size[key] = item
-                    self._blocks_by_addr[item.addr] = item
+                    self._blocks_by_addr_and_size[(item.addr, item.original_size)] = item
 
-                def _handler(node):
-                    return self._blocks_by_addr.get(node.addr, None)
+                def _replacement_handler(node):
+                    return self._blocks_by_addr_and_size.get((node.addr, node.original_size), None)
 
-                AILGraphWalker(ail_graph, _handler, replace_nodes=True)
+                AILGraphWalker(ail_graph, _replacement_handler, replace_nodes=True).walk()
 
         return ail_graph
 
