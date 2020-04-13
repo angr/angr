@@ -60,7 +60,7 @@ class StackCanarySimplifier(OptimizationPass):
 
         # The function should end with an if-else statement
         # Find all nodes with 0 out-degrees
-        end_nodes = [ self._get_block(node.addr, size=node.size) for node in self._func.graph.nodes()
+        end_nodes = [ self._get_block(node.addr) for node in self._func.graph.nodes()
                       if self._func.graph.out_degree(node) == 0 ]
 
         if len(end_nodes) != 2:

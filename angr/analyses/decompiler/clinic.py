@@ -1,4 +1,4 @@
-
+from collections import defaultdict
 import logging
 
 import networkx
@@ -9,7 +9,7 @@ from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
-from .ailgraph_walker import AILGraphWalker
+from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .optimization_passes import get_optimization_passes
 
 
@@ -223,9 +223,11 @@ class Clinic(Analysis):
 
     def _run_simplification_passes(self, ail_graph):
 
-        # update self._blocks_by_addr since it will be used by some simplification passes
+        blocks_map = defaultdict(set)
+
+        # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
-            self._blocks_by_addr_and_size[(node.addr, node.original_size)] = node
+            blocks_map[node.addr].add(node)
         AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
         # Run each pass
@@ -233,19 +235,10 @@ class Clinic(Analysis):
 
             analysis = getattr(self.project.analyses, pass_.__name__)
 
-            a = analysis(self.function, blocks=self._blocks_by_addr_and_size.copy(), graph=ail_graph)
+            a = analysis(self.function, blocks=blocks_map, graph=ail_graph)
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph
-            elif a.blocks:
-                # use blocks to update the graph
-                for item in a.blocks.values():
-                    self._blocks_by_addr_and_size[(item.addr, item.original_size)] = item
-
-                def _replacement_handler(node):
-                    return self._blocks_by_addr_and_size.get((node.addr, node.original_size), None)
-
-                AILGraphWalker(ail_graph, _replacement_handler, replace_nodes=True).walk()
 
         return ail_graph
 
