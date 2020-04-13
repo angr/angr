@@ -1,4 +1,4 @@
-
+# pylint:disable=import-outside-toplevel
 from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .multi_simplifier import MultiSimplifier

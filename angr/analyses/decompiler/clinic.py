@@ -10,7 +10,7 @@ from ...codenode import BlockNode
 from ...utils import timethis
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
-from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .ailgraph_walker import AILGraphWalker
 from .optimization_passes import get_default_optimization_passes
 
 

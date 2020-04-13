@@ -1,4 +1,5 @@
-
+# pylint:disable=no-member
+import sys
 import time
 from functools import wraps
 
@@ -10,11 +11,14 @@ def timethis(func):
     def timed_func(*args, **kwargs):
 
         if TIMING:
-            start = time.time_ns()
+            if sys.version_info >= (3,7):
+                _t = lambda: time.time_ns() / 1000000
+            else:
+                _t = lambda: time.time() * 1000
+            start = _t()
             r = func(*args, **kwargs)
-            elapsed = time.time_ns() - start
-            millisec = elapsed / 1000000
-            sec = elapsed / 1000000000
+            millisec = _t() - start
+            sec = millisec / 1000
             if sec > 1.0:
                 print("[timing] %s took %f seconds (%f milliseconds)." % (func.__name__, sec, millisec))
             else:
