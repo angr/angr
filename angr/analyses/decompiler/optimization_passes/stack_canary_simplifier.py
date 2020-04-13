@@ -164,7 +164,7 @@ class StackCanarySimplifier(OptimizationPass):
                     continue
 
                 expr = condition.operands[0]
-                if not isinstance(expr, ailment.Expr.UnaryOp):
+                if not isinstance(expr, ailment.Expr.BinaryOp):
                     continue
                 if expr.op != "Xor":
                     continue
@@ -173,7 +173,8 @@ class StackCanarySimplifier(OptimizationPass):
                     continue
                 if not isinstance(op0.addr, ailment.Expr.StackBaseOffset):
                     continue
-                if op0.addr.offset != s2u(canary_value_stack_offset, self.project.arch.bits):
+                bits = self.project.arch.bits
+                if s2u(op0.addr.offset, bits) != s2u(canary_value_stack_offset, bits):
                     continue
                 if not isinstance(op1, ailment.Expr.Load):
                     continue
