@@ -4,8 +4,6 @@ import logging
 
 import networkx
 
-import ailment
-
 from ... import AnalysesHub
 from .optimization_pass import OptimizationPass
 
@@ -67,7 +65,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         graph_updated = False
 
         # attempt at most N levels
-        for level in range(self.max_level):
+        for _ in range(self.max_level):
             r = self._analyze_core(graph_copy)
             if not r:
                 break
@@ -126,7 +124,8 @@ class EagerReturnsSimplifier(OptimizationPass):
 
         return graph_changed
 
-    def _single_entry_region(self, graph, end_node):
+    @staticmethod
+    def _single_entry_region(graph, end_node):
         """
         Back track on the graph from `end_node` and find the longest chain of nodes where each node has only one
         predecessor and one successor.
