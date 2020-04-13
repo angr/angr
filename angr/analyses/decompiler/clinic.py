@@ -109,6 +109,10 @@ class Clinic(Analysis):
         # Recover variables on AIL blocks
         self._recover_and_link_variables()  # it does not change the AIL graph
 
+        # clear _blocks_by_addr_and_size so no one can use it again
+        # TODO: Totally remove this dict
+        self._blocks_by_addr_and_size = None
+
         # Make call-sites
         self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
