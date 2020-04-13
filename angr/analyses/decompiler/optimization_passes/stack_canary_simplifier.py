@@ -110,7 +110,8 @@ class StackCanarySimplifier(OptimizationPass):
         pred_copy = pred.copy()
         pred_copy.statements[-1] = ailment.Stmt.Jump(len(pred_copy.statements) - 1,
                                                      ailment.Expr.Const(None, None, other_node.addr,
-                                                                        self.project.arch.bits)
+                                                                        self.project.arch.bits),
+                                                     ins_addr=pred_copy.statements[-1].ins_addr,
                                                      )
 
         self._update_block(pred, pred_copy)
