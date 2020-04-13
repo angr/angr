@@ -42,7 +42,10 @@ class CFGManager(KnowledgeBasePlugin):
 
     def copy(self):
         cm = CFGManager(self._kb)
-        cm.cfgs = self.cfgs.copy()
+        cm.cfgs = dict(map(
+            lambda x: (x[0], x[1].copy()),
+            self.cfgs.items()
+        ))
         return cm
 
     #
