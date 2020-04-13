@@ -1,4 +1,4 @@
-
+from collections import defaultdict
 import logging
 
 import networkx
@@ -7,10 +7,11 @@ import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
+from ...utils import timethis
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from .ailgraph_walker import AILGraphWalker
-from .optimization_passes import get_optimization_passes
+from .optimization_passes import get_default_optimization_passes
 
 
 l = logging.getLogger(name=__name__)
@@ -49,7 +50,7 @@ class Clinic(Analysis):
         if optimization_passes is not None:
             self._optimization_passes = optimization_passes
         else:
-            self._optimization_passes = get_optimization_passes(self.project.arch, self.project.simos.name)
+            self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
             l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
 
         self._analyze()
@@ -92,11 +93,12 @@ class Clinic(Analysis):
     def _analyze(self):
 
         # Make sure calling conventions of all functions have been recovered
-        self.project.analyses.CompleteCallingConventions()
+        self._recover_calling_conventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
 
+        # Track stack pointers
         spt = self._track_stack_pointers()
 
         # Convert VEX blocks to AIL blocks and then simplify them
@@ -106,6 +108,10 @@ class Clinic(Analysis):
 
         # Recover variables on AIL blocks
         self._recover_and_link_variables()  # it does not change the AIL graph
+
+        # clear _blocks_by_addr_and_size so no one can use it again
+        # TODO: Totally remove this dict
+        self._blocks_by_addr_and_size = None
 
         # Make call-sites
         self._make_callsites(ail_graph, stack_pointer_tracker=spt)
@@ -118,6 +124,11 @@ class Clinic(Analysis):
 
         self.graph = ail_graph
 
+    @timethis
+    def _recover_calling_conventions(self):
+        self.project.analyses.CompleteCallingConventions()
+
+    @timethis
     def _track_stack_pointers(self):
         """
         For each instruction, track its stack pointer offset and stack base pointer offset.
@@ -133,6 +144,7 @@ class Clinic(Analysis):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
 
+    @timethis
     def _convert_all(self):
         """
         Convert all VEX blocks in the function graph to AIL blocks, and fill self._blocks.
@@ -163,6 +175,7 @@ class Clinic(Analysis):
         ail_block = ailment.IRSBConverter.convert(block.vex, self._ail_manager)
         return ail_block
 
+    @timethis
     def _simplify_blocks(self, stack_pointer_tracker=None):
         """
         Simplify all blocks in self._blocks.
@@ -198,6 +211,7 @@ class Clinic(Analysis):
         )
         return simp.result_block
 
+    @timethis
     def _simplify_function(self, ail_graph):
         """
         Simplify the entire function.
@@ -221,11 +235,14 @@ class Clinic(Analysis):
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
+    @timethis
     def _run_simplification_passes(self, ail_graph):
 
-        # update self._blocks_by_addr since it will be used by some simplification passes
+        blocks_map = defaultdict(set)
+
+        # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
-            self._blocks_by_addr_and_size[(node.addr, node.original_size)] = node
+            blocks_map[node.addr].add(node)
         AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
         # Run each pass
@@ -233,22 +250,14 @@ class Clinic(Analysis):
 
             analysis = getattr(self.project.analyses, pass_.__name__)
 
-            a = analysis(self.function, blocks=self._blocks_by_addr_and_size.copy(), graph=ail_graph)
+            a = analysis(self.function, blocks=blocks_map, graph=ail_graph)
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph
-            elif a.blocks:
-                # use blocks to update the graph
-                for item in a.blocks.values():
-                    self._blocks_by_addr_and_size[(item.addr, item.original_size)] = item
-
-                def _replacement_handler(node):
-                    return self._blocks_by_addr_and_size.get((node.addr, node.original_size), None)
-
-                AILGraphWalker(ail_graph, _replacement_handler, replace_nodes=True).walk()
 
         return ail_graph
 
+    @timethis
     def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
         """
         Simplify all function call statements.
@@ -272,6 +281,7 @@ class Clinic(Analysis):
 
         return ail_graph
 
+    @timethis
     def _recover_and_link_variables(self):
 
         # variable recovery
