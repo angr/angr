@@ -7,6 +7,7 @@ import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
+from ...utils import timethis
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
@@ -92,11 +93,12 @@ class Clinic(Analysis):
     def _analyze(self):
 
         # Make sure calling conventions of all functions have been recovered
-        self.project.analyses.CompleteCallingConventions()
+        self._recover_calling_conventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
 
+        # Track stack pointers
         spt = self._track_stack_pointers()
 
         # Convert VEX blocks to AIL blocks and then simplify them
@@ -118,6 +120,11 @@ class Clinic(Analysis):
 
         self.graph = ail_graph
 
+    @timethis
+    def _recover_calling_conventions(self):
+        self.project.analyses.CompleteCallingConventions()
+
+    @timethis
     def _track_stack_pointers(self):
         """
         For each instruction, track its stack pointer offset and stack base pointer offset.
@@ -133,6 +140,7 @@ class Clinic(Analysis):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
 
+    @timethis
     def _convert_all(self):
         """
         Convert all VEX blocks in the function graph to AIL blocks, and fill self._blocks.
@@ -163,6 +171,7 @@ class Clinic(Analysis):
         ail_block = ailment.IRSBConverter.convert(block.vex, self._ail_manager)
         return ail_block
 
+    @timethis
     def _simplify_blocks(self, stack_pointer_tracker=None):
         """
         Simplify all blocks in self._blocks.
@@ -198,6 +207,7 @@ class Clinic(Analysis):
         )
         return simp.result_block
 
+    @timethis
     def _simplify_function(self, ail_graph):
         """
         Simplify the entire function.
@@ -221,6 +231,7 @@ class Clinic(Analysis):
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
+    @timethis
     def _run_simplification_passes(self, ail_graph):
 
         blocks_map = defaultdict(set)
@@ -242,6 +253,7 @@ class Clinic(Analysis):
 
         return ail_graph
 
+    @timethis
     def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
         """
         Simplify all function call statements.
@@ -265,6 +277,7 @@ class Clinic(Analysis):
 
         return ail_graph
 
+    @timethis
     def _recover_and_link_variables(self):
 
         # variable recovery
