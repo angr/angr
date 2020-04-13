@@ -264,17 +264,18 @@ class ConditionProcessor:
                     continue
 
             raise EmptyBlockNotice()
-        elif type(block) is CodeNode:
+
+        if type(block) is CodeNode:
             return cls.get_last_statements(block.node)
-        elif type(block) is ailment.Block:
+        if type(block) is ailment.Block:
             if not block.statements:
                 raise EmptyBlockNotice()
             return [ block.statements[-1] ]
-        elif type(block) is Block:
+        if type(block) is Block:
             raise NotImplementedError()
-        elif type(block) is BlockNode:
+        if type(block) is BlockNode:
             raise NotImplementedError()
-        elif type(block) is MultiNode:
+        if type(block) is MultiNode:
             # get the last node
             for the_block in reversed(block.nodes):
                 try:
@@ -283,11 +284,11 @@ class ConditionProcessor:
                 except EmptyBlockNotice:
                     continue
             raise EmptyBlockNotice()
-        elif type(block) is LoopNode:
+        if type(block) is LoopNode:
             return cls.get_last_statements(block.sequence_node)
-        elif type(block) is ConditionalBreakNode:
+        if type(block) is ConditionalBreakNode:
             return None
-        elif type(block) is ConditionNode:
+        if type(block) is ConditionNode:
             s = [ ]
             if block.true_node:
                 try:
@@ -299,13 +300,13 @@ class ConditionProcessor:
                 last_stmts = cls.get_last_statements(block.false_node)
                 s.extend(last_stmts)
             return s
-        elif type(block) is BreakNode:
+        if type(block) is BreakNode:
             return None
-        elif type(block) is ContinueNode:
+        if type(block) is ContinueNode:
             return None
-        elif type(block) is SwitchCaseNode:
+        if type(block) is SwitchCaseNode:
             return None
-        elif type(block) is GraphRegion:
+        if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
             return None
 

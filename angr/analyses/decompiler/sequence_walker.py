@@ -78,5 +78,6 @@ class SequenceWalker:
         self._handle(node.false_node, parent=node, index=1)
         return None
 
-    def _handle_Noop(self, *args, **kwargs):
+    @staticmethod
+    def _handle_Noop(*args, **kwargs):
         return None

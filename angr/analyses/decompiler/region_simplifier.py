@@ -1,11 +1,11 @@
-
+# pylint:disable=unused-argument,arguments-differ
 import logging
 
 import ailment
 
 from ..analysis import Analysis
 from .sequence_walker import SequenceWalker
-from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode
+from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice
 from .condition_processor import ConditionProcessor
 from .utils import insert_node
 
@@ -29,7 +29,7 @@ class GotoSimplifier(SequenceWalker):
         super().__init__(handlers)
         self.walk(node)
 
-    def _handle_sequencenode(self, node, successor=None):
+    def _handle_sequencenode(self, node, successor=None, **kwargs):
         """
 
         :param SequenceNode node:
@@ -39,7 +39,7 @@ class GotoSimplifier(SequenceWalker):
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
             self._handle(n0, successor=n1)
 
-    def _handle_codenode(self, node, successor=None):
+    def _handle_codenode(self, node, successor=None, **kwargs):
         """
 
         :param CodeNode node:
@@ -48,7 +48,7 @@ class GotoSimplifier(SequenceWalker):
 
         self._handle(node.node, successor=successor)
 
-    def _handle_conditionnode(self, node, successor=None):
+    def _handle_conditionnode(self, node, successor=None, **kwargs):
         """
 
         :param ConditionNode node:
@@ -61,7 +61,7 @@ class GotoSimplifier(SequenceWalker):
         if node.false_node is not None:
             self._handle(node.false_node, successor=successor)
 
-    def _handle_loopnode(self, node, successor=None):
+    def _handle_loopnode(self, node, successor=None, **kwargs):
         """
 
         :param LoopNode node:
@@ -71,7 +71,7 @@ class GotoSimplifier(SequenceWalker):
 
         self._handle(node.sequence_node, successor=successor)
 
-    def _handle_multinode(self, node, successor=None):
+    def _handle_multinode(self, node, successor=None, **kwargs):
         """
 
         :param MultiNode node:
@@ -81,7 +81,7 @@ class GotoSimplifier(SequenceWalker):
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
             self._handle(n0, successor=n1)
 
-    def _handle_block(self, block, successor=None):  # pylint:disable=no-self-use
+    def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use
         """
 
         :param ailment.Block block:
@@ -114,7 +114,7 @@ class IfSimplifier(SequenceWalker):
         super().__init__(handlers)
         self.walk(node)
 
-    def _handle_sequencenode(self, node, successor=None):
+    def _handle_sequencenode(self, node, successor=None, **kwargs):
         """
 
         :param SequenceNode node:
@@ -124,7 +124,7 @@ class IfSimplifier(SequenceWalker):
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
             self._handle(n0, successor=n1)
 
-    def _handle_codenode(self, node, successor=None):
+    def _handle_codenode(self, node, successor=None, **kwargs):
         """
 
         :param CodeNode node:
@@ -133,7 +133,7 @@ class IfSimplifier(SequenceWalker):
 
         self._handle(node.node, successor=successor)
 
-    def _handle_conditionnode(self, node, successor=None):
+    def _handle_conditionnode(self, node, successor=None, **kwargs):
         """
 
         :param ConditionNode node:
@@ -146,7 +146,7 @@ class IfSimplifier(SequenceWalker):
         if node.false_node is not None:
             self._handle(node.false_node, successor=successor)
 
-    def _handle_loopnode(self, node, successor=None):
+    def _handle_loopnode(self, node, successor=None, **kwargs):
         """
 
         :param LoopNode node:
@@ -156,7 +156,7 @@ class IfSimplifier(SequenceWalker):
 
         self._handle(node.sequence_node, successor=successor)
 
-    def _handle_multinode(self, node, successor=None):
+    def _handle_multinode(self, node, successor=None, **kwargs):
         """
 
         :param MultiNode node:
@@ -166,7 +166,7 @@ class IfSimplifier(SequenceWalker):
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
             self._handle(n0, successor=n1)
 
-    def _handle_block(self, block, successor=None):  # pylint:disable=no-self-use
+    def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use
         """
         Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards.
 
@@ -211,7 +211,7 @@ class IfElseFlattener(SequenceWalker):
     Remove unnecessary else branches and make the else node a direct successor of the previous If node if the If node
     always returns.
     """
-    def __init__(self, node):
+    def __init__(self, node, functions):
         handlers = {
             SequenceNode: self._handle_Sequence,
             CodeNode: self._handle_Code,
@@ -221,6 +221,7 @@ class IfElseFlattener(SequenceWalker):
         }
 
         super().__init__(handlers)
+        self.functions = functions
         self.walk(node)
 
     def _handle_Condition(self, node, parent=None, index=None, **kwargs):
@@ -232,8 +233,11 @@ class IfElseFlattener(SequenceWalker):
         """
 
         if node.true_node is not None and node.false_node is not None:
-            last_stmts = ConditionProcessor.get_last_statements(node.true_node)
-            if all(isinstance(stmt, ailment.Stmt.Return) for stmt in last_stmts):
+            try:
+                last_stmts = ConditionProcessor.get_last_statements(node.true_node)
+            except EmptyBlockNotice:
+                last_stmts = None
+            if last_stmts is not None and all(self._is_statement_terminating(stmt) for stmt in last_stmts):
                 # all end points in the true node are returning
 
                 # remove the else node and make it a new node following node
@@ -245,6 +249,20 @@ class IfElseFlattener(SequenceWalker):
             self._handle(node.true_node, parent=node, index=0)
         if node.false_node is not None:
             self._handle(node.false_node, parent=node, index=1)
+
+    def _is_statement_terminating(self, stmt):
+
+        if isinstance(stmt, ailment.Stmt.Return):
+            return True
+        if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+            # is it calling a non-returning function?
+            target_func_addr = stmt.target.value
+            try:
+                func = self.functions.get_by_addr(target_func_addr)
+                return func.returning is False
+            except KeyError:
+                pass
+        return False
 
 
 class RegionSimplifier(Analysis):
@@ -286,9 +304,8 @@ class RegionSimplifier(Analysis):
         IfSimplifier(region)
         return region
 
-    @staticmethod
-    def _simplify_ifelses(region):
-        IfElseFlattener(region)
+    def _simplify_ifelses(self, region):
+        IfElseFlattener(region, self.kb.functions)
         return region
 
 
