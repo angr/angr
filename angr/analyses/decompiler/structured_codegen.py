@@ -1070,8 +1070,9 @@ class StructuredCodeGenerator(Analysis):
             return expr, None
         elif isinstance(expr, CExpression):  # other expressions
             return expr, None
-
-        raise NotImplementedError("Unsupported address %s." % addr)
+        else:
+            l.warning("Unsupported address expression %r", addr)
+            return expr, None
 
     #
     # Handlers
