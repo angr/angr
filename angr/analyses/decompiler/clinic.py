@@ -11,7 +11,7 @@ from ...utils import timethis
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
-from .optimization_passes import get_optimization_passes
+from .optimization_passes import get_default_optimization_passes
 
 
 l = logging.getLogger(name=__name__)
@@ -50,7 +50,7 @@ class Clinic(Analysis):
         if optimization_passes is not None:
             self._optimization_passes = optimization_passes
         else:
-            self._optimization_passes = get_optimization_passes(self.project.arch, self.project.simos.name)
+            self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
             l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
 
         self._analyze()
