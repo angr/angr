@@ -208,17 +208,18 @@ class ConditionProcessor:
         if type(block) is SequenceNode:
             if block.nodes:
                 return cls.get_last_statement(block.nodes[-1])
-        elif type(block) is CodeNode:
+            raise EmptyBlockNotice()
+        if type(block) is CodeNode:
             return cls.get_last_statement(block.node)
-        elif type(block) is ailment.Block:
+        if type(block) is ailment.Block:
             if not block.statements:
                 raise EmptyBlockNotice()
             return block.statements[-1]
-        elif type(block) is Block:
+        if type(block) is Block:
             raise NotImplementedError()
-        elif type(block) is BlockNode:
+        if type(block) is BlockNode:
             raise NotImplementedError()
-        elif type(block) is MultiNode:
+        if type(block) is MultiNode:
             # get the last node
             for the_block in reversed(block.nodes):
                 try:
@@ -226,11 +227,12 @@ class ConditionProcessor:
                     return last_stmt
                 except EmptyBlockNotice:
                     continue
-        elif type(block) is LoopNode:
+            raise EmptyBlockNotice()
+        if type(block) is LoopNode:
             return cls.get_last_statement(block.sequence_node)
-        elif type(block) is ConditionalBreakNode:
+        if type(block) is ConditionalBreakNode:
             return None
-        elif type(block) is ConditionNode:
+        if type(block) is ConditionNode:
             s = None
             if block.true_node:
                 try:
@@ -240,13 +242,13 @@ class ConditionProcessor:
             if s is None and block.false_node:
                 s = cls.get_last_statement(block.false_node)
             return s
-        elif type(block) is BreakNode:
+        if type(block) is BreakNode:
             return None
-        elif type(block) is ContinueNode:
+        if type(block) is ContinueNode:
             return None
-        elif type(block) is SwitchCaseNode:
+        if type(block) is SwitchCaseNode:
             return None
-        elif type(block) is GraphRegion:
+        if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
             return None
 
