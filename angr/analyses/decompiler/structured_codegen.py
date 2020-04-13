@@ -766,6 +766,7 @@ class CBinaryOp(CExpression):
             'Xor': self._c_repr_xor,
             'Or': self._c_repr_or,
             'Shr': self._c_repr_shr,
+            'Shl': self._c_repr_shl,
             'LogicalAnd': self._c_repr_logicaland,
             'LogicalOr': self._c_repr_logicalor,
             'CmpLE': self._c_repr_cmple,
@@ -837,6 +838,13 @@ class CBinaryOp(CExpression):
     def _c_repr_shr(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " >> "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
+    def _c_repr_shl(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " << "
         if posmap: posmap.tick_pos(len(op))
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
