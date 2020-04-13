@@ -4,11 +4,13 @@ from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .multi_simplifier import MultiSimplifier
 from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
+from .eager_returns import EagerReturnsSimplifier
 
 
 _all_optimization_passes = [
     StackCanarySimplifier,
     BasePointerSaveSimplifier,
+    EagerReturnsSimplifier,
     DivSimplifier,
     MultiSimplifier,
     ModSimplifier

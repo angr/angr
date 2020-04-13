@@ -227,7 +227,10 @@ class ConditionProcessor:
         elif type(block) is ConditionNode:
             s = None
             if block.true_node:
-                s = self.get_last_statement(block.true_node)
+                try:
+                    s = self.get_last_statement(block.true_node)
+                except EmptyBlockNotice:
+                    s = None
             if s is None and block.false_node:
                 s = self.get_last_statement(block.false_node)
             return s
