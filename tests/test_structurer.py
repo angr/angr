@@ -2,11 +2,92 @@
 import os
 
 import nose.tools
+import networkx
 
 import angr
 import angr.analyses.decompiler
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+
+
+class DummyNode:
+    def __init__(self, n):
+        self.n = n
+
+    def __hash__(self):
+        return hash(self.n)
+
+    def __eq__(self, other):
+        return isinstance(other, DummyNode) and self.n == other.n or isinstance(other, int) and self.n == other
+
+    @property
+    def addr(self):
+        return self.n
+
+    def __repr__(self):
+        return "<Node %d>" % self.n
+
+
+def d(n):
+    return DummyNode(n)
+
+
+def D(*edge):
+    return DummyNode(edge[0]), DummyNode(edge[1])
+
+
+def test_region_identifier_0():
+
+    g = networkx.DiGraph()
+
+    #
+    #       1
+    #       |
+    #       2
+    #      / \
+    #     3  4
+    #     \  /
+    #      5
+    #      |
+    #      6
+
+    g.add_edges_from([
+        D(1, 2), D(2, 3), D(2, 4), D(3, 5), D(4, 5), D(5, 6),
+    ])
+
+    ri = angr.analyses.decompiler.RegionIdentifier(None, g)
+    region = ri.region
+    nose.tools.assert_equal(len(region.graph.nodes()), 2)
+
+
+def test_region_identifier_1():
+
+    g = networkx.DiGraph()
+
+    #
+    #        1
+    #        |
+    #        2
+    #        | \
+    #        | 3
+    #        | /
+    #        4
+    #        |
+    #        5
+    #        | \
+    #        | 6
+    #        | /
+    #        7
+    #        |
+    #        8
+
+    g.add_edges_from([
+        D(1, 2), D(2, 3), D(3, 4), D(2, 4), D(4, 5), D(5, 6), D(6, 7), D(5, 7), D(7, 8),
+    ])
+
+    ri = angr.analyses.decompiler.RegionIdentifier(None, g)
+    region = ri.region
+    nose.tools.assert_equal((len(region.graph.nodes())), 2)
 
 
 def test_smoketest():

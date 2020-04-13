@@ -2,13 +2,14 @@ import logging
 
 import ailment
 
+from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
+from ...errors import SimEngineError
+from ...calling_conventions import DEFAULT_CC, SimRegArg
 from .atoms import Register, Tmp, MemoryLocation
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
 from .undefined import Undefined, undefined
-from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
-from ...errors import SimEngineError
 
 l = logging.getLogger(name=__name__)
 
@@ -192,6 +193,27 @@ class SimEngineRDAIL(
             self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
             self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
             self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
+
+    def _ail_handle_Return(self, stmt):  # pylint:disable=unused-argument
+        # consume registers that are potentially useful
+        # TODO: Consider the calling convention of the current function
+
+        cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
+        if cc_cls is None:
+            l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
+            return
+
+        cc = cc_cls(self.project.arch)
+        codeloc = self._codeloc()
+        size = self.project.arch.bits // 8
+        # return value
+        if cc.RETURN_VAL is not None:
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                offset = cc.RETURN_VAL._fix_offset(None, size, arch=self.project.arch)
+                self.state.add_use(Register(offset, size), codeloc)
+        # stack pointers
+        self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8), codeloc)
+        self.state.add_use(Register(self.project.arch.bp_offset, self.project.arch.bits // 8), codeloc)
 
     #
     # AIL expression handlers
