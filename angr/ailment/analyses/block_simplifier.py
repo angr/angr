@@ -133,15 +133,17 @@ class BlockSimplifier(Analysis):
                 if not uses:
                     dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
             else:
-                # is entirely possible that at the end of the blocj, a register definition is not used.
-                # however, it might be used in future blocks.
-                # so we only remove a definition if the definition is not alive anymore at the end of the block?
-                if isinstance(d.atom, atoms.Register):
-                    if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
-                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-                if isinstance(d.atom, SpOffset):
-                    if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.offset):
-                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                uses = rd.all_uses.get_uses(d)
+                if not uses:
+                    # is entirely possible that at the end of the block, a register definition is not used.
+                    # however, it might be used in future blocks.
+                    # so we only remove a definition if the definition is not alive anymore at the end of the block
+                    if isinstance(d.atom, atoms.Register):
+                        if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
+                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                    if isinstance(d.atom, SpOffset):
+                        if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.offset):
+                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):

@@ -10,11 +10,13 @@ import angr
 import ailment
 import ailment.analyses
 
+
 def block_simplify(block):
     p = angr.Project(os.path.join(os.path.dirname(os.path.abspath(__file__)),
         '..', '..', 'binaries', 'tests', 'x86_64', 'fauxware'), auto_load_libs=False)
     bsimp = p.analyses.AILBlockSimplifier(block)
     return bsimp.result_block
+
 
 def test_simplify_pointless_assign():
     arch = archinfo.arch_from_id('AMD64')
@@ -41,8 +43,7 @@ def test_simplify_pointless_assign():
     nose.tools.assert_equal(b.statements[0].idx, 3)
 
 
-def test_simplify_dead_assign():
-    arch = archinfo.arch_from_id('AMD64')
+def test_simplify_dead_assign_0():
     block = ailment.Block(0x1337, 10)
     n = count()
     important = 0x999
@@ -73,7 +74,37 @@ def test_simplify_dead_assign():
     nose.tools.assert_equal(b.statements[0].idx, important)
 
 
+def test_simplify_dead_assign_1():
+
+    # if a register is used ever, it should not be simplified away
+    arch = archinfo.arch_from_id('AMD64')
+    block = ailment.Block(0x1337, 10)
+    n = count(start=1)
+    important = 0x999
+    block.statements.extend(
+        [
+            ailment.Assignment(
+                next(n),
+                ailment.Register(next(n), None, arch.registers['rdi'][0], 64),
+                ailment.Const(next(n), None, 0x13371337, 64),
+                ins_addr=0x1337,
+            ),  # rdi = 0x13371337
+            ailment.Stmt.Call(
+                important,
+                ailment.Const(next(n), None, 0x400080, 64),
+                ins_addr=0x1338,
+            ),  # Call(0x400080), which uses rdi but also overwrites rdi (since it is a caller-saved argument)
+        ]
+    )
+
+    b = block_simplify(block)
+    nose.tools.assert_equal(len(b.statements), 2)
+    nose.tools.assert_equal(b.statements[0].idx, 1)
+    nose.tools.assert_equal(b.statements[1].idx, important)
+
+
 if __name__ == '__main__':
     logging.getLogger('ailment.analyses.block_simplifier').setLevel(logging.DEBUG)
     test_simplify_pointless_assign()
-    test_simplify_dead_assign()
+    test_simplify_dead_assign_0()
+    test_simplify_dead_assign_1()
