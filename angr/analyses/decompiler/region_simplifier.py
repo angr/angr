@@ -276,15 +276,18 @@ class RegionSimplifier(Analysis):
     # Simplifiers
     #
 
-    def _simplify_gotos(self, region):
+    @staticmethod
+    def _simplify_gotos(region):
         GotoSimplifier(region)
         return region
 
-    def _simplify_ifs(self, region):
+    @staticmethod
+    def _simplify_ifs(region):
         IfSimplifier(region)
         return region
 
-    def _simplify_ifelses(self, region):
+    @staticmethod
+    def _simplify_ifelses(region):
         IfElseFlattener(region)
         return region
 
