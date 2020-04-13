@@ -289,7 +289,7 @@ class ConditionProcessor:
         if type(block) is LoopNode:
             return cls.get_last_statements(block.sequence_node)
         if type(block) is ConditionalBreakNode:
-            return None
+            return [ block ]
         if type(block) is ConditionNode:
             s = [ ]
             if block.true_node:
@@ -303,14 +303,19 @@ class ConditionProcessor:
                 s.extend(last_stmts)
             return s
         if type(block) is BreakNode:
-            return None
+            return [ block ]
         if type(block) is ContinueNode:
-            return None
+            return [ block ]
         if type(block) is SwitchCaseNode:
-            return None
+            s = [ ]
+            for case in block.cases:
+                s.extend(cls.get_last_statements(case))
+            if block.default_case is not None:
+                s.extend(cls.get_last_statements(block.default_case))
+            return s
         if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
-            return None
+            return [ ]
 
         raise NotImplementedError()
 

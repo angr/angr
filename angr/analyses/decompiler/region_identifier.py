@@ -385,19 +385,26 @@ class RegionIdentifier(Analysis):
         # - there are in edges to the head node, or
         # - there are more than one end nodes
 
-        head_in_edges = list(graph.in_edges(head))
-        endnodes = [node for node in graph.nodes() if graph.out_degree(node) == 0]
+        head_inedges = list(graph.in_edges(head))
+        if head_inedges:
+            # we need a copy of the graph to remove edges coming into the head
+            graph_copy = networkx.DiGraph(graph)
+            # remove any in-edge to the head node
+            for src, _ in head_inedges:
+                graph_copy.remove_edge(src, head)
+        else:
+            graph_copy = graph
+
+        endnodes = [node for node in graph_copy.nodes() if graph_copy.out_degree(node) == 0]
         if len(endnodes) == 0:
             # sanity check: there should be at least one end node
             l.critical("No end node is found in a supposedly acyclic graph. Is it really acyclic?")
             return False
 
-        if head_in_edges or len(endnodes) > 1:
+        if len(endnodes) > 1:
             # we need a copy of the graph!
-            graph_copy = networkx.DiGraph(graph)
-            # remove any in-edge to the head node
-            for src, _ in head_in_edges:
-                graph_copy.remove_edge(src, head)
+            graph_copy = networkx.DiGraph(graph_copy)
+
             # if this graph has multiple end nodes: create a single end node
             dummy_endnode = None
             if len(endnodes) > 1:
@@ -406,7 +413,6 @@ class RegionIdentifier(Analysis):
                     graph_copy.add_edge(endnode, dummy_endnode)
                 endnodes = [ dummy_endnode ]
         else:
-            graph_copy = graph
             dummy_endnode = None
 
         # compute dominator tree
