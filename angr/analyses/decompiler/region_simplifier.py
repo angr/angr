@@ -206,7 +206,7 @@ class IfSimplifier(SequenceWalker):
                             )
 
 
-class IfElseSimplifier(SequenceWalker):
+class IfElseFlattener(SequenceWalker):
     """
     Remove unnecessary else branches and make the else node a direct successor of the previous If node if the If node
     always returns.
@@ -285,7 +285,7 @@ class RegionSimplifier(Analysis):
         return region
 
     def _simplify_ifelses(self, region):
-        IfElseSimplifier(region)
+        IfElseFlattener(region)
         return region
 
 
