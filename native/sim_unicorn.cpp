@@ -1436,6 +1436,12 @@ public:
 	void propagate_mem_read_taints() {
 		// Mark taint sinks that depend on a mem read as symbolic. called by unicorn mem read hook
 		uint64_t pc_addr = get_instruction_pointer();
+		if (mem_reads_taint_dst_map.at(pc_addr).second) {
+			// The taints have already been propagated. No need to process again.
+			// TODO: Added as a safety just in case unicorn behaves weirdly. Supposedly, write hooks
+			// are invoked twice on x86 64 bit so might as well have this here?
+			return;
+		}
 		auto taint_entity_list = mem_reads_taint_dst_map.at(pc_addr).first;
 		for (taint_entity_t &taint_entity: taint_entity_list) {
 			if ((taint_entity.entity_type == TAINT_ENTITY_REG) || (taint_entity.entity_type == TAINT_ENTITY_TMP)) {
