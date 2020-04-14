@@ -7,10 +7,6 @@ from .sim_state_options import SimStateOptions
 # This option controls whether or not constraints are tracked in the analysis.
 TRACK_CONSTRAINTS = "TRACK_CONSTRAINTS"
 
-# This option causes constraints to be flushed at the beginning of every instruction.
-INSTRUCTION_SCOPE_CONSTRAINTS = "INSTRUCTION_SCOPE_CONSTRAINTS"
-BLOCK_SCOPE_CONSTRAINTS = "BLOCK_SCOPE_CONSTRAINTS"
-
 # This option controls whether or not various entities (IRExpr constants, reads, writes, etc) get simplified automatically
 SIMPLIFY_EXPRS = "SIMPLIFY_EXPRS"
 SIMPLIFY_MEMORY_READS = "SIMPLIFY_MEMORY_READS"
