@@ -1,5 +1,4 @@
 
-import os
 import time
 import multiprocessing
 import logging
@@ -20,6 +19,7 @@ class Worker:
     def __init__(self, worker_id, server):
         self.worker_id = worker_id
         self.server = server
+        self._proc = None
 
     def start(self):
         self._proc = multiprocessing.Process(
