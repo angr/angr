@@ -27,4 +27,4 @@ class SimSootExpr_Cast(SimSootExpr):
                                                   value_uncasted.size)
         else:
             self.expr = SimSootValue_ThisRef(heap_alloc_id=value_uncasted.heap_alloc_id,
-                                             type_=self.expr.cast_type)
+                                             type_=self.expr.cast_type, symbolic=value_uncasted.symbolic)
