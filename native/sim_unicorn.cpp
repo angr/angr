@@ -195,7 +195,7 @@ private:
 	uc_context *saved_regs;
 
 	std::vector<mem_access_t> mem_writes;
-	std::unordered_map<uint64_t, std::vector<taint_entity_t>> mem_reads_taint_dst_map;
+	std::unordered_map<uint64_t, std::pair<std::vector<taint_entity_t>, bool>> mem_reads_taint_dst_map;
 	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
 	std::map<uint64_t, std::pair<taint_t *, uint8_t *>> active_pages;
 	//std::map<uint64_t, taint_t *> active_pages;
@@ -1352,9 +1352,15 @@ public:
 						else {
 							bool entry_found = false;
 							for (auto &dst_entries: mem_reads_taint_dst_map) {
-								for (auto &taint_entity: dst_entries.second) {
+								if (dst_entries.second.second) {
+									// The memory read has already been executed
+									// The register is concrete
+									continue;
+								}
+								auto taint_entity_list = dst_entries.second.first;
+								for (auto &taint_entity: taint_entity_list) {
 									if (taint_src == taint_entity) {
-										// Taint source indirectly depends on a memory read
+										// Taint source indirectly depends on a pending memory read
 										// Mark the taint sink as also depending on same memory read
 										sink_depends_on_memory_read = true;
 										mem_read_instrs.emplace(dst_entries.first);
@@ -1376,9 +1382,15 @@ public:
 						else {
 							bool entry_found = false;
 							for (auto &dst_entries: mem_reads_taint_dst_map) {
-								for (auto &taint_entity: dst_entries.second) {
+								if (dst_entries.second.second) {
+									// The memory read has already been executed
+									// The register is concrete
+									continue;
+								}
+								auto taint_entity_list = dst_entries.second.first;
+								for (auto &taint_entity: taint_entity_list) {
 									if (taint_src == taint_entity) {
-										// Taint source indirectly depends on a memory read
+										// Taint source indirectly depends on a pending memory read
 										// Mark the taint sink as also depending on same memory read
 										sink_depends_on_memory_read = true;
 										mem_read_instrs.emplace(dst_entries.first);
@@ -1405,10 +1417,10 @@ public:
 						if (mem_reads_taint_dst_map.find(mem_read_instr) == mem_reads_taint_dst_map.end()) {
 							std::vector<taint_entity_t> dsts;
 							dsts.emplace_back(taint_sink);
-							mem_reads_taint_dst_map.emplace(mem_read_instr, dsts);
+							mem_reads_taint_dst_map.emplace(mem_read_instr, std::make_pair(dsts, false));
 						}
 						else {
-							mem_reads_taint_dst_map.at(mem_read_instr).emplace_back(taint_sink);
+							mem_reads_taint_dst_map.at(mem_read_instr).first.emplace_back(taint_sink);
 						}
 					}
 				}
@@ -1424,7 +1436,8 @@ public:
 	void propagate_mem_read_taints() {
 		// Mark taint sinks that depend on a mem read as symbolic. called by unicorn mem read hook
 		uint64_t pc_addr = get_instruction_pointer();
-		for (taint_entity_t &taint_entity: mem_reads_taint_dst_map.at(pc_addr)) {
+		auto taint_entity_list = mem_reads_taint_dst_map.at(pc_addr).first;
+		for (taint_entity_t &taint_entity: taint_entity_list) {
 			if ((taint_entity.entity_type == TAINT_ENTITY_REG) || (taint_entity.entity_type == TAINT_ENTITY_TMP)) {
 				mark_register_temp_symbolic(taint_entity);
 			}
@@ -1434,6 +1447,8 @@ public:
 				assert(false && ss.str().c_str());
 			}
 		}
+		// Mark all pending taint propagations dependent on current memory read as done
+		mem_reads_taint_dst_map.at(pc_addr).second = true;
 		return;
 	}
 
