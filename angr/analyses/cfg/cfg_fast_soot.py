@@ -52,6 +52,7 @@ class CFGFastSoot(CFGFast):
         self._updated_nonreturning_functions = set()
 
         self._function_returns = defaultdict(set)
+        self._function_exits = defaultdict(set)
 
         entry = self.project.entry  # type:SootAddressDescriptor
         entry_func = entry.method
