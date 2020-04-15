@@ -6,7 +6,7 @@ from . import X86ElfPicPltResolver
 from . import JumpTableResolver
 from . import X86PeIatResolver
 from . import AMD64ElfGotResolver
-
+from . import ConstantResolver
 
 DEFAULT_RESOLVERS = {
     'X86': {
@@ -22,7 +22,7 @@ DEFAULT_RESOLVERS = {
     'MIPS64': {
         cle.MetaELF: [ MipsElfFastResolver, ],
     },
-    'ALL': [ JumpTableResolver ],
+    'ALL': [ JumpTableResolver, ConstantResolver ],
 }
 
 
