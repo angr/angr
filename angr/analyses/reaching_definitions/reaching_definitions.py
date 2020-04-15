@@ -78,6 +78,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         if self._subject.type is SubjectType.CFGSliceToSink:
             self._update_kb_content_from_slice()
+            self._graph_visitor.reset()
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=self._graph_visitor)

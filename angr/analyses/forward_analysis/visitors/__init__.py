@@ -2,4 +2,4 @@ from .call_graph import CallGraphVisitor
 from .function_graph import FunctionGraphVisitor
 from .loop import LoopVisitor
 from .single_node_graph import SingleNodeGraphVisitor
-from .slice import SliceVisitor
+from .cfg import CFGVisitor

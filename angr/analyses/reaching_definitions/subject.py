@@ -4,7 +4,7 @@ import ailment
 
 from ...block import Block
 from ...knowledge_plugins.functions.function_manager import Function
-from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, SliceVisitor
+from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, CFGVisitor
 from ..cfg_slice_to_sink import CFGSliceToSink
 
 
@@ -39,7 +39,7 @@ class Subject:
             self._visitor = SingleNodeGraphVisitor(content)
         elif isinstance(content, CFGSliceToSink):
             self._type = SubjectType.CFGSliceToSink
-            self._visitor = SliceVisitor(content, cfg)
+            self._visitor = CFGVisitor(cfg)
         else:
             raise TypeError('Unsupported analysis target.')
 
