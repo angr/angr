@@ -505,7 +505,7 @@ class CFGBase(Analysis):
             except SimError:
                 all_bytes = None
 
-        size = end - start + 1
+        size = end - start
 
         if all_bytes is None:
             # load from the binary
