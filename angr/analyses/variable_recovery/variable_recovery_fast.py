@@ -136,7 +136,7 @@ class SimEngineVRBase(SimEngineLight):
             return
 
         # handle register writes
-        if type(data) is SpOffset:
+        if type(data) is SpOffset and isinstance(data.offset, int):
             # lea
             stack_offset = data.offset
             existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr,
