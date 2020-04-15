@@ -28,7 +28,7 @@ class FunctionDict(SortedDict):
         try:
             return super(FunctionDict, self).__getitem__(addr)
         except KeyError:
-            if not isinstance(addr, self._key_types):
+            if not any(isinstance(addr, key_type) for key_type in self._key_types):
                 raise TypeError("FunctionDict only supports %s as key type" % self._key_types)
 
             if isinstance(addr, SootMethodDescriptor):
@@ -66,7 +66,12 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     def __init__(self, kb):
         super(FunctionManager, self).__init__()
         self._kb = kb
-        self.function_address_types = self._kb._project.arch.function_address_types
+        self.function_address_types = []
+        #self._kb._project.arch.function_address_types
+        for arch in self._kb._project.loader.all_objects:
+            for addr_descriptor in arch.arch.function_address_types:
+                if addr_descriptor not in self.function_address_types:
+                    self.function_address_types.append(addr_descriptor)
         self.address_types = self._kb._project.arch.address_types
         self._function_map = FunctionDict(self, key_types=self.function_address_types)
         self.callgraph = networkx.MultiDiGraph()
@@ -240,7 +245,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             return False
 
     def __getitem__(self, k):
-        if isinstance(k, self.function_address_types):
+        if any([isinstance(k, addr_type) for addr_type in self.function_address_types]):
             f = self.function(addr=k)
         elif type(k) is str:
             f = self.function(name=k)
@@ -253,14 +258,14 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         return f
 
     def __setitem__(self, k, v):
-        if isinstance(k, self.function_address_types):
+        if any([isinstance(k, addr_type) for addr_type in self.function_address_types]):
             self._function_map[k] = v
             self._function_added(v)
         else:
             raise ValueError("FunctionManager.__setitem__ keys must be an int")
 
     def __delitem__(self, k):
-        if isinstance(k, self.function_address_types):
+        if any([isinstance(k, addr_type) for addr_type in self.function_address_types]):
             del self._function_map[k]
             if k in self.callgraph:
                 self.callgraph.remove_node(k)
