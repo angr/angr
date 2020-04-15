@@ -4,7 +4,7 @@ import ailment
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
 from ...errors import SimEngineError
-from ...calling_conventions import DEFAULT_CC, SimRegArg
+from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from .atoms import Register, Tmp, MemoryLocation
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
@@ -155,9 +155,18 @@ class SimEngineRDAIL(
                 self._expr(arg)
 
         # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
-        # to using all caller-saved registers.
+        # to using all argument registers.
         if stmt.args is not None:
             used_exprs = stmt.args
+        elif stmt.calling_convention is not None:
+            used_exprs = [ ]
+            for arg_loc in stmt.calling_convention.arg_locs():
+                if isinstance(arg_loc, SimRegArg):
+                    used_exprs.append(Register(self.arch.registers[arg_loc.reg_name], arg_loc.size))
+                elif isinstance(arg_loc, SimStackArg):
+                    used_exprs.append(SpOffset(arg_loc.size * 8, arg_loc.stack_offset, is_base=False))
+                else:
+                    l.warning("_handle_Call(): Unsupported arg_loc %r.", arg_loc)
         else:
             used_exprs = None
 
@@ -174,7 +183,7 @@ class SimEngineRDAIL(
 
         # Add uses
         if used_exprs is None:
-            used_exprs = [ var for var in killed_vars if var.reg_offset != return_reg_offset ]
+            used_exprs = [ Register(*self.arch.registers[reg_name]) for reg_name in cc.ARG_REGS ]
         for expr in used_exprs:
             self._expr(expr)
 
@@ -211,9 +220,6 @@ class SimEngineRDAIL(
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 offset = cc.RETURN_VAL._fix_offset(None, size, arch=self.project.arch)
                 self.state.add_use(Register(offset, size), codeloc)
-        # stack pointers
-        self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8), codeloc)
-        self.state.add_use(Register(self.project.arch.bp_offset, self.project.arch.bits // 8), codeloc)
 
     #
     # AIL expression handlers
