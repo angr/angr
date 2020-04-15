@@ -157,8 +157,11 @@ class SimEngineRDAIL(
         # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
         # to using all argument registers.
         if stmt.args is not None:
+            # getting used expressions from stmt.args
             used_exprs = stmt.args
-        elif stmt.calling_convention is not None:
+        elif stmt.calling_convention is not None and (
+                stmt.calling_convention.func_ty is not None or stmt.calling_convention.args is not None):
+            # getting used expressions from the function prototype, its arguments, and the calling convention
             used_exprs = [ ]
             for arg_loc in stmt.calling_convention.arg_locs():
                 if isinstance(arg_loc, SimRegArg):
@@ -220,6 +223,11 @@ class SimEngineRDAIL(
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 offset = cc.RETURN_VAL._fix_offset(None, size, arch=self.project.arch)
                 self.state.add_use(Register(offset, size), codeloc)
+        # base pointer
+        # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not
+        self.state.add_use(Register(self.project.arch.bp_offset, self.project.arch.bits // 8), codeloc)
+        # We don't add sp since stack pointers are supposed to be get rid of in AIL. this is definitely a hack though
+        # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8), codeloc)
 
     #
     # AIL expression handlers
