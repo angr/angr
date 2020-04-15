@@ -149,11 +149,6 @@ class SimEngineRDAIL(
         ip = Register(self.arch.ip_offset, self.arch.bytes)
         self.state.kill_definitions(ip, self._codeloc())
 
-        # if arguments exist, use them
-        if stmt.args:
-            for arg in stmt.args:
-                self._expr(arg)
-
         # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
         # to using all argument registers.
         if stmt.args is not None:
