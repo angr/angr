@@ -3057,6 +3057,8 @@ _libc_decls = \
         "__ppc_set_ppr_very_low": SimTypeFunction([], SimTypeBottom(label="void")),
         # void __ppc_set_ppr_med_high (void);
         "__ppc_set_ppr_med_high": SimTypeFunction([], SimTypeBottom(label="void")),
+        # void __stack_chk_fail (void);
+        "__stack_chk_fail": SimTypeFunction([], SimTypeBottom(label="void")),
     }
 
 
@@ -4602,4 +4604,5 @@ _libc_c_decls = \
         "void __ppc_set_ppr_med_low (void);",
         "void __ppc_set_ppr_very_low (void);",
         "void __ppc_set_ppr_med_high (void);",
+        "void __stack_chk_fail (void);",
     ]
