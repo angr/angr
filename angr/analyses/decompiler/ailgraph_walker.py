@@ -39,12 +39,12 @@ class AILGraphWalker:
 
                     for src, _, data in in_edges:
                         if src is node:
-                            self.graph.add_edge(r, r, data=data)
+                            self.graph.add_edge(r, r, **data)
                         else:
-                            self.graph.add_edge(src, r, data=data)
+                            self.graph.add_edge(src, r, **data)
 
                     for _, dst, data in out_edges:
                         if dst is node:
-                            self.graph.add_edge(r, r, data=data)
+                            self.graph.add_edge(r, r, **data)
                         else:
-                            self.graph.add_edge(r, dst, data=data)
+                            self.graph.add_edge(r, dst, **data)

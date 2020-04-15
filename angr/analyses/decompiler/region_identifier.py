@@ -101,7 +101,7 @@ class RegionIdentifier(Analysis):
                     if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
                         self._merge_nodes(graph, src, dst, force_multinode=True)
                         break
-                if type_ == 'call':
+                elif type_ == 'call':
                     graph.remove_node(dst)
                     break
             else:
