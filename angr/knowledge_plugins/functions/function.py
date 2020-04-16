@@ -761,7 +761,7 @@ class Function(Serializable):
 
         self.transition_graph[src][dst]['confirmed'] = True
 
-    def _transit_to(self, from_node, to_node, outside=False, ins_addr=None, stmt_idx=None):
+    def _transit_to(self, from_node, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False):
         """
         Registers an edge between basic blocks in this function's transition graph.
         Arguments are CodeNode objects.
@@ -786,14 +786,15 @@ class Function(Serializable):
             else:
                 self._register_nodes(True, from_node)
 
+        type_ = 'transition' if not is_exception else 'exception'
         if to_node is not None:
-            self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
+            self.transition_graph.add_edge(from_node, to_node, type=type_, outside=outside, ins_addr=ins_addr,
                                            stmt_idx=stmt_idx
                                            )
 
         if outside:
             # this node is an endpoint of the current function
-            self._add_endpoint(from_node, 'transition')
+            self._add_endpoint(from_node, type_)
 
         # clear the cache
         self._local_transition_graph = None
