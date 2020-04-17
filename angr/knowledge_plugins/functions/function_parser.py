@@ -3,8 +3,6 @@ import pickle
 
 from collections import defaultdict
 
-import angr.knowledge_plugins.functions.function
-
 from ...codenode import BlockNode
 from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
 from ...protos import primitives_pb2
@@ -21,7 +19,10 @@ class FunctionParser():
         """
         :return :
         """
-        obj = angr.knowledge_plugins.functions.function.Function._get_cmsg()
+        # delayed import
+        from .function import Function  # pylint:disable=import-outside-toplevel
+
+        obj = Function._get_cmsg()
         obj.ea = function.addr
         obj.is_entrypoint = False  # TODO: Set this up accordingly
         obj.name = function.name
@@ -79,8 +80,10 @@ class FunctionParser():
 
         :return Function:
         """
+        # delayed import
+        from .function import Function  # pylint:disable=import-outside-toplevel
 
-        obj = angr.knowledge_plugins.functions.function.Function(
+        obj = Function(
             function_manager,
             cmsg.ea,
             name=cmsg.name,
@@ -114,9 +117,9 @@ class FunctionParser():
                     edge_cmsg.src_ea,
                     blocks,
                     external_addrs,
-                    all_func_addrs,
                     function_manager,
                     project,
+                    all_func_addrs=all_func_addrs,
                 )
             except KeyError:
                 raise KeyError("Address of the edge source %#x is not found." % edge_cmsg.src_ea)
@@ -124,19 +127,28 @@ class FunctionParser():
             edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
-            if edge_type == 'call':
-                # get a function
-                dst = FunctionParser._get_func(edge_cmsg.dst_ea, function_manager)
-            else:
-                # get a node or a function
+            dst = None
+            dst_addr = edge_cmsg.dst_ea
+            if (edge_type == 'call' # call has to go to a function
+                    or (all_func_addrs is not None and dst_addr in all_func_addrs)  # jumps to another function
+            ):
+                if function_manager is not None:
+                    # get a function
+                    dst = FunctionParser._get_func(dst_addr, function_manager)
+                else:
+                    l.warning("About to get or create a function at %#x, but function_manager is not provided. Create "
+                              "a block instead.", dst_addr)
+
+            if dst is None:
+                # create a block instead
                 try:
                     dst = FunctionParser._get_block_or_func(
-                        edge_cmsg.dst_ea,
+                        dst_addr,
                         blocks,
                         external_addrs,
-                        all_func_addrs,
                         function_manager,
                         project,
+                        all_func_addrs=all_func_addrs,
                     )
                 except KeyError:
                     raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
@@ -148,7 +160,7 @@ class FunctionParser():
             if edge_type == 'fake_return':
                 fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
             else:
-                edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
+                edges[(edge_cmsg.src_ea, dst_addr, edge_type)] = (src, dst, data)
 
         added_nodes = set()
         for k, v in edges.items():
@@ -171,11 +183,12 @@ class FunctionParser():
                               "manager is not provided. Please consider passing in a function manager to rebuild this "
                               "graph.", dst_addr)
                 else:
-                    obj._call_to(src, dst, None if fake_ret_edge is None else fake_ret_edge[1],
-                                 stmt_idx=stmt_idx,
-                                 ins_addr=ins_addr,
-                                 return_to_outside=fake_ret_edge is None,
-                                 )
+                    if isinstance(dst, Function):
+                        obj._call_to(src, dst, None if fake_ret_edge is None else fake_ret_edge[1],
+                                     stmt_idx=stmt_idx,
+                                     ins_addr=ins_addr,
+                                     return_to_outside=fake_ret_edge is None,
+                                     )
                     if fake_ret_edge is not None:
                         fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge
                         added_nodes.add(fakeret_dst)
@@ -193,7 +206,7 @@ class FunctionParser():
         return obj
 
     @staticmethod
-    def _get_block_or_func(addr, blocks, external_addrs, all_func_addrs, function_manager, project):
+    def _get_block_or_func(addr, blocks, external_addrs, function_manager, project, all_func_addrs=None):
 
         # should we get a block or a function?
         try:
@@ -204,7 +217,7 @@ class FunctionParser():
             pass
 
         if addr in external_addrs:
-            if addr in all_func_addrs:
+            if all_func_addrs is not None and addr in all_func_addrs:
                 # get a function (which is yet to be created in the function manager)
                 r = function_manager.function(addr=addr, create=True)
                 return r
@@ -213,9 +226,16 @@ class FunctionParser():
                 # TODO: We are deciding the size by re-lifting the block from project. This is usually fine except for
                 # TODO: the cases where the block does not exist in project (e.g., when the block was dynamically
                 # TODO: created). The correct solution is to store the size and bytes of the block, too.
-                block = project.factory.block(addr)
-                block_size = block.size
-                r = BlockNode(addr, block_size, bytestr=block.bytes)
+                if project is not None:
+                    block = project.factory.block(addr)
+                    block_size = block.size
+                    bytestr = block.bytes
+                else:
+                    l.warning("The Project instance is not specified. Use a dummy block size of 1 byte for block %#x.",
+                              addr)
+                    block_size = 1
+                    bytestr = b"\x00"
+                r = BlockNode(addr, block_size, bytestr=bytestr)
                 return r
         raise ValueError("Unsupported case: The block %#x is not in external_addrs and is not in local blocks. "
                          "This probably indicates a bug in angrdb generation.")
