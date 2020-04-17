@@ -23,6 +23,7 @@ _CFG_JUMPKINDS = {
     'Ijk_MapFail': Edge.MapFail,
     'Ijk_NoRedir': Edge.NoRedir,
     'Ijk_ClientReq': Edge.ClientReq,
+    'Ijk_Exception': Edge.Exception,
 }
 
 
@@ -37,7 +38,8 @@ _FUNCTION_EDGETYPES = {
     'call': Edge.Call,
     'return': Edge.Return,
     'fake_return': Edge.FakeReturn,
-    'syscall': Edge.Syscall
+    'syscall': Edge.Syscall,
+    'exception': Edge.Exception,
 }
 
 
