@@ -596,7 +596,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     Recover "variables" from a function by keeping track of stack pointer offsets and pattern matching VEX statements.
     """
 
-    def __init__(self, func, max_iterations=1, clinic=None, low_priority=False, track_sp=True):
+    def __init__(self, func, func_graph=None, max_iterations=1, clinic=None, low_priority=False, track_sp=True):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -604,7 +604,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         :param clinic:
         """
 
-        function_graph_visitor = FunctionGraphVisitor(func)
+        function_graph_visitor = FunctionGraphVisitor(func, graph=func_graph)
 
         # Make sure the function is not empty
         if not func.block_addrs_set or func.startpoint is None:

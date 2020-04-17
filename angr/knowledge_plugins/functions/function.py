@@ -1010,7 +1010,14 @@ class Function(Serializable):
     @property
     def graph(self):
         """
-        :return networkx.DiGraph: A local transition graph that only contain nodes in current function.
+        Get a local transition graph. A local transition graph is a transition graph that only contains nodes that
+        belong to the current function. All edges, except for the edges going out from the current function or coming
+        from outside the current function, are included.
+
+        The generated graph is cached in self._local_transition_graph.
+
+        :return:    A local transition graph.
+        :rtype:     networkx.DiGraph
         """
 
         if self._local_transition_graph is not None:
@@ -1030,6 +1037,92 @@ class Function(Serializable):
                     g.add_edge(src, dst, **data)
 
         self._local_transition_graph = g
+
+        return g
+
+    def graph_ex(self, exception_edges=True):
+        """
+        Get a local transition graph with a custom configuration. A local transition graph is a transition graph that
+        only contains nodes that belong to the current function. This method allows user to exclude certain types of
+        edges together with the nodes that are only reachable through such edges, such as exception edges.
+
+        The generated graph is not cached.
+
+        :param bool exception_edges:    Should exception edges and the nodes that are only reachable through exception
+                                        edges be kept.
+        :return:                        A local transition graph with a special configuration.
+        :rtype:                         networkx.DiGraph
+        """
+
+        # graph_ex() should not impact any already cached graph
+        old_cached_graph = self._local_transition_graph
+        graph = self.graph
+        self._local_transition_graph = old_cached_graph  # restore the cached graph
+
+        # fast path
+        if exception_edges:
+            return graph
+
+        # BFS on local graph but ignoring certain types of graphs
+        traversed = set()
+        g = networkx.DiGraph()
+        queue = [ n for n in graph if n is self.startpoint or graph.in_degree[n] == 0 ]
+
+        while queue:
+            node = queue.pop(0)
+            traversed.add(node)
+
+            g.add_node(node)
+            for _, dst, edge_data in graph.out_edges(node, data=True):
+                edge_type = edge_data.get('type', None)
+                if not exception_edges and edge_type == 'exception':
+                    # ignore this edge
+                    continue
+                g.add_edge(node, dst, **edge_data)
+
+                if dst not in traversed:
+                    queue.append(dst)
+
+        return g
+
+    def transition_graph_ex(self, exception_edges=True):
+        """
+        Get a transition graph with a custom configuration. This method allows user to exclude certain types of edges
+        together with the nodes that are only reachable through such edges, such as exception edges.
+
+        The generated graph is not cached.
+
+        :param bool exception_edges:    Should exception edges and the nodes that are only reachable through exception
+                                        edges be kept.
+        :return:                        A local transition graph with a special configuration.
+        :rtype:                         networkx.DiGraph
+        """
+
+        graph = self.transition_graph
+
+        # fast path
+        if exception_edges:
+            return graph
+
+        # BFS on local graph but ignoring certain types of graphs
+        traversed = set()
+        g = networkx.DiGraph()
+        queue = [ n for n in graph if n is self.startpoint or graph.in_degree[n] == 0 ]
+
+        while queue:
+            node = queue.pop(0)
+            traversed.add(node)
+
+            g.add_node(node)
+            for _, dst, edge_data in graph.out_edges(node, data=True):
+                edge_type = edge_data.get('type', None)
+                if not exception_edges and edge_type == 'exception':
+                    # ignore this edge
+                    continue
+                g.add_edge(node, dst, **edge_data)
+
+                if dst not in traversed:
+                    queue.append(dst)
 
         return g
 
