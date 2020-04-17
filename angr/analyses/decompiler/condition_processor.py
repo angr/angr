@@ -44,7 +44,9 @@ class ConditionProcessor:
             if len(nodes) >= 1:
                 for dst in nodes:
                     edge = src, dst
-                    predicate = self._extract_predicate(src, dst)
+                    edge_data = region.graph.get_edge_data(*edge)
+                    edge_type = edge_data.get('type', 'transition')
+                    predicate = self._extract_predicate(src, dst, edge_type)
                     edge_conditions[edge] = predicate
                     predicate_mapping[predicate] = dst
 
@@ -323,7 +325,17 @@ class ConditionProcessor:
     # Path predicate
     #
 
-    def _extract_predicate(self, src_block, dst_block):
+    EXC_COUNTER = 1000
+
+    def _extract_predicate(self, src_block, dst_block, edge_type):
+
+        if edge_type == 'exception':
+            # TODO: THIS IS ABSOLUTELY A HACK. AT THIS MOMENT YOU SHOULD NOT ATTEMPT TO MAKE SENSE OF EXCEPTION EDGES.
+            self.EXC_COUNTER += 1
+            return self.claripy_ast_from_ail_condition(
+                ailment.Expr.BinaryOp(None, 'CmpEQ', (ailment.Expr.Register(0x400000 + self.EXC_COUNTER, None, self.EXC_COUNTER, 64),
+                                                      ailment.Expr.Const(None, None, self.EXC_COUNTER, 64)), False)
+            )
 
         if type(src_block) is ConditionalBreakNode:
             # at this point ConditionalBreakNode stores a claripy AST
