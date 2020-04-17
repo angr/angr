@@ -40,7 +40,7 @@ class FunctionParser():
         block_addrs_set = function.block_addrs_set
         # graph
         edges = []
-        external_functions = set()
+        external_addrs = set()
         TRANSITION_JK = func_edge_type_to_pb('transition')  # default edge type
         for src, dst, data in function.transition_graph.edges(data=True):
             edge = primitives_pb2.Edge()
@@ -48,9 +48,9 @@ class FunctionParser():
             edge.dst_ea = dst.addr
             if src.addr not in block_addrs_set:
                 # this is a Block in another function, or just another Function instance.
-                external_functions.add(src.addr)
+                external_addrs.add(src.addr)
             if dst.addr not in block_addrs_set:
-                external_functions.add(dst.addr)
+                external_addrs.add(dst.addr)
             edge.jumpkind = TRANSITION_JK
             for key, value in data.items():
                 if key == "type":
@@ -68,12 +68,12 @@ class FunctionParser():
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
-        obj.external_functions.extend(external_functions)  # pylint:disable=no-member
+        obj.external_functions.extend(external_addrs)  # pylint:disable=no-member
 
         return obj
 
     @staticmethod
-    def parse_from_cmsg(cmsg, function_manager=None, project=None):
+    def parse_from_cmsg(cmsg, function_manager=None, project=None, all_func_addrs=None):
         """
         :param cmsg: The data to instanciate the <Function> from.
 
@@ -102,7 +102,8 @@ class FunctionParser():
                 cmsg.blocks
             )
         ))
-        external_functions = set(cmsg.external_functions)
+        external_addrs = set(cmsg.external_functions)  # addresses of referenced blocks or nodes that are not inside
+                                                       # the current function
 
         # edges
         edges = {}
@@ -112,22 +113,34 @@ class FunctionParser():
                 src = FunctionParser._get_block_or_func(
                     edge_cmsg.src_ea,
                     blocks,
-                    external_functions,
-                    function_manager
+                    external_addrs,
+                    all_func_addrs,
+                    function_manager,
+                    project,
                 )
             except KeyError:
                 raise KeyError("Address of the edge source %#x is not found." % edge_cmsg.src_ea)
-            try:
-                dst = FunctionParser._get_block_or_func(
-                    edge_cmsg.dst_ea,
-                    blocks,
-                    external_functions,
-                    function_manager
-                )
-            except KeyError:
-                raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
+
             edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
+
+            if edge_type == 'call':
+                # get a function
+                dst = FunctionParser._get_func(edge_cmsg.dst_ea, function_manager)
+            else:
+                # get a node or a function
+                try:
+                    dst = FunctionParser._get_block_or_func(
+                        edge_cmsg.dst_ea,
+                        blocks,
+                        external_addrs,
+                        all_func_addrs,
+                        function_manager,
+                        project,
+                    )
+                except KeyError:
+                    raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
+
             data = dict((k, pickle.loads(v)) for k, v in edge_cmsg.data.items())
             data['outside'] = edge_cmsg.is_outside
             data['ins_addr'] = edge_cmsg.ins_addr
@@ -179,18 +192,35 @@ class FunctionParser():
 
         return obj
 
+    @staticmethod
+    def _get_block_or_func(addr, blocks, external_addrs, all_func_addrs, function_manager, project):
+
+        # should we get a block or a function?
+        try:
+            r = blocks[addr]
+            # it's a block. just return it
+            return r
+        except KeyError:
+            pass
+
+        if addr in external_addrs:
+            if addr in all_func_addrs:
+                # get a function (which is yet to be created in the function manager)
+                r = function_manager.function(addr=addr, create=True)
+                return r
+            else:
+                # create a block
+                # TODO: We are deciding the size by re-lifting the block from project. This is usually fine except for
+                # TODO: the cases where the block does not exist in project (e.g., when the block was dynamically
+                # TODO: created). The correct solution is to store the size and bytes of the block, too.
+                block = project.factory.block(addr)
+                block_size = block.size
+                r = BlockNode(addr, block_size, bytestr=block.bytes)
+                return r
+        raise ValueError("Unsupported case: The block %#x is not in external_addrs and is not in local blocks. "
+                         "This probably indicates a bug in angrdb generation.")
 
     @staticmethod
-    def _get_block_or_func(addr, blocks, external_functions, function_manager):
-        try:
-            block_or_func = blocks[addr]
-        except KeyError:
-            if addr in external_functions:
-                if function_manager is not None:
-                    block_or_func = function_manager.function(addr=addr, create=True)
-                else:
-                    # TODO:
-                    block_or_func = None
-            else:
-                raise
-        return block_or_func
+    def _get_func(addr, function_manager):
+        func = function_manager.function(addr=addr, create=True)
+        return func
