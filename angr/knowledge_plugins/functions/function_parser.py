@@ -172,8 +172,9 @@ class FunctionParser():
             stmt_idx = data.get('stmt_idx', None)
             added_nodes.add(src)
             added_nodes.add(dst)
-            if edge_type == 'transition':
-                obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx)
+            if edge_type in ('transition', 'exception'):
+                obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx,
+                                is_exception=edge_type == 'exception')
             elif edge_type == 'call':
                 # find the corresponding fake_ret edge
                 fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[src_addr]

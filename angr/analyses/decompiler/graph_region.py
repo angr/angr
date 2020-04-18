@@ -92,8 +92,8 @@ class GraphRegion:
                 new_graph.add_node(new_node)
 
         # add all edges
-        for src, dst in old_graph.edges():
-            new_graph.add_edge(nodes_map[src], nodes_map[dst])
+        for src, dst, edge_data in old_graph.edges(data=True):
+            new_graph.add_edge(nodes_map[src], nodes_map[dst], **edge_data)
 
         return new_graph
 
