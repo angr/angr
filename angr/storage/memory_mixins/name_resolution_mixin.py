@@ -25,13 +25,13 @@ class NameResolutionMixin(MemoryMixin):
                     if not is_write:  # this work doesn't need to be done if we're just gonna overwrite it
                         self.store('cc_dep1', _get_flags(self.state))  # constraints cannot be added by this
                     self.store('cc_op', 0) # OP_COPY
-                    return self.state.arch.registers['cc_dep1'], self.state.arch.bytes
+                    return self.state.arch.registers['cc_dep1']
             if is_arm_arch(self.state.arch):
                 if name == 'flags':
                     if not is_write:
                         self.store('cc_dep1', _get_flags(self.state))
                     self.store('cc_op', 0)
-                    return self.state.arch.registers['cc_dep1'], self.state.arch.bytes
+                    return self.state.arch.registers['cc_dep1']
 
             return self.state.arch.registers[name]
         elif name[0] == '*':
