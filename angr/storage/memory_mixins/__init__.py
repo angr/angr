@@ -1,30 +1,6 @@
 from ...state_plugins.plugin import SimStatePlugin
 from ...errors import SimMemoryError
 
-"""
-Feature list!
-
-- Base features
-  - endness
-  - size
-  - conditional store/load with fallback
-- Need to be able to instrument loads/stores
-- Need to be able to capture the result of address concretization
-- Need to be able to capture the result of page management?
-  - this one is special - it needs to change values/sizes and needs to happen after concretization
-  
-Mixin list:
-- Name resolution [base phase]
-- SAO unwrap [base phase]
-- BVV conversion [base phase]
-- SimInspect [base phase + mut phase]
-- SimActions [base phase + mut phase]
-- Address concretization [mut phase?]
-- Page splitting/address space wrap
-- Permission checking/segfault errors [mut phase]
-- Storage
-"""
-
 class MemoryMixin(SimStatePlugin):
     def __init__(self, memory_id=None, endness='Iend_BE'):
         super().__init__()
@@ -105,6 +81,7 @@ from .clouseau_mixin import InspectMixinHigh
 from .conditional_store_mixin import ConditionalMixin
 from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin
+from .dirty_addrs_mixin import DirtyAddrsMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
 from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
@@ -133,6 +110,7 @@ class DefaultMemory(
         ActionsMixinLow,
         ConditionalMixin,
         ConvenientMappingsMixin,
+        DirtyAddrsMixin,
         # -----
         StackAllocationMixin,
         ClemoryBackerMixin,

@@ -1,5 +1,9 @@
+import logging
+
 from .paged_memory_mixin import PagedMemoryMixin
 from ....errors import SimSegfaultException
+
+l = logging.getLogger(__name__)
 
 class StackAllocationMixin(PagedMemoryMixin):
     """
@@ -24,7 +28,7 @@ class StackAllocationMixin(PagedMemoryMixin):
         if pageno != self._red_pageno:
             return super()._initialize_page(pageno, **kwargs)
 
-        new_red_pageno = ((pageno - 1) % ((1 << self.state.arch.bits) // self.page_size) - 1)
+        new_red_pageno = (pageno - 1) % ((1 << self.state.arch.bits) // self.page_size)
         if new_red_pageno in self._pages:
             raise SimSegfaultException(pageno * self.page_size, "stack collided with heap")
 
@@ -34,6 +38,8 @@ class StackAllocationMixin(PagedMemoryMixin):
         self._red_pageno = new_red_pageno
         if self._remaining_stack is not None:
             self._remaining_stack -= self.page_size
+
+        l.debug("Allocating new stack page at %#x", pageno * self.page_size)
 
         new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=self._stack_perms, **kwargs)
         return new_page
