@@ -49,7 +49,8 @@ def cfg_it(p):
                              normalize=True,
                              detect_tail_calls=True,
                              cross_references=True)
-    return cfg
+    cca = p.analyses.CompleteCallingConventions(recover_variables=True, force=True)
+    return cfg, cca
 
 @slow_test
 def test_econet_cfg():
