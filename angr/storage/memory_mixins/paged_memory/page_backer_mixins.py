@@ -86,7 +86,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
                 return new_from_shared(data, memory_id='%s_%d' % (self.id, pageno), memory=self, permissions=permissions)
 
         new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=permissions, **kwargs)
-        new_page.store(addr, data, size=self.page_size, endness='Iend_BE', **kwargs)
+        new_page.store(0, data, size=self.page_size, endness='Iend_BE', **kwargs)
         return new_page
 
     def _cle_permissions_lookup(self, addr):
@@ -127,7 +127,7 @@ class DictBackerMixin(PagedMemoryMixin):
                 if new_page is None:
                     kwargs['allow_default'] = True
                     new_page = PagedMemoryMixin._initialize_default_page(self, pageno, **kwargs)
-                new_page.store(addr, claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width), size=1, endness='Iend_BE', **kwargs)
+                new_page.store(addr % self.page_size, claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width), size=1, endness='Iend_BE', **kwargs)
 
         if new_page is None:
             return super()._initialize_page(pageno, **kwargs)

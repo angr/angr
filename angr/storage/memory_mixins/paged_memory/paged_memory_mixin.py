@@ -84,6 +84,9 @@ class PagedMemoryMixin(MemoryMixin):
                     permissions = perms
                     break
 
+        if type(permissions) is int:
+            permissions = self.state.solver.BVV(permissions, 3)
+
         return self.PAGE_TYPE(memory=self, memory_id='%s_%d' % (self.id, pageno), permissions=permissions)
 
     def _divide_addr(self, addr: int) -> typing.Tuple[int, int]:
@@ -169,6 +172,9 @@ class PagedMemoryMixin(MemoryMixin):
             page = self._get_page(pageno, permissions is not None, allow_default=False, **kwargs)
         except SimMemoryError as e:
             raise SimMemoryError("%#x is not mapped" % addr) from e
+
+        if type(permissions) is int:
+            permissions = self.state.solver.BVV(permissions, 3)
 
         result = page.permissions
         if permissions is not None:
