@@ -1,5 +1,6 @@
 import typing
 import cffi
+import logging
 
 from angr.storage.memory_mixins import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage
@@ -7,6 +8,8 @@ from ....errors import SimMemoryError
 
 # yeet
 ffi = cffi.FFI()
+
+l = logging.getLogger(__name__)
 
 class PagedMemoryMixin(MemoryMixin):
     """
@@ -122,7 +125,10 @@ class PagedMemoryMixin(MemoryMixin):
                 pageno = (pageno + 1) % max_pageno
                 pageoff = 0
 
-        return self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, **kwargs)
+        out = self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, **kwargs)
+        l.debug("%s.load(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
+        return out
+
 
     def store(self, addr: int, data, size: int=None, endness=None, **kwargs):
         if endness is None:
@@ -133,6 +139,8 @@ class PagedMemoryMixin(MemoryMixin):
 
         if type(addr) is not int:
             raise TypeError("Need addr to be resolved to an int by this point")
+
+        l.debug("%s.store(%#x, %s, %s)", self.id, addr, data, endness)
 
         pageno, pageoff = self._divide_addr(addr)
         sub_gen = self.PAGE_TYPE._decompose_objects(addr, data, endness, memory=self, **kwargs)

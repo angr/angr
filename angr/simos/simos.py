@@ -112,12 +112,10 @@ class SimOS:
             kwargs['cle_memory_backer'] = self.project.loader
         if kwargs.get('os_name', None) is None:
             kwargs['os_name'] = self.name
-        if kwargs.get('stack_end', None) is None:
-            kwargs['stack_end'] = self.arch.initial_sp
-        if kwargs.get('stack_size', None) is None:
-            kwargs['stack_size'] = 1024*1024*8
+        if stack_end is None:
+            stack_end = self.arch.initial_sp
 
-        state = SimState(self.project, **kwargs)
+        state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, **kwargs)
 
         if stdin is not None and not isinstance(stdin, SimFileBase):
             if type(stdin) is type:
@@ -130,7 +128,7 @@ class SimOS:
         state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
         if state.arch.sp_offset is not None:
-            state.regs.sp = kwargs['stack_end'] + (state.arch.stack_change if state.arch.stack_change is not None else 0)
+            state.regs.sp = stack_end + (state.arch.stack_change if state.arch.stack_change is not None else 0)
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
