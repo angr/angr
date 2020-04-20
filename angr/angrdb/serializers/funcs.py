@@ -43,9 +43,11 @@ class FunctionManagerSerializer:
         funcs = FunctionManager(kb)
 
         db_funcs = session.query(DbFunction).filter_by(kb=db_kb)
+        all_func_addrs = session.query(DbFunction.addr).filter_by(kb=db_kb)
 
         for db_func in db_funcs:
-            func = Function.parse(db_func.blob, function_manager=funcs, project=kb._project)
+            func = Function.parse(db_func.blob, function_manager=funcs, project=kb._project,
+                                  all_func_addrs=all_func_addrs)
             funcs[func.addr] = func
 
         return funcs

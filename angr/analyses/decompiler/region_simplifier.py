@@ -1,72 +1,35 @@
-
+# pylint:disable=unused-argument,arguments-differ
 import logging
 
 import ailment
 
 from ..analysis import Analysis
-from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode
+from .sequence_walker import SequenceWalker
+from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice
+from .condition_processor import ConditionProcessor
+from .utils import insert_node
 
 l = logging.getLogger(name=__name__)
 
 
-class RegionSimplifier(Analysis):
-    def __init__(self, region):
-        self.region = region
-
-        self.result = None
-
-        # Initialize handler map
-        self.GOTO_HANDLERS = {
-            SequenceNode: self._goto_handle_sequencenode,
-            CodeNode: self._goto_handle_codenode,
-            MultiNode: self._goto_handle_multinode,
-            LoopNode: self._goto_handle_loopnode,
-            ConditionNode: self._goto_handle_conditionnode,
-            ailment.Block: self._goto_handle_block,
-        }
-        self.IFS_HANDLERS = {
-            SequenceNode: self._ifs_handle_sequencenode,
-            CodeNode: self._ifs_handle_codenode,
-            MultiNode: self._ifs_handle_multinode,
-            LoopNode: self._ifs_handle_loopnode,
-            ConditionNode: self._ifs_handle_conditionnode,
-            ailment.Block: self._ifs_handle_block,
+class GotoSimplifier(SequenceWalker):
+    """
+    Remove unnecessary Jump statements.
+    """
+    def __init__(self, node):
+        handlers = {
+            SequenceNode: self._handle_sequencenode,
+            CodeNode: self._handle_codenode,
+            MultiNode: self._handle_multinode,
+            LoopNode: self._handle_loopnode,
+            ConditionNode: self._handle_conditionnode,
+            ailment.Block: self._handle_block,
         }
 
-        self._simplify()
+        super().__init__(handlers)
+        self.walk(node)
 
-    def _simplify(self):
-        """
-        RegionSimplifier performs the following simplifications:
-        - Remove redundant Gotos
-        - Remove redundant If/If-else statements
-        """
-
-        r = self.region
-        r = self._simplify_gotos(r)
-        r = self._simplify_ifs(r)
-
-        self.result = r
-
-    #
-    # Simplifiers
-    #
-
-    # Goto simplifier
-
-    def _simplify_gotos(self, region):
-
-        self._goto_handle(region, None)
-
-        return region
-
-    def _goto_handle(self, node, successor):
-
-        handler = self.GOTO_HANDLERS.get(node.__class__, None)
-        if handler is not None:
-            handler(node, successor)
-
-    def _goto_handle_sequencenode(self, node, successor):
+    def _handle_sequencenode(self, node, successor=None, **kwargs):
         """
 
         :param SequenceNode node:
@@ -74,18 +37,18 @@ class RegionSimplifier(Analysis):
         """
 
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._goto_handle(n0, n1)
+            self._handle(n0, successor=n1)
 
-    def _goto_handle_codenode(self, node, successor):
+    def _handle_codenode(self, node, successor=None, **kwargs):
         """
 
         :param CodeNode node:
         :return:
         """
 
-        self._goto_handle(node.node, successor)
+        self._handle(node.node, successor=successor)
 
-    def _goto_handle_conditionnode(self, node, successor):
+    def _handle_conditionnode(self, node, successor=None, **kwargs):
         """
 
         :param ConditionNode node:
@@ -94,11 +57,11 @@ class RegionSimplifier(Analysis):
         """
 
         if node.true_node is not None:
-            self._goto_handle(node.true_node, successor)
+            self._handle(node.true_node, successor=successor)
         if node.false_node is not None:
-            self._goto_handle(node.false_node, successor)
+            self._handle(node.false_node, successor=successor)
 
-    def _goto_handle_loopnode(self, node, successor):
+    def _handle_loopnode(self, node, successor=None, **kwargs):
         """
 
         :param LoopNode node:
@@ -106,9 +69,9 @@ class RegionSimplifier(Analysis):
         :return:
         """
 
-        self._goto_handle(node.sequence_node, successor)
+        self._handle(node.sequence_node, successor=successor)
 
-    def _goto_handle_multinode(self, node, successor):
+    def _handle_multinode(self, node, successor=None, **kwargs):
         """
 
         :param MultiNode node:
@@ -116,9 +79,9 @@ class RegionSimplifier(Analysis):
         """
 
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._goto_handle(n0, n1)
+            self._handle(n0, successor=n1)
 
-    def _goto_handle_block(self, block, successor):  # pylint:disable=no-self-use
+    def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use
         """
 
         :param ailment.Block block:
@@ -132,21 +95,26 @@ class RegionSimplifier(Analysis):
                 # we can remove this statement
                 block.statements = block.statements[:-1]
 
-    # Ifs simplifier
 
-    def _simplify_ifs(self, region):
+class IfSimplifier(SequenceWalker):
+    """
+    Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards.
+    """
 
-        self._ifs_handle(region, None)
+    def __init__(self, node):
+        handlers = {
+            SequenceNode: self._handle_sequencenode,
+            CodeNode: self._handle_codenode,
+            MultiNode: self._handle_multinode,
+            LoopNode: self._handle_loopnode,
+            ConditionNode: self._handle_conditionnode,
+            ailment.Block: self._handle_block,
+        }
 
-        return region
+        super().__init__(handlers)
+        self.walk(node)
 
-    def _ifs_handle(self, node, successor):
-
-        handler = self.IFS_HANDLERS.get(node.__class__, None)
-        if handler is not None:
-            handler(node, successor)
-
-    def _ifs_handle_sequencenode(self, node, successor):
+    def _handle_sequencenode(self, node, successor=None, **kwargs):
         """
 
         :param SequenceNode node:
@@ -154,18 +122,18 @@ class RegionSimplifier(Analysis):
         """
 
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._ifs_handle(n0, n1)
+            self._handle(n0, successor=n1)
 
-    def _ifs_handle_codenode(self, node, successor):
+    def _handle_codenode(self, node, successor=None, **kwargs):
         """
 
         :param CodeNode node:
         :return:
         """
 
-        self._ifs_handle(node.node, successor)
+        self._handle(node.node, successor=successor)
 
-    def _ifs_handle_conditionnode(self, node, successor):
+    def _handle_conditionnode(self, node, successor=None, **kwargs):
         """
 
         :param ConditionNode node:
@@ -174,11 +142,11 @@ class RegionSimplifier(Analysis):
         """
 
         if node.true_node is not None:
-            self._ifs_handle(node.true_node, successor)
+            self._handle(node.true_node, successor=successor)
         if node.false_node is not None:
-            self._ifs_handle(node.false_node, successor)
+            self._handle(node.false_node, successor=successor)
 
-    def _ifs_handle_loopnode(self, node, successor):
+    def _handle_loopnode(self, node, successor=None, **kwargs):
         """
 
         :param LoopNode node:
@@ -186,9 +154,9 @@ class RegionSimplifier(Analysis):
         :return:
         """
 
-        self._ifs_handle(node.sequence_node, successor)
+        self._handle(node.sequence_node, successor=successor)
 
-    def _ifs_handle_multinode(self, node, successor):
+    def _handle_multinode(self, node, successor=None, **kwargs):
         """
 
         :param MultiNode node:
@@ -196,10 +164,11 @@ class RegionSimplifier(Analysis):
         """
 
         for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._ifs_handle(n0, n1)
+            self._handle(n0, successor=n1)
 
-    def _ifs_handle_block(self, block, successor):  # pylint:disable=no-self-use
+    def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use
         """
+        Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards.
 
         :param ailment.Block block:
         :return:
@@ -235,6 +204,109 @@ class RegionSimplifier(Analysis):
                     l.error("An unexpected successor %s follows the conditional statement %s.",
                             successor, cond_stmt
                             )
+
+
+class IfElseFlattener(SequenceWalker):
+    """
+    Remove unnecessary else branches and make the else node a direct successor of the previous If node if the If node
+    always returns.
+    """
+    def __init__(self, node, functions):
+        handlers = {
+            SequenceNode: self._handle_Sequence,
+            CodeNode: self._handle_Code,
+            MultiNode: self._handle_MultiNode,
+            LoopNode: self._handle_Loop,
+            ConditionNode: self._handle_Condition,
+        }
+
+        super().__init__(handlers)
+        self.functions = functions
+        self.walk(node)
+
+    def _handle_Condition(self, node, parent=None, index=None, **kwargs):
+        """
+
+        :param ConditionNode node:
+        :param successor:
+        :return:
+        """
+
+        if node.true_node is not None and node.false_node is not None:
+            try:
+                last_stmts = ConditionProcessor.get_last_statements(node.true_node)
+            except EmptyBlockNotice:
+                last_stmts = None
+            if last_stmts is not None and all(self._is_statement_terminating(stmt) for stmt in last_stmts):
+                # all end points in the true node are returning
+
+                # remove the else node and make it a new node following node
+                else_node = node.false_node
+                node.false_node = None
+                insert_node(parent, index + 1, else_node, index)
+
+        if node.true_node is not None:
+            self._handle(node.true_node, parent=node, index=0)
+        if node.false_node is not None:
+            self._handle(node.false_node, parent=node, index=1)
+
+    def _is_statement_terminating(self, stmt):
+
+        if isinstance(stmt, ailment.Stmt.Return):
+            return True
+        if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+            # is it calling a non-returning function?
+            target_func_addr = stmt.target.value
+            try:
+                func = self.functions.get_by_addr(target_func_addr)
+                return func.returning is False
+            except KeyError:
+                pass
+        return False
+
+
+class RegionSimplifier(Analysis):
+    def __init__(self, region):
+        self.region = region
+
+        self.result = None
+
+        self._simplify()
+
+    def _simplify(self):
+        """
+        RegionSimplifier performs the following simplifications:
+        - Remove redundant Gotos
+        - Remove redundant If/If-else statements
+        """
+
+        r = self.region
+        # Remove unnecessary Jump statements
+        r = self._simplify_gotos(r)
+        # Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards
+        r = self._simplify_ifs(r)
+        # Remove unnecessary else branches if the if branch will always return
+        r = self._simplify_ifelses(r)
+
+        self.result = r
+
+    #
+    # Simplifiers
+    #
+
+    @staticmethod
+    def _simplify_gotos(region):
+        GotoSimplifier(region)
+        return region
+
+    @staticmethod
+    def _simplify_ifs(region):
+        IfSimplifier(region)
+        return region
+
+    def _simplify_ifelses(self, region):
+        IfElseFlattener(region, self.kb.functions)
+        return region
 
 
 from ...analyses import AnalysesHub

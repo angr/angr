@@ -1,4 +1,4 @@
-
+from collections import defaultdict
 import logging
 
 import networkx
@@ -7,9 +7,11 @@ import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
+from ...utils import timethis
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
-from .optimization_passes import get_optimization_passes
+from .ailgraph_walker import AILGraphWalker
+from .optimization_passes import get_default_optimization_passes
 
 
 l = logging.getLogger(name=__name__)
@@ -21,6 +23,7 @@ class Clinic(Analysis):
     """
     def __init__(self, func,
                  remove_dead_memdefs=True,
+                 exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
                  ):
@@ -35,10 +38,12 @@ class Clinic(Analysis):
 
         self.graph = None
 
+        self._func_graph = None  # type: networkx.DiGraph
         self._ail_manager = None
-        self._blocks = { }
+        self._blocks_by_addr_and_size = { }
 
         self._remove_dead_memdefs = remove_dead_memdefs
+        self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
 
         # sanity checks
@@ -48,8 +53,8 @@ class Clinic(Analysis):
         if optimization_passes is not None:
             self._optimization_passes = optimization_passes
         else:
-            self._optimization_passes = get_optimization_passes(self.project.arch, self.project.simos.name)
-            l.debug("Get %d optimziation passes for the current binary.", len(self._optimization_passes))
+            self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
+            l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
 
         self._analyze()
 
@@ -67,7 +72,7 @@ class Clinic(Analysis):
         """
 
         try:
-            return self._blocks[(addr, size)]
+            return self._blocks_by_addr_and_size[(addr, size)]
         except KeyError:
             return None
 
@@ -90,29 +95,50 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
+        # Set up the function graph according to configurations
+        self._set_function_graph()
+
         # Make sure calling conventions of all functions have been recovered
-        self.project.analyses.CompleteCallingConventions()
+        self._recover_calling_conventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
 
+        # Track stack pointers
         spt = self._track_stack_pointers()
 
+        # Convert VEX blocks to AIL blocks and then simplify them
+
         self._convert_all()
+        ail_graph = self._simplify_blocks(stack_pointer_tracker=spt)
 
-        self._simplify_blocks(stack_pointer_tracker=spt)
+        # Recover variables on AIL blocks
+        self._recover_and_link_variables()  # it does not change the AIL graph
 
-        self._recover_and_link_variables()
+        # clear _blocks_by_addr_and_size so no one can use it again
+        # TODO: Totally remove this dict
+        self._blocks_by_addr_and_size = None
 
         # Make call-sites
-        self._make_callsites(stack_pointer_tracker=spt)
+        self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function
-        self._simplify_function()
+        self._simplify_function(ail_graph)
 
         # Run simplification passes
-        self._run_simplification_passes()
+        ail_graph = self._run_simplification_passes(ail_graph)
 
+        self.graph = ail_graph
+
+    @timethis
+    def _set_function_graph(self):
+        self._func_graph = self.function.graph_ex(exception_edges=self._exception_edges)
+
+    @timethis
+    def _recover_calling_conventions(self):
+        self.project.analyses.CompleteCallingConventions()
+
+    @timethis
     def _track_stack_pointers(self):
         """
         For each instruction, track its stack pointer offset and stack base pointer offset.
@@ -128,17 +154,19 @@ class Clinic(Analysis):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
 
+    @timethis
     def _convert_all(self):
         """
+        Convert all VEX blocks in the function graph to AIL blocks, and fill self._blocks.
 
-        :return:
+        :return:    None
         """
 
-        for block_node in self.function.graph.nodes():
+        for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
-                self._blocks[(block_node.addr, block_node.size)] = ail_block
+                self._blocks_by_addr_and_size[(block_node.addr, block_node.size)] = ail_block
 
     def _convert(self, block_node):
         """
@@ -157,6 +185,7 @@ class Clinic(Analysis):
         ail_block = ailment.IRSBConverter.convert(block.vex, self._ail_manager)
         return ail_block
 
+    @timethis
     def _simplify_blocks(self, stack_pointer_tracker=None):
         """
         Simplify all blocks in self._blocks.
@@ -167,13 +196,14 @@ class Clinic(Analysis):
 
         # First of all, let's simplify blocks one by one
 
-        for key in self._blocks:
-            ail_block = self._blocks[key]
+        for key in self._blocks_by_addr_and_size:
+            ail_block = self._blocks_by_addr_and_size[key]
             simplified = self._simplify_block(ail_block, stack_pointer_tracker=stack_pointer_tracker)
-            self._blocks[key] = simplified
+            self._blocks_by_addr_and_size[key] = simplified
 
         # Update the function graph so that we can use reaching definitions
-        self._update_graph()
+        graph = self._function_graph_to_ail_graph(self._func_graph)
+        return graph
 
     def _simplify_block(self, ail_block, stack_pointer_tracker=None):
         """
@@ -191,7 +221,8 @@ class Clinic(Analysis):
         )
         return simp.result_block
 
-    def _simplify_function(self):
+    @timethis
+    def _simplify_function(self, ail_graph):
         """
         Simplify the entire function.
 
@@ -199,37 +230,45 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph,
+        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=ail_graph,
                                                        observe_callback=self._simplify_function_rd_observe_callback)
 
         simp = self.project.analyses.AILSimplifier(
             self.function,
-            func_graph=self.graph,
+            func_graph=ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             reaching_definitions=rd
         )
 
-        for key in list(self._blocks.keys()):
-            old_block = self._blocks[key]
-            if old_block in simp.blocks:
-                self._blocks[key] = simp.blocks[old_block]
+        def _handler(node):
+            return simp.blocks.get(node, None)
 
-        self._update_graph()
+        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
-    def _run_simplification_passes(self):
+    @timethis
+    def _run_simplification_passes(self, ail_graph):
 
+        blocks_map = defaultdict(set)
+
+        # update blocks_map to allow node_addr to node lookup
+        def _updatedict_handler(node):
+            blocks_map[node.addr].add(node)
+        AILGraphWalker(ail_graph, _updatedict_handler).walk()
+
+        # Run each pass
         for pass_ in self._optimization_passes:
 
             analysis = getattr(self.project.analyses, pass_.__name__)
 
-            a = analysis(self.function, blocks=self._blocks.copy())
-            if a.blocks:
-                for key, item in a.blocks.items():
-                    self._blocks[key] = item
+            a = analysis(self.function, blocks=blocks_map, graph=ail_graph)
+            if a.out_graph:
+                # use the new graph
+                ail_graph = a.out_graph
 
-            self._update_graph()
+        return ail_graph
 
-    def _make_callsites(self, stack_pointer_tracker=None):
+    @timethis
+    def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
         """
         Simplify all function call statements.
 
@@ -237,29 +276,34 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=self.graph,
+        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=ail_graph,
                                                        observe_callback=self._make_callsites_rd_observe_callback)
 
-        for key in self._blocks:
-            block = self._blocks[key]
+        def _handler(block):
             csm = self.project.analyses.AILCallSiteMaker(block, reaching_definitions=rd)
             if csm.result_block:
                 ail_block = csm.result_block
                 simp = self.project.analyses.AILBlockSimplifier(ail_block, stack_pointer_tracker=stack_pointer_tracker)
-                self._blocks[key] = simp.result_block
+                return simp.result_block
+            return None
 
-        self._update_graph()
+        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
+        return ail_graph
+
+    @timethis
     def _recover_and_link_variables(self):
 
         # variable recovery
         tmp_kb = KnowledgeBase(self.project)
         # stack pointers have been removed at this point
-        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb, track_sp=False)  # pylint:disable=unused-variable
+        vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
+                                                        func_graph=self._func_graph,
+                                                        clinic=self, kb=tmp_kb, track_sp=False)
 
         # TODO: The current mapping implementation is kinda hackish...
-
-        for block in self._blocks.values():
+        # Link variables to each statement
+        for block in self._blocks_by_addr_and_size.values():
             self._link_variables_on_block(block, tmp_kb)
 
     def _link_variables_on_block(self, block, kb):
@@ -357,24 +401,26 @@ class Clinic(Analysis):
                 expr.referenced_variable = var
                 expr.variable_offset = offset
 
-    def _update_graph(self):
+    def _function_graph_to_ail_graph(self, func_graph):
 
         node_to_block_mapping = {}
-        self.graph = networkx.DiGraph()
+        graph = networkx.DiGraph()
 
-        for node in self.function.graph.nodes():
-            ail_block = self._blocks.get((node.addr, node.size), node)
+        for node in func_graph.nodes():
+            ail_block = self._blocks_by_addr_and_size.get((node.addr, node.size), node)
             node_to_block_mapping[node] = ail_block
 
             if ail_block is not None:
-                self.graph.add_node(ail_block)
+                graph.add_node(ail_block)
 
-        for src_node, dst_node, data in self.function.graph.edges(data=True):
+        for src_node, dst_node, data in func_graph.edges(data=True):
             src = node_to_block_mapping[src_node]
             dst = node_to_block_mapping[dst_node]
 
             if dst is not None:
-                self.graph.add_edge(src, dst, **data)
+                graph.add_edge(src, dst, **data)
+
+        return graph
 
     @staticmethod
     def _make_callsites_rd_observe_callback(ob_type, **kwargs):

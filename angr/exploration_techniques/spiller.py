@@ -175,7 +175,13 @@ class Spiller(ExplorationTechnique):
                 self.pickle_callback(s)
         self._ever_pickled += len(states)
         for state in states:
-            prio, state_oid = self._get_priority(state), self._store_state(state)
+            try:
+                state_oid = self._store_state(state)
+            except RecursionError:
+                l.warning("Couldn't store the state because of a recursion error. This is most likely to be pickle's "
+                          "fault. You may try to increase the recursion limit using sys.setrecursionlimit().")
+                continue
+            prio = self._get_priority(state)
             if self.post_pickle_callback:
                 self.post_pickle_callback(state, prio, state_oid)
             self._pickled_states.add(prio, state_oid)

@@ -1,7 +1,7 @@
 
 import ailment
 
-from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode
+from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode
 
 
 def remove_last_statement(node):
@@ -130,15 +130,24 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, idx, node):
+def insert_node(parent, insert_idx, node, node_idx):
 
     if isinstance(parent, SequenceNode):
-        parent.nodes.insert(idx, node)
+        parent.nodes.insert(insert_idx, node)
     elif isinstance(parent, CodeNode):
         # Make a new sequence node
         seq = SequenceNode(nodes=[parent.node, node])
         parent.node = seq
     elif isinstance(parent, MultiNode):
-        parent.nodes.insert(idx, node)
+        parent.nodes.insert(insert_idx, node)
+    elif isinstance(parent, ConditionNode):
+        if node_idx == 0:
+            # true node
+            parent.true_node = SequenceNode(nodes=[parent.true_node])
+            insert_node(parent.true_node, insert_idx - node_idx, node, 0)
+        else:
+            # false node
+            parent.false_node = SequenceNode(nodes=[parent.false_node])
+            insert_node(parent.false_node, insert_idx - node_idx, node, 0)
     else:
         raise NotImplementedError()

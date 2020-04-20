@@ -13,8 +13,8 @@ class BasePointerSaveSimplifier(OptimizationPass):
     ARCHES = ['X86', 'AMD64', 'ARMEL']
     PLATFORMS = ['linux']
 
-    def __init__(self, func, blocks):
-        super().__init__(func, blocks)
+    def __init__(self, func, blocks, graph):
+        super().__init__(func, blocks=blocks, graph=graph)
         self.analyze()
 
     def _check(self):
@@ -112,8 +112,9 @@ class BasePointerSaveSimplifier(OptimizationPass):
 
             if endpoint_block is None:
                 # the block is not found
-                _l.warning("Unexpected: Function endpoint %#x is not found.", endpoint.addr)
-                return None
+                _l.debug("Unexpected: Function endpoint %#x is not found. Maybe it has been removed by other "
+                         "optimization passes", endpoint.addr)
+                continue
 
             for idx, stmt in enumerate(endpoint_block.statements):
                 if isinstance(stmt, ailment.Stmt.Assignment) \

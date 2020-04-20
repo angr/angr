@@ -174,9 +174,9 @@ class MultiSimplifier(OptimizationPass):
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux", "windows"]
 
-    def __init__(self, func, blocks):
+    def __init__(self, func, blocks, graph):
 
-        super().__init__(func, blocks=blocks)
+        super().__init__(func, blocks=blocks, graph=graph)
 
         self.state = SimplifierAILState(self.project.arch)
         self.engine = MultiSimplifierAILEngine()
@@ -188,7 +188,7 @@ class MultiSimplifier(OptimizationPass):
 
     def _analyze(self, cache=None):
 
-        for block in self._blocks.values():
+        for block in self._graph.nodes():
             new_block = block
             old_block = None
 

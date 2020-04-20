@@ -21,9 +21,9 @@ class StackCanarySimplifier(OptimizationPass):
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux"]
 
-    def __init__(self, func, blocks):
+    def __init__(self, func, blocks, graph):
 
-        super().__init__(func, blocks=blocks)
+        super().__init__(func, blocks=blocks, graph=graph)
 
         self.analyze()
 
@@ -60,7 +60,7 @@ class StackCanarySimplifier(OptimizationPass):
 
         # The function should end with an if-else statement
         # Find all nodes with 0 out-degrees
-        end_nodes = [ self._get_block(node.addr, size=node.size) for node in self._func.graph.nodes()
+        end_nodes = [ self._get_block(node.addr) for node in self._func.graph.nodes()
                       if self._func.graph.out_degree(node) == 0 ]
 
         if len(end_nodes) != 2:
@@ -110,7 +110,8 @@ class StackCanarySimplifier(OptimizationPass):
         pred_copy = pred.copy()
         pred_copy.statements[-1] = ailment.Stmt.Jump(len(pred_copy.statements) - 1,
                                                      ailment.Expr.Const(None, None, other_node.addr,
-                                                                        self.project.arch.bits)
+                                                                        self.project.arch.bits),
+                                                     ins_addr=pred_copy.statements[-1].ins_addr,
                                                      )
 
         self._update_block(pred, pred_copy)
@@ -164,7 +165,7 @@ class StackCanarySimplifier(OptimizationPass):
                     continue
 
                 expr = condition.operands[0]
-                if not isinstance(expr, ailment.Expr.UnaryOp):
+                if not isinstance(expr, ailment.Expr.BinaryOp):
                     continue
                 if expr.op != "Xor":
                     continue
@@ -173,7 +174,8 @@ class StackCanarySimplifier(OptimizationPass):
                     continue
                 if not isinstance(op0.addr, ailment.Expr.StackBaseOffset):
                     continue
-                if op0.addr.offset != s2u(canary_value_stack_offset, self.project.arch.bits):
+                bits = self.project.arch.bits
+                if s2u(op0.addr.offset, bits) != s2u(canary_value_stack_offset, bits):
                     continue
                 if not isinstance(op1, ailment.Expr.Load):
                     continue

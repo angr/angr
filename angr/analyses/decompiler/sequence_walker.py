@@ -1,9 +1,9 @@
 # pylint:disable=unused-argument,useless-return
-
+import ailment
 
 from ...errors import UnsupportedNodeTypeError
 from .region_identifier import MultiNode
-from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode
+from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode
 
 
 class SequenceWalker:
@@ -19,7 +19,9 @@ class SequenceWalker:
             SequenceNode: self._handle_Sequence,
             ConditionNode: self._handle_Condition,
             SwitchCaseNode: self._handle_SwitchCase,
+            LoopNode: self._handle_Loop,
             MultiNode: self._handle_MultiNode,
+            ailment.Block: self._handle_Noop,
         }
 
         self._handlers = default_handlers
@@ -68,7 +70,14 @@ class SequenceWalker:
             self._handle(node.default_node, parent=node, label='default')
         return None
 
+    def _handle_Loop(self, node, **kwargs):
+        return self._handle(node.sequence_node, **kwargs)
+
     def _handle_Condition(self, node, **kwargs):
         self._handle(node.true_node, parent=node, index=0)
         self._handle(node.false_node, parent=node, index=1)
+        return None
+
+    @staticmethod
+    def _handle_Noop(*args, **kwargs):
         return None

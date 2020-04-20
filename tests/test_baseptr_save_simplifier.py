@@ -12,8 +12,8 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 def _get_block(clinic, addr):
 
-    for (block_addr, _), block in clinic._blocks.items():
-        if block_addr == addr:
+    for block in clinic.graph.nodes():
+        if block.addr == addr:
             return block
     return None
 
