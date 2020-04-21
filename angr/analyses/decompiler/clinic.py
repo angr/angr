@@ -306,8 +306,13 @@ class Clinic(Analysis):
                                                         clinic=self, kb=tmp_kb, track_sp=False)
         # clean up existing types
         tmp_kb.variables[self.function.addr].remove_types()
-        tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb)
-        tp.update_variable_types(self.function.addr, vr.var_to_typevar)
+        # run type inference
+        try:
+            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb)
+            tp.update_variable_types(self.function.addr, vr.var_to_typevar)
+        except Exception:
+            l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
+                      exc_info=True)
 
         # TODO: The current mapping implementation is kinda hackish...
 
