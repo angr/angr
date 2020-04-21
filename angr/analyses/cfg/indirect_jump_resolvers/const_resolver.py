@@ -33,16 +33,18 @@ class ConstantResolver(IndirectJumpResolver):
             func = cfg.functions[func_addr]
             propagator = self.project.analyses.Propagator(func=func)
             replacements = propagator.replacements
-            block_loc = CodeLocation(block.addr, None)
-            tmp_var = vex_vars.VEXTmp(block.next.tmp)
 
-            resolved_tmp = None
-            try:
-                resolved_tmp = replacements[block_loc][tmp_var]
-            except KeyError:
-                return False, [ ]
+            if replacements:
+                block_loc = CodeLocation(block.addr, None)
+                tmp_var = vex_vars.VEXTmp(block.next.tmp)
 
-            if isinstance(resolved_tmp, int):
-                return True, [resolved_tmp]
+                resolved_tmp = None
+                try:
+                    resolved_tmp = replacements[block_loc][tmp_var]
+                except KeyError:
+                    return False, [ ]
+
+                if isinstance(resolved_tmp, int):
+                    return True, [resolved_tmp]
 
         return False, [ ]
