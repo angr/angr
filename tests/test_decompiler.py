@@ -245,9 +245,18 @@ def test_decompiling_1after999_doit():
     cfg = p.analyses.CFG(normalize=True, data_references=True)
 
     f = cfg.functions['doit']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+        p.arch, p.simos.name
+    ) + [
+        angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier,
+    ]
+    dec = p.analyses.Decompiler(f, cfg=cfg, optimization_passes=optimization_passes)
     if dec.codegen is not None:
-        print(dec.codegen.text)
+        code = dec.codegen.text
+        print(code)
+
+        # with EagerReturnSimplifier applied, there should be no goto!
+        assert "goto" not in code.lower()
     else:
         print("Failed to decompile function %r." % f)
         assert False

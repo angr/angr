@@ -62,7 +62,7 @@ class ModSimplifier(OptimizationPass):
 
     def _analyze(self, cache=None):
 
-        for block in self._blocks.values():
+        for block in self._graph.nodes():
             new_block = block
             old_block = None
 

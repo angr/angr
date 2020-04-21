@@ -201,7 +201,7 @@ class RegionIdentifier(Analysis):
 
             break
 
-        new_regions.append(GraphRegion(self._get_start_node(graph), graph, None, None, True))
+        new_regions.append(GraphRegion(self._get_start_node(graph), graph, None, None, False))
 
         l.debug("Identified %d loop regions.", len(structured_loop_headers))
         l.debug("No more loops left. Start structuring acyclic regions.")
@@ -212,7 +212,8 @@ class RegionIdentifier(Analysis):
             subgraph = region.graph
 
             failed_region_attempts = set()
-            while self._make_acyclic_region(head, subgraph, region.graph_with_successors, failed_region_attempts):
+            while self._make_acyclic_region(head, subgraph, region.graph_with_successors, failed_region_attempts,
+                                            region.cyclic):
                 if head not in subgraph:
                     # update head
                     head = next(iter(n for n in subgraph.nodes() if n.addr == head.addr))
@@ -224,7 +225,7 @@ class RegionIdentifier(Analysis):
             return list(graph.nodes())[0]
         # create a large graph region
         new_head = self._get_start_node(graph)
-        region = GraphRegion(new_head, graph, None, None, True)
+        region = GraphRegion(new_head, graph, None, None, False)
         return region
 
     #
@@ -377,26 +378,33 @@ class RegionIdentifier(Analysis):
     # Acyclic regions
     #
 
-    def _make_acyclic_region(self, head, graph, secondary_graph, failed_region_attempts):
+    def _make_acyclic_region(self, head, graph, secondary_graph, failed_region_attempts, cyclic):
         # pre-processing
 
         # we need to create a copy of the original graph if
         # - there are in edges to the head node, or
         # - there are more than one end nodes
 
-        head_in_edges = list(graph.in_edges(head))
-        endnodes = [node for node in graph.nodes() if graph.out_degree(node) == 0]
+        head_inedges = list(graph.in_edges(head))
+        if head_inedges:
+            # we need a copy of the graph to remove edges coming into the head
+            graph_copy = networkx.DiGraph(graph)
+            # remove any in-edge to the head node
+            for src, _ in head_inedges:
+                graph_copy.remove_edge(src, head)
+        else:
+            graph_copy = graph
+
+        endnodes = [node for node in graph_copy.nodes() if graph_copy.out_degree(node) == 0]
         if len(endnodes) == 0:
             # sanity check: there should be at least one end node
             l.critical("No end node is found in a supposedly acyclic graph. Is it really acyclic?")
             return False
 
-        if head_in_edges or len(endnodes) > 1:
+        if len(endnodes) > 1:
             # we need a copy of the graph!
-            graph_copy = networkx.DiGraph(graph)
-            # remove any in-edge to the head node
-            for src, _ in head_in_edges:
-                graph_copy.remove_edge(src, head)
+            graph_copy = networkx.DiGraph(graph_copy)
+
             # if this graph has multiple end nodes: create a single end node
             dummy_endnode = None
             if len(endnodes) > 1:
@@ -405,7 +413,6 @@ class RegionIdentifier(Analysis):
                     graph_copy.add_edge(endnode, dummy_endnode)
                 endnodes = [ dummy_endnode ]
         else:
-            graph_copy = graph
             dummy_endnode = None
 
         # compute dominator tree
@@ -422,6 +429,8 @@ class RegionIdentifier(Analysis):
         for node in networkx.dfs_postorder_nodes(graph_copy, source=head):
             if node is dummy_endnode:
                 # skip the dummy endnode
+                continue
+            if cyclic and node is head:
                 continue
 
             out_degree = graph_copy.out_degree[node]
@@ -478,7 +487,8 @@ class RegionIdentifier(Analysis):
         # if the exit node is the header of a loop that contains the start node, the dominance frontier should only
         # contain the exit node.
         if not dominates(doms, start_node, end_node):
-            for node in df.get(start_node, set()):
+            frontier = df.get(start_node, set())
+            for node in frontier:
                 if node is not start_node and node is not end_node:
                     return False
 

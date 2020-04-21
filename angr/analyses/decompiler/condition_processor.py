@@ -198,48 +198,124 @@ class ConditionProcessor:
         else:
             return node
 
-    def get_last_statement(self, block):
+    @classmethod
+    def get_last_statement(cls, block):
+        """
+        This is the buggy version of get_last_statements, because, you know, there can always be more than one last
+        statement due to the existence of branching statements (like, If-then-else). All methods using
+        get_last_statement() should switch to get_last_statements() and properly handle multiple last statements.
+        """
         if type(block) is SequenceNode:
             if block.nodes:
-                return self.get_last_statement(block.nodes[-1])
-        elif type(block) is CodeNode:
-            return self.get_last_statement(block.node)
-        elif type(block) is ailment.Block:
+                return cls.get_last_statement(block.nodes[-1])
+            raise EmptyBlockNotice()
+        if type(block) is CodeNode:
+            return cls.get_last_statement(block.node)
+        if type(block) is ailment.Block:
             if not block.statements:
                 raise EmptyBlockNotice()
             return block.statements[-1]
-        elif type(block) is Block:
+        if type(block) is Block:
             raise NotImplementedError()
-        elif type(block) is BlockNode:
+        if type(block) is BlockNode:
             raise NotImplementedError()
-        elif type(block) is MultiNode:
+        if type(block) is MultiNode:
             # get the last node
             for the_block in reversed(block.nodes):
                 try:
-                    last_stmt = self.get_last_statement(the_block)
+                    last_stmt = cls.get_last_statement(the_block)
                     return last_stmt
                 except EmptyBlockNotice:
                     continue
-        elif type(block) is LoopNode:
-            return self.get_last_statement(block.sequence_node)
-        elif type(block) is ConditionalBreakNode:
+            raise EmptyBlockNotice()
+        if type(block) is LoopNode:
+            return cls.get_last_statement(block.sequence_node)
+        if type(block) is ConditionalBreakNode:
             return None
-        elif type(block) is ConditionNode:
+        if type(block) is ConditionNode:
             s = None
             if block.true_node:
-                s = self.get_last_statement(block.true_node)
+                try:
+                    s = cls.get_last_statement(block.true_node)
+                except EmptyBlockNotice:
+                    s = None
             if s is None and block.false_node:
-                s = self.get_last_statement(block.false_node)
+                s = cls.get_last_statement(block.false_node)
             return s
-        elif type(block) is BreakNode:
+        if type(block) is BreakNode:
             return None
-        elif type(block) is ContinueNode:
+        if type(block) is ContinueNode:
             return None
-        elif type(block) is SwitchCaseNode:
+        if type(block) is SwitchCaseNode:
             return None
-        elif type(block) is GraphRegion:
+        if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
             return None
+
+        raise NotImplementedError()
+
+    @classmethod
+    def get_last_statements(cls, block):
+        if type(block) is SequenceNode:
+            for last_node in reversed(block.nodes):
+                try:
+                    last_stmts = cls.get_last_statements(last_node)
+                    return last_stmts
+                except EmptyBlockNotice:
+                    # the node is empty. try the next one
+                    continue
+
+            raise EmptyBlockNotice()
+
+        if type(block) is CodeNode:
+            return cls.get_last_statements(block.node)
+        if type(block) is ailment.Block:
+            if not block.statements:
+                raise EmptyBlockNotice()
+            return [ block.statements[-1] ]
+        if type(block) is Block:
+            raise NotImplementedError()
+        if type(block) is BlockNode:
+            raise NotImplementedError()
+        if type(block) is MultiNode:
+            # get the last node
+            for the_block in reversed(block.nodes):
+                try:
+                    last_stmts = cls.get_last_statements(the_block)
+                    return last_stmts
+                except EmptyBlockNotice:
+                    continue
+            raise EmptyBlockNotice()
+        if type(block) is LoopNode:
+            return cls.get_last_statements(block.sequence_node)
+        if type(block) is ConditionalBreakNode:
+            return [ block ]
+        if type(block) is ConditionNode:
+            s = [ ]
+            if block.true_node:
+                try:
+                    last_stmts = cls.get_last_statements(block.true_node)
+                    s.extend(last_stmts)
+                except EmptyBlockNotice:
+                    pass
+            if block.false_node:
+                last_stmts = cls.get_last_statements(block.false_node)
+                s.extend(last_stmts)
+            return s
+        if type(block) is BreakNode:
+            return [ block ]
+        if type(block) is ContinueNode:
+            return [ block ]
+        if type(block) is SwitchCaseNode:
+            s = [ ]
+            for case in block.cases:
+                s.extend(cls.get_last_statements(case))
+            if block.default_case is not None:
+                s.extend(cls.get_last_statements(block.default_case))
+            return s
+        if type(block) is GraphRegion:
+            # normally this should not happen. however, we have test cases that trigger this case.
+            return [ ]
 
         raise NotImplementedError()
 
