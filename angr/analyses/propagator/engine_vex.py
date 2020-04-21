@@ -29,7 +29,9 @@ class SimEnginePropagatorVEX(
                 # pop ret from the stack
                 sp_offset = self.arch.sp_offset
                 sp_value = state.load_register(sp_offset, self.arch.bytes)
-                state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
+                #XXX: unsure if this is ok since now making a call without a ret
+                if sp_value:
+                    state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
 
         return state
 
