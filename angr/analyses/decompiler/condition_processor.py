@@ -310,10 +310,10 @@ class ConditionProcessor:
             return [ block ]
         if type(block) is SwitchCaseNode:
             s = [ ]
-            for case in block.cases:
+            for case in block.cases.values():
                 s.extend(cls.get_last_statements(case))
-            if block.default_case is not None:
-                s.extend(cls.get_last_statements(block.default_case))
+            if block.default_node is not None:
+                s.extend(cls.get_last_statements(block.default_node))
             return s
         if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
