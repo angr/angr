@@ -183,15 +183,16 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
 
-    def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None):
+    def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None, is_exception=False):
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._transit_to(from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx)
+        self._function_map[function_addr]._transit_to(from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx,
+                                                      is_exception=is_exception)
 
     def _add_outside_transition_to(self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None,
-                                   stmt_idx=None):
+                                   stmt_idx=None, is_exception=False):
         if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
@@ -202,12 +203,12 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                 self._function_map[function_addr].add_jumpout_site(from_node)
                 return
         self._function_map[function_addr]._transit_to(from_node, to_node, outside=True, ins_addr=ins_addr,
-                                                      stmt_idx=stmt_idx
+                                                      stmt_idx=stmt_idx, is_exception=is_exception,
                                                       )
 
         if to_function_addr is not None:
             # mark it on the callgraph
-            edge_data = {'type': 'transition'}
+            edge_data = {'type': 'transition' if not is_exception else 'exception'}
             if function_addr not in self.callgraph or \
                     to_function_addr not in self.callgraph[function_addr] or \
                     edge_data not in self.callgraph[function_addr][to_function_addr].values():

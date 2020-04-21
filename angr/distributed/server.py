@@ -28,7 +28,7 @@ class Server:
     :ivar _worker_exit_callback:    A method that will be called upon the exit of each worker.
     """
     def __init__(self, project, spill_yard=None, db=None, max_workers=None, max_states=10, staging_max=10,
-                 bucketizer=True, worker_exit_callback=None):
+                 bucketizer=True, recursion_limit=1000, worker_exit_callback=None):
 
         self.project = project
 
@@ -43,6 +43,8 @@ class Server:
         self.max_states = max_states
         self.staging_max = staging_max
         self.bucketizer = bucketizer
+
+        self._recursion_limit = recursion_limit
 
         self._worker_exit_args_lock = None
         self._worker_exit_args = None  # type: dict[int:tuple]
@@ -137,7 +139,7 @@ class Server:
                 self._worker_exit_args = manager.dict()
 
             for i in range(self.max_workers):
-                worker = Worker(i, self)
+                worker = Worker(i, self, recursion_limit=self._recursion_limit)
                 self._workers.append(worker)
 
             # start them

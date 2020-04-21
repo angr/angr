@@ -4,7 +4,8 @@ from collections import defaultdict
 
 
 class DecompilationOption:
-    def __init__(self, name, description, value_type, cls, param, value_range=None, category="General"):
+    def __init__(self, name, description, value_type, cls, param, value_range=None, category="General",
+                 default_value=None):
         self.name = name
         self.description = description
         self.value_type = value_type
@@ -12,6 +13,7 @@ class DecompilationOption:
         self.param = param
         self.value_range = value_range
         self.category = category
+        self.default_value = default_value
 
 
 O = DecompilationOption
@@ -25,8 +27,19 @@ options = [
         bool,
         "clinic",
         "remove_dead_memdefs",
-        category="Data flows"
+        category="Data flows",
+        default_value=True,
     ),
+    O(
+        "Display exception edges (experimental)",
+        "Decompile and display exception handling code. Enabling this option generally degrades the readability of the "
+        "pseudo code. This is still an experimental feature.",
+        bool,
+        "clinic",
+        "exception_edges",
+        category="Graph",
+        default_value=False,
+    )
 ]
 
 options_by_category = defaultdict(list)

@@ -101,7 +101,7 @@ class RegionIdentifier(Analysis):
                     if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
                         self._merge_nodes(graph, src, dst, force_multinode=True)
                         break
-                if type_ == 'call':
+                elif type_ == 'call':
                     graph.remove_node(dst)
                     break
             else:
@@ -371,8 +371,9 @@ class RegionIdentifier(Analysis):
         # modify graph
         graph.add_edge(region, cond)
         for succ in successors:
+            edge_data = graph.get_edge_data(region, succ)
             graph.remove_edge(region, succ)
-            graph.add_edge(cond, succ)
+            graph.add_edge(cond, succ, **edge_data)
 
     #
     # Acyclic regions
@@ -525,14 +526,15 @@ class RegionIdentifier(Analysis):
             subgraph.add_node(node_)
 
             for succ in graph.successors(node_):
+                edge_data = graph.get_edge_data(node_, succ)
 
                 if node_ in frontier and succ in traversed:
                     if include_frontier:
                         # if frontier nodes are included, do not keep traversing their successors
                         # however, if it has an edge to an already traversed node, we should add that edge
-                        subgraph.add_edge(node_, succ)
+                        subgraph.add_edge(node_, succ, **edge_data)
                     else:
-                        frontier_edges.append((node_, succ))
+                        frontier_edges.append((node_, succ, edge_data))
                     continue
 
                 if succ is dummy_endnode:
@@ -541,9 +543,9 @@ class RegionIdentifier(Analysis):
                 if succ in frontier:
                     if not include_frontier:
                         # skip all frontier nodes
-                        frontier_edges.append((node_, succ))
+                        frontier_edges.append((node_, succ, edge_data))
                         continue
-                subgraph.add_edge(node_, succ)
+                subgraph.add_edge(node_, succ, **edge_data)
                 if succ in traversed:
                     continue
                 queue.append(succ)
@@ -553,9 +555,9 @@ class RegionIdentifier(Analysis):
 
         if subgraph.number_of_nodes() > 1:
             subgraph_with_frontier = networkx.DiGraph(subgraph)
-            for src, dst in frontier_edges:
+            for src, dst, edge_data in frontier_edges:
                 if dst is not dummy_endnode:
-                    subgraph_with_frontier.add_edge(src, dst)
+                    subgraph_with_frontier.add_edge(src, dst, **edge_data)
             # assert dummy_endnode not in frontier
             # assert dummy_endnode not in subgraph_with_frontier
             return GraphRegion(node, subgraph, frontier, subgraph_with_frontier, False)

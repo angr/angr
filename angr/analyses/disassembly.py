@@ -121,13 +121,13 @@ class Hook(DisassemblyPiece):
 
 
 class Instruction(DisassemblyPiece):
-    def __init__(self, insn, parentblock):
+    def __init__(self, insn, parentblock, project=None):
         self.addr = insn.address
         self.size = insn.size
         self.insn = insn
         self.parentblock = parentblock
-        self.project = parentblock.project
-        self.arch = parentblock.project.arch
+        self.project = parentblock.project if parentblock is not None else project
+        self.arch = self.project.arch
         self.format = ''
         self.components = ()
         self.operands = [ ]

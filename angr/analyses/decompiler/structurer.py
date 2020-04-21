@@ -303,12 +303,12 @@ class Structurer(Analysis):
             loop_region_graph.add_node(node)
             traversed.add(node)
 
-            successors = list(graph.successors(node))  # successors are all inside the current region
+            successors_and_data = list(graph.out_edges(node, data=True))  # successors are all inside the current region
 
-            for dst in successors:
+            for _, dst, edge_data in successors_and_data:
                 # sanity check
                 if dst.addr in loop_successor_addrs:
-                    outedges.append((node, dst))
+                    outedges.append((node, dst, edge_data))
                     continue
                 if dst not in loop_subgraph and dst.addr not in loop_successor_addrs:
                     # what's this node?
@@ -316,7 +316,7 @@ class Structurer(Analysis):
                     # raise Exception()
 
                 if replaced_nodes.get(dst, dst) is not loop_head:
-                    loop_region_graph.add_edge(node, replaced_nodes.get(dst, dst))
+                    loop_region_graph.add_edge(node, replaced_nodes.get(dst, dst), **edge_data)
                 if dst in traversed or dst in queue:
                     continue
                 queue.append(dst)
@@ -324,8 +324,8 @@ class Structurer(Analysis):
         # Create a graph region and structure it
         loop_region_graph_with_successors = networkx.DiGraph(loop_region_graph)
         loop_successors = set()  # update loop_successors with nodes in outedges
-        for src, dst in outedges:
-            loop_region_graph_with_successors.add_edge(src, dst)
+        for src, dst, edge_data in outedges:
+            loop_region_graph_with_successors.add_edge(src, dst, **edge_data)
             loop_successors.add(dst)
         region = GraphRegion(loop_head, loop_region_graph, successors=None,
                              graph_with_successors=None, cyclic=False)

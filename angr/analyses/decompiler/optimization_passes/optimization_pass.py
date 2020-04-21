@@ -91,12 +91,12 @@ class OptimizationPass(Analysis):
         for src, _, data in in_edges:
             if src is old_block:
                 src = new_block
-            self.out_graph.add_edge(src, new_block, data=data)
+            self.out_graph.add_edge(src, new_block, **data)
 
         for _, dst, data in out_edges:
             if dst is old_block:
                 dst = new_block
-            self.out_graph.add_edge(new_block, dst, data=data)
+            self.out_graph.add_edge(new_block, dst, **data)
 
     def _remove_block(self, block):
 

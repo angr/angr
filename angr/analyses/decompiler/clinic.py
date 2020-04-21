@@ -23,6 +23,7 @@ class Clinic(Analysis):
     """
     def __init__(self, func,
                  remove_dead_memdefs=True,
+                 exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
                  ):
@@ -37,10 +38,12 @@ class Clinic(Analysis):
 
         self.graph = None
 
+        self._func_graph = None  # type: networkx.DiGraph
         self._ail_manager = None
         self._blocks_by_addr_and_size = { }
 
         self._remove_dead_memdefs = remove_dead_memdefs
+        self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
 
         # sanity checks
@@ -92,6 +95,9 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
+        # Set up the function graph according to configurations
+        self._set_function_graph()
+
         # Make sure calling conventions of all functions have been recovered
         self._recover_calling_conventions()
 
@@ -125,6 +131,10 @@ class Clinic(Analysis):
         self.graph = ail_graph
 
     @timethis
+    def _set_function_graph(self):
+        self._func_graph = self.function.graph_ex(exception_edges=self._exception_edges)
+
+    @timethis
     def _recover_calling_conventions(self):
         self.project.analyses.CompleteCallingConventions()
 
@@ -152,7 +162,7 @@ class Clinic(Analysis):
         :return:    None
         """
 
-        for block_node in self.function.graph.nodes():
+        for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
@@ -192,7 +202,7 @@ class Clinic(Analysis):
             self._blocks_by_addr_and_size[key] = simplified
 
         # Update the function graph so that we can use reaching definitions
-        graph = self._function_graph_to_ail_graph(self.function.graph)
+        graph = self._function_graph_to_ail_graph(self._func_graph)
         return graph
 
     def _simplify_block(self, ail_block, stack_pointer_tracker=None):
@@ -287,7 +297,9 @@ class Clinic(Analysis):
         # variable recovery
         tmp_kb = KnowledgeBase(self.project)
         # stack pointers have been removed at this point
-        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb, track_sp=False)  # pylint:disable=unused-variable
+        vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
+                                                        func_graph=self._func_graph,
+                                                        clinic=self, kb=tmp_kb, track_sp=False)
 
         # TODO: The current mapping implementation is kinda hackish...
         # Link variables to each statement

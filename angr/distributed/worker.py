@@ -2,6 +2,7 @@
 import time
 import multiprocessing
 import logging
+import sys
 
 from ..exploration_techniques import Spiller, Bucketizer
 from ..exploration_techniques.spiller import PickledStatesDb
@@ -16,10 +17,11 @@ class Worker:
     Worker implements a worker thread/process for conducting a task.
     """
 
-    def __init__(self, worker_id, server):
+    def __init__(self, worker_id, server, recursion_limit=None):
         self.worker_id = worker_id
         self.server = server
         self._proc = None
+        self._recursion_limit = recursion_limit
 
     def start(self):
         self._proc = multiprocessing.Process(
@@ -28,6 +30,10 @@ class Worker:
         self._proc.start()
 
     def run(self):
+
+        if self._recursion_limit is not None and self._recursion_limit != sys.getrecursionlimit():
+            sys.setrecursionlimit(self._recursion_limit)
+
         simgr = self.server.project.factory.simgr()
         if self.server.bucketizer:
             bucktizer = Bucketizer()
