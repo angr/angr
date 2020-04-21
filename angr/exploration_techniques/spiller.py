@@ -16,6 +16,7 @@ try:
         id = Column(String, primary_key=True)
         priority = Column(Integer)
         taken = Column(Boolean, default=False)
+        stash = Column(String, default="")
         timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
 except ImportError:
@@ -91,17 +92,18 @@ class PickledStatesDb(PickledStatesBase):
     def sort(self):
         pass
 
-    def add(self, prio, sid):
-        record = PickledState(id=sid, priority=prio)
+    def add(self, prio, sid, taken=False, stash="spilled"):
+        record = PickledState(id=sid, priority=prio, taken=taken, stash=stash)
         session = self.Session()
         session.add(record)
         session.commit()
         session.close()
 
-    def pop_n(self, n):
+    def pop_n(self, n, stash="spilled"):
         session = self.Session()
         q = session.query(PickledState)\
             .filter_by(taken=False)\
+            .filter_by(stash=stash)\
             .order_by(PickledState.priority)\
             .limit(n)\
             .all()
@@ -111,6 +113,19 @@ class PickledStatesDb(PickledStatesBase):
             r.taken = True
             ss.append((r.priority, r.id))
         session.commit()
+        return ss
+
+    def get_recent_n(self, n, stash="spilled"):
+        session = self.Session()
+        q = session.query(PickledState) \
+            .filter_by(stash=stash) \
+            .order_by(PickledState.timestamp.desc()) \
+            .limit(n) \
+            .all()
+
+        ss = []
+        for r in q:
+            ss.append((r.timestamp, r.id))
         return ss
 
 
