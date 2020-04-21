@@ -31,7 +31,7 @@ class ConstantResolver(IndirectJumpResolver):
 
         if isinstance(block.next, pyvex.expr.RdTmp):
             func = cfg.functions[func_addr]
-            propagator = self.project.analyses.Propagator(func=func)
+            propagator = self.project.analyses.Propagator(func=func, only_consts=True)
             replacements = propagator.replacements
 
             if replacements:
