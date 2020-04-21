@@ -128,6 +128,11 @@ class PickledStatesDb(PickledStatesBase):
             ss.append((r.timestamp, r.id))
         return ss
 
+    def count(self):
+        session = self.Session()
+        q = session.query(PickledState).count()
+        return q
+
 
 class Spiller(ExplorationTechnique):
     """
