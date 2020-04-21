@@ -7,6 +7,7 @@ try:
     from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.exc import OperationalError
 
     Base = declarative_base()
 
@@ -85,7 +86,11 @@ class PickledStatesDb(PickledStatesBase):
         engine = create_engine(db_str)
 
         # create table
-        Base.metadata.create_all(engine)
+        try:
+            Base.metadata.create_all(engine, checkfirst=True)
+        except OperationalError:
+            # table already exists
+            pass
 
         self.Session = sessionmaker(bind=engine)
 
