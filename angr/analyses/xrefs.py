@@ -73,6 +73,10 @@ class SimEngineXRefsVEX(
         tmp = VEXTmp(data_tmp)
         if tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][tmp], Top):
             data = self.replacements[blockloc][tmp]
+            # Is this thing not an integer? If so, get out of here
+            # e.g., you can't find_object_containing on an SPOffset
+            if not isinstance(data, int):
+                return
             if data is not None and self.project.loader.find_object_containing(data) is not None:
                 # HACK: Avoid spamming Xrefs if the binary is loaded at 0
                 # e.g., firmware!
