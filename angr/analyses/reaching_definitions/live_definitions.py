@@ -342,9 +342,6 @@ class LiveDefinitions:
         self.stack_uses.add_use(def_, code_loc)
         self.uses_by_codeloc[code_loc].add(def_)
 
-        if self.dep_graph is not None:
-            self.dep_graph.add_edge(def_, code_loc)
-
     def _add_memory_use(self, atom, code_loc):
 
         # get all current definitions
