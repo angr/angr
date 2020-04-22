@@ -1,9 +1,13 @@
 import logging
 import cffi
+
 import cle
+from cle.backends.externs import KernelObject, ExternObject
+from cle.backends.tls.elf_tls import ELFTLSObject
 
 from sortedcontainers import SortedDict
 
+from ...knowledge_plugins.cfg.memory_data import MemoryDataSort, MemoryData
 from ..analysis import Analysis
 
 _l = logging.getLogger(name=__name__)
@@ -46,6 +50,8 @@ class MemoryRegion:
         self.object = object_
         self.cle_region = cle_region
 
+    def __repr__(self):
+        return "<MemoryRegion %#x-%#x, type %s>" % (self.addr, self.addr+self.size, self.type)
 
 #
 # An address can be mapped to one of the following types of object
@@ -77,17 +83,26 @@ class Unknown:
 class CFBlanket(Analysis):
     """
     A Control-Flow Blanket is a representation for storing all instructions, data entries, and bytes of a full program.
+
+    Region types:
+    - section
+    - segment
+    - extern
+    - tls
+    - kernel
     """
-    def __init__(self):
+    def __init__(self, exclude_region_types=None):
         self._blanket = SortedDict()
 
         self._regions = [ ]
+        self._exclude_region_types = set() if not exclude_region_types else exclude_region_types
 
         self._init_regions()
 
         # initialize
         for func in self.kb.functions.values():
             self.add_function(func)
+        self._mark_memory_data()
         self._mark_unknowns()
 
     def _init_regions(self):
@@ -95,28 +110,46 @@ class CFBlanket(Analysis):
         for obj in self.project.loader.all_objects:
             if isinstance(obj, cle.MetaELF):
                 if obj.sections:
-                    # Enumerate sections in an ELF file
-                    for section in obj.sections:
-                        if section.occupies_memory:
-                            mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
-                            self._regions.append(mr)
+                    if "section" not in self._exclude_region_types:
+                        # Enumerate sections in an ELF file
+                        for section in obj.sections:
+                            if section.occupies_memory:
+                                mr = MemoryRegion(section.vaddr, section.memsize, 'section', obj, section)
+                                self._regions.append(mr)
                 else:
                     raise NotImplementedError("Currently ELFs without sections are not supported. Please implement or "
                                               "complain on GitHub.")
             elif isinstance(obj, cle.PE):
                 if obj.sections:
-                    for section in obj.sections:
-                        mr = MemoryRegion(section.vaddr, section.memsize, 'TODO', obj, section)
-                        self._regions.append(mr)
+                    if "section" not in self._exclude_region_types:
+                        for section in obj.sections:
+                            mr = MemoryRegion(section.vaddr, section.memsize, 'section', obj, section)
+                            self._regions.append(mr)
                 else:
                     raise NotImplementedError("Currently PEs without sections are not supported. Please report to "
                                               "GitHub and provide an example binary.")
+            elif isinstance(obj, KernelObject):
+                if "kernel" not in self._exclude_region_types:
+                    size = obj.max_addr - obj.min_addr
+                    mr = MemoryRegion(obj.min_addr, size, "kernel", obj, None)
+                    self._regions.append(mr)
+            elif isinstance(obj, ExternObject):
+                if "extern" not in self._exclude_region_types:
+                    size = obj.max_addr - obj.min_addr
+                    mr = MemoryRegion(obj.min_addr, size, "extern", obj, None)
+                    self._regions.append(mr)
+            elif isinstance(obj, ELFTLSObject):
+                if "tls" not in self._exclude_region_types:
+                    size = obj.max_addr - obj.min_addr
+                    mr = MemoryRegion(obj.min_addr, size, "tls", obj, None)
+                    self._regions.append(mr)
             else:
                 if hasattr(obj, "size"):
                     size = obj.size
                 else:
                     size = obj.max_addr - obj.min_addr
-                mr = MemoryRegion(obj.min_addr, size, 'TODO', obj, None)
+                type_ = "TODO"
+                mr = MemoryRegion(obj.min_addr, size, type_, obj, obj)
                 self._regions.append(mr)
 
         # Sort them just in case
@@ -223,6 +256,23 @@ class CFBlanket(Analysis):
 
         return "\n".join(output)
 
+    def _mark_memory_data(self):
+        """
+        Mark all memory data.
+
+        :return: None
+        """
+        if 'CFGFast' not in self.kb.cfgs:
+            return
+        cfg_model = self.kb.cfgs['CFGFast']
+
+        for addr, memory_data in cfg_model.memory_data.items():
+            memory_data : MemoryData
+            if memory_data.sort == MemoryDataSort.CodeReference:
+                # skip Code Reference
+                continue
+            self.add_obj(addr, memory_data)
+
     def _mark_unknowns(self):
         """
         Mark all unmapped regions.
@@ -233,13 +283,13 @@ class CFBlanket(Analysis):
         for obj in self.project.loader.all_objects:
             if isinstance(obj, cle.ELF):
                 # sections?
-                if obj.sections:
+                if obj.sections and "section" not in self._exclude_region_types:
                     for section in obj.sections:
                         if not section.memsize or not section.vaddr:
                             continue
                         min_addr, max_addr = section.min_addr, section.max_addr
                         self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj, section=section)
-                elif obj.segments:
+                elif obj.segments and "segment" not in self._exclude_region_types:
                     for segment in obj.segments:
                         if not segment.memsize:
                             continue
@@ -258,6 +308,20 @@ class CFBlanket(Analysis):
                 else:
                     # is it empty?
                     _l.warning("Empty PE object %s.", repr(obj))
+            elif isinstance(obj, ELFTLSObject):
+                if "tls" in self._exclude_region_types:
+                    # Skip them for now
+                    pass
+                else:
+                    min_addr, max_addr = obj.min_addr, obj.max_addr
+                    self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj)
+            elif isinstance(obj, KernelObject):
+                if "kernel" in self._exclude_region_types:
+                    # skip
+                    pass
+                else:
+                    min_addr, max_addr = obj.min_addr, obj.max_addr
+                    self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj)
             else:
                 min_addr, max_addr = obj.min_addr, obj.max_addr
                 self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj)
