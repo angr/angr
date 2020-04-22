@@ -30,6 +30,9 @@ class SimEngineInitFinderVEX(
 
         obj = self.project.loader.find_object_containing(addr)
         if obj is not None:
+            if not obj.has_memory:
+                # Objects without memory are definitely uninitialized
+                return True
             section = obj.find_section_containing(addr)
             if section is not None:
                 return section.name in {'.bss', }
