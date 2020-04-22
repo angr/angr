@@ -222,7 +222,6 @@ class LiveDefinitions:
             self.all_definitions.add(definition)
 
             if self.dep_graph is not None:
-                self.dep_graph.add_node(definition)
                 for used in self.codeloc_uses:
                     # Moderately confusing misnomers. This is an edge from a def to a use, since the
                     # "uses" are actually the definitions that we're using and the "definition" is the
@@ -281,7 +280,6 @@ class LiveDefinitions:
         kinda_definition = Definition(atom, code_loc, data)
 
         if self.dep_graph is not None:
-            self.dep_graph.add_node(kinda_definition)
             for used in self.codeloc_uses:
                 self.dep_graph.add_edge(used, kinda_definition)
 
