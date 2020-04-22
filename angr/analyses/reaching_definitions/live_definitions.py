@@ -243,15 +243,18 @@ class LiveDefinitions:
         elif type(atom) is Tmp:
             self._add_tmp_use(atom, code_loc)
 
-    def add_use_by_def(self, def_, code_loc):
-        if type(def_.atom) is Register:
-            self._add_register_use_by_def(def_, code_loc)
-        elif type(def_.atom) is SpOffset:
-            self._add_stack_use_by_def(def_, code_loc)
-        elif type(def_.atom) is MemoryLocation:
-            self._add_memory_use_by_def(def_, code_loc)
-        elif type(def_.atom) is Tmp:
-            self._add_tmp_use_by_def(def_, code_loc)
+    def add_use_by_def(self, definition, code_loc):
+        self._cycle(code_loc)
+        self.analysis.codeloc_uses.update({definition})
+
+        if type(definition.atom) is Register:
+            self._add_register_use_by_def(definition, code_loc)
+        elif type(definition.atom) is SpOffset:
+            self._add_stack_use_by_def(definition, code_loc)
+        elif type(definition.atom) is MemoryLocation:
+            self._add_memory_use_by_def(definition, code_loc)
+        elif type(definition.atom) is Tmp:
+            self._add_tmp_use_by_def(definition, code_loc)
         else:
             raise TypeError()
 
