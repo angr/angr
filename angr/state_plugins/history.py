@@ -8,6 +8,7 @@ import claripy
 from .plugin import SimStatePlugin
 from .. import sim_options
 from ..state_plugins.sim_action import SimActionObject
+from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
@@ -108,6 +109,8 @@ class SimStateHistory(SimStatePlugin):
         addr = self.addr
         if addr is None:
             addr_str = "Unknown"
+        elif isinstance(addr, SootAddressDescriptor):
+            addr_str = "%r" % addr
         else:
             addr_str = "%#x" % addr
 

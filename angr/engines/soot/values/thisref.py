@@ -1,5 +1,6 @@
 
 import logging
+import claripy
 
 from archinfo.arch_soot import SootAddressTerminator, SootArgument
 
@@ -19,6 +20,8 @@ class SimSootValue_ThisRef(SimSootValue):
         self.type = type_
         self.symbolic = symbolic
         self.attributes = set()
+        # TODO: Fix hardcoded 32 bits size
+        self.obj_ref = claripy.BVS('obj_ref', 32)
 
     def __repr__(self):
         return self.id
@@ -94,7 +97,7 @@ class SimSootValue_ThisRef(SimSootValue):
         """
         Load a field of a given object, without resolving HIERARCHY
 
-        :param SimState tastate: angr state where we want to load the object attribute
+        :param SimState state: angr state where we want to load the object attribute
         :param str field_name: name of the attribute
         :param str field_type: type of the attribute
         """

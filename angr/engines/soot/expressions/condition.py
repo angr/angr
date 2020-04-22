@@ -14,10 +14,12 @@ class SimSootExpr_Condition(SimSootExpr):
         v2 = self._translate_expr(self.expr.value2)
         operator_func = SimSootExpr_Condition.condition_str_to_function[self.expr.op]
         if isinstance(v1.expr, SimSootValue_ThisRef) and isinstance(v2.expr, SootNullConstant) and v1.expr.symbolic:
-            #TODO fix this
-            self.expr = operator_func(claripy.BVS('obf_ref', 32), claripy.BVV(0, 32))
+            self.expr = operator_func(v1.expr.obj_ref, claripy.BVV(0, v1.expr.obj_ref.length))
+        elif isinstance(v1.expr, SimSootValue_ThisRef) and isinstance(v2.expr, SimSootValue_ThisRef) and \
+                v1.expr.symbolic and v2.expr.symbolic:
+            self.expr = operator_func(v1.expr.obj_ref, v2.expr.obj_ref)
         elif isinstance(v1.expr, (SootNullConstant, SimSootValue_StringRef)) or \
-             isinstance(v2.expr, (SootNullConstant, SimSootValue_StringRef)):
+                isinstance(v2.expr, (SootNullConstant, SimSootValue_StringRef)):
             self.expr = claripy.true if operator_func(v1.expr, v2.expr) else claripy.false
         else:
             self.expr = operator_func(v1.expr, v2.expr)

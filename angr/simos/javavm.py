@@ -160,23 +160,32 @@ class SimJavaVM(SimOS):
 
         return state
 
-    def state_entry(self, args=None, **kwargs): # pylint: disable=arguments-differ
+    def state_entry(self, args=None, **kwargs):  # pylint: disable=arguments-differ
         """
         Create an entry state.
 
         :param args: List of SootArgument values (optional).
         """
         state = self.state_blank(**kwargs)
+        # standard java jar entry point
         # for the Java main method `public static main(String[] args)`,
         # we add symbolic cmdline arguments
         if not args and state.addr.method.name == 'main' and \
-                        state.addr.method.params[0] == 'java.lang.String[]':
+                state.addr.method.params[0] == 'java.lang.String[]':
             cmd_line_args = SimSootExpr_NewArray.new_array(state, "java.lang.String", BVS('argc', 32))
             cmd_line_args.add_default_value_generator(self.generate_symbolic_cmd_line_arg)
             args = [SootArgument(cmd_line_args, "java.lang.String[]")]
             # for referencing the Java array, we need to know the array reference
             # => saves it in the globals dict
             state.globals['cmd_line_args'] = cmd_line_args
+        # Standard apk entry point
+        elif not args and state.addr.method.name == 'onCreate':
+            this_ref = SimSootValue_ThisRef.new_object(state, state.addr.method.class_name,
+                                                       symbolic=True, init_object=True, init_class=True)
+            args = [SootArgument(this_ref, this_ref.type, is_this_ref=True)]
+            for param_type in state.addr.method.params:
+                param = self.get_default_value_by_type(param_type, state)
+                args.append(SootArgument(param, param_type, is_this_ref=False))
         # setup arguments
         SootMixin.setup_arguments(state, args)
         return state
@@ -270,7 +279,7 @@ class SimJavaVM(SimOS):
         method returns the default value for a given type.
 
         :param str type_:   Name of type.
-        :param str state:   Current SimState.
+        :param SimState state:   Current SimState.
         :return:            Default value for this type.
         """
         if options.ZERO_FILL_UNCONSTRAINED_MEMORY not in state.options:

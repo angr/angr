@@ -78,8 +78,9 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         method = binary.get_soot_method(addr.method, none_if_missing=True)
 
         # TODO make the skipping of code in "android.*" classes optional
-        if addr.method.class_name.startswith('android.') or not method:
-            # This means we are executing code that is not in CLE, typically library code.
+        if addr.method.class_name.startswith('android.') or not method or 'ABSTRACT' in method.attrs:
+            # This means we are executing code that is not in CLE, typically library code or we are trying to execute
+            # an abstract method.
             # We may want soot -> pysoot -> cle to export at least the method names of the libraries
             # (soot has a way to deal with this), as of now we just "simulate" a return.
             # Note: If we have a sim procedure, we should not reach this point.
