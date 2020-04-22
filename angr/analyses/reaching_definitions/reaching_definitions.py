@@ -83,8 +83,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._maximum_local_call_depth = maximum_local_call_depth
 
         self._dep_graph = dep_graph
-        self.current_codeloc = None
-        self.codeloc_uses = set()
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
