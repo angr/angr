@@ -238,7 +238,8 @@ class SimEngineRDVEX(
                         pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
-                self.state.add_use(MemoryLocation(a, size), self._codeloc())
+                memory_location = MemoryLocation(a, size)
+                self.state.add_use(memory_location, self._codeloc())
             else:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 

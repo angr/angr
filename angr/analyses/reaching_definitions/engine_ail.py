@@ -117,11 +117,11 @@ class SimEngineRDAIL(
                        hex(a) if type(a) is int else a, self.ins_addr
                        )
 
-            memloc = MemoryLocation(a, size)
-            if not memloc.symbolic:
+            memory_location = MemoryLocation(a, size)
+            if not memory_location.symbolic:
                 # different addresses are not killed by a subsequent iteration, because kill only removes entries
                 # with same index and same size
-                self.state.kill_and_add_definition(memloc, self._codeloc(), data)
+                self.state.kill_and_add_definition(memory_location, self._codeloc(), data)
 
     def _ail_handle_Jump(self, stmt):
         _ = self._expr(stmt.target)
@@ -274,11 +274,9 @@ class SimEngineRDAIL(
             return DataSet(RegisterOffset(bits, reg_offset, 0), bits)
 
     def _ail_handle_Load(self, expr):
-
         addrs = self._expr(expr.addr)
         size = expr.size
         bits = expr.bits
-        codeloc = self._codeloc()
 
         data = set()
         for addr in addrs:
@@ -286,7 +284,6 @@ class SimEngineRDAIL(
                 current_defs = self.state.memory_definitions.get_objects_by_offset(addr)
                 if current_defs:
                     for current_def in current_defs:
-                        # self.state.add_use(current_def, codeloc)
                         data.update(current_def.data)
                     if any(type(d) is Undefined for d in data):
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', addr, self.ins_addr)
@@ -297,7 +294,8 @@ class SimEngineRDAIL(
                         pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
-                self.state.add_use(MemoryLocation(addr, size), codeloc)
+                memory_location = MemoryLocation(addr, size)
+                self.state.add_use(memory_location, self._codeloc())
             elif isinstance(addr, SpOffset) and isinstance(addr.offset, int):
                 current_defs = self.state.stack_definitions.get_objects_by_offset(addr.offset)
                 if current_defs:
@@ -309,7 +307,7 @@ class SimEngineRDAIL(
                 else:
                     data.add(undefined)
 
-                self.state.add_use(MemoryLocation(addr, size), codeloc)
+                self.state.add_use(MemoryLocation(addr, size), self._codeloc())
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
 
