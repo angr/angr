@@ -3040,10 +3040,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         callers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Call')
         direct_jumpers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Boring')
-        jump_funcs = [self.model.get_any_node(jn.function_address) for jn in direct_jumpers]
         jump_callers = []
 
-        for jf in jump_funcs:
+        for jn in direct_jumpers:
+            jf = self.model.get_any_node(jn.function_address)
             if jf is not None:
                 jump_callers.extend(self._get_tail_caller(jf, seen))
 
