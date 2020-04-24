@@ -55,5 +55,25 @@ def test_lwip_udpecho_bm_the_better_way():
     nose.tools.assert_equal(len(timenow_xrefs), 5)
 
 
+def test_p2im_drone_with_inits():
+    bin_path = os.path.join(test_location, "armel", "p2im_drone.elf")
+    proj = angr.Project(bin_path, auto_load_libs=False)
+    cfg = proj.analyses.CFG(data_references=True)
+
+    func = cfg.functions["Peripherals_Init"]
+    state = proj.factory.blank_state()
+    prop = proj.analyses.Propagator(func=func, base_state=state)
+
+    init_finder = proj.analyses.InitializationFinder(func=func, replacements=prop.replacements)
+    overlay_state = init_finder.overlay_state
+
+    cfg.do_full_xrefs(overlay_state=overlay_state)
+
+    h12c1_inst_xrefs = proj.kb.xrefs.get_xrefs_by_dst(0x20001500)
+    nose.tools.assert_equal(len(h12c1_inst_xrefs), 5)
+
+
 if __name__ == "__main__":
     test_lwip_udpecho_bm()
+    test_lwip_udpecho_bm_the_better_way()
+    test_p2im_drone_with_inits()

@@ -368,8 +368,28 @@ class SimEngineVRVEX(
         addr = self._expr(stmt.addr)
         size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
-
         self._store(addr, data, size, stmt=stmt)
+
+    def _handle_StoreG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard is True:
+
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) // 8
+            data = self._expr(stmt.data)
+            self._store(addr, data, size, stmt=stmt)
+
+    def _handle_LoadG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard is True:
+            addr = self._expr(stmt.addr)
+            if addr is not None:
+                self.tmps[stmt.dst] = self._load(addr, self.tyenv.sizeof(stmt.dst) // 8)
+        elif guard is False:
+            data = self._expr(stmt.alt)
+            self.tmps[stmt.dst] = data
+        else:
+            self.tmps[stmt.dst] = None
 
     # Expression handlers
 
