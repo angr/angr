@@ -123,9 +123,22 @@ class SimEngineVRBase(SimEngineLight):
         if offset == self.arch.sp_offset:
             if type(data) is SpOffset:
                 sp_offset = data.offset
-                self.processor_state.sp_adjusted = True
-                self.processor_state.sp_adjustment = sp_offset
-                l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
+                if isinstance(sp_offset, int):
+                    self.processor_state.sp_adjusted = True
+                    self.processor_state.sp_adjustment = sp_offset
+                    l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
+                elif (isinstance(sp_offset, ArithmeticExpression)
+                      and sp_offset.op == ArithmeticExpression.And
+                      and isinstance(sp_offset.operands[0], SpOffset)
+                      and isinstance(sp_offset.operands[1], int)):
+                    l.debug('Masking stack pointer at %#x with mask %#x.', self.ins_addr, sp_offset.operands[1])
+                    # ignore masking
+                else:
+                    l.debug('An unsupported arithmetic expression %r is assigned to stack pointer at %#x. Ignore.',
+                            sp_offset,
+                            self.ins_addr,
+                            )
+                    # ignore unsupported arithmetic expressions.
             return
 
         if offset == self.arch.bp_offset:
