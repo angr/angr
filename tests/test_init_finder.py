@@ -18,7 +18,7 @@ def test_p2im_drone():
     state = proj.factory.blank_state()
     prop = proj.analyses.Propagator(func=func, base_state=state)
 
-    init_finder = proj.analyses.InitializationsFinder(func=func, replacements=prop.replacements)
+    init_finder = proj.analyses.InitializationFinder(func=func, replacements=prop.replacements)
     overlay = init_finder.overlay
 
     # h12c1.Instance

@@ -132,7 +132,7 @@ class SimEngineInitFinderVEX(
         return None
 
 
-class InitializationsFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
+class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
     Finds possible initializations for global data sections and generate an overlay to be used in other analyses later
     on.
@@ -217,4 +217,5 @@ class InitializationsFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstra
         pass
 
 
-register_analysis(InitializationsFinder, "InitializationsFinder")
+register_analysis(InitializationFinder, "InitializationFinder")
+register_analysis(InitializationFinder, "InitFinder")
