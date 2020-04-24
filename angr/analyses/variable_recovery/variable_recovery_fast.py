@@ -384,7 +384,7 @@ class SimEngineVRVEX(
         if guard is True:
             addr = self._expr(stmt.addr)
             if addr is not None:
-                self.tmps[stmt.dst] = self._load(addr, self.tyenv[stmt.dst] // 8)
+                self.tmps[stmt.dst] = self._load(addr, self.tyenv.sizeof(stmt.dst) // 8)
         elif guard is False:
             data = self._expr(stmt.alt)
             self.tmps[stmt.dst] = data
