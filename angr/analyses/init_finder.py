@@ -1,6 +1,8 @@
 
 from collections import defaultdict
 
+from cle.loader import MetaELF
+from cle.backends import Section, Segment
 import pyvex
 import claripy
 
@@ -33,12 +35,16 @@ class SimEngineInitFinderVEX(
             if not obj.has_memory:
                 # Objects without memory are definitely uninitialized
                 return True
-            section = obj.find_section_containing(addr)
+            section = obj.find_section_containing(addr)  # type: Section
             if section is not None:
                 return section.name in {'.bss', }
-            else:
-                segment = obj.find_segment_containing(addr)
-                # TODO: which segments are uninitialized?
+
+            if isinstance(obj, MetaELF):
+                # for ELFs, if p_memsz >= p_filesz, the extra bytes are considered NOBITS
+                # https://docs.oracle.com/cd/E19120-01/open.solaris/819-0690/gjpww/index.html
+                segment = obj.find_segment_containing(addr)  # type: Segment
+                if segment is not None and segment.memsize > segment.filesize:
+                    return segment.vaddr + segment.filesize <= addr < segment.vaddr + segment.memsize
         return False
 
     #
@@ -114,7 +120,7 @@ class SimEngineInitFinderVEX(
     def _handle_Load(self, expr):
         return None
 
-    def _handle_LoadG(self, expr):
+    def _handle_LoadG(self, stmt):
         return None
 
     def _handle_RdTmp(self, expr):
@@ -126,7 +132,7 @@ class SimEngineInitFinderVEX(
         return None
 
 
-class InitializationsFinder(ForwardAnalysis, Analysis):
+class InitializationsFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
     Finds possible initializations for global data sections and generate an overlay to be used in other analyses later
     on.

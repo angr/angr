@@ -161,7 +161,7 @@ class SimEngineLightVEXMixin:
     def _handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
 
-    def _handle_LoadG(self, expr):
+    def _handle_LoadG(self, stmt):
         raise NotImplementedError('Please implement the LoadG handler with your own logic.')
 
     def _handle_Exit(self, stmt):
