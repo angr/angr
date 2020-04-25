@@ -35,6 +35,9 @@ class RichR:
             return self.variable.bits
         return None
 
+    def __repr__(self):
+        return "R{%r}" % self.data
+
 
 class SimEngineVRBase(SimEngineLight):
     def __init__(self, project):
