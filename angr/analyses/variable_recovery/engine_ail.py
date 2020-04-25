@@ -180,6 +180,56 @@ class SimEngineVRAIL(
         except TypeError:
             return RichR(ailment.Expr.BinaryOp(expr.idx, 'Sub', [r0, r1], **expr.tags))
 
+    def _ail_handle_Div(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                # constants
+                result_size = arg0.bits
+                return RichR(r0.data // r1.data,
+                             typevar=typeconsts.int_type(result_size),
+                             type_constraints=None)
+
+            remainder = None
+            if r0.data is not None and r1.data is not None:
+                remainder = r0.data // r1.data
+
+            return RichR(remainder,
+                         typevar=r0.typevar,
+                         )
+        except TypeError:
+            return RichR(ailment.Expr.BinaryOp(expr.idx, 'Div', [r0, r1], **expr.tags))
+
+    def _ail_handle_Xor(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                # constants
+                result_size = arg0.bits
+                return RichR(r0.data ^ r1.data,
+                             typevar=typeconsts.int_type(result_size),
+                             type_constraints=None)
+
+            remainder = None
+            if r0.data is not None and r1.data is not None:
+                remainder = r0.data ^ r1.data
+
+            return RichR(remainder,
+                         typevar=r0.typevar,
+                         )
+        except TypeError:
+            return RichR(ailment.Expr.BinaryOp(expr.idx, 'Xor', [r0, r1], **expr.tags))
+
     def _ail_handle_Shl(self, expr):
 
         arg0, arg1 = expr.operands
@@ -203,8 +253,8 @@ class SimEngineVRAIL(
                          typevar=r0.typevar,
                          )
 
-        except TypeError as e:
-            self.l.warning(e)
+        except TypeError as ex:
+            self.l.warning(ex)
             return RichR(None)
 
     def _ail_handle_Shr(self, expr):
@@ -230,6 +280,108 @@ class SimEngineVRAIL(
                          typevar=r0.typevar,
                          )
 
-        except TypeError as e:
-            self.l.warning(e)
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _ail_handle_Sal(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                # constants
+                result_size = arg0.bits
+                return RichR(r0.data << r1.data,
+                             typevar=typeconsts.int_type(result_size),
+                             type_constraints=None)
+
+            r = None
+            if r0.data is not None and r1.data is not None:
+                r = r0.data << r1.data
+
+            return RichR(r,
+                         typevar=r0.typevar,
+                         )
+
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _ail_handle_Sar(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                # constants
+                result_size = arg0.bits
+                return RichR(r0.data >> r1.data,
+                             typevar=typeconsts.int_type(result_size),
+                             type_constraints=None)
+
+            r = None
+            if r0.data is not None and r1.data is not None:
+                r = r0.data >> r1.data
+
+            return RichR(r,
+                         typevar=r0.typevar,
+                         )
+
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _ail_handle_And(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                result_size = r0.bits
+                return RichR(
+                    r0.data & r1.data,
+                    typevar=typeconsts.int_type(result_size),
+                    type_constraints=None,
+                )
+            r = None
+            if r0.data is not None and r1.data is not None:
+                r = r0.data & r1.data
+            return RichR(r, typevar=r0.typevar)
+
+        except TypeError:
+            self.l.warning("_ail_handle_And(): TypeError.", exc_info=True)
+            return RichR(None)
+
+    def _ail_handle_Or(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                result_size = r0.bits
+                return RichR(
+                    r0.data | r1.data,
+                    typevar=typeconsts.int_type(result_size),
+                    type_constraints=None,
+                )
+            r = None
+            if r0.data is not None and r1.data is not None:
+                r = r0.data | r1.data
+            return RichR(r, typevar=r0.typevar)
+
+        except TypeError:
+            self.l.warning("_ail_handle_Or(): TypeError.", exc_info=True)
             return RichR(None)
