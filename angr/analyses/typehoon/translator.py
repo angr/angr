@@ -72,6 +72,12 @@ class TypeTranslator:
 
         return s
 
+    def _translate_Int8(self, tc):
+        return sim_type.SimTypeChar(signed=False).with_arch(self.arch)
+
+    def _translate_Int16(self, tc):
+        return sim_type.SimTypeShort(signed=False).with_arch(self.arch)
+
     def _translate_Int32(self, tc):
         return sim_type.SimTypeInt(signed=False).with_arch(self.arch)
 
@@ -112,6 +118,8 @@ class TypeTranslator:
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
     typeconsts.Struct: TypeTranslator._translate_Struct,
+    typeconsts.Int8: TypeTranslator._translate_Int8,
+    typeconsts.Int16: TypeTranslator._translate_Int16,
     typeconsts.Int32: TypeTranslator._translate_Int32,
     typeconsts.Int64: TypeTranslator._translate_Int64,
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,

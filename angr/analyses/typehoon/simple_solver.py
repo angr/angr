@@ -5,7 +5,7 @@ from collections import defaultdict
 import networkx
 
 from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, Load, Store, HasField
-from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int32, Int64, Pointer64, Struct, int_type,
+from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer64, Struct, int_type,
     TypeVariableReference)
 
 
@@ -16,6 +16,10 @@ BASE_LATTICE.add_edge(Int, Int32)
 BASE_LATTICE.add_edge(Pointer64, Int64)
 BASE_LATTICE.add_edge(Int64, BottomType)
 BASE_LATTICE.add_edge(Int32, BottomType)
+BASE_LATTICE.add_edge(Int16, BottomType)
+BASE_LATTICE.add_edge(Int, Int16)
+BASE_LATTICE.add_edge(Int8, BottomType)
+BASE_LATTICE.add_edge(Int, Int8)
 
 
 class RecursiveType:
