@@ -44,12 +44,12 @@ class TypeTranslator:
     def _translate(self, tc):
 
         if tc is None:
-            return sim_type.SimTypeBottom()
+            return sim_type.SimTypeBottom().with_arch(self.arch)
 
         try:
             handler = TypeConstHandlers[tc.__class__]
         except KeyError:
-            return sim_type.SimTypeBottom()
+            return sim_type.SimTypeBottom().with_arch(self.arch)
 
         translated = handler(self, tc)
         return translated
