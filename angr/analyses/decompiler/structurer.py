@@ -1006,7 +1006,7 @@ class Structurer(Analysis):
     @staticmethod
     def _rewrite_jumps_to_continues(loop_seq):
 
-        def _rewrite_jump_to_continue(node, parent=None, index=None, **kwargs):  # pylint:disable=unused-argument
+        def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
                 return
             stmt = node.statements[-1]
@@ -1017,7 +1017,9 @@ class Structurer(Analysis):
                     # create a continue node
                     continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
                     # insert this node to the parent
-                    insert_node(parent, index + 1, continue_node, index)
+                    insert_idx = None if index is None else index + 1
+                    insert_loc = 'after'
+                    insert_node(parent, insert_idx, continue_node, index, label=label, insert_location=insert_loc)
                     # remove this statement
                     node.statements = node.statements[:-1]
 

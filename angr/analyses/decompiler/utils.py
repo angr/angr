@@ -1,7 +1,7 @@
 
 import ailment
 
-from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode
+from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode
 
 
 def remove_last_statement(node):
@@ -157,7 +157,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_idx, node, node_idx):
+def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=None):
 
     if isinstance(parent, SequenceNode):
         parent.nodes.insert(insert_idx, node)
@@ -176,5 +176,29 @@ def insert_node(parent, insert_idx, node, node_idx):
             # false node
             parent.false_node = SequenceNode(nodes=[parent.false_node])
             insert_node(parent.false_node, insert_idx - node_idx, node, 0)
+    elif isinstance(parent, SwitchCaseNode):
+        # note that this case will be hit only when the parent node is not a container, such as SequenceNode or
+        # MultiNode. we always need to create a new SequenceNode and replace the original node in place.
+        if label == 'switch_expr':
+            raise TypeError("You cannot insert a node after an expression.")
+        elif label == 'case':
+            # node_idx is the case number
+            if insert_location == 'after':
+                new_nodes = [ parent.cases[node_idx], node ]
+            elif insert_location == 'before':
+                new_nodes = [ node, parent.cases[node_idx] ]
+            else:
+                raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
+            seq = SequenceNode(nodes=new_nodes)
+            parent.cases[node_idx] = seq
+        elif label == 'default':
+            if insert_location == 'after':
+                new_nodes = [ parent.default_node, node ]
+            elif insert_location == 'before':
+                new_nodes = [ node, parent.default_node ]
+            else:
+                raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
+            seq = SequenceNode(nodes=new_nodes)
+            parent.default_node = seq
     else:
         raise NotImplementedError()
