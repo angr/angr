@@ -6,8 +6,8 @@ from sortedcontainers import SortedDict
 
 from ailment import Block, Expr, Stmt
 
-from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType, \
-    SimTypeBottom
+from ...sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
+    SimTypeBottom, SimTypeArray)
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
 from ...utils.constants import is_alignment_mask
 from ...errors import UnsupportedNodeTypeError
@@ -737,8 +737,8 @@ class CVariable(CExpression):
             elif isinstance(self.variable, CExpression):
                 if isinstance(self.variable, CVariable) and self.variable.type is not None:
                     if isinstance(self.variable.type, SimTypePointer):
-                        # is it pointing to a struct? if so, we take the first field
                         if isinstance(self.variable.type.pts_to, SimStruct) and self.variable.type.pts_to.fields:
+                            # is it pointing to a struct? if so, we take the first field
                             first_field = next(iter(self.variable.type.pts_to.fields))
                             first_field_type = self.variable.type.pts_to.fields[first_field]
                             c_field = CStructField(self.variable.type.pts_to, 0, first_field)
@@ -747,6 +747,18 @@ class CVariable(CExpression):
                             if posmap: posmap.tick_pos(2)
                             s1 = c_field.c_repr(posmap=posmap)
                             return s + s0 + s1
+                        elif isinstance(self.variable.type.pts_to, SimTypeArray):
+                            # is it pointing to an array? if so, we take the first element
+                            s = self.variable.c_repr(posmap=posmap)
+                            s0 = "["
+                            if posmap: posmap.tick_pos(1)
+                            s1 = "0"
+                            if posmap:
+                                posmap.add_mapping(posmap.pos, len(s1), 0)
+                                posmap.tick_pos(1)
+                            s2 = "]"
+                            if posmap: posmap.tick_pos(1)
+                            return s + s0 + s1 + s2
 
                 # default output
                 s0 = "*("
@@ -771,19 +783,32 @@ class CVariable(CExpression):
                 return s_v + s1 + s2 + s3
             elif isinstance(self.variable, CExpression):
                 if isinstance(self.variable, CVariable) and self.variable.type is not None:
-                    if isinstance(self.variable.type, SimTypePointer) and \
-                            isinstance(self.variable.type.pts_to, SimStruct):
-                        # which field is it pointing to?
-                        t = self.variable.type.pts_to
-                        offset_to_field = dict((v, k) for k, v in t.offsets.items())
-                        if self.offset in offset_to_field:
-                            field = offset_to_field[self.offset]
+                    if isinstance(self.variable.type, SimTypePointer):
+                        if isinstance(self.variable.type.pts_to, SimStruct):
+                            if isinstance(self.offset, int):
+                                # which field is it pointing to?
+                                t = self.variable.type.pts_to
+                                offset_to_field = dict((v, k) for k, v in t.offsets.items())
+                                if self.offset in offset_to_field:
+                                    field = offset_to_field[self.offset]
+                                    s_v = self.variable.c_repr(posmap=posmap)
+                                    s0 = "->"
+                                    if posmap: posmap.tick_pos(2)
+                                    c_field = CStructField(t, self.offset, field)
+                                    s1 = c_field.c_repr(posmap=posmap)
+                                    return s_v + s0 + s1
+                        elif isinstance(self.variable.type.pts_to, SimTypeArray):
+                            # it's pointing to an array!
                             s_v = self.variable.c_repr(posmap=posmap)
-                            s0 = "->"
-                            if posmap: posmap.tick_pos(2)
-                            c_field = CStructField(t, self.offset, field)
-                            s1 = c_field.c_repr(posmap=posmap)
-                            return s_v + s0 + s1
+                            s0 = "["
+                            if posmap: posmap.tick_pos(1)
+                            s1 = str(self.offset)
+                            if posmap:
+                                posmap.add_mapping(posmap.pos, len(s1), self.offset)
+                                posmap.tick_pos(len(s1))
+                            s2 = "]"
+                            if posmap: posmap.tick_pos(1)
+                            return s_v + s0 + s1 + s2
 
                 # default output
                 s0 = "*("
