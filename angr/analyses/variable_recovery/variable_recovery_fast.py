@@ -91,7 +91,8 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
 
     def __repr__(self):
-        return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self.register_region), len(self.stack_region))
+        return "<VRAbstractState@%#x: %d register variables, %d stack variables>" % (
+            self.block_addr, len(self.register_region), len(self.stack_region))
 
     def __eq__(self, other):
         if type(other) is not VariableRecoveryFastState:
