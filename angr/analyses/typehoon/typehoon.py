@@ -1,7 +1,10 @@
 
+from typing import List, Set, Optional
+
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
+from .typeconsts import Struct, Pointer, TypeConstant, Array
 
 
 class Typehoon(Analysis):
@@ -45,13 +48,57 @@ class Typehoon(Analysis):
     def _analyze(self):
 
         self._solve()
+        self._specialize()
         self._translate_to_simtypes()
 
     def _solve(self):
         solver = SimpleSolver(self._constraints)
         self.solution = solver.solution
 
+    def _specialize(self):
+        """
+        Heuristics to make types more natural and more readable.
+
+        - structs where every element is of the same type will be converted to an array of that element type.
+        """
+
+        for tv in list(self.solution.keys()):
+            sol = self.solution[tv]
+            specialized = self._specialize_struct(sol)
+            if specialized is not None:
+                self.solution[tv] = specialized
+
+    def _specialize_struct(self, tc, memo: Optional[Set]=None):
+
+        if isinstance(tc, Pointer):
+            if memo is not None and tc in memo:
+                return None
+            specialized = self._specialize_struct(tc.basetype, memo={tc} if memo is None else memo | {tc})
+            if specialized is None:
+                return None
+            return tc.new(specialized)
+
+        if isinstance(tc, Struct) and tc.fields:
+            offsets: List[int] = sorted(list(tc.fields.keys()))  # get a sorted list of offsets
+            offset0 = offsets[0]
+            field0: TypeConstant = tc.fields[offset0]
+
+            # are all fields the same?
+            if len(tc.fields) > 1 and all(tc.fields[off] == field0 for off in offsets):
+                # are all fields aligned properly?
+                alignment = field0.size
+                if all(off % alignment == 0 for off in offsets):
+                    # yeah!
+                    max_offset = offsets[-1]
+                    count = (max_offset + field0.size) // alignment
+                    return Array(field0, count=count)
+
+        return None
+
     def _translate_to_simtypes(self):
+        """
+        Translate solutions in type variables to solutions in SimTypes.
+        """
 
         simtypes_solution = { }
         translator = TypeTranslator(arch=self.project.arch)
