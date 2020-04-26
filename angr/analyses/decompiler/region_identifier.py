@@ -7,7 +7,7 @@ import ailment
 
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
 from .. import Analysis, register_analysis
-from .utils import remove_last_statement, append_statement
+from .utils import replace_last_statement
 from .structurer_nodes import MultiNode, ConditionNode
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
@@ -332,35 +332,40 @@ class RegionIdentifier(Analysis):
                 # TODO: rewrite the conditional jumps in src so that it goes to cond-node instead.
 
                 # modify the last statement of src so that it jumps to cond
-                last_stmt = cond_proc.get_last_statement(src)
-                if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                    if last_stmt.true_target.value == succ.addr:
-                        new_last_stmt = ailment.Stmt.ConditionalJump(
-                            last_stmt.idx,
-                            last_stmt.condition,
-                            ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                            last_stmt.false_target,
-                            ins_addr=last_stmt.ins_addr,
-                        )
-                    elif last_stmt.false_target.value == succ.addr:
-                        new_last_stmt = ailment.Stmt.ConditionalJump(
-                            last_stmt.idx,
-                            last_stmt.condition,
-                            last_stmt.true_target,
-                            ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                            ins_addr=last_stmt.ins_addr,
-                        )
+                replaced_any_stmt = False
+                last_stmts = self.cond_proc.get_last_statements(src)
+                for last_stmt in last_stmts:
+                    if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                        if last_stmt.true_target.value == succ.addr:
+                            new_last_stmt = ailment.Stmt.ConditionalJump(
+                                last_stmt.idx,
+                                last_stmt.condition,
+                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                last_stmt.false_target,
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        elif last_stmt.false_target.value == succ.addr:
+                            new_last_stmt = ailment.Stmt.ConditionalJump(
+                                last_stmt.idx,
+                                last_stmt.condition,
+                                last_stmt.true_target,
+                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        else:
+                            # none of the two branches is jumping out of the loop
+                            continue
                     else:
-                        l.warning("I'm not sure which branch is jumping out of the loop...")
-                        raise Exception()
-                else:
-                    new_last_stmt = ailment.Stmt.Jump(
-                        last_stmt.idx,
-                        ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                        ins_addr=last_stmt.ins_addr,
-                    )
-                remove_last_statement(src)
-                append_statement(src, new_last_stmt)
+                        new_last_stmt = ailment.Stmt.Jump(
+                            last_stmt.idx,
+                            ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                            ins_addr=last_stmt.ins_addr,
+                        )
+                    replace_last_statement(src, last_stmt, new_last_stmt)
+                    replaced_any_stmt = True
+                if not replaced_any_stmt:
+                    l.warning("No statement was replaced. Is there anything wrong?")
+                    raise Exception()
 
                 # add src back
                 for src2src, _, data_ in removed_edges:

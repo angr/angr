@@ -52,6 +52,33 @@ def append_statement(node, stmt):
     raise NotImplementedError()
 
 
+def replace_last_statement(node, old_stmt, new_stmt):
+
+    if type(node) is CodeNode:
+        replace_last_statement(node.node, old_stmt, new_stmt)
+        return
+    if type(node) is ailment.Block:
+        if node.statements[-1] is old_stmt:
+            node.statements[-1] = new_stmt
+        return
+    if type(node) is MultiNode:
+        if node.nodes:
+            replace_last_statement(node.nodes[-1], old_stmt, new_stmt)
+        return
+    if type(node) is SequenceNode:
+        if node.nodes:
+            replace_last_statement(node.nodes[-1], old_stmt, new_stmt)
+        return
+    if type(node) is ConditionNode:
+        if node.true_node is not None:
+            replace_last_statement(node.true_node, old_stmt, new_stmt)
+        if node.false_node is not None:
+            replace_last_statement(node.false_node, old_stmt, new_stmt)
+        return
+
+    raise NotImplementedError()
+
+
 def extract_jump_targets(stmt):
     """
     Extract concrete goto targets from a Jump or a ConditionalJump statement.
