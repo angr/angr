@@ -1390,6 +1390,7 @@ DEFAULT_CC = {
     'AVR': SimCCUnknown,
     'MSP': SimCCUnknown,
     'S390X': SimCCS390X,
+    'RISCV': SimCCUnknown
 }
 
 
