@@ -278,6 +278,17 @@ class SubN(BaseLabel):
         return "-%d" % self.n
 
 
+class ConvertTo(BaseLabel):
+
+    __slots__ = ('to_bits', )
+
+    def __init__(self, to_bits):
+        self.to_bits = to_bits
+
+    def __repr__(self):
+        return "conv(%d)" % self.to_bits
+
+
 class HasField(BaseLabel):
 
     __slots__ = ('bits', 'offset', )
