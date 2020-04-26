@@ -331,13 +331,16 @@ class Clinic(Analysis):
         variable_manager = kb.variables[self.function.addr]
 
         for stmt_idx, stmt in enumerate(block.statements):
-            # I wish I could do functional programming in this method...
             stmt_type = type(stmt)
             if stmt_type is ailment.Stmt.Store:
                 # find a memory variable
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt)
                 if len(mem_vars) == 1:
                     stmt.variable, stmt.offset = next(iter(mem_vars))
+                else:
+                    # check if the dest address is a variable
+                    stmt: ailment.Stmt.Store
+                    self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.addr)
                 self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.data)
 
             elif stmt_type is ailment.Stmt.Assignment:
