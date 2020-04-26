@@ -1,16 +1,25 @@
-
 """
 All type constants used in type inference. They can be mapped, translated, or rewritten to C-style types.
 """
 
+from typing import Optional
+
 
 class TypeConstant:
+
+    SIZE = None
 
     def __eq__(self, other):
         return type(self) == type(other)
 
     def __hash__(self):
         return hash(type(self))
+
+    @property
+    def size(self) -> int:
+        if self.SIZE is None:
+            raise NotImplementedError()
+        return self.SIZE
 
 
 class TopType(TypeConstant):
@@ -32,36 +41,43 @@ class Int(TypeConstant):
 
 
 class Char(Int):
-    pass
+    SIZE = 1
 
 
 class Int1(Int):
-    pass
+    SIZE = 1
 
 
 class Int8(Int):
+    SIZE = 1
 
     def __repr__(self):
         return "int8"
 
 
 class Int16(Int):
-    pass
+    SIZE = 2
+
+    def __repr__(self):
+        return "int16"
 
 
 class Int32(Int):
+    SIZE = 4
 
     def __repr__(self):
         return "int32"
 
 
 class Int64(Int):
+    SIZE = 8
 
     def __repr__(self):
         return "int64"
 
 
 class Int128(Int):
+    SIZE = 16
 
     def __repr__(self):
         return "int128"
