@@ -93,6 +93,9 @@ class Pointer(TypeConstant):
     def __hash__(self):
         return hash((type(self), hash(self.basetype)))
 
+    def new(self, basetype):
+        return self.__class__(basetype)
+
 
 class Pointer32(Pointer, Int32):
     """
