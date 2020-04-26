@@ -177,7 +177,7 @@ class SimplifierAILEngine(
     def _ail_handle_Const(self, expr):
         return expr
 
-    def _ail_handle_Convert(self, expr):
+    def _ail_handle_Convert(self, expr: Expr.Convert):
         operand_expr = self._expr(expr.operand)
         # import ipdb; ipdb.set_trace()
 
@@ -218,7 +218,7 @@ class SimplifierAILEngine(
                         and expr.to_bits == operand_expr.operands[1].from_bits:
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
                                          [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
-                                         expr.signed,
+                                         expr.is_signed,
                                          **operand_expr.tags)
 
         converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
