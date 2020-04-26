@@ -89,7 +89,7 @@ class VariableRecoveryStateBase:
     """
 
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, typevars=None,
-                 type_constraints=None):
+                 type_constraints=None, delayed_type_constraints=None):
 
         self.block_addr = block_addr
         self._analysis = analysis
@@ -107,6 +107,8 @@ class VariableRecoveryStateBase:
 
         self.typevars = TypeVariables() if typevars is None else typevars
         self.type_constraints = set() if type_constraints is None else type_constraints
+        self.delayed_type_constraints = defaultdict(set) \
+            if delayed_type_constraints is None else delayed_type_constraints
 
     @property
     def func_addr(self):

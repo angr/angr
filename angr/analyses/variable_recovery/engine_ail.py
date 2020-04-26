@@ -1,10 +1,13 @@
 
+from typing import Optional
 import logging
 
 import ailment
 
+from ...sim_type import SimTypeFunction
 from ...engines.light import SimEngineLightAILMixin, SpOffset
 from ..typehoon import typeconsts, typevars
+from ..typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
 
 l = logging.getLogger(name=__name__)
@@ -66,10 +69,26 @@ class SimEngineVRAIL(
                 l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
                 ret_expr = self.project.factory.cc().RETURN_VAL
 
+        # discovery the prototype
+        prototype: Optional[SimTypeFunction] = None
+        if stmt.calling_convention is not None:
+            prototype = stmt.calling_convention.func_ty
+        elif isinstance(stmt.target, ailment.Expr.Const):
+            func_addr = stmt.target.value
+            if func_addr in self.kb.functions:
+                func = self.kb.functions[func_addr]
+                prototype = func.prototype
+
         if ret_expr is not None:
+            # dump the type of the return value
+            if prototype is not None:
+                ret_ty = TypeLifter(self.arch.bits).lift(prototype.returnty)
+            else:
+                ret_ty = None
+
             self._assign_to_register(
                 ret_expr.reg_offset,
-                RichR(None),
+                RichR(None, typevar=ret_ty),
                 self.state.arch.bytes,
                 dst=ret_expr,
             )
@@ -114,8 +133,17 @@ class SimEngineVRAIL(
             r = RichR(None)
         return r
 
-    def _ail_handle_Convert(self, expr):
-        return self._expr(expr.operand)
+    def _ail_handle_Convert(self, expr: ailment.Expr.Convert):
+        r = self._expr(expr.operand)
+        typevar = None
+        if r.typevar is not None:
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.label, typevars.ConvertTo):
+                # there is already a conversion - overwrite it
+                typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ConvertTo(expr.to_bits))
+            else:
+                typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ConvertTo(expr.to_bits))
+
+        return RichR(r.data, typevar=typevar)
 
     def _ail_handle_StackBaseOffset(self, expr):
         return RichR(
@@ -179,6 +207,31 @@ class SimEngineVRAIL(
                          )
         except TypeError:
             return RichR(ailment.Expr.BinaryOp(expr.idx, 'Sub', [r0, r1], **expr.tags))
+
+    def _ail_handle_Mul(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        try:
+            if isinstance(r0.data, int) and isinstance(r1.data, int):
+                # constants
+                result_size = arg0.bits
+                return RichR(r0.data * r1.data,
+                             typevar=typeconsts.int_type(result_size),
+                             type_constraints=None)
+
+            remainder = None
+            if r0.data is not None and r1.data is not None:
+                remainder = r0.data * r1.data
+
+            return RichR(remainder,
+                         typevar=r0.typevar,
+                         )
+        except TypeError:
+            return RichR(ailment.Expr.BinaryOp(expr.idx, 'Mul', [r0, r1], **expr.tags))
 
     def _ail_handle_Div(self, expr):
 
@@ -293,8 +346,8 @@ class SimEngineVRAIL(
 
         try:
             if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
                 result_size = arg0.bits
+                # constants
                 return RichR(r0.data << r1.data,
                              typevar=typeconsts.int_type(result_size),
                              type_constraints=None)
@@ -347,7 +400,7 @@ class SimEngineVRAIL(
 
         try:
             if isinstance(r0.data, int) and isinstance(r1.data, int):
-                result_size = r0.bits
+                result_size = arg0.bits
                 return RichR(
                     r0.data & r1.data,
                     typevar=typeconsts.int_type(result_size),
@@ -371,7 +424,7 @@ class SimEngineVRAIL(
 
         try:
             if isinstance(r0.data, int) and isinstance(r1.data, int):
-                result_size = r0.bits
+                result_size = arg0.bits
                 return RichR(
                     r0.data | r1.data,
                     typevar=typeconsts.int_type(result_size),
