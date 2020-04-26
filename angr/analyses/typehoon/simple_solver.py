@@ -30,7 +30,7 @@ class RecursiveType:
 
 class SimpleSolver:
     """
-    SimpleSolver is, literally, a simple, unification based type constraint solver.
+    SimpleSolver is, literally, a simple, unification-based type constraint solver.
     """
     def __init__(self, constraints):
         self._constraints = constraints
@@ -237,6 +237,8 @@ class SimpleSolver:
     def _compute_lower_upper_bounds(self, subtypevars, supertypevars):
 
         for typevar, vars in subtypevars.items():
+            if typevar is None:
+                continue
             if isinstance(typevar, TypeConstant):
                 continue
             supermum = BottomType() if typevar not in self._lower_bounds else self._lower_bounds[typevar]
@@ -365,7 +367,8 @@ class SimpleSolver:
                 fields[offset] = v
             return Struct(fields)
 
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
+        return TopType()
 
     def _meet(self, t1, t2, translate):
         """
@@ -402,4 +405,5 @@ class SimpleSolver:
                 # go down
                 queue.extend(BASE_LATTICE.successors(n))
 
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
+        return BottomType()
