@@ -202,7 +202,7 @@ class SimplifierAILEngine(
                     converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
                                              operand_expr.operands[0])
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
-                                         [converted, operand_expr.operands[1]], expr.signed, **expr.tags)
+                                         [converted, operand_expr.operands[1]], operand_expr.signed, **expr.tags)
                 elif isinstance(operand_expr.operands[0], Expr.Convert) and \
                         expr.from_bits == operand_expr.operands[0].to_bits and \
                         expr.to_bits == operand_expr.operands[0].from_bits:
