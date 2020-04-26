@@ -119,6 +119,24 @@ class Pointer64(Pointer, Int64):
         return "ptr64(%r)" % self.basetype
 
 
+class Array(TypeConstant):
+    def __init__(self, element, count=None):
+        self.element: TypeConstant = element
+        self.count: Optional[int] = count
+
+    def __repr__(self):
+        if self.count is None:
+            return "%r[?]" % self.element
+        else:
+            return "%r[%d]" % (self.element, self.count)
+
+    def __eq__(self, other):
+        return type(other) is type(self) and self.element == other.element and self.count == other.count
+
+    def __hash__(self):
+        return hash((type(self), self.element, self.count))
+
+
 class Struct(TypeConstant):
     def __init__(self, fields=None):
         self.fields = { } if fields is None else fields  # offset to type
