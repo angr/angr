@@ -1,3 +1,5 @@
+import claripy
+
 from angr.storage.memory_mixins import MemoryMixin
 
 class PermissionsMixin(MemoryMixin):
@@ -7,6 +9,8 @@ class PermissionsMixin(MemoryMixin):
     """
     def __init__(self, permissions=None, **kwargs):
         super().__init__(**kwargs)
+        if type(permissions) is int:
+            permissions = claripy.BVV(permissions, 3)
         self.permissions = permissions
 
     def copy(self, memo):
