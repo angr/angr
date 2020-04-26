@@ -33,8 +33,8 @@ extern "C" void mips_reg_update(uc_engine *uc, uint8_t *buf, int save);
 
 typedef enum taint: uint8_t {
 	TAINT_NONE = 0,
-	TAINT_DIRTY = 1,
-	TAINT_SYMBOLIC = 2,
+	TAINT_SYMBOLIC = 1, // this should be 1 to match the UltraPage impl
+	TAINT_DIRTY = 2,
 } taint_t;
 
 typedef enum stop {
@@ -111,7 +111,9 @@ private:
 	uc_context *saved_regs;
 
 	std::vector<mem_access_t> mem_writes;
-	std::map<uint64_t, taint_t *> active_pages;
+	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
+	std::map<uint64_t, std::pair<taint_t *, uint8_t *>> active_pages;
+	//std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
 public:
@@ -145,6 +147,8 @@ public:
 
 	bool track_bbls;
 	bool track_stack;
+
+	uc_cb_eventmem_t py_mem_callback;
 
 	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
 	{
@@ -219,10 +223,11 @@ public:
 
 	~State() {
 		for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
-			// only poor guys consider about memory leak :(
-			//LOG_D("delete active page %#lx", it->first);
-			// delete should use the bracket operator since PageBitmap is an array typedef
-			delete[] it->second;
+			// only delete if not direct-mapped
+			if (!it->second.second) {
+                // delete should use the bracket operator since PageBitmap is an array typedef
+                delete[] it->second.first;
+            }
 		}
 		active_pages.clear();
 		uc_free(saved_regs);
@@ -347,32 +352,6 @@ public:
 	}
 
 	/*
-	 * record current memory write
-	 */
-	bool log_write(uint64_t address, int size, int clean) {
-		mem_access_t record;
-
-		record.address = address;
-		record.size = size;
-		record.clean = clean;
-		if (clean == -1) {
-			// all bytes are clean before this write, so the value
-			// is not important
-			memset(record.value, 0, sizeof(record.value));
-		} else {
-			uc_err err = uc_mem_read(uc, address, record.value, size);
-			if (err) {
-				//LOG_E("log_write: %s", uc_strerror(err));
-				stop(STOP_ERROR);
-				return false;
-			}
-		}
-
-		mem_writes.push_back(record);
-		return true;
-	}
-
-	/*
 	 * commit all memory actions.
 	 */
 	void commit() {
@@ -382,6 +361,7 @@ public:
 		// mark memory sync status
 		// we might miss some dirty bits, this happens if hitting the memory
 		// write before mapping
+		/*  THIS SHOULDN'T BE REQUIRED, we have the same logic to do this in the page activation code
 		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++) {
 			if (it->clean == -1) {
 				taint_t *bitmap = page_lookup(it->address);
@@ -390,6 +370,7 @@ public:
 				//LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
 			}
 		}
+		*/
 
 		// clear memory rollback status
 		mem_writes.clear();
@@ -402,24 +383,22 @@ public:
 	void rollback() {
 		// roll back memory changes
 		for (auto rit = mem_writes.rbegin(); rit != mem_writes.rend(); rit++) {
-			if (rit->clean == -1) {
-				// all bytes were clean before this write
-				taint_t *bitmap = page_lookup(rit->address);
-				if (bitmap)
-					memset(bitmap, TAINT_NONE, sizeof(taint_t) * rit->size);
-			} else {
-				uc_err err = uc_mem_write(uc, rit->address, rit->value, rit->size);
-				if (err) {
-					//LOG_I("rollback: %s", uc_strerror(err));
-					break ;
-				}
+            uc_err err = uc_mem_write(uc, rit->address, rit->value, rit->size);
+            if (err) {
+                //LOG_I("rollback: %s", uc_strerror(err));
+                break;
+            }
+            auto page = page_lookup(rit->address);
+            taint_t *bitmap = page.first;
+            uint8_t *data = page.second;
+
+            if (data == NULL) {
 				if (rit->clean) {
 					// should untaint some bits
-					taint_t *bitmap = page_lookup(rit->address);
 					uint64_t start = rit->address & 0xFFF;
 					int size = rit->size;
 					int clean = rit->clean;
-					for (int i = 0; i < size; i++)
+					for (int i = 0; i < size; i++) {
 						if ((clean >> i) & 1) {
 							// this byte is untouched before this memory action
 							// in the rollback, we already failed to execute, so
@@ -427,25 +406,35 @@ public:
 							// it's clean.
 							bitmap[start + i] = TAINT_NONE;
 						}
+					}
 				}
+			} else {
+                uint64_t start = rit->address & 0xFFF;
+                int size = rit->size;
+                int clean = rit->clean;
+                for (int i = 0; i < size; i++) {
+                    bitmap[start + i] = (clean & (1 << i)) != 0 ? TAINT_NONE : TAINT_SYMBOLIC;
+                }
 			}
 		}
 		mem_writes.clear();
 
 		// restore registers
 		uc_context_restore(uc, saved_regs);
-		bbl_addrs.pop_back();
+
+		if (track_bbls) bbl_addrs.pop_back();
+		if (track_stack) stack_pointers.pop_back();
 	}
 
 	/*
 	 * return the PageBitmap only if the page is remapped for writing,
 	 * or initialized with symbolic variable, otherwise return NULL.
 	 */
-	taint_t *page_lookup(uint64_t address) const {
+	std::pair<taint_t *, uint8_t *> page_lookup(uint64_t address) const {
 		address &= ~0xFFFULL;
 		auto it = active_pages.find(address);
 		if (it == active_pages.end()) {
-			return NULL;
+			return std::pair<taint_t *, uint8_t *>(NULL, NULL);
 		}
 		return it->second;
 	}
@@ -453,21 +442,20 @@ public:
 	/*
 	 * allocate a new PageBitmap and put into active_pages.
 	 */
-	void page_activate(uint64_t address, uint8_t *taint = NULL, uint64_t taint_offset = 0) {
+	void page_activate(uint64_t address, uint8_t *taint, uint8_t *data) {
 		address &= ~0xFFFULL;
-		taint_t *bitmap = NULL;
 		auto it = active_pages.find(address);
 		if (it == active_pages.end()) {
-			bitmap = new PageBitmap;
-			//LOG_D("inserting %lx %p", address, bitmap);
-			// active_pages[address] = bitmap;
-			active_pages.insert(std::pair<uint64_t, taint_t*>(address, bitmap));
-			if (taint != NULL) {
-				// taint is not NULL iff current page contains symbolic data
-				// check previous write acctions.
-				memcpy(bitmap, &taint[taint_offset], sizeof(PageBitmap));
-			} else {
-				memset(bitmap, TAINT_NONE, sizeof(PageBitmap));
+		    if (data == NULL) {
+		        // We need to copy the taint bitmap
+                taint_t *bitmap = new PageBitmap;
+                memcpy(bitmap, taint, sizeof(PageBitmap));
+
+                active_pages.insert(std::pair<uint64_t, std::pair<taint_t*, uint8_t*>>(address, std::pair<taint_t*, uint8_t*>(bitmap, NULL)));
+            } else {
+                // We can directly use the passed taint and data
+                taint_t *bitmap = (taint_t*)taint;
+                active_pages.insert(std::pair<uint64_t, std::pair<taint_t*, uint8_t*>>(address, std::pair<taint_t*, uint8_t*>(bitmap, data)));
 			}
 		} else {
 		    // TODO: un-hardcode this address, or at least do this warning from python land
@@ -476,22 +464,35 @@ public:
 					"Please don't do that, I put my GDT there!\n");
 			} else {
 				printf("[sim_unicorn] Something very bad is happening; please investigate. "
-					"Trying to activate the page at %#llx but it's already activated.\n", address);
+					"Trying to activate the page at %#" PRIx64 " but it's already activated.\n", address);
 				// to the person who sees this error:
 				// you're gonna need to spend some time looking into it.
 				// I'm not 100% sure that this is necessarily a bug condition.
 			}
-			bitmap = it->second;
 		}
 
+        /*  SHOULD NOT BE NECESSARY
 		for (auto a = mem_writes.begin(); a != mem_writes.end(); a++)
 			if (a->clean == -1 && (a->address & ~0xFFFULL) == address) {
+			    // This mapping was prompted by this write.
 				// initialize this memory access immediately so that the
-				// following memory read is valid.
-				//LOG_D("page_activate: lazy initialize mem_write [%#lx, %#lx]", a->address, a->address + a->size);
-				memset(&bitmap[a->address & 0xFFFULL], TAINT_DIRTY, sizeof(taint_t) * a->size);
-				a->clean = (1ULL << a->size) - 1;
+				// record is valid.
+				//printf("page_activate: lazy initialize mem_write [%#lx, %#lx]\n", a->address, a->address + a->size);
+				if (data == NULL) {
+                    memset(&bitmap[a->address & 0xFFFULL], TAINT_DIRTY, sizeof(taint_t) * a->size);
+                    a->clean = (1ULL << a->size) - 1;
+                } else {
+                    a->clean = 0;
+                    for (int i = 0; i < a->size; i++) {
+                        if (bitmap[(a->address & 0xFFFULL) + i] == TAINT_SYMBOLIC) {
+                            a->clean |= 1 << i;
+                        }
+                    }
+                    memset(&bitmap[a->address & 0xFFFULL], TAINT_CLEAN, sizeof(taint_t) * a->size);
+                    memcpy(a->value, &data[a->address & 0xFFFULL], a->size);
+                }
 			}
+		*/
 	}
 
 	/*
@@ -501,8 +502,13 @@ public:
 		mem_update *head = NULL;
 
 		for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
-			taint_t *start = it->second;
-			taint_t *end = &it->second[0x1000];
+			uint8_t *data = it->second.second;
+			if (data != NULL) {
+			    // nothing to sync, direct mapped :)
+			    continue;
+			}
+			taint_t *start = it->second.first;
+			taint_t *end = &it->second.first[0x1000];
 			//LOG_D("found active page %#lx (%p)", it->first, start);
 			for (taint_t *i = start; i < end; i++)
 				if ((*i) == TAINT_DIRTY) {
@@ -548,7 +554,7 @@ public:
 			auto page = page_cache->find(address+offset);
 			if (page != page_cache->end())
 			{
-				fprintf(stderr, "[%#" PRIx64 ", %#" PRIx64 "](%#zx) already in cache.\n", address+offset, address+offset + 0x1000, 0x1000);
+				fprintf(stderr, "[%#" PRIx64 ", %#" PRIx64 "](%#zx) already in cache.\n", address+offset, address+offset + 0x1000, 0x1000lu);
 				assert(page->second.size == 0x1000);
 				assert(memcmp(page->second.bytes, bytes + offset, 0x1000) == 0);
 
@@ -890,7 +896,7 @@ public:
 	// Returns -1 if no tainted data is present.
 	uint64_t find_tainted(uint64_t address, int size)
 	{
-		taint_t *bitmap = page_lookup(address);
+		taint_t *bitmap = page_lookup(address).first;
 
 		int start = address & 0xFFF;
 		int end = (address + size - 1) & 0xFFF;
@@ -913,7 +919,7 @@ public:
 				}
 			}
 
-			bitmap = page_lookup(address + size - 1);
+			bitmap = page_lookup(address + size - 1).first;
 			if (bitmap) {
 				for (int i = 0; i <= end; i++) {
 					if (bitmap[i] & TAINT_SYMBOLIC) {
@@ -926,56 +932,64 @@ public:
 		return -1;
 	}
 
-	void handle_write(uint64_t address, int size)
-	{
-		taint_t *bitmap = page_lookup(address);
+	void handle_write(uint64_t address, int size) {
+	    // If the write spans a page, chop it up
+	    if ((address & 0xfff) + size > 0x1000) {
+	        int chopsize = 0x1000 - (address & 0xfff);
+	        handle_write(address, chopsize);
+	        handle_write(address + chopsize, size - chopsize);
+	        return;
+	    }
+
+	    // From here, we are definitely only dealing with one page
+
+		mem_access_t record;
+		record.address = address;
+		record.size = size;
+		uc_err err = uc_mem_read(uc, address, record.value, size);
+		if (err == UC_ERR_READ_UNMAPPED) {
+		    if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)1)) {
+		        err = UC_ERR_OK;
+		    }
+		}
+		if (err) {
+		    stop(STOP_ERROR);
+		    return;
+		}
+
+		auto pair = page_lookup(address);
+		taint_t *bitmap = pair.first;
+		uint8_t *data = pair.second;
 		int start = address & 0xFFF;
 		int end = (address + size - 1) & 0xFFF;
-		int clean;
+		short clean;
 
-		if (end >= start) {
-			if (bitmap) {
-				clean = 0;
-				for (int i = start; i <= end; i++) {
-					if (bitmap[i] != TAINT_DIRTY) {
-						clean |= (1 << i); // this bit should not be marked as taint if we undo this action
-						bitmap[i] = TAINT_DIRTY; // this will automatically remove TAINT_SYMBOLIC flag
-					}
-				}
-			} else {
-				clean = -1;
-			}
-			log_write(address, size, clean);
-		} else {
-			if (bitmap) {
-				clean = 0;
-				for (int i = start; i <= 0xFFF; i++) {
-					if (bitmap[i] == TAINT_DIRTY) {
-						clean |= (1 << i);
-						bitmap[i] = TAINT_DIRTY;
-					}
-				}
-			} else {
-				clean = -1;
-			}
-			if (!log_write(address, 0x1000 - start, clean))
-				// uc is already stopped if any error happens
-				return ;
-
-			bitmap = page_lookup(address + size - 1);
-			if (bitmap) {
-				clean = 0;
-				for (int i = 0; i <= end; i++) {
-					if (bitmap[i] == TAINT_DIRTY) {
-						clean |= (1 << i);
-						bitmap[i] = TAINT_DIRTY;
-					}
-				}
-			} else {
-				clean = -1;
-			}
-			log_write(address - start + 0x1000, end + 1, clean);
+		if (!bitmap) {
+		    // We should never have a missing bitmap because we explicitly called the callback!
+		    printf("This should never happen, right? %#" PRIx64 "\n", address);
+		    abort();
 		}
+
+        clean = 0;
+        if (data == NULL) {
+            for (int i = start; i <= end; i++) {
+                if (bitmap[i] != TAINT_DIRTY) {
+                    clean |= 1 << i; // this bit should not be marked as taint if we undo this action
+                    bitmap[i] = TAINT_DIRTY;
+                }
+            }
+        } else {
+            for (int i = start; i <= end; i++) {
+                if (bitmap[i] == TAINT_NONE) {
+                    clean |= 1 << i;
+                } else {
+                    bitmap[i] = TAINT_NONE;
+                }
+            }
+        }
+
+		record.clean = clean;
+		mem_writes.push_back(record);
 	}
 
 	inline unsigned int arch_pc_reg() {
@@ -1288,10 +1302,8 @@ void simunicorn_set_stops(State *state, uint64_t count, uint64_t *stops)
 }
 
 extern "C"
-void simunicorn_activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
-	// //LOG_D("activate [%#lx, %#lx]", address, address + length);
-	for (uint64_t offset = 0; offset < length; offset += 0x1000)
-		state->page_activate(address + offset, taint, offset);
+void simunicorn_activate_page(State *state, uint64_t address, uint8_t *taint, uint8_t *data) {
+    state->page_activate(address, taint, data);
 }
 
 extern "C"
@@ -1435,4 +1447,9 @@ void simunicorn_set_tracking(State *state, bool track_bbls, bool track_stack) {
 extern "C"
 bool simunicorn_in_cache(State *state, uint64_t address) {
 	return state->in_cache(address);
+}
+
+extern "C"
+void simunicorn_set_map_callback(State *state, uc_cb_eventmem_t cb) {
+    state->py_mem_callback = cb;
 }

@@ -136,3 +136,44 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def concrete_load(self, addr, size, **kwargs):
         return memoryview(self.concrete_data)[addr:addr+size], memoryview(self.symbolic_bitmap)[addr:addr+size]
+
+    def changed_bytes(self, other, page_addr=None):
+        changes = set()
+        for addr in range(len(self.symbolic_bitmap)):
+            if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
+                changes.add(addr)
+            elif self.symbolic_bitmap[addr] == 0:
+                if self.concrete_data[addr] != other.concrete_data[addr]:
+                    changes.add(addr)
+            else:
+                try:
+                    aself = next(self.symbolic_data.irange(maximum=addr))
+                except StopIteration:
+                    aself = None
+                try:
+                    aother = next(other.symbolic_data.irange(maximum=addr))
+                except StopIteration:
+                    aother = None
+
+                if (aself is None) ^ (aother is None):
+                    changes.add(addr)
+                elif aself is None:
+                    pass
+                else:
+                    real_addr = page_addr + addr
+                    aobj = self.symbolic_data[aself]
+                    oobj = other.symbolic_data[aother]
+
+                    acont = aobj.includes(real_addr)
+                    ocont = oobj.includes(real_addr)
+                    if acont != ocont:
+                        changes.add(addr)
+                    elif acont is False:
+                        pass
+                    else:
+                        abyte = aobj.bytes_at(real_addr, 1)
+                        obyte = oobj.bytes_at(real_addr, 1)
+                        if abyte is not obyte:
+                            changes.add(addr)
+
+        return changes

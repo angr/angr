@@ -311,11 +311,11 @@ def test_single_step():
     nose.tools.assert_equal(successors2[0].addr, step5)
 
 if __name__ == '__main__':
-    #import logging
-    #logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
-    #logging.getLogger('angr.engines.unicorn_engine').setLevel('INFO')
-    #logging.getLogger('angr.factory').setLevel('DEBUG')
-    #logging.getLogger('angr.project').setLevel('DEBUG')
+    import logging
+    logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
+    logging.getLogger('angr.engines.unicorn_engine').setLevel('INFO')
+    logging.getLogger('angr.factory').setLevel('DEBUG')
+    logging.getLogger('angr.project').setLevel('DEBUG')
     #logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
 
     import sys
