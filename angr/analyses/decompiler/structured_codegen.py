@@ -1163,6 +1163,25 @@ class CRegister(CExpression):
         return s
 
 
+class CDirtyExpression(CExpression):
+    """
+    Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
+    AIL. Eventually this class should not be used at all.
+    """
+    def __init__(self, dirty):
+        super().__init__()
+        self.dirty = dirty
+
+    @property
+    def type(self):
+        return SimTypeInt()
+
+    def c_repr(self, posmap=None):
+        s = str(self.dirty)
+        if posmap: posmap.tick_pos(len(s))
+        return s
+
+
 class StructuredCodeGenerator(Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None):
 
@@ -1552,7 +1571,7 @@ class StructuredCodeGenerator(Analysis):
         return CTypeCast(None, dst_type, self._handle(expr.operand))
 
     def _handle_Expr_Dirty(self, expr):  # pylint:disable=no-self-use
-        return expr
+        return CDirtyExpression(expr)
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
