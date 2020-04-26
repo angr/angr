@@ -28,8 +28,9 @@ class RecursiveStructurer(Analysis):
     """
     Recursively structure a region and all of its subregions.
     """
-    def __init__(self, region):
+    def __init__(self, region, cond_proc=None):
         self._region = region
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor()
 
         self.result = None
 
@@ -42,8 +43,6 @@ class RecursiveStructurer(Analysis):
         # visit the region in post-order DFS
         parent_map = { }
         stack = [ region ]
-
-        cond_proc = ConditionProcessor()
 
         while stack:
             current_region = stack[-1]
@@ -68,7 +67,7 @@ class RecursiveStructurer(Analysis):
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
                 st = self.project.analyses.Structurer(current_region, parent_map=parent_map,
-                                                      condition_processor=cond_proc)
+                                                      condition_processor=self.cond_proc)
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
@@ -77,7 +76,7 @@ class RecursiveStructurer(Analysis):
 
                 self._replace_region(parent_region, current_region, st.result)
 
-        self.result = cond_proc.remove_claripy_bool_asts(self.result)
+        self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
     @staticmethod
     def _replace_region(parent_region, sub_region, node):

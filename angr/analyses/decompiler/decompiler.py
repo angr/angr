@@ -4,6 +4,7 @@ from typing import List, Tuple, Any
 
 
 from .. import Analysis, AnalysesHub
+from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 
 
@@ -39,11 +40,13 @@ class Decompiler(Analysis):
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
 
+        cond_proc = ConditionProcessor()
+
         # recover regions
-        ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, kb=self.kb)
+        ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
 
         # structure it
-        rs = self.project.analyses.RecursiveStructurer(ri.region, kb=self.kb)
+        rs = self.project.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=self.kb)
 
         # simplify it
         s = self.project.analyses.RegionSimplifier(rs.result, kb=self.kb)

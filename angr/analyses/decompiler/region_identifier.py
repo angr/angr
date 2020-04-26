@@ -19,8 +19,9 @@ class RegionIdentifier(Analysis):
     """
     Identifies regions within a function.
     """
-    def __init__(self, func, graph=None):
+    def __init__(self, func, cond_proc=None, graph=None):
         self.function = func
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor()
         self._graph = graph if graph is not None else self.function.graph
 
         self.region = None
@@ -295,8 +296,7 @@ class RegionIdentifier(Analysis):
             return
 
         # recover reaching conditions
-        cond_proc = ConditionProcessor()
-        cond_proc.recover_reaching_conditions(region, with_successors=True)
+        self.cond_proc.recover_reaching_conditions(region, with_successors=True)
 
         successors = list(region.successors)
 
@@ -305,14 +305,14 @@ class RegionIdentifier(Analysis):
         cond = ConditionNode(
             condnode_addr,
             None,
-            cond_proc.reaching_conditions[successors[0]],
+            self.cond_proc.reaching_conditions[successors[0]],
             successors[0],
             false_node=None,
         )
         for succ in successors[1:]:
             cond = ConditionNode(condnode_addr,
                                  None,
-                                 cond_proc.reaching_conditions[succ],
+                                 self.cond_proc.reaching_conditions[succ],
                                  succ,
                                  false_node=cond,
                                  )
