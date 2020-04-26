@@ -577,6 +577,10 @@ class ConditionProcessor:
         if cond.op != "Or":
             return cond
 
+        if len(cond.args) == 1:
+            # redundant operator. get rid of it
+            return cond.args[0]
+
         or_arg0, or_arg1 = cond.args[:2]
         if or_arg1.op == 'And':
             pass
