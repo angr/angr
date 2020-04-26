@@ -62,7 +62,9 @@ class SimEngineVRVEX(
     # Function handlers
 
     def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use
-        # TODO: Adjust the stack pointer
+        if self.arch.call_pushes_ret:
+            if self.processor_state.sp_adjustment is not None:
+                self.processor_state.sp_adjustment += self.arch.bytes
         return None
 
     def _handle_Const(self, expr):
