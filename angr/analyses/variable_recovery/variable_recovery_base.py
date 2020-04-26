@@ -160,29 +160,13 @@ class VariableRecoveryStateBase:
         stack_variables = defaultdict(set)
         register_variables = defaultdict(set)
 
-        for dominatee in self.dominance_frontiers[successor]:
-            vardefs = self._analysis.get_variable_definitions(dominatee)
+        for src_block_addr in [ state0.block_addr, state1.block_addr ]:
+            vardefs = self._analysis.get_variable_definitions(src_block_addr)
             for var in vardefs:
                 if isinstance(var, SimStackVariable):
                     stack_variables[(var.offset, var.size)].add(var)
-                    if dominatee != state0.block_addr:
-                        v0s = state0.stack_region.get_variables_by_offset(var.offset)
-                        for v0 in v0s:
-                            stack_variables[(v0.offset, v0.size)].add(v0)
-                    if dominatee != state1.block_addr:
-                        v1s = state1.stack_region.get_variables_by_offset(var.offset)
-                        for v1 in v1s:
-                            stack_variables[(v1.offset, v1.size)].add(v1)
                 elif isinstance(var, SimRegisterVariable):
                     register_variables[(var.reg, var.size)].add(var)
-                    if dominatee != state0.block_addr:
-                        v0s = state0.register_region.get_variables_by_offset(var.reg)
-                        for v0 in v0s:
-                            register_variables[(v0.reg, v0.size)].add(v0)
-                    if dominatee != state1.block_addr:
-                        v1s = state1.register_region.get_variables_by_offset(var.reg)
-                        for v1 in v1s:
-                            register_variables[(v1.reg, v1.size)].add(v1)
                 else:
                     l.warning("Unsupported variable type %s.", type(var))
 
@@ -195,7 +179,8 @@ class VariableRecoveryStateBase:
                     phi_node = self.variable_manager[self.function.addr].make_phi_node(successor, *variables)
                     # Fill the replacements dict
                     for var in variables:
-                        replacements[var] = phi_node
+                        if var is not phi_node:
+                            replacements[var] = phi_node
 
         return replacements
 
