@@ -12,7 +12,9 @@ class SimTypeTempRef(sim_type.SimType):
 
 
 class TypeTranslator:
-
+    """
+    Translate type variables to SimType equivalence.
+    """
     def __init__(self, arch=None):
 
         self.arch = arch
@@ -58,6 +60,10 @@ class TypeTranslator:
 
         internal = self._translate(tc.basetype)
         return sim_type.SimTypePointer(internal).with_arch(self.arch)
+
+    def _translate_Array(self, tc: typeconsts.Array):
+        elem_type = self._translate(tc.element)
+        return sim_type.SimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
 
     def _translate_Struct(self, tc):
 
@@ -117,6 +123,7 @@ class TypeTranslator:
 
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
+    typeconsts.Array: TypeTranslator._translate_Array,
     typeconsts.Struct: TypeTranslator._translate_Struct,
     typeconsts.Int8: TypeTranslator._translate_Int8,
     typeconsts.Int16: TypeTranslator._translate_Int16,
