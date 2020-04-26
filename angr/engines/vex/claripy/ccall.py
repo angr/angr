@@ -1611,7 +1611,10 @@ def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARM64G_CC_OP_LOGIC64:
         flag = claripy.LShR(cc_dep1, 63)
 
-    if flag is not None: return flag
+    if flag is not None:
+        if len(flag) == 32:
+            flag = flag.zero_extend(32)
+        return flag
     l.error("Unknown cc_op %s (arm64g_calculate_flag_n)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
