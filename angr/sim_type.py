@@ -85,6 +85,8 @@ class SimType:
         """
         if self._arch is None:
             return NotImplemented
+        if self.size is NotImplemented:
+            return NotImplemented
         return self.size // self._arch.byte_width
 
     def with_arch(self, arch):
@@ -839,6 +841,10 @@ class SimStruct(SimType):
         offsets = {}
         offset_so_far = 0
         for name, ty in self.fields.items():
+            if isinstance(ty, SimTypeBottom):
+                l.warning("Found a bottom field in struct %s. Ignore and increment the offset using the default "
+                          "element size.", self.name)
+                continue
             if not self._pack:
                 align = ty.alignment
                 if offset_so_far % align != 0:
