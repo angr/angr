@@ -6,7 +6,7 @@ import networkx
 import claripy
 import ailment
 
-from ...utils.graph import dominates
+from ...utils.graph import dominates, shallow_reverse
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
@@ -59,7 +59,7 @@ class ConditionProcessor:
             _g = region.graph
         end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
         if end_nodes:
-            inverted_graph = networkx.reverse(_g)
+            inverted_graph = shallow_reverse(_g)
             if len(end_nodes) > 1:
                 # make sure there is only one end node
                 dummy_node = "DUMMY_NODE"

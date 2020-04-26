@@ -5,7 +5,7 @@ import networkx
 
 import ailment
 
-from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
+from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
 from .utils import replace_last_statement
 from .structurer_nodes import MultiNode, ConditionNode
@@ -425,7 +425,7 @@ class RegionIdentifier(Analysis):
         doms = networkx.immediate_dominators(graph_copy, head)
 
         # compute post-dominator tree
-        inverted_graph = networkx.reverse(graph_copy)
+        inverted_graph = shallow_reverse(graph_copy)
         postdoms = networkx.immediate_dominators(inverted_graph, endnodes[0])
 
         # dominance frontiers
