@@ -1378,13 +1378,35 @@ class StructuredCodeGenerator(Analysis):
     # AIL statement handlers
     #
 
-    def _handle_Stmt_Store(self, stmt):
+    def _handle_Stmt_Store(self, stmt: Stmt.Store):
 
-        if stmt.variable is None:
+        if stmt.variable is not None:
+            # storing to a variable directly
+            cvariable = self._handle(stmt.variable)
+        elif stmt.addr is not None:
+            # storing to an address specified by a variable
+            cvariable = self._handle(stmt.addr)
+            # special handling
+            base, offset = None, None
+            if isinstance(cvariable, CBinaryOp) and cvariable.op == 'Add':
+                if isinstance(cvariable.lhs, CConstant) and isinstance(cvariable.rhs, CVariable):
+                    offset = cvariable.lhs.value
+                    base = cvariable.rhs
+                elif isinstance(cvariable.rhs, CConstant) and isinstance(cvariable.lhs, CVariable):
+                    offset = cvariable.rhs.value
+                    base = cvariable.lhs
+                else:
+                    base = None
+                    offset = None
+
+            if base is not None and offset is not None:
+                cvariable = CVariable(base, offset=offset, variable_type=base.variable_type)
+            else:
+                cvariable = CVariable(cvariable, offset=None)
+        else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
             cvariable = None
-        else:
-            cvariable = self._handle(stmt.variable)
+
         cdata = self._handle(stmt.data)
 
         return CAssignment(cvariable, cdata)
