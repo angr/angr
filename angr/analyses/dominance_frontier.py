@@ -12,16 +12,16 @@ class DominanceFrontier(Analysis):
     querying the frontier information.
     """
 
-    def __init__(self, func):
+    def __init__(self, func, exception_edges=False):
         self.function = func
+        self._exception_edges = exception_edges
 
         self.frontiers = None
 
         self._compute()
 
     def _get_graph(self):
-
-        g = networkx.DiGraph(self.function.graph)
+        g = self.function.graph_ex(exception_edges=self._exception_edges)
         return g
 
     def _compute(self):
