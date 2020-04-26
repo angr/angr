@@ -367,20 +367,28 @@ class Structurer(Analysis):
                     last_stmt.false_target.value not in loop_successor_addrs:
                 cond = last_stmt.condition
                 target = last_stmt.true_target.value
+                new_node = ConditionalBreakNode(
+                    last_stmt.ins_addr,
+                    self.cond_proc.claripy_ast_from_ail_condition(cond),
+                    target
+                )
             elif last_stmt.false_target.value in loop_successor_addrs and \
                     last_stmt.true_target.value not in loop_successor_addrs:
                 cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
                 target = last_stmt.false_target.value
+                new_node = ConditionalBreakNode(
+                    last_stmt.ins_addr,
+                    self.cond_proc.claripy_ast_from_ail_condition(cond),
+                    target
+                )
+            elif last_stmt.false_target.value in loop_successor_addrs and \
+                    last_stmt.true_target.value in loop_successor_addrs:
+                # both targets are pointing outside the loop
+                # we should use just add a break node
+                new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
             else:
-                l.warning("I'm not sure which branch is jumping out of the loop...")
+                l.warning("None of the branches is jumping to outside of the loop")
                 raise Exception()
-            # remove the last statement from the node
-            # self._remove_last_statement(node)
-            new_node = ConditionalBreakNode(
-                last_stmt.ins_addr,
-                self.cond_proc.claripy_ast_from_ail_condition(cond),
-                target
-            )
 
         return new_node
 
