@@ -303,7 +303,7 @@ class SimEngineRDAIL(
 
                 # FIXME: _add_memory_use() iterates over the same loop
                 self.state.add_use(MemoryLocation(addr, size), codeloc)
-            elif isinstance(addr, SpOffset):
+            elif isinstance(addr, SpOffset) and isinstance(addr.offset, int):
                 current_defs = self.state.stack_definitions.get_objects_by_offset(addr.offset)
                 if current_defs:
                     for current_def in current_defs:
@@ -316,7 +316,7 @@ class SimEngineRDAIL(
 
                 self.state.add_use(addr, codeloc)
             else:
-                l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
+                l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
 
         if len(data) == 0:
             data.add(undefined)
