@@ -859,7 +859,10 @@ class CUnaryOp(CExpression):
     @property
     def type(self):
         if self._type is None:
-            return self.operand.type
+            if self.referenced_variable is not None:
+                self._type = self.referenced_variable.type
+            if self.operand is not None and hasattr(self.operand, 'type'):  # FIXME: This is hackish
+                self._type = self.operand.type
         return self._type
 
     def c_repr(self, posmap=None):
