@@ -87,9 +87,6 @@ class PagedMemoryMixin(MemoryMixin):
                     permissions = perms
                     break
 
-        if type(permissions) is int:
-            permissions = self.state.solver.BVV(permissions, 3)
-
         return self.PAGE_TYPE(memory=self, memory_id='%s_%d' % (self.id, pageno), permissions=permissions)
 
     def _divide_addr(self, addr: int) -> typing.Tuple[int, int]:
@@ -302,13 +299,19 @@ class PagedMemoryMixin(MemoryMixin):
                     return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
                 else:
                     return memoryview(bytes(bytes_out))
+            else:
+                if with_bitmap:
+                    return memoryview(bytes(size)), memoryview(b'\x01'*size)
+                else:
+                    return memoryview(b'')
 
         else:
-            # do some serious fucking magic
             data, bitmap = concrete_load(offset, subsize, **kwargs)
             if with_bitmap:
                 return data, bitmap
 
+            # everything from here on out has exactly one goal: to maximize the amount of concrete data
+            # we can return (up to the limit!)
             for i, byte in enumerate(bitmap):
                 if byte != 0:
                     break
@@ -335,6 +338,7 @@ class PagedMemoryMixin(MemoryMixin):
 
                     newdata, bitmap = concrete_load(offset, subsize, **kwargs)
 
+                    # magic: check if the memory regions are physically adjacent
                     if not ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(ffi.BVoidP, ffi.from_buffer(newdata)):
                         break
 
@@ -344,6 +348,7 @@ class PagedMemoryMixin(MemoryMixin):
                     else:
                         i = len(bitmap)
 
+                    # magic: generate a new memoryview which contains the two physically adjacent regions
                     obj = data.obj
                     data_offset = ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) - ffi.cast(ffi.BVoidP, ffi.from_buffer(obj))
                     data = memoryview(obj)[data_offset:data_offset+len(data)+i]
@@ -354,6 +359,29 @@ class PagedMemoryMixin(MemoryMixin):
                     size -= subsize
 
             return data
+
+    def changed_bytes(self, other):
+        my_pages = set(self._pages)
+        other_pages = set(other._pages)
+        intersection = my_pages.intersection(other_pages)
+        difference = my_pages.difference(other_pages)
+
+        changes = set()
+        for pageno in difference:
+            changes.update(range(pageno * self.page_size, (pageno + 1) * self.page_size))
+
+        for pageno in intersection:
+            my_page = self._pages[pageno]
+            other_page = other._pages[pageno]
+
+            if (my_page is None) ^ (other_page is None):
+                changes.update(range(pageno * self.page_size, (pageno + 1) * self.page_size))
+            elif my_page is None:
+                pass
+            else:
+                changes.update(my_page.changed_bytes(other_page, page_addr=pageno * self.page_size))
+
+        return changes
 
 
 class ListPagesMixin(PagedMemoryMixin):
