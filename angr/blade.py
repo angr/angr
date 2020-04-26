@@ -226,6 +226,9 @@ class Blade:
         except SimTranslationError:
             return
 
+        irsb = self._get_irsb(self._dst_run)
+        irsb_addr = self._get_irsb(self._dst_run).addr
+
         if self._dst_stmt_idx != -1:
             dst_stmt = stmts[self._dst_stmt_idx]
 
@@ -254,20 +257,24 @@ class Blade:
 
             prev = (self._get_addr(self._dst_run), DEFAULT_STATEMENT)
 
-        slicer = SimSlicer(self.project.arch, stmts,
+        irsb_addr = self._get_irsb(self._dst_run).addr
+        object = self.project.loader.find_object_containing(irsb_addr)
+        arch = object.arch if object else self.project.arch
+
+        slicer = SimSlicer(arch, stmts,
                            target_tmps=temps,
                            target_regs=regs,
                            target_stack_offsets=None,
                            inslice_callback=self._inslice_callback,
                            inslice_callback_infodict={
-                               'irsb_addr':  self._get_irsb(self._dst_run).addr,
+                               'irsb_addr':  irsb_addr,
                                'prev': prev,
                            })
         regs = slicer.final_regs
-        if self._ignore_sp and self.project.arch.sp_offset in regs:
-            regs.remove(self.project.arch.sp_offset)
-        if self._ignore_bp and self.project.arch.bp_offset in regs:
-            regs.remove(self.project.arch.bp_offset)
+        if self._ignore_sp and arch.sp_offset in regs:
+            regs.remove(arch.sp_offset)
+        if self._ignore_bp and arch.bp_offset in regs:
+            regs.remove(arch.bp_offset)
         for offset in self._ignored_regs:
             if offset in regs:
                 regs.remove(offset)
@@ -336,7 +343,10 @@ class Blade:
                     'has_statement': False
                     }
 
-        slicer = SimSlicer(self.project.arch, stmts,
+        object = self.project.loader.find_object_containing(irsb_addr)
+        arch = object.arch if object else self.project.arch
+
+        slicer = SimSlicer(arch, stmts,
                            target_tmps=temps,
                            target_regs=regs,
                            target_stack_offsets=stack_offsets,
@@ -354,10 +364,10 @@ class Blade:
 
         regs = slicer.final_regs
 
-        if self._ignore_sp and self.project.arch.sp_offset in regs:
-            regs.remove(self.project.arch.sp_offset)
-        if self._ignore_bp and self.project.arch.bp_offset in regs:
-            regs.remove(self.project.arch.bp_offset)
+        if self._ignore_sp and arch.sp_offset in regs:
+            regs.remove(arch.sp_offset)
+        if self._ignore_bp and arch.bp_offset in regs:
+            regs.remove(arch.bp_offset)
 
         stack_offsets = slicer.final_stack_offsets
 
