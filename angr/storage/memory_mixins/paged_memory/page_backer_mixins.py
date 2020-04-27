@@ -7,6 +7,19 @@ from .paged_memory_mixin import PagedMemoryMixin
 l = logging.getLogger(__name__)
 
 
+# since memoryview isn't pickleable, we make do...
+class NotMemoryview:
+    def __init__(self, obj, offset, size):
+        self.obj = obj
+        self.offset = offset
+        self.size = size
+
+    def __getitem__(self, k):
+        return memoryview(self.obj)[self.offset:self.offset+self.size][k]
+
+    def __setitem__(self, k, v):
+        memoryview(self.obj)[self.offset:self.offset+self.size][k] = v
+
 
 class ClemoryBackerMixin(PagedMemoryMixin):
     def __init__(self, cle_memory_backer=None, **kwargs):
@@ -45,7 +58,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
 
         if backer_start <= addr and backer_start + len(backer) > addr + self.page_size:
             # fast case
-            data = memoryview(backer)[addr-backer_start:addr-backer_start+self.page_size]
+            data = NotMemoryview(backer, addr-backer_start, self.page_size)
         else:
             page_data = bytearray(self.page_size)
             while backer_start < addr + self.page_size:
@@ -75,11 +88,11 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         permissions = self._cle_permissions_lookup(addr)
 
         # see if this page supports creating without copying
-        if type(data) is memoryview:
+        if type(data) is NotMemoryview:
             try:
                 new_from_shared = self.PAGE_TYPE.new_from_shared
             except AttributeError:
-                data = claripy.BVV(bytes(data))
+                data = claripy.BVV(bytes(data[:]))
             else:
                 if permissions is None:
                     permissions = self._default_permissions

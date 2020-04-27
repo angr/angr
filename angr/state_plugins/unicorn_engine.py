@@ -363,7 +363,7 @@ class Unicorn(SimStatePlugin):
 
         self.time = None
 
-        self._bullshit_cb = None
+        self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
 
     @SimStatePlugin.memo
@@ -464,6 +464,7 @@ class Unicorn(SimStatePlugin):
 
     def __getstate__(self):
         d = dict(self.__dict__)
+        del d['_bullshit_cb']
         del d['_uc_state']
         del d['cache_key']
         del d['_unicount']
@@ -471,6 +472,7 @@ class Unicorn(SimStatePlugin):
 
     def __setstate__(self, s):
         self.__dict__.update(s)
+        self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._unicount = next(_unicounter)
         self._uc_state = None
         self.cache_key = hash(self)
@@ -733,12 +735,21 @@ class Unicorn(SimStatePlugin):
             except SimSegfaultError:
                 _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
                 return False
-            except SimMemoryError:
+            except unicorn.UcError as e:
+                if e.errno != 11:
+                    self.error = str(e)
+                    _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
+                    return False
+                l.info("...already mapped :)")
+                break
+            except SimMemoryError as e:
                 if pageno >= needed_pages:
                     l.info("...never mind")
                     break
                 else:
-                    raise
+                    self.error = str(e)
+                    _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
+                    return False
 
         return True
 
@@ -838,6 +849,7 @@ class Unicorn(SimStatePlugin):
             )
 
             if self._symbolic_offsets:
+                l.debug("Sybmolic offsets: %s", self._symbolic_offsets)
                 sym_regs_array = (ctypes.c_uint64 * len(self._symbolic_offsets))(*map(ctypes.c_uint64, self._symbolic_offsets))
                 _UC_NATIVE.symbolic_register_data(self._uc_state, len(self._symbolic_offsets), sym_regs_array)
             else:
@@ -851,7 +863,6 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
         # set memory map callback so we can call it explicitly
-        self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _UC_NATIVE.set_map_callback(self._uc_state, self._bullshit_cb)
 
         # activate gdt page, which was written/mapped during set_regs
@@ -1011,7 +1022,6 @@ class Unicorn(SimStatePlugin):
         ''' setting unicorn registers '''
         uc = self.uc
 
-        # TODO: maybe do this in reverse, where we only mark the symbolic registers?
         self._symbolic_offsets = set()
 
         if self.state.arch.qemu_name == 'x86_64':
@@ -1022,12 +1032,18 @@ class Unicorn(SimStatePlugin):
             flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
+            elif flags.symbolic:
+                vex_offset = self.state.arch.registers['cc_op'][0]
+                self._symbolic_offsets.update(range(vex_offset, vex_offset + 8*4))
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
 
         elif self.state.arch.qemu_name == 'i386':
             flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
+            elif flags.symbolic:
+                vex_offset = self.state.arch.registers['cc_op'][0]
+                self._symbolic_offsets.update(range(vex_offset, vex_offset + 4*4))
 
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
 
@@ -1176,12 +1192,14 @@ class Unicorn(SimStatePlugin):
                 if cur_group is None:
                     cur_group = i
                 elif i != last + 1 or cur_group//self.state.arch.bytes != i//self.state.arch.bytes:
+                    l.debug("Restoring symbolic register %d", cur_group)
                     saved_registers.append((
                         cur_group, self.state.registers.load(cur_group, last-cur_group+1)
                     ))
                     cur_group = i
                 last = i
             if cur_group is not None:
+                l.debug("Restoring symbolic register %d", cur_group)
                 saved_registers.append((
                     cur_group, self.state.registers.load(cur_group, last-cur_group+1)
                 ))

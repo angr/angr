@@ -83,7 +83,7 @@ class CongruencyCheck(Analysis):
         elif simgr.left[0].history.block_count < simgr.right[0].history.block_count:
             l.debug("... right is ahead; stepping left %s times",
                     simgr.right[0].history.block_count - simgr.left[0].history.block_count)
-            npg = simgr.step(
+            npg = simgr.run(
                 stash='left',
                 until=lambda lpg: lpg.left[0].history.block_count >= simgr.right[0].history.block_count,
                 n=max_steps
@@ -91,7 +91,7 @@ class CongruencyCheck(Analysis):
         elif simgr.right[0].history.block_count < simgr.left[0].history.block_count:
             l.debug("... left is ahead; stepping right %s times",
                     simgr.left[0].history.block_count - simgr.right[0].history.block_count)
-            npg = simgr.step(
+            npg = simgr.run(
                 stash='right',
                 until=lambda lpg: lpg.right[0].history.block_count >= simgr.left[0].history.block_count,
                 n=max_steps
