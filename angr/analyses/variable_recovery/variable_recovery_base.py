@@ -5,7 +5,6 @@ from collections import defaultdict
 from ailment.expression import BinaryOp, StackBaseOffset
 
 from ...keyed_region import KeyedRegion
-from ...sim_variable import SimStackVariable, SimRegisterVariable
 from ..analysis import Analysis
 from ..typehoon.typevars import TypeVariables
 

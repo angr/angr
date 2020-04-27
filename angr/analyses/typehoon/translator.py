@@ -81,16 +81,16 @@ class TypeTranslator:
 
         return s
 
-    def _translate_Int8(self, tc):  # pylint:disbable=unused-argument
+    def _translate_Int8(self, tc):  # pylint:disable=unused-argument
         return sim_type.SimTypeChar(signed=False).with_arch(self.arch)
 
-    def _translate_Int16(self, tc):  # pylint:disbable=unused-argument
+    def _translate_Int16(self, tc):  # pylint:disable=unused-argument
         return sim_type.SimTypeShort(signed=False).with_arch(self.arch)
 
-    def _translate_Int32(self, tc):  # pylint:disbable=unused-argument
+    def _translate_Int32(self, tc):  # pylint:disable=unused-argument
         return sim_type.SimTypeInt(signed=False).with_arch(self.arch)
 
-    def _translate_Int64(self, tc):  # pylint:disbable=unused-argument
+    def _translate_Int64(self, tc):  # pylint:disable=unused-argument
         return sim_type.SimTypeLongLong(signed=False).with_arch(self.arch)
 
     def _translate_TypeVariableReference(self, tc):

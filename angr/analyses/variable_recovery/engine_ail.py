@@ -1,5 +1,5 @@
 
-from typing import Optional, Union
+from typing import Optional
 import logging
 
 import ailment

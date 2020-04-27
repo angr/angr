@@ -294,7 +294,7 @@ class SimpleSolver:
                                 )
                                 self._lower_bounds[ptrv] = Pointer64(Struct(new_fields))
 
-    def _abstract(self, t):
+    def _abstract(self, t):  # pylint:disable=no-self-use
         return t.__class__
 
     def _concretize(self, n_cls, t1, t2, translate):
