@@ -312,7 +312,7 @@ class KeyedRegion:
         Find variables covering the given region offset.
 
         :param int start:
-        :return: A set of stack variables.
+        :return: A set of variables.
         :rtype:  set
         """
 
@@ -335,6 +335,18 @@ class KeyedRegion:
             return set()
         else:
             return container.internal_objects
+
+    def get_all_variables(self):
+        """
+        Get all variables covering the current region.
+
+        :return:    A set of all variables.
+        """
+        variables = set()
+        for ro in self._storage.values():
+            ro: RegionObject
+            variables |= ro.internal_objects
+        return variables
 
     #
     # Private methods

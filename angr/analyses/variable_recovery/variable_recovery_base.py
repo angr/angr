@@ -160,15 +160,13 @@ class VariableRecoveryStateBase:
         stack_variables = defaultdict(set)
         register_variables = defaultdict(set)
 
-        for src_block_addr in [ state0.block_addr, state1.block_addr ]:
-            vardefs = self._analysis.get_variable_definitions(src_block_addr)
-            for var in vardefs:
-                if isinstance(var, SimStackVariable):
-                    stack_variables[(var.offset, var.size)].add(var)
-                elif isinstance(var, SimRegisterVariable):
-                    register_variables[(var.reg, var.size)].add(var)
-                else:
-                    l.warning("Unsupported variable type %s.", type(var))
+        for state in [ state0, state1 ]:
+            stack_vardefs = state.stack_region.get_all_variables()
+            reg_vardefs = state.register_region.get_all_variables()
+            for var in stack_vardefs:
+                stack_variables[(var.offset, var.size)].add(var)
+            for var in reg_vardefs:
+                register_variables[(var.reg, var.size)].add(var)
 
         replacements = {}
 
