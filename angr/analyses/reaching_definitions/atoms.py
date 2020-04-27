@@ -66,7 +66,7 @@ class Register(Atom):
                self.size == other.size
 
     def __hash__(self):
-        return hash(('reg', self.reg_offset, self.size))
+        return hash(('reg', self.reg_offset))
 
     @property
     def bits(self):
