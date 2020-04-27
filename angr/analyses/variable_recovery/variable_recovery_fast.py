@@ -206,7 +206,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     accurately. However, it is not a requirement.
     """
 
-    def __init__(self, func, func_graph=None, max_iterations=1, clinic=None, low_priority=False, track_sp=True):
+    def __init__(self, func, func_graph=None, max_iterations=1, low_priority=False, track_sp=True):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -224,7 +224,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
-        self._clinic = clinic
         self._low_priority = low_priority
         self._job_ctr = 0
         self._track_sp = track_sp
@@ -306,11 +305,11 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         input_state = state  # make it more meaningful
 
-        if self._clinic:
+        if type(node) is ailment.Block:
             # AIL mode
-            block = self._clinic.block(node.addr, node.size)
+            block = node
         else:
-            # VEX mode
+            # VEX mode, get the block again
             block = self.project.factory.block(node.addr, node.size, opt_level=0)
 
         if node.addr in self._instates:
