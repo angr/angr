@@ -28,6 +28,9 @@ class SimEngineVRVEX(
 
         self._store(addr_r, r, size, stmt=stmt)
 
+    def _handle_NoOp(self, stmt):
+        pass
+
     # Expression handlers
 
     def _expr(self, expr):
