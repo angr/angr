@@ -89,7 +89,27 @@ class SimEngineRDVEX(
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
-    def _handle_Store(self, stmt, data_old=None):
+    def _handle_Store(self, stmt):
+        self._handle_Store_core(stmt)
+
+    def _handle_StoreG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard.data == {True}:
+            self._handle_Store_core(stmt)
+        elif guard.data == {False}:
+            pass
+        else:
+            # guard.data == {True, False}
+            # get current data
+            load_end = stmt.end
+            load_ty = self.tyenv.lookup(stmt.data.tmp)
+            load_addr = stmt.addr
+            load_expr = pyvex.IRExpr.Load(load_end, load_ty, load_addr)
+            data_old = self._handle_Load(load_expr)
+
+            self._handle_Store_core(stmt, data_old=data_old)
+
+    def _handle_Store_core(self, stmt, data_old=None):
         addr = self._expr(stmt.addr)
         size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
@@ -108,24 +128,6 @@ class SimEngineRDVEX(
                 # different addresses are not killed by a subsequent iteration, because kill only removes entries
                 # with same index and same size
                 self.state.kill_and_add_definition(memloc, self._codeloc(), data)
-
-    def _handle_StoreG(self, stmt):
-        guard = self._expr(stmt.guard)
-        if guard.data == {True}:
-            self._handle_Store(stmt)
-        elif guard.data == {False}:
-            pass
-        else:
-            # guard.data == {True, False}
-            # get current data
-            load_end = stmt.end
-            load_ty = self.tyenv.lookup(stmt.data.tmp)
-            load_addr = stmt.addr
-            load_expr = pyvex.IRExpr.Load(load_end, load_ty, load_addr)
-            data_old = self._handle_Load(load_expr)
-
-            self._handle_Store(stmt, data_old=data_old)
-
 
     def _handle_LoadG(self, stmt):
         guard = self._expr(stmt.guard)
