@@ -3026,6 +3026,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return endpoints
 
+    def _get_tail_caller(self, tailnode, seen):
+        """
+        recursively search predecessors for the actual caller
+        for a tailnode that we will return to
+
+        :return: list of callers for a possible tailnode
+        """
+
+        if tailnode.addr in seen:
+            return []
+        seen.add(tailnode.addr)
+
+        callers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Call')
+        direct_jumpers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Boring')
+        jump_callers = []
+
+        for jn in direct_jumpers:
+            jf = self.model.get_any_node(jn.function_address)
+            if jf is not None:
+                jump_callers.extend(self._get_tail_caller(jf, seen))
+
+        callers.extend(jump_callers)
+
+        return callers
+
+
     def _make_return_edges(self):
         """
         For each returning function, create return edges in self.graph.
@@ -3052,6 +3078,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # get all callers
             callers = self.model.get_predecessors(startpoint, jumpkind='Ijk_Call')
+
+            # handle callers for tailcall optimizations if flag is enabled
+            if self._detect_tail_calls and startpoint.addr in self._tail_calls:
+                l.debug("Handling return address for tail call for func %x", func_addr)
+                seen = set()
+                tail_callers = self._get_tail_caller(startpoint, seen)
+                callers.extend(tail_callers)
+
             # for each caller, since they all end with a call instruction, get the immediate successor
             return_targets = itertools.chain.from_iterable(
                 self.model.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
