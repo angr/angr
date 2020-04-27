@@ -135,7 +135,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
             self.symbolic_data[addr] = data
 
     def concrete_load(self, addr, size, **kwargs):
-        return memoryview(self.concrete_data)[addr:addr+size], memoryview(self.symbolic_bitmap)[addr:addr+size]
+        if type(self.concrete_data) is bytearray:
+            return memoryview(self.concrete_data)[addr:addr+size], memoryview(self.symbolic_bitmap)[addr:addr+size]
+        else:
+            return self.concrete_data[addr:addr+size], memoryview(self.symbolic_bitmap)[addr:addr+size]
 
     def changed_bytes(self, other, page_addr=None):
         changes = set()
