@@ -42,6 +42,7 @@ class VariableManagerInternal:
         self.func_addr = func_addr
 
         self._variables = OrderedSet()  # all variables that are added to any region
+        self._global_region = KeyedRegion()
         self._stack_region = KeyedRegion()
         self._register_region = KeyedRegion()
         self._live_variables = { }  # a mapping between addresses of program points and live variable collections
@@ -77,6 +78,8 @@ class VariableManagerInternal:
             prefix = "s"
         elif sort == 'argument':
             prefix = 'arg'
+        elif sort == 'global':
+            prefix = 'g'
         else:
             prefix = "m"
 
@@ -88,6 +91,8 @@ class VariableManagerInternal:
             self._stack_region.add_variable(start, variable)
         elif sort == 'register':
             self._register_region.add_variable(start, variable)
+        elif sort == 'global':
+            self._global_region.add_variable(start, variable)
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
@@ -96,6 +101,8 @@ class VariableManagerInternal:
             self._stack_region.set_variable(start, variable)
         elif sort == 'register':
             self._register_region.set_variable(start, variable)
+        elif sort == 'global':
+            self._global_region.set_variable(start, variable)
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
@@ -277,6 +284,15 @@ class VariableManagerInternal:
             variables.append(var)
 
         return variables
+
+    def get_global_variables(self, addr):
+        """
+        Get global variable by the address of the variable.
+
+        :param int addr:    Address of the variable.
+        :return:            A set of variables or an empty set if no variable exists.
+        """
+        return self._global_region.get_variables_by_offset(addr)
 
     def is_phi_variable(self, var):
         """

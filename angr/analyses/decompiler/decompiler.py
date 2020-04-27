@@ -2,7 +2,9 @@
 from collections import defaultdict
 from typing import List, Tuple, Any
 
+from cle import SymbolType
 
+from ...sim_variable import SimMemoryVariable
 from .. import Analysis, AnalysesHub
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
@@ -32,6 +34,9 @@ class Decompiler(Analysis):
             for o, v in self._options:
                 options_by_class[o.cls].append((o, v))
 
+        # set global variables
+        self._set_global_variables()
+
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
                                               kb=self.kb,
@@ -55,6 +60,14 @@ class Decompiler(Analysis):
 
         self.clinic = clinic
         self.codegen = codegen
+
+    def _set_global_variables(self):
+
+        global_variables = self.kb.variables['global']
+        for symbol in self.project.loader.main_object.symbols:
+            if symbol.type == SymbolType.TYPE_OBJECT:
+                global_variables.set_variable('global', symbol.rebased_addr, SimMemoryVariable(symbol.rebased_addr, 1,
+                                                                                               name=symbol.name))
 
     @staticmethod
     def options_to_params(options):
