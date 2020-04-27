@@ -1664,7 +1664,10 @@ def arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
         flag = arm64_zerobit(state, cc_dep1)
 
-    if flag is not None: return flag
+    if flag is not None:
+        if len(flag) == 32:
+            flag = flag.zero_extend(32)
+        return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_z)", concrete_op)
     raise SimCCallError("Unknown cc_op %s" % concrete_op)
