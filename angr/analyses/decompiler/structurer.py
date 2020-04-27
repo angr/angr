@@ -104,9 +104,19 @@ class Structurer(Analysis):
 
     def _analyze(self):
 
-        if self._has_cycle():
+        has_cycle = self._has_cycle()
+        # sanity checks
+        if self._region.cyclic:
+            if not has_cycle:
+                l.critical("Region %r is supposed to be a cyclic region but there is no cycle inside. This is usually "
+                           "due to the existence of loop headers with more than one in-edges, which angr decompiler "
+                           "does not support yet. The decompilation result will be wrong.", self._region)
             self._analyze_cyclic()
         else:
+            if has_cycle:
+                l.critical("Region %r is supposed to be an acyclic region but there are cycles inside. This is usually "
+                           "due to the existence of loop headers with more than one in-edges, which angr decompiler "
+                           "does not support yet. The decompilation result will be wrong.")
             self._analyze_acyclic()
 
     def _analyze_cyclic(self):
