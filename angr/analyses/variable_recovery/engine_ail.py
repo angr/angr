@@ -442,3 +442,24 @@ class SimEngineVRAIL(
         except TypeError:
             self.l.warning("_ail_handle_Or(): TypeError.", exc_info=True)
             return RichR(None)
+
+    def _ail_handle_Not(self, expr):
+        arg = expr.operands[0]
+        expr = self._expr(arg)
+        try:
+            result_size = arg.bits
+            mask = (1 << result_size) - 1
+            if isinstance(expr.data, int):
+                return RichR(
+                    (~expr.data) & mask,
+                    typevar=typeconsts.int_type(result_size),
+                    type_constraints=None,
+                )
+            r = None
+            if expr.data is not None:
+                r = (~expr.data) & mask
+            return RichR(r, typevar=expr.typevar)
+
+        except TypeError:
+            self.l.warning("_ail_handle_Not(): TypeError.", exc_info=True)
+            return RichR(None)
