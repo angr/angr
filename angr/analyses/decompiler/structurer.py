@@ -8,6 +8,7 @@ import claripy
 import ailment
 
 from .. import Analysis, register_analysis
+from ..cfg.cfg_utils import CFGUtils
 from .region_identifier import GraphRegion
 from .structurer_nodes import BaseNode, SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, \
     SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice, MultiNode
@@ -116,7 +117,7 @@ class Structurer(Analysis):
             if has_cycle:
                 l.critical("Region %r is supposed to be an acyclic region but there are cycles inside. This is usually "
                            "due to the existence of loop headers with more than one in-edges, which angr decompiler "
-                           "does not support yet. The decompilation result will be wrong.")
+                           "does not support yet. The decompilation result will be wrong.", self._region)
             self._analyze_acyclic()
 
     def _analyze_cyclic(self):
@@ -406,7 +407,7 @@ class Structurer(Analysis):
 
         seq = SequenceNode()
 
-        for node in networkx.topological_sort(self._region.graph):
+        for node in CFGUtils.quasi_topological_sort_nodes(self._region.graph):
             seq.add_node(CodeNode(node, self.cond_proc.reaching_conditions.get(node, None)))
 
         return seq
