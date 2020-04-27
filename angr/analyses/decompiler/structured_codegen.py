@@ -8,7 +8,7 @@ from ailment import Block, Expr, Stmt
 
 from ...sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
     SimTypeBottom, SimTypeArray)
-from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...utils.constants import is_alignment_mask
 from ...errors import UnsupportedNodeTypeError
 from .. import Analysis, register_analysis
@@ -1103,13 +1103,14 @@ class CTypeCast(CExpression):
 
 
 class CConstant(CExpression):
-    def __init__(self, value, type_, reference_values=None):
+    def __init__(self, value, type_, reference_values=None, reference_variable=None):
 
         super().__init__()
 
         self.value = value
         self._type = type_
         self.reference_values = reference_values
+        self.reference_variable = reference_variable
 
     @property
     def type(self):
@@ -1117,6 +1118,10 @@ class CConstant(CExpression):
 
     def c_repr(self, posmap=None):
         s = None
+        if self.reference_variable is not None:
+            s = self.reference_variable.c_repr(posmap=posmap)
+            return s
+
         if self.reference_values is not None and self._type is not None:
             if self._type in self.reference_values:
                 if isinstance(self._type, SimTypeInt):
@@ -1214,6 +1219,7 @@ class StructuredCodeGenerator(Analysis):
             # SimVariables
             SimStackVariable: self._handle_Variable_SimStackVariable,
             SimRegisterVariable: self._handle_Variable_SimRegisterVariable,
+            SimMemoryVariable: self._handle_Variable_SimMemoryVariable,
         }
 
         self._func = func
@@ -1253,8 +1259,11 @@ class StructuredCodeGenerator(Analysis):
             else:
                 self.nodemap[node.obj].add(elem)
 
-    def _get_variable_type(self, var):
-        return self.kb.variables[self._func.addr].get_variable_type(var)
+    def _get_variable_type(self, var, is_global=False):
+        if is_global:
+            return self.kb.variables['global'].get_variable_type(var)
+        else:
+            return self.kb.variables[self._func.addr].get_variable_type(var)
 
     #
     # Util methods
@@ -1475,13 +1484,16 @@ class StructuredCodeGenerator(Analysis):
                     elif type_ is None:
                         # we don't know the type of this argument
                         # pure guessing: is it possible that it's a string?
-                        if arg.bits == self.project.arch.bits and \
+                        if self._cfg is not None and \
+                                arg.bits == self.project.arch.bits and \
                                 arg.value > 0x10000 and \
                                 arg.value in self._cfg.memory_data and \
                                 self._cfg.memory_data[arg.value].sort == 'string':
                             type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                             reference_values[type_] = self._cfg.memory_data[arg.value]
-                    new_arg = CConstant(arg, type_, reference_values if reference_values else None)
+                    new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
+                                        reference_variable=self._handle(arg.referenced_variable)
+                                                           if hasattr(arg, 'referenced_variable') else None)
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
@@ -1535,7 +1547,8 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
-        return CConstant(expr.value, int)
+        return CConstant(expr.value, int, reference_variable=self._handle(expr.referenced_variable)
+                                                             if hasattr(expr, 'referenced_variable') else None)
 
     def _handle_Expr_UnaryOp(self, expr):
 
@@ -1584,12 +1597,13 @@ class StructuredCodeGenerator(Analysis):
         return r
 
     def _handle_Variable_SimStackVariable(self, variable):  # pylint:disable=no-self-use
-
         return CVariable(variable, variable_type=self._get_variable_type(variable))
 
     def _handle_Variable_SimRegisterVariable(self, variable):  # pylint:disable=no-self-use
-
         return CVariable(variable, variable_type=self._get_variable_type(variable))
+
+    def _handle_Variable_SimMemoryVariable(self, variable):  # pylint:disable=no-self-use
+        return CVariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
 
 
 register_analysis(StructuredCodeGenerator, 'StructuredCodeGenerator')
