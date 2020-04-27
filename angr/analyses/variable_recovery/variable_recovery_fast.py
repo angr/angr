@@ -251,14 +251,15 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self.initialize_dominance_frontiers()
 
-        # initialize node_to_cc map
-        function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
-
         if self._track_sp:
+            # initialize node_to_cc map
+            function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
+            # all nodes that end with a call must be in the _node_to_cc dict
             for func_node in function_nodes:
                 for callsite_node in self.function.transition_graph.predecessors(func_node):
                     if func_node.calling_convention is None:
                         l.warning("Unknown calling convention for %r.", func_node)
+                        self._node_to_cc[callsite_node.addr] = None
                     else:
                         self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
@@ -369,16 +370,19 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         processor.process(state, block=block, fail_fast=self._fail_fast)
 
         if self._track_sp and block.addr in self._node_to_cc:
-        # readjusting sp at the end for blocks that end in a call
+            # readjusting sp at the end for blocks that end in a call
+            adjusted = False
+            if state.processor_state.sp_adjustment is None:
+                state.processor_state.sp_adjustment = 0
             cc = self._node_to_cc[block.addr]
-            state.processor_state.sp_adjusted = False
-
             if cc is not None and cc.sp_delta is not None:
                 state.processor_state.sp_adjustment += cc.sp_delta
                 state.processor_state.sp_adjusted = True
+                adjusted = True
                 l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.',
                         block.addr, state.processor_state.sp_adjustment)
-            else:
+
+            if not adjusted:
                 # make a guess
                 # of course, this will fail miserably if the function called is not cdecl
                 if self.project.arch.call_pushes_ret:
