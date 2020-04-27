@@ -5,8 +5,8 @@ class Top:
 
     __slots__ = ('size', )
 
-    def __init__(self, bytes):
-        self.size = bytes
+    def __init__(self, size):
+        self.size = size
 
     @property
     def bits(self):

@@ -173,7 +173,7 @@ class SimTypeReg(SimType):
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
 
-        if isinstance(value, claripy.ast.Bits):
+        if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):
@@ -184,6 +184,9 @@ class SimTypeReg(SimType):
             raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
 
         state.memory.store(addr, value, endness=store_endness)
+
+    def c_repr(self):
+        return "<Reg_%d>" % self.size
 
 
 class SimTypeNum(SimType):
@@ -221,7 +224,7 @@ class SimTypeNum(SimType):
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
 
-        if isinstance(value, claripy.ast.Bits):
+        if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):
@@ -918,7 +921,8 @@ class SimStruct(SimType):
             ty = self.fields[field]
             ty.store(state, addr + offset, value[field])
 
-    def _field_str(self, field_name, field_type):
+    @staticmethod
+    def _field_str(field_name, field_type):
         return "\"%s\": %s" % (field_name, field_type._init_str())
 
     def _init_str(self):

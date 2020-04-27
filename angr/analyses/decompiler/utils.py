@@ -181,7 +181,7 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
         # MultiNode. we always need to create a new SequenceNode and replace the original node in place.
         if label == 'switch_expr':
             raise TypeError("You cannot insert a node after an expression.")
-        elif label == 'case':
+        if label == 'case':
             # node_idx is the case number
             if insert_location == 'after':
                 new_nodes = [ parent.cases[node_idx], node ]
