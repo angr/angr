@@ -2,11 +2,14 @@
 import logging
 from collections import defaultdict
 
+import pyvex
 import ailment
 
+from ...block import Block
 from ...errors import AngrVariableRecoveryError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable
+from ...engines.vex.claripy.irop import vexop_to_simop
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ..typehoon.typevars import Equivalence, TypeVariable
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
@@ -353,6 +356,53 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     # Private methods
     #
 
+    @staticmethod
+    def _get_irconst(value, size):
+        mapping = {
+            1: pyvex.const.U1,
+            8: pyvex.const.U8,
+            16: pyvex.const.U16,
+            32: pyvex.const.U32,
+            64: pyvex.const.U64,
+            128: pyvex.const.V128,
+            256: pyvex.const.V256,
+        }
+        if size not in mapping:
+            raise TypeError("Unsupported size %d." % size)
+        return mapping.get(size)(value)
+
+    def _peephole_optimize(self, block: Block):
+
+        # find regN = xor(regN, regN) and replace it with PUT(regN) = 0
+        i = 0
+        while i < len(block.vex.statements) - 3:
+            stmt0 = block.vex.statements[i]
+            next_i = i + 1
+            if isinstance(stmt0, pyvex.IRStmt.WrTmp) and isinstance(stmt0.data, pyvex.IRStmt.Get):
+                stmt1 = block.vex.statements[i + 1]
+                if isinstance(stmt1, pyvex.IRStmt.WrTmp) and isinstance(stmt1.data, pyvex.IRStmt.Get):
+                    next_i = i + 2
+                    if stmt0.data.offset == stmt1.data.offset and stmt0.data.ty == stmt1.data.ty:
+                        next_i = i + 3
+                        reg_offset = stmt0.data.offset
+                        tmp0 = stmt0.tmp
+                        tmp1 = stmt1.tmp
+                        stmt2 = block.vex.statements[i + 2]
+                        if isinstance(stmt2, pyvex.IRStmt.WrTmp) and isinstance(stmt2.data, pyvex.IRExpr.Binop):
+                            if isinstance(stmt2.data.args[0], pyvex.IRExpr.RdTmp) \
+                                    and isinstance(stmt2.data.args[1], pyvex.IRExpr.RdTmp) \
+                                    and {stmt2.data.args[0].tmp, stmt2.data.args[1].tmp} == {tmp0, tmp1}\
+                                    and vexop_to_simop(stmt2.data.op)._generic_name == 'Xor':
+                                # found it!
+                                # make a copy so we don't trash the cached VEX IRSB
+                                block._vex = block.vex.copy()
+                                block.vex.statements[i] = pyvex.IRStmt.NoOp()
+                                block.vex.statements[i + 1] = pyvex.IRStmt.NoOp()
+                                zero = pyvex.IRExpr.Const(self._get_irconst(0, block.vex.tyenv.sizeof(tmp0)))
+                                block.vex.statements[i + 2] = pyvex.IRStmt.Put(zero, reg_offset)
+            i = next_i
+        return block
+
     def _process_block(self, state, block):  # pylint:disable=no-self-use
         """
         Scan through all statements and perform the following tasks:
@@ -365,6 +415,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         """
 
         l.debug('Processing block %#x.', block.addr)
+
+        if isinstance(block, Block):
+            block = self._peephole_optimize(block)
 
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
         processor.process(state, block=block, fail_fast=self._fail_fast)
