@@ -5,7 +5,6 @@ import networkx
 
 import ailment
 
-from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
 from ...utils import timethis
 from .. import Analysis, register_analysis
@@ -312,7 +311,7 @@ class Clinic(Analysis):
         try:
             tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb)
             tp.update_variable_types(self.function.addr, vr.var_to_typevar)
-        except Exception:
+        except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
 

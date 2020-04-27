@@ -21,8 +21,7 @@ class RichR:
 
     __slots__ = ('data', 'variable', 'typevar', 'type_constraints', )
 
-    def __init__(self, data, bits=None, variable=None, typevar: Optional[typevars.TypeVariable]=None,
-                 type_constraints=None):
+    def __init__(self, data, variable=None, typevar: Optional[typevars.TypeVariable]=None, type_constraints=None):
         self.data = data
         self.variable = variable
         self.typevar = typevar
@@ -254,7 +253,7 @@ class SimEngineVRBase(SimEngineLight):
                     )
         # TODO: Create a tv_sp.store.<bits>@N <: typevar type constraint for the stack pointer
 
-    def _store_to_variable(self, richr_addr: RichR, size, stmt=None):
+    def _store_to_variable(self, richr_addr: RichR, size, stmt=None):  # pylint:disable=unused-argument
 
         addr_variable = richr_addr.variable
         codeloc = self._codeloc()
@@ -280,7 +279,6 @@ class SimEngineVRBase(SimEngineLight):
         if addr_variable is not None:
             self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
         self.state.add_type_constraint(typevars.Existence(store_typevar))
-        return
 
     def _load(self, richr_addr, size, expr=None):
         """

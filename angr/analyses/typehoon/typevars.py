@@ -1,9 +1,7 @@
 
 from itertools import count
 
-"""
-Type variables and constraints
-"""
+# Type variables and constraints
 
 
 class Equivalence:
@@ -174,7 +172,7 @@ class TypeVariables:
         #)
         return "{TypeVars: %d items}" % len(self._typevars)
 
-    def add_type_variable(self, var, codeloc, typevar):
+    def add_type_variable(self, var, codeloc, typevar):  # pylint:disable=unused-argument
 
         #if var not in self._typevars:
         #    self._typevars[var] = { }
@@ -183,11 +181,11 @@ class TypeVariables:
         # self._typevars[var][codeloc] = typevar
         self._typevars[var] = typevar
 
-    def get_type_variable(self, var, codeloc):
+    def get_type_variable(self, var, codeloc):  # pylint:disable=unused-argument
 
         return self._typevars[var] #[codeloc]
 
-    def has_type_variable_for(self, var, codeloc):
+    def has_type_variable_for(self, var, codeloc):  # pylint:disable=unused-argument
         if var not in self._typevars:
             return False
         return True

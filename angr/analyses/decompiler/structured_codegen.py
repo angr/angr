@@ -189,7 +189,6 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a statement in C.
     """
-    pass
 
 
 class CStatements(CStatement):
@@ -694,6 +693,10 @@ class CStructField(CExpression):
         self.offset = offset
         self.field = field
 
+    @property
+    def type(self):
+        return self.struct_type
+
     def c_repr(self, posmap=None):
         s = "%s" % self.field
         if posmap:
@@ -740,7 +743,6 @@ class CVariable(CExpression):
                         if isinstance(self.variable.type.pts_to, SimStruct) and self.variable.type.pts_to.fields:
                             # is it pointing to a struct? if so, we take the first field
                             first_field = next(iter(self.variable.type.pts_to.fields))
-                            first_field_type = self.variable.type.pts_to.fields[first_field]
                             c_field = CStructField(self.variable.type.pts_to, 0, first_field)
                             s = self.variable.c_repr(posmap=posmap)
                             s0 = "->"
@@ -1310,9 +1312,9 @@ class StructuredCodeGenerator(Analysis):
             return expr, None
         elif isinstance(expr, CExpression):  # other expressions
             return expr, None
-        else:
-            l.warning("Unsupported address expression %r", addr)
-            return expr, None
+
+        l.warning("Unsupported address expression %r", addr)
+        return expr, None
 
     #
     # Handlers

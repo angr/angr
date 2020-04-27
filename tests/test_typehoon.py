@@ -17,13 +17,13 @@ def test_smoketest():
     vr = p.analyses.VariableRecoveryFast(main_func)
     p.analyses.CompleteCallingConventions()
 
-    import pprint
+    # import pprint
     tcons = vr.type_constraints
-    pprint.pprint(vr._outstates[0x4005b2].typevars._typevars)
-    pprint.pprint(tcons)
+    # pprint.pprint(vr._outstates[0x4005b2].typevars._typevars)
+    # pprint.pprint(tcons)
 
     t = p.analyses.Typehoon(tcons)
-    pprint.pprint(t.simtypes_solution)
+    # pprint.pprint(t.simtypes_solution)
 
     # convert function blocks to AIL blocks
     # clinic = p.analyses.Clinic(main_func)

@@ -9,7 +9,7 @@ class TypeLifter:
     __slots__ = ('bits', )
 
     def __init__(self, bits: int):
-        if bits != 32 and bits != 64:
+        if bits not in (32, 64):
             raise ValueError("TypeLifter only supports 32-bit or 64-bit pointers.")
         self.bits = bits
 
@@ -21,16 +21,16 @@ class TypeLifter:
 
         return handler(self, ty)
 
-    def _lift_SimTypeChar(self, ty):
+    def _lift_SimTypeChar(self, ty):  # pylint:disable=unused-argument,no-self-use
         return Int8()
 
-    def _lift_SimTypeShort(self, ty):
+    def _lift_SimTypeShort(self, ty):  # pylint:disable=unused-argument,no-self-use
         return Int16()
 
-    def _lift_SimTypeInt(self, ty):
+    def _lift_SimTypeInt(self, ty):  # pylint:disable=unused-argument,no-self-use
         return Int32()
 
-    def _lift_SimTypeLongLong(self, ty):
+    def _lift_SimTypeLongLong(self, ty):  # pylint:disable=unused-argument,no-self-use
         return Int64()
 
     def _lift_SimTypePointer(self, ty: SimTypePointer):
@@ -45,6 +45,7 @@ _mapping = {
     SimTypeChar: TypeLifter._lift_SimTypeChar,
     SimTypeShort: TypeLifter._lift_SimTypeShort,
     SimTypeInt: TypeLifter._lift_SimTypeInt,
+    SimTypeLong: TypeLifter._lift_SimTypeInt,
     SimTypeLongLong: TypeLifter._lift_SimTypeLongLong,
     SimTypePointer: TypeLifter._lift_SimTypePointer,
 }

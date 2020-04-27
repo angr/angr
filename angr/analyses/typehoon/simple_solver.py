@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import networkx
 
-from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, Load, Store, HasField
+from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField
 from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer64, Struct, int_type,
     TypeVariableReference)
 
@@ -72,11 +72,11 @@ class SimpleSolver:
 
         solution = { }
 
-        for v in self._lower_bounds.keys():
+        for v in self._lower_bounds:
             if isinstance(v, TypeVariable) and not isinstance(v, DerivedTypeVariable):
                 solution[v] = self._lower_bounds[v]
 
-        for v in self._equivalence.keys():
+        for v in self._equivalence:
             solution[v] = solution.get(self._equivalence[v], None)
 
         return solution
@@ -141,7 +141,8 @@ class SimpleSolver:
         self._equivalence = replacements
         return constraints
 
-    def _calculate_closure(self, constraints):
+    @staticmethod
+    def _calculate_closure(constraints):
 
         subtypevars = defaultdict(set)  # (k,v): all vars in value are sub-types of k
         supertypevars = defaultdict(set)  # (k,v): all vars in value are super-types of k
@@ -236,19 +237,19 @@ class SimpleSolver:
 
     def _compute_lower_upper_bounds(self, subtypevars, supertypevars):
 
-        for typevar, vars in subtypevars.items():
+        for typevar, vars_ in subtypevars.items():
             if typevar is None:
                 continue
             if isinstance(typevar, TypeConstant):
                 continue
             supermum = BottomType() if typevar not in self._lower_bounds else self._lower_bounds[typevar]
             # attempt to update the lower bound of the supertype variable
-            for subtypevar in vars:
+            for subtypevar in vars_:
                 supermum = self._join(subtypevar, supermum, self._get_lower_bound)
             self._lower_bounds[typevar] = supermum
 
             # because of T-InheritR, fields are propagated *both ways* in a subtype relation
-            for subtypevar in vars:
+            for subtypevar in vars_:
                 if isinstance(typevar, TypeVariable):
                     subtype_supermum = BottomType() if subtypevar not in self._lower_bounds else \
                         self._lower_bounds[subtypevar]
@@ -257,12 +258,12 @@ class SimpleSolver:
                         subtype_supermum = self._join(subtypevar, supermum, self._get_lower_bound)
                         self._lower_bounds[subtypevar] = subtype_supermum
 
-        for typevar, vars in supertypevars.items():
+        for typevar, vars_ in supertypevars.items():
             if isinstance(typevar, TypeConstant):
                 continue
             infimum = TopType() if typevar not in self._upper_bounds else self._upper_bounds[typevar]
             # attempt to update the upper bound of the subtype variable
-            for supertypevar in vars:
+            for supertypevar in vars_:
                 # import ipdb; ipdb.set_trace()
                 infimum = self._meet(supertypevar, infimum, self._get_upper_bound)
             self._upper_bounds[typevar] = infimum

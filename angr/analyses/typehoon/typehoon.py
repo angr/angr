@@ -26,9 +26,13 @@ class Typehoon(Analysis):
         self._ground_truth = ground_truth
 
         self.solution = None
+        self.structs = None
         self.simtypes_solution = None
 
+        # import pprint
+        # pprint.pprint(self._constraints)
         self._analyze()
+        # pprint.pprint(self.solution)
 
     #
     # Public methods

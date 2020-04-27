@@ -175,7 +175,7 @@ class TypeVariableReference(TypeConstant):
 #
 
 def int_type(bits):
-    map = {
+    mapping = {
         1: Int1,
         8: Int8,
         16: Int16,
@@ -183,4 +183,4 @@ def int_type(bits):
         64: Int64,
         128: Int128,
     }
-    return map[bits]()
+    return mapping[bits]()

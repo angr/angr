@@ -1,6 +1,5 @@
 
 from ...engines.light import SimEngineLightVEXMixin
-from ...sim_variable import SimVariable
 from ..typehoon import typevars, typeconsts
 from .engine_base import SimEngineVRBase, RichR
 
@@ -27,6 +26,27 @@ class SimEngineVRVEX(
         r = self._expr(stmt.data)
 
         self._store(addr_r, r, size, stmt=stmt)
+
+    def _handle_StoreG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard is True:
+
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) // 8
+            data = self._expr(stmt.data)
+            self._store(addr, data, size, stmt=stmt)
+
+    def _handle_LoadG(self, stmt):
+        guard = self._expr(stmt.guard)
+        if guard is True:
+            addr = self._expr(stmt.addr)
+            if addr is not None:
+                self.tmps[stmt.dst] = self._load(addr, self.tyenv.sizeof(stmt.dst) // 8)
+        elif guard is False:
+            data = self._expr(stmt.alt)
+            self.tmps[stmt.dst] = data
+        else:
+            self.tmps[stmt.dst] = None
 
     def _handle_NoOp(self, stmt):
         pass
@@ -58,13 +78,13 @@ class SimEngineVRVEX(
 
         return self._load(addr, size)
 
-    def _handle_CCall(self, expr):
+    def _handle_CCall(self, expr):  # pylint:disable=useless-return
         # ccalls don't matter
         return None
 
     # Function handlers
 
-    def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use
+    def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use,useless-return
         return None
 
     def _handle_Const(self, expr):
