@@ -1283,7 +1283,11 @@ class StructuredCodeGenerator(Analysis):
     #
 
     def _parse_load_addr(self, addr):
-        expr = self._handle(addr)
+
+        if isinstance(addr, CExpression):
+            expr = addr
+        else:
+            expr = self._handle(addr)
 
         if isinstance(expr, CBinaryOp):
             if expr.op == "And" and isinstance(expr.rhs, CConstant) and is_alignment_mask(expr.rhs.value):
