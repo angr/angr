@@ -143,7 +143,7 @@ class Struct(TypeConstant):
 
     def _hash_fields(self):
         keys = sorted(self.fields.keys())
-        tpl = ((k, self.fields[k]) for k in keys)
+        tpl = tuple((k, self.fields[k]) for k in keys)
         return hash(tpl)
 
     def __repr__(self):
