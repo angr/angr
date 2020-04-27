@@ -1,9 +1,10 @@
 
-from typing import Optional
+from typing import Optional, Union
 import logging
 
 import ailment
 
+from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction
 from ...engines.light import SimEngineLightAILMixin, SpOffset
 from ..typehoon import typeconsts, typevars
@@ -60,14 +61,17 @@ class SimEngineVRAIL(
             for arg in stmt.args:
                self._expr(arg)
 
-        ret_expr = stmt.ret_expr
-        if ret_expr is None:
+        ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
+        if ret_expr is not None:
+            ret_reg_offset = ret_expr.reg_offset
+        else:
             if stmt.calling_convention is not None:
                 # return value
-                ret_expr = stmt.calling_convention.RETURN_VAL
+                ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
             else:
                 l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
-                ret_expr = self.project.factory.cc().RETURN_VAL
+                ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
+            ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
 
         # discovery the prototype
         prototype: Optional[SimTypeFunction] = None
@@ -87,7 +91,7 @@ class SimEngineVRAIL(
                 ret_ty = None
 
             self._assign_to_register(
-                ret_expr.reg_offset,
+                ret_reg_offset,
                 RichR(None, typevar=ret_ty),
                 self.state.arch.bytes,
                 dst=ret_expr,
