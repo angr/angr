@@ -874,6 +874,7 @@ class CUnaryOp(CExpression):
 
         OP_MAP = {
             'Not': self._c_repr_not,
+            'Reference': self._c_repr_reference,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -890,6 +891,16 @@ class CUnaryOp(CExpression):
         s = "!(%s)" % (self.operand.c_repr(posmap=posmap))
         if posmap: posmap.tick_pos(1)
         return s
+
+    def _c_repr_reference(self, posmap=None):
+        s0 = "&"
+        if posmap: posmap.tick_pos(1)
+        if isinstance(self.operand, CExpression):
+            s1 = self.operand.c_repr(posmap=posmap)
+        else:
+            s1 = str(self.operand)
+            if posmap: posmap.tick_pos(len(s1))
+        return s0 + s1
 
 
 class CBinaryOp(CExpression):
