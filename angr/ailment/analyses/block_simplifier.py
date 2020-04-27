@@ -9,7 +9,7 @@ from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLoca
 
 from ..block import Block
 from ..statement import Assignment
-from ..expression import Tmp, Register
+from ..expression import Tmp, Register, Load
 
 _l = logging.getLogger(name=__name__)
 
@@ -63,9 +63,10 @@ class BlockSimplifier(Analysis):
         # propagator
         propagator = self.project.analyses.Propagator(block=block, stack_pointer_tracker=self._stack_pointer_tracker)
         replacements = list(propagator._states.values())[0]._replacements
+        if not replacements:
+            return block
         new_block = self._replace_and_build(block, replacements)
         new_block = self._eliminate_dead_assignments(new_block)
-
         return new_block
 
     @staticmethod
@@ -75,6 +76,9 @@ class BlockSimplifier(Analysis):
 
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
+                if isinstance(old, Load):
+                    # skip memory-based replacement
+                    continue
                 stmt = new_statements[codeloc.stmt_idx]
                 if stmt == old:
                     # replace this statement
