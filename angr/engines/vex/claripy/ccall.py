@@ -1771,11 +1771,12 @@ def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     return _concat_flags(ARM64G_NBITS, vec)
 
 def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
-    cond = claripy.LShR(cond_n_op, 4)
-    cc_op = cond_n_op & 0xF
+    concretize_cond_n_op = op_concretize(cond_n_op)
+    cond = concretize_cond_n_op >> 4
+    cc_op = concretize_cond_n_op & 0xF
     inv = cond & 1
 
-    concrete_cond = op_concretize(cond)
+    concrete_cond = cond
     flag = None
 
     if concrete_cond in (ARM64CondAL, ARM64CondNV):
