@@ -111,6 +111,19 @@ class RegisterOffset:
                 return RegisterOffset(self._bits, self.reg,
                                       ArithmeticExpression(ArithmeticExpression.Sub, (self.offset, other,)))
 
+    def __and__(self, other):
+        if not self.symbolic and type(other) is int:
+            return RegisterOffset(self._bits, self.reg, self._to_signed(self.offset + other))
+        else:
+            if self.symbolic:
+                return RegisterOffset(self._bits, self.reg, self.offset & other)
+            else:
+                return RegisterOffset(self._bits, self.reg,
+                                      ArithmeticExpression(ArithmeticExpression.And, (self.offset, other,)))
+
+    def __rand__(self, other):
+        return self.__and__(other)
+
     def _to_signed(self, n):
         if n >= 2 ** (self._bits - 1):
             return n - 2 ** self._bits
