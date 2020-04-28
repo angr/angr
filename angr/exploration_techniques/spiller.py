@@ -7,6 +7,7 @@ try:
     from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.exc import OperationalError
 
     Base = declarative_base()
 
@@ -16,6 +17,7 @@ try:
         id = Column(String, primary_key=True)
         priority = Column(Integer)
         taken = Column(Boolean, default=False)
+        stash = Column(String, default="")
         timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
 except ImportError:
@@ -84,24 +86,29 @@ class PickledStatesDb(PickledStatesBase):
         engine = create_engine(db_str)
 
         # create table
-        Base.metadata.create_all(engine)
+        try:
+            Base.metadata.create_all(engine, checkfirst=True)
+        except OperationalError:
+            # table already exists
+            pass
 
         self.Session = sessionmaker(bind=engine)
 
     def sort(self):
         pass
 
-    def add(self, prio, sid):
-        record = PickledState(id=sid, priority=prio)
+    def add(self, prio, sid, taken=False, stash="spilled"):
+        record = PickledState(id=sid, priority=prio, taken=taken, stash=stash)
         session = self.Session()
         session.add(record)
         session.commit()
         session.close()
 
-    def pop_n(self, n):
+    def pop_n(self, n, stash="spilled"):
         session = self.Session()
         q = session.query(PickledState)\
             .filter_by(taken=False)\
+            .filter_by(stash=stash)\
             .order_by(PickledState.priority)\
             .limit(n)\
             .all()
@@ -112,6 +119,24 @@ class PickledStatesDb(PickledStatesBase):
             ss.append((r.priority, r.id))
         session.commit()
         return ss
+
+    def get_recent_n(self, n, stash="spilled"):
+        session = self.Session()
+        q = session.query(PickledState) \
+            .filter_by(stash=stash) \
+            .order_by(PickledState.timestamp.desc()) \
+            .limit(n) \
+            .all()
+
+        ss = []
+        for r in q:
+            ss.append((r.timestamp, r.id))
+        return ss
+
+    def count(self):
+        session = self.Session()
+        q = session.query(PickledState).count()
+        return q
 
 
 class Spiller(ExplorationTechnique):
@@ -175,7 +200,13 @@ class Spiller(ExplorationTechnique):
                 self.pickle_callback(s)
         self._ever_pickled += len(states)
         for state in states:
-            prio, state_oid = self._get_priority(state), self._store_state(state)
+            try:
+                state_oid = self._store_state(state)
+            except RecursionError:
+                l.warning("Couldn't store the state because of a recursion error. This is most likely to be pickle's "
+                          "fault. You may try to increase the recursion limit using sys.setrecursionlimit().")
+                continue
+            prio = self._get_priority(state)
             if self.post_pickle_callback:
                 self.post_pickle_callback(state, prio, state_oid)
             self._pickled_states.add(prio, state_oid)

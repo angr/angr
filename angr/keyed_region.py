@@ -312,13 +312,13 @@ class KeyedRegion:
         Find variables covering the given region offset.
 
         :param int start:
-        :return: A list of stack variables.
+        :return: A set of variables.
         :rtype:  set
         """
 
         _, container = self._get_container(start)
         if container is None:
-            return []
+            return set()
         else:
             return container.internal_objects
 
@@ -335,6 +335,18 @@ class KeyedRegion:
             return set()
         else:
             return container.internal_objects
+
+    def get_all_variables(self):
+        """
+        Get all variables covering the current region.
+
+        :return:    A set of all variables.
+        """
+        variables = set()
+        for ro in self._storage.values():
+            ro: RegionObject
+            variables |= ro.internal_objects
+        return variables
 
     #
     # Private methods
@@ -468,6 +480,4 @@ class KeyedRegion:
                     item.set_object(stored_object)
                     return
 
-            # l.warning("Overlapping objects %s.", str({stored_object.obj} | item.internal_objects))
-            # import ipdb; ipdb.set_trace()
         item.add_object(stored_object)

@@ -8,6 +8,7 @@ from ...codenode import BlockNode, HookNode, SyscallNode
 from ...engines.successors import SimSuccessors
 from ...serializable import Serializable
 from ...protos import cfg_pb2
+from ...errors import AngrError, SimError
 
 _l = logging.getLogger(__name__)
 
@@ -204,6 +205,15 @@ class CFGNode(Serializable):
                   cfg=cfg,
                   block_id=block_id,
                   )
+        if cfg is not None:
+            # fill in self.instruction_addrs
+            proj = cfg.project
+            try:
+                obj.instruction_addrs = proj.factory.block(obj.addr, size=obj.size).instruction_addrs
+            except (AngrError, SimError):
+                # maybe this is a SimProcedure but not a block. ignore
+                # TODO: We should serialize information including is_simprocedure
+                pass
         return obj
 
     #

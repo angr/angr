@@ -1,12 +1,15 @@
 
 import pyvex
 
+from ..utils import looks_like_sql
+from ..knowledge_plugins.xrefs import XRef
 from . import Analysis, AnalysesHub
 
 
 class CodeTags:
     HAS_XOR = 'HAS_XOR'
     HAS_BITSHIFTS = 'HAS_BITSHIFTS'
+    HAS_SQL = 'HAS_SQL'
     LARGE_SWITCH = 'LARGE_SWITCH'
 
 
@@ -19,6 +22,7 @@ class CodeTagging(Analysis):
         self.ANALYSES = [
             self.has_xor,
             self.has_bitshifts,
+            self.has_sql,
         ]
 
         self.analyze()
@@ -91,5 +95,23 @@ class CodeTagging(Analysis):
             return { CodeTags.HAS_BITSHIFTS }
         return None
 
+    def has_sql(self):
+        """
+        Detects if there is any reference to strings that look like SQL queries.
+        """
+
+        # what strings are the current function referencing?
+        for block in self._function.blocks:
+            if block.size == 0:
+                continue
+            for ins_addr in block.instruction_addrs:
+                xrefs = self.kb.xrefs.get_xrefs_by_ins_addr(ins_addr)
+                for xref in xrefs:
+                    xref: XRef
+                    if xref.memory_data is not None and xref.memory_data.sort == 'string':
+                        if looks_like_sql(xref.memory_data.content.decode("utf-8")):
+                            return { CodeTags.HAS_SQL }
+
+        return False
 
 AnalysesHub.register_default('CodeTagging', CodeTagging)

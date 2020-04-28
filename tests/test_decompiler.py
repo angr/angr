@@ -102,6 +102,21 @@ def test_decompiling_mips_allcmps():
         print("Failed to decompile function %s." % repr(f))
 
 
+def test_decompiling_linked_list():
+    bin_path = os.path.join(test_location, "x86_64", "linked_list")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions['sum']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        print(dec.codegen.text)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
 def test_decompiling_dir_gcc_O0_free_ent():
     bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
     p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -235,7 +250,7 @@ def test_decompiling_switch2_x86_64():
         assert False
 
 
-def test_decompiling_1after999_doit():
+def test_decompiling_1after999():
 
     # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
 
@@ -244,6 +259,17 @@ def test_decompiling_1after999_doit():
 
     cfg = p.analyses.CFG(normalize=True, data_references=True)
 
+    # verify_password
+    f = cfg.functions['verify_password']
+    dec = p.analyses.Decompiler(f, cfg=cfg)
+    if dec.codegen is not None:
+        code = dec.codegen.text
+        print(code)
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+    # doit
     f = cfg.functions['doit']
     optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
         p.arch, p.simos.name
@@ -254,7 +280,6 @@ def test_decompiling_1after999_doit():
     if dec.codegen is not None:
         code = dec.codegen.text
         print(code)
-
         # with EagerReturnSimplifier applied, there should be no goto!
         assert "goto" not in code.lower()
     else:

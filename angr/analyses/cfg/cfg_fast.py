@@ -215,10 +215,10 @@ class FunctionEdge:
 
 class FunctionTransitionEdge(FunctionEdge):
 
-    __slots__ = ('src_node', 'dst_addr', 'src_func_addr', 'to_outside', 'dst_func_addr')
+    __slots__ = ('src_node', 'dst_addr', 'src_func_addr', 'to_outside', 'dst_func_addr', 'is_exception', )
 
     def __init__(self, src_node, dst_addr, src_func_addr, to_outside=False, dst_func_addr=None, stmt_idx=None,
-                 ins_addr=None):
+                 ins_addr=None, is_exception=False):
         self.src_node = src_node
         self.dst_addr = dst_addr
         self.src_func_addr = src_func_addr
@@ -226,6 +226,7 @@ class FunctionTransitionEdge(FunctionEdge):
         self.dst_func_addr = dst_func_addr
         self.stmt_idx = stmt_idx
         self.ins_addr = ins_addr
+        self.is_exception = is_exception
 
     def apply(self, cfg):
         to_outside = self.to_outside
@@ -242,6 +243,7 @@ class FunctionTransitionEdge(FunctionEdge):
             dst_func_addr=self.dst_func_addr,
             stmt_idx=self.stmt_idx,
             ins_addr=self.ins_addr,
+            is_exception=self.is_exception,
         )
 
 
@@ -446,6 +448,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  model=None,
                  use_patches=False,
                  elf_eh_frame=True,
+                 exceptions=True,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  collect_data_references=None, # deprecated
@@ -584,6 +587,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._use_function_prologues = function_prologues
         self._force_complete_scan = force_complete_scan
         self._use_elf_eh_frame = elf_eh_frame
+        self._use_exceptions = exceptions
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
@@ -628,6 +632,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
+
+        # exception handling
+        self._exception_handling_by_endaddr = SortedDict()
 
         #
         # Variables used during analysis
@@ -982,6 +989,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # initial_options.remove(o.COW_STATES)
         self._initial_state.options = initial_options
 
+        # Process known exception handlings
+        if self._use_exceptions:
+            self._preprocess_exception_handlings()
+
         starting_points = set()
 
         # clear all existing functions
@@ -1268,7 +1279,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # If they asked for it, give it to them.  All of it.
         if self._cross_references:
-            self._do_full_xrefs()
+            self.do_full_xrefs()
 
         r = True
         while r:
@@ -1278,10 +1289,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._finish_progress()
 
-    def _do_full_xrefs(self):
+    def do_full_xrefs(self, overlay_state=None):
+        """
+        Perform xref recovery on all functions.
+
+        :param SimState overlay:    An overlay state for loading constant data.
+        :return:                    None
+        """
+
         l.info("Building cross-references...")
         # Time to make our CPU hurt
-        state = self.project.factory.blank_state()
+        state = self.project.factory.blank_state() if overlay_state is None else overlay_state
         for f_addr in self.functions:
             f = None
             try:
@@ -1532,9 +1550,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [ ]
 
-        last_ins_addr = None
-        ins_addr = addr
         if irsb.statements:
+            last_ins_addr = None
+            ins_addr = addr
             for i, stmt in enumerate(irsb.statements):
                 if isinstance(stmt, pyvex.IRStmt.Exit):
                     successors.append((i,
@@ -1548,16 +1566,40 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     ins_addr = stmt.addr + stmt.delta
         else:
             for ins_addr, stmt_idx, exit_stmt in irsb.exit_statements:
+                branch_ins_addr = ins_addr
+                if self.project.arch.branch_delay_slot \
+                        and irsb.instruction_addresses \
+                        and ins_addr in irsb.instruction_addresses:
+                    idx_ = irsb.instruction_addresses.index(ins_addr)
+                    if idx_ > 0:
+                        branch_ins_addr = irsb.instruction_addresses[idx_ - 1]
                 successors.append((
                     stmt_idx,
-                    last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                    branch_ins_addr,
                     exit_stmt.dst,
                     exit_stmt.jumpkind
                 ))
 
-        successors.append((DEFAULT_STATEMENT,
-                           last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
-                          )
+        # default statement
+        default_branch_ins_addr = None
+        if irsb.instruction_addresses:
+            if self.project.arch.branch_delay_slot:
+                if len(irsb.instruction_addresses) > 1:
+                    default_branch_ins_addr = irsb.instruction_addresses[-2]
+            else:
+                default_branch_ins_addr = irsb.instruction_addresses[-1]
+
+        successors.append((DEFAULT_STATEMENT, default_branch_ins_addr, irsb_next, jumpkind))
+
+        # exception handling
+        exc = self._exception_handling_by_endaddr.get(addr + irsb.size, None)
+        if exc is not None:
+            successors.append(
+                (DEFAULT_STATEMENT,
+                 default_branch_ins_addr,
+                 exc.handler_addr,
+                 'Ijk_Exception')
+            )
 
         entries = [ ]
 
@@ -1715,13 +1757,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # This is a direct jump with a concrete target.
 
             # pylint: disable=too-many-nested-blocks
-            if jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
+            if jumpkind in {'Ijk_Boring', 'Ijk_InvalICache', 'Ijk_Exception'}:
                 to_outside, target_func_addr = self._is_branching_to_outside(addr, target_addr, current_function_addr)
                 edge = FunctionTransitionEdge(cfg_node, target_addr, current_function_addr,
                                               to_outside=to_outside,
                                               dst_func_addr=target_func_addr,
                                               ins_addr=ins_addr,
                                               stmt_idx=stmt_idx,
+                                              is_exception=jumpkind == 'Ijk_Exception',
                                               )
 
                 ce = CFGJob(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
@@ -1809,7 +1852,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         edge = None
         if new_function_addr is not None:
             edge = FunctionCallEdge(cfg_node, new_function_addr, return_site, current_function_addr, syscall=is_syscall,
-                                    ins_addr=ins_addr, stmt_idx=ins_addr,
+                                    ins_addr=ins_addr, stmt_idx=stmt_idx,
                                     )
 
         if new_function_addr is not None:
@@ -2562,6 +2605,29 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         CFGBase._indirect_jump_unresolved(self, jump)
 
+    # Exception handling
+
+    def _preprocess_exception_handlings(self):
+
+        self._exception_handling_by_endaddr.clear()
+
+        bin_count = 0
+        for obj in self.project.loader.all_objects:
+            if isinstance(obj, cle.MetaELF) and hasattr(obj, "exception_handlings") and obj.exception_handlings:
+                bin_count += 1
+                for exc in obj.exception_handlings:
+                    if exc.handler_addr is not None and self._inside_regions(exc.handler_addr):
+                        if (exc.start_addr + exc.size) in self._exception_handling_by_endaddr:
+                            l.warning("Multiple exception handlings ending at %#x. Please report it to GitHub.",
+                                      exc.start_addr + exc.size)
+                            continue
+                        self._exception_handling_by_endaddr[exc.start_addr + exc.size] = exc
+
+        l.info("Loaded %d exception handlings from %d binaries.",
+               len(self._exception_handling_by_endaddr),
+               bin_count,
+               )
+
     # Removers
 
     def _remove_redundant_overlapping_blocks(self):
@@ -2983,6 +3049,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return endpoints
 
+    def _get_tail_caller(self, tailnode, seen):
+        """
+        recursively search predecessors for the actual caller
+        for a tailnode that we will return to
+
+        :return: list of callers for a possible tailnode
+        """
+
+        if tailnode.addr in seen:
+            return []
+        seen.add(tailnode.addr)
+
+        callers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Call')
+        direct_jumpers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Boring')
+        jump_callers = []
+
+        for jn in direct_jumpers:
+            jf = self.model.get_any_node(jn.function_address)
+            if jf is not None:
+                jump_callers.extend(self._get_tail_caller(jf, seen))
+
+        callers.extend(jump_callers)
+
+        return callers
+
+
     def _make_return_edges(self):
         """
         For each returning function, create return edges in self.graph.
@@ -3009,6 +3101,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # get all callers
             callers = self.model.get_predecessors(startpoint, jumpkind='Ijk_Call')
+
+            # handle callers for tailcall optimizations if flag is enabled
+            if self._detect_tail_calls and startpoint.addr in self._tail_calls:
+                l.debug("Handling return address for tail call for func %x", func_addr)
+                seen = set()
+                tail_callers = self._get_tail_caller(startpoint, seen)
+                callers.extend(tail_callers)
+
             # for each caller, since they all end with a call instruction, get the immediate successor
             return_targets = itertools.chain.from_iterable(
                 self.model.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
@@ -3049,7 +3149,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.kb.functions._add_node(function_addr, snippet)
 
     def _function_add_transition_edge(self, dst_addr, src_node, src_func_addr, to_outside=False, dst_func_addr=None,
-                                      stmt_idx=None, ins_addr=None):
+                                      stmt_idx=None, ins_addr=None, is_exception=False):
         """
         Add a transition edge to the function transiton map.
 
@@ -3075,12 +3175,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 src_snippet = self._to_snippet(cfg_node=src_node)
                 if not to_outside:
                     self.kb.functions._add_transition_to(src_func_addr, src_snippet, target_snippet, stmt_idx=stmt_idx,
-                                                         ins_addr=ins_addr
+                                                         ins_addr=ins_addr, is_exception=is_exception
                                                          )
                 else:
                     self.kb.functions._add_outside_transition_to(src_func_addr, src_snippet, target_snippet,
                                                                  to_function_addr=dst_func_addr,
-                                                                 stmt_idx=stmt_idx, ins_addr=ins_addr
+                                                                 stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                                                 is_exception=is_exception,
                                                                  )
             return True
         except (SimMemoryError, SimEngineError):
@@ -3376,8 +3477,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 real_addr = addr
 
-            # if possible, check the distance between `addr` and the end of this section
             distance = VEX_IRSB_MAX_SIZE
+            # if there is exception handling code, check the distance between `addr` and the cloest ending address
+            if self._exception_handling_by_endaddr:
+                next_end = next(self._exception_handling_by_endaddr.irange(minimum=real_addr), None)
+                if next_end is not None:
+                    distance = min(distance, next_end - real_addr)
+
+            # if possible, check the distance between `addr` and the end of this section
             obj = self.project.loader.find_object_containing(addr, membership_check=False)
             if obj:
                 # is there a section?
@@ -3390,8 +3497,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     if not section.is_executable:
                         # the section is not executable...
                         return None, None, None, None
-                    distance = section.vaddr + section.memsize - real_addr
-                    distance = min(distance, VEX_IRSB_MAX_SIZE)
+                    distance_ = section.vaddr + section.memsize - real_addr
+                    distance = min(distance_, VEX_IRSB_MAX_SIZE)
                 # TODO: handle segment information as well
 
             # also check the distance between `addr` and the closest function.

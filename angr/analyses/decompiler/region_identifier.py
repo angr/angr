@@ -1,13 +1,14 @@
-
+from itertools import count
 import logging
 
 import networkx
 
 import ailment
+from claripy.utils.orderedset import OrderedSet
 
-from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
+from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
-from .utils import remove_last_statement, append_statement
+from .utils import replace_last_statement
 from .structurer_nodes import MultiNode, ConditionNode
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
@@ -15,12 +16,17 @@ from .condition_processor import ConditionProcessor
 l = logging.getLogger(name=__name__)
 
 
+# an ever-incrementing counter
+CONDITIONNODE_ADDR = count(0xff000000)
+
+
 class RegionIdentifier(Analysis):
     """
     Identifies regions within a function.
     """
-    def __init__(self, func, graph=None):
+    def __init__(self, func, cond_proc=None, graph=None):
         self.function = func
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor()
         self._graph = graph if graph is not None else self.function.graph
 
         self.region = None
@@ -101,14 +107,14 @@ class RegionIdentifier(Analysis):
                     if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
                         self._merge_nodes(graph, src, dst, force_multinode=True)
                         break
-                if type_ == 'call':
+                elif type_ == 'call':
                     graph.remove_node(dst)
                     break
             else:
                 break
 
     def _find_loop_headers(self, graph):
-        return { t for _,t in dfs_back_edges(graph, self._start_node) }
+        return OrderedSet(sorted((t for _,t in dfs_back_edges(graph, self._start_node)), key=lambda x: x.addr))
 
     def _find_initial_loop_nodes(self, graph, head):
         # TODO optimize
@@ -295,24 +301,23 @@ class RegionIdentifier(Analysis):
             return
 
         # recover reaching conditions
-        cond_proc = ConditionProcessor()
-        cond_proc.recover_reaching_conditions(region, with_successors=True)
+        self.cond_proc.recover_reaching_conditions(region, with_successors=True)
 
         successors = list(region.successors)
 
-        condnode_addr = -1  # TODO: We need an incrementing counter
+        condnode_addr = next(CONDITIONNODE_ADDR)
         # create a new successor
         cond = ConditionNode(
             condnode_addr,
             None,
-            cond_proc.reaching_conditions[successors[0]],
+            self.cond_proc.reaching_conditions[successors[0]],
             successors[0],
             false_node=None,
         )
         for succ in successors[1:]:
             cond = ConditionNode(condnode_addr,
                                  None,
-                                 cond_proc.reaching_conditions[succ],
+                                 self.cond_proc.reaching_conditions[succ],
                                  succ,
                                  false_node=cond,
                                  )
@@ -332,35 +337,40 @@ class RegionIdentifier(Analysis):
                 # TODO: rewrite the conditional jumps in src so that it goes to cond-node instead.
 
                 # modify the last statement of src so that it jumps to cond
-                last_stmt = cond_proc.get_last_statement(src)
-                if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                    if last_stmt.true_target.value == succ.addr:
-                        new_last_stmt = ailment.Stmt.ConditionalJump(
-                            last_stmt.idx,
-                            last_stmt.condition,
-                            ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                            last_stmt.false_target,
-                            ins_addr=last_stmt.ins_addr,
-                        )
-                    elif last_stmt.false_target.value == succ.addr:
-                        new_last_stmt = ailment.Stmt.ConditionalJump(
-                            last_stmt.idx,
-                            last_stmt.condition,
-                            last_stmt.true_target,
-                            ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                            ins_addr=last_stmt.ins_addr,
-                        )
+                replaced_any_stmt = False
+                last_stmts = self.cond_proc.get_last_statements(src)
+                for last_stmt in last_stmts:
+                    if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                        if last_stmt.true_target.value == succ.addr:
+                            new_last_stmt = ailment.Stmt.ConditionalJump(
+                                last_stmt.idx,
+                                last_stmt.condition,
+                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                last_stmt.false_target,
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        elif last_stmt.false_target.value == succ.addr:
+                            new_last_stmt = ailment.Stmt.ConditionalJump(
+                                last_stmt.idx,
+                                last_stmt.condition,
+                                last_stmt.true_target,
+                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        else:
+                            # none of the two branches is jumping out of the loop
+                            continue
                     else:
-                        l.warning("I'm not sure which branch is jumping out of the loop...")
-                        raise Exception()
-                else:
-                    new_last_stmt = ailment.Stmt.Jump(
-                        last_stmt.idx,
-                        ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                        ins_addr=last_stmt.ins_addr,
-                    )
-                remove_last_statement(src)
-                append_statement(src, new_last_stmt)
+                        new_last_stmt = ailment.Stmt.Jump(
+                            last_stmt.idx,
+                            ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                            ins_addr=last_stmt.ins_addr,
+                        )
+                    replace_last_statement(src, last_stmt, new_last_stmt)
+                    replaced_any_stmt = True
+                if not replaced_any_stmt:
+                    l.warning("No statement was replaced. Is there anything wrong?")
+                    raise Exception()
 
                 # add src back
                 for src2src, _, data_ in removed_edges:
@@ -371,8 +381,9 @@ class RegionIdentifier(Analysis):
         # modify graph
         graph.add_edge(region, cond)
         for succ in successors:
+            edge_data = graph.get_edge_data(region, succ)
             graph.remove_edge(region, succ)
-            graph.add_edge(cond, succ)
+            graph.add_edge(cond, succ, **edge_data)
 
     #
     # Acyclic regions
@@ -419,7 +430,7 @@ class RegionIdentifier(Analysis):
         doms = networkx.immediate_dominators(graph_copy, head)
 
         # compute post-dominator tree
-        inverted_graph = networkx.reverse(graph_copy)
+        inverted_graph = shallow_reverse(graph_copy)
         postdoms = networkx.immediate_dominators(inverted_graph, endnodes[0])
 
         # dominance frontiers
@@ -525,14 +536,15 @@ class RegionIdentifier(Analysis):
             subgraph.add_node(node_)
 
             for succ in graph.successors(node_):
+                edge_data = graph.get_edge_data(node_, succ)
 
                 if node_ in frontier and succ in traversed:
                     if include_frontier:
                         # if frontier nodes are included, do not keep traversing their successors
                         # however, if it has an edge to an already traversed node, we should add that edge
-                        subgraph.add_edge(node_, succ)
+                        subgraph.add_edge(node_, succ, **edge_data)
                     else:
-                        frontier_edges.append((node_, succ))
+                        frontier_edges.append((node_, succ, edge_data))
                     continue
 
                 if succ is dummy_endnode:
@@ -541,9 +553,9 @@ class RegionIdentifier(Analysis):
                 if succ in frontier:
                     if not include_frontier:
                         # skip all frontier nodes
-                        frontier_edges.append((node_, succ))
+                        frontier_edges.append((node_, succ, edge_data))
                         continue
-                subgraph.add_edge(node_, succ)
+                subgraph.add_edge(node_, succ, **edge_data)
                 if succ in traversed:
                     continue
                 queue.append(succ)
@@ -553,9 +565,9 @@ class RegionIdentifier(Analysis):
 
         if subgraph.number_of_nodes() > 1:
             subgraph_with_frontier = networkx.DiGraph(subgraph)
-            for src, dst in frontier_edges:
+            for src, dst, edge_data in frontier_edges:
                 if dst is not dummy_endnode:
-                    subgraph_with_frontier.add_edge(src, dst)
+                    subgraph_with_frontier.add_edge(src, dst, **edge_data)
             # assert dummy_endnode not in frontier
             # assert dummy_endnode not in subgraph_with_frontier
             return GraphRegion(node, subgraph, frontier, subgraph_with_frontier, False)
@@ -602,8 +614,8 @@ class RegionIdentifier(Analysis):
         graph.add_node(region)
         for node in loop_nodes:
             subgraph.add_node(node)
-            in_edges = graph.in_edges(node, data=True)
-            out_edges = graph.out_edges(node, data=True)
+            in_edges = list(graph.in_edges(node, data=True))
+            out_edges = list(graph.out_edges(node, data=True))
 
             for src, dst, data in in_edges:
                 if src in normal_entries:

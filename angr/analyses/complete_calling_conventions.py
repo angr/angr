@@ -9,11 +9,11 @@ _l = logging.getLogger(name=__name__)
 
 class CompleteCallingConventionsAnalysis(Analysis):
 
-    def __init__(self, recover_variables=False, low_priority=False):
+    def __init__(self, recover_variables=False, low_priority=False, force=False):
 
         self._recover_variables = recover_variables
         self._low_priority = low_priority
-
+        self._force = force
         self._analyze()
 
     def _analyze(self):
@@ -32,7 +32,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         for idx, func_addr in enumerate(reversed(sorted_funcs)):
             func = self.kb.functions.get_by_addr(func_addr)
 
-            if func.calling_convention is None:
+            if func.calling_convention is None or self._force:
                 if func.alignment:
                     # skil all alignments
                     continue

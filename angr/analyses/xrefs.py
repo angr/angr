@@ -57,7 +57,6 @@ class SimEngineXRefsVEX(
                 self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_LoadG(self, stmt):
-
         # What are we reading?
         blockloc = self._codeloc(block_only=True)
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
@@ -74,6 +73,10 @@ class SimEngineXRefsVEX(
         tmp = VEXTmp(data_tmp)
         if tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][tmp], Top):
             data = self.replacements[blockloc][tmp]
+            # Is this thing not an integer? If so, get out of here
+            # e.g., you can't find_object_containing on an SPOffset
+            if not isinstance(data, int):
+                return
             if data is not None and self.project.loader.find_object_containing(data) is not None:
                 # HACK: Avoid spamming Xrefs if the binary is loaded at 0
                 # e.g., firmware!
@@ -159,9 +162,9 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
         self._analyze()
 
-        #
-        # Main analysis routines
-        #
+    #
+    # Main analysis routines
+    #
 
     def _pre_analysis(self):
         pass

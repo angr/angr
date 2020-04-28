@@ -5,8 +5,8 @@ from collections import defaultdict
 from ailment.expression import BinaryOp, StackBaseOffset
 
 from ...keyed_region import KeyedRegion
-from ...sim_variable import SimStackVariable, SimRegisterVariable
 from ..analysis import Analysis
+from ..typehoon.typevars import TypeVariables
 
 l = logging.getLogger(name=__name__)
 
@@ -87,7 +87,8 @@ class VariableRecoveryStateBase:
     The base abstract state for variable recovery analysis.
     """
 
-    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None):
+    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, typevars=None,
+                 type_constraints=None, delayed_type_constraints=None):
 
         self.block_addr = block_addr
         self._analysis = analysis
@@ -102,6 +103,11 @@ class VariableRecoveryStateBase:
             self.register_region = register_region
         else:
             self.register_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
+
+        self.typevars = TypeVariables() if typevars is None else typevars
+        self.type_constraints = set() if type_constraints is None else type_constraints
+        self.delayed_type_constraints = defaultdict(set) \
+            if delayed_type_constraints is None else delayed_type_constraints
 
     @property
     def func_addr(self):
@@ -134,6 +140,16 @@ class VariableRecoveryStateBase:
 
         return self._analysis.get_variable_definitions(block_addr)
 
+    def add_type_constraint(self, constraint):
+        """
+        Add a new type constraint.
+
+        :param constraint:
+        :return:
+        """
+
+        self.type_constraints.add(constraint)
+
     #
     # Private methods
     #
@@ -143,31 +159,13 @@ class VariableRecoveryStateBase:
         stack_variables = defaultdict(set)
         register_variables = defaultdict(set)
 
-        for dominatee in self.dominance_frontiers[successor]:
-            vardefs = self._analysis.get_variable_definitions(dominatee)
-            for var in vardefs:
-                if isinstance(var, SimStackVariable):
-                    stack_variables[(var.offset, var.size)].add(var)
-                    if dominatee != state0.block_addr:
-                        v0s = state0.stack_region.get_variables_by_offset(var.offset)
-                        for v0 in v0s:
-                            stack_variables[(v0.offset, v0.size)].add(v0)
-                    if dominatee != state1.block_addr:
-                        v1s = state1.stack_region.get_variables_by_offset(var.offset)
-                        for v1 in v1s:
-                            stack_variables[(v1.offset, v1.size)].add(v1)
-                elif isinstance(var, SimRegisterVariable):
-                    register_variables[(var.reg, var.size)].add(var)
-                    if dominatee != state0.block_addr:
-                        v0s = state0.register_region.get_variables_by_offset(var.reg)
-                        for v0 in v0s:
-                            register_variables[(v0.reg, v0.size)].add(v0)
-                    if dominatee != state1.block_addr:
-                        v1s = state1.register_region.get_variables_by_offset(var.reg)
-                        for v1 in v1s:
-                            register_variables[(v1.reg, v1.size)].add(v1)
-                else:
-                    l.warning("Unsupported variable type %s.", type(var))
+        for state in [ state0, state1 ]:
+            stack_vardefs = state.stack_region.get_all_variables()
+            reg_vardefs = state.register_region.get_all_variables()
+            for var in stack_vardefs:
+                stack_variables[(var.offset, var.size)].add(var)
+            for var in reg_vardefs:
+                register_variables[(var.reg, var.size)].add(var)
 
         replacements = {}
 
@@ -178,7 +176,8 @@ class VariableRecoveryStateBase:
                     phi_node = self.variable_manager[self.function.addr].make_phi_node(successor, *variables)
                     # Fill the replacements dict
                     for var in variables:
-                        replacements[var] = phi_node
+                        if var is not phi_node:
+                            replacements[var] = phi_node
 
         return replacements
 

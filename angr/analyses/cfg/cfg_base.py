@@ -84,6 +84,7 @@ class CFGBase(Analysis):
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
         self._thumb_addrs = set()
+        self._tail_calls = set()
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
@@ -1928,7 +1929,7 @@ class CFGBase(Analysis):
                                                   to_outside=to_outside
                                                   )
 
-        elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
+        elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache', 'Ijk_Exception'):
 
             # convert src_addr and dst_addr to CodeNodes
             n = self.model.get_any_node(src_addr)
@@ -1956,6 +1957,7 @@ class CFGBase(Analysis):
                     self.kb.functions._add_outside_transition_to(src_function.addr, src_node, dst_node,
                                                                  to_function_addr=dst_addr
                                                                  )
+                    self._tail_calls.add(dst_addr)
 
             # is it a jump to another function?
             if isinstance(dst_addr, SootAddressDescriptor):
@@ -1971,7 +1973,8 @@ class CFGBase(Analysis):
                     dst_addr
 
                 self.kb.functions._add_outside_transition_to(src_function.addr, src_node, dst_node,
-                                                             to_function_addr=dst_function_addr
+                                                             to_function_addr=dst_function_addr,
+                                                             is_exception=jumpkind == 'Ijk_Exception',
                                                              )
 
                 _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
@@ -1983,7 +1986,7 @@ class CFGBase(Analysis):
                     blockaddr_to_function[dst_addr] = src_function
 
                 self.kb.functions._add_transition_to(src_function.addr, src_node, dst_node, ins_addr=ins_addr,
-                                                     stmt_idx=stmt_idx
+                                                     stmt_idx=stmt_idx, is_exception=jumpkind == 'Ijk_Exception',
                                                      )
 
         elif jumpkind == 'Ijk_FakeRet':

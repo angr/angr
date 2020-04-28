@@ -55,7 +55,7 @@ def test_region_identifier_0():
         D(1, 2), D(2, 3), D(2, 4), D(3, 5), D(4, 5), D(5, 6),
     ])
 
-    ri = angr.analyses.decompiler.RegionIdentifier(None, g)
+    ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
     region = ri.region
     nose.tools.assert_equal(len(region.graph.nodes()), 2)
 
@@ -85,7 +85,7 @@ def test_region_identifier_1():
         D(1, 2), D(2, 3), D(3, 4), D(2, 4), D(4, 5), D(5, 6), D(6, 7), D(5, 7), D(7, 8),
     ])
 
-    ri = angr.analyses.decompiler.RegionIdentifier(None, g)
+    ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
     region = ri.region
     nose.tools.assert_equal((len(region.graph.nodes())), 2)
 

@@ -1,7 +1,7 @@
 
 import ailment
 
-from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode
+from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode
 
 
 def remove_last_statement(node):
@@ -47,6 +47,33 @@ def append_statement(node, stmt):
             append_statement(node.nodes[-1], stmt)
         else:
             raise NotImplementedError()
+        return
+
+    raise NotImplementedError()
+
+
+def replace_last_statement(node, old_stmt, new_stmt):
+
+    if type(node) is CodeNode:
+        replace_last_statement(node.node, old_stmt, new_stmt)
+        return
+    if type(node) is ailment.Block:
+        if node.statements[-1] is old_stmt:
+            node.statements[-1] = new_stmt
+        return
+    if type(node) is MultiNode:
+        if node.nodes:
+            replace_last_statement(node.nodes[-1], old_stmt, new_stmt)
+        return
+    if type(node) is SequenceNode:
+        if node.nodes:
+            replace_last_statement(node.nodes[-1], old_stmt, new_stmt)
+        return
+    if type(node) is ConditionNode:
+        if node.true_node is not None:
+            replace_last_statement(node.true_node, old_stmt, new_stmt)
+        if node.false_node is not None:
+            replace_last_statement(node.false_node, old_stmt, new_stmt)
         return
 
     raise NotImplementedError()
@@ -130,7 +157,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_idx, node, node_idx):
+def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=None):
 
     if isinstance(parent, SequenceNode):
         parent.nodes.insert(insert_idx, node)
@@ -149,5 +176,29 @@ def insert_node(parent, insert_idx, node, node_idx):
             # false node
             parent.false_node = SequenceNode(nodes=[parent.false_node])
             insert_node(parent.false_node, insert_idx - node_idx, node, 0)
+    elif isinstance(parent, SwitchCaseNode):
+        # note that this case will be hit only when the parent node is not a container, such as SequenceNode or
+        # MultiNode. we always need to create a new SequenceNode and replace the original node in place.
+        if label == 'switch_expr':
+            raise TypeError("You cannot insert a node after an expression.")
+        if label == 'case':
+            # node_idx is the case number
+            if insert_location == 'after':
+                new_nodes = [ parent.cases[node_idx], node ]
+            elif insert_location == 'before':
+                new_nodes = [ node, parent.cases[node_idx] ]
+            else:
+                raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
+            seq = SequenceNode(nodes=new_nodes)
+            parent.cases[node_idx] = seq
+        elif label == 'default':
+            if insert_location == 'after':
+                new_nodes = [ parent.default_node, node ]
+            elif insert_location == 'before':
+                new_nodes = [ node, parent.default_node ]
+            else:
+                raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
+            seq = SequenceNode(nodes=new_nodes)
+            parent.default_node = seq
     else:
         raise NotImplementedError()

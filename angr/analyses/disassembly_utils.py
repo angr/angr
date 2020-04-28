@@ -1,6 +1,8 @@
 import capstone as cs
 import logging
 
+from archinfo.arch_arm import is_arm_arch
+
 from ..misc.ux import once
 
 l = logging.getLogger(name=__name__)
@@ -17,7 +19,17 @@ INS_GROUP_INFO = {
         cs.x86.X86_GRP_JUMP: 'branch',
         cs.x86.X86_GRP_RET: 'return',
     },
+    'ARM': {
+        cs.arm.ARM_GRP_CALL: 'call',
+        cs.arm.ARM_GRP_BRANCH_RELATIVE: 'branch',
+        cs.arm.ARM_GRP_JUMP: 'branch',
+    }
 }
+
+INS_GROUP_INFO['ARMEL'] = INS_GROUP_INFO['ARM']
+INS_GROUP_INFO['ARMHF'] = INS_GROUP_INFO['ARM']
+INS_GROUP_INFO['ARMCortexM'] = INS_GROUP_INFO['ARM']
+
 
 try:
     INS_GROUP_INFO['MIPS32'] = {
@@ -69,6 +81,14 @@ def decode_instruction(arch, instr):
         if arch_name in ('X86', 'AMD64'):
             last_operand = instr.insn.operands[-1]
             if last_operand.type == cs.x86.X86_OP_IMM:
+                instr.branch_type = 'direct'
+            else:
+                instr.branch_type = 'indirect'
+            instr.branch_target_operand = len(instr.insn.operands) - 1
+
+        elif is_arm_arch(arch):
+            last_operand = instr.insn.operands[-1]
+            if last_operand.type == cs.arm.ARM_OP_IMM:
                 instr.branch_type = 'direct'
             else:
                 instr.branch_type = 'indirect'

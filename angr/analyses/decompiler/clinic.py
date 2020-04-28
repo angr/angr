@@ -5,7 +5,6 @@ import networkx
 
 import ailment
 
-from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
 from ...utils import timethis
 from .. import Analysis, register_analysis
@@ -23,6 +22,7 @@ class Clinic(Analysis):
     """
     def __init__(self, func,
                  remove_dead_memdefs=True,
+                 exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
                  ):
@@ -37,10 +37,12 @@ class Clinic(Analysis):
 
         self.graph = None
 
+        self._func_graph = None  # type: networkx.DiGraph
         self._ail_manager = None
         self._blocks_by_addr_and_size = { }
 
         self._remove_dead_memdefs = remove_dead_memdefs
+        self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
 
         # sanity checks
@@ -92,6 +94,9 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
+        # Set up the function graph according to configurations
+        self._set_function_graph()
+
         # Make sure calling conventions of all functions have been recovered
         self._recover_calling_conventions()
 
@@ -106,8 +111,11 @@ class Clinic(Analysis):
         self._convert_all()
         ail_graph = self._simplify_blocks(stack_pointer_tracker=spt)
 
+        # Simplify the entire function for the first time
+        self._simplify_function(ail_graph)
+
         # Recover variables on AIL blocks
-        self._recover_and_link_variables()  # it does not change the AIL graph
+        self._recover_and_link_variables(ail_graph)
 
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
@@ -116,13 +124,17 @@ class Clinic(Analysis):
         # Make call-sites
         self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
-        # Simplify the entire function
+        # Simplify the entire function for the second time
         self._simplify_function(ail_graph)
 
         # Run simplification passes
         ail_graph = self._run_simplification_passes(ail_graph)
 
         self.graph = ail_graph
+
+    @timethis
+    def _set_function_graph(self):
+        self._func_graph = self.function.graph_ex(exception_edges=self._exception_edges)
 
     @timethis
     def _recover_calling_conventions(self):
@@ -152,7 +164,7 @@ class Clinic(Analysis):
         :return:    None
         """
 
-        for block_node in self.function.graph.nodes():
+        for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
@@ -192,7 +204,7 @@ class Clinic(Analysis):
             self._blocks_by_addr_and_size[key] = simplified
 
         # Update the function graph so that we can use reaching definitions
-        graph = self._function_graph_to_ail_graph(self.function.graph)
+        graph = self._function_graph_to_ail_graph(self._func_graph)
         return graph
 
     def _simplify_block(self, ail_block, stack_pointer_tracker=None):
@@ -282,16 +294,31 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _recover_and_link_variables(self):
+    def _recover_and_link_variables(self, ail_graph):
 
         # variable recovery
-        tmp_kb = KnowledgeBase(self.project)
+        tmp_kb = self.kb
+        # remove existing variables for this function
+        if tmp_kb.variables.has_function_manager(self.function.addr):
+            l.warning("Removing existing variable recovery result for function %#x.", self.function.addr)
+            del tmp_kb.variables[self.function.addr]
         # stack pointers have been removed at this point
-        vr = self.project.analyses.VariableRecoveryFast(self.function, clinic=self, kb=tmp_kb, track_sp=False)  # pylint:disable=unused-variable
+        vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
+                                                        func_graph=ail_graph, kb=tmp_kb, track_sp=False)
+        # clean up existing types
+        tmp_kb.variables[self.function.addr].remove_types()
+        # run type inference
+        try:
+            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb)
+            tp.update_variable_types(self.function.addr, vr.var_to_typevar)
+        except Exception:  # pylint:disable=broad-except
+            l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
+                      exc_info=True)
 
         # TODO: The current mapping implementation is kinda hackish...
+
         # Link variables to each statement
-        for block in self._blocks_by_addr_and_size.values():
+        for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
 
     def _link_variables_on_block(self, block, kb):
@@ -303,29 +330,48 @@ class Clinic(Analysis):
         """
 
         variable_manager = kb.variables[self.function.addr]
+        global_variables = kb.variables['global']
 
         for stmt_idx, stmt in enumerate(block.statements):
-            # I wish I could do functional programming in this method...
             stmt_type = type(stmt)
             if stmt_type is ailment.Stmt.Store:
                 # find a memory variable
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt)
                 if len(mem_vars) == 1:
                     stmt.variable, stmt.offset = next(iter(mem_vars))
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.data)
+                else:
+                    # check if the dest address is a variable
+                    stmt: ailment.Stmt.Store
+                    # special handling for constant addresses
+                    if isinstance(stmt.addr, ailment.Expr.Const):
+                        # global variable?
+                        variables = global_variables.get_global_variables(stmt.addr.value)
+                        if variables:
+                            var = next(iter(variables))
+                            stmt.variable = var
+                            stmt.offset = 0
+                    else:
+                        self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                                     stmt.addr)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.data)
 
             elif stmt_type is ailment.Stmt.Assignment:
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.dst)
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.src)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.src)
 
             elif stmt_type is ailment.Stmt.ConditionalJump:
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.condition)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.condition)
 
             elif stmt_type is ailment.Stmt.Call:
+                if stmt.args:
+                    for arg in stmt.args:
+                        self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                                     arg)
                 if stmt.ret_expr:
-                    self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, stmt.ret_expr)
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                                 stmt.ret_expr)
 
-    def _link_variables_on_expr(self, variable_manager, block, stmt_idx, stmt, expr):
+    def _link_variables_on_expr(self, variable_manager, global_variables, block, stmt_idx, stmt, expr):
         """
         Link atoms (AIL expressions) in the given expression to corresponding variables identified previously.
 
@@ -350,7 +396,7 @@ class Clinic(Analysis):
             # import ipdb; ipdb.set_trace()
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 0:
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.addr)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
             else:
                 if len(variables) > 1:
                     l.error("More than one variable are available for atom %s. Consider fixing it using phi nodes.",
@@ -367,8 +413,8 @@ class Clinic(Analysis):
                 expr.referenced_variable = var
                 expr.variable_offset = offset
             else:
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[0])
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands[1])
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[0])
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[1])
 
         elif type(expr) is ailment.Expr.UnaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
@@ -377,10 +423,10 @@ class Clinic(Analysis):
                 expr.referenced_variable = var
                 expr.variable_offset = offset
             else:
-                self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operands)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands)
 
         elif type(expr) is ailment.Expr.Convert:
-            self._link_variables_on_expr(variable_manager, block, stmt_idx, stmt, expr.operand)
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
@@ -388,6 +434,14 @@ class Clinic(Analysis):
                 var, offset = next(iter(variables))
                 expr.referenced_variable = var
                 expr.variable_offset = offset
+
+        elif isinstance(expr, ailment.Expr.Const):
+            # global variable?
+            variables = global_variables.get_global_variables(expr.value)
+            if variables:
+                var = next(iter(variables))
+                expr.referenced_variable = var
+                expr.variable_offset = 0
 
     def _function_graph_to_ail_graph(self, func_graph):
 
