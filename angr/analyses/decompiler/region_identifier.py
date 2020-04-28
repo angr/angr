@@ -614,8 +614,8 @@ class RegionIdentifier(Analysis):
         graph.add_node(region)
         for node in loop_nodes:
             subgraph.add_node(node)
-            in_edges = graph.in_edges(node, data=True)
-            out_edges = graph.out_edges(node, data=True)
+            in_edges = list(graph.in_edges(node, data=True))
+            out_edges = list(graph.out_edges(node, data=True))
 
             for src, dst, data in in_edges:
                 if src in normal_entries:
