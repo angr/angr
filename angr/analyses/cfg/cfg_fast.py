@@ -1548,9 +1548,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [ ]
 
-        last_ins_addr = None
-        ins_addr = addr
         if irsb.statements:
+            last_ins_addr = None
+            ins_addr = addr
             for i, stmt in enumerate(irsb.statements):
                 if isinstance(stmt, pyvex.IRStmt.Exit):
                     successors.append((i,
@@ -1564,23 +1564,37 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     ins_addr = stmt.addr + stmt.delta
         else:
             for ins_addr, stmt_idx, exit_stmt in irsb.exit_statements:
+                branch_ins_addr = ins_addr
+                if self.project.arch.branch_delay_slot \
+                        and irsb.instruction_addresses \
+                        and ins_addr in irsb.instruction_addresses:
+                    idx_ = irsb.instruction_addresses.index(ins_addr)
+                    if idx_ > 0:
+                        branch_ins_addr = irsb.instruction_addresses[idx_ - 1]
                 successors.append((
                     stmt_idx,
-                    last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                    branch_ins_addr,
                     exit_stmt.dst,
                     exit_stmt.jumpkind
                 ))
 
-        successors.append((DEFAULT_STATEMENT,
-                           last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
-                          )
+        # default statement
+        default_branch_ins_addr = None
+        if irsb.instruction_addresses:
+            if self.project.arch.branch_delay_slot:
+                if len(irsb.instruction_addresses) > 1:
+                    default_branch_ins_addr = irsb.instruction_addresses[-2]
+            else:
+                default_branch_ins_addr = irsb.instruction_addresses[-1]
+
+        successors.append((DEFAULT_STATEMENT, default_branch_ins_addr, irsb_next, jumpkind))
 
         # exception handling
         exc = self._exception_handling_by_endaddr.get(addr + irsb.size, None)
         if exc is not None:
             successors.append(
                 (DEFAULT_STATEMENT,
-                 last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                 default_branch_ins_addr,
                  exc.handler_addr,
                  'Ijk_Exception')
             )
@@ -1835,7 +1849,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         edge = None
         if new_function_addr is not None:
             edge = FunctionCallEdge(cfg_node, new_function_addr, return_site, current_function_addr, syscall=is_syscall,
-                                    ins_addr=ins_addr, stmt_idx=ins_addr,
+                                    ins_addr=ins_addr, stmt_idx=stmt_idx,
                                     )
 
         if new_function_addr is not None:
