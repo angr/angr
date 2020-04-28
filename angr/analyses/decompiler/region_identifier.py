@@ -1,4 +1,4 @@
-
+from itertools import count
 import logging
 
 import networkx
@@ -13,6 +13,10 @@ from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
 
 l = logging.getLogger(name=__name__)
+
+
+# an ever-incrementing counter
+CONDITIONNODE_ADDR = count(0xff000000)
 
 
 class RegionIdentifier(Analysis):
@@ -300,7 +304,7 @@ class RegionIdentifier(Analysis):
 
         successors = list(region.successors)
 
-        condnode_addr = -1  # TODO: We need an incrementing counter
+        condnode_addr = next(CONDITIONNODE_ADDR)
         # create a new successor
         cond = ConditionNode(
             condnode_addr,
