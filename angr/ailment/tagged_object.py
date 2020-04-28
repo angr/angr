@@ -1,6 +1,6 @@
 
 
-class TaggedObject(object):
+class TaggedObject:
     """
     A class that takes arbitrary tags.
     """

@@ -179,6 +179,10 @@ class UnaryOp(Op):
     def operands(self):
         return [ self.operand ]
 
+    @property
+    def size(self):
+        return self.bits // 8
+
 
 class Convert(UnaryOp):
     def __init__(self, idx, from_bits, to_bits, is_signed, operand, **kwargs):
@@ -271,8 +275,17 @@ class BinaryOp(Op):
         return False
 
     def replace(self, old_expr, new_expr):
-        r0, replaced_operand_0 = self.operands[0].replace(old_expr, new_expr)
-        r1, replaced_operand_1 = self.operands[1].replace(old_expr, new_expr)
+        if self.operands[0] == old_expr:
+            r0 = True
+            replaced_operand_0 = new_expr
+        else:
+            r0, replaced_operand_0 = self.operands[0].replace(old_expr, new_expr)
+
+        if self.operands[1] == old_expr:
+            r1 = True
+            replaced_operand_1 = new_expr
+        else:
+            r1, replaced_operand_1 = self.operands[1].replace(old_expr, new_expr)
 
         if r0 or r1:
             return True, BinaryOp(self.idx, self.op, [ replaced_operand_0, replaced_operand_1 ], self.signed,
@@ -286,6 +299,10 @@ class BinaryOp(Op):
         if self.signed:
             op += "s"
         return op
+
+    @property
+    def size(self):
+        return self.bits // 8
 
 
 class Load(Expression):
