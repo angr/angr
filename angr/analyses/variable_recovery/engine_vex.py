@@ -203,6 +203,25 @@ class SimEngineVRVEX(
             self.l.warning(e)
             return RichR(None)
 
+    def _handle_Not(self, expr):
+        arg = expr.args[0]
+        r0 = self._expr(arg)
+
+        try:
+            result_size = expr.result_size(self.tyenv)
+            mask = (1 << result_size) - 1
+            if isinstance(r0.data, int):
+                # constants
+                return RichR((~r0.data) & mask)
+
+            r = None
+            if r0.data is not None:
+                r = (~r0.data) & mask
+            return RichR(r)
+        except TypeError as e:
+            self.l.warning(e)
+            return RichR(None)
+
     def _handle_Mul(self, expr):
         arg0, arg1 = expr.args
         r0 = self._expr(arg0)
