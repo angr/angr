@@ -6,7 +6,7 @@ import pyvex
 import ailment
 
 from ...block import Block
-from ...errors import AngrVariableRecoveryError
+from ...errors import AngrVariableRecoveryError, SimEngineError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable
 from ...engines.vex.claripy.irop import vexop_to_simop
@@ -416,6 +416,11 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         l.debug('Processing block %#x.', block.addr)
 
         if isinstance(block, Block):
+            try:
+                _ = block.vex
+            except SimEngineError:
+                # the block does not exist or lifting failed
+                return
             block = self._peephole_optimize(block)
 
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
