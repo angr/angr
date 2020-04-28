@@ -4,6 +4,7 @@ import logging
 import networkx
 
 import ailment
+from claripy.utils.orderedset import OrderedSet
 
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
@@ -113,7 +114,7 @@ class RegionIdentifier(Analysis):
                 break
 
     def _find_loop_headers(self, graph):
-        return { t for _,t in dfs_back_edges(graph, self._start_node) }
+        return OrderedSet(sorted((t for _,t in dfs_back_edges(graph, self._start_node)), key=lambda x: x.addr))
 
     def _find_initial_loop_nodes(self, graph, head):
         # TODO optimize
