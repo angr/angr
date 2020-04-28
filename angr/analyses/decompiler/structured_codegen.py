@@ -1542,7 +1542,10 @@ class StructuredCodeGenerator(Analysis):
 
         if hasattr(expr, 'variable') and expr.variable is not None:
             if expr.variable_offset is not None:
-                offset = self._handle(expr.variable_offset)
+                if isinstance(expr.variable_offset, int):
+                    offset = expr.variable_offset
+                else:
+                    offset = self._handle(expr.variable_offset)
             else:
                 offset = None
             return CVariable(expr.variable, offset=offset,
