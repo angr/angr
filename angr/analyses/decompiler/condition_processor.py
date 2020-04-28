@@ -1,4 +1,4 @@
-
+import operator
 import logging
 
 import networkx
@@ -451,9 +451,7 @@ class ConditionProcessor:
             '__xor__': lambda cond_: ailment.Expr.BinaryOp(None, 'Xor',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
-            '__or__': lambda cond_: ailment.Expr.BinaryOp(None, 'Or',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          False),
+            '__or__': lambda cond_: _binary_op_reduce('Or', cond_.args, signed=False),
             '__and__': lambda cond_: ailment.Expr.BinaryOp(None, 'And',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
@@ -482,6 +480,18 @@ class ConditionProcessor:
         if isinstance(condition, claripy.ast.Base):
             return condition
 
+        def _op_with_unified_size(op, conv, operand0, operand1):
+            # ensure operand1 is of the same size as operand0
+            if isinstance(operand1, ailment.Expr.Const):
+                # amazing - we do the eazy thing here
+                return op(conv(operand0), operand1.value)
+            if operand1.bits == operand0.bits:
+                return op(conv(operand0), conv(operand1))
+            # extension is required
+            assert operand1.bits < operand0.bits
+            operand1 = ailment.Expr.Convert(None, operand1.bits, operand0.bits, False, operand1)
+            return op(conv(operand0), conv(operand1))
+
         _mapping = {
             'LogicalAnd': lambda expr, conv: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
             'LogicalOr': lambda expr, conv: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
@@ -502,9 +512,9 @@ class ConditionProcessor:
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
             'Or': lambda expr, conv: conv(expr.operands[0]) | conv(expr.operands[1]),
-            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1].value),
-            'Shl': lambda expr, conv: conv(expr.operands[0]) << expr.operands[1].value,
-            'Sar': lambda expr, conv: conv(expr.operands[0]) >> expr.operands[1].value,
+            'Shr': lambda expr, conv: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
+            'Shl': lambda expr, conv: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
+            'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset)):

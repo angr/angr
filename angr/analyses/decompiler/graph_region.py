@@ -37,6 +37,10 @@ class GraphRegion:
     def __repr__(self):
         addrs: List[int] = [ ]
         s = ""
+        if self.graph is None:
+            # only head is available
+            return "<GraphRegion %r>" % self.head
+
         for node in self.graph.nodes():
             if hasattr(node, 'addr'):
                 addrs.append(node.addr)
