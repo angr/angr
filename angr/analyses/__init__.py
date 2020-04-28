@@ -34,3 +34,4 @@ from .propagator import PropagatorAnalysis
 from .xrefs import XRefsAnalysis
 from .init_finder import InitializationFinder
 from .complete_calling_conventions import CompleteCallingConventionsAnalysis
+from .typehoon import Typehoon

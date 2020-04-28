@@ -27,8 +27,10 @@ class LiveVariables:
         self.register_region = register_region
         self.stack_region = stack_region
 
+
 def _defaultdict_set():
     return defaultdict(set)
+
 
 class VariableManagerInternal:
     """
@@ -40,6 +42,7 @@ class VariableManagerInternal:
         self.func_addr = func_addr
 
         self._variables = OrderedSet()  # all variables that are added to any region
+        self._global_region = KeyedRegion()
         self._stack_region = KeyedRegion()
         self._register_region = KeyedRegion()
         self._live_variables = { }  # a mapping between addresses of program points and live variable collections
@@ -59,6 +62,8 @@ class VariableManagerInternal:
         self._phi_variables = { }
         self._phi_variables_by_block = defaultdict(set)
 
+        self.types = { }
+
     #
     # Public methods
     #
@@ -73,6 +78,8 @@ class VariableManagerInternal:
             prefix = "s"
         elif sort == 'argument':
             prefix = 'arg'
+        elif sort == 'global':
+            prefix = 'g'
         else:
             prefix = "m"
 
@@ -84,6 +91,8 @@ class VariableManagerInternal:
             self._stack_region.add_variable(start, variable)
         elif sort == 'register':
             self._register_region.add_variable(start, variable)
+        elif sort == 'global':
+            self._global_region.add_variable(start, variable)
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
@@ -92,6 +101,8 @@ class VariableManagerInternal:
             self._stack_region.set_variable(start, variable)
         elif sort == 'register':
             self._register_region.set_variable(start, variable)
+        elif sort == 'global':
+            self._global_region.set_variable(start, variable)
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
@@ -274,6 +285,15 @@ class VariableManagerInternal:
 
         return variables
 
+    def get_global_variables(self, addr):
+        """
+        Get global variable by the address of the variable.
+
+        :param int addr:    Address of the variable.
+        :return:            A set of variables or an empty set if no variable exists.
+        """
+        return self._global_region.get_variables_by_offset(addr)
+
     def is_phi_variable(self, var):
         """
         Test if `var` is a phi variable.
@@ -360,6 +380,12 @@ class VariableManagerInternal:
                     continue
                 var.name = var.ident
 
+    def get_variable_type(self, var):
+        return self.types.get(var, None)
+
+    def remove_types(self):
+        self.types.clear()
+
 
 class VariableManager(KnowledgeBasePlugin):
     """
@@ -387,6 +413,20 @@ class VariableManager(KnowledgeBasePlugin):
         else:
             # key refers to a function address
             return self.get_function_manager(key)
+
+    def __delitem__(self, key):
+        """
+        Remove the existing VariableManagerInternal object for a function or a region.
+
+        :param Union[str,int] key:  Key of the region. "global" for the global region, or a function address for the
+                                    function.
+        :return:                    None
+        """
+
+        if key == 'global':
+            self.global_manager = VariableManagerInternal(self)
+        else:
+            del self.function_managers[key]
 
     def has_function_manager(self, key):
         return key in self.function_managers

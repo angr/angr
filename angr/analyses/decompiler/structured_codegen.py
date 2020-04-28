@@ -6,8 +6,9 @@ from sortedcontainers import SortedDict
 
 from ailment import Block, Expr, Stmt
 
-from ...sim_type import SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer
-from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable
+from ...sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
+    SimTypeBottom, SimTypeArray)
+from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...utils.constants import is_alignment_mask
 from ...errors import UnsupportedNodeTypeError
 from .. import Analysis, register_analysis
@@ -110,35 +111,84 @@ class CConstruct:
     def c_repr(self, indent=0, posmap=None):
         raise NotImplementedError()
 
+    @staticmethod
+    def indent_str(indent=0):
+        return " " * indent
+
 
 class CFunction(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a function in C.
     """
-    def __init__(self, name, statements):
+    def __init__(self, name, statements, variables, demangled_name=None):
 
         super(CFunction, self).__init__()
 
         self.name = name
         self.statements = statements
+        self.variables = variables
+        self.demangled_name = demangled_name
+
+    def variable_list_repr(self, indent=0, posmap=None):
+
+        s = ""
+
+        varname_to_types = defaultdict(set)
+
+        # output each variable and its type
+        for var in self.variables.get_variables():
+            var_type = self.variables.get_variable_type(var)
+
+            if isinstance(var_type, SimTypeBottom) or var_type is None:
+                l.debug("Skipping variable %s because its type cannot be determined.", var_type)
+                continue
+
+            varname_to_types[var.name].add(var_type)
+
+        for varname, vartypes in varname_to_types.items():
+
+            s0 = self.indent_str(indent)
+            s += s0
+            if posmap: posmap.tick_pos(len(s0))
+
+            s1 = ""
+            for var_type in vartypes:
+                if s1:
+                    s1 += "|"
+                    if posmap: posmap.tick_pos(1)
+                s_vartype = var_type.c_repr() if isinstance(var_type, SimType) else str(var_type)  # type
+                s1 += s_vartype
+                if posmap: posmap.tick_pos(len(s_vartype))
+            s += s1
+            s += " "
+            if posmap: posmap.tick_pos(1)
+            s2 = varname  # name
+            s += s2
+            if posmap: posmap.tick_pos(len(s2))
+            s += ";\n"
+            if posmap: posmap.tick_pos(2)
+
+        return s
 
     def c_repr(self, indent=0, posmap=None):
-        func_header = "void %s()" % self.name
-        s0 = "\n{\n"
-        if posmap:
-            posmap.tick_pos(len(func_header + s0))
+        if self.demangled_name:
+            func_header = "void %s()" % self.demangled_name
+        else:
+            func_header = "void %s()" % self.name
+        func_header = self.indent_str(indent) + func_header
+        s0 = "\n" + self.indent_str(indent) + "{\n"
+        if posmap: posmap.tick_pos(len(func_header + s0))
+        func_var_list = self.variable_list_repr(indent=indent + INDENT_DELTA, posmap=posmap) + "\n"
+        if posmap: posmap.tick_pos(1)
         func_body = self.statements.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
 
-        return func_header + s0 + func_body + "\n}\n"
+        return func_header + s0 + func_var_list + func_body + "\n" + self.indent_str(indent) + "}\n"
 
 
 class CStatement(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a statement in C.
     """
-    @staticmethod
-    def indent_str(indent=0):
-        return " " * indent
 
 
 class CStatements(CStatement):
@@ -521,11 +571,19 @@ class CFunctionCall(CStatement):
             if posmap: posmap.tick_pos(3)
 
         if self.callee_func is not None:
-            func_name = self.callee_func.name
+            func_name = self.callee_func.demangled_name
+            if not func_name:
+                # fall back to the normal name
+                func_name = self.callee_func.name
+            tickpos = True
+        elif isinstance(self.callee_target, CExpression):
+            func_name = self.callee_target.c_repr(posmap=posmap)
+            tickpos = False
         else:
             func_name = str(self.callee_target)
+            tickpos = True
         s_func = func_name + "("
-        if posmap:
+        if posmap and tickpos:
             posmap.add_mapping(posmap.pos, len(func_name), self)
             posmap.tick_pos(len(s_func))
 
@@ -602,6 +660,17 @@ class CExpression:
     """
     Base class for C expressions.
     """
+
+    def __init__(self):
+        self._type = None
+
+    @property
+    def type(self):
+        raise NotImplementedError("Class %s does not implement type()." % type(self))
+
+    def set_type(self, v):
+        self._type = v
+
     def c_repr(self, posmap=None):
         raise NotImplementedError()
 
@@ -615,13 +684,42 @@ class CExpression:
             return s
 
 
+class CStructField(CExpression):
+    def __init__(self, struct_type, offset, field):
+
+        super().__init__()
+
+        self.struct_type = struct_type
+        self.offset = offset
+        self.field = field
+
+    @property
+    def type(self):
+        return self.struct_type
+
+    def c_repr(self, posmap=None):
+        s = "%s" % self.field
+        if posmap:
+            posmap.add_mapping(posmap.pos, len(s), self)
+            posmap.tick_pos(len(s))
+        return s
+
+
 class CVariable(CExpression):
     """
     Read value from a variable.
     """
-    def __init__(self, variable, offset=None):
+    def __init__(self, variable, offset=None, variable_type=None):
+
+        super().__init__()
+
         self.variable = variable
         self.offset = offset
+        self.variable_type = variable_type
+
+    @property
+    def type(self):
+        return self.variable_type
 
     def _get_offset_string(self, in_hex=False, posmap=None):
         if type(self.offset) is int:
@@ -640,6 +738,31 @@ class CVariable(CExpression):
                     posmap.tick_pos(len(s))
                 return s
             elif isinstance(self.variable, CExpression):
+                if isinstance(self.variable, CVariable) and self.variable.type is not None:
+                    if isinstance(self.variable.type, SimTypePointer):
+                        if isinstance(self.variable.type.pts_to, SimStruct) and self.variable.type.pts_to.fields:
+                            # is it pointing to a struct? if so, we take the first field
+                            first_field = next(iter(self.variable.type.pts_to.fields))
+                            c_field = CStructField(self.variable.type.pts_to, 0, first_field)
+                            s = self.variable.c_repr(posmap=posmap)
+                            s0 = "->"
+                            if posmap: posmap.tick_pos(2)
+                            s1 = c_field.c_repr(posmap=posmap)
+                            return s + s0 + s1
+                        elif isinstance(self.variable.type.pts_to, SimTypeArray):
+                            # is it pointing to an array? if so, we take the first element
+                            s = self.variable.c_repr(posmap=posmap)
+                            s0 = "["
+                            if posmap: posmap.tick_pos(1)
+                            s1 = "0"
+                            if posmap:
+                                posmap.add_mapping(posmap.pos, len(s1), 0)
+                                posmap.tick_pos(1)
+                            s2 = "]"
+                            if posmap: posmap.tick_pos(1)
+                            return s + s0 + s1 + s2
+
+                # default output
                 s0 = "*("
                 if posmap: posmap.tick_pos(len(s0))
                 s = self.variable.c_repr(posmap=posmap)
@@ -650,7 +773,7 @@ class CVariable(CExpression):
                 s = str(self.variable)
                 if posmap: posmap.tick_pos(len(s))
                 return s
-        else:
+        else:  # self.offset is not None
             if isinstance(self.variable, SimVariable):
                 s_v = self.variable.name
                 if posmap: posmap.add_mapping(posmap.pos, len(s_v), self)
@@ -661,23 +784,44 @@ class CVariable(CExpression):
                 if posmap: posmap.tick_pos(len(s2))
                 return s_v + s1 + s2 + s3
             elif isinstance(self.variable, CExpression):
-                if self.offset:
-                    s0 = "*("
-                    if posmap: posmap.tick_pos(len(s0))
-                    s_v = self.variable.c_repr(posmap=posmap)
-                    s1 = ":"
-                    if posmap: posmap.tick_pos(len(s1))
-                    s2 = self._get_offset_string(posmap=posmap)
-                    s3 = ")"
-                    if posmap: posmap.tick_pos(len(s3))
-                    return s0 + s_v + s1 + s2 + s3
-                else:
-                    s0 = "*("
-                    if posmap: posmap.tick_pos(len(s0))
-                    s = self.variable.c_repr(posmap=posmap)
-                    s1 = ")"
-                    if posmap: posmap.tick_pos(len(s1))
-                    return s0 + s + s1
+                if isinstance(self.variable, CVariable) and self.variable.type is not None:
+                    if isinstance(self.variable.type, SimTypePointer):
+                        if isinstance(self.variable.type.pts_to, SimStruct):
+                            if isinstance(self.offset, int):
+                                # which field is it pointing to?
+                                t = self.variable.type.pts_to
+                                offset_to_field = dict((v, k) for k, v in t.offsets.items())
+                                if self.offset in offset_to_field:
+                                    field = offset_to_field[self.offset]
+                                    s_v = self.variable.c_repr(posmap=posmap)
+                                    s0 = "->"
+                                    if posmap: posmap.tick_pos(2)
+                                    c_field = CStructField(t, self.offset, field)
+                                    s1 = c_field.c_repr(posmap=posmap)
+                                    return s_v + s0 + s1
+                        elif isinstance(self.variable.type.pts_to, SimTypeArray):
+                            # it's pointing to an array!
+                            s_v = self.variable.c_repr(posmap=posmap)
+                            s0 = "["
+                            if posmap: posmap.tick_pos(1)
+                            s1 = str(self.offset)
+                            if posmap:
+                                posmap.add_mapping(posmap.pos, len(s1), self.offset)
+                                posmap.tick_pos(len(s1))
+                            s2 = "]"
+                            if posmap: posmap.tick_pos(1)
+                            return s_v + s0 + s1 + s2
+
+                # default output
+                s0 = "*("
+                if posmap: posmap.tick_pos(len(s0))
+                s_v = self.variable.c_repr(posmap=posmap)
+                s1 = ":"
+                if posmap: posmap.tick_pos(len(s1))
+                s2 = self._get_offset_string(posmap=posmap)
+                s3 = ")"
+                if posmap: posmap.tick_pos(len(s3))
+                return s0 + s_v + s1 + s2 + s3
             elif isinstance(self.variable, Expr.Register):
                 s0 = self.variable.reg_name if hasattr(self.variable, 'reg_name') else str(self.variable)
                 if posmap:
@@ -708,9 +852,20 @@ class CUnaryOp(CExpression):
     """
     def __init__(self, op, operand, referenced_variable):
 
+        super().__init__()
+
         self.op = op
         self.operand = operand
         self.referenced_variable = referenced_variable
+
+    @property
+    def type(self):
+        if self._type is None:
+            if self.referenced_variable is not None:
+                self._type = self.referenced_variable.type
+            if self.operand is not None and hasattr(self.operand, 'type'):  # FIXME: This is hackish
+                self._type = self.operand.type
+        return self._type
 
     def c_repr(self, posmap=None):
         if self.referenced_variable is not None:
@@ -721,6 +876,7 @@ class CUnaryOp(CExpression):
 
         OP_MAP = {
             'Not': self._c_repr_not,
+            'Reference': self._c_repr_reference,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -738,6 +894,16 @@ class CUnaryOp(CExpression):
         if posmap: posmap.tick_pos(1)
         return s
 
+    def _c_repr_reference(self, posmap=None):
+        s0 = "&"
+        if posmap: posmap.tick_pos(1)
+        if isinstance(self.operand, CExpression):
+            s1 = self.operand.c_repr(posmap=posmap)
+        else:
+            s1 = str(self.operand)
+            if posmap: posmap.tick_pos(len(s1))
+        return s0 + s1
+
 
 class CBinaryOp(CExpression):
     """
@@ -745,10 +911,18 @@ class CBinaryOp(CExpression):
     """
     def __init__(self, op, lhs, rhs, referenced_variable):
 
+        super().__init__()
+
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
         self.referenced_variable = referenced_variable
+
+    @property
+    def type(self):
+        if self._type is None:
+            return self.lhs.type
+        return self._type
 
     def c_repr(self, posmap=None):
 
@@ -767,6 +941,7 @@ class CBinaryOp(CExpression):
             'Or': self._c_repr_or,
             'Shr': self._c_repr_shr,
             'Shl': self._c_repr_shl,
+            'Sar': self._c_repr_sar,
             'LogicalAnd': self._c_repr_logicaland,
             'LogicalOr': self._c_repr_logicalor,
             'CmpLE': self._c_repr_cmple,
@@ -849,6 +1024,13 @@ class CBinaryOp(CExpression):
         rhs = self._try_c_repr(self.rhs, posmap=posmap)
         return lhs + op + rhs
 
+    def _c_repr_sar(self, posmap=None):
+        lhs = self._try_c_repr(self.lhs, posmap=posmap)
+        op = " >> "
+        if posmap: posmap.tick_pos(len(op))
+        rhs = self._try_c_repr(self.rhs, posmap=posmap)
+        return lhs + op + rhs
+
     def _c_repr_logicaland(self, posmap=None):
         lhs = self._try_c_repr(self.lhs, posmap=posmap)
         op = " && "
@@ -909,9 +1091,18 @@ class CBinaryOp(CExpression):
 
 class CTypeCast(CExpression):
     def __init__(self, src_type, dst_type, expr):
+
+        super().__init__()
+
         self.src_type = src_type
         self.dst_type = dst_type
         self.expr = expr
+
+    @property
+    def type(self):
+        if self._type is None:
+            return self.dst_type
+        return self._type
 
     def c_repr(self, posmap=None):
         s_pre = "(%s)" % (self.dst_type)
@@ -925,26 +1116,42 @@ class CTypeCast(CExpression):
 
 
 class CConstant(CExpression):
-    def __init__(self, value, type_, reference_values=None):
+    def __init__(self, value, type_, reference_values=None, reference_variable=None):
+
+        super().__init__()
+
         self.value = value
-        self.type = type_
+        self._type = type_
         self.reference_values = reference_values
+        self.reference_variable = reference_variable
+
+    @property
+    def type(self):
+        return self._type
 
     def c_repr(self, posmap=None):
         s = None
-        if self.reference_values is not None and self.type is not None:
-            if self.type in self.reference_values:
-                if isinstance(self.type, SimTypeInt):
-                    s = hex(self.reference_values[self.type])
-                elif isinstance(self.type, SimTypePointer) and isinstance(self.type.pts_to, SimTypeChar):
-                    refval = self.reference_values[self.type]  # angr.knowledge_plugin.cfg.MemoryData
+        if self.reference_variable is not None:
+            s = self.reference_variable.c_repr(posmap=posmap)
+            return s
+
+        if self.reference_values is not None and self._type is not None:
+            if self._type in self.reference_values:
+                if isinstance(self._type, SimTypeInt):
+                    s = hex(self.reference_values[self._type])
+                elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
+                    refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
                     s = '"' + repr(refval.content.decode('utf-8')).strip("'").strip('"') + '"'
                 else:
                     s = self.reference_values[self.type]
 
         if s is None:
-            # Print pointers in hex
-            if isinstance(self.type, SimTypePointer) and isinstance(self.value, int):
+            if isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
+                # print NULL instead
+                s = "NULL"
+
+            elif isinstance(self._type, SimTypePointer) and isinstance(self.value, int):
+                # Print pointers in hex
                 s = hex(self.value)
 
         if s is None:
@@ -958,10 +1165,37 @@ class CConstant(CExpression):
 
 class CRegister(CExpression):
     def __init__(self, reg):
+
+        super().__init__()
+
         self.reg = reg
+
+    @property
+    def type(self):
+        # FIXME
+        return SimTypeInt()
 
     def c_repr(self, posmap=None):
         s = str(self.reg)
+        if posmap: posmap.tick_pos(len(s))
+        return s
+
+
+class CDirtyExpression(CExpression):
+    """
+    Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
+    AIL. Eventually this class should not be used at all.
+    """
+    def __init__(self, dirty):
+        super().__init__()
+        self.dirty = dirty
+
+    @property
+    def type(self):
+        return SimTypeInt()
+
+    def c_repr(self, posmap=None):
+        s = str(self.dirty)
         if posmap: posmap.tick_pos(len(s))
         return s
 
@@ -998,6 +1232,7 @@ class StructuredCodeGenerator(Analysis):
             # SimVariables
             SimStackVariable: self._handle_Variable_SimStackVariable,
             SimRegisterVariable: self._handle_Variable_SimRegisterVariable,
+            SimMemoryVariable: self._handle_Variable_SimMemoryVariable,
         }
 
         self._func = func
@@ -1015,7 +1250,7 @@ class StructuredCodeGenerator(Analysis):
 
         obj = self._handle(self._sequence)
 
-        func = CFunction(self._func.name, obj)
+        func = CFunction(self._func.name, obj, self.kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
 
         self.posmap = PositionMapping()
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap)
@@ -1031,25 +1266,28 @@ class StructuredCodeGenerator(Analysis):
                     self.nodemap[node.obj.callee_func].add(elem)
                 else:
                     self.nodemap[node.obj.callee_target].add(elem)
+            elif isinstance(node.obj, CStructField):
+                key = (node.obj.struct_type, node.obj.offset)
+                self.nodemap[key].add(elem)
             else:
                 self.nodemap[node.obj].add(elem)
 
-    def _function_header_repr(self):
-        """
-        Generate text for function header.
-
-        :return:    Text for the function header.
-        :rtype:     str
-        """
-
-        return "void %s()" % (self._func.name)
+    def _get_variable_type(self, var, is_global=False):
+        if is_global:
+            return self.kb.variables['global'].get_variable_type(var)
+        else:
+            return self.kb.variables[self._func.addr].get_variable_type(var)
 
     #
     # Util methods
     #
 
     def _parse_load_addr(self, addr):
-        expr = self._handle(addr)
+
+        if isinstance(addr, CExpression):
+            expr = addr
+        else:
+            expr = self._handle(addr)
 
         if isinstance(expr, CBinaryOp):
             if expr.op == "And" and isinstance(expr.rhs, CConstant) and is_alignment_mask(expr.rhs.value):
@@ -1078,9 +1316,9 @@ class StructuredCodeGenerator(Analysis):
             return expr, None
         elif isinstance(expr, CExpression):  # other expressions
             return expr, None
-        else:
-            l.warning("Unsupported address expression %r", addr)
-            return expr, None
+
+        l.warning("Unsupported address expression %r", addr)
+        return expr, None
 
     #
     # Handlers
@@ -1188,13 +1426,35 @@ class StructuredCodeGenerator(Analysis):
     # AIL statement handlers
     #
 
-    def _handle_Stmt_Store(self, stmt):
+    def _handle_Stmt_Store(self, stmt: Stmt.Store):
 
-        if stmt.variable is None:
+        if stmt.variable is not None:
+            # storing to a variable directly
+            cvariable = self._handle(stmt.variable)
+        elif stmt.addr is not None:
+            # storing to an address specified by a variable
+            cvariable = self._handle(stmt.addr)
+            # special handling
+            base, offset = None, None
+            if isinstance(cvariable, CBinaryOp) and cvariable.op == 'Add':
+                if isinstance(cvariable.lhs, CConstant) and isinstance(cvariable.rhs, CVariable):
+                    offset = cvariable.lhs.value
+                    base = cvariable.rhs
+                elif isinstance(cvariable.rhs, CConstant) and isinstance(cvariable.lhs, CVariable):
+                    offset = cvariable.rhs.value
+                    base = cvariable.lhs
+                else:
+                    base = None
+                    offset = None
+
+            if base is not None and offset is not None:
+                cvariable = CVariable(base, offset=offset, variable_type=base.variable_type)
+            else:
+                cvariable = CVariable(cvariable, offset=None)
+        else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
             cvariable = None
-        else:
-            cvariable = self._handle(stmt.variable)
+
         cdata = self._handle(stmt.data)
 
         return CAssignment(cvariable, cdata)
@@ -1241,13 +1501,16 @@ class StructuredCodeGenerator(Analysis):
                     elif type_ is None:
                         # we don't know the type of this argument
                         # pure guessing: is it possible that it's a string?
-                        if arg.bits == self.project.arch.bits and \
+                        if self._cfg is not None and \
+                                arg.bits == self.project.arch.bits and \
                                 arg.value > 0x10000 and \
                                 arg.value in self._cfg.memory_data and \
                                 self._cfg.memory_data[arg.value].sort == 'string':
                             type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                             reference_values[type_] = self._cfg.memory_data[arg.value]
-                    new_arg = CConstant(arg, type_, reference_values if reference_values else None)
+                    new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
+                                        reference_variable=self._handle(arg.referenced_variable)
+                                                           if hasattr(arg, 'referenced_variable') else None)
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
@@ -1279,15 +1542,21 @@ class StructuredCodeGenerator(Analysis):
 
         if hasattr(expr, 'variable') and expr.variable is not None:
             if expr.variable_offset is not None:
-                offset = self._handle(expr.variable_offset)
+                if isinstance(expr.variable_offset, int):
+                    offset = expr.variable_offset
+                else:
+                    offset = self._handle(expr.variable_offset)
             else:
                 offset = None
-            return CVariable(expr.variable, offset=offset)
+            return CVariable(expr.variable, offset=offset,
+                             variable_type=self._get_variable_type(expr.variable),
+                             )
 
         variable, offset = self._parse_load_addr(expr.addr)
 
         if variable is not None:
-            return CVariable(variable, offset=offset)
+            return CVariable(variable, offset=offset,
+                             variable_type=self._get_variable_type(variable))
         else:
             return CVariable(CConstant(offset, SimTypePointer(SimTypeInt)))
 
@@ -1298,7 +1567,8 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
-        return CConstant(expr.value, int)
+        return CConstant(expr.value, int, reference_variable=self._handle(expr.referenced_variable)
+                                                             if hasattr(expr, 'referenced_variable') else None)
 
     def _handle_Expr_UnaryOp(self, expr):
 
@@ -1308,7 +1578,11 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_BinaryOp(self, expr):
 
-        return CBinaryOp(expr.op, self._handle(expr.operands[0]), self._handle(expr.operands[1]),
+        lhs = self._handle(expr.operands[0])
+        rhs = self._handle(expr.operands[1])
+        rhs.set_type(lhs.type)
+
+        return CBinaryOp(expr.op, lhs, rhs,
                          referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
                          )
 
@@ -1330,22 +1604,26 @@ class StructuredCodeGenerator(Analysis):
         return CTypeCast(None, dst_type, self._handle(expr.operand))
 
     def _handle_Expr_Dirty(self, expr):  # pylint:disable=no-self-use
-        return expr
+        return CDirtyExpression(expr)
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
         if hasattr(expr, 'referenced_variable') and expr.referenced_variable is not None:
             return CUnaryOp('Reference', expr, referenced_variable=self._handle(expr.referenced_variable))
 
-        return expr
+        # FIXME
+        r = CUnaryOp('Reference', expr, referenced_variable=None)
+        r.set_type(SimTypeLongLong())
+        return r
 
     def _handle_Variable_SimStackVariable(self, variable):  # pylint:disable=no-self-use
-
-        return CVariable(variable)
+        return CVariable(variable, variable_type=self._get_variable_type(variable))
 
     def _handle_Variable_SimRegisterVariable(self, variable):  # pylint:disable=no-self-use
+        return CVariable(variable, variable_type=self._get_variable_type(variable))
 
-        return CVariable(variable)
+    def _handle_Variable_SimMemoryVariable(self, variable):  # pylint:disable=no-self-use
+        return CVariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
 
 
 register_analysis(StructuredCodeGenerator, 'StructuredCodeGenerator')

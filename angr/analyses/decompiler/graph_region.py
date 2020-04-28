@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional
+from typing import Optional, List
 
 import networkx
 
@@ -35,19 +35,19 @@ class GraphRegion:
         self.cyclic = cyclic
 
     def __repr__(self):
-
-        addrs = [ ]
+        addrs: List[int] = [ ]
         s = ""
+        if self.graph is None:
+            # only head is available
+            return "<GraphRegion %r>" % self.head
+
         for node in self.graph.nodes():
             if hasattr(node, 'addr'):
                 addrs.append(node.addr)
-            if addrs:
-                s = ": %#x-%#x" % (min(addrs), max(addrs))
+        if addrs:
+            s = ": %#x-%#x" % (min(addrs), max(addrs))
 
-        if not s:
-            s = ": %s" % self.head
-
-        return "<GraphRegion of %d nodes%s>" % (self.graph.number_of_nodes(), s)
+        return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 
     def recursive_copy(self):
 

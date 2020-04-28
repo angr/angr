@@ -2,6 +2,16 @@
 # pylint: disable=unused-argument
 
 class Top:
+
+    __slots__ = ('size', )
+
+    def __init__(self, size):
+        self.size = size
+
+    @property
+    def bits(self):
+        return self.size * 8
+
     def __add__(self, other):
         return self
 
@@ -102,7 +112,3 @@ class Bottom:
 
     def __hash__(self):
         return hash(Bottom)
-
-
-TOP = Top()
-BOTTOM = Bottom()

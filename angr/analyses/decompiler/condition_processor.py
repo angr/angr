@@ -1,4 +1,4 @@
-
+import operator
 import logging
 
 import networkx
@@ -6,7 +6,7 @@ import networkx
 import claripy
 import ailment
 
-from ...utils.graph import dominates
+from ...utils.graph import dominates, shallow_reverse
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
@@ -59,7 +59,7 @@ class ConditionProcessor:
             _g = region.graph
         end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
         if end_nodes:
-            inverted_graph = networkx.reverse(_g)
+            inverted_graph = shallow_reverse(_g)
             if len(end_nodes) > 1:
                 # make sure there is only one end node
                 dummy_node = "DUMMY_NODE"
@@ -310,10 +310,10 @@ class ConditionProcessor:
             return [ block ]
         if type(block) is SwitchCaseNode:
             s = [ ]
-            for case in block.cases:
+            for case in block.cases.values():
                 s.extend(cls.get_last_statements(case))
-            if block.default_case is not None:
-                s.extend(cls.get_last_statements(block.default_case))
+            if block.default_node is not None:
+                s.extend(cls.get_last_statements(block.default_node))
             return s
         if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
@@ -441,21 +441,26 @@ class ConditionProcessor:
             '__ne__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpNE',
                                                           tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                           False),
-            '__add__': lambda cond_: ailment.Expr.BinaryOp(None, 'Add',
+            '__add__': lambda cond_: _binary_op_reduce('Add', cond_.args, signed=False),
+            '__sub__': lambda cond_: ailment.Expr.BinaryOp(None, 'Sub',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
-            '__sub__': lambda cond_: ailment.Expr.BinaryOp(None, 'Sub',
+            '__mul__': lambda cond_: ailment.Expr.BinaryOp(None, 'Mul',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
             '__xor__': lambda cond_: ailment.Expr.BinaryOp(None, 'Xor',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
-            '__or__': lambda cond_: ailment.Expr.BinaryOp(None, 'Or',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          False),
+            '__or__': lambda cond_: _binary_op_reduce('Or', cond_.args, signed=False),
             '__and__': lambda cond_: ailment.Expr.BinaryOp(None, 'And',
                                                            tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                            False),
+            '__lshift__': lambda cond_: ailment.Expr.BinaryOp(None, 'Shl',
+                                                              tuple(map(self.convert_claripy_bool_ast, cond_.args)),
+                                                              False),
+            '__rshift__': lambda cond_: ailment.Expr.BinaryOp(None, 'Sar',
+                                                              tuple(map(self.convert_claripy_bool_ast, cond_.args)),
+                                                              False),
             'LShR': lambda cond_: ailment.Expr.BinaryOp(None, 'Shr',
                                                         tuple(map(self.convert_claripy_bool_ast, cond_.args)),
                                                         False),
@@ -475,6 +480,18 @@ class ConditionProcessor:
         if isinstance(condition, claripy.ast.Base):
             return condition
 
+        def _op_with_unified_size(op, conv, operand0, operand1):
+            # ensure operand1 is of the same size as operand0
+            if isinstance(operand1, ailment.Expr.Const):
+                # amazing - we do the eazy thing here
+                return op(conv(operand0), operand1.value)
+            if operand1.bits == operand0.bits:
+                return op(conv(operand0), conv(operand1))
+            # extension is required
+            assert operand1.bits < operand0.bits
+            operand1 = ailment.Expr.Convert(None, operand1.bits, operand0.bits, False, operand1)
+            return op(conv(operand0), conv(operand1))
+
         _mapping = {
             'LogicalAnd': lambda expr, conv: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
             'LogicalOr': lambda expr, conv: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
@@ -490,11 +507,14 @@ class ConditionProcessor:
             'CmpGTs': lambda expr, conv: claripy.SGT(conv(expr.operands[0]), conv(expr.operands[1])),
             'Add': lambda expr, conv: conv(expr.operands[0]) + conv(expr.operands[1]),
             'Sub': lambda expr, conv: conv(expr.operands[0]) - conv(expr.operands[1]),
+            'Mul': lambda expr, conv: conv(expr.operands[0]) * conv(expr.operands[1]),
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
             'Or': lambda expr, conv: conv(expr.operands[0]) | conv(expr.operands[1]),
-            'Shr': lambda expr, conv: claripy.LShR(conv(expr.operands[0]), expr.operands[1].value)
+            'Shr': lambda expr, conv: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
+            'Shl': lambda expr, conv: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
+            'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset)):
@@ -566,6 +586,10 @@ class ConditionProcessor:
 
         if cond.op != "Or":
             return cond
+
+        if len(cond.args) == 1:
+            # redundant operator. get rid of it
+            return cond.args[0]
 
         or_arg0, or_arg1 = cond.args[:2]
         if or_arg1.op == 'And':
