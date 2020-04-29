@@ -18,9 +18,10 @@ class PagedMemoryMixin(MemoryMixin):
     """
     PAGE_TYPE: typing.Type[PageType] = None  # must be provided in subclass
 
-    def __init__(self,  page_size=0x1000, default_permissions=3, permissions_map=None, **kwargs):
+    def __init__(self,  page_size=0x1000, default_permissions=3, permissions_map=None, page_kwargs=None, **kwargs):
         super().__init__(**kwargs)
         self.page_size = page_size
+        self._extra_page_kwargs = page_kwargs if page_kwargs is not None else {}
 
         self._permissions_map = permissions_map if permissions_map is not None else {}
         self._default_permissions = default_permissions
@@ -75,7 +76,11 @@ class PagedMemoryMixin(MemoryMixin):
     def _initialize_page(self, pageno: int, permissions=None, allow_default=True, **kwargs) -> PageType:
         if not allow_default:
             raise SimMemoryError("I have been instructed not to create a default page")
-        # permissions lookup: let permissions kwarg override everything else
+
+        return self.PAGE_TYPE(**self._page_kwargs(pageno, permissions))
+
+    def _page_kwargs(self, pageno, permissions):
+        # permissions lookup: let permissions arg override everything else
         # then try the permissions map
         # then fall back to the default permissions
         if permissions is None:
@@ -87,7 +92,12 @@ class PagedMemoryMixin(MemoryMixin):
                     permissions = perms
                     break
 
-        return self.PAGE_TYPE(memory=self, memory_id='%s_%d' % (self.id, pageno), permissions=permissions)
+        return dict(
+            memory=self,
+            memory_id='%s_%d' % (self.id, pageno),
+            permissions=permissions,
+            **self._extra_page_kwargs
+        )
 
     def _divide_addr(self, addr: int) -> typing.Tuple[int, int]:
         return divmod(addr, self.page_size)
