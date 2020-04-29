@@ -46,6 +46,7 @@ class CooperationBase:
     def _force_load_cooperation(cls, results, size, endness, **kwargs):
         return cls._compose_objects([results], size, endness, **kwargs)
 
+
 class MemoryObjectMixin(CooperationBase):
     """
     Uses SimMemoryObjects in region storage.
@@ -76,6 +77,41 @@ class MemoryObjectMixin(CooperationBase):
         size = yield
         while True:
             size = yield memory_object
+
+    @classmethod
+    def _zero_objects(cls, addr, size, memory=None, **kwargs):
+        data = claripy.BVV(0, size*memory.state.arch.byte_width if memory is not None else 8)
+        return cls._decompose_objects(addr, data, 'Iend_BE', memory=memory, **kwargs)
+
+
+class BasicClaripyCooperation(CooperationBase):
+    """
+    Mix this (along with PageBase) into a storage class which supports loading and storing claripy bitvectors and it
+    will be able to work as a page in the paged memory model.
+    """
+    @classmethod
+    def _compose_objects(cls, objects, size, endness, **kwargs):
+        if endness == 'Iend_LE':
+            objects = reversed(objects)
+
+        return claripy.Concat(*objects)
+
+    @classmethod
+    def _decompose_objects(cls, addr, data, endness, memory=None, **kwargs):
+        if endness == 'Iend_BE':
+            size = yield
+            offset = 0
+            while True:
+                data_slice = data.get_bytes(offset, size)
+                offset += size
+                size = yield data_slice
+        else:
+            size = yield
+            offset = len(data) // (memory.state.arch.byte_width if memory is not None else 8)
+            while True:
+                offset -= size
+                data_slice = data.get_bytes(offset, size)
+                size = yield data_slice
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):

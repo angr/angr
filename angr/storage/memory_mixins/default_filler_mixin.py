@@ -80,3 +80,25 @@ class SpecialFillerMixin(MemoryMixin):
         if options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None and self.category == 'mem' and type(addr) is int:
             return self.state._special_memory_filler(name, size*self.state.arch.byte_width, self.state)
         return super()._default_value(addr, size, name=name, **kwargs)
+
+    def copy(self, memo):
+        o = super().copy(memo)
+        o._special_memory_filler = self._special_memory_filler
+        return o
+
+
+class ExplicitFillerMixin(MemoryMixin):
+    def __init__(self, uninitialized_read_handler=None, **kwargs):
+        super().__init__(**kwargs)
+        self._uninitialized_read_handler = uninitialized_read_handler
+
+    def _default_value(self, addr, size, inspect=True, events=True, **kwargs):
+        if self._uninitialized_read_handler is not None:
+            return self._uninitialized_read_handler(addr, size, inspect=inspect, events=events)
+        else:
+            return super()._default_value(addr, size, inspect=inspect, events=events, **kwargs)
+
+    def copy(self, memo):
+        o = super().copy(memo)
+        o._uninitialized_read_handler = self._uninitialized_read_handler
+        return o

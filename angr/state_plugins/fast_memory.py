@@ -210,24 +210,8 @@ class SimFastMemory(SimMemory):
             memory_id=self.id
         )
 
-    def changed_bytes(self, other):
-        """
-        Gets the set of changed bytes between self and other.
-        """
-
-        changes = set()
-
-        l.warning("FastMemory.changed_bytes(): This implementation is very slow and only for debug purposes.")
-        for addr,v in self._contents.items():
-            for i in range(self.width):
-                other_byte = other.load(addr+i, 1)
-                our_byte = v.get_byte(i)
-                if other_byte is our_byte:
-                    changes.add(addr+i)
-
-        return changes
 
 from angr.sim_state import SimState
-SimState.register_default('fast_memory', SimFastMemory)
+#SimState.register_default('fast_memory', SimFastMemory)
 
 from .. import sim_options as options

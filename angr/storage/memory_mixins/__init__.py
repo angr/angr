@@ -32,6 +32,13 @@ class MemoryMixin(SimStatePlugin):
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
 
+    @property
+    def variable_key_prefix(self):
+        s = self.category
+        if s == 'file':
+            return (s, self.id)
+        return (s,)
+
     def find(self, addr, data, max_search, **kwargs):
         pass
 
@@ -80,19 +87,23 @@ from .bvv_conversion_mixin import DataNormalizationMixin
 from .clouseau_mixin import InspectMixinHigh
 from .conditional_store_mixin import ConditionalMixin
 from .convenient_mappings_mixin import ConvenientMappingsMixin
-from .default_filler_mixin import DefaultFillerMixin
+from .default_filler_mixin import DefaultFillerMixin, SpecialFillerMixin, ExplicitFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
+from .simple_interface_mixin import SimpleInterfaceMixin
 from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
 from .smart_find_mixin import SmartFindMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
+
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
 from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
+
+from .slotted_memory import SlottedMemoryMixin
 
 class DefaultMemory(
         SmartFindMixin,
@@ -122,5 +133,16 @@ class DefaultMemory(
         ):
     pass
 
+class FastMemory(
+        NameResolutionMixin,
+        SimpleInterfaceMixin,
+        SimplificationMixin,
+        ExplicitFillerMixin,
+        DefaultFillerMixin,
+        SlottedMemoryMixin,
+        ):
+    pass
+
 from angr.sim_state import SimState
 SimState.register_default('sym_memory', DefaultMemory)
+SimState.register_default('fast_memory', FastMemory)

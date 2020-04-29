@@ -94,9 +94,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             except AttributeError:
                 data = claripy.BVV(bytes(data[:]))
             else:
-                if permissions is None:
-                    permissions = self._default_permissions
-                return new_from_shared(data, memory_id='%s_%d' % (self.id, pageno), memory=self, permissions=permissions)
+                return new_from_shared(data, **self._page_kwargs(pageno, permissions))
 
         new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=permissions, **kwargs)
         new_page.store(0, data, size=self.page_size, endness='Iend_BE', **kwargs)
