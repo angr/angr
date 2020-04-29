@@ -80,7 +80,8 @@ type_cache = None
 def run_manyfloatsum(arch):
     global type_cache
     if type_cache is None:
-        type_cache = parse_defns(open(os.path.join(location, 'tests_src', 'manyfloatsum.c')).read())
+        with open(os.path.join(location, 'tests_src', 'manyfloatsum.c')) as fp:
+            type_cache = parse_defns(fp.read())
 
     p = angr.Project(os.path.join(location, 'tests', arch, 'manyfloatsum'))
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
@@ -98,7 +99,8 @@ def run_manyfloatsum(arch):
 def run_manyfloatsum_symbolic(arch):
     global type_cache
     if type_cache is None:
-        type_cache = parse_defns(open(os.path.join(location, 'tests_src', 'manyfloatsum.c')).read())
+        with open(os.path.join(location, 'tests_src', 'manyfloatsum.c')) as fp:
+            type_cache = parse_defns(fp.read())
 
     p = angr.Project(os.path.join(location, 'tests', arch, 'manyfloatsum'))
     function = 'sum_doubles'
