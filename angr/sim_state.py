@@ -178,7 +178,7 @@ class SimState(PluginHub):
 
             elif o.FAST_MEMORY in self.options:
                 sim_memory_cls = self.plugin_preset.request_plugin('fast_memory')
-                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+                sim_memory = sim_memory_cls(memory_id='mem')
 
             else:
                 sim_memory_cls = self.plugin_preset.request_plugin('sym_memory')
