@@ -319,3 +319,87 @@ class SimEngineVRVEX(
         except TypeError as e:
             self.l.warning(e)
             return RichR(None)
+
+    def _handle_CmpEQ(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0.data is None or expr_1.data is None:
+            return RichR(None)
+
+        try:
+            return RichR(expr_0.data == expr_1.data)
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _handle_CmpNE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0.data is None or expr_1.data is None:
+            return RichR(None)
+
+        try:
+            return RichR(expr_0.data != expr_1.data)
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _handle_CmpLE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0.data is None or expr_1.data is None:
+            return RichR(None)
+
+        try:
+            return RichR(expr_0.data <= expr_1.data)
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _handle_CmpLT(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0.data is None or expr_1.data is None:
+            return RichR(None)
+
+        try:
+            return RichR(expr_0.data < expr_1.data)
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _handle_CmpGE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0.data is None or expr_1.data is None:
+            return RichR(None)
+
+        try:
+            return RichR(expr_0.data >= expr_1.data)
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)
+
+    def _handle_CmpGT(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0.data is None or expr_1.data is None:
+            return RichR(None)
+
+        try:
+            return RichR(expr_0.data > expr_1.data)
+        except TypeError as ex:
+            self.l.warning(ex)
+            return RichR(None)

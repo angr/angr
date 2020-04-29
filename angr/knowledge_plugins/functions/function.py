@@ -1064,13 +1064,12 @@ class Function(Serializable):
             return graph
 
         # BFS on local graph but ignoring certain types of graphs
-        traversed = set()
         g = networkx.DiGraph()
         queue = [ n for n in graph if n is self.startpoint or graph.in_degree[n] == 0 ]
+        traversed = set(queue)
 
         while queue:
             node = queue.pop(0)
-            traversed.add(node)
 
             g.add_node(node)
             for _, dst, edge_data in graph.out_edges(node, data=True):
@@ -1081,6 +1080,7 @@ class Function(Serializable):
                 g.add_edge(node, dst, **edge_data)
 
                 if dst not in traversed:
+                    traversed.add(dst)
                     queue.append(dst)
 
         return g
@@ -1105,9 +1105,9 @@ class Function(Serializable):
             return graph
 
         # BFS on local graph but ignoring certain types of graphs
-        traversed = set()
         g = networkx.DiGraph()
         queue = [ n for n in graph if n is self.startpoint or graph.in_degree[n] == 0 ]
+        traversed = set(queue)
 
         while queue:
             node = queue.pop(0)
@@ -1122,6 +1122,7 @@ class Function(Serializable):
                 g.add_edge(node, dst, **edge_data)
 
                 if dst not in traversed:
+                    traversed.add(dst)
                     queue.append(dst)
 
         return g
