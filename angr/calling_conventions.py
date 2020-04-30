@@ -459,7 +459,7 @@ class SimCC:
         if self.func_ty is not None and \
                 self.func_ty.returnty is not None and \
                 self.OVERFLOW_RETURN_VAL is not None and \
-                self.func_ty.returnty.size is not None and \
+                self.func_ty.returnty.size not in (None, NotImplemented) and \
                 self.func_ty.returnty.size > self.RETURN_VAL.size * self.arch.byte_width:
             return SimComboArg([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
         return self.RETURN_VAL
