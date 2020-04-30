@@ -81,7 +81,7 @@ class SimEnginePropagatorVEX(
     def _handle_function(self, addr):
         if self.arch.name == "X86":
             # since a addr can be unknown in handling pass
-            if addr is TOP:
+            if addr is Top:
                 return
 
             try:

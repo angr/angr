@@ -34,7 +34,6 @@ class ConstantResolver(IndirectJumpResolver):
         If jmp/call is a int, we return.
         """
         if isinstance(block.next, pyvex.expr.RdTmp):
-            func = cfg.functions[func_addr]
             unoptimized_block = self.project.factory.block(addr, opt_level=0)
             propagator = self.project.analyses.Propagator(block=unoptimized_block, only_consts=True)
             replacements = propagator.replacements
@@ -51,4 +50,3 @@ class ConstantResolver(IndirectJumpResolver):
                 if isinstance(resolved_tmp, int):
                     return True, [resolved_tmp]
         return False, [ ]
-    
