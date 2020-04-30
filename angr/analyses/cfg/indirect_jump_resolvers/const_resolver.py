@@ -1,8 +1,10 @@
+import logging
+
 import pyvex
+
 from .resolver import IndirectJumpResolver
 from ...code_location import CodeLocation
 from ...propagator import vex_vars
-import logging
 
 l = logging.getLogger(name=__name__)
 
@@ -13,8 +15,9 @@ class ConstantResolver(IndirectJumpResolver):
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         """
-        This function acts as a filter for possible instructions.
-
+        Filters out calls not supported by this resolver. Supported:
+        Ijk_Boring - Indirect jumps
+        Ijk_Call - Indirect Calls
         """
 
         # we support both an indirect call and jump since the value can be resolved
@@ -26,17 +29,18 @@ class ConstantResolver(IndirectJumpResolver):
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
         This function does the actual resolve. Our process is easy:
-
+        Get the basic block, and find the target jump. Propagate all constants
+        across the binary until we get to the block. Load constants from mem as needed.
+        If jmp/call is a int, we return.
         """
-
         if isinstance(block.next, pyvex.expr.RdTmp):
             func = cfg.functions[func_addr]
-            propagator = self.project.analyses.Propagator(func=func, only_consts=True)
+            unoptimized_block = self.project.factory.block(addr, opt_level=0)
+            propagator = self.project.analyses.Propagator(block=unoptimized_block, only_consts=True)
             replacements = propagator.replacements
-
             if replacements:
-                block_loc = CodeLocation(block.addr, None)
-                tmp_var = vex_vars.VEXTmp(block.next.tmp)
+                block_loc = CodeLocation(unoptimized_block.addr, None)
+                tmp_var = vex_vars.VEXTmp(unoptimized_block.vex.next.tmp)
 
                 resolved_tmp = None
                 try:
@@ -46,5 +50,4 @@ class ConstantResolver(IndirectJumpResolver):
 
                 if isinstance(resolved_tmp, int):
                     return True, [resolved_tmp]
-
         return False, [ ]
