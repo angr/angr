@@ -80,14 +80,13 @@ class SimEnginePropagatorVEX(
 
     def _handle_function(self, addr):
         if self.arch.name == "X86":
-            # since a addr can be unknown in handling pass
-            if addr is Top:
-                return
-
             try:
                 b = self._project.loader.memory.load(addr, 4)
             except KeyError:
                 return
+            except TypeError:
+                return
+
             if b == b"\x8b\x1c\x24\xc3":
                 # getpc:
                 #   mov ebx, [esp]
