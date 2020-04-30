@@ -33,6 +33,11 @@ event_types = {
 }
 
 inspect_attributes = {
+    # vex_lift
+    'vex_lift_addr',
+    'vex_lift_size',
+    'vex_lift_buff',
+
     # mem_read
     'mem_read_address',
     'mem_read_expr',

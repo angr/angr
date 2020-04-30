@@ -6,7 +6,7 @@ from cachetools import LRUCache
 import logging
 
 from ..engine import SimEngineBase
-from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
+from ...state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from ...misc.ux import once
 from ...errors import SimEngineError, SimTranslationError, SimError
 from ... import sim_options as o
@@ -197,14 +197,19 @@ class VEXLifter(SimEngineBase):
                     self._block_cache_misses += 1
 
         # vex_lift breakpoints only triggered when the cache isn't used
+        buff = NO_OVERRIDE
         if state:
-            state._inspect('vex_lift', BP_BEFORE, mem_read_address=addr, mem_read_length=size)
+            state._inspect('vex_lift', BP_BEFORE, vex_lift_addr=addr, vex_lift_size=size, vex_lift_buff=NO_OVERRIDE)
+            buff = state._inspect_getattr("vex_lift_buff", NO_OVERRIDE)
+            addr = state._inspect_getattr("vex_lift_addr", addr)
+            size = state._inspect_getattr("vex_lift_size", size)
 
         # phase 4: get bytes
-        if insn_bytes is not None:
-            buff, size = insn_bytes, len(insn_bytes)
-        else:
-            buff, size = self._load_bytes(addr, size, state, clemory)
+        if buff is NO_OVERRIDE:
+            if insn_bytes is not None:
+                buff, size = insn_bytes, len(insn_bytes)
+            else:
+                buff, size = self._load_bytes(addr, size, state, clemory)
 
         if not buff or size == 0:
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
@@ -235,7 +240,7 @@ class VEXLifter(SimEngineBase):
                 if use_cache:
                     self._block_cache[cache_key] = irsb
                 if state:
-                    state._inspect('vex_lift', BP_AFTER, mem_read_address=addr, mem_read_length=size)
+                    state._inspect('vex_lift', BP_AFTER, vex_lift_addr=addr, vex_lift_size=size)
                 return irsb
 
         # phase x: error handling
