@@ -51,3 +51,4 @@ class ConstantResolver(IndirectJumpResolver):
                 if isinstance(resolved_tmp, int):
                     return True, [resolved_tmp]
         return False, [ ]
+    
