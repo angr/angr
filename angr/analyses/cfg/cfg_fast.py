@@ -1277,7 +1277,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # If they asked for it, give it to them.  All of it.
         if self._cross_references:
-            self._do_full_xrefs()
+            self.do_full_xrefs()
 
         r = True
         while r:
@@ -1287,10 +1287,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._finish_progress()
 
-    def _do_full_xrefs(self):
+    def do_full_xrefs(self, overlay_state=None):
+        """
+        Perform xref recovery on all functions.
+
+        :param SimState overlay:    An overlay state for loading constant data.
+        :return:                    None
+        """
+
         l.info("Building cross-references...")
         # Time to make our CPU hurt
-        state = self.project.factory.blank_state()
+        state = self.project.factory.blank_state() if overlay_state is None else overlay_state
         for f_addr in self.functions:
             f = None
             try:
@@ -1541,9 +1548,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [ ]
 
-        last_ins_addr = None
-        ins_addr = addr
         if irsb.statements:
+            last_ins_addr = None
+            ins_addr = addr
             for i, stmt in enumerate(irsb.statements):
                 if isinstance(stmt, pyvex.IRStmt.Exit):
                     successors.append((i,
@@ -1557,23 +1564,37 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     ins_addr = stmt.addr + stmt.delta
         else:
             for ins_addr, stmt_idx, exit_stmt in irsb.exit_statements:
+                branch_ins_addr = ins_addr
+                if self.project.arch.branch_delay_slot \
+                        and irsb.instruction_addresses \
+                        and ins_addr in irsb.instruction_addresses:
+                    idx_ = irsb.instruction_addresses.index(ins_addr)
+                    if idx_ > 0:
+                        branch_ins_addr = irsb.instruction_addresses[idx_ - 1]
                 successors.append((
                     stmt_idx,
-                    last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                    branch_ins_addr,
                     exit_stmt.dst,
                     exit_stmt.jumpkind
                 ))
 
-        successors.append((DEFAULT_STATEMENT,
-                           last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
-                          )
+        # default statement
+        default_branch_ins_addr = None
+        if irsb.instruction_addresses:
+            if self.project.arch.branch_delay_slot:
+                if len(irsb.instruction_addresses) > 1:
+                    default_branch_ins_addr = irsb.instruction_addresses[-2]
+            else:
+                default_branch_ins_addr = irsb.instruction_addresses[-1]
+
+        successors.append((DEFAULT_STATEMENT, default_branch_ins_addr, irsb_next, jumpkind))
 
         # exception handling
         exc = self._exception_handling_by_endaddr.get(addr + irsb.size, None)
         if exc is not None:
             successors.append(
                 (DEFAULT_STATEMENT,
-                 last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                 default_branch_ins_addr,
                  exc.handler_addr,
                  'Ijk_Exception')
             )
@@ -1828,7 +1849,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         edge = None
         if new_function_addr is not None:
             edge = FunctionCallEdge(cfg_node, new_function_addr, return_site, current_function_addr, syscall=is_syscall,
-                                    ins_addr=ins_addr, stmt_idx=ins_addr,
+                                    ins_addr=ins_addr, stmt_idx=stmt_idx,
                                     )
 
         if new_function_addr is not None:
@@ -3019,6 +3040,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return endpoints
 
+    def _get_tail_caller(self, tailnode, seen):
+        """
+        recursively search predecessors for the actual caller
+        for a tailnode that we will return to
+
+        :return: list of callers for a possible tailnode
+        """
+
+        if tailnode.addr in seen:
+            return []
+        seen.add(tailnode.addr)
+
+        callers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Call')
+        direct_jumpers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Boring')
+        jump_callers = []
+
+        for jn in direct_jumpers:
+            jf = self.model.get_any_node(jn.function_address)
+            if jf is not None:
+                jump_callers.extend(self._get_tail_caller(jf, seen))
+
+        callers.extend(jump_callers)
+
+        return callers
+
+
     def _make_return_edges(self):
         """
         For each returning function, create return edges in self.graph.
@@ -3045,6 +3092,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # get all callers
             callers = self.model.get_predecessors(startpoint, jumpkind='Ijk_Call')
+
+            # handle callers for tailcall optimizations if flag is enabled
+            if self._detect_tail_calls and startpoint.addr in self._tail_calls:
+                l.debug("Handling return address for tail call for func %x", func_addr)
+                seen = set()
+                tail_callers = self._get_tail_caller(startpoint, seen)
+                callers.extend(tail_callers)
+
             # for each caller, since they all end with a call instruction, get the immediate successor
             return_targets = itertools.chain.from_iterable(
                 self.model.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers

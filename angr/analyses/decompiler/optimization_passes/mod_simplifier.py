@@ -15,6 +15,7 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
+        x_0, c_0, x_1, c_1 = None, None, None, None
         if isinstance(operand_1, Expr.BinaryOp) \
             and isinstance(operand_1.operands[1], Expr.Const) \
                 and operand_1.op == 'Mul':
@@ -33,7 +34,7 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
                 c_0 = operand_1.operands[1]
                 c_1 = operand_1.operands[0].operand.operands[1]
 
-            if x_0 == x_1 and c_0.value == c_1.value:
+            if x_0 is not None and x_1 is not None and x_0 == x_1 and c_0.value == c_1.value:
                 return Expr.BinaryOp(expr.idx, 'Mod', [x_0, c_0], expr.signed, **expr.tags)
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
             return Expr.BinaryOp(expr.idx, 'Sub', [operand_0, operand_1], expr.signed, **expr.tags)

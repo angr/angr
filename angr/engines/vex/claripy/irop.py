@@ -430,6 +430,10 @@ class SimIROp:
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
+        if o == '__div__' and self.is_signed:
+            # yikes!!!!!!!
+            return claripy.SDiv(*sized_args)
+
         return getattr(claripy.ast.BV, o)(*sized_args)
 
     def _translate_rm(self, rm_num):

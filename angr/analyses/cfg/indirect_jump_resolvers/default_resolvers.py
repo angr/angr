@@ -7,6 +7,7 @@ from . import JumpTableResolver
 from . import X86PeIatResolver
 from . import AMD64ElfGotResolver
 from . import ConstantResolver
+from . import ArmElfFastResolver
 
 DEFAULT_RESOLVERS = {
     'X86': {
@@ -22,9 +23,18 @@ DEFAULT_RESOLVERS = {
     'MIPS64': {
         cle.MetaELF: [ MipsElfFastResolver, ],
     },
+
+    'ARMEL': {
+        cle.MetaELF: [ ArmElfFastResolver, ]
+    },
+    'ARMHF': {
+        cle.MetaELF: [ ArmElfFastResolver, ]
+    },
+    'ARMCortexM': {
+        cle.MetaELF: [ ArmElfFastResolver, ]
+    },
     'ALL': [ JumpTableResolver, ConstantResolver ],
 }
-
 
 def default_indirect_jump_resolvers(obj, project):
     arch_specific = DEFAULT_RESOLVERS.get(project.arch.name, { })

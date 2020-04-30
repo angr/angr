@@ -1,4 +1,5 @@
 
+from typing import Set, Optional
 from collections import defaultdict
 import logging
 
@@ -11,7 +12,7 @@ from .. import register_analysis
 from ..code_location import CodeLocation  # pylint:disable=unused-import
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from .values import TOP
+from .values import Top
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 
@@ -21,7 +22,7 @@ _l = logging.getLogger(name=__name__)
 # The base state
 
 class PropagatorState:
-    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None):
+    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None, equivalence=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
@@ -29,11 +30,12 @@ class PropagatorState:
         self._prop_count = defaultdict(int) if prop_count is None else prop_count
         self._only_consts = only_consts
         self._replacements = defaultdict(dict) if replacements is None else replacements
+        self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
 
     def __repr__(self):
         return "<PropagatorState>"
 
-    def copy(self):
+    def copy(self) -> 'PropagatorState':
         raise NotImplementedError()
 
     def merge(self, *others):
@@ -50,7 +52,8 @@ class PropagatorState:
                             state._replacements[loc][var] = repl
                         else:
                             if state._replacements[loc][var] != repl:
-                                state._replacements[loc][var] = TOP
+                                state._replacements[loc][var] = Top(1)
+            state._equivalence |= o._equivalence
 
         return state
 
@@ -65,7 +68,7 @@ class PropagatorState:
         :return:                        None
         """
         if self._only_consts:
-            if isinstance(new, int) or new is TOP:
+            if isinstance(new, int) or type(new) is Top:
                 self._replacements[codeloc][old] = new
         else:
             self._replacements[codeloc][old] = new
@@ -106,14 +109,14 @@ class PropagatorVEXState(PropagatorState):
                     state.registers[offset] = value
                 else:
                     if state.registers[offset] != value:
-                        state.registers[offset] = TOP
+                        state.registers[offset] = Top(self.arch.bytes)
 
             for offset, value in other.local_variables.items():
                 if offset not in state.local_variables:
                     state.local_variables[offset] = value
                 else:
                     if state.local_variables[offset] != value:
-                        state.local_variables[offset] = TOP
+                        state.local_variables[offset] = Top(self.arch.bytes)
 
         return state
 
@@ -126,7 +129,7 @@ class PropagatorVEXState(PropagatorState):
         try:
             return self.local_variables[offset]
         except KeyError:
-            return TOP
+            return Top(size)
 
     def store_register(self, offset, size, value):
         if size != self.gpr_size:
@@ -138,19 +141,43 @@ class PropagatorVEXState(PropagatorState):
 
         # TODO: Fix me
         if size != self.gpr_size:
-            return TOP
+            return Top(size)
 
         try:
             return self.registers[offset]
         except KeyError:
-            return TOP
+            return Top(size)
 
 
 # AIL state
 
+
+class Equivalence:
+
+    __slots__ = ('codeloc', 'atom0', 'atom1', )
+
+    def __init__(self, codeloc, atom0, atom1):
+        self.codeloc = codeloc
+        self.atom0 = atom0
+        self.atom1 = atom1
+
+    def __repr__(self):
+        return "<EqRelation: %r==%r@%r>" % (self.atom0, self.atom1, self.codeloc)
+
+    def __eq__(self, other):
+        return type(other) is Equivalence \
+                and other.codeloc == self.codeloc \
+                and other.atom0 == self.atom0 \
+                and other.atom1 == self.atom1
+
+    def __hash__(self):
+        return hash((Equivalence, self.codeloc, self.atom0, self.atom1))
+
+
 class PropagatorAILState(PropagatorState):
-    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None):
-        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
+    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None, equivalence=None):
+        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
+                         equivalence=equivalence)
 
         self._stack_variables = KeyedRegion()
         self._registers = KeyedRegion()
@@ -165,6 +192,7 @@ class PropagatorAILState(PropagatorState):
             replacements=self._replacements.copy(),
             prop_count=self._prop_count.copy(),
             only_consts=self._only_consts,
+            equivalence=self._equivalence.copy(),
         )
 
         rd._stack_variables = self._stack_variables.copy()
@@ -173,20 +201,20 @@ class PropagatorAILState(PropagatorState):
 
         return rd
 
-    def merge(self, *others):
+    def merge(self, *others) -> 'PropagatorAILState':
         # TODO:
         state = super().merge(*others)
 
         for o in others:
-            state._stack_variables.merge_to_top(o._stack_variables, top=TOP)
-            state._registers.merge_to_top(o._registers, top=TOP)
+            state._stack_variables.merge_to_top(o._stack_variables, top=Top(1))
+            state._registers.merge_to_top(o._registers, top=Top(1))
 
         return state
 
     def store_variable(self, old, new):
         if old is None or new is None:
             return
-        if new.has_atom(old, identity=False):
+        if type(new) is not Top and new.has_atom(old, identity=False):
             return
 
         if isinstance(old, ailment.Expr.Tmp):
@@ -215,6 +243,11 @@ class PropagatorAILState(PropagatorState):
                 return None
             # FIXME: Right now we are always getting one item - we should, in fact, work on a multi-value domain
             first_obj = next(iter(objs))
+            if type(first_obj) is Top:
+                # return a Top
+                if first_obj.bits != variable.bits:
+                    return Top(variable.bits // 8)
+                return first_obj
             if first_obj.bits != variable.bits:
                 # conversion is needed
                 if isinstance(first_obj, ailment.Expr.Convert):
@@ -260,6 +293,11 @@ class PropagatorAILState(PropagatorState):
         for old in to_remove:
             del self._replacements[old]
 
+    def add_equivalence(self, codeloc, old, new):
+        eq = Equivalence(codeloc, old, new)
+        self._equivalence.add(eq)
+
+
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
     PropagatorAnalysis propagates values (either constant values or variables) and expressions inside a block or across
@@ -303,7 +341,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self._node_iterations = defaultdict(int)
         self._states = { }
-        self.replacements = None  # type: None|defaultdict
+        self.replacements: Optional[defaultdict] = None
+        self.equivalence: Set[Equivalence] = set()
 
         self._engine_vex = SimEnginePropagatorVEX(project=self.project)
         self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
@@ -363,6 +402,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self.replacements = state._replacements
         else:
             self.replacements.update(state._replacements)
+
+        self.equivalence |= state._equivalence
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state
