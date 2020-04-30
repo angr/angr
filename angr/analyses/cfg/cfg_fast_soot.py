@@ -26,13 +26,15 @@ except ImportError:
 
 class CFGFastSoot(CFGFast):
 
-    def __init__(self, **kwargs):
+    def __init__(self, skip_android_classes=False, **kwargs):
 
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")
 
         if self.project.arch.name != 'Soot':
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')
+
+        self.skip_android_classes = skip_android_classes
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
         super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
@@ -90,6 +92,9 @@ class CFGFastSoot(CFGFast):
         # add all other methods as well
         for cls in self.project.loader.main_object.classes.values():
             for method in cls.methods:
+                # Do not add classes containing android in its name
+                if self.skip_android_classes and method.class_name.startswith("android"):
+                    continue
                 total_methods += 1
                 if method.blocks:
                     method_des = SootMethodDescriptor(cls.name, method.name, method.params)
@@ -117,6 +122,9 @@ class CFGFastSoot(CFGFast):
 
     def _generate_cfgnode(self, cfg_job, current_function_addr):
         addr = cfg_job.addr
+
+        if self.skip_android_classes and addr.method.fullname.startswith("android"):
+            return None, None, None, None
 
         try:
 
@@ -338,6 +346,10 @@ class CFGFastSoot(CFGFast):
 
         if cfg_node is None:
             # exceptions occurred, or we cannot get a CFGNode for other reasons
+            return [ ]
+
+        if soot_block is None:
+            # TODO: In this case we might have a transition to native code
             return [ ]
 
         self._graph_add_edge(cfg_node, cfg_job.src_node, cfg_job.jumpkind, cfg_job.src_ins_addr,
