@@ -119,6 +119,7 @@ class Block(Serializable):
     def __setstate__(self, data):
         for k, v in data.items():
             setattr(self, k, v)
+        self._capstone = None
 
     def __hash__(self):
         return hash((type(self), self.addr, self.bytes))
