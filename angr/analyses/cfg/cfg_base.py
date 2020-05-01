@@ -2165,13 +2165,16 @@ class CFGBase(Analysis):
 
     def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
         """
-        Checks if MIPS32 and calls MIPS32 check, otherwise false
+        Attempt to quickly resolve an indirect jump.
 
-        :param int addr: irsb address
-        :param pyvex.IRSB block: irsb
-        :param int func_addr: Function address
-        :return: If it was resolved and targets alongside it
-        :rtype: tuple
+        :param int addr:        Basic block address of this indirect jump.
+        :param block:           The basic block. The type is determined by the backend being used. It's pyvex.IRSB if
+                                pyvex is used as the backend.
+        :param int func_addr:   Address of the function that this indirect jump belongs to.
+        :param str jumpkind:    The jumpkind.
+        :return:                A tuple of a boolean indicating whether the resolution is successful or not, and a list
+                                of resolved targets (ints).
+        :rtype:                 tuple
         """
 
         if block.statements is None:
