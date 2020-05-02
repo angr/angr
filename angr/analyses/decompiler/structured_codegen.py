@@ -89,6 +89,8 @@ class CConstruct:
     Represents a program construct in C.
     """
 
+    __slots__ = ()
+
     def __init__(self):
         pass
 
@@ -116,6 +118,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a function in C.
     """
+
+    __slots__ = ('name', 'statements', 'variables', 'demangled_name', )
+
     def __init__(self, name, statements, variables, demangled_name=None):
 
         super(CFunction, self).__init__()
@@ -178,11 +183,16 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
     Represents a statement in C.
     """
 
+    __slots__ = ()
+
 
 class CStatements(CStatement):
     """
     Represents a sequence of statements in C.
     """
+
+    __slots__ = ('statements', )
+
     def __init__(self, statements):
 
         super(CStatements, self).__init__()
@@ -199,6 +209,9 @@ class CAILBlock(CStatement):
     """
     Represents a block of AIL statements.
     """
+
+    __slots__ = ('block', )
+
     def __init__(self, block):
 
         super(CAILBlock, self).__init__()
@@ -220,11 +233,16 @@ class CLoop(CStatement):  # pylint:disable=abstract-method
     Represents a loop in C.
     """
 
+    __slots__ = ()
+
 
 class CWhileLoop(CLoop):
     """
     Represents a while loop in C.
     """
+
+    __slots__ = ('condition', 'body', )
+
     def __init__(self, condition, body):
 
         super(CWhileLoop, self).__init__()
@@ -254,6 +272,9 @@ class CDoWhileLoop(CLoop):
     """
     Represents a do-while loop in C.
     """
+
+    __slots__ = ('condition', 'body', )
+
     def __init__(self, condition, body):
 
         super().__init__()
@@ -283,6 +304,9 @@ class CIfElse(CStatement):
     """
     Represents an if-else construct in C.
     """
+
+    __slots__ = ('condition', 'true_node', 'false_node', )
+
     def __init__(self, condition, true_node=None, false_node=None):
 
         super(CIfElse, self).__init__()
@@ -324,6 +348,9 @@ class CIfBreak(CStatement):
     """
     Represents an if-break statement in C.
     """
+
+    __slots__ = ('condition', )
+
     def __init__(self, condition):
 
         super(CIfBreak, self).__init__()
@@ -350,6 +377,9 @@ class CBreak(CStatement):
     """
     Represents a break statement in C.
     """
+
+    __slots__ = ()
+
     def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
@@ -362,6 +392,9 @@ class CContinue(CStatement):
     """
     Represents a continue statement in C.
     """
+
+    __slots__ = ()
+
     def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
@@ -374,6 +407,9 @@ class CSwitchCase(CStatement):
     """
     Represents a switch-case statement in C.
     """
+
+    __slots__ = ('switch', 'cases', 'default', )
+
     def __init__(self, switch, cases, default):
         super().__init__()
 
@@ -411,6 +447,9 @@ class CAssignment(CStatement):
     """
     a = b
     """
+
+    __slots__ = ('lhs', 'rhs', )
+
     def __init__(self, lhs, rhs):
 
         super(CAssignment, self).__init__()
@@ -435,6 +474,9 @@ class CFunctionCall(CStatement):
 
     :ivar Function callee_func:  The function getting called.
     """
+
+    __slots__ = ('callee_target', 'callee_func', 'args', 'returning', 'ret_expr', )
+
     def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None):
         super().__init__()
 
@@ -476,6 +518,9 @@ class CFunctionCall(CStatement):
 
 
 class CReturn(CStatement):
+
+    __slots__ = ('retval', )
+
     def __init__(self, retval):
         super().__init__()
 
@@ -496,6 +541,9 @@ class CReturn(CStatement):
 
 
 class CGoto(CStatement):
+
+    __slots__ = ('target', )
+
     def __init__(self, target):
         super().__init__()
 
@@ -515,6 +563,9 @@ class CUnsupportedStatement(CStatement):
     """
     A wrapper for unsupported AIL statement.
     """
+
+    __slots__ = ('stmt', )
+
     def __init__(self, stmt):
         super().__init__()
 
@@ -533,6 +584,8 @@ class CExpression:
     """
     Base class for C expressions.
     """
+
+    __slots__ = ('_type', )
 
     def __init__(self):
         self._type = None
@@ -553,6 +606,9 @@ class CExpression:
 
 
 class CStructField(CExpression):
+
+    __slots__ = ('struct_type', 'offset', 'field', )
+
     def __init__(self, struct_type, offset, field):
 
         super().__init__()
@@ -573,6 +629,9 @@ class CVariable(CExpression):
     """
     Read value from a variable.
     """
+
+    __slots__ = ('variable', 'offset', 'variable_type', )
+
     def __init__(self, variable, offset=None, variable_type=None):
 
         super().__init__()
@@ -678,27 +737,30 @@ class CUnaryOp(CExpression):
     """
     Unary operations.
     """
-    def __init__(self, op, operand, referenced_variable):
+
+    __slots__ = ('op', 'operand', 'variable', )
+
+    def __init__(self, op, operand, variable):
 
         super().__init__()
 
         self.op = op
         self.operand = operand
-        self.referenced_variable = referenced_variable
+        self.variable = variable
 
     @property
     def type(self):
         if self._type is None:
-            if self.referenced_variable is not None:
-                self._type = self.referenced_variable.type
+            if self.variable is not None:
+                self._type = self.variable.type
             if self.operand is not None and hasattr(self.operand, 'type'):  # FIXME: This is hackish
                 self._type = self.operand.type
         return self._type
 
     def c_repr_chunks(self):
-        if self.referenced_variable is not None:
+        if self.variable is not None:
             yield "&", None
-            yield from self.referenced_variable.c_repr_chunks()
+            yield from self.variable.c_repr_chunks()
             return
 
         OP_MAP = {
@@ -730,14 +792,17 @@ class CBinaryOp(CExpression):
     """
     Binary operations.
     """
-    def __init__(self, op, lhs, rhs, referenced_variable):
+
+    __slots__ = ('op', 'lhs', 'rhs', 'variable', )
+
+    def __init__(self, op, lhs, rhs, variable):
 
         super().__init__()
 
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
-        self.referenced_variable = referenced_variable
+        self.variable = variable
 
     @property
     def type(self):
@@ -747,9 +812,9 @@ class CBinaryOp(CExpression):
 
     def c_repr_chunks(self):
 
-        if self.referenced_variable is not None:
+        if self.variable is not None:
             yield "&", None
-            yield from self.referenced_variable.c_repr_chunks()
+            yield from self.variable.c_repr_chunks()
             return
 
         OP_MAP = {
@@ -877,6 +942,9 @@ class CBinaryOp(CExpression):
 
 
 class CTypeCast(CExpression):
+
+    __slots__ = ('src_type', 'dst_type', 'expr', )
+
     def __init__(self, src_type, dst_type, expr):
 
         super().__init__()
@@ -897,14 +965,17 @@ class CTypeCast(CExpression):
 
 
 class CConstant(CExpression):
-    def __init__(self, value, type_, reference_values=None, reference_variable=None):
+
+    __slots__ = ('value', 'reference_values', 'variable', )
+
+    def __init__(self, value, type_, reference_values=None, variable=None):
 
         super().__init__()
 
         self.value = value
         self._type = type_
         self.reference_values = reference_values
-        self.reference_variable = reference_variable
+        self.variable = variable
 
     @property
     def type(self):
@@ -912,8 +983,8 @@ class CConstant(CExpression):
 
     def c_repr_chunks(self):
 
-        if self.reference_variable is not None:
-            yield from self.reference_variable.c_repr_chunks()
+        if self.variable is not None:
+            yield from self.variable.c_repr_chunks()
 
         elif self.reference_values is not None and self._type is not None and self._type in self.reference_values:
             if isinstance(self._type, SimTypeInt):
@@ -937,6 +1008,9 @@ class CConstant(CExpression):
 
 
 class CRegister(CExpression):
+
+    __slots__ = ('reg', )
+
     def __init__(self, reg):
 
         super().__init__()
@@ -957,6 +1031,9 @@ class CDirtyExpression(CExpression):
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
     AIL. Eventually this class should not be used at all.
     """
+
+    __slots__ = ('dirty', )
+
     def __init__(self, dirty):
         super().__init__()
         self.dirty = dirty
@@ -1278,8 +1355,7 @@ class StructuredCodeGenerator(Analysis):
                             type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                             reference_values[type_] = self._cfg.memory_data[arg.value]
                     new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
-                                        reference_variable=self._handle(arg.referenced_variable)
-                                                           if hasattr(arg, 'referenced_variable') else None)
+                                        variable=self._handle(arg.variable) if arg.variable is not None else None)
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
@@ -1309,7 +1385,7 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Load(self, expr):
 
-        if hasattr(expr, 'variable') and expr.variable is not None:
+        if expr.variable is not None:
             if expr.variable_offset is not None:
                 if isinstance(expr.variable_offset, int):
                     offset = expr.variable_offset
@@ -1336,13 +1412,12 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
-        return CConstant(expr.value, int, reference_variable=self._handle(expr.referenced_variable)
-                                                             if hasattr(expr, 'referenced_variable') else None)
+        return CConstant(expr.value, int, variable=self._handle(expr.variable) if expr.variable is not None else None)
 
     def _handle_Expr_UnaryOp(self, expr):
 
         return CUnaryOp(expr.op, self._handle(expr.operand),
-                        referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
+                        variable=self._handle(expr.variable) if expr.variable is not None else None,
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
@@ -1352,7 +1427,7 @@ class StructuredCodeGenerator(Analysis):
         rhs.set_type(lhs.type)
 
         return CBinaryOp(expr.op, lhs, rhs,
-                         referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
+                         variable=self._handle(expr.variable) if expr.variable is not None else None,
                          )
 
     def _handle_Expr_Convert(self, expr):
@@ -1377,11 +1452,11 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
-        if hasattr(expr, 'referenced_variable') and expr.referenced_variable is not None:
-            return CUnaryOp('Reference', expr, referenced_variable=self._handle(expr.referenced_variable))
+        if expr.variable is not None:
+            return CUnaryOp('Reference', expr, variable=self._handle(expr.variable))
 
         # FIXME
-        r = CUnaryOp('Reference', expr, referenced_variable=None)
+        r = CUnaryOp('Reference', expr, variable=None)
         r.set_type(SimTypeLongLong())
         return r
 

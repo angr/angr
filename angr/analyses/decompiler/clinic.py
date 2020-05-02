@@ -410,7 +410,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
                 var, offset = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = offset
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[0])
@@ -420,7 +420,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
                 var, offset = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = offset
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands)
@@ -432,7 +432,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
                 var, offset = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = offset
 
         elif isinstance(expr, ailment.Expr.Const):
@@ -440,7 +440,7 @@ class Clinic(Analysis):
             variables = global_variables.get_global_variables(expr.value)
             if variables:
                 var = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = 0
 
     def _function_graph_to_ail_graph(self, func_graph):
