@@ -501,7 +501,7 @@ class SimCC:
         else:
             # let's rely on the func_ty or self.args for the number of arguments and whether each argument is FP or not
             if self.func_ty is not None:
-                args = self.func_ty.args
+                args = [ a.with_arch(self.arch) for a in self.func_ty.args ]
             else:
                 args = self.args
             is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) else False
