@@ -6,6 +6,9 @@ class Expression(TaggedObject):
     """
     The base class of all AIL expressions.
     """
+
+    __slots__ = ('idx', )
+
     def __init__(self, idx, **kwargs):
         super(Expression, self).__init__(**kwargs)
         self.idx = idx
@@ -41,15 +44,22 @@ class Expression(TaggedObject):
 
 
 class Atom(Expression):
-    def __init__(self, idx, variable, **kwargs):
+
+    __slots__ = ('variable', 'variable_offset', )
+
+    def __init__(self, idx, variable, variable_offset=0, **kwargs):
         super(Atom, self).__init__(idx, **kwargs)
         self.variable = variable
+        self.variable_offset = variable_offset
 
     def __repr__(self):
         return "Atom (%d)" % self.idx
 
 
 class Const(Atom):
+
+    __slots__ = ('value', 'bits', )
+
     def __init__(self, idx, variable, value, bits, **kwargs):
         super(Const, self).__init__(idx, variable, **kwargs)
 
@@ -80,11 +90,18 @@ class Const(Atom):
 
 
 class Tmp(Atom):
+
+    __slots__ = ('tmp_idx', 'bits', )
+
     def __init__(self, idx, variable, tmp_idx, bits, **kwargs):
         super(Tmp, self).__init__(idx, variable, **kwargs)
 
         self.tmp_idx = tmp_idx
         self.bits = bits
+
+    @property
+    def size(self):
+        return self.bits // 8
 
     def __repr__(self):
         return str(self)
@@ -102,6 +119,9 @@ class Tmp(Atom):
 
 
 class Register(Atom):
+
+    __slots__ = ('reg_offset', 'bits', )
+
     def __init__(self, idx, variable, reg_offset, bits, **kwargs):
         super(Register, self).__init__(idx, variable, **kwargs)
 
@@ -136,6 +156,9 @@ class Register(Atom):
 
 
 class Op(Expression):
+
+    __slots__ = ('op', )
+
     def __init__(self, idx, op, **kwargs):
         super(Op, self).__init__(idx, **kwargs)
         self.op = op
@@ -146,11 +169,16 @@ class Op(Expression):
 
 
 class UnaryOp(Op):
-    def __init__(self, idx, op, operand, **kwargs):
+
+    __slots__ = ('operand', 'bits', 'variable', 'variable_offset', )
+
+    def __init__(self, idx, op, operand, variable=None, variable_offset=None, **kwargs):
         super(UnaryOp, self).__init__(idx, op, **kwargs)
 
         self.operand = operand
         self.bits = operand.bits
+        self.variable = variable
+        self.variable_offset = variable_offset
 
     def __str__(self):
         return "(%s %s)" % (self.op, str(self.operand))
@@ -185,6 +213,9 @@ class UnaryOp(Op):
 
 
 class Convert(UnaryOp):
+
+    __slots__ = ('from_bits', 'to_bits', 'is_signed', )
+
     def __init__(self, idx, from_bits, to_bits, is_signed, operand, **kwargs):
         super(Convert, self).__init__(idx, 'Convert', operand, **kwargs)
 
@@ -221,9 +252,22 @@ class Convert(UnaryOp):
 
 
 class BinaryOp(Op):
+
+    __slots__ = ('operands', 'bits', 'signed', 'variable', 'variable_offset', )
+
     OPSTR_MAP = {
         'Add': '+',
         'Sub': '-',
+        'Mul': '*',
+        'Div': '/',
+        'Xor': '^',
+        'And': '&',
+        'LogicalAnd': '&&',
+        'Or': '|',
+        'LogicalOr': '||',
+        'Shl': '<<',
+        'Shr': '>>',
+        'Sar': '>>a',
         'CmpEQ': '==',
         'CmpNE': '!=',
         'CmpLT': '<',
@@ -236,13 +280,15 @@ class BinaryOp(Op):
         'CmpGEs': '>=s',
     }
 
-    def __init__(self, idx, op, operands, signed, **kwargs):
+    def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, **kwargs):
         super(BinaryOp, self).__init__(idx, op, **kwargs)
 
         assert len(operands) == 2
         self.operands = operands
         self.bits = operands[0].bits if type(operands[0]) is not int else operands[1].bits
         self.signed = signed
+        self.variable = variable
+        self.variable_offset = variable_offset
 
         # TODO: sanity check of operands' sizes for some ops
         # assert self.bits == operands[1].bits
@@ -306,12 +352,17 @@ class BinaryOp(Op):
 
 
 class Load(Expression):
-    def __init__(self, idx, addr, size, endness, **kwargs):
+
+    __slots__ = ('addr', 'size', 'endness', 'variable', 'variable_offset', )
+
+    def __init__(self, idx, addr, size, endness, variable=None, variable_offset=None, **kwargs):
         super(Load, self).__init__(idx, **kwargs)
 
         self.addr = addr
         self.size = size
         self.endness = endness
+        self.variable = variable
+        self.variable_offset = variable_offset
 
     @property
     def bits(self):
@@ -347,6 +398,9 @@ class Load(Expression):
 
 
 class ITE(Expression):
+
+    __slots__ = ('cond', 'iffalse', 'iftrue', 'bits', )
+
     def __init__(self, idx, cond, iffalse, iftrue, **kwargs):
         super(ITE, self).__init__(idx, **kwargs)
 
@@ -379,6 +433,9 @@ class ITE(Expression):
 
 
 class DirtyExpression(Expression):
+
+    __slots__ = ('dirty_expr', )
+
     def __init__(self, idx, dirty_expr, **kwargs):
         super(DirtyExpression, self).__init__(idx, **kwargs)
         self.dirty_expr = dirty_expr
@@ -399,11 +456,16 @@ class DirtyExpression(Expression):
 
 
 class BasePointerOffset(Expression):
-    def __init__(self, idx, bits, base, offset, **kwargs):
+
+    __slots__ = ('bits', 'base', 'offset', 'variable', 'variable_offset', )
+
+    def __init__(self, idx, bits, base, offset, variable=None, variable_offset=None, **kwargs):
         super().__init__(idx, **kwargs)
         self.bits = bits
         self.base = base
         self.offset = offset
+        self.variable = variable
+        self.variable_offset = variable_offset
 
     @property
     def size(self):
@@ -447,6 +509,9 @@ class BasePointerOffset(Expression):
 
 
 class StackBaseOffset(BasePointerOffset):
+
+    __slots__ = ()
+
     def __init__(self, idx, bits, offset, **kwargs):
         # stack base offset is always signed
         if offset >= (1 << (bits - 1)):

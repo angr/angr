@@ -5,6 +5,8 @@ class TaggedObject:
     A class that takes arbitrary tags.
     """
 
+    __slots__ = ('tags', )
+
     def __init__(self, **kwargs):
         self.tags = { }
         if kwargs:

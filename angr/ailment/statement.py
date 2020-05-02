@@ -7,6 +7,8 @@ class Statement(TaggedObject):
     The base class of all AIL statements.
     """
 
+    __slots__ = ('idx', )
+
     def __init__(self, idx, **kwargs):
         super(Statement, self).__init__(**kwargs)
 
@@ -29,6 +31,9 @@ class Assignment(Statement):
     """
     Assignment statement: expr_a = expr_b
     """
+
+    __slots__ = ('dst', 'src', )
+
     def __init__(self, idx, dst, src, **kwargs):
         super(Assignment, self).__init__(idx, **kwargs)
 
@@ -62,7 +67,10 @@ class Assignment(Statement):
 
 
 class Store(Statement):
-    def __init__(self, idx, addr, data, size, endness, variable=None, **kwargs):
+
+    __slots__ = ('addr', 'size', 'data', 'endness', 'variable', 'offset', )
+
+    def __init__(self, idx, addr, data, size, endness, variable=None, offset=None, **kwargs):
         super(Store, self).__init__(idx, **kwargs)
 
         self.addr = addr
@@ -70,6 +78,7 @@ class Store(Statement):
         self.size = size
         self.endness = endness
         self.variable = variable
+        self.offset = offset  # variable_offset
 
     def __eq__(self, other):
         return type(other) is Store and \
@@ -77,8 +86,7 @@ class Store(Statement):
                self.addr == other.addr and \
                self.data == other.data and \
                self.size == other.size and \
-               self.endness == other.endness and \
-               self.variable == other.variable
+               self.endness == other.endness
 
     def __hash__(self):
         return hash((Store, self.idx, self.addr, self.data, self.size, self.endness))
@@ -88,9 +96,9 @@ class Store(Statement):
 
     def __str__(self):
         if self.variable is None:
-            return "STORE(addr=%s, data=%s, size=%s)" % (self.addr, str(self.data), self.size)
+            return "STORE(addr=%s, data=%s, size=%s, endness=%s)" % (self.addr, str(self.data), self.size, self.endness)
         else:
-            return "%s = %s<%d>" % (self.variable.name, str(self.data), self.size)
+            return "%s =%s %s<%d>" % (self.variable.name, self.endness[0], str(self.data), self.size)
 
     def replace(self, old_expr, new_expr):
         r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
@@ -104,6 +112,9 @@ class Store(Statement):
 
 
 class Jump(Statement):
+
+    __slots__ = ('target', )
+
     def __init__(self, idx, target, **kwargs):
         super(Jump, self).__init__(idx, **kwargs)
 
@@ -133,6 +144,9 @@ class Jump(Statement):
 
 
 class ConditionalJump(Statement):
+
+    __slots__ = ('condition', 'true_target', 'false_target', )
+
     def __init__(self, idx, condition, true_target, false_target, **kwargs):
         super(ConditionalJump, self).__init__(idx, **kwargs)
 
@@ -181,6 +195,9 @@ class ConditionalJump(Statement):
 
 
 class Call(Statement):
+
+    __slots__ = ('target', 'calling_convention', 'prototype', 'args', 'ret_expr', )
+
     def __init__(self, idx, target, calling_convention=None, prototype=None, args=None, ret_expr=None, **kwargs):
         super(Call, self).__init__(idx, **kwargs)
 
@@ -261,6 +278,9 @@ class Call(Statement):
 
 
 class Return(Statement):
+
+    __slots__ = ('target', 'ret_exprs', )
+
     def __init__(self, idx, target, ret_exprs, **kwargs):
         super().__init__(idx, **kwargs)
 
@@ -327,6 +347,9 @@ class DirtyStatement(Statement):
     """
     Wrapper around the original statement, which is usually not convertible (temporarily).
     """
+
+    __slots__ = ('dirty_stmt', )
+
     def __init__(self, idx, dirty_stmt, **kwargs):
         super(DirtyStatement, self).__init__(idx, **kwargs)
         self.dirty_stmt = dirty_stmt
