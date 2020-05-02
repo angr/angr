@@ -46,7 +46,11 @@ class ConditionProcessor:
                     edge = src, dst
                     edge_data = region.graph.get_edge_data(*edge)
                     edge_type = edge_data.get('type', 'transition')
-                    predicate = self._extract_predicate(src, dst, edge_type)
+                    try:
+                        predicate = self._extract_predicate(src, dst, edge_type)
+                    except EmptyBlockNotice:
+                        # catch empty block notice - although this should not really happen
+                        predicate = claripy.true
                     edge_conditions[edge] = predicate
                     predicate_mapping[predicate] = dst
 
