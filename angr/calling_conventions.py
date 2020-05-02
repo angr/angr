@@ -4,6 +4,7 @@ import claripy
 import archinfo
 from typing import Union, Optional, List
 
+from .sim_type import SimType
 from .sim_type import SimTypeChar
 from .sim_type import SimTypePointer
 from .sim_type import SimTypeFixedSizeArray
@@ -500,11 +501,22 @@ class SimCC:
         else:
             # let's rely on the func_ty or self.args for the number of arguments and whether each argument is FP or not
             if self.func_ty is not None:
-                args = self.func_ty.args
+                args = [ a.with_arch(self.arch) for a in self.func_ty.args ]
             else:
                 args = self.args
             is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) else False
                       for arg in args ]
+            if sizes is None:
+                # initialize sizes from args
+                sizes = [ ]
+                for a in args:
+                    if isinstance(a, SimType):
+                        sizes.append(a.size // 8)  # SimType.size is in bits
+                    elif isinstance(a, SimFunctionArgument):
+                        sizes.append(a.size)  # SimFunctionArgument.size is in bytes
+                    else:
+                        # fallback to use self.arch.bytes
+                        sizes.append(self.arch.bytes)
 
         if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
         return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
