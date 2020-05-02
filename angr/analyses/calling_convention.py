@@ -222,7 +222,7 @@ class CallingConventionAnalysis(Analysis):
         :return:            A reordered list of args.
         """
 
-        new_args = [ ]
+        reg_args = [ ]
 
         for reg_name in cc.ARG_REGS:
             try:
@@ -234,13 +234,14 @@ class CallingConventionAnalysis(Analysis):
                     arg = SimRegArg(reg_name, self.project.arch.bytes)
                 else:
                     break
-            new_args.append(arg)
+            reg_args.append(arg)
             if arg in args:
                 args.remove(arg)
 
-        new_args += args
+        stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
+        args = [ a for a in args if not isinstance(a, SimStackArg) ]
 
-        return new_args
+        return reg_args + args + stack_args
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
