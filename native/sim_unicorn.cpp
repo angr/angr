@@ -833,7 +833,7 @@ public:
 			used_registers = &search->second.used_registers;
 		} else {
 			// wtf i hate c++...
-			VEXRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
+			VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
 			auto& entry = this->block_cache->emplace(std::make_pair(address, block_entry_t())).first->second;
 			entry.try_unicorn = true;
 			clobbered_registers = &entry.clobbered_registers;
