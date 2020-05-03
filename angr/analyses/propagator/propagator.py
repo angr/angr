@@ -382,7 +382,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             block_key = node.addr
             engine = self._engine_ail
         else:
-            block = self.project.factory.block(node.addr, node.size, opt_level=0)
+            block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             block_key = node.addr
             engine = self._engine_vex
 

@@ -66,6 +66,7 @@ class Block(Serializable):
                         traceflags=traceflags,
                         strict_block_end=strict_block_end,
                         collect_data_refs=collect_data_refs,
+                        cross_insn_opt=cross_insn_opt,
                 )
                 size = vex.size
 
