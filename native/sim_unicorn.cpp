@@ -843,7 +843,7 @@ public:
 			uc_mem_read(this->uc, address, instructions.get(), size);
 			VEXLiftResult *lift_ret = vex_lift(
 					this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1, 0,
-					&px_control
+					&pxControl
 					);
 
 
