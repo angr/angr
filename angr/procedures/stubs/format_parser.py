@@ -69,7 +69,7 @@ class FormatString:
                 string = self._add_to_string(string, self.parser.state.solver.BVV(component))
             elif isinstance(component, str):
                 raise Exception("this branch should be impossible?")
-            elif isinstance(component, claripy.ast.BV):
+            elif isinstance(component, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
                 string = self._add_to_string(string, component)
             else:
                 # okay now for the interesting stuff
@@ -245,7 +245,7 @@ class FormatString:
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, ohc, ohi = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
+                    ohr, _, _ = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
 
                     # if no newline is found, mm is position + max_strlen
                     # If-branch will really only happen for format specifiers with a length
@@ -521,7 +521,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
         strtol = SIM_PROCEDURES['libc']['strtol']
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
@@ -532,7 +532,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
         strlen = SIM_PROCEDURES['libc']['strlen']
 
         return self.inline_call(strlen, str_addr).ret_expr
