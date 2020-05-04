@@ -213,12 +213,6 @@ class FormatString:
 
             return argnum - startpos
 
-        # TODO: we only support one format specifier in interpretation for now
-
-        format_specifier_count = sum(1 for x in self.components if isinstance(x, FormatSpecifier))
-        if format_specifier_count > 1:
-            l.warning("We don't support more than one format specifiers in format strings.")
-
         if simfd is not None:
             region = simfd.read_storage
             addr = simfd._pos if hasattr(simfd, '_pos') else simfd._read_pos # XXX THIS IS BAD
@@ -542,7 +536,6 @@ class FormatParser(SimProcedure):
         strlen = SIM_PROCEDURES['libc']['strlen']
 
         return self.inline_call(strlen, str_addr).ret_expr
-
 
     def _parse(self, fmt_idx):
         """
