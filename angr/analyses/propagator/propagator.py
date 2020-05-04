@@ -385,6 +385,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             block_key = node.addr
             engine = self._engine_vex
+            if block.size == 0:
+                # maybe the block is not decodeable
+                return False, state
 
         state = state.copy()
         # Suppress spurious output
@@ -404,6 +407,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self.replacements.update(state._replacements)
 
         self.equivalence |= state._equivalence
+
+        # TODO: Clear registers according to calling conventions
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state

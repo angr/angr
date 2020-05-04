@@ -322,23 +322,25 @@ def test_dep_graph():
     cfg = project.analyses.CFGFast()
     main = cfg.functions['main']
 
-    # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's guard is the four cc registers
+    # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's
+    # guard is the four cc registers
     rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
     guard_use = list(filter(
         lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
         rda.dep_graph._graph.nodes()
     ))[0]
+    preds = list(rda.dep_graph._graph.pred[guard_use])
     nose.tools.assert_equal(
-        len(rda.dep_graph._graph.pred[guard_use]),
-        4
+        len(preds),
+        1
+    )
+    nose.tools.assert_is_instance(
+        preds[0].atom,
+        Register
     )
     nose.tools.assert_equal(
-        all(type(def_.atom) is Register for def_ in rda.dep_graph._graph.pred[guard_use]),
-        True
-    )
-    nose.tools.assert_equal(
-        set(def_.atom.reg_offset for def_ in rda.dep_graph._graph.pred[guard_use]),
-        {reg.vex_offset for reg in project.arch.register_list if reg.name.startswith('cc_')}
+        preds[0].atom.reg_offset,
+        project.arch.registers['rdi'][0],
     )
 
     # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard

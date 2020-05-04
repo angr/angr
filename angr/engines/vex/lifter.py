@@ -79,7 +79,7 @@ class VEXLifter(SimEngineBase):
              strict_block_end=None,
              skip_stmts=False,
              collect_data_refs=False,
-             cross_insn_opt=True):
+             cross_insn_opt=None):
 
         """
         Lift an IRSB.
@@ -138,6 +138,11 @@ class VEXLifter(SimEngineBase):
                 opt_level = 1
             else:
                 opt_level = self._default_opt_level
+        if cross_insn_opt is None:
+            if state and o.NO_CROSS_INSN_OPT in state.options:
+                cross_insn_opt = False
+            else:
+                cross_insn_opt = True
         if strict_block_end is None:
             strict_block_end = self.default_strict_block_end
         if self._support_selfmodifying_code:

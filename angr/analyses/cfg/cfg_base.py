@@ -2229,7 +2229,15 @@ class CFGBase(Analysis):
         :rtype:                 tuple
         """
 
+        # pre-check: if re-lifting the block with full optimization (cross-instruction-optimization enabled) gives us
+        # a constant next expression, we don't need to resolve it
+        relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
+        if isinstance(relifted.next, pyvex.IRExpr.Const):
+            # yes!
+            return True, [relifted.next.con.value]
+
         if block.statements is None:
+            # make sure there are statements
             block = self.project.factory.block(block.addr, size=block.size).vex
 
         for res in self.timeless_indirect_jump_resolvers:

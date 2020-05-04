@@ -1677,7 +1677,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # This is an indirect jump. Try to resolve it.
                 # FIXME: in some cases, a statementless irsb will be missing its instr addresses
                 # and this next part will fail. Use the real IRSB instead
-                irsb = cfg_node.block.vex
+                irsb = self._lift(cfg_node.addr, size=cfg_node.size).vex
                 cfg_node.instruction_addrs = irsb.instruction_addresses
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
                                                                                  current_function_addr, stmt_idx)
