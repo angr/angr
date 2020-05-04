@@ -1,4 +1,9 @@
+import binascii
+
+import pyvex
+import archinfo
 import angr
+
 
 def test_strict_block_ends_cbz():
     # ldr     r3, [sp, #4]
@@ -66,7 +71,58 @@ def test_strict_block_ends_with_size_amd64():
     assert p.factory.block(0x4010d0, size=7, strict_block_end=True).instructions == 2
 
 
+def test_no_cross_insn_boundary_opt_amd64():
+
+    # 0x4020f8:       sub     rsp, 8
+    # 0x4020fc:       mov     rax, qword ptr [rip + 0x221ef5]
+    # 0x402103:       test    rax, rax
+    # 0x402106:       je      0x40210d
+
+    b = binascii.unhexlify("4883ec08488b05f51e22004885c07405")
+    p = angr.load_shellcode(b, 'amd64', load_address=0x4020f8)
+
+    # No optimization
+    block = p.factory.block(0x4020f8, size=len(b), opt_level=0)
+    assert len(block.vex.statements) == 32
+    # Full level-1 optimization
+    block = p.factory.block(0x4020f8, size=len(b), opt_level=1, cross_insn_opt=True)
+    assert len(block.vex.statements) == 20
+    # Level-1 optimization within each instruction
+    block = p.factory.block(0x4020f8, size=len(b), opt_level=1, cross_insn_opt=False)
+    stmts = block.vex.statements
+    assert len(stmts) == 25
+    # 12 | ------ IMark(0x402103, 3, 0) ------
+    assert isinstance(stmts[12], pyvex.IRStmt.IMark)
+    assert stmts[12].addr == 0x402103
+    # 13 | t6 = GET:I64(rax)
+    assert isinstance(stmts[13], pyvex.IRStmt.WrTmp)
+    assert isinstance(stmts[13].data, pyvex.IRExpr.Get)
+    assert stmts[13].data.offset == archinfo.arch_from_id('amd64').registers['rax'][0]
+    # 14 | PUT(cc_op) = 0x0000000000000014
+    assert isinstance(stmts[14], pyvex.IRStmt.Put)
+    assert stmts[14].offset == archinfo.arch_from_id('amd64').registers['cc_op'][0]
+    assert isinstance(stmts[14].data, pyvex.IRExpr.Const)
+    assert stmts[14].data.con.value == 0x14
+    # 15 | PUT(cc_dep1) = t6
+    assert isinstance(stmts[15], pyvex.IRStmt.Put)
+    assert stmts[15].offset == archinfo.arch_from_id('amd64').registers['cc_dep1'][0]
+    # 16 | PUT(cc_dep2) = 0x0000000000000000
+    assert isinstance(stmts[16], pyvex.IRStmt.Put)
+    assert stmts[16].offset == archinfo.arch_from_id('amd64').registers['cc_dep2'][0]
+    assert isinstance(stmts[16].data, pyvex.IRExpr.Const)
+    assert stmts[16].data.con.value == 0
+    # 17 | PUT(rip) = 0x0000000000402106
+    assert isinstance(stmts[17], pyvex.IRStmt.Put)
+    assert stmts[17].offset == archinfo.arch_from_id('amd64').registers['rip'][0]
+    assert isinstance(stmts[17].data, pyvex.IRExpr.Const)
+    assert stmts[17].data.con.value == 0x402106
+    # 18 | ------ IMark(0x402106, 2, 0) ------
+    assert isinstance(stmts[18], pyvex.IRStmt.IMark)
+    assert stmts[18].addr == 0x402106
+
+
 if __name__ == '__main__':
     test_strict_block_ends_cbz()
     test_strict_block_ends_with_size_x86()
     test_strict_block_ends_with_size_amd64()
+    test_no_cross_insn_boundary_opt_amd64()

@@ -202,7 +202,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param state_remove_options:                State options that will be removed from the initial state.
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
-        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
+        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize,
                          resolve_indirect_jumps=resolve_indirect_jumps,
                          indirect_jump_resolvers=indirect_jump_resolvers,
                          indirect_jump_target_limit=indirect_jump_target_limit,
@@ -224,6 +224,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             l.warning("`advanced backward slicing` and `symbolic back traversal` are deprecated.")
             l.warning("Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead.")
 
+        self._iropt_level = iropt_level
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
@@ -275,6 +276,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._pending_function_hints = set()
         # A dict to log edges and the jumpkind between each basic block
         self._edge_map = defaultdict(list)
+
+        self._model._iropt_level = self._iropt_level
 
         self._start_keys = [ ]  # a list of block IDs of all starts
 

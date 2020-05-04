@@ -78,7 +78,8 @@ class VEXLifter(SimEngineBase):
              opt_level=None,
              strict_block_end=None,
              skip_stmts=False,
-             collect_data_refs=False):
+             collect_data_refs=False,
+             cross_insn_opt=None):
 
         """
         Lift an IRSB.
@@ -137,6 +138,11 @@ class VEXLifter(SimEngineBase):
                 opt_level = 1
             else:
                 opt_level = self._default_opt_level
+        if cross_insn_opt is None:
+            if state and o.NO_CROSS_INSN_OPT in state.options:
+                cross_insn_opt = False
+            else:
+                cross_insn_opt = True
         if strict_block_end is None:
             strict_block_end = self.default_strict_block_end
         if self._support_selfmodifying_code:
@@ -169,7 +175,7 @@ class VEXLifter(SimEngineBase):
         # phase 3: check cache
         cache_key = None
         if use_cache:
-            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
+            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt)
             if cache_key in self._block_cache:
                 self._block_cache_hits += 1
                 irsb = self._block_cache[cache_key]
@@ -179,7 +185,7 @@ class VEXLifter(SimEngineBase):
                 else:
                     size = stop_point - addr
                     # check the cache again
-                    cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end)
+                    cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt)
                     if cache_key in self._block_cache:
                         self._block_cache_hits += 1
                         return self._block_cache[cache_key]
@@ -187,7 +193,8 @@ class VEXLifter(SimEngineBase):
                         self._block_cache_misses += 1
             else:
                 # a special case: `size` is used as the maximum allowed size
-                tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level, strict_block_end)
+                tmp_cache_key = (addr, insn_bytes, VEX_IRSB_MAX_SIZE, num_inst, thumb, opt_level, strict_block_end,
+                                 cross_insn_opt)
                 try:
                     irsb = self._block_cache[tmp_cache_key]
                     if irsb.size <= size:
@@ -228,6 +235,7 @@ class VEXLifter(SimEngineBase):
                                   strict_block_end=strict_block_end,
                                   skip_stmts=skip_stmts,
                                   collect_data_refs=collect_data_refs,
+                                  cross_insn_opt=cross_insn_opt
                                   )
 
                 if subphase == 0 and irsb.statements is not None:

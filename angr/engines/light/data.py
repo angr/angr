@@ -268,6 +268,9 @@ class RegisterOffset:
     def __rxor__(self, other):
         return self.__xor__(other)
 
+    def __floordiv__(self, other):
+        # this should never happen. returning self is obviously incorrect.
+        return self
 
     def __rshift__(self, other):
         if not self.symbolic and type(other) is int:

@@ -287,7 +287,7 @@ class JumpTableProcessor(
             return
 
         if isinstance(arg1_src, tuple):
-            arg1_src_stmt = self.project.factory.block(arg1_src[0]).vex.statements[arg1_src[1]]
+            arg1_src_stmt = self.project.factory.block(arg1_src[0], cross_insn_opt=True).vex.statements[arg1_src[1]]
             if isinstance(arg1_src_stmt, pyvex.IRStmt.Store):
                 # Storing a constant/variable in memory
                 # We will need to overwrite it when executing the slice to guarantee the full recovery of jump table
@@ -473,7 +473,7 @@ class JumpTableResolver(IndirectJumpResolver):
             b = Blade(cfg.graph, addr, -1,
                 cfg=cfg, project=self.project,
                 ignore_sp=False, ignore_bp=False,
-                max_level=slice_steps, base_state=self.base_state, stop_at_calls=True)
+                max_level=slice_steps, base_state=self.base_state, stop_at_calls=True, cross_insn_opt=True)
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
             r, targets = self._resolve(cfg, addr, func_addr, b)
@@ -655,7 +655,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if len(preds) != 1:
                 break
             block_addr, stmt_idx = stmt_loc = preds[0]
-            block = project.factory.block(block_addr, backup_state=self.base_state).vex
+            block = project.factory.block(block_addr, cross_insn_opt=True, backup_state=self.base_state).vex
             if stmt_idx == DEFAULT_STATEMENT:
                 # it's the default exit. continue
                 continue
@@ -875,7 +875,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 state._tmpvar_source.clear()
                 block_addr, _ = src
 
-                block = self.project.factory.block(block_addr, backup_state=self.base_state)
+                block = self.project.factory.block(block_addr, cross_insn_opt=True, backup_state=self.base_state)
                 stmt_whitelist = annotatedcfg.get_whitelisted_statements(block_addr)
                 engine.process(state, block=block, whitelist=stmt_whitelist)
 
@@ -1244,7 +1244,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         for addr in sorted(stmts.keys()):
             stmt_ids = stmts[addr]
-            irsb = self.project.factory.block(addr, backup_state=self.base_state).vex
+            irsb = self.project.factory.block(addr, cross_insn_opt=True, backup_state=self.base_state).vex
 
             print("  ####")
             print("  #### Block %#x" % addr)
@@ -1349,7 +1349,7 @@ class JumpTableResolver(IndirectJumpResolver):
     def _is_jumptarget_legal(self, target):
 
         try:
-            vex_block = self.project.factory.block(target).vex_nostmt
+            vex_block = self.project.factory.block(target, cross_insn_opt=True).vex_nostmt
         except (AngrError, SimError):
             return False
         if vex_block.jumpkind == 'Ijk_NoDecode':

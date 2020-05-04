@@ -516,8 +516,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             binary=binary,
             force_segment=force_segment,
             base_state=base_state,
-            iropt_level=1,  # right now this is a must, since we rely on the VEX optimization to tell us
-                            # the concrete jump targets of each block.
             resolve_indirect_jumps=resolve_indirect_jumps,
             indirect_jump_resolvers=indirect_jump_resolvers,
             indirect_jump_target_limit=indirect_jump_target_limit,
@@ -1679,7 +1677,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # This is an indirect jump. Try to resolve it.
                 # FIXME: in some cases, a statementless irsb will be missing its instr addresses
                 # and this next part will fail. Use the real IRSB instead
-                irsb = cfg_node.block.vex
+                irsb = self._lift(cfg_node.addr, size=cfg_node.size).vex
                 cfg_node.instruction_addrs = irsb.instruction_addresses
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
                                                                                  current_function_addr, stmt_idx)
@@ -1979,7 +1977,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if irsb.data_refs:
             self._process_irsb_data_refs(irsb)
         elif irsb.statements:
-            irsb = self._unoptimize_irsb(irsb)
             # for each statement, collect all constants that are referenced or used.
             self._collect_data_references_by_scanning_stmts(irsb, irsb_addr)
 
@@ -1996,27 +1993,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     data_size=ref.data_size,
                     data_type=ref.data_type_str
             )
-
-    def _unoptimize_irsb(self, irsb):
-        if self.project.arch.name in ('X86', 'AMD64'):
-            # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
-            # optimization level 0 to preserve as much constant references as possible
-            empty_insn = False
-            all_statements = len(irsb.statements)
-            for i, stmt in enumerate(irsb.statements[:-1]):
-                if isinstance(stmt, pyvex.IRStmt.IMark) and (
-                        isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
-                        (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
-                ):
-                    # this is a very bad check...
-                    # the correct way to do it is to disable cross-instruction optimization in VEX
-                    empty_insn = True
-                    break
-
-            if empty_insn:
-                # make sure opt_level is 0
-                irsb = self._lift(addr=irsb.addr, size=irsb.size, opt_level=0, collect_data_refs=True).vex
-        return irsb
 
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
 
@@ -2489,7 +2465,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure the IRSB has statements
         if not irsb.has_statements:
-            irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
+            irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
 
         # try to resolve the jump target
         simsucc = self.project.factory.default_engine.process(self._initial_state, irsb, force_addr=addr)
@@ -2651,7 +2627,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10), opt_level=1)
+                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10))
                     except SimTranslationError:
                         continue
 
@@ -3382,7 +3358,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         initial_sp = 0x7fff0000
         last_sp = None
         tmps = {}
-        tmp_irsb = self._lift(irsb.instruction_addresses[-1], opt_level=self._iropt_level).vex
+        tmp_irsb = self._lift(irsb.instruction_addresses[-1]).vex
         # pylint:disable=too-many-nested-blocks
         for stmt in tmp_irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp):
@@ -3512,8 +3488,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb_string = None
             lifted_block = None
             try:
-                lifted_block = self._lift(addr, size=distance, opt_level=self._iropt_level, collect_data_refs=True,
-                                          strict_block_end=True)
+                lifted_block = self._lift(addr, size=distance, collect_data_refs=True, strict_block_end=True)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
@@ -3536,8 +3511,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return addr_0, cfg_node.function_address, cfg_node, irsb
 
                 try:
-                    lifted_block = self._lift(addr_0, size=distance, opt_level=self._iropt_level,
-                                              collect_data_refs=True, strict_block_end=True)
+                    lifted_block = self._lift(addr_0, size=distance, collect_data_refs=True, strict_block_end=True)
                     irsb = lifted_block.vex_nostmt
                     irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:
@@ -3664,7 +3638,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 if not irsb.statements:
                     # Get an IRSB with statements
-                    irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
+                    irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
 
                 for stmt in irsb.statements:
                     if isinstance(stmt, pyvex.IRStmt.IMark):
@@ -3709,7 +3683,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return result
 
-    def _lift(self, addr, *args, **kwargs): # pylint:disable=arguments-differ
+    def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs): # pylint:disable=arguments-differ
         kwargs['extra_stop_points'] = set(self._known_thunks)
         if self._use_patches:
             # let's see if there is a patch at this location
@@ -3726,7 +3700,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     byte_string += p.new_bytes[offset - p.addr: min(VEX_IRSB_MAX_SIZE - (offset-addr), p.addr + len(p) - offset)]
                     offset = p.addr + len(p)
                 kwargs['byte_string'] = byte_string
-        return super(CFGFast, self)._lift(addr, *args, **kwargs)
+        return super(CFGFast, self)._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
 
     #
     # Public methods

@@ -479,8 +479,8 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         successors = self.project.factory.successors(concrete_state,
                                                      addr=node.addr,
                                                      size=node.size,
-                                                     opt_level=0  # disable the optimization in order to have
-                                                                  # instruction-level analysis results
+                                                     opt_level=1,
+                                                     cross_insn_opt=False,
                                                      )
         output_states = successors.all_successors
 

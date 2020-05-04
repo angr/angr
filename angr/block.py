@@ -16,10 +16,12 @@ class Block(Serializable):
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
                  '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
+                 '_cross_insn_opt',
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0, strict_block_end=None, collect_data_refs=False):
+                 extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0, strict_block_end=None,
+                 collect_data_refs=False, cross_insn_opt=True):
 
         # set up arch
         if project is not None:
@@ -64,6 +66,7 @@ class Block(Serializable):
                         traceflags=traceflags,
                         strict_block_end=strict_block_end,
                         collect_data_refs=collect_data_refs,
+                        cross_insn_opt=cross_insn_opt,
                 )
                 size = vex.size
 
@@ -73,6 +76,7 @@ class Block(Serializable):
         self.size = size
         self._collect_data_refs = collect_data_refs
         self._strict_block_end = strict_block_end
+        self._cross_insn_opt = cross_insn_opt
 
         self._instructions = num_inst
         self._instruction_addrs = []
@@ -156,6 +160,7 @@ class Block(Serializable):
                     arch=self.arch,
                     collect_data_refs=self._collect_data_refs,
                     strict_block_end=self._strict_block_end,
+                    cross_insn_opt=self._cross_insn_opt,
             )
             self._parse_vex_info()
 
@@ -181,6 +186,7 @@ class Block(Serializable):
             skip_stmts=True,
             collect_data_refs=self._collect_data_refs,
             strict_block_end=self._strict_block_end,
+            cross_insn_opt=self._cross_insn_opt,
         )
         return self._vex_nostmt
 
