@@ -69,7 +69,7 @@ class FormatString:
                 string = self._add_to_string(string, self.parser.state.solver.BVV(component))
             elif isinstance(component, str):
                 raise Exception("this branch should be impossible?")
-            elif isinstance(component, claripy.ast.BV):
+            elif isinstance(component, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
                 string = self._add_to_string(string, component)
             else:
                 # okay now for the interesting stuff
@@ -213,12 +213,6 @@ class FormatString:
 
             return argnum - startpos
 
-        # TODO: we only support one format specifier in interpretation for now
-
-        format_specifier_count = sum(1 for x in self.components if isinstance(x, FormatSpecifier))
-        if format_specifier_count > 1:
-            l.warning("We don't support more than one format specifiers in format strings.")
-
         if simfd is not None:
             region = simfd.read_storage
             addr = simfd._pos if hasattr(simfd, '_pos') else simfd._read_pos # XXX THIS IS BAD
@@ -251,7 +245,7 @@ class FormatString:
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, ohc, ohi = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
+                    ohr, _, _ = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
 
                     # if no newline is found, mm is position + max_strlen
                     # If-branch will really only happen for format specifiers with a length
@@ -527,7 +521,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
         strtol = SIM_PROCEDURES['libc']['strtol']
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
@@ -538,11 +532,10 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
         strlen = SIM_PROCEDURES['libc']['strlen']
 
         return self.inline_call(strlen, str_addr).ret_expr
-
 
     def _parse(self, fmt_idx):
         """
