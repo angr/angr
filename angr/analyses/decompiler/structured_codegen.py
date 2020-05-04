@@ -160,7 +160,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     yield str(var_type), None
 
             yield " ", None
-            yield variable.name, cvariable
+            if variable.name:
+                yield variable.name, cvariable
+            else:
+                yield str(variable), cvariable
             yield ";\n", None
 
     def c_repr_chunks(self, indent=0):
