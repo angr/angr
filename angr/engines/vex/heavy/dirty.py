@@ -26,7 +26,7 @@ def ppc32g_dirtyhelper_MFSPR_287(state):
 
 def amd64g_dirtyhelper_RDTSC(state):
     if o.USE_SYSTEM_TIMES in state.options:
-        val = state.solver.BVV(int(time.clock() * 1000000) + 12345678, 64)
+        val = state.solver.BVV(int(time.process_time() * 1000000) + 12345678, 64)
     else:
         val = state.solver.BVS('RDTSC', 64, key=('hardware', 'rdtsc'))
     return val, []
