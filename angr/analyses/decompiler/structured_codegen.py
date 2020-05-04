@@ -1,4 +1,4 @@
-
+from typing import Optional, Dict
 from collections import defaultdict
 import logging
 
@@ -119,34 +119,35 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     Represents a function in C.
     """
 
-    __slots__ = ('name', 'statements', 'variables', 'demangled_name', )
+    __slots__ = ('name', 'statements', 'variables_in_use', 'variable_manager', 'demangled_name', )
 
-    def __init__(self, name, statements, variables, demangled_name=None):
+    def __init__(self, name, statements, variables_in_use, variable_manager, demangled_name=None):
 
         super(CFunction, self).__init__()
 
         self.name = name
         self.statements = statements
-        self.variables = variables
+        self.variables_in_use = variables_in_use
+        self.variable_manager = variable_manager
         self.demangled_name = demangled_name
 
     def variable_list_repr_chunks(self, indent=0):
 
-        varname_to_types = defaultdict(set)
+        variable_to_types = defaultdict(set)
 
         # output each variable and its type
-        for var in self.variables.get_variables():
-            var_type = self.variables.get_variable_type(var)
+        for var, cvar in self.variables_in_use.items():
+            var_type = self.variable_manager.get_variable_type(var)
 
             if isinstance(var_type, SimTypeBottom) or var_type is None:
                 l.debug("Skipping variable %s because its type cannot be determined.", var_type)
                 continue
 
-            varname_to_types[var.name].add(var_type)
+            variable_to_types[(var, cvar)].add(var_type)
 
         indent_str = self.indent_str(indent)
 
-        for varname, vartypes in varname_to_types.items():
+        for (variable, cvariable), vartypes in variable_to_types.items():
 
             yield indent_str, None
 
@@ -160,7 +161,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     yield str(var_type), None
 
             yield " ", None
-            yield varname, None
+            yield variable.name, cvariable
             yield ";\n", None
 
     def c_repr_chunks(self, indent=0):
@@ -1085,6 +1086,8 @@ class StructuredCodeGenerator(Analysis):
         self._cfg = cfg
         self._sequence = sequence
 
+        self._variables_in_use: Optional[Dict] = None
+
         self.text = None
         self.posmap = None
         self.nodemap = None
@@ -1094,9 +1097,12 @@ class StructuredCodeGenerator(Analysis):
 
     def _analyze(self):
 
+        self._variables_in_use = {}
         obj = self._handle(self._sequence)
 
-        func = CFunction(self._func.name, obj, self.kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
+        func = CFunction(self._func.name, obj, self._variables_in_use, self.kb.variables[self._func.addr],
+                         demangled_name=self._func.demangled_name)
+        self._variables_in_use = None
 
         self.posmap = PositionMapping()
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap)
@@ -1165,6 +1171,11 @@ class StructuredCodeGenerator(Analysis):
 
         l.warning("Unsupported address expression %r", addr)
         return expr, None
+
+    def _cvariable(self, variable, offset=None, variable_type=None):
+        cvariable = CVariable(variable, offset=offset, variable_type=variable_type)
+        self._variables_in_use[variable] = cvariable
+        return cvariable
 
     #
     # Handlers
@@ -1294,9 +1305,9 @@ class StructuredCodeGenerator(Analysis):
                     offset = None
 
             if base is not None and offset is not None:
-                cvariable = CVariable(base, offset=offset, variable_type=base.variable_type)
+                cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type)
             else:
-                cvariable = CVariable(cvariable, offset=None)
+                cvariable = self._cvariable(cvariable, offset=None)
         else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
             cvariable = None
@@ -1393,22 +1404,22 @@ class StructuredCodeGenerator(Analysis):
                     offset = self._handle(expr.variable_offset)
             else:
                 offset = None
-            return CVariable(expr.variable, offset=offset,
-                             variable_type=self._get_variable_type(expr.variable),
-                             )
+            return self._cvariable(expr.variable, offset=offset,
+                                   variable_type=self._get_variable_type(expr.variable),
+                                   )
 
         variable, offset = self._parse_load_addr(expr.addr)
 
         if variable is not None:
-            return CVariable(variable, offset=offset,
-                             variable_type=self._get_variable_type(variable))
+            return self._cvariable(variable, offset=offset,
+                                   variable_type=self._get_variable_type(variable))
         else:
-            return CVariable(CConstant(offset, SimTypePointer(SimTypeInt)))
+            return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt)))
 
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
         l.warning("FIXME: Leftover Tmp expressions are found.")
-        return CVariable(SimTemporaryVariable(expr.tmp_idx))
+        return self._cvariable(SimTemporaryVariable(expr.tmp_idx))
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
@@ -1461,13 +1472,13 @@ class StructuredCodeGenerator(Analysis):
         return r
 
     def _handle_Variable_SimStackVariable(self, variable):  # pylint:disable=no-self-use
-        return CVariable(variable, variable_type=self._get_variable_type(variable))
+        return self._cvariable(variable, variable_type=self._get_variable_type(variable))
 
     def _handle_Variable_SimRegisterVariable(self, variable):  # pylint:disable=no-self-use
-        return CVariable(variable, variable_type=self._get_variable_type(variable))
+        return self._cvariable(variable, variable_type=self._get_variable_type(variable))
 
     def _handle_Variable_SimMemoryVariable(self, variable):  # pylint:disable=no-self-use
-        return CVariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
+        return self._cvariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
 
 
 register_analysis(StructuredCodeGenerator, 'StructuredCodeGenerator')
