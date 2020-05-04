@@ -139,9 +139,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         for var, cvar in self.variables_in_use.items():
             var_type = self.variable_manager.get_variable_type(var)
 
-            if isinstance(var_type, SimTypeBottom) or var_type is None:
-                l.debug("Skipping variable %s because its type cannot be determined.", var_type)
-                continue
+            if var_type is None:
+                var_type = SimTypeBottom()
 
             variable_to_types[(var, cvar)].add(var_type)
 
@@ -1174,7 +1173,8 @@ class StructuredCodeGenerator(Analysis):
 
     def _cvariable(self, variable, offset=None, variable_type=None):
         cvariable = CVariable(variable, offset=offset, variable_type=variable_type)
-        self._variables_in_use[variable] = cvariable
+        if isinstance(variable, SimVariable):
+            self._variables_in_use[variable] = cvariable
         return cvariable
 
     #
