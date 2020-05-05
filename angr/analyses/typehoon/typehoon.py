@@ -43,6 +43,7 @@ class Typehoon(Analysis):
         for var, typevar in var_to_typevar.items():
             type_ = self.simtypes_solution.get(typevar, None)
             if type_ is not None:
+                # print("{} -> {}: {}".format(var, typevar, type_))
                 self.kb.variables[func_addr].types[var] = type_
 
     #

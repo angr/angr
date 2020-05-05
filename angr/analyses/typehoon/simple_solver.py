@@ -5,8 +5,8 @@ from collections import defaultdict
 import networkx
 
 from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField
-from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer64, Struct, int_type,
-    TypeVariableReference)
+from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer32, Pointer64,
+                         Struct, int_type, TypeVariableReference)
 
 
 BASE_LATTICE = networkx.DiGraph()
@@ -74,11 +74,30 @@ class SimpleSolver:
 
         for v in self._lower_bounds:
             if isinstance(v, TypeVariable) and not isinstance(v, DerivedTypeVariable):
-                solution[v] = self._lower_bounds[v]
+                lb = self._lower_bounds[v]
+                if isinstance(lb, BottomType):
+                    # use its upper bound instead
+                    solution[v] = self._upper_bounds[v]
+                else:
+                    solution[v] = lb
+
+        for v in self._upper_bounds:
+            if v not in solution:
+                ub = self._upper_bounds[v]
+                if not isinstance(ub, TopType):
+                    solution[v] = ub
 
         for v in self._equivalence:
-            solution[v] = solution.get(self._equivalence[v], None)
+            if v not in solution:
+                solution[v] = solution.get(self._equivalence[v], None)
 
+        # import pprint
+        # print("Lower bounds")
+        # pprint.pprint(self._lower_bounds)
+        # print("Upper bounds")
+        # pprint.pprint(self._upper_bounds)
+        # print("Solution")
+        # pprint.pprint(solution)
         return solution
 
     def _handle_equivalence(self):
@@ -157,12 +176,13 @@ class SimpleSolver:
                     if isinstance(constraint.type_.label, HasField):
                         # the original variable is a pointer
                         v = constraint.type_.type_var.type_var
-                        subtypevars[v].add(
-                            Pointer64(
-                                Struct(fields={constraint.type_.label.offset: int_type(constraint.type_.label.bits),
-                                               })
+                        if isinstance(v, TypeVariable):
+                            subtypevars[v].add(
+                                Pointer64(
+                                    Struct(fields={constraint.type_.label.offset: int_type(constraint.type_.label.bits),
+                                                   })
+                                )
                             )
-                        )
 
             elif isinstance(constraint, Subtype):
                 # subtype <: supertype
@@ -367,6 +387,18 @@ class SimpleSolver:
                     raise Exception("Impossible")
                 fields[offset] = v
             return Struct(fields)
+
+        if t1_cls is Pointer64 and t2_cls is Struct:
+            # swap them
+            t1, t1_cls, t2, t2_cls = t2, t2_cls, t1, t1_cls
+        if t1_cls is Struct and len(t1.fields) == 1 and 0 in t1.fields:
+            if t1.fields[0].size == 8 and t2_cls is Pointer64:
+                # they are equivalent
+                # e.g., struct{0: int64}  ptr64(int8)
+                # return t2 since t2 is more specific
+                return t2
+            elif t1.fields[0].size == 4 and t2_cls is Pointer32:
+                return t2
 
         # import ipdb; ipdb.set_trace()
         return TopType()
