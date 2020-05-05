@@ -30,7 +30,7 @@ class Tmp(Atom):
     """
     Represents a variable used by the IR to store intermediate values.
     """
-    __slots__ = ('tmp_idx', 'size', )
+    __slots__ = ('tmp_idx', '_size', )
 
     def __init__(self, tmp_idx: int, size: int):
         super(Tmp, self).__init__()
