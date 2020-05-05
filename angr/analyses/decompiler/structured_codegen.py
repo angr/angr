@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from collections import defaultdict
 import logging
 
@@ -7,7 +7,7 @@ from sortedcontainers import SortedDict
 from ailment import Block, Expr, Stmt
 
 from ...sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
-    SimTypeBottom, SimTypeArray)
+    SimTypeBottom, SimTypeArray, SimTypeFunction)
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...utils.constants import is_alignment_mask
 from ...errors import UnsupportedNodeTypeError
@@ -119,13 +119,16 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     Represents a function in C.
     """
 
-    __slots__ = ('name', 'statements', 'variables_in_use', 'variable_manager', 'demangled_name', )
+    __slots__ = ('name', 'functy', 'arg_list', 'statements', 'variables_in_use', 'variable_manager', 'demangled_name', )
 
-    def __init__(self, name, statements, variables_in_use, variable_manager, demangled_name=None):
+    def __init__(self, name, functy: SimTypeFunction, arg_list: List['CExpression'], statements, variables_in_use,
+                 variable_manager, demangled_name=None):
 
         super(CFunction, self).__init__()
 
         self.name = name
+        self.functy = functy
+        self.arg_list = arg_list
         self.statements = statements
         self.variables_in_use = variables_in_use
         self.variable_manager = variable_manager
@@ -171,7 +174,21 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         indent_str = self.indent_str(indent)
 
         yield indent_str, None
-        yield "void {}()\n".format(self.demangled_name or self.name), None
+        # return type
+        yield self.functy.returnty.c_repr(), None
+        yield " ", None
+        # function name
+        yield self.demangled_name or self.name, None
+        # argument list
+        yield "(", None
+        for i, (arg_type, arg) in enumerate(zip(self.functy.args, self.arg_list)):
+            yield arg_type.c_repr(), None
+            yield " ", None
+            yield from arg.c_repr_chunks()
+            if i != len(self.arg_list) - 1:
+                yield ", ", None
+        yield ")\n", None
+        # function body
         yield indent_str, None
         yield "{\n", None
         yield from self.variable_list_repr_chunks(indent=indent + INDENT_DELTA)
@@ -1050,7 +1067,8 @@ class CDirtyExpression(CExpression):
 
 
 class StructuredCodeGenerator(Analysis):
-    def __init__(self, func, sequence, indent=0, cfg=None):
+    def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
+                 func_args: Optional[List[SimVariable]]=None):
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1085,8 +1103,10 @@ class StructuredCodeGenerator(Analysis):
         }
 
         self._func = func
+        self._func_args = func_args
         self._cfg = cfg
         self._sequence = sequence
+        self._variable_kb = variable_kb if variable_kb is not None else self.kb
 
         self._variables_in_use: Optional[Dict] = None
 
@@ -1100,10 +1120,14 @@ class StructuredCodeGenerator(Analysis):
     def _analyze(self):
 
         self._variables_in_use = {}
+        if self._func_args:
+            arg_list = [self._handle(arg) for arg in self._func_args]
+        else:
+            arg_list = [ ]
         obj = self._handle(self._sequence)
 
-        func = CFunction(self._func.name, obj, self._variables_in_use, self.kb.variables[self._func.addr],
-                         demangled_name=self._func.demangled_name)
+        func = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
+                         self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
         self._variables_in_use = None
 
         self.posmap = PositionMapping()
@@ -1128,9 +1152,9 @@ class StructuredCodeGenerator(Analysis):
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
-            return self.kb.variables['global'].get_variable_type(var)
+            return self._variable_kb.variables['global'].get_variable_type(var)
         else:
-            return self.kb.variables[self._func.addr].get_variable_type(var)
+            return self._variable_kb.variables[self._func.addr].get_variable_type(var)
 
     #
     # Util methods

@@ -56,7 +56,10 @@ class Decompiler(Analysis):
         # simplify it
         s = self.project.analyses.RegionSimplifier(rs.result, kb=self.kb)
 
-        codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg, kb=self.kb)
+        codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg,
+                                                                func_args=clinic.arg_list,
+                                                                kb=self.kb,
+                                                                variable_kb=clinic.variable_kb)
 
         self.clinic = clinic
         self.codegen = codegen

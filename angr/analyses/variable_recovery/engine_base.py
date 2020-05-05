@@ -152,9 +152,8 @@ class SimEngineVRBase(SimEngineLight):
             pass
 
         # handle register writes
-        existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                     'register'
-                                                                                     )
+        existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(self.block.addr, self.stmt_idx,
+                                                                                     dst)
         if not existing_vars:
             variable = SimRegisterVariable(offset, size,
                                            ident=self.variable_manager[self.func_addr].next_variable_ident(
