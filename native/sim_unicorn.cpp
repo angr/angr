@@ -1352,10 +1352,12 @@ public:
 		auto result = this->block_taint_cache.find(address);
 		if (result == this->block_taint_cache.end()) {
 			// Compute and cache taint sink-source relations for this block
+			VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
 			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
 			uc_mem_read(this->uc, address, instructions.get(), size);
 			VEXLiftResult *lift_ret = vex_lift(
-				this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 1, 1, 0
+				this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 1,
+				1, 0, pxControl
 			);
 
 			if (lift_ret == NULL) {
