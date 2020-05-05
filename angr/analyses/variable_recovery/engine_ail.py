@@ -57,9 +57,10 @@ class SimEngineVRAIL(
 
     def _ail_handle_Call(self, stmt):
         target = stmt.target
+        args = [ ]
         if stmt.args:
             for arg in stmt.args:
-               self._expr(arg)
+               args.append(self._expr(arg))
 
         ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
         if ret_expr is not None:
@@ -96,6 +97,15 @@ class SimEngineVRAIL(
                 self.state.arch.bytes,
                 dst=ret_expr,
             )
+
+        if prototype is not None and args:
+            # add type constraints
+            for arg, arg_type in zip(args, prototype.args):
+                arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                type_constraint = typevars.Subtype(
+                    arg.typevar, arg_ty
+                )
+                self.state.add_type_constraint(type_constraint)
 
     # Expression handlers
 
