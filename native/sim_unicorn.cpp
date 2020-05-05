@@ -1493,6 +1493,12 @@ public:
 					else {
 						block_mem_reads_taint_dst_map.at(mem_read_instr_addr).emplace_back(taint_sink);
 					}
+					if (taint_sink.entity_type == TAINT_ENTITY_REG) {
+						// Taint status of the register depends on a memory read so we mark it as
+						// concrete for now. If it is symbolic, the register will be marked symbolic
+						// by propagate_mem_read_taints in the memory hook.
+						mark_register_concrete(taint_sink.reg_id, true);
+					}
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
 					// Mark register as not symbolic since none of it's dependencies are symbolic
