@@ -1,3 +1,4 @@
+from typing import Iterable
 import logging
 
 import ailment
@@ -99,9 +100,9 @@ class SimEngineRDAIL(
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
     def _ail_handle_Store(self, stmt):
-        data = self._expr(stmt.data)
-        addr = self._expr(stmt.addr)
-        size = stmt.size
+        data: DataSet = self._expr(stmt.data)
+        addr: Iterable = self._expr(stmt.addr)
+        size: int = stmt.size
 
         for a in addr:
             if type(a) is Undefined:
@@ -114,7 +115,7 @@ class SimEngineRDAIL(
 
                 if type(a) is SpOffset:
                     # Writing to stack
-                    memloc = a
+                    memloc = MemoryLocation(a, size)
                 else:
                     # Writing to a non-stack memory region
                     memloc = MemoryLocation(a, size)
@@ -125,7 +126,7 @@ class SimEngineRDAIL(
                     self.state.kill_and_add_definition(memloc, self._codeloc(), data)
 
     def _ail_handle_Jump(self, stmt):
-        target = self._expr(stmt.target)  # pylint:disable=unused-variable
+        _ = self._expr(stmt.target)
 
     def _ail_handle_ConditionalJump(self, stmt):
 
@@ -228,9 +229,9 @@ class SimEngineRDAIL(
     # AIL expression handlers
     #
 
-    def _ail_handle_Tmp(self, expr):
+    def _ail_handle_Tmp(self, expr: ailment.Expr.Tmp):
 
-        self.state.add_use(Tmp(expr.tmp_idx), self._codeloc())
+        self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
 
         return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
 

@@ -67,18 +67,22 @@ class SimEngineRDVEX(
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
-    def _handle_WrTmp(self, stmt):
+    def _handle_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
         super()._handle_WrTmp(stmt)
-        self.state.kill_and_add_definition(Tmp(stmt.tmp), self._codeloc(), self.tmps[stmt.tmp])
+        self.state.kill_and_add_definition(Tmp(stmt.tmp, self.tyenv.sizeof(stmt.tmp) // 8),
+                                           self._codeloc(),
+                                           self.tmps[stmt.tmp])
 
-    def _handle_WrTmpData(self, tmp, data):
+    def _handle_WrTmpData(self, tmp: int, data):
         super()._handle_WrTmpData(tmp, data)
-        self.state.kill_and_add_definition(Tmp(tmp), self._codeloc(), self.tmps[tmp])
+        self.state.kill_and_add_definition(Tmp(tmp, self.tyenv.sizeof(tmp)),
+                                           self._codeloc(),
+                                           self.tmps[tmp])
 
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
-        reg_offset = stmt.offset
-        size = stmt.data.result_size(self.tyenv) // 8
+        reg_offset: int = stmt.offset
+        size: int = stmt.data.result_size(self.tyenv) // 8
         reg = Register(reg_offset, size)
         data = self._expr(stmt.data)
 
@@ -130,7 +134,7 @@ class SimEngineRDVEX(
                 self.state.kill_and_add_definition(memloc, self._codeloc(), data)
 
     def _handle_LoadG(self, stmt):
-        guard = self._expr(stmt.guard)
+        guard: DataSet = self._expr(stmt.guard)
         if guard.data == {True}:
             # FIXME: full conversion support
             if stmt.cvt.find('Ident') < 0:
