@@ -1224,7 +1224,7 @@ public:
 			}
 			else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
 				// Check if the memory address being read from is symbolic
-				auto mem_address_status = get_final_taint_status(taint_source.mem_ref_entity_list);
+				auto mem_address_status = get_final_taint_status_vector(taint_source.mem_ref_entity_list);
 				if ((mem_address_status.is_symbolic) || (mem_address_status.dependsOnReadFromSymbolicAddr)) {
 					// Address is symbolic or depends on a read from a symbolic address.
 					// Stop concrete execution.
@@ -1249,7 +1249,13 @@ public:
 		return result;
 	}
 
-	inline void mark_register_temp_symbolic(const taint_entity_t &entity) {
+	// A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
+	// unordered_set
+	taint_status_result_t get_final_taint_status_vector(const std::vector<taint_entity_t> taint_sources) {
+		std::unordered_set<taint_entity_t> taint_sources_set(taint_sources.begin(), taint_sources.end());
+		return get_final_taint_status(taint_sources_set);
+	}
+
 		if (entity.entity_type == TAINT_ENTITY_REG) {
 			this->symbolic_registers.emplace(entity.reg_id);
 		}
