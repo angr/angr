@@ -202,7 +202,23 @@ private:
 	uc_context *saved_regs;
 
 	std::vector<mem_access_t> mem_writes;
+
+	// List of all taint propagations depending on a memory read
+	// Memory read instruction address -> (List of entities depending on the read, is read processed)
 	std::unordered_map<uint64_t, std::pair<std::vector<taint_entity_t>, bool>> mem_reads_taint_dst_map;
+
+	// We store details of all memory reads in a block separately and update the overall map
+	// at end of taint propagation. This is to keep taint tracking status clean in case we abort in
+	// middle of block  when propagating taint due to read from/write to a symbolic address
+	// Memory read instruction address -> List of entitites
+	std::unordered_map<uint64_t, std::vector<taint_entity_t>> block_mem_reads_taint_dst_map;
+
+	// Similar to memory reads in a block, we track the state of registers and VEX temps when
+	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
+	// a symbolic address
+	RegisterSet block_symbolic_registers, block_concrete_registers;
+	TempSet block_symbolic_temps;
+
 	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
 	std::map<uint64_t, std::pair<taint_t *, uint8_t *>> active_pages;
 	//std::map<uint64_t, taint_t *> active_pages;
@@ -1211,9 +1227,11 @@ public:
 					result.is_symbolic = true;
 				}
 				else {
-					for (auto &dst_entry: mem_reads_taint_dst_map) {
-						for (auto &dst_taint_entity: dst_entry.second.first) {
-							if (taint_source == dst_taint_entity) {
+					// I believe we only need to check memory reads in current block because all
+					// other memory reads from previous blocks should have been processed.
+					for (auto &block_mem_read_entry: block_mem_reads_taint_dst_map) {
+						for (auto &block_mem_read_taint_entity: block_mem_read_entry.second) {
+							if (taint_source == block_mem_read_taint_entity) {
 								result.dependsOnReadFromConcreteAddr = true;
 								result.concreteMemReadInstrAddr = taint_source.instr_addr;
 								break;
@@ -1256,26 +1274,68 @@ public:
 		return get_final_taint_status(taint_sources_set);
 	}
 
-		if (entity.entity_type == TAINT_ENTITY_REG) {
-			this->symbolic_registers.emplace(entity.reg_id);
+	inline void mark_register_symbolic(uint64_t reg_id, bool do_block_level) {
+		if (do_block_level) {
+			// Mark register as symbolic in current block
+			block_symbolic_registers.emplace(reg_id);
 		}
-		else if (entity.entity_type == TAINT_ENTITY_TMP) {
-			this->symbolic_temps.emplace(entity.tmp_id);
+		else {
+			// Mark register as symbolic in the state
+			symbolic_registers.emplace(reg_id);
 		}
 		return;
 	}
 
-	inline void mark_register_not_symbolic(uint64_t reg_id) {
-		this->symbolic_registers.erase(reg_id);
+	inline void mark_temp_symbolic(uint64_t temp_id, bool do_block_level) {
+		if (do_block_level) {
+			// Mark VEX temp as symbolic in current block
+			block_symbolic_temps.emplace(temp_id);
+		}
+		else {
+			// Mark VEX temp as symbolic in the state
+			symbolic_temps.emplace(temp_id);
+		}
+	}
+
+	void mark_register_temp_symbolic(const taint_entity_t &entity, bool do_block_level) {
+		if (entity.entity_type == TAINT_ENTITY_REG) {
+			mark_register_symbolic(entity.reg_id, do_block_level);
+		}
+		else if (entity.entity_type == TAINT_ENTITY_TMP) {
+			mark_temp_symbolic(entity.tmp_id, do_block_level);
+		}
+		return;
+	}
+
+	inline void mark_register_concrete(uint64_t reg_id, bool do_block_level) {
+		if (do_block_level) {
+			// Mark this register as concrete in the current block
+			block_concrete_registers.emplace(reg_id);
+		}
+		else {
+			symbolic_registers.erase(reg_id);
+		}
 		return;
 	}
 
 	inline bool is_symbolic_register(uint64_t reg_id) const {
-		return (this->symbolic_registers.count(reg_id) > 0);
+		// We check if this register is symbolic or concrete in the block level taint statuses since
+		// those are more recent. If not found in either, check the state's symbolic register list.
+		if (block_symbolic_registers.count(reg_id) > 0) {
+			return true;
+		}
+		else if (block_concrete_registers.count(reg_id) > 0) {
+			return false;
+		}
+		else if (symbolic_registers.count(reg_id) > 0) {
+			return true;
+		}
+		return false;
 	}
 
 	inline bool is_symbolic_temp(uint64_t temp_id) const {
-		return (this->symbolic_temps.count(temp_id) > 0);
+		// Check both the state's symbolic temp set and block's symbolic temp set
+		return ((symbolic_temps.count(temp_id) > 0) || (block_symbolic_temps.count(temp_id) > 0));
 	}
 
 	inline bool is_symbolic_register_or_temp(const taint_entity_t &entity) const {
@@ -1416,34 +1476,54 @@ public:
 				assert(false && "Taint propagation to memory not yet supported.");
 			}
 			else {
-				bool is_sink_symbolic = false;
-				bool sink_depends_on_memory_read = false;
-				std::unordered_set<uint64_t> mem_read_instrs;
 				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
 				if (final_taint_status.dependsOnReadFromSymbolicAddr) {
 					// TODO: Stop concrete execution
 				}
 				else if (final_taint_status.is_symbolic) {
-					mark_register_temp_symbolic(taint_sink);
+					mark_register_temp_symbolic(taint_sink, true);
 				}
 				else if (final_taint_status.dependsOnReadFromConcreteAddr) {
-					for (auto &mem_read_instr: mem_read_instrs) {
-						if (mem_reads_taint_dst_map.find(mem_read_instr) == mem_reads_taint_dst_map.end()) {
-							std::vector<taint_entity_t> dsts;
-							dsts.emplace_back(taint_sink);
-							mem_reads_taint_dst_map.emplace(mem_read_instr, std::make_pair(dsts, false));
-						}
-						else {
-							mem_reads_taint_dst_map.at(mem_read_instr).first.emplace_back(taint_sink);
-						}
+					auto mem_read_instr_addr = final_taint_status.concreteMemReadInstrAddr;
+					if (block_mem_reads_taint_dst_map.find(mem_read_instr_addr) == block_mem_reads_taint_dst_map.end()) {
+						std::vector<taint_entity_t> dsts;
+						dsts.emplace_back(taint_sink);
+						block_mem_reads_taint_dst_map.emplace(mem_read_instr_addr, dsts);
+					}
+					else {
+						block_mem_reads_taint_dst_map.at(mem_read_instr_addr).emplace_back(taint_sink);
 					}
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
 					// Mark register as not symbolic since none of it's dependencies are symbolic
-					mark_register_not_symbolic(taint_sink.reg_id);
+					mark_register_concrete(taint_sink.reg_id, true);
 				}
 			}
 		}
+
+		// At this point, we know there is no read from/write to a symbolic memory address and so
+		// we can execute this block. Let's sync all block level taint statuses and pending memory
+		// reads with state's taint statuses and memory reads tracker
+		for (auto &reg_id: block_symbolic_registers) {
+			mark_register_symbolic(reg_id, false);
+		}
+		for (auto &reg_id: block_concrete_registers) {
+			mark_register_concrete(reg_id, false);
+		}
+		for (auto &temp_id: block_symbolic_temps) {
+			mark_temp_symbolic(temp_id, false);
+		}
+		for (auto &block_mem_read_entity: block_mem_reads_taint_dst_map) {
+			auto instr_addr = block_mem_read_entity.first;
+			auto entity_list = block_mem_read_entity.second;
+			assert(mem_reads_taint_dst_map.find(instr_addr) == mem_reads_taint_dst_map.end());
+			mem_reads_taint_dst_map.emplace(instr_addr, std::make_pair(entity_list, false));
+		}
+		// Clear all block level taint status trackers since they've been added to state's trackers.
+		block_symbolic_registers.clear();
+		block_concrete_registers.clear();
+		block_symbolic_temps.clear();
+		block_mem_reads_taint_dst_map.clear();
 		return;
 	}
 
@@ -1459,7 +1539,7 @@ public:
 		auto taint_entity_list = mem_reads_taint_dst_map.at(pc_addr).first;
 		for (taint_entity_t &taint_entity: taint_entity_list) {
 			if ((taint_entity.entity_type == TAINT_ENTITY_REG) || (taint_entity.entity_type == TAINT_ENTITY_TMP)) {
-				mark_register_temp_symbolic(taint_entity);
+				mark_register_temp_symbolic(taint_entity, false);
 			}
 			else if (taint_entity.entity_type != TAINT_ENTITY_NONE) {
 				std::stringstream ss;
