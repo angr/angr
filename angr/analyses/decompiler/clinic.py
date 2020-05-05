@@ -10,7 +10,7 @@ from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
 from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
-from ...sim_type import SimTypeChar, SimTypePointer, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction
+from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER

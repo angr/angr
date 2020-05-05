@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from collections import defaultdict
 import logging
 
@@ -121,8 +121,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
     __slots__ = ('name', 'functy', 'arg_list', 'statements', 'variables_in_use', 'variable_manager', 'demangled_name', )
 
-    def __init__(self, name, functy: SimTypeFunction, arg_list, statements, variables_in_use, variable_manager,
-                 demangled_name=None):
+    def __init__(self, name, functy: SimTypeFunction, arg_list: List['CExpression'], statements, variables_in_use,
+                 variable_manager, demangled_name=None):
 
         super(CFunction, self).__init__()
 
@@ -1067,7 +1067,8 @@ class CDirtyExpression(CExpression):
 
 
 class StructuredCodeGenerator(Analysis):
-    def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None, arg_list=None):
+    def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
+                 func_args: Optional[List[SimVariable]]=None):
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1102,7 +1103,7 @@ class StructuredCodeGenerator(Analysis):
         }
 
         self._func = func
-        self._arg_list = arg_list
+        self._func_args = func_args
         self._cfg = cfg
         self._sequence = sequence
         self._variable_kb = variable_kb if variable_kb is not None else self.kb
@@ -1119,7 +1120,10 @@ class StructuredCodeGenerator(Analysis):
     def _analyze(self):
 
         self._variables_in_use = {}
-        arg_list = [self._handle(arg) for arg in self._arg_list]
+        if self._func_args:
+            arg_list = [self._handle(arg) for arg in self._func_args]
+        else:
+            arg_list = [ ]
         obj = self._handle(self._sequence)
 
         func = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
