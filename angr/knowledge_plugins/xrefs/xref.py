@@ -1,3 +1,4 @@
+from typing import Optional
 
 from ...serializable import Serializable
 from ...protos import primitives_pb2
@@ -11,8 +12,12 @@ class XRef(Serializable):
 
     __slots__ = ('ins_addr', 'block_addr', 'stmt_idx', 'insn_op_idx', 'insn_op_type', 'memory_data', 'dst', 'type', )
 
-    def __init__(self, ins_addr=None, block_addr=None, stmt_idx=None, insn_op_idx=None, memory_data=None, dst=None,
+    def __init__(self, ins_addr=None, block_addr=None, stmt_idx=None, insn_op_idx=None, memory_data=None,
+                 dst: Optional[int]=None,
                  xref_type=None):
+
+        if dst is not None and not isinstance(dst, int):
+            raise TypeError("XRefs must be pointing to a constant target. Target %r is not supported." % dst)
 
         # src
         self.ins_addr = ins_addr
