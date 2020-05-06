@@ -511,7 +511,10 @@ class SimCC:
                 sizes = [ ]
                 for a in args:
                     if isinstance(a, SimType):
-                        sizes.append(a.size // 8)  # SimType.size is in bits
+                        if a.size is NotImplemented:
+                            sizes.append(self.arch.bytes)
+                        else:
+                            sizes.append(a.size // 8)  # SimType.size is in bits
                     elif isinstance(a, SimFunctionArgument):
                         sizes.append(a.size)  # SimFunctionArgument.size is in bytes
                     else:
