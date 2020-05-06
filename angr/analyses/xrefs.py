@@ -42,13 +42,16 @@ class SimEngineXRefsVEX(
         self._expr(stmt.data)
 
     def _handle_Store(self, stmt):
-        blockloc = self._codeloc(block_only=True)
-        # TODO: Handle constant stores
-        if type(stmt.addr) is pyvex.IRExpr.RdTmp:
+        if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):
             addr_tmp = VEXTmp(stmt.addr.tmp)
+            blockloc = self._codeloc(block_only=True)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Write, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Write, self._codeloc(), addr)
+        elif isinstance(stmt.addr, pyvex.IRExpr.Const):
+            addr = stmt.addr.con.value
+            self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
@@ -56,7 +59,8 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Write, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_LoadG(self, stmt):
         # What are we reading?
@@ -65,7 +69,8 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Read, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Read, self._codeloc(), addr)
         self._handle_data_offset_refs(stmt.dst)
 
     def _handle_data_offset_refs(self, data_tmp):
@@ -99,7 +104,8 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(expr.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Read, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Read, self._codeloc(), addr)
         elif type(expr.addr) is pyvex.IRExpr.Const:
             addr = expr.addr.con.value
             self.add_xref(XRefType.Read, self._codeloc(), addr)
