@@ -95,6 +95,11 @@ class SimEngineRDVEX(
             l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
+        # special handling for references to stack variables
+        for d in data:
+            if isinstance(d, SpOffset):
+                self.state.add_use(MemoryLocation(d, 1), self._codeloc())
+
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
@@ -225,6 +230,7 @@ class SimEngineRDVEX(
         data = set()
         for a in addr:
             if isinstance(a, int):
+                # Load data from a global region
                 current_defs: Iterable[Definition] = self.state.memory_definitions.get_objects_by_offset(a)
                 if current_defs:
                     for current_def in current_defs:
@@ -238,7 +244,18 @@ class SimEngineRDVEX(
                         pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
-                self.state.add_use(MemoryLocation(a, size), self._codeloc())
+                memory_location = MemoryLocation(a, size)
+                self.state.add_use(memory_location, self._codeloc())
+            elif isinstance(a, SpOffset):
+                # Load data from a local variable
+                current_defs: Iterable[Definition] = self.state.stack_definitions.get_objects_by_offset(a.offset)
+                if current_defs:
+                    for def_ in current_defs:
+                        data.update(def_.data)
+                else:
+                    data.add(undefined)
+                memory_location = MemoryLocation(a, size)
+                self.state.add_use(memory_location, self._codeloc())
             else:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
@@ -443,6 +460,7 @@ class SimEngineRDVEX(
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
                 executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                state: LiveDefinitions
                 self.state = state
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')
@@ -506,7 +524,7 @@ class SimEngineRDVEX(
                 raise ValueError('Invalid number of values for stack pointer.')
 
             sp_addr = next(iter(sp_data))
-            if isinstance(sp_addr, int):
+            if isinstance(sp_addr, (int, SpOffset)):
                 sp_addr -= self.arch.stack_change
             elif isinstance(sp_addr, Undefined):
                 pass

@@ -100,16 +100,30 @@ class MemoryLocation(Atom):
 
     It is characterized by its address and its size.
     """
+
     __slots__ = ('addr', '_size')
 
     def __init__(self, addr: Union[SpOffset,int], size: int):
+        """
+        :param int addr: The address of the beginning memory location slice.
+        :param int size: The size of the represented memory location, in bytes.
+        """
         super(MemoryLocation, self).__init__()
 
         self.addr: Union[SpOffset,int] = addr
         self._size: int = size
 
     def __repr__(self):
-        return "<Mem %s<%d>>" % (hex(self.addr) if type(self.addr) is int else self.addr, self.size)
+        address_format = hex(self.addr) if type(self.addr) is int else self.addr
+        stack_format = ' (stack)' if self.is_on_stack else ''
+        return "<Mem %s<%d>%s>" % (address_format, self.size, stack_format)
+
+    @property
+    def is_on_stack(self) -> bool:
+        """
+        True if this memory location is located on the stack.
+        """
+        return isinstance(self.addr, SpOffset)
 
     @property
     def bits(self) -> int:
