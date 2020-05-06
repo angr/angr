@@ -1,9 +1,9 @@
-from typing import Optional
+from typing import Optional, Set
 import logging
 
 from ...engines.light import SimEngineLight, SpOffset, ArithmeticExpression
 from ...errors import SimEngineError
-from ...sim_variable import SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from ..code_location import CodeLocation
 from ..typehoon import typevars, typeconsts
 
@@ -154,6 +154,7 @@ class SimEngineVRBase(SimEngineLight):
         # handle register writes
         existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(self.block.addr, self.stmt_idx,
                                                                                      dst)
+        existing_vars: Set[SimVariable,int]
         if not existing_vars:
             variable = SimRegisterVariable(offset, size,
                                            ident=self.variable_manager[self.func_addr].next_variable_ident(
@@ -162,7 +163,7 @@ class SimEngineVRBase(SimEngineLight):
                                            )
             self.variable_manager[self.func_addr].set_variable('register', offset, variable)
         else:
-            variable, _ = existing_vars[0]
+            variable, _ = next(iter(existing_vars))
 
         self.state.register_region.set_variable(offset, variable)
         self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
