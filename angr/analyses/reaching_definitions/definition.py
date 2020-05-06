@@ -1,6 +1,3 @@
-
-from typing import Union, Set
-
 from ...engines.light import SpOffset
 from ..code_location import CodeLocation
 from .atoms import Atom, MemoryLocation, Register

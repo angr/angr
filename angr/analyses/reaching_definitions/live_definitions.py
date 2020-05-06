@@ -209,7 +209,8 @@ class LiveDefinitions:
 
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
 
-    def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data, dummy=False) -> Optional[Definition]:
+    def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
+                                dummy=False) -> Optional[Definition]:
         self._cycle(code_loc)
 
         definition: Optional[Definition]
@@ -217,10 +218,13 @@ class LiveDefinitions:
         if isinstance(atom, Register):
             definition = self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
         elif isinstance(atom, MemoryLocation):
-            if type(atom.addr) is SpOffset:
+            if isinstance(atom.addr, SpOffset):
                 definition = self._kill_and_add_stack_definition(atom, code_loc, data, dummy=dummy)
-            else:
+            elif isinstance(atom.addr, int):
                 definition = self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
+            else:
+                # ignore
+                definition = None
         elif isinstance(atom, Tmp):
             definition = self._add_tmp_definition(atom, code_loc, data)
         else:
@@ -239,50 +243,60 @@ class LiveDefinitions:
 
         return definition
 
-    def add_use(self, atom: Atom, code_loc):
+    def add_use(self, atom: Atom, code_loc) -> None:
         self._cycle(code_loc)
         self.codeloc_uses.update(self.get_definitions(atom))
 
         if isinstance(atom, Register):
             self._add_register_use(atom, code_loc)
         elif isinstance(atom, MemoryLocation):
-            if type(atom.addr) is SpOffset:
+            if isinstance(atom.addr, SpOffset):
                 self._add_stack_use(atom, code_loc)
-            else:
+            elif isinstance(atom.addr, int):
                 self._add_memory_use(atom, code_loc)
+            else:
+                # ignore RegisterOffset
+                pass
         elif isinstance(atom, Tmp):
             self._add_tmp_use(atom, code_loc)
         else:
             raise TypeError("Unsupported atom type %s." % type(atom))
 
-    def add_use_by_def(self, definition, code_loc):
+    def add_use_by_def(self, definition, code_loc) -> None:
         self._cycle(code_loc)
         self.codeloc_uses.update({definition})
 
-        if type(definition.atom) is Register:
+        if isinstance(definition.atom, Register):
             self._add_register_use_by_def(definition, code_loc)
-        elif type(definition.atom) is SpOffset:
-            self._add_stack_use_by_def(definition, code_loc)
-        elif type(definition.atom) is MemoryLocation:
-            self._add_memory_use_by_def(definition, code_loc)
+        elif isinstance(definition.atom, MemoryLocation):
+            if isinstance(definition.atom.addr, SpOffset):
+                self._add_stack_use_by_def(definition, code_loc)
+            elif isinstance(definition.atom.addr, MemoryLocation):
+                self._add_memory_use_by_def(definition, code_loc)
+            else:
+                # ignore RegisterOffset
+                pass
         elif type(definition.atom) is Tmp:
             self._add_tmp_use_by_def(definition, code_loc)
         else:
             raise TypeError()
 
     def get_definitions(self, atom) -> Iterable[Definition]:
-        if type(atom) is Register:
+        if isinstance(atom, Register):
             return self.register_definitions.get_objects_by_offset(atom.reg_offset)
-        elif type(atom) is SpOffset:
-            return self.stack_definitions.get_objects_by_offset(atom.offset)
-        elif type(atom) is MemoryLocation:
-            return self.memory_definitions.get_objects_by_offset(atom.addr)
+        elif isinstance(atom, MemoryLocation):
+            if isinstance(atom.addr, SpOffset):
+                return self.stack_definitions.get_objects_by_offset(atom.addr.offset)
+            elif isinstance(atom.addr, int):
+                return self.memory_definitions.get_objects_by_offset(atom.addr)
+            else:
+                return [ ]
         elif type(atom) is Tmp:
             return self.tmp_definitions[atom.tmp_idx]
         else:
             raise TypeError()
 
-    def mark_guard(self, code_loc, data, target):
+    def mark_guard(self, code_loc: CodeLocation, data: DataSet, target):
         self._cycle(code_loc)
         atom = GuardUse(target)
         kinda_definition = Definition(atom, code_loc, data)
@@ -295,33 +309,40 @@ class LiveDefinitions:
     # Private methods
     #
 
-    def _kill_and_add_register_definition(self, atom: Register, code_loc: CodeLocation, data,
+    def _kill_and_add_register_definition(self, atom: Register, code_loc: CodeLocation, data: Optional[DataSet],
                                           dummy=False) -> Definition:
 
-        # FIXME: check correctness
+        if data is None:
+            data = DataSet(undefined, atom.size)
         definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
         return definition
 
-    def _kill_and_add_stack_definition(self, atom: MemoryLocation, code_loc: CodeLocation, data,
+    def _kill_and_add_stack_definition(self, atom: MemoryLocation, code_loc: CodeLocation, data: Optional[DataSet],
                                        dummy=False) -> Definition:
         if not isinstance(atom.addr, SpOffset):
             raise TypeError("Atom %r does not represent a stack variable." % atom)
+        if data is None:
+            data = DataSet(undefined, atom.size)
         definition = Definition(atom, code_loc, data, dummy=dummy)
         self.stack_definitions.set_object(atom.addr.offset, definition, data.bits // 8)
         return definition
 
-    def _kill_and_add_memory_definition(self, atom: MemoryLocation, code_loc: CodeLocation, data,
+    def _kill_and_add_memory_definition(self, atom: MemoryLocation, code_loc: CodeLocation, data: Optional[DataSet],
                                         dummy=False) -> Definition:
+        if data is None:
+            data = DataSet(undefined, atom.size)
         definition = Definition(atom, code_loc, data, dummy=dummy)
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.memory_definitions.set_object(atom.addr, definition, atom.size)
         return definition
 
-    def _add_tmp_definition(self, atom: Tmp, code_loc: CodeLocation, data) -> Optional[Definition]:
+    def _add_tmp_definition(self, atom: Tmp, code_loc: CodeLocation, data: Optional[DataSet]) -> Optional[Definition]:
 
         if self._track_tmps:
+            if data is None:
+                data = DataSet(undefined, atom.size)
             def_ = Definition(atom, code_loc, data)
             self.tmp_definitions[atom.tmp_idx] = { def_ }
             return def_
@@ -330,7 +351,6 @@ class LiveDefinitions:
             return None
 
     def _add_register_use(self, atom: Register, code_loc: CodeLocation) -> None:
-
         # get all current definitions
         current_defs: Iterable[Definition] = self.register_definitions.get_objects_by_offset(atom.reg_offset)
 
@@ -342,12 +362,6 @@ class LiveDefinitions:
         self.uses_by_codeloc[code_loc].add(def_)
 
     def _add_stack_use(self, atom: MemoryLocation, code_loc: CodeLocation) -> None:
-        """
-
-        :param SpOffset atom:
-        :param code_loc:
-        :return:
-        """
 
         if not isinstance(atom.addr, SpOffset):
             raise TypeError("Atom %r is not a stack location atom." % atom)

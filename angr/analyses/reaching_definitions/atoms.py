@@ -25,6 +25,10 @@ class GuardUse(Atom):
     def __repr__(self):
         return '<Guard %#x>' % self.target
 
+    @property
+    def size(self) -> int:
+        raise NotImplementedError()
+
 
 class Tmp(Atom):
     """

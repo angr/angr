@@ -2,7 +2,7 @@ from typing import Union, Set
 import logging
 import operator
 
-from ...engines.light import SpOffset
+from ...engines.light import SpOffset, RegisterOffset
 from .constants import DEBUG
 from .undefined import Undefined, undefined
 
@@ -24,8 +24,8 @@ class DataSet:
     """
     maximum_size = 5
 
-    def __init__(self, data: Union[Set[Union[Undefined,SpOffset,int]],Undefined,SpOffset,int], bits: int):
-        self.data: Set[Union[Undefined,SpOffset,int]] = data if isinstance(data, set) else {data}
+    def __init__(self, data: Union[Set[Union[Undefined,RegisterOffset,int]],Undefined,RegisterOffset,int], bits: int):
+        self.data: Set[Union[Undefined,RegisterOffset,int]] = data if isinstance(data, set) else {data}
         self._bits = bits
         self._mask = (1 << bits) - 1
         self._limit()

@@ -11,6 +11,7 @@ from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
 from .undefined import Undefined, undefined
+from .live_definitions import LiveDefinitions, Definition
 
 l = logging.getLogger(name=__name__)
 
@@ -26,6 +27,8 @@ class SimEngineRDAIL(
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
         self._visited_blocks = None
+
+        self.state: LiveDefinitions
 
     def process(self, state, *args, **kwargs):
         self._visited_blocks = kwargs.pop('visited_blocks', None)
@@ -84,12 +87,12 @@ class SimEngineRDAIL(
         if src is None:
             src = DataSet(undefined, dst.bits)
 
-        if type(dst) is ailment.Tmp:
-            self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), src)
+        if isinstance(dst, ailment.Tmp):
+            self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), self._codeloc(), src)
             self.tmps[dst.tmp_idx] = src
 
-        elif type(dst) is ailment.Register:
-            reg = Register(dst.reg_offset, dst.bits // 8)
+        elif isinstance(dst, ailment.Register):
+            reg = Register(dst.reg_offset, dst.size)
             self.state.kill_and_add_definition(reg, self._codeloc(), src)
 
             if dst.reg_offset == self.arch.sp_offset:
@@ -237,14 +240,10 @@ class SimEngineRDAIL(
         bits = size * 8
 
         # first check if it is ever defined
-        defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
+        defs: Iterable[Definition] = self.state.register_definitions.get_objects_by_offset(reg_offset)
         if not defs:
             # define it right away as an external dependency
-            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
-                                               data=expr
-                                               )
-            # defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
-            # assert defs
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), None)
 
         self.state.add_use(Register(reg_offset, size), self._codeloc())
 
@@ -310,7 +309,7 @@ class SimEngineRDAIL(
                 else:
                     data.add(undefined)
 
-                self.state.add_use(addr, codeloc)
+                self.state.add_use(MemoryLocation(addr, size), codeloc)
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
 
@@ -358,17 +357,14 @@ class SimEngineRDAIL(
                 r = DataSet(converted, expr.to_bits)
 
         if r is None:
-            r = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
-                                     to_conv)
-            r = DataSet(r, expr.to_bits)
+            r = DataSet(undefined, expr.to_bits)
 
         return r
 
     def _ail_handle_BinaryOp(self, expr):
         r = super()._ail_handle_BinaryOp(expr)
         if isinstance(r, ailment.Expr.BinaryOp):
-            # Repack it with DataSet
-            return DataSet({r}, r.bits)
+            return DataSet(undefined, r.bits)
         return r
 
     def _ail_handle_Cmp(self, expr):
@@ -399,10 +395,10 @@ class SimEngineRDAIL(
                        )
 
     def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
-        return expr
+        return DataSet(undefined, expr.bits // 8)
 
     #
-    # User defined high level statement handlers
+    # User defined high-level statement handlers
     #
 
     def _handle_function(self):
@@ -449,6 +445,7 @@ class SimEngineRDAIL(
                 is_updated, state = getattr(self._function_handler, handler_name)(self.state, ip_addr,
                                                                                   self._current_local_call_depth + 1,
                                                                                   self._maximum_local_call_depth)
+                state: LiveDefinitions
                 if is_updated is True:
                     self.state = state
             else:
