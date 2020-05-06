@@ -12,9 +12,10 @@ import nose
 import ailment
 import angr
 import archinfo
-from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register
+from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
 from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.analyses.reaching_definitions.live_definitions import LiveDefinitions
+from angr.analyses.reaching_definitions.live_definitions import (LiveDefinitions, Definition, SpOffset,
+                                                                 ExternalCodeLocation)
 from angr.analyses.reaching_definitions.subject import Subject, SubjectType
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
@@ -357,6 +358,47 @@ def test_dep_graph():
         type(list(rda.dep_graph._graph.succ[tmp_7])[0].atom),
         GuardUse
     )
+
+
+def test_dep_graph_stack_variables():
+    bin_path = os.path.join(TESTS_LOCATION, 'x86_64', 'fauxware')
+    project = angr.Project(bin_path, auto_load_libs=False)
+    arch = project.arch
+    cfg = project.analyses.CFGFast()
+    main = cfg.functions['authenticate']
+
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
+    dep_graph = rda.dep_graph
+    open_rdi = next(iter(filter(
+        lambda def_: isinstance(def_.atom, Register) and def_.atom.reg_offset == arch.registers['rdi'][0]
+                     and def_.codeloc.ins_addr == 0x4006a2,
+        dep_graph._graph.nodes()
+    )))
+
+    # 4006A2     mov  rdi, rax
+    preds = list(dep_graph._graph.predecessors(open_rdi))
+    assert len(preds) == 1
+    rax: Definition = preds[0]
+    assert isinstance(rax.atom, Register)
+    assert rax.atom.reg_offset == arch.registers['rax'][0]
+    assert rax.codeloc.ins_addr == 0x400699
+
+    # 400699     mov  rax, [rbp+file]
+    preds = list(dep_graph._graph.predecessors(rax))
+    assert len(preds) == 1
+    file_var: Definition = preds[0]
+    assert isinstance(file_var.atom, MemoryLocation)
+    assert isinstance(file_var.atom.addr, SpOffset)
+    assert file_var.atom.addr.offset == -32
+    assert file_var.codeloc.ins_addr == 0x40066c
+
+    # 40066C     mov  [rbp+file], rdi
+    preds = list(dep_graph._graph.predecessors(file_var))
+    assert len(preds) == 1
+    rdi: Definition = preds[0]
+    assert isinstance(rdi.atom, Register)
+    assert rdi.atom.reg_offset == arch.registers['rdi'][0]
+    assert isinstance(rdi.codeloc, ExternalCodeLocation)
 
 
 if __name__ == '__main__':

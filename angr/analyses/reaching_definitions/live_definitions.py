@@ -97,13 +97,13 @@ class LiveDefinitions:
     def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
         # initialize stack pointer
         sp = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(self.arch.initial_sp, self.arch.bits))
+        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits))
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
         if self.arch.name.startswith('MIPS'):
             if func_addr is None:
                 l.warning("func_addr must not be None to initialize a function in mips")
             t9 = Register(self.arch.registers['t9'][0], self.arch.bytes)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr,self.arch.bits))
+            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits))
             self.register_definitions.set_object(t9_def.offset,t9_def,t9_def.size)
 
         if cc is not None and cc.args is not None:
@@ -234,16 +234,39 @@ class LiveDefinitions:
             self.all_definitions.add(definition)
 
             if self.dep_graph is not None:
+                stack_use = set(filter(
+                    lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack,
+                    self.codeloc_uses
+                ))
+
+                sp_offset = self.arch.sp_offset
+                bp_offset = self.arch.bp_offset
+
                 for used in self.codeloc_uses:
-                    # There are two cases for which it is superfluous to report a dependency on (a use of) RBP:
-                    #   - The `Definition` *uses* a `MemoryLocation` pointing to the stack;
-                    #   - The `Definition` *is* a `MemoryLocation` pointing to the stack.
-                    is_using_rbp_to_define_memory_location_on_stack = (
+                    # sp is always used as a stack pointer, and we do not track dependencies against stack pointers.
+                    # bp is sometimes used as a base pointer. we recognize such cases by checking if there is a use to
+                    # the stack variable.
+                    #
+                    # There are two cases for which it is superfluous to report a dependency on (a use of) stack/base
+                    # pointers:
+                    # - The `Definition` *uses* a `MemoryLocation` pointing to the stack;
+                    # - The `Definition` *is* a `MemoryLocation` pointing to the stack.
+                    is_using_spbp_while_memory_address_on_stack_is_used = (
+                        isinstance(used.atom, Register) and
+                        used.atom.reg_offset in (sp_offset, bp_offset) and
+                        len(stack_use) > 0
+                    )
+                    is_using_spbp_to_define_memory_location_on_stack = (
                         isinstance(definition.atom, MemoryLocation) and
-                        definition.atom.is_on_stack
+                        definition.atom.is_on_stack and
+                        isinstance(used.atom, Register) and
+                        used.atom.reg_offset in (sp_offset, bp_offset)
                     )
 
-                    if not is_using_rbp_to_define_memory_location_on_stack:
+                    if not (
+                        is_using_spbp_while_memory_address_on_stack_is_used or
+                        is_using_spbp_to_define_memory_location_on_stack
+                    ):
                         # Moderately confusing misnomers. This is an edge from a def to a use, since the
                         # "uses" are actually the definitions that we're using and the "definition" is the
                         # new definition; i.e. The def that the old def is used to construct so this is
