@@ -4,12 +4,12 @@ from collections import defaultdict
 
 from angr import Analysis, AnalysesHub
 from angr.analyses.code_location import CodeLocation
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from angr.sim_variable import SimStackVariable
 from angr.engines.light.data import SpOffset
 from angr.analyses.propagator.propagator import Equivalence
 from angr.analyses.reaching_definitions import atoms
 from angr.analyses.reaching_definitions.definition import Definition
-from angr.analyses.reaching_definitions.constants import OP_AFTER
 
 from ..block import Block
 from ..statement import Statement, Assignment, Store, Call
@@ -71,6 +71,8 @@ class Simplifier(Analysis):
                         break
 
                 if the_def is None:
+                    continue
+                if isinstance(the_def.codeloc, ExternalCodeLocation):
                     continue
 
                 # find all uses of this definition
