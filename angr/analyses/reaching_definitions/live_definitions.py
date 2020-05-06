@@ -9,7 +9,7 @@ from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
 from ..code_location import CodeLocation
-from .atoms import Atom, GuardUse, Register, MemoryLocation, Tmp, Parameter
+from .atoms import Atom, GuardUse, Register, MemoryLocation, Tmp
 from .dataset import DataSet
 from .definition import Definition
 from .external_codeloc import ExternalCodeLocation
@@ -117,10 +117,10 @@ class LiveDefinitions:
                     self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
                 # initialize stack parameters
                 elif isinstance(arg, SimStackArg):
-                    ml = MemoryLocation(self.arch.initial_sp + arg.stack_offset, self.arch.bytes)
-                    sp_offset = SpOffset(arg.size * 8, arg.stack_offset)
-                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, self.arch.bits))
-                    self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
+                    sp_offset = SpOffset(self.arch.bits, arg.stack_offset)
+                    ml = MemoryLocation(sp_offset, arg.size)
+                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, arg.size * 8))
+                    self.stack_definitions.set_object(arg.stack_offset, ml_def, ml.size)
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
 

@@ -2,7 +2,7 @@ from typing import Union, Set
 import logging
 import operator
 
-from ...engines.light import SpOffset, RegisterOffset
+from ...engines.light import RegisterOffset
 from .constants import DEBUG
 from .undefined import Undefined, undefined
 
