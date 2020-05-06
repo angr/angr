@@ -3,7 +3,7 @@ import pickle
 
 from collections import defaultdict
 
-from ...codenode import BlockNode
+from ...codenode import BlockNode, HookNode
 from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
 from ...protos import primitives_pb2
 
@@ -98,13 +98,14 @@ class FunctionParser():
         obj.normalized = cmsg.normalized
 
         # blocks
-        blocks = dict(map(
-            lambda block: (block.addr, block),
-            map(
-                lambda b: BlockNode(b.ea, b.size, bytestr=b.bytes),
-                cmsg.blocks
-            )
-        ))
+        blocks = {}
+        for b in cmsg.blocks:
+            if project is not None and project.is_hooked(b.ea):
+                # create a HookNode
+                block = HookNode(b.ea, 0, project.hooked_by(b.ea))
+            else:
+                block = BlockNode(b.ea, b.size, bytestr=b.bytes)
+            blocks[block.addr] = block
         external_addrs = set(cmsg.external_functions)  # addresses of referenced blocks or nodes that are not inside
                                                        # the current function
 
@@ -129,15 +130,16 @@ class FunctionParser():
 
             dst = None
             dst_addr = edge_cmsg.dst_ea
-            if (edge_type == 'call' # call has to go to a function
+            if dst_addr not in blocks:
+                if (edge_type == 'call' # call has to go to either a HookNode or a function
                     or (all_func_addrs is not None and dst_addr in all_func_addrs)  # jumps to another function
-            ):
-                if function_manager is not None:
-                    # get a function
-                    dst = FunctionParser._get_func(dst_addr, function_manager)
-                else:
-                    l.warning("About to get or create a function at %#x, but function_manager is not provided. Create "
-                              "a block instead.", dst_addr)
+                ):
+                    if function_manager is not None:
+                        # get a function
+                        dst = FunctionParser._get_func(dst_addr, function_manager)
+                    else:
+                        l.warning("About to get or create a function at %#x, but function_manager is not provided. "
+                                  "Will create a block instead.", dst_addr)
 
             if dst is None:
                 # create a block instead
@@ -218,6 +220,10 @@ class FunctionParser():
             pass
 
         if addr in external_addrs:
+            if project is not None and project.is_hooked(addr):
+                # get a hook node instead
+                r = HookNode(addr, 0, project.hooked_by(addr))
+                return r
             if all_func_addrs is not None and addr in all_func_addrs:
                 # get a function (which is yet to be created in the function manager)
                 r = function_manager.function(addr=addr, create=True)
