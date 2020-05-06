@@ -116,9 +116,9 @@ class Simplifier(Analysis):
             if def_.dummy:
                 continue
             # we do not remove references to global memory regions no matter what
-            if isinstance(def_.atom, atoms.MemoryLocation):
+            if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(def_.atom.addr, int):
                 continue
-            if not self._remove_dead_memdefs and isinstance(def_.atom, (atoms.MemoryLocation, SpOffset)):
+            if not self._remove_dead_memdefs and isinstance(def_.atom, atoms.MemoryLocation):
                 continue
             uses = self._reaching_definitions.all_uses.get_uses(def_)
 

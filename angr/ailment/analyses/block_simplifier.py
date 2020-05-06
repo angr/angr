@@ -145,7 +145,7 @@ class BlockSimplifier(Analysis):
                     if isinstance(d.atom, atoms.Register):
                         if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
                             dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-                    if isinstance(d.atom, SpOffset):
+                    if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                         if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.offset):
                             dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
