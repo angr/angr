@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Union
 import logging
 
 import ailment
@@ -101,29 +101,24 @@ class SimEngineRDAIL(
 
     def _ail_handle_Store(self, stmt):
         data: DataSet = self._expr(stmt.data)
-        addr: Iterable = self._expr(stmt.addr)
+        addr: Iterable[Union[int,SpOffset,Undefined]] = self._expr(stmt.addr)
         size: int = stmt.size
 
         for a in addr:
             if type(a) is Undefined:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
-            else:
-                if any(type(d) is Undefined for d in data):
-                    l.info('Data to write at address %s undefined, ins_addr = %#x.',
-                           hex(a) if type(a) is int else a, self.ins_addr
-                           )
+                continue
 
-                if type(a) is SpOffset:
-                    # Writing to stack
-                    memloc = MemoryLocation(a, size)
-                else:
-                    # Writing to a non-stack memory region
-                    memloc = MemoryLocation(a, size)
+            if any(type(d) is Undefined for d in data):
+                l.info('Data to write at address %s undefined, ins_addr = %#x.',
+                       hex(a) if type(a) is int else a, self.ins_addr
+                       )
 
-                if not memloc.symbolic:
-                    # different addresses are not killed by a subsequent iteration, because kill only removes entries
-                    # with same index and same size
-                    self.state.kill_and_add_definition(memloc, self._codeloc(), data)
+            memloc = MemoryLocation(a, size)
+            if not memloc.symbolic:
+                # different addresses are not killed by a subsequent iteration, because kill only removes entries
+                # with same index and same size
+                self.state.kill_and_add_definition(memloc, self._codeloc(), data)
 
     def _ail_handle_Jump(self, stmt):
         _ = self._expr(stmt.target)

@@ -62,7 +62,7 @@ class Register(Atom):
     :ivar int reg_offset:    The offset from the base to define its place in the memory bloc.
     :ivar int size:          The size, in number of bytes.
     """
-    __slots__ = ['reg_offset', '_size']
+    __slots__ = ('reg_offset', '_size', )
 
     def __init__(self, reg_offset: int, size: int):
         super(Register, self).__init__()
@@ -117,7 +117,11 @@ class MemoryLocation(Atom):
 
     @property
     def symbolic(self) -> bool:
-        return not type(self.addr) is int
+        if isinstance(self.addr, int):
+            return False
+        elif isinstance(self.addr, SpOffset):
+            return not type(self.addr.offset) is int
+        return True
 
     def __eq__(self, other):
         return type(other) is MemoryLocation and \

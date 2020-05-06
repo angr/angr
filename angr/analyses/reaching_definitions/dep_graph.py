@@ -27,10 +27,7 @@ class DepGraph:
         if graph and not all(map(_is_definition, graph.nodes)):
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
-        if not isinstance(graph, networkx.DiGraph):
-            self._graph = networkx.DiGraph()
-        else:
-            self._graph = graph
+        self._graph = graph if graph is not None else networkx.DiGraph()
 
     @property
     def graph(self) -> networkx.DiGraph:
@@ -38,7 +35,7 @@ class DepGraph:
 
     def add_node(self, node: Definition) -> None:
         """
-        :param Definition node: The definition to add to the definition-use graph.
+        :param node: The definition to add to the definition-use graph.
         """
         if not _is_definition(node):
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)

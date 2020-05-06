@@ -20,7 +20,7 @@ class Definition:
 
     __slots__ = ('atom', 'codeloc', 'data', 'dummy')
 
-    def __init__(self, atom: Atom, codeloc: CodeLocation, data:DataSet, dummy: bool=False):
+    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False):
 
         self.atom: Atom = atom
         self.codeloc: CodeLocation = codeloc
