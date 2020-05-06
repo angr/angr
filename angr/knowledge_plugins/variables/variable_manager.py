@@ -1,10 +1,10 @@
-
+from typing import Set, List, Tuple
 import logging
 from collections import defaultdict
 from itertools import count
 
 from claripy.utils.orderedset import OrderedSet
-from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable
+from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
 
 from ...keyed_region import KeyedRegion
 from .variable_access import VariableAccess
@@ -201,7 +201,7 @@ class VariableManagerInternal:
     def find_variable_by_stmt(self, block_addr, stmt_idx, sort):
         return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort)), None)
 
-    def find_variables_by_stmt(self, block_addr, stmt_idx, sort):
+    def find_variables_by_stmt(self, block_addr: int, stmt_idx: int, sort: str) -> List[Tuple[SimVariable,int]]:
 
         key = block_addr, stmt_idx
 
@@ -227,15 +227,15 @@ class VariableManagerInternal:
     def find_variable_by_atom(self, block_addr, stmt_idx, atom):
         return next(iter(self.find_variables_by_atom(block_addr, stmt_idx, atom)), None)
 
-    def find_variables_by_atom(self, block_addr, stmt_idx, atom):
+    def find_variables_by_atom(self, block_addr, stmt_idx, atom) -> Set[Tuple[SimVariable, int]]:
 
         key = block_addr, stmt_idx
 
         if key not in self._atom_to_variable:
-            return [ ]
+            return set()
 
         if atom not in self._atom_to_variable[key]:
-            return [ ]
+            return set()
 
         return self._atom_to_variable[key][atom]
 
