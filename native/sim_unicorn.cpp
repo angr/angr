@@ -142,9 +142,9 @@ typedef struct block_taint_entry_t {
 
 typedef struct taint_status_result_t {
 	bool is_symbolic;
-	bool dependsOnReadFromSymbolicAddr;
-	bool dependsOnReadFromConcreteAddr;
-	uint64_t concreteMemReadInstrAddr;
+	bool depends_on_read_from_symbolic_addr;
+	bool depends_on_read_from_concrete_addr;
+	uint64_t concrete_mem_read_instr_addr;
 } taint_status_result_t;
 
 typedef struct CachedPage {
@@ -1213,9 +1213,9 @@ public:
 	taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> taint_sources) {
 		taint_status_result_t result;
 		result.is_symbolic = false;
-		result.dependsOnReadFromConcreteAddr = false;
-		result.dependsOnReadFromSymbolicAddr = false;
-		result.concreteMemReadInstrAddr = 0;
+		result.depends_on_read_from_concrete_addr = false;
+		result.depends_on_read_from_symbolic_addr = false;
+		result.concrete_mem_read_instr_addr = 0;
 		for (auto &taint_source: taint_sources) {
 			if (taint_source.entity_type == TAINT_ENTITY_NONE) {
 				continue;
@@ -1232,8 +1232,8 @@ public:
 					for (auto &block_mem_read_entry: block_mem_reads_taint_dst_map) {
 						for (auto &block_mem_read_taint_entity: block_mem_read_entry.second) {
 							if (taint_source == block_mem_read_taint_entity) {
-								result.dependsOnReadFromConcreteAddr = true;
-								result.concreteMemReadInstrAddr = taint_source.instr_addr;
+								result.depends_on_read_from_concrete_addr = true;
+								result.concrete_mem_read_instr_addr = taint_source.instr_addr;
 								break;
 							}
 						}
@@ -1243,24 +1243,24 @@ public:
 			else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
 				// Check if the memory address being read from is symbolic
 				auto mem_address_status = get_final_taint_status_vector(taint_source.mem_ref_entity_list);
-				if ((mem_address_status.is_symbolic) || (mem_address_status.dependsOnReadFromSymbolicAddr)) {
+				if ((mem_address_status.is_symbolic) || (mem_address_status.depends_on_read_from_symbolic_addr)) {
 					// Address is symbolic or depends on a read from a symbolic address.
 					// Stop concrete execution.
-					result.dependsOnReadFromSymbolicAddr = true;
+					result.depends_on_read_from_symbolic_addr = true;
 					break;
 				}
-				else if (mem_address_status.dependsOnReadFromConcreteAddr) {
+				else if (mem_address_status.depends_on_read_from_concrete_addr) {
 					// Address depends on some memory value. Since we cannot determine the taint
 					// status of that memory value because we cannot compute the address of that
 					// value without evaluating VEX statements, we assume it is symbolic. Perhaps
 					// there might be a way to determine taint status quickly in future
-					result.dependsOnReadFromSymbolicAddr = true;
+					result.depends_on_read_from_symbolic_addr = true;
 					break;
 				}
 				else {
 					// Address is concrete.
-					result.dependsOnReadFromConcreteAddr = true;
-					result.concreteMemReadInstrAddr = taint_source.instr_addr;
+					result.depends_on_read_from_concrete_addr = true;
+					result.concrete_mem_read_instr_addr = taint_source.instr_addr;
 				}
 			}
 		}
@@ -1479,14 +1479,14 @@ public:
 			}
 			else {
 				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
-				if (final_taint_status.dependsOnReadFromSymbolicAddr) {
+				if (final_taint_status.depends_on_read_from_symbolic_addr) {
 					// TODO: Stop concrete execution
 				}
 				else if (final_taint_status.is_symbolic) {
 					mark_register_temp_symbolic(taint_sink, true);
 				}
-				else if (final_taint_status.dependsOnReadFromConcreteAddr) {
-					auto mem_read_instr_addr = final_taint_status.concreteMemReadInstrAddr;
+				else if (final_taint_status.depends_on_read_from_concrete_addr) {
+					auto mem_read_instr_addr = final_taint_status.concrete_mem_read_instr_addr;
 					if (block_mem_reads_taint_dst_map.find(mem_read_instr_addr) == block_mem_reads_taint_dst_map.end()) {
 						std::vector<taint_entity_t> dsts;
 						dsts.emplace_back(taint_sink);
