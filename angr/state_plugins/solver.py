@@ -2,6 +2,7 @@ import binascii
 import functools
 import time
 import logging
+from typing import TypeVar, overload, Any, Optional
 
 from claripy import backend_manager
 
@@ -48,7 +49,8 @@ def timed_function(f):
                 location = "unknown"
             lt.log(int((end-start)*10), '%s took %s seconds at %s', f.__name__, round(duration, 2), location)
 
-            if break_time >= 0 and duration > break_time:
+            if 0 <= break_time < duration:
+                #pylint: disable = import-outside-toplevel
                 import ipdb; ipdb.set_trace()
 
             return r
@@ -687,7 +689,16 @@ class SimSolver(SimStatePlugin):
 
         return solution
 
-    def eval_upto(self, e, n, cast_to=None, **kwargs):
+
+    @overload
+    # pylint: disable=no-self-use
+    def eval_upto(self, e, n: int, cast_to: None = ..., **kwargs) -> Any: ...
+    CastTarget = TypeVar("CastTarget")
+    @overload
+    # pylint: disable=no-self-use, undefined-variable
+    def eval_upto(self, e, n: int, cast_to: CastTarget = ..., **kwargs) -> CastTarget: ...
+
+    def eval_upto(self, e, n, cast_to = None, **kwargs):
         """
         Evaluate an expression, using the solver if necessary. Returns primitives as specified by the `cast_to`
         parameter. Only certain primitives are supported, check the implementation of `_cast_to` to see which ones.
@@ -709,7 +720,15 @@ class SimSolver(SimStatePlugin):
             raise SimUnsatError('Not satisfiable: %s, expected up to %d solutions' % (e.shallow_repr(), n))
         return cast_vals
 
-    def eval(self, e, **kwargs):
+    @overload
+    # pylint: disable=no-self-use
+    def eval(self, e, cast_to: None = ..., **kwargs) -> Any: ...
+
+    # pylint: disable=no-self-use,undefined-variable
+    @overload
+    def eval(self, e, cast_to: CastTarget = ..., **kwargs) -> CastTarget: ...
+
+    def eval(self, e, cast_to: Optional[CastTarget] = None, **kwargs):
         """
         Evaluate an expression to get any possible solution. The desired output types can be specified using the
         `cast_to` parameter. `extra_constraints` can be used to specify additional constraints the returned values
@@ -721,7 +740,7 @@ class SimSolver(SimStatePlugin):
         :return:
         """
         # eval_upto already throws the UnsatError, no reason for us to worry about it
-        return self.eval_upto(e, 1, **kwargs)[0]
+        return self.eval_upto(e, 1, cast_to = cast_to,  **kwargs)[0]
 
     def eval_one(self, e, **kwargs):
         """

@@ -2,6 +2,7 @@ import sys
 import itertools
 import types
 from collections import defaultdict
+from typing import List, Tuple, DefaultDict
 
 import claripy
 import mulpyplexer
@@ -55,7 +56,7 @@ class SimulationManager:
     ALL = '_ALL'
     DROP = '_DROP'
 
-    _integral_stashes = 'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained'
+    _integral_stashes = 'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained' # type: Tuple[str]
 
     def __init__(self,
             project,
@@ -75,7 +76,7 @@ class SimulationManager:
         self.completion_mode = completion_mode
         self._errored = []
 
-        self._stashes = self._create_integral_stashes() if stashes is None else stashes
+        self._stashes = self._create_integral_stashes() if stashes is None else stashes # type: defaultdict[str, List['SimState']]
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._save_unsat = save_unsat
         self._auto_drop = {SimulationManager.DROP, }
@@ -139,7 +140,7 @@ class SimulationManager:
         return self._errored
 
     @property
-    def stashes(self):
+    def stashes(self) -> DefaultDict[str, List['SimState']]:
         return self._stashes
 
     def mulpyplex(self, *stashes):
@@ -730,7 +731,7 @@ class SimulationManager:
     #   ...
     #
 
-    def _create_integral_stashes(self):
+    def _create_integral_stashes(self) -> DefaultDict[str, List['SimState']]:
         stashes = defaultdict(list)
         stashes.update({name: list() for name in self._integral_stashes})
         return stashes

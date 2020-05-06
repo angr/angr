@@ -165,6 +165,6 @@ setup(
     cmdclass=cmdclass,
     include_package_data=True,
     package_data={
-        'angr': ['lib/*']
+        'angr': ['lib/*', "py.typed"]
     }
 )

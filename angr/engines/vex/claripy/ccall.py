@@ -1,3 +1,5 @@
+from typing import Dict, Optional
+
 import claripy
 import logging
 from archinfo.arch_arm import is_arm_arch
@@ -62,7 +64,7 @@ data = {
         'CondBitMasks': { },
         'OpTypes': { },
     }
-}
+} # type: Dict[str, Dict[str, Dict[str, Optional[int]]]]
 
 # condition types
 data['AMD64']['CondTypes']['CondO']      = 0  # /* overflow           */

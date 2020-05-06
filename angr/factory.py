@@ -1,5 +1,7 @@
 import logging
+from typing import List, Optional, Union, overload
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
@@ -11,7 +13,7 @@ from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 l = logging.getLogger(name=__name__)
 
 
-class AngrObjectFactory(object):
+class AngrObjectFactory():
     """
     This factory provides access to important analysis elements.
     """
@@ -74,7 +76,7 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_blank(**kwargs)
 
-    def entry_state(self, **kwargs):
+    def entry_state(self, **kwargs) -> SimState:
         """
         Returns a state object representing the program at its entry point. All parameters are optional.
 
@@ -163,7 +165,7 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(self, thing=None, **kwargs):
+    def simulation_manager(self, thing: Optional[Union[List[SimState], SimState]]=None, **kwargs) -> 'SimulationManager':
         """
         Constructs a new simulation manager.
 
@@ -273,6 +275,22 @@ class AngrObjectFactory(object):
                 sizes=sizes,
                 sp_delta=sp_delta,
                 func_ty=func_ty)
+
+    #pylint: disable=unused-argument, no-self-use, function-redefined
+    @overload
+    def block(self, addr: int, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None, collect_data_refs=False,
+              ) -> 'Block': ...
+
+    #pylint: disable=unused-argument, no-self-use, function-redefined
+    @overload
+    def block(self, addr: SootAddressDescriptor, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None, collect_data_refs=False,
+              ) -> 'SootBlock': ...
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,

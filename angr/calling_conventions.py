@@ -2,6 +2,7 @@ import logging
 
 import claripy
 import archinfo
+from archinfo import RegisterName
 from typing import Union, Optional, List
 
 from .sim_type import SimType
@@ -93,7 +94,7 @@ class SimRegArg(SimFunctionArgument):
     :ivar string reg_name:    The name of the represented register.
     :ivar int size:           The size of the register, in number of bytes.
     """
-    def __init__(self, reg_name, size, alt_offsets=None):
+    def __init__(self, reg_name: RegisterName, size: int, alt_offsets=None):
         SimFunctionArgument.__init__(self, size)
         self.reg_name = reg_name
         self.alt_offsets = {} if alt_offsets is None else alt_offsets

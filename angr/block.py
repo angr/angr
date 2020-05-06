@@ -1,4 +1,8 @@
 import logging
+from typing import List
+
+from pyvex import IRSB
+
 l = logging.getLogger(name=__name__)
 
 import pyvex
@@ -79,7 +83,7 @@ class Block(Serializable):
         self._cross_insn_opt = cross_insn_opt
 
         self._instructions = num_inst
-        self._instruction_addrs = []
+        self._instruction_addrs = [] # type: List[int]
 
         self._parse_vex_info()
 
@@ -147,7 +151,7 @@ class Block(Serializable):
             return self._project.factory.default_engine
 
     @property
-    def vex(self):
+    def vex(self) -> IRSB:
         if not self._vex:
             self._vex = self._vex_engine.lift_vex(
                     clemory=self._project.loader.memory if self._project is not None else None,
