@@ -315,7 +315,7 @@ class LiveDefinitionsTest(TestCase):
 
         sp_value = reach_definition_at_main.get_sp()
 
-        nose.tools.assert_equal(sp_value, project.arch.initial_sp)
+        nose.tools.assert_equal(sp_value, SpOffset(project.arch.bits, 0))
 
 
 def test_dep_graph():
@@ -402,7 +402,8 @@ def test_dep_graph_stack_variables():
 
 
 if __name__ == '__main__':
-    LOGGER.setLevel(logging.DEBUG)
-    logging.getLogger('angr.analyses.reaching_definitions').setLevel(logging.DEBUG)
+    #LOGGER.setLevel(logging.DEBUG)
+    #logging.getLogger('angr.analyses.reaching_definitions').setLevel(logging.DEBUG)
 
-    nose.core.runmodule()
+    # nose.core.runmodule()
+    test_dep_graph_stack_variables()
