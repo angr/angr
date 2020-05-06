@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, Any
 
 import claripy
 import archinfo
