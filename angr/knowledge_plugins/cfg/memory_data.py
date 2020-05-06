@@ -97,7 +97,7 @@ class MemoryData(Serializable):
     def serialize_to_cmessage(self):
         cmsg = self._get_cmsg()
         cmsg.ea = self.addr
-        cmsg.size = self.size
+        cmsg.size = self.size if self.size is not None else 0
         cmsg.type = _SORT_TO_IDX[self.sort]
         return cmsg
 
