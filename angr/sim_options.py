@@ -306,6 +306,8 @@ SYMBION_KEEP_STUBS_ON_SYNC = "SYMBION_KEEP_STUBS_ON_SYNC"
 JAVA_IDENTIFY_GETTER_SETTER = "JAVA_IDENTIFY_GETTER_SETTER"
 # Activate attributes tracking for objects.
 JAVA_TRACK_ATTRIBUTES = "JAVA_TRACK_ATTRIBUTES"
+# Save native arguments in state.globals
+JAVA_SAVE_NATIVE_ARGS = "JAVA_SAVE_NATIVE_ARGS"
 
 #
 # Register those variables as Boolean state options

@@ -400,6 +400,11 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         # add to args
         final_args = [jni_env, ref] + args
 
+        # save args to globals for analysis
+        if o.JAVA_SAVE_NATIVE_ARGS in state.options:
+            global_name = str(java_method.addr)
+            state.globals[global_name] = args
+
         # Step 3: create native invoke state
         return state.project.simos.state_call(native_addr, *final_args,
                                               base_state=state,
