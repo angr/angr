@@ -35,6 +35,8 @@ def test_angrdb_fauxware():
         assert func.normalized == new_func.normalized
 
         assert len(func.transition_graph.nodes()) == len(new_func.transition_graph.nodes())
+        assert set(map(lambda x: x.addr, func.transition_graph.nodes())) == set(map(lambda x: x.addr,
+                                                                                    new_func.transition_graph.nodes()))
         assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
     # compare CFG
@@ -101,6 +103,8 @@ def test_angrdb_open_multiple_times():
             assert func.normalized == new_func.normalized
 
             assert len(func.transition_graph.nodes()) == len(new_func.transition_graph.nodes())
+            assert set(map(lambda x: x.addr, func.transition_graph.nodes())) == set(
+                map(lambda x: x.addr, new_func.transition_graph.nodes()))
             assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
 
