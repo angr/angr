@@ -859,10 +859,6 @@ class Function(Serializable):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
-            if node in self.transition_graph:
-                # skip nodes that have already been added
-                node._graph = self.transition_graph
-                continue
             self.transition_graph.add_node(node)
             if not isinstance(node, CodeNode):
                 continue
