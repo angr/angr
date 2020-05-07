@@ -1844,10 +1844,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 assert isinstance(ins_addr, SootAddressDescriptor)
                 soot_block = irsb
                 return_block_idx = ins_addr.block_idx
-                if stmt_idx + 1 >= soot_block.label + len(soot_block.statements):
+                return_stmt_idx = stmt_idx + 1
+                if return_stmt_idx >= len(soot_block.statements):
                     # tick the block ID
                     return_block_idx += 1
-                return_site = SootAddressDescriptor(ins_addr.method, return_block_idx, stmt_idx + 1)
+                    return_stmt_idx -= len(soot_block.statements)
+                return_site = SootAddressDescriptor(ins_addr.method, return_block_idx, return_stmt_idx)
 
         edge = None
         if new_function_addr is not None:
