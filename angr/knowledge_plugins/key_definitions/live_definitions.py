@@ -110,20 +110,25 @@ class LiveDefinitions:
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
                                 dummy=False) -> Optional[Definition]:
-        definition: Optional[Definition]
+        data = data or DataSet(undefined, atom.size)
+        definition: Definition = Definition(atom, code_loc, data, dummy=dummy)
 
+        # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
-            definition = self._kill_and_add_register_definition(atom, code_loc, data, dummy=dummy)
+            self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
-                definition = self._kill_and_add_stack_definition(atom, code_loc, data, dummy=dummy)
+                self.stack_definitions.set_object(atom.addr.offset, definition, atom.size)
             elif isinstance(atom.addr, int):
-                definition = self._kill_and_add_memory_definition(atom, code_loc, data, dummy=dummy)
+                self.memory_definitions.set_object(atom.addr, definition, atom.size)
             else:
-                # ignore
-                definition = None
+                return None
         elif isinstance(atom, Tmp):
-            definition = self._add_tmp_definition(atom, code_loc, data)
+            if self.track_tmps:
+                self.tmp_definitions[atom.tmp_idx] = { definition }
+            else:
+                self.tmp_definitions[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
+                return None
         else:
             raise NotImplementedError()
 
@@ -179,49 +184,6 @@ class LiveDefinitions:
     #
     # Private methods
     #
-
-    def _kill_and_add_register_definition(self, atom: Register, code_loc: CodeLocation, data: Optional[DataSet],
-                                          dummy=False) -> Definition:
-
-        if data is None:
-            data = DataSet(undefined, atom.size)
-        definition = Definition(atom, code_loc, data, dummy=dummy)
-        # set_object() replaces kill (not implemented) and add (add) in one step
-        self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
-        return definition
-
-    def _kill_and_add_stack_definition(self, atom: MemoryLocation, code_loc: CodeLocation, data: Optional[DataSet],
-                                       dummy=False) -> Definition:
-        if not isinstance(atom.addr, SpOffset):
-            raise TypeError("Atom %r does not represent a stack variable." % atom)
-        if not isinstance(atom.addr.offset, int):
-            raise ValueError("_kill_and_add_stack_definition() only supports writing to concrete stack offsets.")
-        if data is None:
-            data = DataSet(undefined, atom.size)
-        definition = Definition(atom, code_loc, data, dummy=dummy)
-        self.stack_definitions.set_object(atom.addr.offset, definition, data.bits // 8)
-        return definition
-
-    def _kill_and_add_memory_definition(self, atom: MemoryLocation, code_loc: CodeLocation, data: Optional[DataSet],
-                                        dummy=False) -> Definition:
-        if data is None:
-            data = DataSet(undefined, atom.size)
-        definition = Definition(atom, code_loc, data, dummy=dummy)
-        # set_object() replaces kill (not implemented) and add (add) in one step
-        self.memory_definitions.set_object(atom.addr, definition, atom.size)
-        return definition
-
-    def _add_tmp_definition(self, atom: Tmp, code_loc: CodeLocation, data: Optional[DataSet]) -> Optional[Definition]:
-
-        if self.track_tmps:
-            if data is None:
-                data = DataSet(undefined, atom.size)
-            def_ = Definition(atom, code_loc, data)
-            self.tmp_definitions[atom.tmp_idx] = { def_ }
-            return def_
-        else:
-            self.tmp_definitions[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
-            return None
 
     def _add_register_use(self, atom: Register, code_loc: CodeLocation) -> None:
         # get all current definitions
