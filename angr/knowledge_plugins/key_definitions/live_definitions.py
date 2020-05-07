@@ -102,13 +102,10 @@ class LiveDefinitions:
 
         :param atom:
         :param CodeLocation code_loc:
-        :param object data:
         :return: None
         """
 
-        if data is None:
-            data = DataSet(undefined, atom.size)
-
+        data = DataSet(undefined, atom.size)
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
