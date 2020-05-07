@@ -1,5 +1,8 @@
 import angr
 
+
 class setbuf(angr.SimProcedure):
-    def run(self, stream, buf):
+    #pylint:disable=arguments-differ
+
+    def run(self):
         return
