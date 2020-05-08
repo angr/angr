@@ -11,8 +11,6 @@ from ...codenode import CodeNode
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
-from ..code_location import CodeLocation
-from .atoms import Register
 from .constants import OP_BEFORE, OP_AFTER
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
