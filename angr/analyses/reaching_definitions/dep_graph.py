@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from functools import reduce
 
 import networkx
@@ -91,27 +91,3 @@ class DepGraph:
             return closure
 
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
-
-    def top_predecessors(self, definition: Definition) -> List[Definition]:
-        """
-        Recover the "entrypoint definitions" flowing into a given definition.
-        Obtained by transitively computing the top-level ancestors (nodes without predecessors) of this definition in
-        the graph.
-
-        :param definition: The <Definition> to return the top-level ancestors for.
-        :return: The list of top-level definitions flowing into the <node>.
-        """
-
-        def _top_predecessors(def_: Definition, graph: networkx.DiGraph, result: List[Definition]):
-            predecessors = list(graph.predecessors(def_))
-
-            if len(predecessors) == 0 and def_ not in result:
-                return result + [ def_ ]
-
-            return reduce(
-                lambda acc, definition: _top_predecessors(definition, graph, acc),
-                predecessors,
-                result
-            )
-
-        return _top_predecessors(definition, self._graph, [])
