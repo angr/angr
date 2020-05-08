@@ -33,7 +33,7 @@ class RepHook:
 
     def _inline_call(self, state, procedure, *arguments, **kwargs):
         e_args = [state.solver.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
-        p = procedure(project=self.project, **kwargs)
+        p = procedure(project=state.project, **kwargs)
         return p.execute(state, None, arguments=e_args)
 
     def run(self, state):
@@ -377,6 +377,7 @@ class Tracer(ExplorationTechnique):
             for addr in state.history.recent_bbl_addrs:
                 if addr == state.unicorn.transmit_addr:
                     continue
+
 
                 if self._compare_addr(self._trace[idx], addr):
                     idx += 1
