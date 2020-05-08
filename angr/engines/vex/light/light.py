@@ -540,6 +540,9 @@ class VEXMixin(SimEngine):
         self.tmps = [None] * self.irsb.tyenv.types_used
 
         for stmt_idx, stmt in enumerate(irsb.statements):
+            if irsb.addr == 0x40069f and stmt_idx == 3:
+                import pdb
+                pdb.set_trace()
             self.stmt_idx = stmt_idx
             self._handle_vex_stmt(stmt)
         self.stmt_idx = DEFAULT_STATEMENT
