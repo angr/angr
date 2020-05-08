@@ -183,7 +183,7 @@ class SimEngineLightVEXMixin:
 
         # All conversions are handled by the Conversion handler
         simop = vex_operations.get(expr.op)
-        if simop is not None and simop.op_attrs['conversion']:
+        if simop is not None and simop.op_attrs.get('conversion', None):
             handler = '_handle_Conversion'
         # Notice order of "Not" comparisons
         elif expr.op == 'Iop_Not1':
