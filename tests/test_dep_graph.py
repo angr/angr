@@ -67,51 +67,6 @@ def test_delegate_add_edge_to_the_underlying_graph_object(digraph_add_edge_mock)
     digraph_add_edge_mock.assert_called_once_with(*use, **labels)
 
 
-def test_top_predecessors():
-    dep_graph = DepGraph()
-
-    # A -> B, B -> D, C -> D
-    A = _a_mock_definition()
-    B = _a_mock_definition()
-    C = _a_mock_definition()
-    D = _a_mock_definition()
-    uses = [
-        (A, B),
-        (B, D),
-        (C, D),
-    ]
-
-    for use in uses:
-        dep_graph.add_edge(*use)
-
-    result = dep_graph.top_predecessors(D)
-
-    nose.tools.assert_list_equal(result, [A, C])
-
-
-def test_top_predecessors_should_not_contain_duplicates():
-    dep_graph = DepGraph()
-
-    # A -> B, A -> C, B -> D, C -> D
-    A = _a_mock_definition()
-    B = _a_mock_definition()
-    C = _a_mock_definition()
-    D = _a_mock_definition()
-    uses = [
-        (A, B),
-        (A, C),
-        (B, D),
-        (C, D),
-    ]
-
-    for use in uses:
-        dep_graph.add_edge(*use)
-
-    result = dep_graph.top_predecessors(D)
-
-    nose.tools.assert_list_equal(result, [A])
-
-
 def test_transitive_closure_of_a_node():
     dep_graph = DepGraph()
 
