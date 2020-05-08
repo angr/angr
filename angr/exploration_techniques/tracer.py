@@ -10,14 +10,17 @@ l = logging.getLogger(name=__name__)
 
 class TracingMode:
     """
-    :ivar Strict:       Strict mode, where an exception is raised immediately if tracer's path deviates from the
-                        provided trace.
+    :ivar Strict:       Strict mode, the default mode, where an exception is raised immediately if tracer's path
+                        deviates from the provided trace.
     :ivar Permissive:   Permissive mode, where tracer attempts to force the path back to the provided trace when a
                         deviation happens. This does not always work, especially when the cause of deviation is related
                         to input that will later be used in exploit generation. But, it might work magically sometimes.
+    :ivar CatchDesync:  CatchDesync mode, catch desync because of sim_procedures. It might be a sign of something
+                        interesting.
     """
     Strict = 'strict'
     Permissive = 'permissive'
+    CatchDesync = 'catch_desync'
 
 
 class TracerDesyncError(AngrTracerError):
@@ -33,7 +36,7 @@ class RepHook:
 
     def _inline_call(self, state, procedure, *arguments, **kwargs):
         e_args = [state.solver.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
-        p = procedure(project=self.project, **kwargs)
+        p = procedure(project=state.project, **kwargs)
         return p.execute(state, None, arguments=e_args)
 
     def run(self, state):
@@ -162,6 +165,7 @@ class Tracer(ExplorationTechnique):
         simgr.populate('missed', [])
         simgr.populate('traced', [])
         simgr.populate('crashed', [])
+        simgr.populate('desync', [])
 
         self.project = simgr._project
         if len(simgr.active) != 1:
@@ -196,6 +200,7 @@ class Tracer(ExplorationTechnique):
         simgr.one_active.globals['trace_idx'] = idx
         simgr.one_active.globals['sync_idx'] = None
         simgr.one_active.globals['sync_timer'] = 0
+        simgr.one_active.globals['is_desync'] = False
 
         # disable state copying!
         if not self._copy_states:
@@ -209,6 +214,10 @@ class Tracer(ExplorationTechnique):
     def filter(self, simgr, state, **kwargs):
         # check completion
         if state.globals['trace_idx'] >= len(self._trace) - 1:
+            # if the the state is a desync state and the user wants to keep it,
+            # then do what the user wants
+            if self._mode == TracingMode.CatchDesync and self.project.is_hooked(state.addr):
+                return 'desync'
             # do crash windup if necessary
             if self._crash_addr is not None:
                 self.last_state, crash_state = self.crash_windup(state, self._crash_addr)
@@ -279,8 +288,12 @@ class Tracer(ExplorationTechnique):
                 succ = self._pick_correct_successor(succs)
                 succs_dict[None] = [succ]
                 succs_dict['missed'] = [s for s in succs if s is not succ]
-
         assert len(succs_dict[None]) == 1
+
+        # if there is a catchable desync, we should return the last sync state
+        if succs_dict[None][0].globals['is_desync']:
+            simgr.active[0].globals['trace_idx'] = len(self._trace)
+            succs_dict[None][0] = state
         return succs_dict
 
     def _force_resync(self, simgr, state, deviating_trace_idx, deviating_addr, kwargs):
@@ -377,6 +390,7 @@ class Tracer(ExplorationTechnique):
             for addr in state.history.recent_bbl_addrs:
                 if addr == state.unicorn.transmit_addr:
                     continue
+
 
                 if self._compare_addr(self._trace[idx], addr):
                     idx += 1
@@ -577,6 +591,11 @@ class Tracer(ExplorationTechnique):
         try:
             target_idx = self._trace.index(target_addr, state.globals['trace_idx'] + 1)
         except ValueError as e:
+            # if the user wants to catch desync caused by sim_procedure,
+            # mark this state as a desync state and then end the tracing prematurely
+            if self._mode == TracingMode.CatchDesync:
+                state.globals['is_desync'] = True
+                return
             raise AngrTracerError("Trace failed to synchronize during fast forward? You might want to unhook %s." % (self.project.hooked_by(state.history.addr).display_name)) from e
         else:
             state.globals['trace_idx'] = target_idx
