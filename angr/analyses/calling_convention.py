@@ -168,7 +168,8 @@ class CallingConventionAnalysis(Analysis):
                 # a register variable, convert it to a register argument
                 if not self._is_sane_register_variable(variable):
                     continue
-                arg = SimRegArg(self.project.arch.register_size_names[(variable.reg, variable.size)], variable.size)
+                reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
+                arg = SimRegArg(reg_name, variable.size)
                 args.add(arg)
             else:
                 l.error('Unsupported type of variable %s.', type(variable))
