@@ -11,8 +11,6 @@ from ...codenode import CodeNode
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
-from ..code_location import CodeLocation
-from .atoms import Register
 from .constants import OP_BEFORE, OP_AFTER
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
@@ -272,18 +270,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         self._node_iterations[block_key] += 1
 
-        if not self._graph_visitor.successors(node):
-            # no more successors. kill definitions of certain registers
-            if isinstance(node, ailment.Block):
-                codeloc = CodeLocation(node.addr, len(node.statements))
-            elif isinstance(node, Block):
-                codeloc = CodeLocation(node.addr, len(node.vex.statements))
-            else: #if isinstance(node, CodeNode):
-                codeloc = CodeLocation(node.addr, 0)
-            state.kill_definitions(Register(self.project.arch.sp_offset, self.project.arch.bytes),
-                                   codeloc)
-            state.kill_definitions(Register(self.project.arch.ip_offset, self.project.arch.bytes),
-                                   codeloc)
         self.node_observe(node.addr, state, OP_AFTER)
 
         # update all definitions and all uses
