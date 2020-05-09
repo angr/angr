@@ -122,6 +122,8 @@ class SimTypeBottom(SimType):
         )
 
     def c_repr(self):
+        if self.label:
+            return self.label
         return "BOT"
 
 
