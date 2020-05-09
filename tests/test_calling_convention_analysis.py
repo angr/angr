@@ -23,7 +23,7 @@ def run_fauxware(arch, function_and_cc_list):
         authenticate = cfg.functions[func_name]
         _ = fauxware.analyses.VariableRecoveryFast(authenticate)
 
-        cc_analysis = fauxware.analyses.CallingConvention(authenticate)
+        cc_analysis = fauxware.analyses.CallingConvention(authenticate, cfg=cfg)
         cc = cc_analysis.cc
 
         nose.tools.assert_equal(cc, expected_cc)
@@ -159,6 +159,39 @@ def test_armel_fauxware():
 
     for func_name, args in expected_args.items():
         check_args(func_name, _a(funcs, func_name), args)
+
+
+def test_x8664_void():
+    binary_path = os.path.join(test_location, 'tests', 'x86_64', 'types', 'void')
+    proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+
+    cfg = proj.analyses.CFG()
+
+    proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg)
+
+    funcs = cfg.kb.functions
+
+    groundtruth = {
+        'func_1': None,
+        'func_2': None,
+        'func_3': 'rax',
+        'func_4': None,
+        'func_5': None,
+        'func_6': 'rax',
+    }
+
+    for func in funcs.values():
+        if func.is_simprocedure or func.alignment:
+            continue
+        if func.calling_convention is None:
+            continue
+        if func.name in groundtruth:
+            r = groundtruth[func.name]
+            if r is None:
+                assert func.calling_convention.ret_val is None
+            else:
+                assert isinstance(func.calling_convention.ret_val, SimRegArg)
+                assert func.calling_convention.ret_val.reg_name == r
 
 
 def run_all():

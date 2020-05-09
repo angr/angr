@@ -10,7 +10,7 @@ from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
 from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
-from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction
+from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from .. import Analysis, register_analysis
 from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
@@ -368,7 +368,10 @@ class Clinic(Analysis):
 
             func_args.append(func_arg)
 
-        returnty = SimTypeInt()
+        if self.function.calling_convention.ret_val is None:
+            returnty = SimTypeBottom(label="void")
+        else:
+            returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty)
 
