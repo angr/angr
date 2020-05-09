@@ -8,7 +8,6 @@ from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg
 from .definition import Definition
-from .undefined import undefined
 from .atoms import Register, MemoryLocation, Parameter, Tmp
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
