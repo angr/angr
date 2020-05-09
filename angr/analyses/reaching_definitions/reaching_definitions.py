@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional, Dict, Tuple, Union, Set, TYPE_CHECKING
+from typing import Optional, Dict, Tuple, Set, TYPE_CHECKING
 from collections import defaultdict
 
 import ailment

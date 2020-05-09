@@ -84,7 +84,7 @@ class ReachingDefinitionsAnalysisTest(TestCase):
         with open(result_path, 'rb') as result_file:
             expected_result = pickle.load(result_file)
 
-        nose.tools.assert_list_equal(result, expected_result)
+        nose.tools.assert_set_equal(result, set(expected_result))
 
     def _binary_path(self, binary_name):
         return os.path.join(TESTS_LOCATION, 'x86_64', binary_name)
