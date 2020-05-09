@@ -6,6 +6,7 @@ import pyvex
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
+from ...calling_conventions import DEFAULT_CC, SimRegArg
 from .definition import Definition
 from .atoms import Register, MemoryLocation, Parameter, Tmp
 from .constants import OP_BEFORE, OP_AFTER
@@ -508,30 +509,46 @@ class SimEngineRDVEX(
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')
 
-        # pop return address if necessary
-        if executed_rda is False and self.arch.call_pushes_ret is True:
-            defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
-            if len(defs_sp) == 0:
-                raise ValueError('No definition for SP found')
-            if len(defs_sp) == 1:
-                sp_data = next(iter(defs_sp)).data.data
-            else:  # len(defs_sp) > 1
-                sp_data = set()
-                for d in defs_sp:
-                    sp_data.update(d.data)
+        if executed_rda is False:
+            default_cc = DEFAULT_CC.get(self.arch.name, None)
+            if default_cc is not None:
+                # follow the default calling convention and kill return value registers as well as caller-saving
+                # registers
+                if default_cc.RETURN_VAL is not None:
+                    if isinstance(default_cc.RETURN_VAL, SimRegArg):
+                        reg_offset, reg_size = self.arch.registers[default_cc.RETURN_VAL.reg_name]
+                        atom = Register(reg_offset, reg_size)
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
+                if default_cc.CALLER_SAVED_REGS is not None:
+                    for reg in default_cc.CALLER_SAVED_REGS:
+                        reg_offset, reg_size = self.arch.registers[reg]
+                        atom = Register(reg_offset, reg_size)
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
 
-            if len(sp_data) != 1:
-                raise ValueError('Invalid number of values for stack pointer.')
+            if self.arch.call_pushes_ret is True:
+                # pop return address if necessary
+                defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
+                if len(defs_sp) == 0:
+                    raise ValueError('No definition for SP found')
+                if len(defs_sp) == 1:
+                    sp_data = next(iter(defs_sp)).data.data
+                else:  # len(defs_sp) > 1
+                    sp_data = set()
+                    for d in defs_sp:
+                        sp_data.update(d.data)
 
-            sp_addr = next(iter(sp_data))
-            if isinstance(sp_addr, (int, SpOffset)):
-                sp_addr -= self.arch.stack_change
-            elif isinstance(sp_addr, Undefined):
-                pass
-            else:
-                raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+                if len(sp_data) != 1:
+                    raise ValueError('Invalid number of values for stack pointer.')
 
-            atom = Register(self.arch.sp_offset, self.arch.bytes)
-            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
+                sp_addr = next(iter(sp_data))
+                if isinstance(sp_addr, (int, SpOffset)):
+                    sp_addr -= self.arch.stack_change
+                elif isinstance(sp_addr, Undefined):
+                    pass
+                else:
+                    raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+
+                atom = Register(self.arch.sp_offset, self.arch.bytes)
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
 
         return None
