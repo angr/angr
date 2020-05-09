@@ -32,9 +32,9 @@ class InsnAndNodeObserveTestingUtils():
     @staticmethod
     def assert_equals_for_live_definitions(live_definition_1, live_definition_2):
         list(map(
-            lambda attr: {\
-                nose.tools.assert_equals(getattr(live_definition_1, attr),\
-                                         getattr(live_definition_2, attr))\
+            lambda attr: {
+                nose.tools.assert_equals(getattr(live_definition_1, attr),
+                                         getattr(live_definition_2, attr))
             },
             ["register_definitions", "stack_definitions", "memory_definitions", "tmp_definitions"]
         ))
@@ -63,10 +63,10 @@ class InsnAndNodeObserveTestingUtils():
         )
 
         state = LiveDefinitions(
-           project.arch, reaching_definitions.subject, project.loader
+           project.arch, reaching_definitions.subject,
         )
 
-        return (project, main_function, reaching_definitions, state)
+        return project, main_function, reaching_definitions, state
 
 
 class ReachingDefinitionsAnalysisTest(TestCase):
@@ -101,9 +101,9 @@ class ReachingDefinitionsAnalysisTest(TestCase):
     def test_reaching_definition_analysis_definitions(self):
         def _result_extractor(rda):
             unsorted_result = map(
-                lambda x: {'key': x[0],\
-                           'register_definitions': x[1].register_definitions._storage,\
-                           'stack_definitions': x[1].stack_definitions._storage,\
+                lambda x: {'key': x[0],
+                           'register_definitions': x[1].register_definitions._storage,
+                           'stack_definitions': x[1].stack_definitions._storage,
                            'memory_definitions': x[1].memory_definitions._storage},
                 rda.observed_results.items()
             )
@@ -127,7 +127,7 @@ class ReachingDefinitionsAnalysisTest(TestCase):
 
     def test_reaching_definition_analysis_visited_blocks(self):
         def _result_extractor(rda):
-            return rda.visited_blocks
+            return list(sorted(rda.visited_blocks, key=lambda b: b.addr))
 
         binaries_and_results = list(map(
             lambda binary: (self._binary_path(binary), self._result_path(binary + '_visited_blocks')),

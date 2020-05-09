@@ -1,6 +1,7 @@
 # pylint:disable=no-member
 import pickle
 import logging
+from typing import Optional, List
 from collections import defaultdict
 
 import networkx
@@ -196,24 +197,25 @@ class CFGModel(Serializable):
             return self._nodes[block_id]
         return None
 
-    def get_any_node(self, addr, is_syscall=None, anyaddr=False, force_fastpath=False):
+    def get_any_node(self, addr: int, is_syscall: bool=None, anyaddr: bool=False,
+                     force_fastpath: bool=False) -> Optional[CFGNode]:
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
-        :param int addr:        Address of the beginning of the basic block. Set anyaddr to True to support arbitrary
+        :param addr:            Address of the beginning of the basic block. Set anyaddr to True to support arbitrary
                                 address.
-        :param bool is_syscall: Whether you want to get the syscall node or any other node. This is due to the fact that
+        :param is_syscall:      Whether you want to get the syscall node or any other node. This is due to the fact that
                                 syscall SimProcedures have the same address as the targer it returns to.
-                                None means get either, True means get a syscall node, False means get something that isn't
-                                a syscall node.
-        :param bool anyaddr:    If anyaddr is True, then addr doesn't have to be the beginning address of a basic
+                                None means get either, True means get a syscall node, False means get something that
+                                isn't a syscall node.
+        :param anyaddr:         If anyaddr is True, then addr doesn't have to be the beginning address of a basic
                                 block. By default the entire graph.nodes() will be iterated, and the first node
                                 containing the specific address is returned, which is slow. If you need to do many such
-                                queries, you may first call `generate_index()` to create some indices that may speed up the
-                                query.
-        :param bool force_fastpath: If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
-                                    dict.
-        :return: A CFGNode if there is any that satisfies given conditions, or None otherwise
+                                queries, you may first call `generate_index()` to create some indices that may speed up
+                                the query.
+        :param force_fastpath:  If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
+                                dict.
+        :return:                A CFGNode if there is any that satisfies given conditions, or None otherwise
         """
 
         # fastpath: directly look in the nodes list
@@ -256,7 +258,7 @@ class CFGModel(Serializable):
 
         return None
 
-    def get_all_nodes(self, addr, is_syscall=None, anyaddr=False):
+    def get_all_nodes(self, addr: int, is_syscall: bool=None, anyaddr: bool=False) -> List[CFGNode]:
         """
         Get all CFGNodes whose address is the specified one.
 
@@ -290,17 +292,17 @@ class CFGModel(Serializable):
 
         return self.graph.nodes()
 
-    def get_predecessors(self, cfgnode, excluding_fakeret=True, jumpkind=None):
+    def get_predecessors(self, cfgnode: CFGNode, excluding_fakeret: bool=True,
+                         jumpkind: Optional[str]=None) -> List[CFGNode]:
         """
         Get predecessors of a node in the control flow graph.
 
-        :param CFGNode cfgnode:             The node.
-        :param bool excluding_fakeret:      True if you want to exclude all predecessors that is connected to the node
-                                            with a fakeret edge.
-        :param str or None jumpkind:        Only return predecessors with the specified jumpkind. This argument will be
-                                            ignored if set to None.
-        :return:                            A list of predecessors
-        :rtype:                             list
+        :param cfgnode:             The node.
+        :param excluding_fakeret:   True if you want to exclude all predecessors that is connected to the node with a
+                                    fakeret edge.
+        :param jumpkind:            Only return predecessors with the specified jumpkind. This argument will be ignored
+                                    if set to None.
+        :return:                    A list of predecessors
         """
 
         if excluding_fakeret and jumpkind == 'Ijk_FakeRet':

@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional  # pylint:disable=unused-import
+from typing import Optional, Dict, Tuple, Set, Any, TYPE_CHECKING
 from collections import defaultdict
 
 import ailment
@@ -17,6 +17,9 @@ from .engine_vex import SimEngineRDVEX
 from .live_definitions import LiveDefinitions
 from .subject import Subject
 from .uses import Uses
+
+if TYPE_CHECKING:
+    from .dep_graph import DepGraph
 
 
 l = logging.getLogger(name=__name__)
@@ -39,7 +42,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
                  observation_points=None, init_state=None, cc=None, function_handler=None,
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
-                 dep_graph=None, observe_callback=None):
+                 dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
         :param Block|Function subject: The subject of the analysis: a function, or a single basic block.
         :param func_graph:                      Alternative graph for function.graph.
@@ -62,7 +65,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param Boolean observe_all:             Observe every statement, both before and after.
         :param List<ailment.Block|Block|CodeNode|CFGNode> visited_blocks:
                                                 A list of previously visited blocks.
-        :param Optional[DepGraph] dep_graph:    An initial dependency graph to add the result of the analysis to. Set it
+        :param dep_graph:                       An initial dependency graph to add the result of the analysis to. Set it
                                                 to None to skip dependency graph generation.
         """
 
@@ -108,9 +111,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._engine_ail = SimEngineRDAIL(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
 
-        self._visited_blocks = visited_blocks or []
+        self._visited_blocks: Set[Any] = visited_blocks or set()
 
-        self.observed_results = {}
+        self.observed_results: Dict[Tuple[str,int,int],LiveDefinitions] = {}
         self.all_definitions = set()
         self.all_uses = Uses()
 
@@ -154,11 +157,11 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         return self.observed_results[key]
 
-    def node_observe(self, node_addr, state, op_type):
+    def node_observe(self, node_addr: int, state: LiveDefinitions, op_type: int):
         """
-        :param int node_addr:
-        :param angr.analyses.reaching_definitions.LiveDefinitions state:
-        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
+        :param node_addr:   Address of the node.
+        :param state:       The analysis state.
+        :param op_type:     Type of the bbservation point. Must be one of the following: OP_BEFORE, OP_AFTER.
         """
 
         key = 'node', node_addr, op_type
@@ -244,7 +247,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :return:
         """
 
-        self._visited_blocks.append(node)
+        self._visited_blocks.add(node)
 
         if isinstance(node, ailment.Block):
             block = node

@@ -275,15 +275,15 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         for i in sorted(self._function_map.keys()):
             yield i
 
-    def get_by_addr(self, addr):
+    def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
 
-    def _function_added(self, func):
+    def _function_added(self, func: Function):
         """
         A callback method for adding a new function instance to the manager.
 
-        :param Function func:   The Function instance being added.
-        :return:                None
+        :param func:   The Function instance being added.
+        :return:       None
         """
 
         # make sure all functions exist in the call graph

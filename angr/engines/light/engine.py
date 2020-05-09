@@ -5,6 +5,7 @@ import logging
 
 import ailment
 import pyvex
+import archinfo
 
 from ..engine import SimEngine
 from angr.engines.vex.claripy.irop import operations as vex_operations
@@ -63,7 +64,7 @@ class SimEngineLightVEXMixin:
         self.state = state
 
         if state is not None:
-            self.arch = state.arch
+            self.arch: archinfo.Arch = state.arch
 
         self.tyenv = block.vex.tyenv
 
