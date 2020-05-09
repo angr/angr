@@ -340,6 +340,11 @@ class Clinic(Analysis):
 
     @timethis
     def _make_function_prototype(self, arg_list: List[SimVariable], variable_kb):
+        if self.function.prototype is not None:
+            # do not overwrite an existing function prototype
+            # if you want to re-generate the prototype, clear the existing one first
+            return
+
         variables = variable_kb.variables[self.function.addr]
         func_args = [ ]
         for arg in arg_list:
