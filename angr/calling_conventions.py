@@ -3,7 +3,7 @@ import logging
 import claripy
 import archinfo
 from archinfo import RegisterName
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict
 
 from .sim_type import SimType
 from .sim_type import SimTypeChar
@@ -348,12 +348,12 @@ class SimCC:
     # Here are all the things a subclass needs to specify!
     #
 
-    ARG_REGS: List[SimFunctionArgument] = None                  # A list of all the registers used for integral args, in order (names or offsets)
-    FP_ARG_REGS: List[SimFunctionArgument] = None               # A list of all the registers used for floating point args, in order
+    ARG_REGS: List[str] = None                                  # A list of all the registers used for integral args, in order (names or offsets)
+    FP_ARG_REGS: List[str] = None                               # A list of all the registers used for floating point args, in order
     STACKARG_SP_BUFF = 0                                        # The amount of stack space reserved between the saved return address
                                                                 # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0                                        # The amount of stack space reserved for the return address
-    CALLER_SAVED_REGS: List[SimFunctionArgument] = None         # Caller-saved registers
+    CALLER_SAVED_REGS: List[str] = None                         # Caller-saved registers
     RETURN_ADDR: SimFunctionArgument = None                     # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL: SimFunctionArgument = None                      # The location where the return value is stored, as a SimFunctionArgument
     OVERFLOW_RETURN_VAL: Optional[SimFunctionArgument] = None   # The second half of the location where a double-length return value is stored
@@ -1391,7 +1391,7 @@ CC = {
 }
 
 
-DEFAULT_CC = {
+DEFAULT_CC: Dict[str,type] = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
     'ARMEL': SimCCARM,
