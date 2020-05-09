@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional, Dict, Tuple, Set, TYPE_CHECKING
+from typing import Optional, Dict, Tuple, Set, Any, TYPE_CHECKING
 from collections import defaultdict
 
 import ailment
@@ -111,7 +111,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._engine_ail = SimEngineRDAIL(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
 
-        self._visited_blocks: Set[int] = visited_blocks or set()
+        self._visited_blocks: Set[Any] = visited_blocks or set()
 
         self.observed_results: Dict[Tuple[str,int,int],LiveDefinitions] = {}
         self.all_definitions = set()
