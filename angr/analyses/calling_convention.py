@@ -180,7 +180,7 @@ class CallingConventionAnalysis(Analysis):
         facts = [ ]
         call_sites = self._cfg.get_predecessors(node)
 
-        call_sites_by_function: Dict[Function,List[Tuple[int,int]]] = defaultdict(list)
+        call_sites_by_function: Dict['Function',List[Tuple[int,int]]] = defaultdict(list)
         for call_site in call_sites:
             if not self.project.kb.functions.contains_addr(call_site.function_address):
                 continue
@@ -190,7 +190,7 @@ class CallingConventionAnalysis(Analysis):
                 continue
             call_sites_by_function[caller].append((call_site.addr, call_site.instruction_addrs[-1]))
 
-        rda_by_function: Dict[int,ReachingDefinitionsAnalysis] = {}
+        rda_by_function: Dict[int,'ReachingDefinitionsAnalysis'] = {}
         for caller, call_site_tuples in call_sites_by_function.items():
             observer = CallSiteObserverControl(caller.addr, call_site_tuples)
             rda = self.project.analyses.ReachingDefinitions(subject=caller,
@@ -212,9 +212,8 @@ class CallingConventionAnalysis(Analysis):
             True, # by default we treat all return values as used
         )
 
-        vm = self._variable_manager[caller_func_addr]
         state = rda.observed_results[('node', caller_block_addr, 1)]
-        all_uses: Uses = rda.all_uses
+        all_uses: 'Uses' = rda.all_uses
 
         default_cc_cls = DefaultCC.get(self.project.arch.name, None)
 
@@ -225,7 +224,7 @@ class CallingConventionAnalysis(Analysis):
 
             return_val = default_cc.RETURN_VAL
             if return_val is not None and isinstance(return_val, SimRegArg):
-                return_reg_offset, return_reg_size = self.project.arch.registers[return_val.reg_name]
+                return_reg_offset, _ = self.project.arch.registers[return_val.reg_name]
 
                 # find the def of the return val
                 try:

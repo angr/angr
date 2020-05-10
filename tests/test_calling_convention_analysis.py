@@ -48,7 +48,7 @@ def test_fauxware():
         'i386': [
             ('authenticate', SimCCCdecl(
                 archinfo.arch_from_id('i386'),
-                args=[SimStackArg(4, 4), SimStackArg(8, 4)], sp_delta=4
+                args=[SimStackArg(4, 4), SimStackArg(8, 4)], sp_delta=4, ret_val=SimRegArg('eax', 4),
                 )
              ),
         ],
@@ -56,7 +56,8 @@ def test_fauxware():
             ('authenticate', SimCCSystemVAMD64(
                 amd64,
                 args=[SimRegArg('rdi', 8), SimRegArg('rsi', 8)],
-                sp_delta=8
+                sp_delta=8,
+                ret_val=SimRegArg('rax', 8),
                 )
              ),
         ],

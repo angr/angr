@@ -368,7 +368,7 @@ class Clinic(Analysis):
 
             func_args.append(func_arg)
 
-        if self.function.calling_convention.ret_val is None:
+        if self.function.calling_convention is not None and self.function.calling_convention.ret_val is None:
             returnty = SimTypeBottom(label="void")
         else:
             returnty = SimTypeInt()
