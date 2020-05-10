@@ -105,30 +105,33 @@ class SimEngineRDVEX(
 
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
     def _handle_Store(self, stmt):
-        self._handle_Store_core(stmt)
+        addr = self._expr(stmt.addr)
+        size = stmt.data.result_size(self.tyenv) // 8
+        data = self._expr(stmt.data)
 
-    def _handle_StoreG(self, stmt):
+        self._store_core(addr, size, data)
+
+    def _handle_StoreG(self, stmt: pyvex.IRStmt.StoreG):
         guard = self._expr(stmt.guard)
         if guard.data == {True}:
-            self._handle_Store_core(stmt)
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) // 8
+            data = self._expr(stmt.data)
+
+            self._store_core(addr, size, data)
         elif guard.data == {False}:
             pass
         else:
             # guard.data == {True, False}
             # get current data
-            load_end = stmt.end
-            load_ty = self.tyenv.lookup(stmt.data.tmp)
-            load_addr = stmt.addr
-            load_expr = pyvex.IRExpr.Load(load_end, load_ty, load_addr)
-            data_old = self._handle_Load(load_expr)
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) // 8
+            data_old = self._load_core(addr, size, stmt.endness)
+            data = self._expr(stmt.data)
 
-            self._handle_Store_core(stmt, data_old=data_old)
+            self._store_core(addr, size, data, data_old=data_old)
 
-    def _handle_Store_core(self, stmt, data_old=None):
-        addr = self._expr(stmt.addr)
-        size = stmt.data.result_size(self.tyenv) // 8
-        data = self._expr(stmt.data)
-
+    def _store_core(self, addr: Iterable[Union[int,SpOffset,Undefined]], size: int, data, data_old=None):
         if data_old:
             data.update(data_old)
 
@@ -175,6 +178,25 @@ class SimEngineRDVEX(
 
     def _handle_AbiHint(self, stmt):
         pass
+
+    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+        if stmt.storedata is None:
+            # load-link
+            addr = self._expr(stmt.addr)
+            size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
+            load_result = self._load_core(addr, size, stmt.endness)
+            self.tmps[stmt.result] = load_result
+            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // 8),
+                                               self._codeloc(),
+                                               self.tmps[stmt.result])
+        else:
+            # store-conditional
+            storedata = self._expr(stmt.storedata)
+            addr = self._expr(stmt.addr)
+            size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
+
+            self._store_core(addr, size, storedata)
+            self.tmps[stmt.result] = DataSet({1}, 1)
 
     #
     # VEX expression handlers
@@ -228,6 +250,10 @@ class SimEngineRDVEX(
         bits = expr.result_size(self.tyenv)
         size = bits // self.arch.byte_width
 
+        return self._load_core(addr, size, expr.endness)
+
+    def _load_core(self, addr: Iterable[Union[int,SpOffset]], size: int, endness: str):
+
         data = set()
         for a in addr:
             if isinstance(a, int):
@@ -263,7 +289,7 @@ class SimEngineRDVEX(
         if len(data) == 0:
             data.add(undefined)
 
-        return DataSet(data, bits)
+        return DataSet(data, size * self.arch.byte_width)
 
     # CAUTION: experimental
     def _handle_ITE(self, expr):

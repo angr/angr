@@ -136,6 +136,9 @@ class SimEngineLightVEXMixin:
     def _handle_StoreG(self, stmt):
         raise NotImplementedError('Please implement the StoreG handler with your own logic.')
 
+    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+        raise NotImplementedError('Please implement the LLSC handler with your own logic.')
+
     #
     # Expression handlers
     #
