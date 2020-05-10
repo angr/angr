@@ -39,16 +39,23 @@ class CallingConventionAnalysis(Analysis):
     :ivar _variable_manager:    A handy accessor to the variable manager.
     :ivar _cfg:         A reference of the CFGModel of the current binary. It is used to discover call sites of the
                         current function in order to perform analysis at call sites.
+    :ivar analyze_callsites:    True if we should analyze all call sites of the current function to determine the
+                                calling convention and arguments. This can be time-consuming if there are many call
+                                sites to analyze.
     :ivar cc:           The recovered calling convention for the function.
     """
 
-    def __init__(self, func: 'Function', cfg: Optional['CFGModel']=None):
+    def __init__(self, func: 'Function', cfg: Optional['CFGModel']=None, analyze_callsites: bool=False):
 
         self._function = func
         self._variable_manager = self.kb.variables
         self._cfg = cfg
+        self.analyze_callsites = analyze_callsites
 
         self.cc: Optional[SimCC] = None
+
+        if self._cfg is None and 'CFGFast' in self.kb.cfgs:
+            self._cfg = self.kb.cfgs['CFGFast']
 
         self._analyze()
 
@@ -67,10 +74,10 @@ class CallingConventionAnalysis(Analysis):
             self.cc = self._analyze_plt()
             return
 
-        cc_0 = self._analyze_function()
-        callsite_facts = self._analyze_callsites()
-
-        cc = self._adjust_cc(cc_0, callsite_facts)
+        cc = self._analyze_function()
+        if self.analyze_callsites:
+            callsite_facts = self._analyze_callsites()
+            cc = self._adjust_cc(cc, callsite_facts)
 
         if cc is None:
             l.warning('Cannot determine calling convention for %r.', self._function)
