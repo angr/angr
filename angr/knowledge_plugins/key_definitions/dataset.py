@@ -99,8 +99,8 @@ class DataSet:
 
         res = set()
 
-        if self._bits != other.bits:
-            l.warning('Binary operation with different sizes.')
+        #if self._bits != other.bits:
+        #    l.warning('Binary operation with different sizes.')
 
         for o in other:
             for s in self:

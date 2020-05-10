@@ -6,16 +6,16 @@ from archinfo.arch_arm import is_arm_arch
 
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
-from .reaching_definitions.atoms import Register
-from .reaching_definitions.constants import OP_BEFORE, OP_AFTER
+from ..knowledge_plugins.key_definitions.atoms import Register
+from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
     from ..knowledge_plugins.functions import Function
     from ..knowledge_plugins.cfg import CFGModel
-    from ..analyses.reaching_definitions.uses import Uses
+    from ..knowledge_plugins.key_definitions.uses import Uses
+    from ..knowledge_plugins.key_definitions.definition import Definition
     from .reaching_definitions import ReachingDefinitionsAnalysis
-    from .reaching_definitions.definition import Definition
 
 l = logging.getLogger(name=__name__)
 
@@ -190,14 +190,16 @@ class CallingConventionAnalysis(Analysis):
                 continue
             call_sites_by_function[caller].append((call_site.addr, call_site.instruction_addrs[-1]))
 
+        call_sites_by_function = list(call_sites_by_function.items())[:5]
+
         rda_by_function: Dict[int,'ReachingDefinitionsAnalysis'] = {}
-        for caller, call_site_tuples in call_sites_by_function.items():
+        for caller, call_site_tuples in call_sites_by_function:
             observer = CallSiteObserverControl(caller.addr, call_site_tuples)
             rda = self.project.analyses.ReachingDefinitions(subject=caller,
                                                             observe_callback=observer.rda_observe_callback)
             rda_by_function[caller.addr] = rda
 
-        for caller, call_site_tuples in call_sites_by_function.items():
+        for caller, call_site_tuples in call_sites_by_function:
             for call_site_tuple in call_site_tuples:
                 fact = self._analyze_callsite(caller.addr, call_site_tuple[0],
                                               rda_by_function[caller.addr])

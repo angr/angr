@@ -7,13 +7,13 @@ from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, R
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg
-from .definition import Definition
-from .atoms import Register, MemoryLocation, Parameter, Tmp
-from .constants import OP_BEFORE, OP_AFTER
-from .dataset import DataSet
+from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, Parameter, Tmp
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...knowledge_plugins.key_definitions.dataset import DataSet
+from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
+from ...knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from .external_codeloc import ExternalCodeLocation
-from .undefined import Undefined, undefined
-from .live_definitions import LiveDefinitions
 
 l = logging.getLogger(name=__name__)
 
@@ -98,7 +98,7 @@ class SimEngineRDVEX(
 
         # special handling for references to stack variables
         for d in data:
-            if isinstance(d, SpOffset):
+            if isinstance(d, SpOffset) and isinstance(d.offset, int):
                 self.state.add_use(MemoryLocation(d, 1), self._codeloc())
 
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
@@ -186,9 +186,9 @@ class SimEngineRDVEX(
             size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
             load_result = self._load_core(addr, size, stmt.endness)
             self.tmps[stmt.result] = load_result
-            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // 8),
+            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
                                                self._codeloc(),
-                                               self.tmps[stmt.result])
+                                               load_result)
         else:
             # store-conditional
             storedata = self._expr(stmt.storedata)
@@ -197,6 +197,9 @@ class SimEngineRDVEX(
 
             self._store_core(addr, size, storedata)
             self.tmps[stmt.result] = DataSet({1}, 1)
+            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                                               self._codeloc(),
+                                               self.tmps[stmt.result])
 
     #
     # VEX expression handlers
@@ -273,7 +276,7 @@ class SimEngineRDVEX(
                 # FIXME: _add_memory_use() iterates over the same loop
                 memory_location = MemoryLocation(a, size)
                 self.state.add_use(memory_location, self._codeloc())
-            elif isinstance(a, SpOffset):
+            elif isinstance(a, SpOffset) and isinstance(a.offset, int):
                 # Load data from a local variable
                 current_defs: Iterable[Definition] = self.state.stack_definitions.get_objects_by_offset(a.offset)
                 if current_defs:
@@ -349,7 +352,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int):
                 return DataSet(e0 != 1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_Not(self, expr):
@@ -361,7 +364,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int):
                 return DataSet(e0 == 0, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     #
@@ -400,7 +403,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 == e1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CmpNE(self, expr):
@@ -414,7 +417,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 != e1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CmpLT(self, expr):
@@ -428,7 +431,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 < e1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     # ppc only
@@ -448,7 +451,7 @@ class SimEngineRDVEX(
                 else:
                     return DataSet(0x02, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CCall(self, expr):
@@ -525,7 +528,8 @@ class SimEngineRDVEX(
                                                                                     )
                 self.state = state
             else:
-                l.warning('Please implement the local function handler with your own logic.')
+                # l.warning('Please implement the local function handler with your own logic.')
+                pass
         else:
             l.warning('Could not find function name for external function at address %#x.', ip_addr)
             handler_name = 'handle_unknown_call'

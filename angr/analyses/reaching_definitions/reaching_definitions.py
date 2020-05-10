@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional, Dict, Tuple, Set, Any, TYPE_CHECKING
+from typing import Optional, Dict, Tuple, Set, Any, Union, TYPE_CHECKING
 from collections import defaultdict
 
 import ailment
@@ -8,15 +8,15 @@ import pyvex
 
 from ...block import Block
 from ...codenode import CodeNode
+from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
-from .constants import OP_BEFORE, OP_AFTER
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
-from .live_definitions import LiveDefinitions
+from .rd_state import ReachingDefinitionsState
 from .subject import Subject
-from .uses import Uses
 
 if TYPE_CHECKING:
     from .dep_graph import DepGraph
@@ -112,12 +112,25 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                                           self._function_handler)
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
-
-        self.observed_results: Dict[Tuple[str,int,int],LiveDefinitions] = {}
-        self.all_definitions = set()
-        self.all_uses = Uses()
+        self.model: ReachingDefinitionsModel = ReachingDefinitionsModel()
 
         self._analyze()
+
+    @property
+    def observed_results(self) -> Dict[Tuple[str,int,int],LiveDefinitions]:
+        return self.model.observed_results
+
+    @property
+    def all_definitions(self):
+        return self.model.all_definitions
+
+    @all_definitions.setter
+    def all_definitions(self, v):
+        self.model.all_definitions = v
+
+    @property
+    def all_uses(self):
+        return self.model.all_uses
 
     @property
     def one_result(self):
@@ -157,7 +170,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         return self.observed_results[key]
 
-    def node_observe(self, node_addr: int, state: LiveDefinitions, op_type: int):
+    def node_observe(self, node_addr: int, state: ReachingDefinitionsState, op_type: int) -> None:
         """
         :param node_addr:   Address of the node.
         :param state:       The analysis state.
@@ -176,15 +189,16 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             observe = self._observe_callback('node', addr=node_addr, state=state, op_type=op_type)
 
         if observe:
-            self.observed_results[key] = state
+            self.observed_results[key] = state.live_definitions
 
-    def insn_observe(self, insn_addr, stmt, block, state, op_type):
+    def insn_observe(self, insn_addr: int, stmt: Union[ailment.Stmt.Statement,pyvex.stmt.IRStmt],
+                     block: Union[Block,ailment.Block], state: ReachingDefinitionsState, op_type: int) -> None:
         """
-        :param int insn_addr:
-        :param ailment.Stmt.Statement|pyvex.stmt.IRStmt stmt:
-        :param angr.Block block:
-        :param angr.analyses.reaching_definitions.LiveDefinitions state:
-        :param angr.analyses.reaching_definitions.constants op_type: OP_BEFORE, OP_AFTER
+        :param insn_addr:   Address of the instruction.
+        :param stmt:        The statement.
+        :param block:       The current block.
+        :param state:       The abstract analysis state.
+        :param op_type:     Type of the observation point. Must be one of the following: OP_BEORE, OP_AFTER.
         """
 
         key = 'insn', insn_addr, op_type
@@ -206,7 +220,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             vex_block = block.vex
             # OP_BEFORE: stmt has to be IMark
             if op_type == OP_BEFORE and type(stmt) is pyvex.stmt.IMark:
-                self.observed_results[key] = state.copy()
+                self.observed_results[key] = state.live_definitions.copy()
             # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
             elif op_type == OP_AFTER:
                 idx = vex_block.statements.index(stmt)
@@ -232,19 +246,19 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         if self._init_state is not None:
             return self._init_state
         else:
-            return LiveDefinitions(
-                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self
+            return ReachingDefinitionsState(
+                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self,
             )
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
 
-    def _run_on_node(self, node, state):
+    def _run_on_node(self, node, state: ReachingDefinitionsState):
         """
 
-        :param node:
-        :param LiveDefinitions state:
-        :return:
+        :param node:    The current node.
+        :param state:   The analysis state.
+        :return:        A tuple: (reached fix-point, successor state)
         """
 
         self._visited_blocks.add(node)
@@ -269,7 +283,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             block=block,
             fail_fast=self._fail_fast,
             visited_blocks=self._visited_blocks
-        )  # type: LiveDefinitions, set
+        )  # type: ReachingDefinitionsState, set
 
         self._node_iterations[block_key] += 1
 

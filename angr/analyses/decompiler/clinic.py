@@ -12,8 +12,8 @@ from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from .. import Analysis, register_analysis
-from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from .ailgraph_walker import AILGraphWalker
 from .optimization_passes import get_default_optimization_passes
 

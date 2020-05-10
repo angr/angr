@@ -5,65 +5,43 @@ import archinfo
 
 from collections import defaultdict
 
-from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
-from ..code_location import CodeLocation
-from .atoms import Atom, GuardUse, Register, MemoryLocation, Tmp
-from .dataset import DataSet
+from ...analyses.code_location import CodeLocation
+from .atoms import Atom, Register, MemoryLocation, Tmp
 from .definition import Definition
-from .external_codeloc import ExternalCodeLocation
-from .subject import Subject, SubjectType
 from .undefined import undefined
 from .uses import Uses
+from .dataset import DataSet
 
 
 l = logging.getLogger(name=__name__)
 
 
 class LiveDefinitions:
-
-    __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'register_definitions', 'stack_definitions',
-                 'memory_definitions', 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses',
-                 'uses_by_codeloc', 'tmp_uses', 'all_definitions', 'current_codeloc', 'codeloc_uses')
-
     """
-    Represents the internal state of the ReachingDefinitionsAnalysis.
-
-    It contains definitions and uses for register, stack, memory, and temporary variables, uncovered during the analysis.
-
-    :param angr.analyses.reaching_definitions.Subject: The subject being analysed.
-    :param archinfo.Arch arch: The architecture targeted by the program.
-    :param Boolean track_tmps: Only tells whether or not temporary variables should be taken into consideration when
-                              representing the state of the analysis.
-                              Should be set to true when the analysis has counted uses and definitions for temporary
-                              variables, false otherwise.
-    :param angr.analyses.analysis.Analysis analysis: The analysis that generated the state represented by this object.
-    :param int rtoc_value: When the targeted architecture is ppc64, the initial function needs to know the `rtoc_value`.
+    A LiveDefinitions instance contains definitions and uses for register, stack, memory, and temporary variables,
+    uncovered during the analysis.
     """
-    def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False, analysis=None, rtoc_value=None):
 
-        # handy short-hands
+    __slots__ = ('arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'memory_definitions',
+                 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses', 'uses_by_codeloc', 'tmp_uses', )
+
+    def __init__(self, arch: archinfo.Arch, track_tmps: bool=False):
+
         self.arch = arch
-        self._subject = subject
-        self._track_tmps = track_tmps
-        self.analysis = analysis
+        self.track_tmps = track_tmps
 
         self.register_definitions = KeyedRegion()
         self.stack_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
         self.tmp_definitions: Dict[int,Set[Definition]] = {}
-        self.all_definitions: Set[Definition] = set()
-
-        self._set_initialization_values(subject, rtoc_value)
 
         self.register_uses = Uses()
         self.stack_uses = Uses()
         self.memory_uses = Uses()
         self.uses_by_codeloc: Dict[CodeLocation,Set[Definition]] = defaultdict(set)
         self.tmp_uses: Dict[int,Set[CodeLocation]] = defaultdict(set)
-        self.current_codeloc: Optional[CodeLocation] = None
-        self.codeloc_uses: Set[Definition] = set()
 
     def __repr__(self):
         ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d memdefs" % (
@@ -71,80 +49,12 @@ class LiveDefinitions:
                 len(self.stack_definitions),
                 len(self.memory_definitions),
                 )
-        if self._track_tmps:
+        if self.tmp_definitions:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
 
-    @property
-    def dep_graph(self):
-        return self.analysis.dep_graph
-
-    def _set_initialization_values(self, subject: Subject, rtoc_value: Optional[int]=None):
-        if subject.type is SubjectType.Function:
-            if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
-                raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
-
-            self._initialize_function(
-                subject.cc,
-                subject.content.addr,
-                rtoc_value,
-            )
-        elif subject.type is SubjectType.Block:
-            pass
-
-        return self
-
-    def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
-        # initialize stack pointer
-        sp = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits))
-        self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
-        if self.arch.name.startswith('MIPS'):
-            if func_addr is None:
-                l.warning("func_addr must not be None to initialize a function in mips")
-            t9 = Register(self.arch.registers['t9'][0], self.arch.bytes)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits))
-            self.register_definitions.set_object(t9_def.offset,t9_def,t9_def.size)
-
-        if cc is not None and cc.args is not None:
-            for arg in cc.args:
-                # initialize register parameters
-                if isinstance(arg, SimRegArg):
-                    # FIXME: implement reg_offset handling in SimRegArg
-                    reg_offset = self.arch.registers[arg.reg_name][0]
-                    reg = Register(reg_offset, self.arch.bytes)
-                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(undefined, self.arch.bits))
-                    self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
-                # initialize stack parameters
-                elif isinstance(arg, SimStackArg):
-                    sp_offset = SpOffset(self.arch.bits, arg.stack_offset)
-                    ml = MemoryLocation(sp_offset, arg.size)
-                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, arg.size * 8))
-                    self.stack_definitions.set_object(arg.stack_offset, ml_def, ml.size)
-                else:
-                    raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
-
-        # architecture dependent initialization
-        if self.arch.name.lower().find('ppc64') > -1:
-            if rtoc_value is None:
-                raise TypeError("rtoc_value must be provided on PPC64.")
-            offset, size = self.arch.registers['rtoc']
-            rtoc = Register(offset, size)
-            rtoc_def = Definition(rtoc, ExternalCodeLocation(), DataSet(rtoc_value, self.arch.bits))
-            self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
-        elif self.arch.name.lower().find('mips64') > -1:
-            offset, size = self.arch.registers['t9']
-            t9 = Register(offset, size)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet({func_addr}, self.arch.bits))
-            self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
-
     def copy(self) -> 'LiveDefinitions':
-        rd = type(self)(
-            self.arch,
-            self._subject,
-            track_tmps=self._track_tmps,
-            analysis=self.analysis,
-        )
+        rd = LiveDefinitions(self.arch, track_tmps=self.track_tmps)
 
         rd.register_definitions = self.register_definitions.copy()
         rd.stack_definitions = self.stack_definitions.copy()
@@ -154,7 +64,6 @@ class LiveDefinitions:
         rd.stack_uses = self.stack_uses.copy()
         rd.memory_uses = self.memory_uses.copy()
         rd.tmp_uses = self.tmp_uses.copy()
-        rd.all_definitions = self.all_definitions.copy()
 
         return rd
 
@@ -184,14 +93,7 @@ class LiveDefinitions:
             state.stack_uses.merge(other.stack_uses)
             state.memory_uses.merge(other.memory_uses)
 
-            state.all_definitions.update(other.all_definitions)
-
         return state
-
-    def _cycle(self, code_loc: CodeLocation) -> None:
-        if code_loc != self.current_codeloc:
-            self.current_codeloc = code_loc
-            self.codeloc_uses = set()
 
     def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet]=None, dummy=True) -> None:
         """
@@ -211,8 +113,6 @@ class LiveDefinitions:
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
                                 dummy=False) -> Optional[Definition]:
-        self._cycle(code_loc)
-
         definition: Optional[Definition]
 
         if isinstance(atom, Register):
@@ -230,55 +130,9 @@ class LiveDefinitions:
         else:
             raise NotImplementedError()
 
-        if definition is not None:
-            self.all_definitions.add(definition)
-
-            if self.dep_graph is not None:
-                stack_use = set(filter(
-                    lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack,
-                    self.codeloc_uses
-                ))
-
-                sp_offset = self.arch.sp_offset
-                bp_offset = self.arch.bp_offset
-
-                for used in self.codeloc_uses:
-                    # sp is always used as a stack pointer, and we do not track dependencies against stack pointers.
-                    # bp is sometimes used as a base pointer. we recognize such cases by checking if there is a use to
-                    # the stack variable.
-                    #
-                    # There are two cases for which it is superfluous to report a dependency on (a use of) stack/base
-                    # pointers:
-                    # - The `Definition` *uses* a `MemoryLocation` pointing to the stack;
-                    # - The `Definition` *is* a `MemoryLocation` pointing to the stack.
-                    is_using_spbp_while_memory_address_on_stack_is_used = (
-                        isinstance(used.atom, Register) and
-                        used.atom.reg_offset in (sp_offset, bp_offset) and
-                        len(stack_use) > 0
-                    )
-                    is_using_spbp_to_define_memory_location_on_stack = (
-                        isinstance(definition.atom, MemoryLocation) and
-                        definition.atom.is_on_stack and
-                        isinstance(used.atom, Register) and
-                        used.atom.reg_offset in (sp_offset, bp_offset)
-                    )
-
-                    if not (
-                        is_using_spbp_while_memory_address_on_stack_is_used or
-                        is_using_spbp_to_define_memory_location_on_stack
-                    ):
-                        # Moderately confusing misnomers. This is an edge from a def to a use, since the
-                        # "uses" are actually the definitions that we're using and the "definition" is the
-                        # new definition; i.e. The def that the old def is used to construct so this is
-                        # really a graph where nodes are defs and edges are uses.
-                        self.dep_graph.add_edge(used, definition)
-
         return definition
 
     def add_use(self, atom: Atom, code_loc) -> None:
-        self._cycle(code_loc)
-        self.codeloc_uses.update(self.get_definitions(atom))
-
         if isinstance(atom, Register):
             self._add_register_use(atom, code_loc)
         elif isinstance(atom, MemoryLocation):
@@ -294,10 +148,7 @@ class LiveDefinitions:
         else:
             raise TypeError("Unsupported atom type %s." % type(atom))
 
-    def add_use_by_def(self, definition, code_loc) -> None:
-        self._cycle(code_loc)
-        self.codeloc_uses.update({definition})
-
+    def add_use_by_def(self, definition: Definition, code_loc: CodeLocation) -> None:
         if isinstance(definition.atom, Register):
             self._add_register_use_by_def(definition, code_loc)
         elif isinstance(definition.atom, MemoryLocation):
@@ -327,15 +178,6 @@ class LiveDefinitions:
             return self.tmp_definitions[atom.tmp_idx]
         else:
             raise TypeError()
-
-    def mark_guard(self, code_loc: CodeLocation, data: DataSet, target):
-        self._cycle(code_loc)
-        atom = GuardUse(target)
-        kinda_definition = Definition(atom, code_loc, data)
-
-        if self.dep_graph is not None:
-            for used in self.codeloc_uses:
-                self.dep_graph.add_edge(used, kinda_definition)
 
     #
     # Private methods
@@ -372,7 +214,7 @@ class LiveDefinitions:
 
     def _add_tmp_definition(self, atom: Tmp, code_loc: CodeLocation, data: Optional[DataSet]) -> Optional[Definition]:
 
-        if self._track_tmps:
+        if self.track_tmps:
             if data is None:
                 data = DataSet(undefined, atom.size)
             def_ = Definition(atom, code_loc, data)
@@ -421,7 +263,7 @@ class LiveDefinitions:
 
     def _add_tmp_use(self, atom: Tmp, code_loc: CodeLocation) -> None:
 
-        if self._track_tmps:
+        if self.track_tmps:
             defs = self.tmp_definitions[atom.tmp_idx]
             for def_ in defs:
                 self._add_tmp_use_by_def(def_, code_loc)

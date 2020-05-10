@@ -12,10 +12,11 @@ import nose
 import ailment
 import angr
 import archinfo
-from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
-from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.analyses.reaching_definitions.live_definitions import (LiveDefinitions, Definition, SpOffset,
-                                                                 ExternalCodeLocation)
+from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject, SubjectType
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
@@ -62,7 +63,7 @@ class InsnAndNodeObserveTestingUtils():
             subject=main_function, observation_points=observation_points
         )
 
-        state = LiveDefinitions(
+        state = ReachingDefinitionsState(
            project.arch, reaching_definitions.subject,
         )
 
@@ -79,8 +80,8 @@ class ReachingDefinitionsAnalysisTest(TestCase):
         result = _extract_result(reaching_definition)
 
         # Uncomment these to regenerate the reference results... if you dare
-        #with open(result_path, 'wb') as result_file:
-        #    pickle.dump(result, result_file)
+        with open(result_path, 'wb') as result_file:
+            pickle.dump(result, result_file)
         with open(result_path, 'rb') as result_file:
             expected_result = pickle.load(result_file)
 
@@ -96,7 +97,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             'x86_64',
             binary_results_name + '.pickle'
         )
-
 
     def test_reaching_definition_analysis_definitions(self):
         def _result_extractor(rda):
@@ -124,7 +124,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
 
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
 
-
     def test_reaching_definition_analysis_visited_blocks(self):
         def _result_extractor(rda):
             return list(sorted(rda.visited_blocks, key=lambda b: b.addr))
@@ -141,7 +140,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
 
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
 
-
     def test_node_observe(self):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_AFTER)]
@@ -155,10 +153,9 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             reaching_definition.observed_results,
             observation_points
         )
-        expected_results = [state]
+        expected_results = [state.live_definitions]
 
         nose.tools.assert_equals(results, expected_results)
-
 
     def test_insn_observe_an_ailment_statement(self):
         # Create several different observation points
@@ -185,7 +182,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             zip(results, expected_results)
         ))
 
-
     def test_insn_observe_before_an_imark_pyvex_statement(self):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_BEFORE)]
@@ -210,7 +206,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             lambda x: InsnAndNodeObserveTestingUtils.assert_equals_for_live_definitions(x[0], x[1]),
             zip(results, expected_results)
         ))
-
 
     def test_insn_observe_after_a_pyvex_statement(self):
         # Create several different observation points
@@ -238,7 +233,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             lambda x: InsnAndNodeObserveTestingUtils.assert_equals_for_live_definitions(x[0], x[1]),
             zip(results, expected_results)
         ))
-
 
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
@@ -268,15 +262,14 @@ class LiveDefinitionsTest(TestCase):
         arch = archinfo.arch_ppc64.ArchPPC64()
         nose.tools.assert_raises(
            ValueError,
-           LiveDefinitions, arch=arch, subject=self._MockFunctionSubject()
+           ReachingDefinitionsState, arch=arch, subject=self._MockFunctionSubject()
         )
-
 
     def test_initializing_live_definitions_for_ppc_with_rtoc_value(self):
         arch = archinfo.arch_ppc64.ArchPPC64()
         rtoc_value = random.randint(0, 0xffffffffffffffff)
 
-        live_definition = LiveDefinitions(
+        live_definition = ReachingDefinitionsState(
            arch=arch, subject=self._MockFunctionSubject(), rtoc_value=rtoc_value
         )
 
@@ -287,7 +280,6 @@ class LiveDefinitionsTest(TestCase):
         rtoc_definition_value = rtoc_definition.data.get_first_element()
 
         nose.tools.assert_equals(rtoc_definition_value, rtoc_value)
-
 
     def test_get_the_sp_from_a_reaching_definition(self):
         binary = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
