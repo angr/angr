@@ -9,7 +9,7 @@ import archinfo
 
 from ..engine import SimEngine
 from angr.engines.vex.claripy.irop import operations as vex_operations
-from ...analyses.code_location import CodeLocation
+from ...code_location import CodeLocation
 
 
 class SimEngineLight(SimEngine):

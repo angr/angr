@@ -1,5 +1,5 @@
 
-from ..code_location import CodeLocation
+from ...code_location import CodeLocation
 
 
 class ExternalCodeLocation(CodeLocation):

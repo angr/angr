@@ -7,7 +7,7 @@ from archinfo.arch_arm import is_arm_arch
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register
-from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
@@ -15,32 +15,9 @@ if TYPE_CHECKING:
     from ..knowledge_plugins.cfg import CFGModel
     from ..knowledge_plugins.key_definitions.uses import Uses
     from ..knowledge_plugins.key_definitions.definition import Definition
-    from .reaching_definitions import ReachingDefinitionsAnalysis
 
 l = logging.getLogger(name=__name__)
 
-
-class CallSiteObserverControl:
-    def __init__(self, func_addr: int, call_sites: List[Tuple[int,int]]):
-        self.func_addr = func_addr
-        self.call_site_block_addrs = set()
-        self.call_site_ins_addrs = set()
-
-        for block_addr, ins_addr in call_sites:
-            self.call_site_block_addrs.add(block_addr)
-            self.call_site_ins_addrs.add(ins_addr)
-
-    def rda_observe_callback(self, ob_type, **kwargs):
-        if ob_type == 'node':
-            block_addr = kwargs.pop('addr', None)
-            op_type = kwargs.pop('op_type', None)
-            return block_addr in self.call_site_block_addrs and op_type == OP_AFTER
-        elif ob_type == 'insn':
-            ins_addr = kwargs.pop('addr', None)
-            op_type = kwargs.pop('op_type', None)
-            return ins_addr in self.call_site_ins_addrs and op_type == OP_BEFORE
-
-        return False
 
 
 class CallSiteFact:
@@ -178,37 +155,40 @@ class CallingConventionAnalysis(Analysis):
             l.warning("%r is not in the CFG. Skip calling convention analysis at call sites.", self._function)
 
         facts = [ ]
-        call_sites = self._cfg.get_predecessors(node)
+        in_edges = self._cfg.graph.in_edges(node, data=True)
 
         call_sites_by_function: Dict['Function',List[Tuple[int,int]]] = defaultdict(list)
-        for call_site in call_sites:
-            if not self.project.kb.functions.contains_addr(call_site.function_address):
+        for src, _, data in in_edges:
+            edge_type = data.get('jumpkind', 'Ijk_Call')
+            if edge_type != 'Ijk_Call':
                 continue
-            caller = self.project.kb.functions[call_site.function_address]
+            if not self.project.kb.functions.contains_addr(src.function_address):
+                continue
+            caller = self.project.kb.functions[src.function_address]
             if caller.is_simprocedure:
                 # do not analyze SimProcedures
                 continue
-            call_sites_by_function[caller].append((call_site.addr, call_site.instruction_addrs[-1]))
+            call_sites_by_function[caller].append((src.addr, src.instruction_addrs[-1]))
 
-        call_sites_by_function = list(call_sites_by_function.items())[:5]
+        # only take the first 5 cuz running reaching definition analysis on all functions is costly
+        call_sites_by_function_list = list(call_sites_by_function.items())[:5]
 
-        rda_by_function: Dict[int,'ReachingDefinitionsAnalysis'] = {}
-        for caller, call_site_tuples in call_sites_by_function:
-            observer = CallSiteObserverControl(caller.addr, call_site_tuples)
-            rda = self.project.analyses.ReachingDefinitions(subject=caller,
-                                                            observe_callback=observer.rda_observe_callback)
-            rda_by_function[caller.addr] = rda
+        rda_by_function: Dict[int,Optional[ReachingDefinitionsModel]] = {}
+        for caller, call_site_tuples in call_sites_by_function_list:
+            rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
+            rda_by_function[caller.addr] = rda_model
 
-        for caller, call_site_tuples in call_sites_by_function:
+        for caller, call_site_tuples in call_sites_by_function_list:
+            if rda_by_function[caller.addr] is None:
+                continue
             for call_site_tuple in call_site_tuples:
-                fact = self._analyze_callsite(caller.addr, call_site_tuple[0],
-                                              rda_by_function[caller.addr])
+                fact = self._analyze_callsite(caller.addr, call_site_tuple[0], rda_by_function[caller.addr])
                 facts.append(fact)
 
         return facts
 
     def _analyze_callsite(self, caller_func_addr: int, caller_block_addr: int,
-                          rda: 'ReachingDefinitionsAnalysis') -> CallSiteFact:
+                          rda: ReachingDefinitionsModel) -> CallSiteFact:
 
         fact = CallSiteFact(
             True, # by default we treat all return values as used

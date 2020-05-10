@@ -8,6 +8,7 @@ import pyvex
 
 from ...block import Block
 from ...codenode import CodeNode
+from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...misc.ux import deprecated
@@ -112,7 +113,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                                           self._function_handler)
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
-        self.model: ReachingDefinitionsModel = ReachingDefinitionsModel()
+        self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
+            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None)
 
         self._analyze()
 

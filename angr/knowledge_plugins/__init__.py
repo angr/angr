@@ -10,3 +10,4 @@ from .xrefs import XRefManager
 from .plugin import KnowledgeBasePlugin
 from .sync import SynchronizationManager
 from .patches import PatchManager
+from .key_definitions import KeyDefinitionManager

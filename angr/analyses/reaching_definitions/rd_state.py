@@ -10,7 +10,7 @@ from ...knowledge_plugins.key_definitions.undefined import undefined
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
-from ..code_location import CodeLocation
+from ...code_location import CodeLocation
 from .external_codeloc import ExternalCodeLocation
 from .subject import Subject, SubjectType
 

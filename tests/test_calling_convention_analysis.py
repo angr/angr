@@ -168,7 +168,7 @@ def test_x8664_void():
 
     cfg = proj.analyses.CFG()
 
-    proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg)
+    proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
 
     funcs = cfg.kb.functions
 
@@ -209,5 +209,5 @@ if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.calling_convention").setLevel(logging.INFO)
     # run_all()
-    test_armel_fauxware()
+    test_x8664_void()
     # test_dir_gcc_O0()

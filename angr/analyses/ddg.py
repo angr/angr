@@ -5,7 +5,7 @@ import networkx
 import pyvex
 from . import Analysis
 
-from .code_location import CodeLocation
+from ..code_location import CodeLocation
 from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
 from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, \
     SimStackVariable

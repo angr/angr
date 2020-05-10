@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
-from ...analyses.code_location import CodeLocation
+from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
 from .definition import Definition
 from .undefined import undefined
@@ -197,6 +197,8 @@ class LiveDefinitions:
                                        dummy=False) -> Definition:
         if not isinstance(atom.addr, SpOffset):
             raise TypeError("Atom %r does not represent a stack variable." % atom)
+        if not isinstance(atom.addr.offset, int):
+            raise ValueError("_kill_and_add_stack_definition() only supports writing to concrete stack offsets.")
         if data is None:
             data = DataSet(undefined, atom.size)
         definition = Definition(atom, code_loc, data, dummy=dummy)

@@ -12,7 +12,7 @@ from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation,
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
-from ...knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
+from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
 
 l = logging.getLogger(name=__name__)
@@ -31,7 +31,7 @@ class SimEngineRDVEX(
         self._visited_blocks = None
         self._dep_graph = None
 
-        self.state: LiveDefinitions
+        self.state: ReachingDefinitionsState
 
     def process(self, state, *args, **kwargs):
         self._dep_graph = kwargs.pop('dep_graph', None)
@@ -142,10 +142,11 @@ class SimEngineRDVEX(
                 if any(type(d) is Undefined for d in data):
                     l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
-                memloc = MemoryLocation(a, size)
-                # different addresses are not killed by a subsequent iteration, because kill only removes entries
-                # with same index and same size
-                self.state.kill_and_add_definition(memloc, self._codeloc(), data)
+                if isinstance(a, int) or (isinstance(a, SpOffset) and isinstance(a.offset, int)):
+                    memloc = MemoryLocation(a, size)
+                    # different addresses are not killed by a subsequent iteration, because kill only removes entries
+                    # with same index and same size
+                    self.state.kill_and_add_definition(memloc, self._codeloc(), data)
 
     def _handle_LoadG(self, stmt):
         guard: DataSet = self._expr(stmt.guard)
@@ -490,7 +491,7 @@ class SimEngineRDVEX(
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
                 executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-                state: LiveDefinitions
+                state: ReachingDefinitionsState
                 self.state = state
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')

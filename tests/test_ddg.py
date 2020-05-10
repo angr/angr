@@ -30,7 +30,7 @@ def perform_one(binary_path):
     # There should be at least 400 nodes
     nose.tools.assert_true(len(ddg.graph) >= 400)
 
-    from angr.analyses.code_location import CodeLocation
+    from angr.code_location import CodeLocation
 
     # Memory dependency 1
 

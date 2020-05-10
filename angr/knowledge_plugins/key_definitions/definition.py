@@ -1,7 +1,5 @@
-from typing import TYPE_CHECKING
-
 from ...engines.light import SpOffset
-from ...analyses.code_location import CodeLocation
+from ...code_location import CodeLocation
 from .atoms import Atom, MemoryLocation, Register
 from .dataset import DataSet
 
