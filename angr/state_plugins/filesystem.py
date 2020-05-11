@@ -277,10 +277,9 @@ class SimConcreteFilesystem(SimMount):
         self.deleted_list = set()
 
     def get(self, path_elements):
-        path = self.pathsep.join(x.decode() for x in path_elements)
+        path = self._join_chunks([x.decode() for x in path_elements])
         if path in self.deleted_list:
             return None
-
         if path not in self.cache:
             simfile = self._load_file(path)
             if simfile is None:
@@ -293,7 +292,7 @@ class SimConcreteFilesystem(SimMount):
         raise NotImplementedError
 
     def insert(self, path_elements, simfile):
-        path = self.pathsep.join(x.decode() for x in path_elements)
+        path = self._join_chunks([x.decode() for x in path_elements])
         simfile.set_state(self.state)
         self.cache[path] = simfile
         self.deleted_list.discard(path)
@@ -349,6 +348,12 @@ class SimConcreteFilesystem(SimMount):
     def widen(self, others): # pylint: disable=unused-argument
         if once('host_fs_widen_warning'):
             l.warning("The host filesystem mount can't be widened yet - beware unsoundness")
+
+    def _join_chunks(self, keys):
+        """
+        Takes a list of directories from the root and joins them into a string path
+        """
+        return self.pathsep + self.pathsep.join(keys)
 
 class SimHostFilesystem(SimConcreteFilesystem):
     """
