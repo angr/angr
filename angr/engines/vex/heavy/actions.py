@@ -13,6 +13,18 @@ class TrackActionsMixin(HeavyVEXMixin):
 
     __tls = ('__tmp_deps',)
 
+    def _is_true(self, v):
+        return super()._is_true(v[0])
+
+    def _is_false(self, v):
+        return super()._is_false(v[0])
+
+    def _optimize_guarded_addr(self, addr, guard):
+        addr, addr_deps = addr
+        guard, _ = guard
+        addr = super()._optimize_guarded_addr(addr, guard)
+        return addr, addr_deps
+
     def handle_vex_block(self, irsb):
         self.__tmp_deps = {}
         super().handle_vex_block(irsb)
@@ -103,6 +115,12 @@ class TrackActionsMixin(HeavyVEXMixin):
         else:
             a = frozenset()
         return result, a
+
+    def _perform_vex_stmt_LoadG_guard_condition(self, guard):
+        return super()._perform_vex_stmt_LoadG_guard_condition(guard[0])
+
+    def _perform_vex_stmt_StoreG_guard_condition(self, guard):
+        return super()._perform_vex_stmt_StoreG_guard_condition(guard[0])
 
     # statements
 

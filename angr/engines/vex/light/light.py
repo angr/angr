@@ -2,7 +2,6 @@ import logging
 from typing import Optional
 
 import pyvex
-import claripy
 
 from ...engine import SimEngineBase
 from ....utils.constants import DEFAULT_STATEMENT
@@ -276,16 +275,6 @@ class VEXMixin(SimEngineBase):
             self._perform_vex_stmt_LLSC_store(addr, storedata, endness)
             self._perform_vex_stmt_LLSC_wrtmp(result, self._handle_vex_const(pyvex.const.U1(1)))
 
-    def _optimize_vex_stmt_guarded_addr(self, guard, addr):
-        # optimization: is the guard the same as the condition inside the address? if so, unpack the address and remove
-        # the guarding condition.
-        if isinstance(guard[0], claripy.ast.Base) and guard[0].op == 'If' \
-                and isinstance(addr[0], claripy.ast.Base) and addr[0].op == 'If':
-            if guard[0].args[0] is addr[0].args[0]:
-                # the address is guarded by the same guard! unpack the addr
-                return (addr[0].args[1], addr[1])
-        return addr
-
     def _analyze_vex_stmt_LoadG_addr(self, *a, **kw): return self. _handle_vex_expr(*a, **kw)
     def _analyze_vex_stmt_LoadG_alt(self, *a, **kw): return self. _handle_vex_expr(*a, **kw)
     def _analyze_vex_stmt_LoadG_guard(self, *a, **kw): return self._handle_vex_expr(*a, **kw)
@@ -301,6 +290,7 @@ class VEXMixin(SimEngineBase):
     def _perform_vex_stmt_LoadG_widen(self, *a, **kw): return self. _perform_vex_expr_Op(*a, **kw)
     def _perform_vex_stmt_LoadG_ite(self, *a, **kw): return self. _perform_vex_expr_ITE(*a, **kw)
     def _perform_vex_stmt_LoadG_wrtmp(self, *a, **kw): return self. _perform_vex_stmt_WrTmp(*a, **kw)
+    def _perform_vex_stmt_LoadG_guard_condition(self, guard): return guard == 1
     def _perform_vex_stmt_LoadG(self, addr, alt, guard, dst, cvt, end):
         cvt_properties = {
             'ILGop_IdentV128': ('Ity_V128', None), # 128 bit vector, no conversion */
@@ -337,17 +327,17 @@ class VEXMixin(SimEngineBase):
         # which is not what the original instruction intended.
         # Therefore, the load from t66 should be aware of the condition that t280 is True. Or even better, don't
         # perform the read if the condition is evaluated to False.
-        # We can add another optimization: Let this condition be cond. When cond can be evaluated to either True or
+        # We can perform another optimization: Let this condition be cond. When cond can be evaluated to either True or
         # False, we don't want to perform the read when the cond is the guard (which is a relatively cheap check) and
         # is False. When the cond is True, we perform the read with only the intended address (instead of the entire
         # guarded address). This way we get rid of the redundant load that should have existed in the first place.
 
         ty, cvt_op = cvt_properties[cvt]
-        if claripy.is_false(guard[0]):
+        if self._is_false(guard):
             self._perform_vex_stmt_LoadG_wrtmp(dst, alt)
             return
-        addr = self._optimize_vex_stmt_guarded_addr(guard, addr)
-        load_result = self._perform_vex_stmt_LoadG_load(addr, ty, end, condition=guard[0] == 1)
+        load_result = self._perform_vex_stmt_LoadG_load(addr, ty, end,
+                                                        condition=self._perform_vex_stmt_LoadG_guard_condition(guard))
         if cvt_op is None:
             cvt_result = load_result
         else:
@@ -369,12 +359,13 @@ class VEXMixin(SimEngineBase):
     def _perform_vex_stmt_StoreG_load(self, *a, **kw): return self. _perform_vex_expr_Load(*a, **kw)
     def _perform_vex_stmt_StoreG_ite(self, *a, **kw): return self. _perform_vex_expr_ITE(*a, **kw)
     def _perform_vex_stmt_StoreG_store(self, *a, **kw): return self. _perform_vex_stmt_Store(*a, **kw)
+    def _perform_vex_stmt_StoreG_guard_condition(self, guard): return guard == 1
     def _perform_vex_stmt_StoreG(self, addr, data, guard, ty, endness, **kwargs):
         # perform the same optimization as in _perform_vex_stmt_LoadG
-        if claripy.is_false(guard[0]):
+        if self._is_false(guard):
             return
-        addr = self._optimize_vex_stmt_guarded_addr(guard, addr)
-        load_result = self._perform_vex_stmt_StoreG_load(addr, ty, endness, condition=guard[0] == 1)
+        load_result = self._perform_vex_stmt_StoreG_load(addr, ty, endness,
+                                                         condition=self._perform_vex_stmt_StoreG_guard_condition(guard))
         ite_result = self._perform_vex_stmt_StoreG_ite(guard, data, load_result)
         self._perform_vex_stmt_StoreG_store(addr, ite_result, endness, **kwargs)
 
