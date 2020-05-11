@@ -26,10 +26,39 @@ def symbol(ty, name):
         return claripy.BVS(name, pyvex.get_type_size(ty))
 
 class ClaripyDataMixin(VEXMixin):
+
+    # util methods
+
+    def _is_true(self, v):
+        return claripy.is_true(v)
+
+    def _is_false(self, v):
+        return claripy.is_false(v)
+
+    def _optimize_guarded_addr(self, addr, guard):
+        # optimization: is the guard the same as the condition inside the address? if so, unpack the address and remove
+        # the guarding condition.
+        if isinstance(guard, claripy.ast.Base) and guard.op == 'If' \
+                and isinstance(addr, claripy.ast.Base) and addr.op == 'If':
+            if guard.args[0] is addr.args[0]:
+                # the address is guarded by the same guard! unpack the addr
+                return addr.args[1]
+        return addr
+
     # consts
 
     def _handle_vex_const(self, const):
         return value(const.type, const.value)
+
+    # statements
+
+    def _perform_vex_stmt_LoadG(self, addr, alt, guard, dst, cvt, end):
+        addr = self._optimize_guarded_addr(addr, guard)
+        super()._perform_vex_stmt_LoadG(addr, alt, guard, dst, cvt, end)
+
+    def _perform_vex_stmt_StoreG(self, addr, data, guard, ty, endness, **kwargs):
+        addr = self._optimize_guarded_addr(addr, guard)
+        super()._perform_vex_stmt_StoreG(addr, data, guard, ty, endness, **kwargs)
 
     # is this right? do I care?
     def _handle_vex_expr_GSPTR(self, expr):
