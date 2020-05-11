@@ -69,5 +69,10 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
 
         return self.model_by_funcaddr[func_addr]
 
+    def copy(self) -> 'KeyDefinitionManager':
+        dm = KeyDefinitionManager(self.kb)
+        dm.model_by_funcaddr = dict(map(lambda x: (x[0], x[1].copy()),self.model_by_funcaddr.items()))
+        return dm
+
 
 KnowledgeBasePlugin.register_default('defs', KeyDefinitionManager)

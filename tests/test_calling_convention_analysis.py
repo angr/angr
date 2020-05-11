@@ -23,7 +23,7 @@ def run_fauxware(arch, function_and_cc_list):
         authenticate = cfg.functions[func_name]
         _ = fauxware.analyses.VariableRecoveryFast(authenticate)
 
-        cc_analysis = fauxware.analyses.CallingConvention(authenticate, cfg=cfg)
+        cc_analysis = fauxware.analyses.CallingConvention(authenticate, cfg=cfg, analyze_callsites=True)
         cc = cc_analysis.cc
 
         nose.tools.assert_equal(cc, expected_cc)
@@ -168,7 +168,7 @@ def test_x8664_void():
 
     cfg = proj.analyses.CFG()
 
-    proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+    proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model, analyze_callsites=True)
 
     funcs = cfg.kb.functions
 

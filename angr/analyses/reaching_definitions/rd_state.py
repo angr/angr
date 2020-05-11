@@ -4,7 +4,7 @@ import logging
 import archinfo
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
-from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation, Tmp
+from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.undefined import undefined
 from ...knowledge_plugins.key_definitions.dataset import DataSet

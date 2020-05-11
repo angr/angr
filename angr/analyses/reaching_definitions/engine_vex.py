@@ -256,7 +256,7 @@ class SimEngineRDVEX(
 
         return self._load_core(addr, size, expr.endness)
 
-    def _load_core(self, addr: Iterable[Union[int,SpOffset]], size: int, endness: str):
+    def _load_core(self, addr: Iterable[Union[int,SpOffset]], size: int, endness: str):  # pylint:disable=unused-argument
 
         data = set()
         for a in addr:

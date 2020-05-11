@@ -189,13 +189,12 @@ class CallingConventionAnalysis(Analysis):
             if rda_by_function[caller.addr] is None:
                 continue
             for call_site_tuple in call_site_tuples:
-                fact = self._analyze_callsite(caller.addr, call_site_tuple[0], rda_by_function[caller.addr])
+                fact = self._analyze_callsite(call_site_tuple[0], rda_by_function[caller.addr])
                 facts.append(fact)
 
         return facts
 
-    def _analyze_callsite(self, caller_func_addr: int, caller_block_addr: int,
-                          rda: ReachingDefinitionsModel) -> CallSiteFact:
+    def _analyze_callsite(self, caller_block_addr: int, rda: ReachingDefinitionsModel) -> CallSiteFact:
 
         fact = CallSiteFact(
             True, # by default we treat all return values as used
