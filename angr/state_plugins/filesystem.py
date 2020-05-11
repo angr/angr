@@ -373,6 +373,7 @@ class SimHostFilesystem(SimConcreteFilesystem):
         return o
 
     def _load_file(self, guest_path):
+        guest_path = guest_path.lstrip(self.pathsep)
         path = os.path.join(self.host_path, guest_path)
         try:
             with open(path, 'rb') as fp:
