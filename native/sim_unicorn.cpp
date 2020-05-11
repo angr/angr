@@ -203,15 +203,9 @@ private:
 
 	std::vector<mem_access_t> mem_writes;
 
-	// List of all taint propagations depending on a memory read
+	// List of all taint propagations depending on a memory read in a single block
 	// Memory read instruction address -> (List of entities depending on the read, is read processed)
 	std::unordered_map<uint64_t, std::pair<std::vector<taint_entity_t>, bool>> mem_reads_taint_dst_map;
-
-	// We store details of all memory reads in a block separately and update the overall map
-	// at end of taint propagation. This is to keep taint tracking status clean in case we abort in
-	// middle of block  when propagating taint due to read from/write to a symbolic address
-	// Memory read instruction address -> List of entitites
-	std::unordered_map<uint64_t, std::vector<taint_entity_t>> block_mem_reads_taint_dst_map;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -1227,11 +1221,9 @@ public:
 					result.is_symbolic = true;
 				}
 				else {
-					// I believe we only need to check memory reads in current block because all
-					// other memory reads from previous blocks should have been processed.
-					for (auto &block_mem_read_entry: block_mem_reads_taint_dst_map) {
-						for (auto &block_mem_read_taint_entity: block_mem_read_entry.second) {
-							if (taint_source == block_mem_read_taint_entity) {
+					for (auto &mem_read_entry: mem_reads_taint_dst_map) {
+						for (auto &mem_read_taint_entity: mem_read_entry.second.first) {
+							if (taint_source == mem_read_taint_entity) {
 								result.depends_on_read_from_concrete_addr = true;
 								result.concrete_mem_read_instr_addr = taint_source.instr_addr;
 								break;
@@ -1465,6 +1457,8 @@ public:
 		else {
 			block_taint_entry = result->second;
 		}
+		// Clear all memory read taint propagation data of previous block
+		mem_reads_taint_dst_map.clear();
 		// Propagate taints using symbolic_registers and symbolic_temps
 		for (auto taint_data_entry: block_taint_entry.taint_sink_src_data) {
 			auto taint_sink = taint_data_entry.first;
@@ -1487,13 +1481,13 @@ public:
 				}
 				else if (final_taint_status.depends_on_read_from_concrete_addr) {
 					auto mem_read_instr_addr = final_taint_status.concrete_mem_read_instr_addr;
-					if (block_mem_reads_taint_dst_map.find(mem_read_instr_addr) == block_mem_reads_taint_dst_map.end()) {
+					if (mem_reads_taint_dst_map.find(mem_read_instr_addr) == mem_reads_taint_dst_map.end()) {
 						std::vector<taint_entity_t> dsts;
 						dsts.emplace_back(taint_sink);
-						block_mem_reads_taint_dst_map.emplace(mem_read_instr_addr, dsts);
+						mem_reads_taint_dst_map.emplace(mem_read_instr_addr, std::make_pair(dsts, false));
 					}
 					else {
-						block_mem_reads_taint_dst_map.at(mem_read_instr_addr).emplace_back(taint_sink);
+						mem_reads_taint_dst_map.at(mem_read_instr_addr).first.emplace_back(taint_sink);
 					}
 					if (taint_sink.entity_type == TAINT_ENTITY_REG) {
 						// Taint status of the register depends on a memory read so we mark it as
@@ -1521,17 +1515,10 @@ public:
 		for (auto &temp_id: block_symbolic_temps) {
 			mark_temp_symbolic(temp_id, false);
 		}
-		for (auto &block_mem_read_entity: block_mem_reads_taint_dst_map) {
-			auto instr_addr = block_mem_read_entity.first;
-			auto entity_list = block_mem_read_entity.second;
-			assert(mem_reads_taint_dst_map.find(instr_addr) == mem_reads_taint_dst_map.end());
-			mem_reads_taint_dst_map.emplace(instr_addr, std::make_pair(entity_list, false));
-		}
 		// Clear all block level taint status trackers since they've been added to state's trackers.
 		block_symbolic_registers.clear();
 		block_concrete_registers.clear();
 		block_symbolic_temps.clear();
-		block_mem_reads_taint_dst_map.clear();
 		return;
 	}
 
