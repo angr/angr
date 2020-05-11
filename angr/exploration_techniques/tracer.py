@@ -62,16 +62,17 @@ class RepHook:
             else:
                 raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
 
-            size = state.regs.ecx * multiplier
+            size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
             memset = SIM_PROCEDURES['libc']["memset"]
             memset().execute(state, arguments=[dst, val, size])
 
             if state.arch.name == "X86":
                 state.regs.edi += size
+                state.regs.ecx = 0
             else:
                 state.regs.rdi += size
-            state.regs.ecx = 0
+                state.regs.rcx = 0
 
         elif self.mnemonic.startswith("movs"):
 
@@ -89,7 +90,7 @@ class RepHook:
             else:
                 raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
 
-            size = state.regs.ecx * multiplier
+            size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
             memcpy = SIM_PROCEDURES['libc']["memcpy"]
             memcpy().execute(state, arguments=[dst, src, size])
@@ -97,10 +98,11 @@ class RepHook:
             if state.arch.name == "X86":
                 state.regs.edi += size
                 state.regs.esi -= size
+                state.regs.ecx = 0
             else:
                 state.regs.rdi += size
                 state.regs.rsi -= size
-            state.regs.ecx = 0
+                state.regs.rcx = 0
 
         else:
             import ipdb; ipdb.set_trace()
