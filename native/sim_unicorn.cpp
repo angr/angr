@@ -202,6 +202,11 @@ private:
 	uc_context *saved_regs;
 
 	std::vector<mem_access_t> mem_writes;
+	// List of all memory writes and their taint status
+	// Memory write instruction address -> is_symbolic
+	// TODO: Need to modify memory write taint handling for architectures that perform multiple
+	// memory writes in a single instruction
+	std::unordered_map<uint64_t, bool> mem_writes_taint_map;
 
 	// List of all taint propagations depending on a memory read in a single block
 	// Memory read instruction address -> (List of entities depending on the read, is read processed)
@@ -1066,6 +1071,7 @@ public:
 		int start = address & 0xFFF;
 		int end = (address + size - 1) & 0xFFF;
 		short clean;
+		bool is_dst_symbolic;
 
 		if (!bitmap) {
 		    // We should never have a missing bitmap because we explicitly called the callback!
@@ -1074,16 +1080,31 @@ public:
 		}
 
         clean = 0;
+		is_dst_symbolic = mem_writes_taint_map.at(get_instruction_pointer());
         if (data == NULL) {
             for (int i = start; i <= end; i++) {
-                if (bitmap[i] != TAINT_DIRTY) {
+                if (is_dst_symbolic) {
+					// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
+					// Also, no need to set clean: rollback will set it to TAINT_NONE which
+					// is fine for symbolic bytes and rollback is called when exiting unicorn
+					// due to an error encountered
+					bitmap[i] = TAINT_SYMBOLIC;
+				}
+				else if (bitmap[i] != TAINT_DIRTY) {
                     clean |= 1 << i; // this bit should not be marked as taint if we undo this action
                     bitmap[i] = TAINT_DIRTY;
                 }
             }
         } else {
             for (int i = start; i <= end; i++) {
-                if (bitmap[i] == TAINT_NONE) {
+                if (is_dst_symbolic) {
+					// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
+					// Also, no need to set clean: rollback will set it to TAINT_NONE which
+					// is fine for symbolic bytes and rollback is called when exiting unicorn
+					// due to an error encountered
+					bitmap[i] = TAINT_SYMBOLIC;
+				}
+				else if (bitmap[i] == TAINT_NONE) {
                     clean |= 1 << (i - start);
                 } else {
                     bitmap[i] = TAINT_NONE;
@@ -1468,8 +1489,44 @@ public:
 				continue;
 			}
 			else if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
-				// TODO: Implement this
-				assert(false && "Taint propagation to memory not yet supported.");
+				auto addr_taint_status = get_final_taint_status_vector(taint_sink.mem_ref_entity_list);
+				// Check if address written to is symbolic or is read from memory
+				if (addr_taint_status.depends_on_read_from_concrete_addr ||
+					addr_taint_status.depends_on_read_from_symbolic_addr ||
+					addr_taint_status.is_symbolic) {
+						// TODO: Stop concrete execution
+				}
+				auto sink_taint_status = get_final_taint_status(taint_srcs);
+				if (sink_taint_status.depends_on_read_from_symbolic_addr) {
+					// TODO: Stop concrete execution
+				}
+				else if (sink_taint_status.is_symbolic) {
+					// Save the memory location written to be marked as symbolic in write hook
+					assert(mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end());
+					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
+				}
+				else if (sink_taint_status.depends_on_read_from_concrete_addr) {
+					// Mark the memory location written to as depending on the memory read.
+					// Also save the memory location written to be marked as concrete in write hook
+					// We update taint status to symbolic later if needed, based on memory read.
+					// This is because we propagate taints in read hook only if the memory location
+					// read is symbolic.
+					auto mem_read_instr_addr = sink_taint_status.concrete_mem_read_instr_addr;
+					if (mem_reads_taint_dst_map.find(mem_read_instr_addr) == mem_reads_taint_dst_map.end()) {
+						std::vector<taint_entity_t> dsts;
+						dsts.emplace_back(taint_sink);
+						mem_reads_taint_dst_map.emplace(mem_read_instr_addr, std::make_pair(dsts, false));
+					}
+					else {
+						mem_reads_taint_dst_map.at(mem_read_instr_addr).first.emplace_back(taint_sink);
+					}
+					assert(mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end());
+					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
+				}
+				else {
+					// Save the memory location written to be marked as concrete in the write hook
+					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
+				}
 			}
 			else {
 				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
@@ -1535,6 +1592,11 @@ public:
 		for (taint_entity_t &taint_entity: taint_entity_list) {
 			if ((taint_entity.entity_type == TAINT_ENTITY_REG) || (taint_entity.entity_type == TAINT_ENTITY_TMP)) {
 				mark_register_temp_symbolic(taint_entity, false);
+			}
+			else if (taint_entity.entity_type == TAINT_ENTITY_MEM) {
+				// The taint sink is a memory location. We update the mem_writes_taint_map to mark
+				// this address as symbolic in write hook
+				mem_writes_taint_map.at(taint_entity.instr_addr) = true;
 			}
 			else if (taint_entity.entity_type != TAINT_ENTITY_NONE) {
 				std::stringstream ss;
