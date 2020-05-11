@@ -3,13 +3,12 @@ from typing import Set, Dict, Any
 from collections import defaultdict
 
 from angr import Analysis, AnalysesHub
-from angr.analyses.code_location import CodeLocation
+from angr.code_location import CodeLocation
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from angr.sim_variable import SimStackVariable
-from angr.engines.light.data import SpOffset
 from angr.analyses.propagator.propagator import Equivalence
-from angr.analyses.reaching_definitions import atoms
-from angr.analyses.reaching_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.key_definitions.definition import Definition
 
 from ..block import Block
 from ..statement import Statement, Assignment, Store, Call

@@ -5,8 +5,8 @@ from angr import Analysis, register_analysis
 from angr.sim_type import SimTypeBottom
 from angr.sim_variable import SimStackVariable
 from angr.calling_conventions import SimRegArg, SimStackArg
-from angr.analyses.reaching_definitions.constants import OP_BEFORE
-from angr.analyses.reaching_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.knowledge_plugins.key_definitions.definition import Definition
 
 from .. import Stmt, Expr
 

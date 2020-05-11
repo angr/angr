@@ -3,8 +3,8 @@ import logging
 
 from angr import Analysis, register_analysis
 from angr.engines.light.data import SpOffset
-from angr.analyses.reaching_definitions import OP_AFTER
-from angr.analyses.reaching_definitions import atoms
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
+from angr.knowledge_plugins.key_definitions import atoms
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
 from ..block import Block
@@ -125,7 +125,7 @@ class BlockSimplifier(Analysis):
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
-        all_defs = live_defs.all_definitions
+        all_defs = rd.all_definitions
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
