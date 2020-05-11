@@ -3,7 +3,7 @@ from functools import reduce
 
 import networkx
 
-from .definition import Definition
+from ...knowledge_plugins.key_definitions.definition import Definition
 
 
 def _is_definition(node):

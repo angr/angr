@@ -73,6 +73,20 @@ class SimEngineXRefsVEX(
                     self.add_xref(XRefType.Read, self._codeloc(), addr)
         self._handle_data_offset_refs(stmt.dst)
 
+    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+        blockloc = self._codeloc(block_only=True)
+        if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):
+            addr_tmp = VEXTmp(stmt.addr.tmp)
+            if addr_tmp in self.replacements[blockloc]:
+                addr = self.replacements[blockloc][addr_tmp]
+                if isinstance(addr, int):
+                    if stmt.storedata is None:
+                        # load-link
+                        xref_type = XRefType.Read
+                    else:
+                        xref_type = XRefType.Write
+                    self.add_xref(xref_type, self._codeloc(), addr)
+
     def _handle_data_offset_refs(self, data_tmp):
         # is this thing a pointer?
         # If so, produce the ida-style "Offset" XRefs.

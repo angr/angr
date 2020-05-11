@@ -4,7 +4,7 @@ import logging
 from ...engines.light import SimEngineLight, SpOffset, ArithmeticExpression
 from ...errors import SimEngineError
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
-from ..code_location import CodeLocation
+from ...code_location import CodeLocation
 from ..typehoon import typevars, typeconsts
 
 #

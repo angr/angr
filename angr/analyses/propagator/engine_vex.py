@@ -150,6 +150,30 @@ class SimEnginePropagatorVEX(
         #else:
         #    self.tmps[stmt.dst] = None
 
+    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+        if stmt.storedata is None:
+            # load-link
+            addr = self._expr(stmt.addr)
+            size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
+            data = self._load_data(addr, size, stmt.endness)
+            if data is not None:
+                self.tmps[stmt.result] = data
+            if stmt.result in self.tmps:
+                self.state.add_replacement(self._codeloc(block_only=True),
+                                           VEXTmp(stmt.result),
+                                           self.tmps[stmt.result])
+        else:
+            # store-conditional
+            storedata = self._expr(stmt.storedata)
+            if storedata is not None:
+                addr = self._expr(stmt.addr)
+                size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
+                self._store_data(addr, storedata, size, stmt.endness)
+
+            self.tmps[stmt.result] = 1
+            self.state.add_replacement(self._codeloc(block_only=True),
+                                       VEXTmp(stmt.result),
+                                       self.tmps[stmt.result])
 
     #
     # Expression handlers

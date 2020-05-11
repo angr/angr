@@ -2,7 +2,7 @@
 from typing import Dict, Set
 from collections import defaultdict
 
-from ..code_location import CodeLocation
+from ...code_location import CodeLocation
 
 
 class Uses:

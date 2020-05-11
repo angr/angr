@@ -928,7 +928,10 @@ class SimCC:
             raise TypeError("I don't know how to serialize %s." % repr(arg))
 
     def __repr__(self):
-        return "<" + self.__class__.__name__ + '>'
+        return "<{}: {}->{}, sp_delta={}>".format(self.__class__.__name__,
+                                                  self.args,
+                                                  self.ret_val,
+                                                  self.sp_delta)
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):

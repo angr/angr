@@ -6,12 +6,12 @@ import ailment
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
-from .atoms import Register, Tmp, MemoryLocation
-from .constants import OP_BEFORE, OP_AFTER
-from .dataset import DataSet
+from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...knowledge_plugins.key_definitions.dataset import DataSet
+from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
+from ...knowledge_plugins.key_definitions.live_definitions import LiveDefinitions, Definition
 from .external_codeloc import ExternalCodeLocation
-from .undefined import Undefined, undefined
-from .live_definitions import LiveDefinitions, Definition
 
 l = logging.getLogger(name=__name__)
 
