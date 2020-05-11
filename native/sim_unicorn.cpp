@@ -244,6 +244,11 @@ public:
 		}
 
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
+		if (out == UC_ERR_OK && stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
+		    // handle edge case where we stop because we reached our bogus stop address (0)
+		    commit();
+		    stop_reason = STOP_ZEROPAGE;
+		}
 		rollback();
 
 		if (out == UC_ERR_INSN_INVALID) {
