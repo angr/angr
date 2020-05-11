@@ -8,7 +8,7 @@ from ....utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
 
-#pylint: disable=arguments-differ
+#pylint:disable=arguments-differ,unused-argument,no-self-use
 
 class VEXMixin(SimEngineBase):
     def __init__(self, project, **kwargs):
@@ -455,4 +455,3 @@ class VEXMixin(SimEngineBase):
 
     def _perform_vex_defaultexit(self, expr, jumpkind):
         pass
-
