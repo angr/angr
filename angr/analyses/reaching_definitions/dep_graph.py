@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Set
 from functools import reduce
 
 import networkx
@@ -66,7 +66,7 @@ class DepGraph:
         :return:            A graph of the transitive closure of the given definition.
         """
 
-        def _transitive_closure(def_: Definition, graph: networkx.DiGraph, result: networkx.DiGraph):
+        def _transitive_closure(def_: Definition, graph: networkx.DiGraph, result: networkx.DiGraph, visited: Optional[Set[Definition]]=None):
             if def_ in self._transitive_closures.keys():
                 return self._transitive_closures[def_]
 
@@ -81,9 +81,13 @@ class DepGraph:
                 )
             )))
 
+            visited = visited or set()
+            visited.add(def_)
+            predecessors_to_visit = set(predecessors) - set(visited)
+
             closure = reduce(
-                lambda acc, definition: _transitive_closure(definition, graph, acc),
-                predecessors,
+                lambda acc, definition: _transitive_closure(definition, graph, acc, visited),
+                predecessors_to_visit,
                 result
             )
 
