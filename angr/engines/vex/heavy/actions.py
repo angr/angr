@@ -117,10 +117,10 @@ class TrackActionsMixin(HeavyVEXMixin):
         return result, a
 
     def _perform_vex_stmt_LoadG_guard_condition(self, guard):
-        return super()._perform_vex_stmt_LoadG_guard_condition(guard[0])
+        return super()._perform_vex_stmt_LoadG_guard_condition(guard[0]), guard[1]
 
     def _perform_vex_stmt_StoreG_guard_condition(self, guard):
-        return super()._perform_vex_stmt_StoreG_guard_condition(guard[0])
+        return super()._perform_vex_stmt_StoreG_guard_condition(guard[0]), guard[1]
 
     # statements
 

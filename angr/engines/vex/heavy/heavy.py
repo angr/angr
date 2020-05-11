@@ -32,7 +32,7 @@ class SimStateStorageMixin(VEXMixin):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
-        self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=None)
+        self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=condition)
 
     def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
         self.state.scratch.store_tmp(tmp, data, deps=deps)

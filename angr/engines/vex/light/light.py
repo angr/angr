@@ -364,10 +364,9 @@ class VEXMixin(SimEngineBase):
         # perform the same optimization as in _perform_vex_stmt_LoadG
         if self._is_false(guard):
             return
-        load_result = self._perform_vex_stmt_StoreG_load(addr, ty, endness,
-                                                         condition=self._perform_vex_stmt_StoreG_guard_condition(guard))
-        ite_result = self._perform_vex_stmt_StoreG_ite(guard, data, load_result)
-        self._perform_vex_stmt_StoreG_store(addr, ite_result, endness, **kwargs)
+        self._perform_vex_stmt_StoreG_store(addr, data, endness,
+                                            condition=self._perform_vex_stmt_StoreG_guard_condition(guard),
+                                            **kwargs)
 
     def _analyze_vex_stmt_CAS_addr(self, *a, **kw): return self. _handle_vex_expr(*a, **kw)
     def _analyze_vex_stmt_CAS_dataLo(self, *a, **kw): return self. _handle_vex_expr(*a, **kw)
