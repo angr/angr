@@ -353,14 +353,16 @@ class BinaryOp(Op):
 
 class Load(Expression):
 
-    __slots__ = ('addr', 'size', 'endness', 'variable', 'variable_offset', )
+    __slots__ = ('addr', 'size', 'endness', 'variable', 'variable_offset', 'guard', 'alt', )
 
-    def __init__(self, idx, addr, size, endness, variable=None, variable_offset=None, **kwargs):
+    def __init__(self, idx, addr, size, endness, variable=None, variable_offset=None, guard=None, alt=None, **kwargs):
         super(Load, self).__init__(idx, **kwargs)
 
         self.addr = addr
         self.size = size
         self.endness = endness
+        self.guard = guard
+        self.alt = alt
         self.variable = variable
         self.variable_offset = variable_offset
 
@@ -391,7 +393,9 @@ class Load(Expression):
         return type(other) is Load and \
                self.addr == other.addr and \
                self.size == other.size and \
-               self.endness == other.endness
+               self.endness == other.endness and \
+               self.guard == other.guard and \
+               self.alt == other.alt
 
     def __hash__(self):
         return hash(('Load', self.addr, self.size, self.endness))

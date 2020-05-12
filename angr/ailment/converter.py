@@ -213,12 +213,52 @@ class VEXStmtConverter(Converter):
                                ins_addr=manager.ins_addr
                                )
 
+    @staticmethod
+    def LoadG(idx, stmt: pyvex.IRStmt.LoadG, manager):
+
+        sizes = {
+            'ILGop_Ident32': (32, 32, False),
+            'ILGop_Ident64': (64, 64, False),
+            'ILGop_IdentV128': (128, 128, False),
+            'ILGop_8Uto32': (8, 32, False),
+            'ILGop_8Sto32': (8, 32, True),
+            'ILGop_16Uto32': (16, 32, False),
+            'ILGop_16Sto32': (16, 32, True),
+        }
+
+        dst = VEXExprConverter.tmp(stmt.dst, manager.tyenv.sizeof(stmt.dst) // 8, manager)
+        load_bits, convert_bits, signed = sizes[stmt.cvt]
+        src = Load(manager.next_atom(),
+                   VEXExprConverter.convert(stmt.addr, manager),
+                   load_bits // 8,
+                   stmt.end,
+                   guard=VEXExprConverter.convert(stmt.guard, manager),
+                   alt=VEXExprConverter.convert(stmt.alt, manager))
+        if convert_bits != load_bits:
+            src = Convert(manager.next_atom(), load_bits, convert_bits, signed, src)
+
+        return Assignment(idx, dst, src, ins_addr=manager.ins_addr)
+
+    @staticmethod
+    def StoreG(idx, stmt: pyvex.IRStmt.StoreG, manager):
+
+        return Store(idx,
+                     VEXExprConverter.convert(stmt.addr, manager),
+                     VEXExprConverter.convert(stmt.data, manager),
+                     stmt.data.result_size(manager.tyenv) // 8,
+                     stmt.endness,
+                     guard=VEXExprConverter.convert(stmt.guard, manager),
+                     ins_addr=manager.ins_addr,
+                     )
+
 
 STATEMENT_MAPPINGS = {
     pyvex.IRStmt.Put: VEXStmtConverter.Put,
     pyvex.IRStmt.WrTmp: VEXStmtConverter.WrTmp,
     pyvex.IRStmt.Store: VEXStmtConverter.Store,
     pyvex.IRStmt.Exit: VEXStmtConverter.Exit,
+    pyvex.IRStmt.StoreG: VEXStmtConverter.StoreG,
+    pyvex.IRStmt.LoadG: VEXStmtConverter.LoadG,
 }
 
 

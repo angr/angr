@@ -68,9 +68,9 @@ class Assignment(Statement):
 
 class Store(Statement):
 
-    __slots__ = ('addr', 'size', 'data', 'endness', 'variable', 'offset', )
+    __slots__ = ('addr', 'size', 'data', 'endness', 'variable', 'offset', 'guard', )
 
-    def __init__(self, idx, addr, data, size, endness, variable=None, offset=None, **kwargs):
+    def __init__(self, idx, addr, data, size, endness, guard=None, variable=None, offset=None, **kwargs):
         super(Store, self).__init__(idx, **kwargs)
 
         self.addr = addr
@@ -78,6 +78,7 @@ class Store(Statement):
         self.size = size
         self.endness = endness
         self.variable = variable
+        self.guard = guard
         self.offset = offset  # variable_offset
 
     def __eq__(self, other):
@@ -86,27 +87,35 @@ class Store(Statement):
                self.addr == other.addr and \
                self.data == other.data and \
                self.size == other.size and \
+               self.guard == other.guard and \
                self.endness == other.endness
 
     def __hash__(self):
-        return hash((Store, self.idx, self.addr, self.data, self.size, self.endness))
+        return hash((Store, self.idx, self.addr, self.data, self.size, self.endness, self.guard))
 
     def __repr__(self):
-        return "Store (%s, %s[%d])" % (self.addr, str(self.data), self.size)
+        return "Store (%s, %s[%d])%s" % (self.addr, str(self.data), self.size,
+                                         "" if self.guard is None else "[%s]" % self.guard)
 
     def __str__(self):
         if self.variable is None:
-            return "STORE(addr=%s, data=%s, size=%s, endness=%s)" % (self.addr, str(self.data), self.size, self.endness)
+            return "STORE(addr=%s, data=%s, size=%s, endness=%s, guard=%s)" % (self.addr, str(self.data), self.size,
+                                                                               self.endness, self.guard)
         else:
-            return "%s =%s %s<%d>" % (self.variable.name, self.endness[0], str(self.data), self.size)
+            return "%s =%s %s<%d>%s" % (self.variable.name, self.endness[0], str(self.data), self.size,
+                                        "" if self.guard is None else "[%s]" % self.guard)
 
     def replace(self, old_expr, new_expr):
         r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
         r_data, replaced_data = self.data.replace(old_expr, new_expr)
+        if self.guard is not None:
+            r_guard, replaced_guard = self.guard.replace(old_expr, new_expr)
+        else:
+            r_guard, replaced_guard = False, None
 
-        if r_addr or r_data:
+        if r_addr or r_data or r_guard:
             return True, Store(self.idx, replaced_addr, replaced_data, self.size, self.endness,
-                               variable=self.variable, **self.tags)
+                               guard=replaced_guard, variable=self.variable, **self.tags)
         else:
             return False, self
 
