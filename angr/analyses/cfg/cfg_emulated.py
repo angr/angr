@@ -3,6 +3,7 @@ import logging
 import sys
 from collections import defaultdict
 from functools import reduce
+from typing import Dict
 
 import claripy
 import networkx
@@ -22,7 +23,7 @@ from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimV
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
-from ...knowledge_plugins.cfg import CFGENode
+from ...knowledge_plugins.cfg import CFGENode, IndirectJump
 from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis
 from .cfg_base import CFGBase
@@ -719,7 +720,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def __setstate__(self, s):
         self.project = s['project']
-        self.indirect_jumps = s['indirect_jumps']
+        self.indirect_jumps: Dict[int,IndirectJump] = s['indirect_jumps']
         self._loop_back_edges = s['_loop_back_edges']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']

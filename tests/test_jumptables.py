@@ -4,8 +4,6 @@
 import os
 import logging
 
-import nose.tools
-
 import angr
 
 
@@ -25,14 +23,14 @@ class J:
 
 def compare(jump_tables, groundtruth):
     for j in groundtruth:
-        nose.tools.assert_in(j.block_addr, jump_tables, "Jump table @ block %#x is not found in CFG." % j.block_addr)
+        assert j.block_addr in jump_tables, "Jump table @ block %#x is not found in CFG." % j.block_addr
         jumptable_addr = jump_tables[j.block_addr].jumptable_addr
-        nose.tools.assert_equal(j.table_addr, jumptable_addr,
-                                "Mismatch jump table addresses (expecting %#x, got %#x)." % (
-                                    j.table_addr,
-                                    jumptable_addr
-                                ))
-        nose.tools.assert_equal(j.entries, jump_tables[j.block_addr].jumptable_entries)
+        assert j.table_addr == jumptable_addr, \
+                                "Mismatch jump table addresses (expecting %s, got %s)." % (
+                                    ("%#x" % j.table_addr) if j.table_addr is not None else "None",
+                                    ("%#x" % jumptable_addr) if jumptable_addr is not None else "None",
+                                )
+        assert j.entries == jump_tables[j.block_addr].jumptable_entries
 
 
 def test_amd64_dir_gcc_O0():
@@ -195,6 +193,34 @@ def test_s390x_cfgswitches():
     compare(cfg.jump_tables, all_jumptables)
 
 
+def test_arm_libsoap():
+
+    # This is the ADDLS type of jump table (IndirectJumpType.JumpTable_AddressComputed) where no actual table is used
+    # libsoap.so seems to be compiled from gSOAP, which is an open-source product
+
+    p = angr.Project(os.path.join(test_location, "armel", "libsoap.so"), auto_load_libs=False)
+    cfg = p.analyses.CFGFast(data_references=True)
+
+    all_jumptabes = {
+        J(0x411c8c, None, [0x411c9c, 0x411ca0, 0x411ca4, 0x411ca8, 0x411cac, 0x411cb0, 0x411cb4, 0x411cb8, 0x411cbc, 0x411cc0, 0x411cc4, 0x411cc8, 0x411ccc, 0x411cd0, 0x411cd4, 0x411cd8, 0x411cdc, 0x411ce0, 0x411ce4, 0x411ce8, 0x411cec, 0x411cf0, 0x411cf4, 0x411cf8, 0x411cfc, 0x411d00, 0x411d04, 0x411d08, 0x411d0c, 0x411d10, 0x411d14, 0x411d18, 0x411d1c, 0x411d20, 0x411d24, 0x411d28, 0x411d2c, 0x411d30, 0x411d34, 0x411d38, 0x411d3c, 0x411d40, 0x411d44, 0x411d48, 0x411d4c, 0x411d50, 0x411d54, 0x411d58, 0x411d5c, 0x411d60, 0x411d64, 0x411d68, 0x411d6c, 0x411d70]),
+        J(0x411f54, None, [0x411f64, 0x411f68, 0x411f6c, 0x411f70, 0x411f74, 0x411f78, 0x411f7c, 0x411f80, 0x411f84, 0x411f88, 0x411f8c, 0x411f90, 0x411f94, 0x411f98, 0x411f9c, 0x411fa0, 0x411fa4, 0x411fa8, 0x411fac, 0x411fb0, 0x411fb4, 0x411fb8, 0x411fbc, 0x411fc0, 0x411fc4, 0x411fc8, 0x411fcc, 0x411fd0, 0x411fd4, 0x411fd8, 0x411fdc, 0x411fe0, 0x411fe4, 0x411fe8, 0x411fec, 0x411ff0, 0x411ff4, 0x411ff8, 0x411ffc, 0x412000, 0x412004, 0x412008, 0x41200c, 0x412010, 0x412014, 0x412018, 0x41201c, 0x412020, 0x412024, 0x412028, 0x41202c, 0x412030, 0x412034, 0x412038]),
+        J(0x41b0b4, None, [0x41b0c4, 0x41b0c8, 0x41b0cc, 0x41b0d0, 0x41b0d4]),
+        # 0x41d0e8 and 0x41d0fc are the same jump table - they appear twice because the CFG is not normalized (the two
+        # blocks 0x41d0e8 and 0x41d0fc overlap and end at the same instruction)
+        J(0x41d0e8, None, [0x41d10c, 0x41d110, 0x41d114, 0x41d118, 0x41d11c, 0x41d120, 0x41d124, 0x41d128, 0x41d12c, 0x41d130, 0x41d134, 0x41d138, 0x41d13c, 0x41d140, 0x41d144, 0x41d148, 0x41d14c, 0x41d150, 0x41d154, 0x41d158, 0x41d15c, 0x41d160, 0x41d164, 0x41d168, 0x41d16c, 0x41d170, 0x41d174, 0x41d178, 0x41d17c]),
+        J(0x41d0fc, None, [0x41d10c, 0x41d110, 0x41d114, 0x41d118, 0x41d11c, 0x41d120, 0x41d124, 0x41d128, 0x41d12c, 0x41d130, 0x41d134, 0x41d138, 0x41d13c, 0x41d140, 0x41d144, 0x41d148, 0x41d14c, 0x41d150, 0x41d154, 0x41d158, 0x41d15c, 0x41d160, 0x41d164, 0x41d168, 0x41d16c, 0x41d170, 0x41d174, 0x41d178, 0x41d17c]),
+        J(0x41d9d0, None, [0x41d9e0, 0x41d9e4, 0x41d9e8, 0x41d9ec, 0x41d9f0, 0x41d9f4, 0x41d9f8, 0x41d9fc, 0x41da00, 0x41da04, 0x41da08, 0x41da0c, 0x41da10, 0x41da14, 0x41da18, 0x41da1c, 0x41da20, 0x41da24, 0x41da28, 0x41da2c, 0x41da30, 0x41da34, 0x41da38, 0x41da3c, 0x41da40, 0x41da44, 0x41da48, 0x41da4c, 0x41da50, 0x41da54, 0x41da58, 0x41da5c, 0x41da60, 0x41da64, 0x41da68, 0x41da6c, 0x41da70, 0x41da74, 0x41da78, 0x41da7c, 0x41da80, 0x41da84, 0x41da88, 0x41da8c, 0x41da90, 0x41da94, 0x41da98, 0x41da9c, 0x41daa0, 0x41daa4, 0x41daa8, 0x41daac, 0x41dab0, 0x41dab4]),
+        J(0x41e070, None, [0x41e080, 0x41e084, 0x41e088, 0x41e08c, 0x41e090, 0x41e094, 0x41e098, 0x41e09c, 0x41e0a0, 0x41e0a4, 0x41e0a8, 0x41e0ac, 0x41e0b0, 0x41e0b4, 0x41e0b8, 0x41e0bc, 0x41e0c0, 0x41e0c4, 0x41e0c8, 0x41e0cc, 0x41e0d0, 0x41e0d4, 0x41e0d8, 0x41e0dc, 0x41e0e0, 0x41e0e4, 0x41e0e8, 0x41e0ec, 0x41e0f0, 0x41e0f4, 0x41e0f8, 0x41e0fc, 0x41e100, 0x41e104, 0x41e108, 0x41e10c, 0x41e110, 0x41e114, 0x41e118, 0x41e11c, 0x41e120, 0x41e124, 0x41e128, 0x41e12c, 0x41e130, 0x41e134, 0x41e138, 0x41e13c, 0x41e140, 0x41e144, 0x41e148, 0x41e14c, 0x41e150, 0x41e154, 0x41e158, 0x41e15c, 0x41e160, 0x41e164, 0x41e168, 0x41e16c, 0x41e170, 0x41e174, 0x41e178, 0x41e17c, 0x41e180, 0x41e184, 0x41e188, 0x41e18c, 0x41e190]),
+    }
+
+    compare(cfg.jump_tables, all_jumptabes)
+
+    assert 0x41d0e8 in cfg.model.jump_tables
+    # normalizing the CFG should remove 0x41d0e8
+    cfg.normalize()
+    assert 0x41d0e8 not in cfg.model.jump_tables
+
+
 #
 # The jump table should be occupied and marked as data
 #
@@ -207,18 +233,18 @@ def test_jumptable_occupied_as_data():
     cfg = p.analyses.CFGFast()
 
     # it has a jump table at 0x402e4d with 10 entries
-    nose.tools.assert_in(0x402e4d, cfg.indirect_jumps)
-    nose.tools.assert_true(cfg.indirect_jumps[0x402e4d].jumptable)
-    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_addr, 0x402e54)
-    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_size, 4 * 10)
-    nose.tools.assert_equal(cfg.indirect_jumps[0x402e4d].jumptable_entry_size, 4)
+    assert 0x402e4d in cfg.indirect_jumps
+    assert cfg.indirect_jumps[0x402e4d].jumptable is True
+    assert cfg.indirect_jumps[0x402e4d].jumptable_addr == 0x402e54
+    assert cfg.indirect_jumps[0x402e4d].jumptable_size == 4 * 10
+    assert cfg.indirect_jumps[0x402e4d].jumptable_entry_size == 4
 
     # 40 bytes starting at 0x402e4d should be marked as "data"
     for addr in range(0x402e54, 0x402e54 + 40, 4):
-        nose.tools.assert_equal(cfg._seg_list.occupied_by_sort(addr), "data")
+        assert cfg._seg_list.occupied_by_sort(addr) == "data"
 
     # node 0x402e4d should have 10 successors
-    nose.tools.assert_equal(len(cfg.model.get_any_node(0x402e4d).successors), 10)
+    assert len(cfg.model.get_any_node(0x402e4d).successors) == 10
 
 
 if __name__ == "__main__":
@@ -231,4 +257,5 @@ if __name__ == "__main__":
     test_armel_cfgswitches_gcc()
     test_armel_lwip_tcpecho_bm()
     test_s390x_cfgswitches()
+    test_arm_libsoap()
     test_jumptable_occupied_as_data()

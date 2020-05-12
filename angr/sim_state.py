@@ -505,9 +505,20 @@ class SimState(PluginHub):
                         continue
 
                     new_expr = constrained_si
+                    # registers
                     self.registers.replace_all(original_expr, new_expr)
+                    # memory
                     for _, region in self.memory.regions.items():
                         region.memory.replace_all(original_expr, new_expr)
+                    # tmps
+                    temps = self.scratch.temps
+                    for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
+                        t = temps[idx]
+                        if t is None:
+                            continue
+                        if t.variables.intersection(original_expr.variables):
+                            # replace
+                            temps[idx] = t.replace(original_expr, new_expr)
 
                     l.debug("SimState.add_constraints: Applied to final state.")
         elif o.SYMBOLIC not in self.options and len(args) > 0:

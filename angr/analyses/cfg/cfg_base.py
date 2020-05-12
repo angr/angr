@@ -1,4 +1,4 @@
-
+from typing import Dict
 import logging
 from collections import defaultdict
 
@@ -97,7 +97,7 @@ class CFGBase(Analysis):
 
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
-        self.indirect_jumps = {}
+        self.indirect_jumps: Dict[int,IndirectJump] = {}
         self._indirect_jumps_to_resolve = set()
 
         # Indirect jump resolvers
@@ -1142,6 +1142,16 @@ class CFGBase(Analysis):
             else:
                 # We gotta create a new one
                 l.error('normalize(): Please report it to Fish.')
+
+        # deal with duplicated entries in self.jump_tables and self.indirect_jumps
+        if smallest_node.addr in self.model.jump_tables:
+            for n in other_nodes:
+                if n.addr in self.model.jump_tables:
+                    del self.model.jump_tables[n.addr]
+        if smallest_node.addr in self.indirect_jumps:
+            for n in other_nodes:
+                if n.addr in self.indirect_jumps:
+                    del self.indirect_jumps[n.addr]
 
     #
     # Job management
