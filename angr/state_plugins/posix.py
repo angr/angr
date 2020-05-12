@@ -393,13 +393,26 @@ class SimSystemPosix(SimStatePlugin):
         del self.fd[fd]
         return True
 
-    def fstat(self, fd): #pylint:disable=unused-argument
+    def fstat(self, sim_fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
-        # TODO: import results from concrete FS, if using concrete FS
-        if self.state.solver.symbolic(fd):
+        fd = None
+        sim_file = None
+        mode = None
+
+        if not self.state.solver.symbolic(sim_fd):
+            fd = self.state.solver.eval(sim_fd)
+        if fd is not None:
+            sim_file = self.state.posix.get_fd(fd).file
+
+        # if it is mounted, let the filesystem figure out the stat
+        mount = self.state.fs.get_mountpoint(sim_file.name)[0]
+        if mount is not None:
+            return mount._get_stat(sim_file.name)
+
+        # now we know it is not mounted, do the same as before
+        if not fd:
             mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
         else:
-            fd = self.state.solver.eval(fd)
             mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
             # return this weird bogus zero value to keep code paths in libc simple :\
 

@@ -291,6 +291,9 @@ class SimConcreteFilesystem(SimMount):
     def _load_file(self, guest_path):
         raise NotImplementedError
 
+    def _get_stat(self, guest_path):
+        raise NotImplementedError
+
     def insert(self, path_elements, simfile):
         path = self._join_chunks([x.decode() for x in path_elements])
         simfile.set_state(self.state)
