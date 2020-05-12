@@ -407,15 +407,18 @@ class SimSystemPosix(SimStatePlugin):
         # if it is mounted, let the filesystem figure out the stat
         mount = self.state.fs.get_mountpoint(sim_file.name)[0]
         if mount is not None:
-            return mount._get_stat(sim_file.name)
-
-        # now we know it is not mounted, do the same as before
-        if not fd:
-            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
+            stat = mount._get_stat(sim_file.name)
+            size = stat.st_size
+            mode = stat.st_mode
         else:
-            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
-            # return this weird bogus zero value to keep code paths in libc simple :\
+            # now we know it is not mounted, do the same as before
+            if not fd:
+                mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
+            else:
+                mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
+            size = self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
 
+        # return this weird bogus zero value to keep code paths in libc simple :\
         return Stat(self.state.solver.BVV(0, 64), # st_dev
                     self.state.solver.BVV(0, 64), # st_ino
                     self.state.solver.BVV(0, 64), # st_nlink
@@ -423,7 +426,7 @@ class SimSystemPosix(SimStatePlugin):
                     self.state.solver.BVV(0, 32), # st_uid (lol root)
                     self.state.solver.BVV(0, 32), # st_gid
                     self.state.solver.BVV(0, 64), # st_rdev
-                    self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
+                    size, # st_size
                     self.state.solver.BVV(0, 64), # st_blksize
                     self.state.solver.BVV(0, 64), # st_blocks
                     self.state.solver.BVV(0, 64), # st_atime
