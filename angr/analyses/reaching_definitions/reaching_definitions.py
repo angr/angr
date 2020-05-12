@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional, Dict, Tuple, Set, Any, Union, TYPE_CHECKING
+from typing import Optional, DefaultDict, Dict, Tuple, Set, Any, Union, TYPE_CHECKING
 from collections import defaultdict
 
 import ailment
@@ -8,6 +8,7 @@ import pyvex
 
 from ...block import Block
 from ...codenode import CodeNode
+from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -41,7 +42,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     """
 
     def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
-                 observation_points=None, init_state=None, cc=None, function_handler=None,
+                 observation_points=None, init_state: ReachingDefinitionsState=None, cc=None, function_handler=None,
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
                  dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
@@ -53,8 +54,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param iterable observation_points:     A collection of tuples of ("node"|"insn", ins_addr, OP_TYPE) defining
                                                 where reaching definitions should be copied and stored. OP_TYPE can be
                                                 OP_BEFORE or OP_AFTER.
-        :param angr.analyses.reaching_definitions.LiveDefinitions init_state:
-                                                An optional initialization state. The analysis creates and works on a
+        :param init_state:                      An optional initialization state. The analysis creates and works on a
                                                 copy.
                                                 Default to None: the analysis then initialize its own abstract state,
                                                 based on the given <Subject>.
@@ -64,8 +64,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param int current_local_call_depth:    Current local function recursion depth.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
         :param Boolean observe_all:             Observe every statement, both before and after.
-        :param List<ailment.Block|Block|CodeNode|CFGNode> visited_blocks:
-                                                A list of previously visited blocks.
+        :param visited_blocks:                  A set of previously visited blocks.
         :param dep_graph:                       An initial dependency graph to add the result of the analysis to. Set it
                                                 to None to skip dependency graph generation.
         """
@@ -105,7 +104,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                       'You cannot get any analysis result from performing the analysis.'
                       )
 
-        self._node_iterations = defaultdict(int)
+        self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
         self._engine_vex = SimEngineRDVEX(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
                                           self._function_handler)
@@ -228,10 +227,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                 idx = vex_block.statements.index(stmt)
                 if idx == len(vex_block.statements) - 1 or type(
                         vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
-                    self.observed_results[key] = state.copy()
+                    self.observed_results[key] = state.live_definitions.copy()
         elif isinstance(stmt, ailment.Stmt.Statement):
             # it's an AIL block
-            self.observed_results[key] = state.copy()
+            self.observed_results[key] = state.live_definitions.copy()
 
     @property
     def subject(self):
@@ -244,7 +243,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     def _pre_analysis(self):
         pass
 
-    def _initial_abstract_state(self, node):
+    def _initial_abstract_state(self, node) -> ReachingDefinitionsState:
         if self._init_state is not None:
             return self._init_state
         else:
@@ -264,6 +263,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         """
 
         self._visited_blocks.add(node)
+
+        engine: SimEngineLight
 
         if isinstance(node, ailment.Block):
             block = node
@@ -285,7 +286,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             block=block,
             fail_fast=self._fail_fast,
             visited_blocks=self._visited_blocks
-        )  # type: ReachingDefinitionsState, set
+        )
 
         self._node_iterations[block_key] += 1
 
