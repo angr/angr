@@ -103,13 +103,22 @@ class TrackActionsMixin(HeavyVEXMixin):
             a = frozenset()
         return result, a
 
-    def _perform_vex_expr_Load(self, addr_bundle, ty, end, **kwargs):
+    def _perform_vex_expr_Load(self, addr_bundle, ty, end, condition=None, **kwargs):
         addr, addr_deps = addr_bundle
-        result = super()._perform_vex_expr_Load(addr, ty, end, **kwargs)
+
+        if condition is not None:
+            condition, condition_deps = condition
+        else:
+            condition_deps = None
+
+        result = super()._perform_vex_expr_Load(addr, ty, end, condition=condition, **kwargs)
 
         if o.TRACK_MEMORY_ACTIONS in self.state.options:
             addr_ao = SimActionObject(addr, deps=addr_deps, state=self.state)
-            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=pyvex.get_type_size(ty), data=result)
+            condition_ao = SimActionObject(condition, deps=condition_deps, state=self.state) \
+                if condition is not None else None
+            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao,
+                              size=pyvex.get_type_size(ty), data=result, condition=condition_ao)
             self.state.history.add_action(r)
             a = frozenset((r,))
         else:
