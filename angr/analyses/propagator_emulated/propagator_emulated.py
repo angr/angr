@@ -13,6 +13,7 @@ from ...engines.soot import SootMixin
 from ..cfg.cfg_utils import CFGUtils
 from .. import register_analysis
 from ..analysis import Analysis
+from ..cfg.cfg_emulated import StackTouchedAnnotation
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
@@ -95,8 +96,12 @@ class PropagatorState:
         :param addr:
         :return:
         """
-
-        for s in self.concrete_states:
+        ## This is for handling the initial concrete_states set with a list
+        if isinstance(self.concrete_states, list):
+            possible_successors =self.concrete_states
+        else:
+            possible_successors = self.concrete_states.all_successors
+        for s in possible_successors:
             if s.ip._model_concrete.value == addr:
                 return s
         return None
@@ -247,7 +252,10 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
-        print(node)
+        print("Constant-prop: "+str(node))
+        if node.addr == 0x400634:
+            import pdb
+            pdb.set_trace()
         concrete_state = abstract_state.get_concrete_state(node.addr)
         node.input_state = concrete_state
         if concrete_state is None:
@@ -275,11 +283,29 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         symbolic_sim_successors.sort = sim_successors.sort
 
         for successor in sim_successors.all_successors:
-            ### Only add those successors which have symbolic guard or which evaluates to True
-            if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
+            ## Only add those successors which have symbolic guard or which evaluates to True
+            # if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
+            #symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                                                      # successor.history.jumpkind, True,
+                                                      # successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
+                                                      # successor.scratch.source)
+            is_stack_tainted = False
+            for annotation in successor.scratch.guard.annotations:
+                if isinstance(annotation, StackTouchedAnnotation):
+                    is_stack_tainted = True
+                    symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                                                          successor.history.jumpkind, True,
+                                                          successor.scratch.exit_stmt_idx,
+                                                          successor.scratch.exit_ins_addr,
+                                                          successor.scratch.source)
+                    break
+            if is_stack_tainted is False and (
+                    successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(
+                    successor.scratch.guard)):
                 symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
                                                       successor.history.jumpkind, True,
-                                                      successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
+                                                      successor.scratch.exit_stmt_idx,
+                                                      successor.scratch.exit_ins_addr,
                                                       successor.scratch.source)
 
         node.final_states = symbolic_sim_successors
