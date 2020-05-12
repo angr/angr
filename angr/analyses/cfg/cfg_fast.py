@@ -3,6 +3,7 @@ import logging
 import math
 import re
 import string
+from typing import List
 from collections import defaultdict, OrderedDict
 
 from sortedcontainers import SortedDict
@@ -14,7 +15,7 @@ from cle.address_translator import AT
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData
+from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump
 from ...knowledge_plugins.xrefs import XRef, XRefType
 from ...misc.ux import deprecated
 from ... import sim_options as o
@@ -1093,14 +1094,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _post_process_successors(self, irsb, successors):
 
-        if is_arm_arch(self.project.arch) and irsb.addr % 2 == 1:
-            # we are in thumb mode. filter successors
-            successors = self._arm_thumb_filter_jump_successors(irsb,
-                                                                successors,
-                                                                lambda tpl: tpl[1],
-                                                                lambda tpl: tpl[0],
-                                                                lambda tpl: tpl[3],
-                                                                )
+        if is_arm_arch(self.project.arch):
+            if irsb.addr % 2 == 1:
+                # we are in thumb mode. filter successors
+                successors = self._arm_thumb_filter_jump_successors(irsb,
+                                                                    successors,
+                                                                    lambda tpl: tpl[1],
+                                                                    lambda tpl: tpl[0],
+                                                                    lambda tpl: tpl[3],
+                                                                    )
 
         return successors
 
@@ -2444,14 +2446,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Indirect jumps processing
 
-    def _resolve_plt(self, addr, irsb, indir_jump):
+    def _resolve_plt(self, addr, irsb, indir_jump: IndirectJump):
         """
         Determine if the IRSB at the given address is a PLT stub. If it is, concretely execute the basic block to
         resolve the jump target.
 
         :param int addr:                Address of the block.
         :param irsb:                    The basic block.
-        :param IndirectJump indir_jump: The IndirectJump instance.
+        :param indir_jump:              The IndirectJump instance.
         :return:                        True if the IRSB represents a PLT stub and we successfully resolved the target.
                                         False otherwise.
         :rtype:                         bool
@@ -2484,11 +2486,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return False
 
-    def _indirect_jump_resolved(self, jump, jump_addr, resolved_by, targets):
+    def _indirect_jump_resolved(self, jump: IndirectJump, jump_addr, resolved_by, targets: List[int]):
         """
         Called when an indirect jump is successfully resolved.
 
-        :param IndirectJump jump:                   The resolved indirect jump.
+        :param jump:                                The resolved indirect jump.
         :param IndirectJumpResolver resolved_by:    The resolver used to resolve this indirect jump.
         :param list targets:                        List of indirect jump targets.
 
@@ -2501,7 +2503,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fill in the jump_tables dict
             self.jump_tables[jump.addr] = jump
             # occupy the jump table region
-            self._seg_list.occupy(jump.jumptable_addr, jump.jumptable_size, "data")
+            if jump.jumptable_addr is not None:
+                self._seg_list.occupy(jump.jumptable_addr, jump.jumptable_size, "data")
 
         jump.resolved_targets = targets
         all_targets = set(targets)

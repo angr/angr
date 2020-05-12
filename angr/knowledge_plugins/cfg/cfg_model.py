@@ -1,18 +1,19 @@
 # pylint:disable=no-member
 import pickle
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict
 from collections import defaultdict
 
 import networkx
 
+from ...misc.ux import once
 from ...protos import cfg_pb2, primitives_pb2
 from ...serializable import Serializable
 from ...utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from ...errors import AngrCFGError
 from .cfg_node import CFGNode
 from .memory_data import MemoryData
-from ...misc.ux import once
+from .indirect_jump import IndirectJump
 
 
 l = logging.getLogger(name=__name__)
@@ -38,7 +39,7 @@ class CFGModel(Serializable):
         self.graph = networkx.DiGraph()
 
         # Jump tables
-        self.jump_tables = { }
+        self.jump_tables: Dict[int,IndirectJump] = { }
 
         # Memory references
         # A mapping between address and the actual data in memory

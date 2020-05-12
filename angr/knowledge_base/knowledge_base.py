@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ..knowledge_plugins import FunctionManager
     from ..knowledge_plugins import VariableManager
     from ..knowledge_plugins import KeyDefinitionManager
+    from ..knowledge_plugins import CFGManager
 
 from ..knowledge_plugins.plugin import default_plugins
 
@@ -27,6 +28,7 @@ class KnowledgeBase:
     functions: 'FunctionManager'
     variables: 'VariableManager'
     defs: 'KeyDefinitionManager'
+    cfgs: 'CFGManager'
     _project: 'Project'
 
     def __init__(self, project, obj=None, name=None):
