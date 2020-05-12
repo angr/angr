@@ -11,7 +11,8 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..analysis import Analysis
-
+from ..cfg.cfg_emulated import StackTouchedAnnotation
+from ... import BP, BP_BEFORE, BP_AFTER
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
@@ -126,12 +127,14 @@ class VMDeobfuscation(Analysis):
         start_state = proj.factory.blank_state(addr=start_addr,
                                                add_options={angr.sim_options.REPLACEMENT_SOLVER,
                                                               angr.sim_options.DO_CCALLS})
+        ## annotating the preconstrined stack pointer
+        actual_stack_end = start_state.solver.eval(start_state.regs.sp)
+        start_state.regs.sp = start_state.regs.sp.annotate(StackTouchedAnnotation(1))
+        start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
 
         cfg = proj.analyses.CFGEmulated(fail_fast=True,
                                         data_sensitive=True ,
                                         vm_vpc_addr=vm_vpc_addr,
-                                        #vm_vpc_addr=0x601070,
-                                        #vm_vpc=0x601080,
                                         starts=[start_addr],
                                         initial_state=start_state,
                                         max_iterations=1,
@@ -154,6 +157,22 @@ class VMDeobfuscation(Analysis):
         initial_input_state = proj.factory.blank_state(addr=start_addr,
                                                        mode='fastpath',
                                                        add_options=angr.sim_options.refs | {angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+
+        def annotate_stack_read_value(state):
+            if len(state.inspect.mem_read_address.annotations) != 0 and isinstance(
+                    (state.inspect.mem_read_address.annotations[0]), StackTouchedAnnotation):
+                state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(StackTouchedAnnotation(1))
+
+        initial_input_state.inspect.add_breakpoint('mem_read',
+                                     BP(
+                                         BP_AFTER,
+                                         action=annotate_stack_read_value
+                                     ))
+
+        ## annotating the preconstrined stack pointer
+        actual_stack_end = initial_input_state.solver.eval(initial_input_state.regs.sp)
+        initial_input_state.regs.sp = initial_input_state.regs.sp.annotate(StackTouchedAnnotation(1))
+        initial_input_state.preconstrainer.preconstrain(actual_stack_end, initial_input_state.regs.sp)
 
 
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
