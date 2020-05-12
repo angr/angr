@@ -657,6 +657,8 @@ class JumpTableResolver(IndirectJumpResolver):
         Find the location of the final Load statement that loads indirect jump targets from the jump table.
         """
 
+        # pylint:disable=no-else-continue
+
         # shorthand
         project = self.project
 
@@ -1203,7 +1205,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return jump_table, min_jumptable_addr, load_size, total_cases * load_size, all_targets
 
-    def _try_resolve_targets_ite(self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp):
+    def _try_resolve_targets_ite(self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp):  # pylint:disable=unused-argument
         """
         Try loading all jump targets from parsing an ITE block.
         """

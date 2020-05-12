@@ -512,7 +512,7 @@ class SimState(PluginHub):
                         region.memory.replace_all(original_expr, new_expr)
                     # tmps
                     temps = self.scratch.temps
-                    for idx in range(len(temps)):
+                    for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
                         t = temps[idx]
                         if t is None:
                             continue
