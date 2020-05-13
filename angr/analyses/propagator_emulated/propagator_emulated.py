@@ -253,9 +253,6 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def _run_on_node(self, node, abstract_state):
         print("Constant-prop: "+str(node))
-        if node.addr == 0x400634:
-            import pdb
-            pdb.set_trace()
         concrete_state = abstract_state.get_concrete_state(node.addr)
         node.input_state = concrete_state
         if concrete_state is None:
