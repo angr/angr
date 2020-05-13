@@ -1116,6 +1116,105 @@ public:
 		mem_writes.push_back(record);
 	}
 
+	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, uint64_t address) {
+		block_taint_entry_t block_taint_entry;
+
+		for (int i = 0; i < vex_block->stmts_used; i++) {
+			uint64_t curr_instr_addr;
+			auto stmt = vex_block->stmts[i];
+			switch (stmt->tag) {
+				case Ist_Put:
+				{
+					taint_entity_t sink;
+					std::unordered_set<taint_entity_t> srcs;
+
+					sink.entity_type = TAINT_ENTITY_REG;
+					sink.instr_addr = curr_instr_addr;
+					sink.reg_id = stmt->Ist.Put.offset;
+					srcs = get_taint_sources(stmt->Ist.Put.data);
+					if (srcs.size() > 0) {
+						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
+					}
+					break;
+				}
+				case Ist_WrTmp:
+				{
+					taint_entity_t sink;
+					std::unordered_set<taint_entity_t> srcs;
+
+					sink.entity_type = TAINT_ENTITY_TMP;
+					sink.instr_addr = curr_instr_addr;
+					sink.tmp_id = stmt->Ist.WrTmp.tmp;
+					srcs = get_taint_sources(stmt->Ist.WrTmp.data);
+					if (srcs.size() > 0) {
+						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
+					}
+					break;
+				}
+				case Ist_Store:
+				{
+					taint_entity_t sink;
+					std::unordered_set<taint_entity_t> srcs;
+
+					sink.entity_type = TAINT_ENTITY_MEM;
+					sink.instr_addr = curr_instr_addr;
+					auto temp = get_taint_sources(stmt->Ist.Store.addr);
+					sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
+					srcs = get_taint_sources(stmt->Ist.Store.data);
+					if (srcs.size() > 0) {
+						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
+					}
+					break;
+				}
+				case Ist_Exit:
+				{
+					block_taint_entry.exit_stmt_guard_expr_deps = get_taint_sources(stmt->Ist.Exit.guard);
+					break;
+				}
+				case Ist_IMark:
+					curr_instr_addr = stmt->Ist.IMark.addr;
+					break;
+				case Ist_PutI:
+				{
+					assert(false && "PutI statements not yet supported!");
+				}
+				case Ist_StoreG:
+				{
+					assert(false && "StoreG statements not yet supported!");
+				}
+				case Ist_LoadG:
+				{
+					assert(false && "LoadG statements not yet supported!");
+				}
+				case Ist_CAS:
+				{
+					assert(false && "CAS statements not yet supported!");
+				}
+				case Ist_LLSC:
+				{
+					assert(false && "LLSC statements not yet supported!");
+				}
+				case Ist_Dirty:
+				{
+					assert(false && "Dirty statements not yet supported!");
+				}
+				case Ist_MBE:
+				case Ist_NoOp:
+				case Ist_AbiHint:
+					break;
+				default:
+				{
+					std::stringstream ss;
+					ss << "Block addr: 0x" << std::hex << address << std::dec;
+					ss << ", Statement index: " << i << ", Statement type: " << stmt->tag;
+					LOG_D("%s", ss.str().c_str());
+					assert(false && "Unsupported statement type encountered! See debug log.");
+				}
+			}
+		}
+		return block_taint_entry;
+	}
+
 	std::unordered_set<taint_entity_t> get_taint_sources(IRExpr *expr) {
 		std::unordered_set<taint_entity_t> sources;
 		switch (expr->tag) {
@@ -1377,101 +1476,7 @@ public:
 				// TODO: abort unicorn engine?
 				return;
 			}
-			// Compute taint map
-			IRSB *vex_block = lift_ret->irsb;
-			for (int i = 0; i < vex_block->stmts_used; i++) {
-				uint64_t curr_instr_addr;
-				auto stmt = vex_block->stmts[i];
-				switch (stmt->tag) {
-					case Ist_Put:
-					{
-						taint_entity_t sink;
-						std::unordered_set<taint_entity_t> srcs;
-
-						sink.entity_type = TAINT_ENTITY_REG;
-						sink.instr_addr = curr_instr_addr;
-						sink.reg_id = stmt->Ist.Put.offset;
-						srcs = get_taint_sources(stmt->Ist.Put.data);
-						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
-						}
-						break;
-					}
-					case Ist_WrTmp:
-					{
-						taint_entity_t sink;
-						std::unordered_set<taint_entity_t> srcs;
-
-						sink.entity_type = TAINT_ENTITY_TMP;
-						sink.instr_addr = curr_instr_addr;
-						sink.tmp_id = stmt->Ist.WrTmp.tmp;
-						srcs = get_taint_sources(stmt->Ist.WrTmp.data);
-						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
-						}
-						break;
-					}
-					case Ist_Store:
-					{
-						taint_entity_t sink;
-						std::unordered_set<taint_entity_t> srcs;
-
-						sink.entity_type = TAINT_ENTITY_MEM;
-						sink.instr_addr = curr_instr_addr;
-						auto temp = get_taint_sources(stmt->Ist.Store.addr);
-						sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
-						srcs = get_taint_sources(stmt->Ist.Store.data);
-						if (srcs.size() > 0) {
-							block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
-						}
-						break;
-					}
-					case Ist_Exit:
-					{
-						block_taint_entry.exit_stmt_guard_expr_deps = get_taint_sources(stmt->Ist.Exit.guard);
-						break;
-					}
-					case Ist_IMark:
-						curr_instr_addr = stmt->Ist.IMark.addr;
-						break;
-					case Ist_PutI:
-					{
-						assert(false && "PutI statements not yet supported!");
-					}
-					case Ist_StoreG:
-					{
-						assert(false && "StoreG statements not yet supported!");
-					}
-					case Ist_LoadG:
-					{
-						assert(false && "LoadG statements not yet supported!");
-					}
-					case Ist_CAS:
-					{
-						assert(false && "CAS statements not yet supported!");
-					}
-					case Ist_LLSC:
-					{
-						assert(false && "LLSC statements not yet supported!");
-					}
-					case Ist_Dirty:
-					{
-						assert(false && "Dirty statements not yet supported!");
-					}
-					case Ist_MBE:
-					case Ist_NoOp:
-					case Ist_AbiHint:
-						break;
-					default:
-					{
-						std::stringstream ss;
-						ss << "Block addr: 0x" << std::hex << address << std::dec;
-						ss << ", Statement index: " << i << ", Statement type: " << stmt->tag;
-						LOG_D("%s", ss.str().c_str());
-						assert(false && "Unsupported statement type encountered! See debug log.");
-					}
-				}
-			}
+			block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, address);
 			// Add entry to taint relations cache
 			block_taint_cache.emplace(address, block_taint_entry);
 		}
