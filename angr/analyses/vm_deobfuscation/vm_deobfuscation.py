@@ -114,6 +114,11 @@ class VMDeobfuscation(Analysis):
 
         return new_model
 
+    def annotate_and_preconstrain_sp(self, start_state):
+        actual_stack_end = start_state.solver.eval(start_state.regs.sp)
+        start_state.regs.sp = start_state.solver.BVS("precon_sp", 64)
+        start_state.regs.sp = start_state.regs.sp.annotate(StackTouchedAnnotation(1))
+        start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
     def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr):
         logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
@@ -127,10 +132,7 @@ class VMDeobfuscation(Analysis):
         start_state = proj.factory.blank_state(addr=start_addr,
                                                add_options={angr.sim_options.REPLACEMENT_SOLVER,
                                                               angr.sim_options.DO_CCALLS})
-        ## annotating the preconstrined stack pointer
-        actual_stack_end = start_state.solver.eval(start_state.regs.sp)
-        start_state.regs.sp = start_state.regs.sp.annotate(StackTouchedAnnotation(1))
-        start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
+        self.annotate_and_preconstrain_sp(start_state)
 
         cfg = proj.analyses.CFGEmulated(fail_fast=True,
                                         data_sensitive=True ,
@@ -169,11 +171,8 @@ class VMDeobfuscation(Analysis):
                                          action=annotate_stack_read_value
                                      ))
 
-        ## annotating the preconstrined stack pointer
-        actual_stack_end = initial_input_state.solver.eval(initial_input_state.regs.sp)
-        initial_input_state.regs.sp = initial_input_state.regs.sp.annotate(StackTouchedAnnotation(1))
-        initial_input_state.preconstrainer.preconstrain(actual_stack_end, initial_input_state.regs.sp)
-
+        ## annotating and preconstraining the stack pointer
+        self.annotate_and_preconstrain_sp(initial_input_state)
 
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         ## find the replacements
@@ -334,7 +333,7 @@ class VMDeobfuscation(Analysis):
                         print(stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
                         print(ddg._stmt_graph.out_edges([location]))
                         new_stmts.append(stmt)
-                    ## check if there's a Store from a symbolic memory address
+                    ### check if there's a Store from a symbolic memory address
                     elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
                         new_stmts.append(stmt)
 
@@ -346,7 +345,7 @@ class VMDeobfuscation(Analysis):
                     to_remove = False
                     for pred in preds:
                         pred_edge_data = cfg.graph.get_edge_data(pred, node)
-                        ### Rassigning the next expression of the previous
+                        ### Reassigning the next expression of the previous
                         if not pred.is_simprocedure:
                             cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
                             pred.irsb.next = node.irsb.next
@@ -367,6 +366,9 @@ class VMDeobfuscation(Analysis):
                     print("DCE version")
                     print(node.irsb.pp())
                     print("\n")
+                    if node.addr == 0x400634:
+                        import pdb
+                        pdb.set_trace()
             else:
                 print("This is a SimProcedure")
                 print(node)
