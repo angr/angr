@@ -1783,7 +1783,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->stop(STOP_SYMBOLIC_REG);
 		//LOG_I("finishing early at address %#lx", address);
 	}
-	state->set_previous_block_addr(address);
+	state->set_previous_block_address(address);
 }
 
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
