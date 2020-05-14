@@ -110,8 +110,6 @@ struct std::hash<taint_entity_t> {
 typedef enum stop {
 	STOP_NORMAL=0,
 	STOP_STOPPOINT,
-	STOP_SYMBOLIC_MEM,
-	STOP_SYMBOLIC_REG,
 	STOP_ERROR,
 	STOP_SYSCALL,
 	STOP_EXECNONE,
@@ -121,6 +119,10 @@ typedef enum stop {
 	STOP_ZERO_DIV,
 	STOP_NODECODE,
 	STOP_HLT,
+	STOP_VEX_LIFT_FAILED,
+	STOP_SYMBOLIC_CONDITION,
+	STOP_SYMBOLIC_READ_ADDR,
+	STOP_SYMBOLIC_WRITE_ADDR,
 } stop_t;
 
 typedef struct block_entry {
@@ -392,12 +394,6 @@ public:
 			case STOP_STOPPOINT:
 				msg = "hit a stop point";
 				break;
-			case STOP_SYMBOLIC_MEM:
-				msg = "read symbolic data";
-				break;
-			case STOP_SYMBOLIC_REG:
-				msg = "going to try to read symbolic reg";
-				break;
 			case STOP_ERROR:
 				msg = "something wrong";
 				break;
@@ -422,6 +418,18 @@ public:
 				break;
 			case STOP_NODECODE:
 				msg = "instruction decoding error";
+				break;
+			case STOP_VEX_LIFT_FAILED:
+				msg = "failed to lift block to VEX";
+				break;
+			case STOP_SYMBOLIC_CONDITION:
+				msg = "symbolic condition for ITE or Exit";
+				break;
+			case STOP_SYMBOLIC_READ_ADDR:
+				msg = "attempted to read from symbolic address";
+				break;
+			case STOP_SYMBOLIC_WRITE_ADDR:
+				msg = "attempted to write to symbolic address";
 				break;
 			default:
 				msg = "unknown error";
@@ -1503,7 +1511,8 @@ public:
 			);
 
 			if (lift_ret == NULL) {
-				// TODO: abort unicorn engine?
+				// Failed to lift block to VEX. Stop concrete execution
+				stop(STOP_VEX_LIFT_FAILED);
 				return;
 			}
 			block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, address);
@@ -1525,7 +1534,8 @@ public:
 				if (ite_cond_taint_status.depends_on_read_from_concrete_addr ||
 					ite_cond_taint_status.depends_on_read_from_symbolic_addr ||
 					ite_cond_taint_status.is_symbolic) {
-						// TODO: Stop concrete execution
+						stop(STOP_SYMBOLIC_CONDITION);
+						return;
 				}
 			}
 			if (taint_sink.entity_type == TAINT_ENTITY_NONE) {
@@ -1538,11 +1548,13 @@ public:
 				if (addr_taint_status.depends_on_read_from_concrete_addr ||
 					addr_taint_status.depends_on_read_from_symbolic_addr ||
 					addr_taint_status.is_symbolic) {
-						// TODO: Stop concrete execution
+						stop(STOP_SYMBOLIC_WRITE_ADDR);
+						return;
 				}
 				auto sink_taint_status = get_final_taint_status(taint_srcs);
 				if (sink_taint_status.depends_on_read_from_symbolic_addr) {
-					// TODO: Stop concrete execution
+					stop(STOP_SYMBOLIC_READ_ADDR);
+					return;
 				}
 				else if (sink_taint_status.is_symbolic) {
 					// Save the memory location written to be marked as symbolic in write hook
@@ -1575,7 +1587,8 @@ public:
 			else {
 				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
 				if (final_taint_status.depends_on_read_from_symbolic_addr) {
-					// TODO: Stop concrete execution
+					stop(STOP_SYMBOLIC_READ_ADDR);
+					return;
 				}
 				else if (final_taint_status.is_symbolic) {
 					mark_register_temp_symbolic(taint_sink, true);
@@ -1773,16 +1786,17 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 	}
 	state->commit();
 	if (state->is_symbolic_exit_guard_previous_block()) {
-		// TODO: stop concrete execution
+		// TODO: Save exit statement instruction address as to be executed symbolically
+		stop(STOP_SYMBOLIC_CONDITION);
+		return;
 	}
 	state->step(address, size);
 
-	state->propagate_taints(address, size);
-
-	if (!state->stopped && !state->check_block(address, size)) {
-		state->stop(STOP_SYMBOLIC_REG);
-		//LOG_I("finishing early at address %#lx", address);
+	// TODO: step does some execution tracking which has to be undone if taint propagation fails
+	if (!state->stopped) {
+		state->propagate_taints(address, size);
 	}
+
 	state->set_previous_block_address(address);
 }
 
