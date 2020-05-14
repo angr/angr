@@ -10,8 +10,9 @@ from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLoca
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
-from ...knowledge_plugins.key_definitions.live_definitions import LiveDefinitions, Definition
+from ...knowledge_plugins.key_definitions.live_definitions import Definition
 from .external_codeloc import ExternalCodeLocation
+from .rd_state import ReachingDefinitionsState
 
 l = logging.getLogger(name=__name__)
 
@@ -28,7 +29,7 @@ class SimEngineRDAIL(
         self._function_handler = function_handler
         self._visited_blocks = None
 
-        self.state: LiveDefinitions
+        self.state: ReachingDefinitionsState
 
     def process(self, state, *args, **kwargs):
         self._visited_blocks = kwargs.pop('visited_blocks', None)
@@ -475,7 +476,6 @@ class SimEngineRDAIL(
                 is_updated, state = getattr(self._function_handler, handler_name)(self.state, ip_addr,
                                                                                   self._current_local_call_depth + 1,
                                                                                   self._maximum_local_call_depth)
-                state: LiveDefinitions
                 if is_updated is True:
                     self.state = state
             else:
