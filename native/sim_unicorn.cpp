@@ -229,6 +229,8 @@ private:
 	//std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
+	uint64_t prev_block_addr;
+
 public:
 	std::vector<uint64_t> bbl_addrs;
 	std::vector<uint64_t> stack_pointers;
@@ -1649,6 +1651,24 @@ public:
 		}
 	}
 
+	bool is_symbolic_exit_guard_previous_block() {
+		block_taint_entry_t prev_block_taint_entry = block_taint_cache.at(prev_block_addr);
+		auto prev_block_exit_guard_taint_status = get_final_taint_status(prev_block_taint_entry.exit_stmt_guard_expr_deps);
+		// Since this checks the exit condition of the previous block, that means the previous block
+		// was executed correctly: there was no memory read from a symbolic address. Hence, it is
+		// sufficient to check if the guard status is symbolic.
+		// (This is also why commit can be invoked before this: we need to check regs and temps)
+		if (prev_block_exit_guard_taint_status.is_symbolic) {
+			return true;
+		}
+		return false;
+	}
+
+	void set_previous_block_address(uint64_t address) {
+		prev_block_addr = address;
+		return;
+	}
+
 	inline unsigned int arch_sp_reg() {
 		switch (arch) {
 			case UC_ARCH_X86:
@@ -1752,6 +1772,9 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		return;
 	}
 	state->commit();
+	if (state->is_symbolic_exit_guard_previous_block()) {
+		// TODO: stop concrete execution
+	}
 	state->step(address, size);
 
 	state->propagate_taints(address, size);
@@ -1760,6 +1783,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->stop(STOP_SYMBOLIC_REG);
 		//LOG_I("finishing early at address %#lx", address);
 	}
+	state->set_previous_block_addr(address);
 }
 
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
