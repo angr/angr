@@ -134,6 +134,7 @@ typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>
 typedef struct block_taint_entry_t {
 	taint_vector_t taint_sink_src_data;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
+	std::unordered_map<uint64_t, std::unordered_set<taint_entity_t>> ite_cond_map;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (taint_sink_src_data == other_entry.taint_sink_src_data);
@@ -211,6 +212,11 @@ private:
 	// List of all taint propagations depending on a memory read in a single block
 	// Memory read instruction address -> (List of entities depending on the read, is read processed)
 	std::unordered_map<uint64_t, std::pair<std::vector<taint_entity_t>, bool>> mem_reads_taint_dst_map;
+
+	// List of all conditions in ITE expressions in a block. Intermediate variable: finally cached
+	// along with taint sink-source relations of a block
+	// Instruction address -> Set of taint entitites on which ITE condition depends on
+	std::unordered_map<uint64_t, std::unordered_set<taint_entity_t>> temp_ite_cond_map;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -1131,7 +1137,7 @@ public:
 					sink.entity_type = TAINT_ENTITY_REG;
 					sink.instr_addr = curr_instr_addr;
 					sink.reg_id = stmt->Ist.Put.offset;
-					srcs = get_taint_sources(stmt->Ist.Put.data);
+					srcs = get_taint_sources(stmt->Ist.Put.data, curr_instr_addr);
 					if (srcs.size() > 0) {
 						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
 					}
@@ -1145,7 +1151,7 @@ public:
 					sink.entity_type = TAINT_ENTITY_TMP;
 					sink.instr_addr = curr_instr_addr;
 					sink.tmp_id = stmt->Ist.WrTmp.tmp;
-					srcs = get_taint_sources(stmt->Ist.WrTmp.data);
+					srcs = get_taint_sources(stmt->Ist.WrTmp.data, curr_instr_addr);
 					if (srcs.size() > 0) {
 						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
 					}
@@ -1158,9 +1164,9 @@ public:
 
 					sink.entity_type = TAINT_ENTITY_MEM;
 					sink.instr_addr = curr_instr_addr;
-					auto temp = get_taint_sources(stmt->Ist.Store.addr);
+					auto temp = get_taint_sources(stmt->Ist.Store.addr, curr_instr_addr);
 					sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
-					srcs = get_taint_sources(stmt->Ist.Store.data);
+					srcs = get_taint_sources(stmt->Ist.Store.data, curr_instr_addr);
 					if (srcs.size() > 0) {
 						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
 					}
@@ -1168,7 +1174,7 @@ public:
 				}
 				case Ist_Exit:
 				{
-					block_taint_entry.exit_stmt_guard_expr_deps = get_taint_sources(stmt->Ist.Exit.guard);
+					block_taint_entry.exit_stmt_guard_expr_deps = get_taint_sources(stmt->Ist.Exit.guard, curr_instr_addr);
 					break;
 				}
 				case Ist_IMark:
@@ -1212,10 +1218,12 @@ public:
 				}
 			}
 		}
+		block_taint_entry.ite_cond_map = temp_ite_cond_map;
+		temp_ite_cond_map.clear();
 		return block_taint_entry;
 	}
 
-	std::unordered_set<taint_entity_t> get_taint_sources(IRExpr *expr) {
+	std::unordered_set<taint_entity_t> get_taint_sources(IRExpr *expr, uint64_t instr_addr) {
 		std::unordered_set<taint_entity_t> sources;
 		switch (expr->tag) {
 			case Iex_RdTmp:
@@ -1236,49 +1244,53 @@ public:
 			}
 			case Iex_Unop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Unop.arg);
+				auto temp = get_taint_sources(expr->Iex.Unop.arg, instr_addr);
 				sources.insert(temp.begin(), temp.end());
 				break;
 			}
 			case Iex_Binop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Binop.arg1);
+				auto temp = get_taint_sources(expr->Iex.Binop.arg1, instr_addr);
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Binop.arg2);
+				temp = get_taint_sources(expr->Iex.Binop.arg2, instr_addr);
 				sources.insert(temp.begin(), temp.end());
 				break;
 			}
 			case Iex_Triop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Triop.details->arg1);
+				auto temp = get_taint_sources(expr->Iex.Triop.details->arg1, instr_addr);
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Triop.details->arg2);
+				temp = get_taint_sources(expr->Iex.Triop.details->arg2, instr_addr);
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Triop.details->arg3);
+				temp = get_taint_sources(expr->Iex.Triop.details->arg3, instr_addr);
 				sources.insert(temp.begin(), temp.end());
 				break;
 			}
 			case Iex_Qop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Qop.details->arg1);
+				auto temp = get_taint_sources(expr->Iex.Qop.details->arg1, instr_addr);
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Qop.details->arg2);
+				temp = get_taint_sources(expr->Iex.Qop.details->arg2, instr_addr);
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Qop.details->arg3);
+				temp = get_taint_sources(expr->Iex.Qop.details->arg3, instr_addr);
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Qop.details->arg4);
+				temp = get_taint_sources(expr->Iex.Qop.details->arg4, instr_addr);
 				sources.insert(temp.begin(), temp.end());
 				break;
 			}
 			case Iex_ITE:
 			{
-				// TODO: The condition should be somehow stored separately to jump back to angr
-				// if it's symbolic
-				auto temp = get_taint_sources(expr->Iex.ITE.cond);
+				auto temp = get_taint_sources(expr->Iex.ITE.cond, instr_addr);
+				if (temp_ite_cond_map.find(instr_addr) == temp_ite_cond_map.end()) {
+					temp_ite_cond_map.emplace(instr_addr, temp);
+				}
+				else {
+					temp_ite_cond_map.at(instr_addr).insert(temp.begin(), temp.end());
+				}
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.ITE.iffalse);
+				temp = get_taint_sources(expr->Iex.ITE.iffalse, instr_addr);
 				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.ITE.iftrue);
+				temp = get_taint_sources(expr->Iex.ITE.iftrue, instr_addr);
 				sources.insert(temp.begin(), temp.end());
 				break;
 			}
@@ -1286,14 +1298,14 @@ public:
 			{
 				IRExpr **ccall_args = expr->Iex.CCall.args;
 				for (uint64_t i = 0; ccall_args[i]; i++) {
-					auto temp = get_taint_sources(ccall_args[i]);
+					auto temp = get_taint_sources(ccall_args[i], instr_addr);
 					sources.insert(temp.begin(), temp.end());
 				}
 				break;
 			}
 			case Iex_Load:
 			{
-				auto temp = get_taint_sources(expr->Iex.Load.addr);
+				auto temp = get_taint_sources(expr->Iex.Load.addr, instr_addr);
 				taint_entity_t source;
 				source.entity_type = TAINT_ENTITY_MEM;
 				source.mem_ref_entity_list.assign(temp.begin(), temp.end());
@@ -1489,6 +1501,15 @@ public:
 		for (auto taint_data_entry: block_taint_entry.taint_sink_src_data) {
 			auto taint_sink = taint_data_entry.first;
 			auto taint_srcs = taint_data_entry.second;
+			auto taint_sink_ite_conds_it = block_taint_entry.ite_cond_map.find(taint_sink.instr_addr);
+			if (taint_sink_ite_conds_it != block_taint_entry.ite_cond_map.end()) {
+				auto ite_cond_taint_status = get_final_taint_status(taint_sink_ite_conds_it->second);
+				if (ite_cond_taint_status.depends_on_read_from_concrete_addr ||
+					ite_cond_taint_status.depends_on_read_from_symbolic_addr ||
+					ite_cond_taint_status.is_symbolic) {
+						// TODO: Stop concrete execution
+				}
+			}
 			if (taint_sink.entity_type == TAINT_ENTITY_NONE) {
 				// No taint propagation needed
 				continue;
