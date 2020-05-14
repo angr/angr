@@ -333,7 +333,7 @@ class CFGBase(Analysis):
             raise ValueError("%r is not in CFG." % block_to)
 
         if block_to not in self.graph[block_from]:
-            raise ValueError("Edge %r->%r does not exist." % (block_from, block_tu))
+            raise ValueError("Edge %r->%r does not exist." % (block_from, block_to))
 
         self.graph.remove_edge(block_from, block_to)
 
