@@ -258,11 +258,13 @@ class SimEngineRDVEX(
 
     def _load_core(self, addr: Iterable[Union[int,SpOffset]], size: int, endness: str):  # pylint:disable=unused-argument
 
+        current_defs: Iterable[Definition]
+
         data = set()
         for a in addr:
             if isinstance(a, int):
                 # Load data from a global region
-                current_defs: Iterable[Definition] = self.state.memory_definitions.get_objects_by_offset(a)
+                current_defs = self.state.memory_definitions.get_objects_by_offset(a)
                 if current_defs:
                     for current_def in current_defs:
                         data.update(current_def.data)
@@ -279,7 +281,7 @@ class SimEngineRDVEX(
                 self.state.add_use(memory_location, self._codeloc())
             elif isinstance(a, SpOffset) and isinstance(a.offset, int):
                 # Load data from a local variable
-                current_defs: Iterable[Definition] = self.state.stack_definitions.get_objects_by_offset(a.offset)
+                current_defs = self.state.stack_definitions.get_objects_by_offset(a.offset)
                 if current_defs:
                     for def_ in current_defs:
                         data.update(def_.data)
