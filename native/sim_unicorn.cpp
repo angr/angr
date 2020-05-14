@@ -489,6 +489,22 @@ public:
 		// clear memory rollback status
 		mem_writes.clear();
 		cur_steps++;
+
+		// Sync all block level taint statuses reads with state's taint statuses
+		for (auto &reg_id: block_symbolic_registers) {
+			mark_register_symbolic(reg_id, false);
+		}
+		for (auto &reg_id: block_concrete_registers) {
+			mark_register_concrete(reg_id, false);
+		}
+		for (auto &temp_id: block_symbolic_temps) {
+			mark_temp_symbolic(temp_id, false);
+		}
+		// Clear all block level taint status trackers
+		block_symbolic_registers.clear();
+		block_concrete_registers.clear();
+		block_symbolic_temps.clear();
+		return;
 	}
 
 	/*
@@ -1585,23 +1601,6 @@ public:
 				}
 			}
 		}
-
-		// At this point, we know there is no read from/write to a symbolic memory address and so
-		// we can execute this block. Let's sync all block level taint statuses and pending memory
-		// reads with state's taint statuses and memory reads tracker
-		for (auto &reg_id: block_symbolic_registers) {
-			mark_register_symbolic(reg_id, false);
-		}
-		for (auto &reg_id: block_concrete_registers) {
-			mark_register_concrete(reg_id, false);
-		}
-		for (auto &temp_id: block_symbolic_temps) {
-			mark_temp_symbolic(temp_id, false);
-		}
-		// Clear all block level taint status trackers since they've been added to state's trackers.
-		block_symbolic_registers.clear();
-		block_concrete_registers.clear();
-		block_symbolic_temps.clear();
 		return;
 	}
 
