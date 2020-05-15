@@ -168,9 +168,9 @@ class SimEnginePropagatorAIL(
         return expr
 
     def _ail_handle_ITE(self, expr: Expr.ITE):
-        cond = self._expr(expr.cond)
-        iftrue = self._expr(expr.iftrue)
-        iffalse = self._expr(expr.iffalse)
+        cond = self._expr(expr.cond)  # pylint:disable=unused_variable
+        iftrue = self._expr(expr.iftrue)  # pylint:disable=unused_variable
+        iffalse = self._expr(expr.iffalse)  # pylint:disable=unused_variable
 
         return expr
 

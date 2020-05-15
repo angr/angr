@@ -107,9 +107,9 @@ class SimEngineRDAIL(
         addr: Iterable[Union[int,SpOffset,Undefined]] = self._expr(stmt.addr)
         size: int = stmt.size
         if stmt.guard is not None:
-            guard = self._expr(stmt.guard)
+            guard = self._expr(stmt.guard)  # pylint:disable=unused-variable
         else:
-            guard = None
+            guard = None  # pylint:disable=unused-variable
 
         for a in addr:
             if type(a) is Undefined:
@@ -298,11 +298,11 @@ class SimEngineRDAIL(
         size = expr.size
         bits = expr.bits
         if expr.guard is not None:
-            guard = self._expr(expr.guard)
-            alt = self._expr(expr.alt)
+            guard = self._expr(expr.guard)  # pylint:disable=unused-variable
+            alt = self._expr(expr.alt)  # pylint:disable=unused-variable
         else:
-            guard = None
-            alt = None
+            guard = None  # pylint:disable=unused-variable
+            alt = None  # pylint:disable=unused-variable
 
         data = set()
         for addr in addrs:

@@ -301,7 +301,7 @@ def test_decompiling_libsoap():
         print(code)
         assert code
     else:
-        print("Failed to decompile function %r." % f)
+        print("Failed to decompile function %r." % func)
         assert False
 
 

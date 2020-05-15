@@ -282,9 +282,9 @@ class PropagatorAILState(PropagatorState):
             super().add_replacement(codeloc, old, new)
         else:
             # eliminate the past propagation of this expression
-            for codeloc in self._replacements:
-                if old in self._replacements[codeloc]:
-                    del self._replacements[codeloc][old]
+            for codeloc_ in self._replacements:
+                if old in self._replacements[codeloc_]:
+                    del self._replacements[codeloc_][old]
 
     def filter_replacements(self):
 

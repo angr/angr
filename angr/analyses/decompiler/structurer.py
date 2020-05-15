@@ -663,8 +663,8 @@ class Structurer(Analysis):
 
         return True
 
-    def _make_switch_cases_core(self, seq, i, node, cmp_expr, cases, node_default, addr, addr2nodes, to_remove,
-                                node_a=None):
+    @staticmethod
+    def _make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, addr, addr2nodes, to_remove, node_a=None):
 
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
         scnode = CodeNode(scnode, node.reaching_condition)
