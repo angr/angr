@@ -164,6 +164,12 @@ class SimEngineVRAIL(
             SpOffset(self.arch.bits, expr.offset, is_base=False)
         )
 
+    def _ail_handle_ITE(self, expr: ailment.Expr.ITE):
+        # pylint:disable=unused-variable
+        cond = self._expr(expr.cond)
+        r0 = self._expr(expr.iftrue)
+        r1 = self._expr(expr.iffalse)
+
     def _ail_handle_Cmp(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])

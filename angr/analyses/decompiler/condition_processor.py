@@ -367,7 +367,7 @@ class ConditionProcessor:
             return target_ast == dst_block.addr
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
             bool_var = self.claripy_ast_from_ail_condition(last_stmt.condition)
-            if last_stmt.true_target.value == dst_block.addr:
+            if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
             else:
                 return claripy.Not(bool_var)
@@ -491,7 +491,8 @@ class ConditionProcessor:
             'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
         }
 
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset)):
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
+                                  ailment.Expr.ITE)):
             var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
