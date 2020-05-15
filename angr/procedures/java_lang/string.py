@@ -59,7 +59,7 @@ class StringSplit(JavaSimProcedure):
             str_array = SimSootExpr_NewArray.new_array(self.state, 'java.lang.String', claripy.BVV(len(values), 32))
 
             for idx, value in enumerate(values):
-                value_ref = SimSootValue_StringRef.new_string(self.state, claripy.StringV(value))
+                value_ref = SimSootValue_StringRef.new_object(self.state, claripy.StringV(value))
                 elem_ref = SimSootValue_ArrayRef(str_array, idx)
                 self.state.memory.store(elem_ref, value_ref)
 
@@ -79,7 +79,7 @@ class StringLength(JavaSimProcedure):
     def run(self, this_str):
         log.debug('Called SimProcedure java.lang.String.length with args: {}'.format(this_str))
 
-        return claripy.StrLen(self.state.memory.load(this_str), 32)
+        return this_str.get_field(self.state, 'length', 'int')
 
 
 class StringCharAt(JavaSimProcedure):
@@ -92,4 +92,4 @@ class StringCharAt(JavaSimProcedure):
         log.debug('Called SimProcedure java.lang.String.charAt with args: {} {}'.format(this_str, index))
 
         char_str = claripy.StrSubstr(index, claripy.BVV(1, 32), self.state.memory.load(this_str))
-        return SimSootValue_StringRef.new_string(self.state, char_str)
+        return SimSootValue_StringRef.new_object(self.state, char_str)

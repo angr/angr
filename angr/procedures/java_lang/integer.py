@@ -35,7 +35,7 @@ class IntegerToString(JavaSimProcedure):
 
     def run(self, int_val):
         log.debug('Called SimProcedure java.lang.Integer.toString with args: {}'.format(int_val))
-        return SimSootValue_StringRef.new_string(self.state, claripy.IntToStr(int_val))
+        return SimSootValue_StringRef.new_object(self.state, claripy.IntToStr(int_val))
 
 
 class IntegerValueOf(JavaSimProcedure):

@@ -55,7 +55,7 @@ class SimSootValue_ThisRef(SimSootValue):
             self.attributes.add((field_name, field_type))
 
         # store value in java memory
-        state.memory.store(field_ref, field_value)
+        state.javavm_memory.store(field_ref, field_value)
 
     def get_field(self, state, field_name, field_type):
         """
@@ -76,7 +76,7 @@ class SimSootValue_ThisRef(SimSootValue):
             self.attributes.add((field_name, field_type))
 
         # load value from java memory
-        return state.memory.load(field_ref, none_if_missing=True)
+        return state.javavm_memory.load(field_ref, none_if_missing=True)
 
     def store_field(self, state, field_name, field_type, value):
         """
@@ -91,7 +91,7 @@ class SimSootValue_ThisRef(SimSootValue):
         if options.JAVA_TRACK_ATTRIBUTES in state.options:
             self.attributes.add((field_name, field_type))
 
-        state.memory.store(field_ref, value)
+        state.javavm_memory.store(field_ref, value)
 
     def load_field(self, state, field_name, field_type):
         """
@@ -106,12 +106,12 @@ class SimSootValue_ThisRef(SimSootValue):
         if options.JAVA_TRACK_ATTRIBUTES in state.options:
             self.attributes.add((field_name, field_type))
 
-        return state.memory.load(field_ref, none_if_missing=False)
+        return state.javavm_memory.load(field_ref, none_if_missing=False)
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
         local = SimSootValue_Local("this", soot_value.type)
-        return state.memory.load(local, none_if_missing=True)
+        return state.javavm_memory.load(local, none_if_missing=True)
 
     @classmethod
     def new_object(cls, state, type_, symbolic=False, init_object=False, init_class=False):
@@ -124,7 +124,7 @@ class SimSootValue_ThisRef(SimSootValue):
         :return: Reference to the new object.
         """
         # create reference
-        obj_ref = cls(heap_alloc_id=state.memory.get_new_uuid(), type_=type_, symbolic=symbolic)
+        obj_ref = cls(heap_alloc_id=state.javavm_memory.get_new_uuid(), type_=type_, symbolic=symbolic)
         # run initializer
         if init_object:
             l.info(">" * 15 + " Initialize object %r ... " + ">" * 15, obj_ref)
@@ -141,7 +141,7 @@ class SimSootValue_ThisRef(SimSootValue):
             simgr = state.project.factory.simgr(init_state)
             simgr.run()
             # copy results from initialization to the state
-            state.memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
-            state.memory.heap = simgr.deadended[0].memory.heap.copy()
+            state.javavm_memory.vm_static_table = simgr.deadended[0].memory.vm_static_table.copy()
+            state.javavm_memory.heap = simgr.deadended[0].memory.heap.copy()
             l.debug("<" * 15 + " Initialize object %r ... done " + "<" * 15, obj_ref)
         return obj_ref
