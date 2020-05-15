@@ -376,7 +376,7 @@ class SimJavaVM(SimOS):
         field_ref = SimSootValue_StaticFieldRef.get_ref(state, field_class_name,
                                                         field_name, field_type)
         field_val = SimSootValue_ThisRef.new_object(state, field_type)
-        state.memory.store(field_ref, field_val)
+        state.javavm_memory.store(field_ref, field_val)
 
     @staticmethod
     def get_cmd_line_args(state):
@@ -385,8 +385,8 @@ class SimJavaVM(SimOS):
         args = []
         for idx in range(no_of_args):
             array_ref = SimSootValue_ArrayRef(args_array, idx)
-            str_ref = state.memory.load(array_ref)
-            cmd_line_arg = state.memory.load(str_ref)
+            str_ref = state.javavm_memory.load(array_ref)
+            cmd_line_arg = state.javavm_memory.load(str_ref)
             args.append(cmd_line_arg)
         return args
 

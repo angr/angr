@@ -14,7 +14,7 @@ class SimSootExpr_Cast(SimSootExpr):
     def _execute(self):
         # get value
         local = self._translate_value(self.expr.value)
-        value_uncasted = self.state.memory.load(local)
+        value_uncasted = self.state.javavm_memory.load(local)
         # cast value
         if self.expr.cast_type in ArchSoot.primitive_types:
             javavm_simos = self.state.project.simos

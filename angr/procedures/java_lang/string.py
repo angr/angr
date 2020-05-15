@@ -17,8 +17,8 @@ class StringConcat(JavaSimProcedure):
 
     def run(self, str_1_ref, str_2_ref): # pylint: disable=arguments-differ
         log.debug("Called SimProcedure java.string.concat with args: {} {}".format(str_1_ref, str_2_ref))
-        str_1 = self.state.memory.load(str_1_ref)
-        str_2 = self.state.memory.load(str_2_ref)
+        str_1 = self.state.javavm_memory.load(str_1_ref)
+        str_2 = self.state.javavm_memory.load(str_2_ref)
         result = claripy.StrConcat(str_1, str_2)
         return result
 
@@ -30,8 +30,8 @@ class StringEquals(JavaSimProcedure):
     )
 
     def run(self, str_ref_1, str_ref_2): # pylint: disable=unused-argument
-        str_1 = self.state.memory.load(str_ref_1)
-        str_2 = self.state.memory.load(str_ref_2)
+        str_1 = self.state.javavm_memory.load(str_ref_1)
+        str_2 = self.state.javavm_memory.load(str_ref_2)
         return self.state.solver.If(str_1 == str_2,
                                     self.state.solver.BVV(1, 32),
                                     self.state.solver.BVV(0, 32))
@@ -49,8 +49,8 @@ class StringSplit(JavaSimProcedure):
     def run(self, this_ref,  separator_ref):
         log.debug('Called SimProcedure java.lang.String.split with args: {}, {}'.format(this_ref, separator_ref))
         self.this_ref = this_ref
-        this = self.state.memory.load(this_ref)
-        separator = self.state.memory.load(separator_ref)
+        this = self.state.javavm_memory.load(this_ref)
+        separator = self.state.javavm_memory.load(separator_ref)
 
         if this.concrete and separator.concrete:
             # FIXME: escaping should be fixed in claripy
@@ -61,7 +61,7 @@ class StringSplit(JavaSimProcedure):
             for idx, value in enumerate(values):
                 value_ref = SimSootValue_StringRef.new_object(self.state, claripy.StringV(value))
                 elem_ref = SimSootValue_ArrayRef(str_array, idx)
-                self.state.memory.store(elem_ref, value_ref)
+                self.state.javavm_memory.store(elem_ref, value_ref)
 
         else:
             str_array = SimSootExpr_NewArray.new_array(self.state, 'java.lang.String', claripy.BVS('array_size', 32))
@@ -91,5 +91,5 @@ class StringCharAt(JavaSimProcedure):
     def run(self, this_str, index):
         log.debug('Called SimProcedure java.lang.String.charAt with args: {} {}'.format(this_str, index))
 
-        char_str = claripy.StrSubstr(index, claripy.BVV(1, 32), self.state.memory.load(this_str))
+        char_str = claripy.StrSubstr(index, claripy.BVV(1, 32), self.state.javavm_memory.load(this_str))
         return SimSootValue_StringRef.new_object(self.state, char_str)

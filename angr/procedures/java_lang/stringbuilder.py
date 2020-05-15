@@ -31,10 +31,10 @@ class StringBuilderAppend(JavaSimProcedure):
     def run(self, this_ref, thing):
         log.debug('Called SimProcedure java.lang.StringBuilder.append with args: {} {}'.format(this_ref, thing))
         field = this_ref.get_field(self.state, 'str', 'java.lang.String')
-        field_str = self.state.memory.load(field)
+        field_str = self.state.javavm_memory.load(field)
 
         if isinstance(thing, SimSootValue_StringRef):
-            thing_str = self.state.memory.load(thing)
+            thing_str = self.state.javavm_memory.load(thing)
 
         elif isinstance(thing, claripy.ast.BV):
             thing_str = claripy.IntToStr(thing)

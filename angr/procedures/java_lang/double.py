@@ -15,7 +15,7 @@ class ParseDouble(JavaSimProcedure):
 
     def run(self, str_ref):
         log.debug('Called SimProcedure java.lang.Double.parseDouble with args: {}'.format(str_ref))
-        str_ = self.state.memory.load(str_ref)
+        str_ = self.state.javavm_memory.load(str_ref)
 
         if str_.concrete:
             str_value = self.state.solver.eval(str_)

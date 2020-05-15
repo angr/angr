@@ -11,7 +11,7 @@ class SwitchBase(SimSootStmt):
     def _execute(self):
         # the key determines the selected table entry
         key = self._translate_value(self.stmt.key)
-        key_val = self.state.memory.load(key)
+        key_val = self.state.javavm_memory.load(key)
 
         # init list for taking the default jmp target
         # => this is used if the key value does not match with

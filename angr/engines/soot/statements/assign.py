@@ -27,4 +27,4 @@ class SimSootStmt_Assign(SimSootStmt):
             return
         src_val = src_expr.expr
         l.debug("Assign %r := %r", dst, src_val)
-        self.state.memory.store(dst, src_val)
+        self.state.javavm_memory.store(dst, src_val)

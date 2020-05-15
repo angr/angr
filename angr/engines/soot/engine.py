@@ -97,7 +97,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
                 param_ref = state.javavm_memory.load(SimSootValue_ParamRef(param_idx, None), none_if_missing=True)
 
             # store all function arguments in memory, starting from the last param index
-            state.memory.store(SimSootValue_ParamRef(param_idx, None), addr.method)
+            state.javavm_memory.store(SimSootValue_ParamRef(param_idx, None), addr.method)
             # STEP 4: Execute unconstrained procedure
             self.process_procedure(state, successors, procedure)
             # self._add_return_exit(state, successors)
@@ -294,14 +294,14 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         state.callstack.procedure_data = procedure_data
 
         # pop memory frame
-        state.memory.pop_stack_frame()
+        state.javavm_memory.pop_stack_frame()
 
         # save return value
         if ret_value is not None:
             l.debug("Assign %r := %r", ret_var, ret_value)
             if ret_var is not None:
                 # usually the return value is read from the previous stack frame
-                state.memory.store(ret_var, ret_value)
+                state.javavm_memory.store(ret_var, ret_value)
             else:
                 # however if we call a method from outside (e.g. project.state_call),
                 # no previous stack frame exist and the return variable is not set

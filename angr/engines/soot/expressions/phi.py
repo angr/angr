@@ -16,13 +16,13 @@ class SimSootExpr_Phi(SimSootExpr):
             if len(local_values) > 0:
                 # fastpath
                 local = local_values[0]
-                value = self.state.memory.load(local, none_if_missing=True)
+                value = self.state.javavm_memory.load(local, none_if_missing=True)
                 self.expr = value
                 return
 
         local_options = [self._translate_value(v) for v, idx in self.expr.values[::-1]]
         for local in local_options:
-            value = self.state.memory.load(local, none_if_missing=True)
+            value = self.state.javavm_memory.load(local, none_if_missing=True)
             if value is not None:
                 self.expr = value
                 return
