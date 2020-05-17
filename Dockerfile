@@ -6,6 +6,8 @@ run apt-get update &&									\
 
 run useradd -s /bin/bash -m angr
 
-run su - angr -c "git clone https://github.com/angr/angr-dev && cd angr-dev && ./setup.sh -e angr"
+run su - angr -c "git clone https://github.com/angr/angr-dev"
+cmd su - angr -c "cd angr-dev && ./setup.sh -i -e angr"
+
 run su - angr -c "echo 'workon angr' >> /home/angr/.bashrc"
 cmd su - angr
