@@ -625,22 +625,25 @@ class RegionIdentifier(Analysis):
                     graph.add_edge(src, region, **data)
                 elif src in loop_nodes:
                     subgraph.add_edge(src, dst, **data)
+                elif src is region:
+                    subgraph.add_edge(head, dst, **data)
                 else:
                     assert 0
 
             for src, dst, data in out_edges:
                 if dst in loop_nodes:
                     subgraph.add_edge(src, dst, **data)
+                elif dst is region:
+                    subgraph.add_edge(src, head, **data)
+                elif dst is normal_exit_node:
+                    region_outedges.append((node, dst))
+                    graph.add_edge(region, dst, **data)
+                elif dst in abnormal_exit_nodes:
+                    region_outedges.append((node, dst))
+                    # data['region_src_node'] = src
+                    graph.add_edge(region, dst, **data)
                 else:
-                    if dst is normal_exit_node:
-                        region_outedges.append((node, dst))
-                        graph.add_edge(region, dst, **data)
-                    elif dst in abnormal_exit_nodes:
-                        region_outedges.append((node, dst))
-                        # data['region_src_node'] = src
-                        graph.add_edge(region, dst, **data)
-                    else:
-                        assert 0
+                    assert 0
 
         subgraph_with_exits = networkx.DiGraph(subgraph)
         for src, dst in region_outedges:

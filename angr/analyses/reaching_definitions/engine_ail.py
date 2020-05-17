@@ -102,10 +102,14 @@ class SimEngineRDAIL(
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
-    def _ail_handle_Store(self, stmt):
+    def _ail_handle_Store(self, stmt: ailment.Stmt.Store):
         data: DataSet = self._expr(stmt.data)
         addr: Iterable[Union[int,SpOffset,Undefined]] = self._expr(stmt.addr)
         size: int = stmt.size
+        if stmt.guard is not None:
+            guard = self._expr(stmt.guard)  # pylint:disable=unused-variable
+        else:
+            guard = None  # pylint:disable=unused-variable
 
         for a in addr:
             if type(a) is Undefined:
@@ -223,6 +227,22 @@ class SimEngineRDAIL(
         # We don't add sp since stack pointers are supposed to be get rid of in AIL. this is definitely a hack though
         # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8), codeloc)
 
+    def _ail_handle_DirtyStatement(self, stmt: ailment.Stmt.DirtyStatement):
+        # TODO: The logic below is subject to change when ailment.Stmt.DirtyStatement is changed
+        tmp = stmt.dirty_stmt.dst
+        cvt_sizes = {
+            'ILGop_IdentV128': 16,
+            'ILGop_Ident64': 8,
+            'ILGop_Ident32': 4,
+            'ILGop_16Uto32': 4,
+            'ILGop_16Sto32': 4,
+            'ILGop_8Uto32': 4,
+            'ILGop_8Sto32': 4,
+        }
+        size = cvt_sizes[stmt.dirty_stmt.cvt]
+        self.state.kill_and_add_definition(Tmp(tmp, size), self._codeloc(), None)
+        self.tmps[tmp] = None
+
     #
     # AIL expression handlers
     #
@@ -273,10 +293,16 @@ class SimEngineRDAIL(
         except KeyError:
             return DataSet(RegisterOffset(bits, reg_offset, 0), bits)
 
-    def _ail_handle_Load(self, expr):
+    def _ail_handle_Load(self, expr: ailment.Expr.Load):
         addrs = self._expr(expr.addr)
         size = expr.size
         bits = expr.bits
+        if expr.guard is not None:
+            guard = self._expr(expr.guard)  # pylint:disable=unused-variable
+            alt = self._expr(expr.alt)  # pylint:disable=unused-variable
+        else:
+            guard = None  # pylint:disable=unused-variable
+            alt = None  # pylint:disable=unused-variable
 
         data = set()
         for addr in addrs:
@@ -358,6 +384,12 @@ class SimEngineRDAIL(
             r = DataSet(undefined, expr.to_bits)
 
         return r
+
+    def _ail_handle_ITE(self, expr: ailment.Expr.ITE):
+        cond = self._expr(expr.cond)
+        iftrue = self._expr(expr.iftrue)
+        iffalse = self._expr(expr.iffalse)
+        return ailment.Expr.ITE(expr.idx, cond, iffalse, iftrue)
 
     def _ail_handle_BinaryOp(self, expr):
         r = super()._ail_handle_BinaryOp(expr)

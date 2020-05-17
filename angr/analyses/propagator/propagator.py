@@ -272,13 +272,19 @@ class PropagatorAILState(PropagatorState):
     def add_replacement(self, codeloc, old, new):
 
         prop_count = 0
-        if isinstance(new, ailment.Expr.Expression) and not isinstance(new, ailment.Expr.Const):
+        if not isinstance(old, ailment.Expr.Tmp) and isinstance(new, ailment.Expr.Expression) \
+                and not isinstance(new, ailment.Expr.Const):
             self._prop_count[new] += 1
             prop_count = self._prop_count[new]
 
         if prop_count <= 1:
             # we can propagate this expression
             super().add_replacement(codeloc, old, new)
+        else:
+            # eliminate the past propagation of this expression
+            for codeloc_ in self._replacements:
+                if old in self._replacements[codeloc_]:
+                    del self._replacements[codeloc_][old]
 
     def filter_replacements(self):
 

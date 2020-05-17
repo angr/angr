@@ -1046,6 +1046,30 @@ class CRegister(CExpression):
         yield str(self.reg), None
 
 
+class CITE(CExpression):
+
+    __slots__ = ('cond', 'iftrue', 'iffalse', )
+
+    def __init__(self, cond, iftrue, iffalse):
+        super().__init__()
+        self.cond = cond
+        self.iftrue = iftrue
+        self.iffalse = iffalse
+
+    @property
+    def type(self):
+        return SimTypeInt()
+
+    def c_repr_chunks(self):
+        yield "(", None
+        yield from self.cond.c_repr_chunks()
+        yield "? ", None
+        yield from self.iftrue.c_repr_chunks()
+        yield " : ", None
+        yield from self.iffalse.c_repr_chunks()
+        yield ")", None
+
+
 class CDirtyExpression(CExpression):
     """
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
@@ -1096,6 +1120,7 @@ class StructuredCodeGenerator(Analysis):
             Expr.Convert: self._handle_Expr_Convert,
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
+            Expr.ITE: self._handle_Expr_ITE,
             # SimVariables
             SimStackVariable: self._handle_Variable_SimStackVariable,
             SimRegisterVariable: self._handle_Variable_SimRegisterVariable,
@@ -1487,6 +1512,9 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Dirty(self, expr):  # pylint:disable=no-self-use
         return CDirtyExpression(expr)
+
+    def _handle_Expr_ITE(self, expr: Expr.ITE):
+        return CITE(self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse))
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
